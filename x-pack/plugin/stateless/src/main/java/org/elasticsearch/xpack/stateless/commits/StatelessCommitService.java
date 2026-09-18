@@ -3033,16 +3033,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         /// The newest VBCC that may be handed to a recovering search shard, or `null` if there is none.
         ///
-        /// A VBCC whose upload is paused by an in-progress relocation handoff will never reach the object store: the
-        /// shard transitions `RELOCATING` -> `CLOSED` and [#close()] discards it without uploading. The relocation target
-        /// then recovers at `maxGenerationToUpload` and reuses that generation for a commit of its own, with a different
-        /// internal layout, under the same blob name and the same shared-cache key (a relocation does not bump the
-        /// primary term). A search shard holding the source's commit would apply the source's byte offsets to the
-        /// target's blob and read corrupt data, so such a VBCC must never be exposed.
-        ///
-        /// Pending VBCCs at or below `maxGenerationToUpload` do still upload, because the handoff waits for them and
-        /// uploads are ordered by generation, so they remain exposable and are preferred over the last uploaded BCC.
-        ///
+        /// A VBCC whose upload is paused by an in-progress relocation handoff will never reach the object store and
+        /// should not be handed to the search shard.
         /// Note: an equivalent check on the new-commit-notification path can be found in `commitAfterRelocationStarted`
         /// within [StatelessCommitService#onCommitCreation].
         @Nullable

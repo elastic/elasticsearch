@@ -733,9 +733,7 @@ public class IndexEngine extends InternalEngine {
      */
     @Override
     protected boolean isVersionMapUnsafe(OperationPurpose purpose) {
-        return purpose == OperationPurpose.GET_FROM_TRANSLOG
-            ? super.isVersionMapUnsafe(purpose)
-            : isVersionMapCurrentUnsafe();
+        return purpose == OperationPurpose.GET_FROM_TRANSLOG ? super.isVersionMapUnsafe(purpose) : isVersionMapCurrentUnsafe();
     }
 
     // visible for testing

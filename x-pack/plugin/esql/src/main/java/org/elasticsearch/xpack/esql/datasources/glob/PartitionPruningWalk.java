@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Par
 import org.elasticsearch.xpack.esql.datasources.PartitionValueMatcher;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -41,9 +42,9 @@ import java.util.Set;
  * hint (typically a data-column filter), and at the first level no pending hint matches — whether a pending hint
  * is a deeper partition key or a data column is unknowable without listing every level in between, and
  * {@code WHERE <partition> AND <data column>} is the everyday shape, so the walk never descends speculatively.
- * Survivors are finished with one recursive listing each, but only when something was pruned, the survivor
- * count is within {@link #MAX_FINISH_SURVIVORS}, and they fit what remains of {@link #MAX_DIRECTORY_LISTINGS};
- * otherwise one flat listing is cheaper.
+ * Survivors are finished with one recursive listing each, but only when something was pruned and the survivor
+ * count satisfies {@link #MAX_FINISH_SURVIVORS} / {@link #MAX_FINISH_SURVIVOR_FRACTION}; otherwise one flat
+ * listing is cheaper.
  *
  * <p><b>Trust boundary.</b> Pruning on {@code year} is sound only if {@code year} really is a partition column, and
  * the walk cannot see inside pruned folders. The caller must therefore verify that every {@link
@@ -72,12 +73,22 @@ final class PartitionPruningWalk {
     static final int MAX_LISTED_CHILDREN = 10_000;
 
     /**
-     * Maximum number of surviving directories that {@link #finishSurvivors} will enumerate individually. Each
-     * survivor costs one recursive listing (one round trip per ~1000 objects); beyond this threshold a single flat
-     * listing of the whole prefix is cheaper. 4 is chosen so that the walk's finish never costs more than the flat
-     * listing for datasets up to ~4000 objects (the typical S3 page size is 1000, so 4 survivors ≈ 4 pages ≈ flat).
+     * Absolute ceiling on surviving directories that {@link #finishSurvivors} will enumerate individually.
+     * Overridden by {@link #MAX_FINISH_SURVIVOR_FRACTION} when the level was wide and the kept fraction is small:
+     * on a 100-entry level with 5 surviving directories (5 %) individual listings are cheaper than one flat listing
+     * of the whole prefix regardless of the absolute count.
      */
     static final int MAX_FINISH_SURVIVORS = 4;
+
+    /**
+     * Maximum fraction of a hinted level's children that {@link #finishSurvivors} treats as "few enough to finish
+     * individually". When survivors exceed {@link #MAX_FINISH_SURVIVORS} but the kept ratio is at or below this
+     * threshold, the pruning was significant enough that individual recursive listings are cheaper than re-listing
+     * the whole prefix (which includes the pruned entries). 0.2 (20 %) handles the common {@code IN (handful)}
+     * over a wide partition level — e.g. 5 of 100 customer-id folders — without inflating cost on shallow trees
+     * where a flat listing is cheaper (e.g. 6 of 10 years, ratio 60 %, would still fall back).
+     */
+    static final double MAX_FINISH_SURVIVOR_FRACTION = 0.2;
 
     private PartitionPruningWalk() {}
 
@@ -112,7 +123,7 @@ final class PartitionPruningWalk {
     ) {
         try {
             return walk(provider, prefix, matcher, nameFilter, hints, maxDiscoveredFiles);
-        } catch (IOException e) {
+        } catch (IOException | ExternalUnavailableException e) {
             logger.debug(() -> "Partition-pruning walk of [" + prefix + "] failed; falling back to a flat listing", e);
             return null;
         }
@@ -147,6 +158,10 @@ final class PartitionPruningWalk {
         boolean anyLevelHinted = false;
         List<StoragePath> dirs = List.of(prefix);
         int listings = 0;
+        // Total shaped dirs at the last hinted level (before pruning). Tracked so finishSurvivors can
+        // decide whether the survived fraction is small enough to justify individual recursive listings
+        // even when the absolute count exceeds MAX_FINISH_SURVIVORS.
+        int lastHintedLevelPeerCount = 0;
         // All raw values seen for each partition key, used to infer the "full" column type. Populated from normal
         // walk listings AND from retroactive peeks into pruned dirs (see below).
         Map<String, List<String>> seenValues = new LinkedHashMap<>();
@@ -160,7 +175,14 @@ final class PartitionPruningWalk {
             if (pending.isEmpty() || listings + dirs.size() > MAX_DIRECTORY_LISTINGS) {
                 // No hint can narrow a deeper level (or the budget is spent): finish each surviving subtree with
                 // one recursive listing, unless one flat listing of the whole prefix is cheaper.
-                return finishSurvivors(collector, provider, dirs, prunedColumns, listings, inferColumnTypes(seenValues));
+                return finishSurvivors(
+                    collector,
+                    provider,
+                    dirs,
+                    prunedColumns,
+                    inferColumnTypes(seenValues),
+                    lastHintedLevelPeerCount
+                );
             }
 
             List<StoragePath> shapedDirs = new ArrayList<>();
@@ -272,13 +294,21 @@ final class PartitionPruningWalk {
                 // LIST per directory — and `WHERE <partition> AND <data column>` is the everyday shape. Keep the
                 // pruning already done and finish by recursively listing each surviving PARENT dir (dirs), not each
                 // child (next): listing the parent once enumerates the same files with one round trip instead of N.
-                return finishSurvivors(collector, provider, dirs, prunedColumns, listings, inferColumnTypes(seenValues));
+                return finishSurvivors(
+                    collector,
+                    provider,
+                    dirs,
+                    prunedColumns,
+                    inferColumnTypes(seenValues),
+                    lastHintedLevelPeerCount
+                );
             }
             // Commit direct files now that we know finishSurvivors won't re-enumerate them.
             for (StorageEntry file : levelFiles) {
                 collector.add(file);
             }
             anyLevelHinted = true;
+            lastHintedLevelPeerCount = shapedDirs.size();
             dirs = next;
         }
         return collector.result(prunedColumns, inferColumnTypes(seenValues));
@@ -329,8 +359,15 @@ final class PartitionPruningWalk {
 
     /**
      * Ends a walk whose remaining subtrees no hint can narrow: one recursive listing per survivor, but only when
-     * something was pruned, the survivor count is within {@link #MAX_FINISH_SURVIVORS}, and they fit the remaining
-     * budget — otherwise {@code null}, since one flat listing enumerates the same files more cheaply.
+     * something was pruned and individual listings are cheaper than one flat listing of the whole prefix —
+     * otherwise {@code null} to signal a flat fallback.
+     *
+     * <p>Individual listings are cheaper when either: (a) the absolute survivor count is small
+     * ({@link #MAX_FINISH_SURVIVORS}), or (b) the kept fraction of the last hinted level is small enough
+     * ({@link #MAX_FINISH_SURVIVOR_FRACTION}) that the pruned entries would inflate the flat listing significantly.
+     * The fraction guard handles wide levels: {@code IN (5 of 100)} customer-id folders costs 5 individual listings
+     * vs a flat listing covering all 100, while {@code year >= 2020} keeping 6 of 10 years falls back to flat
+     * because both the absolute count and the fraction are above their respective thresholds.
      */
     @Nullable
     private static WalkResult finishSurvivors(
@@ -338,10 +375,16 @@ final class PartitionPruningWalk {
         StorageProvider provider,
         List<StoragePath> dirs,
         Set<String> prunedColumns,
-        int listings,
-        Map<String, DataType> columnFullTypes
+        Map<String, DataType> columnFullTypes,
+        int lastHintedLevelPeerCount
     ) throws IOException {
-        if (prunedColumns.isEmpty() || dirs.size() > MAX_FINISH_SURVIVORS || dirs.size() > MAX_DIRECTORY_LISTINGS - listings) {
+        if (prunedColumns.isEmpty()) {
+            return null;
+        }
+        boolean tooManyAbsolute = dirs.size() > MAX_FINISH_SURVIVORS;
+        boolean tooLargeFraction = lastHintedLevelPeerCount > 0
+            && (double) dirs.size() / lastHintedLevelPeerCount > MAX_FINISH_SURVIVOR_FRACTION;
+        if (tooManyAbsolute && tooLargeFraction) {
             return null;
         }
         for (StoragePath dir : dirs) {

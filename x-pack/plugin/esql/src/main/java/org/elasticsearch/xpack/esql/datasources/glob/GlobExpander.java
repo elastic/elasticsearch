@@ -34,7 +34,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -404,7 +403,7 @@ public final class GlobExpander {
                     if (hints != null && hints.isEmpty() == false) {
                         walked = applyFileFiltersRetainingAnchor(walked, hints);
                     }
-                    walked.sort(Comparator.comparing(e -> e.path().toString()));
+                    fileOrder.apply(walked);
                     List<String> walkNotices = new ArrayList<>();
                     PartitionMetadata walkedMetadata = detectPartitions(walked, partitionConfig, walkNotices::add);
                     if (walkPruningProven(walk.prunedColumns(), walkedMetadata)) {
@@ -423,10 +422,7 @@ public final class GlobExpander {
                             }
                             return new GenericFileList(walked, pattern, walkedMetadata, walkNotices);
                         }
-                        logger.debug(
-                            "Walked listing of [{}] would narrow the type of non-pruned partition columns; re-listing flat",
-                            pattern
-                        );
+                        logger.debug("Walked listing of [{}] would narrow the type of partition column(s); re-listing flat", pattern);
                     } else {
                         logger.debug(
                             "Walked listing of [{}] does not detect the pruned-on partition columns {}; re-listing flat",
@@ -613,7 +609,8 @@ public final class GlobExpander {
      * {@code month} as integer, while the flat listing would detect it as keyword. No file is dropped, but the
      * declared schema would differ. The walk addresses this by peeking one level into pruned dirs to capture shadow
      * values (see {@code PartitionPruningWalk}); this method checks whether those shadow values change any
-     * non-pruned column's inferred type relative to what the walked file set alone would produce.
+     * column's inferred type — including pruned columns, whose walked type may narrow when only matching
+     * folders survive (e.g. {@code month=06} is INTEGER alone but KEYWORD with {@code month=abc} present).
      *
      * <p><b>Residual limitation.</b> The peek is one level deep: if the type-widening value is more than one
      * level inside the pruned subtree (e.g. {@code a=1/b=x/month=abc} pruned at {@code a}), the divergence in
@@ -626,11 +623,7 @@ public final class GlobExpander {
         }
         Map<String, DataType> fullTypes = walk.columnFullTypes();
         for (Map.Entry<String, DataType> e : metadata.partitionColumns().entrySet()) {
-            String col = e.getKey();
-            if (walk.prunedColumns().contains(col)) {
-                continue; // pruned-column types are validated by walkPruningProven
-            }
-            DataType fullType = fullTypes.get(col);
+            DataType fullType = fullTypes.get(e.getKey());
             if (fullType != null && fullType != e.getValue()) {
                 return false;
             }

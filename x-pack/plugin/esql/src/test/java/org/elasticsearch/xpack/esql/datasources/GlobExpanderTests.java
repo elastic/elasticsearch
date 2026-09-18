@@ -2564,10 +2564,12 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * The everyday shape — a partition filter AND a data-column filter — must cost the same LIST requests as the
-     * partition filter alone plus one probe: the data column keeps a hint pending forever, and the walk stops at the
-     * first level no hint matches. The surviving parent ({@code year=2025/}) is finished with one recursive listing
-     * instead of one per month child, so adding a data-column filter never inflates the LIST count.
+     * The everyday shape — a partition filter AND a data-column filter — costs one extra {@code listChildren} probe
+     * compared to the partition filter alone: the data column keeps a hint pending, so the walk descends into the
+     * surviving year dir to check whether the next level matches a hint, then finishes the parent with one recursive
+     * listing. The retroactive peek into the pruned year dir fires when month is discovered as a new partition key.
+     * Total: 3 {@code listChildren} (root + year=2025/ probe + year=2024/ peek) + 1 {@code listObjects} (year=2025/).
+     * Partition-only costs 1 + 1 = 2; the data-column adds the level probe but avoids one listing per month child.
      */
     public void testGlobstarPartitionPlusDataColumnFilterStaysCheap() throws IOException {
         TreeStubProvider provider = hiveTree();
@@ -2685,9 +2687,42 @@ public class GlobExpanderTests extends ESTestCase {
         FileList result = GlobExpander.expand("s3://bucket/data/**", provider, hints, HIVE_ON, MAX, MAX);
 
         assertEquals("flat listing returns all files; row filter prunes at read time", 10, result.fileCount());
-        // Walk probed the root level, found 6 survivors (above MAX_FINISH_SURVIVORS), withdrew to flat.
+        // Walk probed root, found 6 of 10 survivors (above MAX_FINISH_SURVIVORS AND above the 20% fraction
+        // threshold), withdrew to flat.
         assertEquals(List.of("s3://bucket/data/"), provider.childListedPrefixes);
         assertEquals(List.of("s3://bucket/data/"), provider.listedPrefixes);
+    }
+
+    /**
+     * On a wide level — many more entries than the absolute {@code MAX_FINISH_SURVIVORS} cap — individual listings
+     * are still cheaper than one flat listing when the kept fraction is small. Here 5 of 100 {@code customer_id}
+     * folders survive an {@code IN} filter (5 %), which is below the {@code MAX_FINISH_SURVIVOR_FRACTION} threshold,
+     * so the walk finishes each survivor individually rather than falling back to a flat listing of all 100.
+     */
+    public void testGlobstarWideLevelSmallFractionUsesIndividualListings() throws IOException {
+        List<StorageEntry> entries = new ArrayList<>();
+        for (int id = 1; id <= 100; id++) {
+            entries.add(entry("s3://bucket/data/customer_id=" + id + "/a.parquet", 100));
+        }
+        TreeStubProvider provider = new TreeStubProvider(entries);
+        // Keep 5 of 100 customer_id folders: ratio 5% is well below MAX_FINISH_SURVIVOR_FRACTION.
+        var hints = List.of(hint("customer_id", PartitionFilterHintExtractor.Operator.IN, 10, 20, 30, 40, 50));
+
+        FileList result = GlobExpander.expand("s3://bucket/data/**", provider, hints, HIVE_ON, MAX, MAX);
+
+        assertEquals("only the 5 matching customer files", 5, result.fileCount());
+        // Root probe, then one recursive listing per surviving customer — no flat fallback.
+        assertEquals(List.of("s3://bucket/data/"), provider.childListedPrefixes);
+        assertEquals(
+            List.of(
+                "s3://bucket/data/customer_id=10/",
+                "s3://bucket/data/customer_id=20/",
+                "s3://bucket/data/customer_id=30/",
+                "s3://bucket/data/customer_id=40/",
+                "s3://bucket/data/customer_id=50/"
+            ),
+            provider.listedPrefixes
+        );
     }
 
     /**
@@ -2971,6 +3006,35 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * Type consistency for a directly-pruned column: when the pruned folder is the sole source of the
+     * type-widening value AND it is the pruned column itself (single-level partition), {@code walkTypesConsistent}
+     * must still detect the mismatch. Before the fix, the method skipped pruned columns, so a walk that pruned
+     * {@code month=abc/} (keeping only {@code month=06/}) would return the walked listing with {@code month} typed
+     * INTEGER — contradicting the flat listing's KEYWORD (which includes both values). A subsequent
+     * {@code WHERE month == "06"} would then fail analysis with a type error instead of working as expected.
+     */
+    public void testGlobstarPrunedColumnTypeNarrowingCausesFlat() throws IOException {
+        TreeStubProvider provider = new TreeStubProvider(
+            List.of(entry("s3://bucket/data/month=06/a.parquet", 100), entry("s3://bucket/data/month=abc/b.parquet", 100))
+        );
+        // String literal hint: "abc" != "06" so month=abc/ is pruned; only month=06/ survives.
+        // The walk's seenValues has both "06" and "abc", so fullTypes.month = KEYWORD.
+        // The walked metadata types month as INTEGER (only "06"). Mismatch → flat fallback.
+        var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.EQUALS, "06"));
+
+        FileList result = GlobExpander.expand("s3://bucket/data/**", provider, hints, HIVE_ON, MAX, MAX);
+
+        // Flat fallback: both files with month typed KEYWORD.
+        assertEquals(List.of("s3://bucket/data/month=06/a.parquet", "s3://bucket/data/month=abc/b.parquet"), paths(result));
+        assertEquals(DataType.KEYWORD, result.partitionMetadata().partitionColumns().get("month"));
+        // One probe listing (walk found month=abc/ and month=06/ at root).
+        assertEquals(List.of("s3://bucket/data/"), provider.childListedPrefixes);
+        // finishSurvivors listed month=06/ recursively before the type check in GlobExpander rejected the walk;
+        // flat listing then ran over the full prefix.
+        assertEquals(List.of("s3://bucket/data/month=06/", "s3://bucket/data/"), provider.listedPrefixes);
+    }
+
+    /**
      * The analyzer implicitly casts string literals for boolean columns, so the read layer would compare the cast
      * {@code true} and keep {@code flag=True/} — while a raw {@code "true".equals("True")} in the walk would prune
      * it and silently drop its rows. Text-vs-boolean is a kind mismatch: undecidable, nothing pruned.
@@ -2983,7 +3047,8 @@ public class GlobExpanderTests extends ESTestCase {
 
         FileList result = GlobExpander.expand("s3://bucket/data/**", provider, hints, HIVE_ON, MAX, MAX);
 
-        assertEquals(List.of("s3://bucket/data/flag=False/b.parquet", "s3://bucket/data/flag=True/a.parquet"), paths(result));
+        // Flat listing (insertion order): flag=True first since it appears first in the test data.
+        assertEquals(List.of("s3://bucket/data/flag=True/a.parquet", "s3://bucket/data/flag=False/b.parquet"), paths(result));
     }
 
     /**

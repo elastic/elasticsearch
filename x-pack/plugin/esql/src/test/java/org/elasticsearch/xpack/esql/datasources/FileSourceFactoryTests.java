@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -217,6 +218,36 @@ public class FileSourceFactoryTests extends ESTestCase {
             factory.validateConfig("s3://bucket/data.parquet", Map.of(PartitionConfig.CONFIG_PARTITIONING_HIVE, value));
             assertWarnings(FileDataSourceValidator.HIVE_PARTITIONING_NOOP_DEPRECATION_MESSAGE);
         }
+    }
+
+    /**
+     * A bare budget (max_errors or max_error_ratio without error_mode) emits a warning through the
+     * warningSink so the message reaches the client regardless of which thread validateConfig runs on.
+     * Datasets with an explicit mode and bare configs with no budget keys stay quiet.
+     */
+    public void testValidateConfigEmitsBareBudgetWarning() {
+        FileSourceFactory factory = newFileSourceFactory();
+        String expectedWarning = "[max_errors] or [max_error_ratio] was set without [error_mode];"
+            + " [skip_row] is in effect -- [fail_fast] is not";
+
+        // bare max_errors — warned
+        factory.validateConfig("s3://bucket/data.parquet", Map.of("max_errors", "100"));
+        assertWarnings(expectedWarning);
+
+        // bare max_error_ratio — warned
+        factory.validateConfig("s3://bucket/data.parquet", Map.of("max_error_ratio", "0.1"));
+        assertWarnings(expectedWarning);
+
+        // explicit mode alongside budget — no warning
+        factory.validateConfig("s3://bucket/data.parquet", Map.of("max_errors", "100", "error_mode", "skip_row"));
+
+        // mode only, no budget — no warning
+        factory.validateConfig("s3://bucket/data.parquet", Map.of("error_mode", "fail_fast"));
+
+        // The sink variant (what the metadata-read executor calls): warning goes to the caller's sink.
+        List<String> sink = new ArrayList<>();
+        factory.validateConfig("s3://bucket/data.parquet", Map.of("max_errors", "50"), sink::add);
+        assertEquals(List.of(expectedWarning), sink);
     }
 
     private static FileSourceFactory newFileSourceFactory() {

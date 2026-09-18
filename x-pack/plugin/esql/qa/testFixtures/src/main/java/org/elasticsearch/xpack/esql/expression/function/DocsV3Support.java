@@ -1438,13 +1438,17 @@ public abstract class DocsV3Support {
                 // which would carry the same wrong badge.
                 if (setting.serverlessOnly()) {
                     throw new IllegalStateException(
-                        "Setting " + setting.name() + " declares applies_to and serverlessOnly; applies_to would discard"
+                        "Setting "
+                            + setting.name()
+                            + " declares applies_to and serverlessOnly; applies_to would discard"
                             + " the stack: unavailable this setting needs. State both axes in applies_to, or drop it."
                     );
                 }
                 if (declaredSince.isEmpty() == false) {
                     throw new IllegalStateException(
-                        "Setting " + setting.name() + " declares both applies_to and since; applies_to carries the"
+                        "Setting "
+                            + setting.name()
+                            + " declares both applies_to and since; applies_to carries the"
                             + " version, so since would never be read and the two could drift. Drop since."
                     );
                 }

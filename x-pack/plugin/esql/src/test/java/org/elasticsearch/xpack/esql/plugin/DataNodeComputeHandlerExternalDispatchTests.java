@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.Transport;
@@ -18,6 +17,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.DataNodeComputeHandler.ExternalDispatchResolution;
 import org.elasticsearch.xpack.esql.plugin.DataNodeComputeHandler.ExternalDispatchResolution.ResolvedExternalNode;
+import org.elasticsearch.xpack.esql.plugin.DataNodeComputeHandler.ExternalDispatchResolution.UnresolvedExternalNode;
 import org.elasticsearch.xpack.esql.plugin.DataNodeComputeHandler.ExternalNodeConnectionLookup;
 
 import java.util.ArrayList;
@@ -30,13 +30,14 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -106,8 +107,9 @@ public class DataNodeComputeHandlerExternalDispatchTests extends ESTestCase {
         Transport.Connection connection2 = connection();
         Function<String, DiscoveryNode> nodes = id -> switch (id) {
             case "node-0" -> node0;
+            case "node-1" -> null;
             case "node-2" -> node2;
-            default -> null;
+            default -> throw new AssertionError("unexpected node id: " + id);
         };
         ExternalNodeConnectionLookup connections = node -> node.getId().equals("node-0") ? connection0 : connection2;
 
@@ -161,11 +163,44 @@ public class DataNodeComputeHandlerExternalDispatchTests extends ESTestCase {
         assertThat(byNode.get("node-1"), contains(all.get(1), all.get(2)));
     }
 
-    public void testSkippedUnreachableNodeCompletionIsPartial() {
-        DriverCompletionInfo info = DataNodeComputeHandler.skippedUnreachableNode("node-1", 3);
-        assertTrue(info.partial());
-        assertThat(info.warnings(), hasItem(containsString("node-1")));
-        assertThat(info.warnings(), hasItem(containsString("3")));
+    public void testEmptyLiveAssignmentAbsorbsOrphansFromUnreachableNode() {
+        List<ExternalSplit> all = splits(2);
+        Map<String, List<ExternalSplit>> assignments = new LinkedHashMap<>();
+        assignments.put("node-0", List.of());
+        assignments.put("node-1", List.of(all.get(0), all.get(1)));
+
+        DiscoveryNode node0 = node("node-0");
+        Function<String, DiscoveryNode> nodes = id -> switch (id) {
+            case "node-0" -> node0;
+            case "node-1" -> node(id);
+            default -> throw new AssertionError("unexpected node id: " + id);
+        };
+        ExternalNodeConnectionLookup connections = node -> {
+            if (node.getId().equals("node-1")) {
+                throw new NodeNotConnectedException(node, "simulated: node unreachable at dispatch");
+            }
+            return connection();
+        };
+
+        ExternalDispatchResolution dispatched = dispatch(assignments, nodes, connections);
+
+        assertThat(dispatched.unresolved(), empty());
+        assertThat(dispatched.resolved(), hasSize(1));
+        assertThat(dispatched.resolved().get(0).node(), equalTo(node0));
+        assertThat(dispatched.resolved().get(0).splits(), contains(all.toArray(ExternalSplit[]::new)));
+    }
+
+    public void testAllUnreachableFailureKeepsPerNodeErrors() {
+        NodeNotConnectedException first = new NodeNotConnectedException(node("node-0"), "first");
+        NodeNotConnectedException second = new NodeNotConnectedException(node("node-1"), "second");
+        IllegalStateException failure = DataNodeComputeHandler.allExternalWorkersFailed(
+            List.of(new UnresolvedExternalNode("node-0", splits(1), first), new UnresolvedExternalNode("node-1", splits(1), second))
+        );
+
+        assertThat(failure.getMessage(), equalTo("all [2] nodes assigned external splits failed"));
+        assertThat(failure.getCause(), sameInstance(first));
+        assertThat(failure.getSuppressed(), arrayContaining(instanceOf(NodeNotConnectedException.class)));
+        assertThat(failure.getSuppressed()[0], sameInstance(second));
     }
 
     public void testEmptyAssignmentsAreIgnored() {

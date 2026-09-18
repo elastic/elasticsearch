@@ -30,6 +30,11 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
+/**
+ * An external scan must reassign splits when a worker is already unreachable
+ * at dispatch, and must not return a complete answer that omitted that
+ * worker's files.
+ */
 public class ExternalDistributedNodeUnavailableIT extends AbstractExternalDataSourceIT {
 
     private static final int FILES = 8;

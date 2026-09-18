@@ -1445,6 +1445,84 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
         assertThat(capabilities.reasoning().defaultEffortLevel(), nullValue());
     }
 
+    /**
+     * A wrong-typed field inside {@code capabilities} must only discard that block. The fields that follow it in the same endpoint
+     * and every subsequent endpoint in the array must still parse, which proves the outer parser is not left mid-object.
+     */
+    public void testParse_MalformedCapabilities_IgnoresBlockAndParsesRemainingFieldsAndEndpoints() throws IOException {
+        var json = Strings.format("""
+            {
+              "inference_endpoints": [
+                {
+                  "id": "broken-model",
+                  "model_name": "broken-model",
+                  "task_types": { "eis": "%s", "elasticsearch": "chat_completion" },
+                  "status": "ga",
+                  "release_date": "2025-01-01",
+                  "regions": [],
+                  "capabilities": {
+                    "reasoning": {
+                      "supported_effort_levels": ["high"]
+                    },
+                    "context_window": {
+                      "max_input_tokens": "not-a-number",
+                      "max_output_tokens": 128000
+                    }
+                  },
+                  "fingerprint": "fingerprint-after-capabilities"
+                },
+                {
+                  "id": "healthy-model",
+                  "model_name": "healthy-model",
+                  "task_types": { "eis": "%s", "elasticsearch": "chat_completion" },
+                  "status": "ga",
+                  "release_date": "2025-01-01",
+                  "regions": [],
+                  "capabilities": {
+                    "context_window": {
+                      "max_input_tokens": 200000
+                    }
+                  }
+                }
+              ]
+            }
+            """, EIS_CHAT_PATH, EIS_CHAT_PATH);
+
+        var response = parse(json);
+        assertThat(response.authorizedEndpoints().size(), is(2));
+
+        var broken = response.authorizedEndpoints().get(0);
+        assertThat(broken.id(), is("broken-model"));
+        assertThat(broken.capabilities(), nullValue());
+        assertThat(broken.fingerprint(), is("fingerprint-after-capabilities"));
+
+        var healthy = response.authorizedEndpoints().get(1);
+        assertThat(healthy.id(), is("healthy-model"));
+        assertThat(healthy.capabilities().reasoning(), nullValue());
+        assertThat(healthy.capabilities().contextWindow().maxInputTokens(), is(200000));
+    }
+
+    public void testParse_EmptyCapabilitiesObject_YieldsEmptyInstance() throws IOException {
+        var json = Strings.format("""
+            {
+              "inference_endpoints": [
+                {
+                  "id": "test-model",
+                  "model_name": "test-model",
+                  "task_types": { "eis": "%s", "elasticsearch": "chat_completion" },
+                  "status": "ga",
+                  "release_date": "2025-01-01",
+                  "regions": [],
+                  "capabilities": {}
+                }
+              ]
+            }
+            """, EIS_CHAT_PATH);
+
+        var response = parse(json);
+        assertThat(response.authorizedEndpoints().get(0).capabilities(), is(EndpointMetadata.Capabilities.EMPTY_INSTANCE));
+    }
+
     private ElasticInferenceServiceAuthorizationResponseEntity parse(String json) throws IOException {
         try (var parser = createParser(JsonXContent.jsonXContent, json)) {
             return ElasticInferenceServiceAuthorizationResponseEntity.PARSER.apply(parser, null);

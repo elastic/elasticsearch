@@ -530,6 +530,33 @@ public class EndpointMetadataParserTests extends ESTestCase {
         assertThat(result.defaultEffortLevel(), nullValue());
     }
 
+    public void testContextWindowFromMap_Throws_WhenMaxInputTokensWrongType() {
+        var map = new HashMap<String, Object>();
+        map.put(MAX_INPUT_TOKENS_FIELD_NAME, "not-a-number");
+
+        var e = expectThrows(IllegalArgumentException.class, () -> EndpointMetadataParser.contextWindowFromMap(map, ROOT));
+        assertThat(e.getMessage(), containsString(MAX_INPUT_TOKENS_FIELD_NAME));
+    }
+
+    public void testReasoningCapabilityFromMap_Throws_WhenSupportedEffortLevelsWrongType() {
+        var map = new HashMap<String, Object>();
+        map.put(SUPPORTED_EFFORT_LEVELS_FIELD_NAME, "high");
+
+        var e = expectThrows(IllegalArgumentException.class, () -> EndpointMetadataParser.reasoningCapabilityFromMap(map, ROOT));
+        assertThat(e.getMessage(), containsString(SUPPORTED_EFFORT_LEVELS_FIELD_NAME));
+    }
+
+    /**
+     * Sub-maps are extracted with an unchecked cast, matching the sibling {@code display} and {@code regions} parsers. The
+     * authorization response parser relies on this throwing rather than silently producing garbage.
+     */
+    public void testCapabilitiesFromMap_Throws_WhenContextWindowWrongType() {
+        var map = new HashMap<String, Object>();
+        map.put(CONTEXT_WINDOW_FIELD_NAME, "not-an-object");
+
+        expectThrows(ClassCastException.class, () -> EndpointMetadataParser.capabilitiesFromMap(map, ROOT));
+    }
+
     public void testFromMap_ParsesCapabilitiesBlock() {
         var reasoningMap = new HashMap<String, Object>();
         reasoningMap.put(SUPPORTED_EFFORT_LEVELS_FIELD_NAME, List.of("high", "low"));

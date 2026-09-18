@@ -218,8 +218,12 @@ public final class EndpointMetadataParser {
     /**
      * Parse {@link EndpointMetadata.Capabilities} from the capabilities sub-map.
      * Returns {@link EndpointMetadata.Capabilities#EMPTY_INSTANCE} if the map is null or empty.
+     * <p>
+     * Public because the Elastic Inference Service authorization response parser reads the {@code capabilities} object into a map
+     * first and then delegates here, so that a malformed block can be discarded without leaving the underlying
+     * {@link org.elasticsearch.xcontent.XContentParser} positioned mid-object.
      */
-    static EndpointMetadata.Capabilities capabilitiesFromMap(@Nullable Map<String, Object> map, String root) {
+    public static EndpointMetadata.Capabilities capabilitiesFromMap(@Nullable Map<String, Object> map, String root) {
         if (isMapNullOrEmpty(map)) {
             return EndpointMetadata.Capabilities.EMPTY_INSTANCE;
         }

@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.parser.EndpointMetadataParser;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -191,20 +192,25 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
                 new ParseField(REGIONS)
             );
             AUTHORIZED_ENDPOINT_PARSER.declareBoolean(optionalConstructorArg(), new ParseField(DENIED_BY_REGION_POLICY));
+            // Read the whole capabilities object into a map before converting it. p.map() always consumes through the matching
+            // END_OBJECT, so if the conversion fails on a wrong-typed field the outer parser is still correctly positioned and the
+            // remaining endpoint fields (and endpoints) parse normally. Parsing directly with a ConstructingObjectParser would throw
+            // mid-object and leave the outer parser misaligned.
             AUTHORIZED_ENDPOINT_PARSER.declareObject(
                 optionalConstructorArg(),
-                (p, c) -> parseCapabilitiesLeniently(p),
+                (p, c) -> parseCapabilitiesLeniently(p.map()),
                 new ParseField(CAPABILITIES)
             );
         }
 
-        private static EndpointMetadata.Capabilities parseCapabilitiesLeniently(XContentParser parser) {
+        @Nullable
+        private static EndpointMetadata.Capabilities parseCapabilitiesLeniently(Map<String, Object> capabilitiesMap) {
             try {
-                return EndpointMetadata.Capabilities.parse(parser);
+                return EndpointMetadataParser.capabilitiesFromMap(capabilitiesMap, CAPABILITIES);
             } catch (Exception e) {
                 logger.info(
                     Strings.format(
-                        "Failed to parse the [%s] field from the Elastic Inference Service " + "authorization response; ignoring it",
+                        "Failed to parse the [%s] field from the Elastic Inference Service authorization response; ignoring it",
                         CAPABILITIES
                     ),
                     e

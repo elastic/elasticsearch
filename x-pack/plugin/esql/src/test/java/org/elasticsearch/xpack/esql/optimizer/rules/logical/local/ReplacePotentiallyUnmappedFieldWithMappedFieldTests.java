@@ -41,11 +41,11 @@ public class ReplacePotentiallyUnmappedFieldWithMappedFieldTests extends Abstrac
     }
 
     private void assertLoadModeFieldReplacedWithPushableKeyword(TestConfigurableSearchStats localShardStats) {
-        var plan = planWithLoad("""
+        var plan = markAsMappedInFieldCaps(planWithLoad("""
               FROM test
             | WHERE does_not_exist == "x"
             | KEEP does_not_exist
-            """);
+            """), "does_not_exist");
 
         // The coordinator can't know the field is mapped on any given data node, so it stays potentially unmapped there.
         var coordinatorFields = fieldAttributes(plan, "does_not_exist");
@@ -62,6 +62,18 @@ public class ReplacePotentiallyUnmappedFieldWithMappedFieldTests extends Abstrac
             assertThat(f.dataType(), equalTo(KEYWORD));
             assertTrue(pushdown.isPushableFieldAttribute(f));
         }
+    }
+
+    private LogicalPlan markAsMappedInFieldCaps(LogicalPlan plan, String fieldName) {
+        return plan.transformExpressionsDown(FieldAttribute.class, field -> {
+            if (field.fieldName().string().equals(fieldName)
+                && field.field() instanceof PotentiallyUnmappedKeywordEsField potentiallyUnmapped) {
+                return field.withField(
+                    new PotentiallyUnmappedKeywordEsField(potentiallyUnmapped.getName(), true, potentiallyUnmapped.getProperties())
+                );
+            }
+            return field;
+        });
     }
 
     public void testPotentiallyUnmappedFieldRetainedWhenOnlyInSourceOnDataNode() {
@@ -89,13 +101,13 @@ public class ReplacePotentiallyUnmappedFieldWithMappedFieldTests extends Abstrac
             .addIndex("test", "mapping-basic.json")
             .addLanguagesLookup()
             .buildAnalyzer();
-        var plan = optimize(analyzer.analyze(TEST_PARSER.parseQuery("""
+        var plan = markAsMappedInFieldCaps(optimize(analyzer.analyze(TEST_PARSER.parseQuery("""
               FROM test
             | EVAL language_code = languages
             | LOOKUP JOIN languages_lookup ON language_code
             | WHERE does_not_exist == "x"
             | KEEP language_name, does_not_exist
-            """)));
+            """))), "does_not_exist");
 
         var localPlan = localPlan(plan, new TestConfigurableSearchStats());
 
@@ -111,6 +123,29 @@ public class ReplacePotentiallyUnmappedFieldWithMappedFieldTests extends Abstrac
         assertThat(mainFields, not(empty()));
         for (FieldAttribute f : mainFields) {
             assertThat(f.field().getClass(), equalTo(KeywordEsField.class));
+        }
+    }
+
+    public void testFieldMissingFromFieldCapsNotReplacedWhenMappedOnDataNode() {
+        var plan = planWithLoad("""
+              FROM test
+            | WHERE does_not_exist == "x"
+            | KEEP does_not_exist
+            """);
+
+        var coordinatorFields = fieldAttributes(plan, "does_not_exist");
+        assertThat(coordinatorFields, not(empty()));
+        for (FieldAttribute field : coordinatorFields) {
+            assertThat(field.field(), instanceOf(PotentiallyUnmappedKeywordEsField.class));
+        }
+
+        var localStats = new TestConfigurableSearchStats();
+        var localFields = fieldAttributes(localPlan(plan, localStats), "does_not_exist");
+        var pushdown = LucenePushdownPredicates.from(localStats, new EsqlFlags(true));
+
+        for (FieldAttribute field : localFields) {
+            assertThat(field.field(), instanceOf(PotentiallyUnmappedKeywordEsField.class));
+            assertFalse(pushdown.isPushableFieldAttribute(field));
         }
     }
 

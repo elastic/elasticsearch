@@ -334,6 +334,61 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             .assertLogs();
     }
 
+    public void testFlsWithConstantKeywordVisibleOnOneIndex() throws Exception {
+        createUser("constant_reader", "sql_constant_reader");
+
+        var visibleIndex = new Request("PUT", "sql-constant-visible");
+        visibleIndex.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "marker": { "type": "keyword" },
+                  "constant_value": {
+                    "type": "constant_keyword",
+                    "value": "visible-value"
+                  }
+                }
+              }
+            }""");
+        assertOK(client().performRequest(visibleIndex));
+
+        var hiddenIndex = new Request("PUT", "sql-constant-hidden");
+        hiddenIndex.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "marker": { "type": "keyword" },
+                  "constant_value": {
+                    "type": "constant_keyword",
+                    "value": "hidden-value"
+                  }
+                }
+              }
+            }""");
+        assertOK(client().performRequest(hiddenIndex));
+
+        var docVisible = new Request("POST", "sql-constant-visible/_doc");
+        docVisible.addParameter("refresh", "true");
+        docVisible.setJsonEntity("""
+            {"marker": "visible-index"}
+            """);
+        assertOK(client().performRequest(docVisible));
+
+        var docHidden = new Request("POST", "sql-constant-hidden/_doc");
+        docHidden.addParameter("refresh", "true");
+        docHidden.setJsonEntity("""
+            {"marker": "hidden-index"}
+            """);
+        assertOK(client().performRequest(docHidden));
+
+        var sql = "SELECT marker, constant_value FROM \\\"sql-constant-*\\\" ORDER BY marker";
+        var mode = randomMode();
+
+        var response = RestActions.runSql("constant_reader", mode, sql, false);
+
+        assertThat(response.get("rows"), equalTo(List.of(Arrays.asList("hidden-index", null), List.of("visible-index", "visible-value"))));
+    }
+
     protected class RestAuditLogAsserter extends AuditLogAsserter {
         @Override
         public AuditLogAsserter expect(

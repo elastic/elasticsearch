@@ -47,6 +47,7 @@ import java.util.List;
 import static org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SearchContextStatsTests extends MapperServiceTestCase {
     private final Directory directory = newDirectory();
@@ -890,6 +891,282 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
             );
         } finally {
             IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    public void testHiddenMappedFieldIsTreatedAsUnmapped() throws IOException {
+        var hidden = new FieldAttribute.FieldName("hidden");
+        var stats = SearchContextStats.from(List.of(keywordContext(false)));
+
+        assertFalse(stats.exists(hidden));
+        assertFalse(stats.isIndexed(hidden));
+        assertFalse(stats.hasDocValues(hidden));
+        assertFalse(stats.hasExactSubfield(hidden));
+        assertNull(stats.fieldType(hidden));
+
+        // An absent field is harmlessly considered single-valued.
+        assertTrue(stats.isSingleValue(hidden));
+    }
+
+    public void testMixedFieldVisibilityIsIndependentOfContextOrder() throws IOException {
+        var field = new FieldAttribute.FieldName("hidden");
+
+        for (var hiddenFirst : List.of(false, true)) {
+            var visible = keywordContext(true);
+            var hidden = keywordContext(false);
+
+            var stats = SearchContextStats.from(hiddenFirst ? List.of(hidden, visible) : List.of(visible, hidden));
+
+            assertTrue(stats.exists(field));
+            assertFalse(stats.isIndexed(field));
+            assertFalse(stats.hasDocValues(field));
+            assertNotNull(stats.fieldType(field));
+        }
+    }
+
+    public void testHiddenFieldExistenceDoesNotDependOnCacheOrder() throws IOException {
+        var hidden = new FieldAttribute.FieldName("hidden");
+
+        var existsFirst = SearchContextStats.from(List.of(keywordContext(false)));
+        assertFalse(existsFirst.exists(hidden));
+        assertFalse(existsFirst.hasDocValues(hidden));
+        assertFalse(existsFirst.exists(hidden));
+
+        var configFirst = SearchContextStats.from(List.of(keywordContext(false)));
+        assertFalse(configFirst.hasDocValues(hidden));
+        assertFalse(configFirst.exists(hidden));
+    }
+
+    private SearchExecutionContext keywordContext(boolean visible) throws IOException {
+        MapperService mapperService = createMapperService("""
+            {
+              "doc": {
+                "properties": {
+                  "hidden": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }
+            """);
+
+        SearchExecutionContext context = createSearchExecutionContext(mapperService, null);
+        context.setFieldVisibilityPredicate(field -> field.equals("hidden") == false || visible);
+        return context;
+    }
+
+    public void testCountMinMaxIgnoreHiddenContexts() throws IOException {
+        MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
+        List<Closeable> toClose = new ArrayList<>();
+
+        try {
+            // The visible index exposes "metric" as a date.
+            MapperService visibleMapper = mapperHelper.createMapperService("""
+                {
+                  "doc": {
+                    "properties": {
+                      "metric": {
+                        "type": "date"
+                      }
+                    }
+                  }
+                }
+                """);
+            Directory visibleDirectory = newDirectory();
+            IndexReader visibleReader;
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), visibleDirectory)) {
+                writer.addDocument(List.of(new LongField("metric", 10L, Field.Store.NO)));
+                writer.addDocument(List.of(new LongField("metric", 20L, Field.Store.NO)));
+                writer.forceMerge(1);
+                visibleReader = writer.getReader();
+            }
+
+            toClose.add(visibleReader);
+            toClose.add(visibleMapper);
+            toClose.add(visibleDirectory);
+
+            SearchExecutionContext visibleContext = mapperHelper.createSearchExecutionContext(visibleMapper, newSearcher(visibleReader));
+            visibleContext.setFieldVisibilityPredicate(field -> true);
+
+            /*
+             * The hidden index has the same field name but a conflicting mapping
+             * and values outside the visible range.
+             */
+            MapperService hiddenMapper = mapperHelper.createMapperService("""
+                {
+                  "doc": {
+                    "properties": {
+                      "metric": {
+                        "type": "long"
+                      }
+                    }
+                  }
+                }
+                """);
+            Directory hiddenDirectory = newDirectory();
+            IndexReader hiddenReader;
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), hiddenDirectory)) {
+                writer.addDocument(List.of(new LongField("metric", -1000L, Field.Store.NO)));
+                writer.addDocument(List.of(new LongField("metric", 1000L, Field.Store.NO)));
+                writer.forceMerge(1);
+                hiddenReader = writer.getReader();
+            }
+
+            toClose.add(hiddenReader);
+            toClose.add(hiddenMapper);
+            toClose.add(hiddenDirectory);
+
+            SearchExecutionContext hiddenContext = mapperHelper.createSearchExecutionContext(hiddenMapper, newSearcher(hiddenReader));
+            hiddenContext.setFieldVisibilityPredicate(field -> field.equals("metric") == false);
+
+            var metric = new FieldAttribute.FieldName("metric");
+
+            for (List<SearchExecutionContext> contexts : List.of(
+                List.of(visibleContext, hiddenContext),
+                List.of(hiddenContext, visibleContext)
+            )) {
+                SearchStats stats = SearchContextStats.from(contexts);
+
+                // FLS hides a field, not the documents themselves.
+                assertEquals(4L, stats.count());
+
+                // Only the two visible-index values contribute.
+                assertEquals(2L, stats.count(metric));
+
+                // The hidden values -1000 and 1000 must not affect extrema.
+                assertEquals(10L, stats.min(metric));
+                assertEquals(20L, stats.max(metric));
+
+                // The hidden long mapping must not cause a date/long type conflict.
+                assertThat(stats.fieldType(metric).getClass(), equalTo(DateFieldType.class));
+            }
+        } finally {
+            IOUtils.close(toClose);
+        }
+    }
+
+    public void testCountMinMaxForHiddenField() throws IOException {
+        MapperService mapperService = createMapperService("""
+            {
+              "doc": {
+                "properties": {
+                  "metric": {
+                    "type": "date"
+                  }
+                }
+              }
+            }
+            """);
+
+        Directory dir = newDirectory();
+        IndexReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(List.of(new LongField("metric", 10L, Field.Store.NO)));
+            writer.addDocument(List.of(new LongField("metric", 20L, Field.Store.NO)));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(reader));
+            context.setFieldVisibilityPredicate(field -> field.equals("metric") == false);
+
+            SearchStats stats = SearchContextStats.from(List.of(context));
+            var metric = new FieldAttribute.FieldName("metric");
+
+            assertEquals(2L, stats.count());
+            assertEquals(0L, stats.count(metric));
+            assertNull(stats.min(metric));
+            assertNull(stats.max(metric));
+            assertNull(stats.fieldType(metric));
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    public void testCountValueIgnoresHiddenContexts() throws IOException {
+        MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
+        List<Closeable> toClose = new ArrayList<>();
+
+        try {
+            MapperService visibleMapper = mapperHelper.createMapperService("""
+                {
+                  "doc": {
+                    "properties": {
+                      "hidden": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                }
+                """);
+            Directory visibleDirectory = newDirectory();
+            IndexReader visibleReader;
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), visibleDirectory)) {
+                writer.addDocument(List.of(new StringField("hidden", "match", Field.Store.NO)));
+                writer.addDocument(List.of(new StringField("hidden", "other", Field.Store.NO)));
+                writer.forceMerge(1);
+                visibleReader = writer.getReader();
+            }
+
+            toClose.add(visibleReader);
+            toClose.add(visibleMapper);
+            toClose.add(visibleDirectory);
+
+            SearchExecutionContext visibleContext = mapperHelper.createSearchExecutionContext(visibleMapper, newSearcher(visibleReader));
+            visibleContext.setFieldVisibilityPredicate(field -> true);
+
+            MapperService hiddenMapper = mapperHelper.createMapperService("""
+                {
+                  "doc": {
+                    "properties": {
+                      "hidden": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                }
+                """);
+            Directory hiddenDirectory = newDirectory();
+            IndexReader hiddenReader;
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), hiddenDirectory)) {
+                writer.addDocument(List.of(new StringField("hidden", "match", Field.Store.NO)));
+                writer.addDocument(List.of(new StringField("hidden", "match", Field.Store.NO)));
+                writer.forceMerge(1);
+                hiddenReader = writer.getReader();
+            }
+
+            toClose.add(hiddenReader);
+            toClose.add(hiddenMapper);
+            toClose.add(hiddenDirectory);
+
+            SearchExecutionContext hiddenContext = mapperHelper.createSearchExecutionContext(hiddenMapper, newSearcher(hiddenReader));
+            hiddenContext.setFieldVisibilityPredicate(field -> field.equals("hidden") == false);
+
+            var hidden = new FieldAttribute.FieldName("hidden");
+            BytesRef match = new BytesRef("match");
+
+            for (List<SearchExecutionContext> contexts : List.of(
+                List.of(visibleContext, hiddenContext),
+                List.of(hiddenContext, visibleContext)
+            )) {
+                SearchStats stats = SearchContextStats.from(contexts);
+
+                // FLS does not hide documents.
+                assertEquals(4L, stats.count());
+
+                // Only the single occurrence from the visible context contributes.
+                assertEquals(1L, stats.count(hidden, match));
+
+                assertEquals(0L, stats.count(hidden, new BytesRef("missing")));
+            }
+
+            // A field hidden in every context contributes no term frequency.
+            SearchStats hiddenOnly = SearchContextStats.from(List.of(hiddenContext));
+            assertEquals(2L, hiddenOnly.count());
+            assertEquals(0L, hiddenOnly.count(hidden, match));
+        } finally {
+            IOUtils.close(toClose);
         }
     }
 

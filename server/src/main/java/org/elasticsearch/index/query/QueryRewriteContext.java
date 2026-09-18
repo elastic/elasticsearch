@@ -22,6 +22,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
@@ -85,6 +86,7 @@ public class QueryRewriteContext {
     protected boolean allowUnmappedFields;
     protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
+    protected Predicate<String> fieldVisibilityPredicate = Predicates.always();
     private final ResolvedIndices resolvedIndices;
     private final PointInTimeBuilder pit;
     private QueryRewriteInterceptor queryRewriteInterceptor;
@@ -434,6 +436,10 @@ public class QueryRewriteContext {
         this.allowUnmappedFields = allowUnmappedFields;
     }
 
+    public void setFieldVisibilityPredicate(Predicate<String> fieldVisibilityPredicate) {
+        this.fieldVisibilityPredicate = fieldVisibilityPredicate;
+    }
+
     public void setMapUnmappedFieldAsString(boolean mapUnmappedFieldAsString) {
         this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
     }
@@ -680,6 +686,13 @@ public class QueryRewriteContext {
                 && dft.getChildFieldType(fieldName.substring(dotIndex + 1)) != null;
         }
         return false;
+    }
+
+    public boolean isFieldVisible(String field) {
+        return runtimeMappings.containsKey(field)
+            || mappingLookup.isRuntimeField(field)
+            || (mapperService != null && mapperService.isMetadataField(field))
+            || fieldVisibilityPredicate.test(field);
     }
 
     public ResolvedIndices getResolvedIndices() {

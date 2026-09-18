@@ -238,6 +238,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.shardSearchStats,
             circuitBreaker
         );
+        this.fieldVisibilityPredicate = source.fieldVisibilityPredicate;
     }
 
     private SearchExecutionContext(
@@ -400,7 +401,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 () -> this.lookup().forkAndTrackFieldReferences(fieldType.name()),
                 this::sourcePath,
                 mapperService.getIdFieldDataEnabled(),
-                fielddataOperation
+                fielddataOperation,
+                this::isFieldVisible
             )
         );
     }
@@ -589,7 +591,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
                     searchLookup,
                     this::sourcePath,
                     () -> false,
-                    fielddataOperation
+                    fielddataOperation,
+                    this::isFieldVisible
                 )
             ),
             sourceProvider,

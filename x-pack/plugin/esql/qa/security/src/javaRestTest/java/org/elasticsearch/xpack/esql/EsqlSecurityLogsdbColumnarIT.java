@@ -262,4 +262,9 @@ public class EsqlSecurityLogsdbColumnarIT extends EsqlSecurityIT {
                 .entry("values", List.of(Arrays.asList((Object) null), Arrays.asList((Object) null)))
         );
     }
+
+    @Override
+    public void testFieldLevelSecurityWithRuntimeMappingTargetingConstantKeyword() {
+        assumeTrue("mapping-level runtime fields are not supported in logsdb_columnar mode", false);
+    }
 }

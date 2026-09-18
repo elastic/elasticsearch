@@ -311,7 +311,7 @@ public class PlanRemoteFetchTests extends ESTestCase {
 
     public void testDoesNotPlanSpecializedOrTemporalExtractionSemantics() {
         assertDeferredAttributeIsRejected(
-            new FieldAttribute(Source.EMPTY, "specialized", new PotentiallyUnmappedKeywordEsField("specialized"))
+            new FieldAttribute(Source.EMPTY, "specialized", new PotentiallyUnmappedKeywordEsField("specialized", true))
         );
         assertDeferredAttributeIsRejected(
             new FieldAttribute(

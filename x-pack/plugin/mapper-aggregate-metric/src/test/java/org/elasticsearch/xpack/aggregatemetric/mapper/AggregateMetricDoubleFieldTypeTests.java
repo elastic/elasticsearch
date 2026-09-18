@@ -17,6 +17,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -73,7 +74,15 @@ public class AggregateMetricDoubleFieldTypeTests extends FieldTypeTestCase {
 
     private IndexFieldData<?> buildFieldData(AggregateMetricDoubleFieldType fieldType) {
         return fieldType.fielddataBuilder(
-            new FieldDataContext("test", null, () -> null, s -> Set.of(), () -> false, MappedFieldType.FielddataOperation.SEARCH)
+            new FieldDataContext(
+                "test",
+                null,
+                () -> null,
+                s -> Set.of(),
+                () -> false,
+                MappedFieldType.FielddataOperation.SEARCH,
+                Predicates.always()
+            )
         ).build(null, null);
     }
 
@@ -205,7 +214,15 @@ public class AggregateMetricDoubleFieldTypeTests extends FieldTypeTestCase {
                 SearchLookup lookup = new SearchLookup(
                     searchExecutionContext::getFieldType,
                     (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(
-                        new FieldDataContext("test", null, lookupSupplier, searchExecutionContext::sourcePath, () -> false, fdo)
+                        new FieldDataContext(
+                            "test",
+                            null,
+                            lookupSupplier,
+                            searchExecutionContext::sourcePath,
+                            () -> false,
+                            fdo,
+                            Predicates.always()
+                        )
                     ).build(null, null),
                     (ctx, doc) -> null
                 );
@@ -256,7 +273,15 @@ public class AggregateMetricDoubleFieldTypeTests extends FieldTypeTestCase {
                 SearchLookup lookup = new SearchLookup(
                     searchExecutionContext::getFieldType,
                     (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(
-                        new FieldDataContext("test", null, lookupSupplier, searchExecutionContext::sourcePath, () -> false, fdo)
+                        new FieldDataContext(
+                            "test",
+                            null,
+                            lookupSupplier,
+                            searchExecutionContext::sourcePath,
+                            () -> false,
+                            fdo,
+                            Predicates.always()
+                        )
                     ).build(null, null),
                     (ctx, doc) -> null
                 );

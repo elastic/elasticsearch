@@ -41,6 +41,7 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.TestDocumentParserContext;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -60,6 +61,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
@@ -240,6 +242,38 @@ public class QueryBuilderStoreTests extends ESTestCase {
                 percolateContext.isQueryMemoryPreCharged(marker)
             );
             assertThat("percolate context release must return the request breaker to baseline", breaker.getUsed(), equalTo(baselineUsed));
+        }
+    }
+
+    public void testPercolateSearchContextPreservesFieldVisibilityPredicate() throws IOException {
+        try (Directory directory = newDirectory()) {
+            PercolatorTestSetup setup = setupPercolatorTest(directory, "mapped_field", new QueryBuilder[0]);
+
+            SearchExecutionContext source = setup.baseContext();
+            source.setFieldVisibilityPredicate(field -> field.equals("visible"));
+
+            AtomicReference<FieldDataContext> capturedContext = new AtomicReference<>();
+
+            MappedFieldType fieldType = new MockFieldMapper.FakeFieldType("hidden") {
+                @Override
+                public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+                    capturedContext.set(fieldDataContext);
+                    return (cache, breakerService) -> new BytesBinaryIndexFieldData(
+                        name(),
+                        CoreValuesSourceType.KEYWORD,
+                        BinaryDocValuesField::new,
+                        IndexVersion.current()
+                    );
+                }
+            };
+
+            SearchExecutionContext percolateContext = PercolateQueryBuilder.newPercolateSearchContext(source, false);
+
+            percolateContext.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
+
+            assertNotNull(capturedContext.get());
+            assertFalse(capturedContext.get().isFieldVisible("hidden"));
+            assertTrue(capturedContext.get().isFieldVisible("visible"));
         }
     }
 

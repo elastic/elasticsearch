@@ -300,8 +300,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         MappedFieldType.FieldExtractPreference fieldExtractPreference
     ) {
         DefaultShardContext shardContext = (DefaultShardContext) shardContexts.get(shardId);
-        if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
-            shardContext = wrapWithUnmappedFieldContext(shardContext, getFieldName(fa));
+        if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField potentiallyUnmapped) {
+            shardContext = wrapWithUnmappedFieldContext(shardContext, getFieldName(fa), potentiallyUnmapped.mappedInFieldCaps());
         }
         if (attr instanceof UnmappedFieldsAttribute ufa) {
             // The pattern's excludes cover what field caps reported to the coordinator, not this shard's mapping, so a field mapped
@@ -361,7 +361,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
             }
             fieldName = getFieldName((Attribute) convert.field());
-            shardContext = wrapWithUnmappedFieldContext(shardContext, fieldName);
+            shardContext = wrapWithUnmappedFieldContext(shardContext, fieldName, true);
             conversion = potentiallyUnmapped;
         }
         if (conversion instanceof BlockLoaderExpression ble) {
@@ -443,18 +443,20 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         );
     }
 
-    static DefaultShardContext wrapWithUnmappedFieldContext(DefaultShardContext ctx, String fullFieldName) {
-        return new DefaultShardContextForUnmappedField(ctx, fullFieldName);
+    static DefaultShardContext wrapWithUnmappedFieldContext(DefaultShardContext ctx, String fullFieldName, boolean mappedInFieldCaps) {
+        return new DefaultShardContextForUnmappedField(ctx, fullFieldName, mappedInFieldCaps);
     }
 
     /** A hack to pretend an unmapped field still exists. */
     private static class DefaultShardContextForUnmappedField extends DefaultShardContext {
         /** The one field this context pretends is mapped; any other name behaves exactly as on the context it wraps. */
         private final String fullFieldName;
+        private final boolean mappedInFieldCaps;
 
-        DefaultShardContextForUnmappedField(DefaultShardContext ctx, String fullFieldName) {
+        DefaultShardContextForUnmappedField(DefaultShardContext ctx, String fullFieldName, boolean mappedInFieldCaps) {
             super(ctx.index, ctx.releasable, ctx.ctx, ctx.aliasFilter);
             this.fullFieldName = fullFieldName;
+            this.mappedInFieldCaps = mappedInFieldCaps;
         }
 
         @Override
@@ -476,11 +478,16 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             ByteSizeValue blockLoaderSizeOrdinals,
             ByteSizeValue blockLoaderSizeScript
         ) {
+            if (name.equals(fullFieldName) && isFieldVisible(name) == false) {
+                return ConstantNull.INSTANCE;
+            }
             // Both of KeywordFieldType#blockLoader's paths mangle an object value from _source, so read _source directly via
             // UnmappedKeywordBlockLoader - see that class for the two broken paths and the issues (#156381, #156433).
             // TODO: consider fixing FallbackSyntheticSourceBlockLoader instead of working around it here. Rejected for now because it
             // only covers the synthetic-source half, and its constructor rejects the NO_IGNORED_SOURCE format stored source reports.
-            if (asUnsupportedSource == false && name.equals(fullFieldName) && super.fieldType(name) == null) {
+            if (asUnsupportedSource == false
+                && name.equals(fullFieldName)
+                && (mappedInFieldCaps == false || super.fieldType(name) == null)) {
                 // Neither LOAD nor LOAD_ALL fuses a function into loading an unmapped field, and unmappedKeywordBlockLoader has
                 // nowhere to put one - so catch it here rather than let it be dropped and surface as a wrong value much later.
                 assert blockLoaderFunctionConfig == null
@@ -860,6 +867,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return ctx.getMappingLookup();
         }
 
+        public boolean isFieldVisible(String name) {
+            return ctx.isFieldVisible(name);
+        }
+
         @Override
         public BlockLoader blockLoader(
             String name,
@@ -870,7 +881,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             ByteSizeValue blockLoaderSizeOrdinals,
             ByteSizeValue blockLoaderSizeScript
         ) {
-            if (asUnsupportedSource) {
+            if (asUnsupportedSource || isFieldVisible(name) == false) {
                 return ConstantNull.INSTANCE;
             }
             // Resolve the field type in a single pass. fieldType() (via the search execution context) applies field-level

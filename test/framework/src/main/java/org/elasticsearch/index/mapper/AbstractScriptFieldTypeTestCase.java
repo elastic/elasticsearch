@@ -30,6 +30,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -285,7 +286,8 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             searchExecutionContext::lookup,
             mockContext()::sourcePath,
             () -> false,
-            MappedFieldType.FielddataOperation.SCRIPT
+            MappedFieldType.FielddataOperation.SCRIPT,
+            Predicates.always()
         );
     }
 
@@ -325,7 +327,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             context::getFieldType,
             (fieldName) -> fieldOnlyMappedAsRuntimeField,
             (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(
-                new FieldDataContext("test", null, lookupSupplier, context::sourcePath, () -> false, fdo)
+                new FieldDataContext("test", null, lookupSupplier, context::sourcePath, () -> false, fdo, Predicates.always())
             ).build(null, null),
             sourceProvider,
             LeafFieldLookupProvider.fromStoredFields()
@@ -334,8 +336,9 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         when(context.getForField(any(), any())).then(args -> {
             MappedFieldType ft = args.getArgument(0);
             MappedFieldType.FielddataOperation fdo = args.getArgument(1);
-            return ft.fielddataBuilder(new FieldDataContext("test", null, context::lookup, context::sourcePath, () -> false, fdo))
-                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+            return ft.fielddataBuilder(
+                new FieldDataContext("test", null, context::lookup, context::sourcePath, () -> false, fdo, Predicates.always())
+            ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
         });
         when(context.getMatchingFieldNames(any())).thenReturn(Set.of("dummy_field"));
         return context;

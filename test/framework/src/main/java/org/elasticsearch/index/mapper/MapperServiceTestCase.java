@@ -39,6 +39,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
@@ -947,7 +948,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         Function<String, Set<String>> sourcePathsLookup
     ) {
         return (mft, lookupSource, fdo) -> mft.fielddataBuilder(
-            new FieldDataContext("test", null, lookupSource, sourcePathsLookup, () -> false, fdo)
+            new FieldDataContext("test", null, lookupSource, sourcePathsLookup, () -> false, fdo, Predicates.always())
         ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
     }
 

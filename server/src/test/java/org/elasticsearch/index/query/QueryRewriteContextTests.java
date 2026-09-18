@@ -27,12 +27,14 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
+import org.elasticsearch.index.mapper.TestRuntimeField;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.indices.DateFieldRangeInfo;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.CoordinatorRewriteContext.TIER_FIELD_TYPE;
@@ -51,28 +53,10 @@ public class QueryRewriteContextTests extends ESTestCase {
                     .put(DataTier.TIER_PREFERENCE, "data_cold,data_warm,data_hot")
                     .build()
             );
-            QueryRewriteContext context = new QueryRewriteContext(
-                parserConfig(),
-                null,
-                System::currentTimeMillis,
-                null,
-                MappingLookup.EMPTY,
-                Collections.emptyMap(),
+            QueryRewriteContext context = newQueryRewriteContext(
                 new IndexSettings(metadata, Settings.EMPTY),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                false,
-                false
+                MappingLookup.EMPTY,
+                Collections.emptyMap()
             );
 
             assertThat(context.getTierPreference(), is("data_cold"));
@@ -84,28 +68,10 @@ public class QueryRewriteContextTests extends ESTestCase {
                 "index",
                 Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
             );
-            QueryRewriteContext context = new QueryRewriteContext(
-                parserConfig(),
-                null,
-                System::currentTimeMillis,
-                null,
-                MappingLookup.EMPTY,
-                Collections.emptyMap(),
+            QueryRewriteContext context = newQueryRewriteContext(
                 new IndexSettings(metadata, Settings.EMPTY),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                false,
-                false
+                MappingLookup.EMPTY,
+                Collections.emptyMap()
             );
 
             assertThat(context.getTierPreference(), is(nullValue()));
@@ -171,14 +137,66 @@ public class QueryRewriteContextTests extends ESTestCase {
         MappingLookup lookup = MappingLookup.fromMapping(mapping, IndexMode.STANDARD);
 
         IndexMetadata indexMeta = newIndexMeta("test-idx", Settings.builder().build());
-        QueryRewriteContext ctx = new QueryRewriteContext(
+        QueryRewriteContext ctx = newQueryRewriteContext(new IndexSettings(indexMeta, Settings.EMPTY), lookup, Collections.emptyMap());
+
+        // The root metadata field is in fullNameToFieldType, so it maps directly.
+        assertTrue(ctx.isMappedField(DynamicMetadataFieldMapper.NAME));
+        // Sub-field whose key exists in the DynamicFieldType.
+        assertTrue(ctx.isMappedField(DynamicMetadataFieldMapper.NAME + "." + DynamicMetadataFieldMapper.PRESENT_KEY));
+        // Sub-field whose key the DynamicFieldType does not know about.
+        assertFalse(ctx.isMappedField(DynamicMetadataFieldMapper.NAME + ".absent_key"));
+        // A completely unmapped field.
+        assertFalse(ctx.isMappedField("unmapped_field"));
+        // Sub-field of a completely unmapped parent.
+        assertFalse(ctx.isMappedField("unmapped_parent.sub_key"));
+    }
+
+    public void testIsFieldVisible() {
+        TestRuntimeField mappedRuntimeField = new TestRuntimeField("mapped_runtime", "keyword");
+
+        RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder("_doc");
+        rootBuilder.addRuntimeFields(Map.of(mappedRuntimeField.name(), mappedRuntimeField));
+
+        Mapping mapping = new Mapping(rootBuilder.build(MapperBuilderContext.root(false, false)), new MetadataFieldMapper[0], Map.of());
+
+        MappingLookup mappingLookup = MappingLookup.fromMappers(
+            mapping,
+            List.of(new MockFieldMapper("visible"), new MockFieldMapper("hidden")),
+            List.of(),
+            IndexMode.STANDARD
+        );
+
+        MappedFieldType requestRuntimeField = new TestRuntimeField.TestRuntimeFieldType("request_runtime", "keyword");
+        var settings = new IndexSettings(newIndexMeta("test-index", Settings.EMPTY), Settings.EMPTY);
+        QueryRewriteContext context = newQueryRewriteContext(settings, mappingLookup, Map.of("request_runtime", requestRuntimeField));
+
+        // Fields are visible by default.
+        assertTrue(context.isFieldVisible("hidden"));
+
+        context.setFieldVisibilityPredicate(field -> field.equals("visible"));
+
+        assertTrue(context.isFieldVisible("visible"));
+        assertFalse(context.isFieldVisible("hidden"));
+        assertFalse(context.isFieldVisible("missing"));
+
+        // Runtime field output names are not restricted by the mapping-field predicate.
+        assertTrue(context.isFieldVisible("mapped_runtime"));
+        assertTrue(context.isFieldVisible("request_runtime"));
+    }
+
+    private QueryRewriteContext newQueryRewriteContext(
+        IndexSettings indexSettings,
+        MappingLookup mappingLookup,
+        Map<String, MappedFieldType> runtimeMappings
+    ) {
+        return new QueryRewriteContext(
             parserConfig(),
             null,
             System::currentTimeMillis,
             null,
-            lookup,
-            Collections.emptyMap(),
-            new IndexSettings(indexMeta, Settings.EMPTY),
+            mappingLookup,
+            runtimeMappings,
+            indexSettings,
             null,
             null,
             null,
@@ -194,17 +212,6 @@ public class QueryRewriteContextTests extends ESTestCase {
             false,
             false
         );
-
-        // The root metadata field is in fullNameToFieldType, so it maps directly.
-        assertTrue(ctx.isMappedField(DynamicMetadataFieldMapper.NAME));
-        // Sub-field whose key exists in the DynamicFieldType.
-        assertTrue(ctx.isMappedField(DynamicMetadataFieldMapper.NAME + "." + DynamicMetadataFieldMapper.PRESENT_KEY));
-        // Sub-field whose key the DynamicFieldType does not know about.
-        assertFalse(ctx.isMappedField(DynamicMetadataFieldMapper.NAME + ".absent_key"));
-        // A completely unmapped field.
-        assertFalse(ctx.isMappedField("unmapped_field"));
-        // Sub-field of a completely unmapped parent.
-        assertFalse(ctx.isMappedField("unmapped_parent.sub_key"));
     }
 
     /**

@@ -23,6 +23,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -131,7 +132,15 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         SearchLookup searchLookup = new SearchLookup(null, null, (ctx, doc) -> null);
         ifdService.getForField(
             ft,
-            new FieldDataContext("qualified", null, () -> searchLookup, null, () -> false, MappedFieldType.FielddataOperation.SEARCH)
+            new FieldDataContext(
+                "qualified",
+                null,
+                () -> searchLookup,
+                null,
+                () -> false,
+                MappedFieldType.FielddataOperation.SEARCH,
+                Predicates.always()
+            )
         );
         assertSame(searchLookup, searchLookupSetOnce.get().get());
     }

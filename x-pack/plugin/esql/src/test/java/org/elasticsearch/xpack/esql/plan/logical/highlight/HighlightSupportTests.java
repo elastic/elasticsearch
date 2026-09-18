@@ -12,7 +12,10 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
@@ -105,7 +108,50 @@ public class HighlightSupportTests extends ESTestCase {
         HighlightSupport.requireUniformAnalyzer(unlabeled, null);
         HighlightSupport.requireUniformAnalyzer(named, "english");
         HighlightSupport.requireUniformAnalyzer(unlabeled, "english");
-        HighlightSupport.requireUniformAnalyzer(namedAnd, null);
+        HighlightSupport.requireUniformAnalyzer(namedAnd, "english");
+        HighlightSupport.requireUniformAnalyzer(named, null, "english");
+
+        IllegalArgumentException missingValues = expectThrows(
+            IllegalArgumentException.class,
+            () -> HighlightSupport.requireUniformAnalyzer(named, null)
+        );
+        assertThat(
+            missingValues.getMessage(),
+            equalTo("HIGHLIGHT query analyzer [english] does not match the values analyzer [standard]; they must be the same")
+        );
+    }
+
+    public void testValuesAnalyzerName() {
+        assertNull(HighlightSupport.valuesAnalyzerName(List.of(getFieldAttribute("title", TEXT))));
+        assertNull(HighlightSupport.valuesAnalyzerName(List.of(textField("title", null))));
+        assertNull(HighlightSupport.valuesAnalyzerName(List.of(textField("title", "standard"))));
+        assertThat(HighlightSupport.valuesAnalyzerName(List.of(textField("title", "english"))), equalTo("english"));
+        assertThat(
+            HighlightSupport.valuesAnalyzerName(List.of(textField("title", "english"), textField("body", "english"))),
+            equalTo("english")
+        );
+
+        IllegalArgumentException mixed = expectThrows(
+            IllegalArgumentException.class,
+            () -> HighlightSupport.valuesAnalyzerName(List.of(textField("title", "english"), textField("body", "whitespace")))
+        );
+        assertThat(
+            mixed.getMessage(),
+            equalTo("HIGHLIGHT ON fields use different values analyzers [english, whitespace]; they must be the same")
+        );
+
+        IllegalArgumentException mixedWithDefault = expectThrows(
+            IllegalArgumentException.class,
+            () -> HighlightSupport.valuesAnalyzerName(List.of(textField("title", "english"), getFieldAttribute("body", TEXT)))
+        );
+        assertThat(
+            mixedWithDefault.getMessage(),
+            equalTo("HIGHLIGHT ON fields use different values analyzers [english, standard]; they must be the same")
+        );
+    }
+
+    private static ReferenceAttribute textField(String name, String valuesAnalyzer) {
+        return new ReferenceAttribute(EMPTY, null, name, TEXT, Nullability.FALSE, new NameId(), false, valuesAnalyzer);
     }
 
     public void testRequireUniformAnalyzerRejectsMixedLeaves() {

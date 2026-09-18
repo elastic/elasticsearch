@@ -349,9 +349,15 @@ public class Highlight extends UnaryPlan
             verifyQuery(defaultAnalyzer(analysisRegistry), failures);
             return;
         }
+        String valueAnalyzerName = null;
+        try {
+            valueAnalyzerName = HighlightSupport.valuesAnalyzerName(fields);
+        } catch (IllegalArgumentException e) {
+            failures.add(fail(this, "{}", e.getMessage()));
+        }
         if (query != null && query.resolved()) {
             try {
-                HighlightSupport.requireUniformAnalyzer(query, commandAnalyzerName);
+                HighlightSupport.requireUniformAnalyzer(query, commandAnalyzerName, valueAnalyzerName);
             } catch (IllegalArgumentException e) {
                 failures.add(fail(this, "{}", e.getMessage()));
                 return;
@@ -359,9 +365,8 @@ public class Highlight extends UnaryPlan
         }
         Analyzer analyzer;
         try {
-            analyzer = commandAnalyzerName == null
-                ? defaultAnalyzer(analysisRegistry)
-                : PlannerUtils.resolveAnalyzer(commandAnalyzerName, analysisRegistry);
+            String effective = commandAnalyzerName != null ? commandAnalyzerName : valueAnalyzerName;
+            analyzer = effective == null ? defaultAnalyzer(analysisRegistry) : PlannerUtils.resolveAnalyzer(effective, analysisRegistry);
         } catch (InvalidArgumentException e) {
             // The analyzer name is a valid string but doesn't resolve.
             failures.add(fail(this, "{}", e.getMessage()));

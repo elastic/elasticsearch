@@ -5034,6 +5034,17 @@ public class VerifierTests extends AnalyzerTestCase {
         );
     }
 
+    public void testHighlightQueryAnalyzerMustMatchValuesOrWith() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT",
+            containsString("HIGHLIGHT query analyzer [whitespace] does not match the values analyzer [standard]")
+        );
+        supportsHighlightImplicit(fullText()).query(
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT WITH { \"analyzer\": \"whitespace\" }"
+        );
+    }
+
     public void testHighlightImplicitDerivedQueryFailureIsFramedAsDerived() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         supportsHighlightImplicit(fullText()).error(
@@ -5125,7 +5136,10 @@ public class VerifierTests extends AnalyzerTestCase {
             "FROM test | HIGHLIGHT MATCH_PHRASE(title, \"quick fox\", {\"analyzer\": \"whitespace\"}) ON title"
                 + " WITH { \"analyzer\": \"whitespace\" }"
         );
-        supportsHighlight(fullText()).query("FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title");
+        supportsHighlight(fullText()).query(
+            "FROM test | EVAL t = to_text(concat(title, body), {\"analyzer\": \"whitespace\"})"
+                + " | HIGHLIGHT MATCH(t, \"fox\", {\"analyzer\": \"whitespace\"}) ON t"
+        );
         supportsHighlight(fullText()).query("FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title");
         supportsHighlight(fullText()).query(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title WITH { \"analyzer\": \"standard\" }"
@@ -5205,6 +5219,10 @@ public class VerifierTests extends AnalyzerTestCase {
         supportsHighlight(fullText()).error(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title WITH { \"analyzer\": \"keyword\" }",
             containsString("HIGHLIGHT WITH analyzer [keyword] does not match analyzer [whitespace] specified by the query")
+        );
+        supportsHighlight(fullText()).error(
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title",
+            containsString("HIGHLIGHT query analyzer [whitespace] does not match the values analyzer [standard]")
         );
         supportsHighlight(fullText()).error(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"english\"}) OR"

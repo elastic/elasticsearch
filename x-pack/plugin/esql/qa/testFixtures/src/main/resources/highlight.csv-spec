@@ -1958,12 +1958,14 @@ TS k8s
 ;
 
 
-# The nested MATCH analyzer is copied into HIGHLIGHT's WITH options when it is omitted, so the runtime side runs
-# with the same analyzer as the query side without the user restating it.
+# MATCH's analyzer applies to the query string; HIGHLIGHT tokenizes values with TO_TEXT's analyzer. They agree here,
+# so highlighting stems "Rings" without restating the name as WITH.
 highlightUniformAnalyzerFromExplicitMatch
 required_capability: highlight_implicit_query_and_fields
+required_capability: fn_to_text_analyzer
+required_capability: fn_match_runtime_analyzer
 
-ROW title = to_text("The Lord of the Rings")
+ROW title = to_text("The Lord of the Rings", {"analyzer": "english"})
 | HIGHLIGHT MATCH(title, "ring", { "analyzer": "english" }) ON title
 | KEEP highlight_title
 ;
@@ -1973,12 +1975,13 @@ The Lord of the <em>Rings</em>
 ;
 
 
-# Two leaves that agree on the same analyzer share it — the shared name is synthesized into WITH once and every
-# named field is highlighted with it. English stems both "Rings" and "rings" to "ring", so the query term matches.
+# Two leaves and both ON columns declare the same values analyzer, so highlighting stems both fields.
 highlightUniformAnalyzerAcrossFields
 required_capability: highlight_implicit_query_and_fields
+required_capability: fn_to_text_analyzer
+required_capability: fn_match_runtime_analyzer
 
-ROW title = to_text("The Lord of the Rings"), author = to_text("J.R.R. Tolkien wrote about rings")
+ROW title = to_text("The Lord of the Rings", {"analyzer": "english"}), author = to_text("J.R.R. Tolkien wrote about rings", {"analyzer": "english"})
 | HIGHLIGHT MATCH(title, "ring", { "analyzer": "english" }) AND MATCH(author, "ring", { "analyzer": "english" }) ON title, author
 | KEEP highlight_title, highlight_author
 ;
@@ -1988,13 +1991,13 @@ The Lord of the <em>Rings</em> | Tolkien wrote about <em>rings</em>
 ;
 
 
-# An implicit query borrows the analyzer from the upstream WHERE and highlights with it.
+# An implicit query's MATCH analyzer must match HIGHLIGHT WITH; mapped fields have no TO_TEXT analyzer to agree with.
 highlightUniformAnalyzerFromImplicitWhere
 required_capability: highlight_implicit_query_and_fields
 
 FROM books
 | WHERE MATCH(title, "shadow", { "analyzer": "english" })
-| HIGHLIGHT
+| HIGHLIGHT WITH { "analyzer": "english" }
 | KEEP title, highlight_title
 ;
 

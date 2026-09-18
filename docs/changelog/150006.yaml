@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 150006
+summary: Adding support for ESQL query for datafeeds
+type: enhancement

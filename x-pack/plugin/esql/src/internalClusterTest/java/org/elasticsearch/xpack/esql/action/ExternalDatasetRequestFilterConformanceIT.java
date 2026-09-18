@@ -577,15 +577,17 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
      * agreement with the index. That answer has to match the one the query gives, which is the drop warning.
      */
     public void testAskingTheTranslatorMatchesTheDropWarning() throws IOException {
-        Map<String, DataType> types = Map.of(
-            "id",
-            DataType.INTEGER,
-            "status",
-            DataType.INTEGER,
-            "tags",
-            DataType.KEYWORD,
-            "bytes",
-            DataType.LONG
+        // Every column the dataset declares, not a sample of them: a filter naming a column the map omits would bind
+        // to a null literal here and to a real field in the query, which is the divergence this test exists to deny.
+        Map<String, DataType> types = Map.ofEntries(
+            Map.entry("id", DataType.INTEGER),
+            Map.entry("status", DataType.INTEGER),
+            Map.entry("tags", DataType.KEYWORD),
+            Map.entry("bytes", DataType.LONG),
+            Map.entry("ts", DataType.DATETIME),
+            Map.entry("label", DataType.KEYWORD),
+            Map.entry("rating", DataType.INTEGER),
+            Map.entry("nick", DataType.KEYWORD)
         );
         List<QueryBuilder> filters = List.of(
             QueryBuilders.termQuery("status", 200),
@@ -594,7 +596,12 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
             QueryBuilders.existsQuery("tags"),
             QueryBuilders.wildcardQuery("tags", "t*"),
             QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 200)).must(QueryBuilders.wildcardQuery("tags", "t*")),
-            QueryBuilders.prefixQuery("tags", "t")
+            QueryBuilders.prefixQuery("tags", "t"),
+            // The four columns the old four-entry map left out, so an omission diverges here rather than in the field.
+            QueryBuilders.rangeQuery("ts").gte("2020-01-01"),
+            QueryBuilders.termQuery("label", "Alpha"),
+            QueryBuilders.rangeQuery("rating").gte(2),
+            QueryBuilders.existsQuery("nick")
         );
         for (QueryBuilder filter : filters) {
             Request request = new Request("POST", "/_query");

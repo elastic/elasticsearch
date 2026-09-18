@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
@@ -80,23 +81,14 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
     ) {
         Optional<String> unsupportedReason = checkClusterSupportsDatafeedConfig(request.getDatafeed(), state);
         if (unsupportedReason.isPresent()) {
-            listener.onFailure(
-                ExceptionsHelper.badRequestException(
-                    "Cannot create datafeed [{}] while a cluster upgrade is in progress ({}); "
-                        + "wait for the cluster to finish upgrading and try again.",
-                    request.getDatafeed().getId(),
-                    unsupportedReason.get()
-                )
-            );
+            listener.onFailure(unsupportedDatafeedConfigException(request.getDatafeed(), unsupportedReason.get()));
             return;
         }
         if (request.getDatafeed().getEsqlQuery() != null
             && MachineLearning.isEsqlDatafeedsEnabled(state, projectResolver.getProjectId()) == false) {
             listener.onFailure(
                 ExceptionsHelper.badRequestException(
-                    "Cannot create ES|QL datafeed [{}] while [xpack.ml.esql_datafeeds.enabled] is disabled; "
-                        + "enable ES|QL datafeeds and try again.",
-                    request.getDatafeed().getId()
+                    Messages.getMessage(Messages.DATAFEED_ESQL_CREATE_DISABLED, request.getDatafeed().getId())
                 )
             );
             return;
@@ -121,6 +113,15 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         return Optional.empty();
     }
 
+    private static Exception unsupportedDatafeedConfigException(DatafeedConfig datafeed, String unsupportedReason) {
+        return ExceptionsHelper.badRequestException(
+            "Cannot create datafeed [{}] while a cluster upgrade is in progress ({}); "
+                + "wait for the cluster to finish upgrading and try again.",
+            datafeed.getId(),
+            unsupportedReason
+        );
+    }
+
     @Override
     protected ClusterBlockException checkBlock(PutDatafeedAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
@@ -129,6 +130,11 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
     @Override
     protected void doExecute(Task task, PutDatafeedAction.Request request, ActionListener<PutDatafeedAction.Response> listener) {
         final ActionListener<PutDatafeedAction.Response> releasingListener = ActionListener.releaseAfter(listener, request);
+        Optional<String> unsupportedReason = checkClusterSupportsDatafeedConfig(request.getDatafeed(), clusterService.state());
+        if (unsupportedReason.isPresent()) {
+            releasingListener.onFailure(unsupportedDatafeedConfigException(request.getDatafeed(), unsupportedReason.get()));
+            return;
+        }
         if (MachineLearningField.ML_API_FEATURE.check(licenseState)) {
             CloudCredential callerCredential = datafeedManager.currentCallerCredential(threadPool, securityContext);
             if (callerCredential != null) {

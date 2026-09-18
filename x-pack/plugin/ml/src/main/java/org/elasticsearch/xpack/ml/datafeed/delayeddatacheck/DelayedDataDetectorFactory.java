@@ -58,7 +58,9 @@ public class DelayedDataDetectorFactory {
                     bucketSpan,
                     window,
                     job.getId(),
+                    datafeedConfig.getSourceTimeField(),
                     job.getDataDescription().getTimeField(),
+                    datafeedConfig.getGroupingInterval().millis(),
                     job.getAnalysisConfig().getSummaryCountFieldName(),
                     dataExtractorFactory,
                     client

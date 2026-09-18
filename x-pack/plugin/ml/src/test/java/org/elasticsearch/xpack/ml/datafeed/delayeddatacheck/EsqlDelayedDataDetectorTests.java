@@ -6,11 +6,13 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.delayeddatacheck;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
@@ -50,6 +52,7 @@ public class EsqlDelayedDataDetectorTests extends ESTestCase {
     private static final long WINDOW_MS = 600_000L;
     private static final String JOB_ID = "test-job";
     private static final String TIME_FIELD = "ts";
+    private static final String SOURCE_TIME_FIELD = "source_ts";
     private static final String COUNT_FIELD = "event_count";
     private static final long LATEST_MS = 660_000L;
     private static final long END_MS = LATEST_MS;
@@ -81,6 +84,21 @@ public class EsqlDelayedDataDetectorTests extends ESTestCase {
         assertThat(missing, hasSize(1));
         assertThat(missing.get(0).getMissingDocumentCount(), equalTo(2L));
         assertThat(missing.get(0).getBucket(), equalTo(bucket));
+    }
+
+    public void testDetectMissingDataShouldUseGroupingIntervalForSourceRangeAndEmittedTimeForBucketLabels() {
+        long groupingIntervalMs = 120_000L;
+        long latestMs = 660_000L;
+        long expectedStart = 0L;
+        long expectedEnd = 600_000L;
+        Bucket bucket = newBucket(120_000L, 3L);
+        stubQueryAndBuckets(expectedStart, expectedEnd, ndjson("{\"ts\":120000,\"event_count\":5}"), List.of(bucket));
+
+        List<BucketWithMissingData> missing = newDetector(BUCKET_SPAN_MS, WINDOW_MS, groupingIntervalMs).detectMissingData(latestMs);
+
+        assertThat(missing, hasSize(1));
+        assertThat(missing.get(0).getTimeStamp(), equalTo(120L));
+        verify(dataExtractorFactory).newExtractor(expectedStart, expectedEnd);
     }
 
     public void testDetectMissingDataGivenEndEqualsStartReturnsEmptyList() {
@@ -134,6 +152,22 @@ public class EsqlDelayedDataDetectorTests extends ESTestCase {
         assertThat(missing.get(0).getMissingDocumentCount(), equalTo(2L));
     }
 
+    public void testAccumulateBucketCountsGivenNullSummaryCountShouldStillValidateEveryEmittedTime() {
+        for (String record : List.of(
+            "{\"event_count\":null}",
+            "{\"ts\":null,\"event_count\":null}",
+            "{\"ts\":[120000],\"event_count\":null}",
+            "{\"ts\":\"not-a-date\",\"event_count\":null}",
+            "{\"ts\":59999,\"event_count\":null}",
+            "{\"ts\":660000,\"event_count\":null}"
+        )) {
+            stubQueryAndBuckets(START_MS, END_MS, ndjson(record), List.of(newBucket(120_000L, 1L)));
+
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> newDetector().detectMissingData(LATEST_MS));
+            assertThat(e.getMessage(), containsString(TIME_FIELD));
+        }
+    }
+
     public void testAccumulateBucketCountsGivenStringCountFieldThrowsIllegalArgument() {
         stubQueryAndBuckets(START_MS, END_MS, ndjson("{\"ts\":120000,\"event_count\":\"not-a-number\"}"), List.of(newBucket(120_000L, 1L)));
 
@@ -142,19 +176,61 @@ public class EsqlDelayedDataDetectorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("numeric"));
     }
 
-    public void testAccumulateBucketCountsGivenStringTimeFieldThrowsIllegalArgument() {
+    public void testAccumulateBucketCountsGivenUnsupportedTimeFieldThrowsIllegalArgument() {
         stubQueryAndBuckets(START_MS, END_MS, ndjson("{\"ts\":\"not-a-number\",\"event_count\":3}"), List.of(newBucket(120_000L, 1L)));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> newDetector().detectMissingData(LATEST_MS));
         assertThat(e.getMessage(), containsString(TIME_FIELD));
-        assertThat(e.getMessage(), containsString("numeric"));
+        assertThat(e.getMessage(), containsString("date or numeric"));
     }
 
-    public void testAccumulateBucketCountsGivenNullTimeFieldRowIsSkipped() {
-        InputStream ndjson = ndjson("{\"event_count\":3}", "{\"ts\":120000,\"event_count\":5}");
-        stubQueryAndBuckets(START_MS, END_MS, ndjson, List.of(newBucket(120_000L, 3L)));
+    public void testAccumulateBucketCountsGivenNullTimeFieldThrowsIllegalArgument() {
+        StubDataExtractor extractor = stubQueryAndBuckets(
+            START_MS,
+            END_MS,
+            ndjson("{\"event_count\":3}"),
+            List.of(newBucket(120_000L, 3L))
+        );
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> newDetector().detectMissingData(LATEST_MS));
+        assertThat(e.getMessage(), containsString("non-null scalar"));
+        assertThat(extractor.isDestroyed(), is(true));
+    }
+
+    public void testAccumulateBucketCountsGivenMultiValuedTimeFieldThrowsIllegalArgument() {
+        stubQueryAndBuckets(START_MS, END_MS, ndjson("{\"ts\":[120000],\"event_count\":3}"), List.of(newBucket(120_000L, 1L)));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> newDetector().detectMissingData(LATEST_MS));
+        assertThat(e.getMessage(), containsString("multi-valued"));
+    }
+
+    public void testAccumulateBucketCountsGivenTimeBeforeSourceWindowThrowsIllegalArgument() {
+        stubQueryAndBuckets(START_MS, END_MS, ndjson("{\"ts\":59999,\"event_count\":3}"), List.of(newBucket(120_000L, 1L)));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> newDetector().detectMissingData(LATEST_MS));
+        assertThat(e.getMessage(), containsString("before the source window start"));
+    }
+
+    public void testAccumulateBucketCountsGivenTimeAtSourceWindowEndThrowsIllegalArgument() {
+        stubQueryAndBuckets(START_MS, END_MS, ndjson("{\"ts\":660000,\"event_count\":3}"), List.of(newBucket(120_000L, 1L)));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> newDetector().detectMissingData(LATEST_MS));
+        assertThat(e.getMessage(), containsString("at or after the source window end"));
+    }
+
+    public void testAccumulateBucketCountsGivenDateAndDateNanosTimeFieldsShouldConvertToEpochMillis() {
+        stubQueryAndBuckets(
+            START_MS,
+            END_MS,
+            ndjson(
+                "{\"ts\":\"1970-01-01T00:02:00.000Z\",\"event_count\":2}",
+                "{\"ts\":\"1970-01-01T00:02:00.123456789Z\",\"event_count\":3}"
+            ),
+            List.of(newBucket(120_000L, 3L))
+        );
 
         List<BucketWithMissingData> missing = newDetector().detectMissingData(LATEST_MS);
+
         assertThat(missing, hasSize(1));
         assertThat(missing.get(0).getMissingDocumentCount(), equalTo(2L));
     }
@@ -223,6 +299,31 @@ public class EsqlDelayedDataDetectorTests extends ESTestCase {
         assertThat(missing, is(Collections.emptyList()));
     }
 
+    public void testDetectMissingDataGivenTruncatedReQueryShouldSkipReportingAndLogWarning() {
+        Bucket bucket = newBucket(120_000L, 3L);
+        SearchInterval incompleteInterval = new SearchInterval(200_000L, 300_000L);
+        StubDataExtractor extractor = new StubDataExtractor(incompleteInterval, ndjson("{\"ts\":120000,\"event_count\":5}"));
+        when(dataExtractorFactory.newExtractor(START_MS, END_MS)).thenReturn(extractor);
+        stubBucketsResponse(START_MS, END_MS, List.of(bucket));
+
+        try (var mockLog = MockLog.capture(EsqlDelayedDataDetector.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "warn on truncated delayed-data re-query",
+                    EsqlDelayedDataDetector.class.getCanonicalName(),
+                    Level.WARN,
+                    "*" + JOB_ID + "*truncated*"
+                )
+            );
+
+            List<BucketWithMissingData> missing = newDetector().detectMissingData(LATEST_MS);
+
+            assertThat(missing, is(Collections.emptyList()));
+            mockLog.assertAllExpectationsMatched();
+        }
+        assertThat(extractor.isDestroyed(), is(true));
+    }
+
     public void testGetBucketEventsBuildsExpectedRequest() throws IOException {
         stubQueryAndBuckets(START_MS, END_MS, ndjson("{\"ts\":120000,\"event_count\":5}"), List.of(newBucket(120_000L, 3L)));
 
@@ -246,7 +347,21 @@ public class EsqlDelayedDataDetectorTests extends ESTestCase {
     }
 
     private EsqlDelayedDataDetector newDetector(long bucketSpanMs, long windowMs) {
-        return new EsqlDelayedDataDetector(bucketSpanMs, windowMs, JOB_ID, TIME_FIELD, COUNT_FIELD, dataExtractorFactory, client);
+        return newDetector(bucketSpanMs, windowMs, bucketSpanMs);
+    }
+
+    private EsqlDelayedDataDetector newDetector(long bucketSpanMs, long windowMs, long groupingIntervalMs) {
+        return new EsqlDelayedDataDetector(
+            bucketSpanMs,
+            windowMs,
+            JOB_ID,
+            SOURCE_TIME_FIELD,
+            TIME_FIELD,
+            groupingIntervalMs,
+            COUNT_FIELD,
+            dataExtractorFactory,
+            client
+        );
     }
 
     private Bucket newBucket(long epochMs, long eventCount) {
@@ -295,10 +410,16 @@ public class EsqlDelayedDataDetectorTests extends ESTestCase {
     private static class StubDataExtractor implements DataExtractor {
 
         private final List<InputStream> batches;
+        private final SearchInterval incompleteSearchInterval;
         private int nextIndex = 0;
         private boolean destroyed = false;
 
         StubDataExtractor(InputStream... batches) {
+            this(null, batches);
+        }
+
+        StubDataExtractor(SearchInterval incompleteSearchInterval, InputStream... batches) {
+            this.incompleteSearchInterval = incompleteSearchInterval;
             this.batches = Arrays.asList(batches);
         }
 
@@ -333,6 +454,11 @@ public class EsqlDelayedDataDetectorTests extends ESTestCase {
         @Override
         public long getEndTime() {
             return 0L;
+        }
+
+        @Override
+        public Optional<SearchInterval> getIncompleteSearchInterval() {
+            return Optional.ofNullable(incompleteSearchInterval);
         }
 
         boolean isDestroyed() {

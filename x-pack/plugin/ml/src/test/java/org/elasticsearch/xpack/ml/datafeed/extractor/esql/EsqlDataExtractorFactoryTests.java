@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -38,6 +39,7 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
 
     private static final String ESQL_QUERY = "FROM logs";
     private static final String TIME_FIELD = "ts";
+    private static final String SOURCE_TIME_FIELD = "@timestamp";
     private static final String SUMMARY_COUNT_FIELD = "doc_count";
 
     private Client client;
@@ -61,10 +63,24 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
         EsqlDataExtractorContext context = extractor.getContext();
         assertThat(context.jobId(), equalTo("job-1"));
         assertThat(context.esqlQuery(), equalTo(ESQL_QUERY));
-        assertThat(context.timeField(), equalTo(TIME_FIELD));
+        assertThat(context.sourceTimeField(), equalTo(SOURCE_TIME_FIELD));
+        assertThat(context.emittedTimeField(), equalTo(TIME_FIELD));
+        assertThat(context.groupingIntervalMillis(), equalTo(TimeValue.timeValueMinutes(1).millis()));
         assertThat(context.start(), equalTo(1000L));
         assertThat(context.end(), equalTo(2000L));
         assertThat(context.requiredSummaryCountField(), nullValue());
+    }
+
+    public void testFactoryShouldKeepSourceAndEmittedFieldsDistinct() {
+        Job job = buildJob("job-1", "bucket_time", null);
+        DatafeedConfig datafeed = buildDatafeed("datafeed-1", "job-1", null, null);
+        EsqlDataExtractorFactory factory = new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter);
+
+        EsqlDataExtractorContext context = ((EsqlDataExtractor) factory.newExtractor(0L, 1000L)).getContext();
+
+        assertThat(context.sourceTimeField(), equalTo(SOURCE_TIME_FIELD));
+        assertThat(context.emittedTimeField(), equalTo("bucket_time"));
+        assertThat(context.sourceTimeField(), not(equalTo(context.emittedTimeField())));
     }
 
     public void testNewExtractorSetsRequiredSummaryCountFieldWhenDelayedDataCheckEnabled() {
@@ -158,6 +174,8 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
     ) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, jobId);
         builder.setEsqlQuery(ESQL_QUERY);
+        builder.setSourceTimeField(SOURCE_TIME_FIELD);
+        builder.setGroupingInterval(TimeValue.timeValueMinutes(1));
         builder.setDelayedDataCheckConfig(delayedDataCheckConfig);
         if (headers != null) {
             builder.setHeaders(headers);
@@ -168,6 +186,8 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
     private static DatafeedConfig buildDatafeedWithProjectRouting(String datafeedId, String jobId, String projectRouting) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, jobId);
         builder.setEsqlQuery(ESQL_QUERY);
+        builder.setSourceTimeField(SOURCE_TIME_FIELD);
+        builder.setGroupingInterval(TimeValue.timeValueMinutes(1));
         builder.setProjectRouting(projectRouting);
         return builder.build();
     }

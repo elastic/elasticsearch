@@ -15,12 +15,16 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -49,6 +53,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -150,8 +155,37 @@ public class TransportPutDatafeedActionTests extends ESTestCase {
         }
     }
 
+    public void testCoordinatingNodeShouldRejectEsqlDatafeedBeforeSendingToOlderMaster() {
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        Client client = mock(Client.class);
+        ClusterService clusterService = mock(ClusterService.class);
+        TransportService transportService = mock(TransportService.class);
+        TransportPutDatafeedAction action = createAction(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            client,
+            clusterService,
+            transportService
+        );
+        when(clusterService.state()).thenReturn(coordinatingStateWithOlderMaster());
+        clearInvocations(transportService);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        action.doExecute(null, new PutDatafeedAction.Request(esqlDatafeed()), ActionTestUtils.assertNoSuccessListener(failure::set));
+
+        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(((ElasticsearchStatusException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(failure.get().getMessage(), containsString("cluster upgrade is in progress"));
+        assertThat(failure.get().getMessage(), containsString("wait for the cluster to finish upgrading"));
+        verifyNoInteractions(transportService, datafeedConfigProvider, jobConfigProvider, client);
+    }
+
     private static DatafeedConfig esqlDatafeed() {
-        return new DatafeedConfig.Builder("datafeed-1", "job-1").setEsqlQuery("FROM logs").build();
+        return new DatafeedConfig.Builder("datafeed-1", "job-1").setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
     }
 
     private static TransportPutDatafeedAction createAction(
@@ -159,8 +193,17 @@ public class TransportPutDatafeedActionTests extends ESTestCase {
         JobConfigProvider jobConfigProvider,
         Client client
     ) {
+        return createAction(datafeedConfigProvider, jobConfigProvider, client, mock(ClusterService.class), mock(TransportService.class));
+    }
+
+    private static TransportPutDatafeedAction createAction(
+        DatafeedConfigProvider datafeedConfigProvider,
+        JobConfigProvider jobConfigProvider,
+        Client client,
+        ClusterService clusterService,
+        TransportService transportService
+    ) {
         Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
-        ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(
             new ClusterSettings(settings, Set.of(MachineLearning.REQUIRE_ROLLBACK_SNAPSHOT_BEFORE_SCOPE_CHANGE))
         );
@@ -169,7 +212,7 @@ public class TransportPutDatafeedActionTests extends ESTestCase {
         when(projectResolver.getProjectId()).thenReturn(ProjectId.DEFAULT);
         return new TransportPutDatafeedAction(
             settings,
-            mock(TransportService.class),
+            transportService,
             clusterService,
             mock(ThreadPool.class),
             mock(XPackLicenseState.class),
@@ -241,6 +284,22 @@ public class TransportPutDatafeedActionTests extends ESTestCase {
                 ProjectStateRegistry.TYPE,
                 ProjectStateRegistry.builder().putProjectSettings(ProjectId.DEFAULT, projectSettings).build()
             )
+            .build();
+    }
+
+    private static ClusterState coordinatingStateWithOlderMaster() {
+        DiscoveryNode coordinatingNode = DiscoveryNodeUtils.create("coordinating-node");
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create("older-master-node");
+        return ClusterState.builder(new ClusterName("put-datafeed-action-tests"))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(coordinatingNode)
+                    .add(masterNode)
+                    .localNodeId(coordinatingNode.getId())
+                    .masterNodeId(masterNode.getId())
+            )
+            .putCompatibilityVersions(coordinatingNode.getId(), TransportVersion.current(), SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS)
+            .putCompatibilityVersions(masterNode.getId(), preEsqlDatafeedTransportVersion(), SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS)
             .build();
     }
 

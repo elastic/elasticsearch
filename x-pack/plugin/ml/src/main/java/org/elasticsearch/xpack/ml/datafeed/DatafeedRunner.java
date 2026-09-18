@@ -301,13 +301,12 @@ public class DatafeedRunner {
     private void auditEsqlDatafeedDisabled(DatafeedConfig datafeedConfig, ProjectId projectId, ClusterState clusterState) {
         String settingScope = ProjectStateRegistry.getProjectSettings(projectId, clusterState)
             .hasValue(MachineLearning.ESQL_DATAFEEDS_ENABLED.getKey()) ? "project" : "cluster";
-        String message = "Stopping ES|QL datafeed ["
-            + datafeedConfig.getId()
-            + "] for job ["
-            + datafeedConfig.getJobId()
-            + "] because ES|QL datafeeds are disabled; enable ES|QL datafeeds on the "
-            + settingScope
-            + " to restart it.";
+        String message = Messages.getMessage(
+            Messages.DATAFEED_ESQL_DISABLED_STOPPING_DATAFEED,
+            datafeedConfig.getId(),
+            datafeedConfig.getJobId(),
+            settingScope
+        );
         logger.warn("{}", message);
         auditor.warning(datafeedConfig.getJobId(), message);
     }

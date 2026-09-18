@@ -43,6 +43,8 @@ import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
@@ -152,16 +154,21 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     }
 
     static void validateEsqlDatafeedEnabled(DatafeedConfig datafeedConfig, ClusterState state, ProjectId projectId) {
+        if (datafeedConfig.minRequiredTransportVersion()
+            .map(required -> state.getMinTransportVersion().supports(required.v1()) == false)
+            .orElse(false)) {
+            throw ExceptionsHelper.badRequestException(
+                Messages.getMessage(Messages.DATAFEED_ESQL_PREVIEW_UPGRADE_IN_PROGRESS, datafeedConfig.getId())
+            );
+        }
         if (datafeedConfig.getEsqlQuery() != null && MachineLearning.isEsqlDatafeedsEnabled(state, projectId) == false) {
-            throw new ElasticsearchStatusException(
-                "Cannot preview ES|QL datafeed while [xpack.ml.esql_datafeeds.enabled] is disabled; "
-                    + "enable ES|QL datafeeds and try again.",
-                org.elasticsearch.rest.RestStatus.BAD_REQUEST
+            throw ExceptionsHelper.badRequestException(
+                Messages.getMessage(Messages.DATAFEED_ESQL_PREVIEW_DISABLED, datafeedConfig.getId())
             );
         }
     }
 
-    private void previewDatafeed(
+    void previewDatafeed(
         TaskId parentTaskId,
         DatafeedConfig datafeedConfig,
         Job job,
@@ -207,7 +214,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 new ParentTaskAssigningClient(client, parentTaskId),
                 callerCredential
             );
-            DataExtractorFactory.create(
+            createDataExtractorFactory(
                 previewClient,
                 cloudCredentialManager,
                 effectiveDatafeedConfig,
@@ -230,6 +237,28 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 })
             );
         });
+    }
+
+    void createDataExtractorFactory(
+        Client client,
+        CloudCredentialManager cloudCredentialManager,
+        DatafeedConfig datafeed,
+        QueryBuilder extraFilters,
+        Job job,
+        NamedXContentRegistry xContentRegistry,
+        DatafeedTimingStatsReporter timingStatsReporter,
+        ActionListener<DataExtractorFactory> listener
+    ) {
+        DataExtractorFactory.create(
+            client,
+            cloudCredentialManager,
+            datafeed,
+            extraFilters,
+            job,
+            xContentRegistry,
+            timingStatsReporter,
+            listener
+        );
     }
 
     private void runPreview(

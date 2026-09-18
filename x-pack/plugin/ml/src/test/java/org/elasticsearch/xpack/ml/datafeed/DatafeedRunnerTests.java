@@ -204,7 +204,10 @@ public class DatafeedRunnerTests extends ESTestCase {
 
     public void testEsqlDatafeedShouldStopWhenRuntimeSettingIsDisabled() throws Exception {
         Job job = createDatafeedJob().setCreateTime(new Date()).build();
-        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder(DATAFEED_ID, JOB_ID).setEsqlQuery("FROM logs").build();
+        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder(DATAFEED_ID, JOB_ID).setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
         givenDatafeedHasNeverRunBefore(job, esqlDatafeed);
 
         ClusterState enabledState = clusterStateWithEsqlDatafeedsEnabled(true);
@@ -232,7 +235,10 @@ public class DatafeedRunnerTests extends ESTestCase {
 
     public void testEsqlDatafeedShouldStopWhenProjectSettingIsDisabled() throws Exception {
         Job job = createDatafeedJob().setCreateTime(new Date()).build();
-        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder(DATAFEED_ID, JOB_ID).setEsqlQuery("FROM logs").build();
+        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder(DATAFEED_ID, JOB_ID).setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
         givenDatafeedHasNeverRunBefore(job, esqlDatafeed);
 
         ClusterState enabledState = clusterStateWithEsqlDatafeedsEnabled(true);
@@ -269,7 +275,10 @@ public class DatafeedRunnerTests extends ESTestCase {
 
     public void testEsqlDatafeedShouldNotScheduleWhenSettingIsDisabledBeforeHolderPublication() throws Exception {
         Job job = createDatafeedJob().setCreateTime(new Date()).build();
-        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder(DATAFEED_ID, JOB_ID).setEsqlQuery("FROM logs").build();
+        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder(DATAFEED_ID, JOB_ID).setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
         givenDatafeedHasNeverRunBefore(job, esqlDatafeed);
 
         ClusterState enabledState = clusterStateWithEsqlDatafeedsEnabled(true);
@@ -302,7 +311,10 @@ public class DatafeedRunnerTests extends ESTestCase {
 
     public void testEsqlDatafeedShouldNotCompleteTwiceWhenSettingIsDisabledBeforeStartedStateResponse() throws Exception {
         Job job = createDatafeedJob().setCreateTime(new Date()).build();
-        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder(DATAFEED_ID, JOB_ID).setEsqlQuery("FROM logs").build();
+        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder(DATAFEED_ID, JOB_ID).setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
         givenDatafeedHasNeverRunBefore(job, esqlDatafeed);
 
         ClusterState enabledState = clusterStateWithEsqlDatafeedsEnabled(true);
@@ -342,7 +354,10 @@ public class DatafeedRunnerTests extends ESTestCase {
 
     public void testEsqlDatafeedShouldNotSendStartedStateWhenDisableLinearizesBeforeStartDispatch() throws Exception {
         Job job = createDatafeedJob().setCreateTime(new Date()).build();
-        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder(DATAFEED_ID, JOB_ID).setEsqlQuery("FROM logs").build();
+        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder(DATAFEED_ID, JOB_ID).setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
         givenDatafeedHasNeverRunBefore(job, esqlDatafeed);
 
         ClusterState enabledState = clusterStateWithEsqlDatafeedsEnabled(true);

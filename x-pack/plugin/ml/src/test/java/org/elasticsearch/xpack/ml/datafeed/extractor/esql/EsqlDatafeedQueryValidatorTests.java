@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
@@ -32,6 +35,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -105,7 +109,8 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         );
 
         assertThat(failure.get(), instanceOf(IllegalArgumentException.class));
-        assertThat(failure.get().getMessage(), containsString("ESQL query response is missing the required columns: " + TIME_FIELD));
+        assertThat(failure.get().getMessage(), containsString("final ES|QL output"));
+        assertThat(failure.get().getMessage(), containsString("data_description.time_field [" + TIME_FIELD + "]"));
     }
 
     public void testValidateQueryGivenMissingSummaryCountFieldFails() {
@@ -125,6 +130,8 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
         assertThat(failure.get(), instanceOf(IllegalArgumentException.class));
         assertThat(failure.get().getMessage(), containsString(SUMMARY_COUNT_FIELD));
+        assertThat(failure.get().getMessage(), containsString("numeric count column"));
+        assertThat(failure.get().getMessage(), containsString("disable delayed-data checking"));
     }
 
     public void testValidateQueryGivenIndexNotFoundSucceeds() {
@@ -184,13 +191,21 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(failure.get().getMessage(), containsString("query syntax error"));
     }
 
-    public void testValidateQueryAppendsLimitZero() {
-        List<ColumnInfo> columns = List.of(mockColumn(TIME_FIELD, "date"));
+    public void testValidateQueryAppendsLimitZeroWithoutInjectingCountColumn() {
+        List<ColumnInfo> columns = List.of(mockColumn(TIME_FIELD, "date"), mockColumn(SUMMARY_COUNT_FIELD, "long"));
         TestValidator validator = new TestValidator(buildResponse(columns));
 
-        validator.validateQuery(null, Collections.emptyMap(), ESQL_QUERY, null, TIME_FIELD, null, ActionListener.wrap(ok -> {}, e -> {
-            throw new AssertionError(e);
-        }));
+        validator.validateQuery(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            TIME_FIELD,
+            SUMMARY_COUNT_FIELD,
+            ActionListener.wrap(ok -> {}, e -> {
+                throw new AssertionError(e);
+            })
+        );
 
         assertThat(validator.capturedQuery, equalTo(ESQL_QUERY + " | LIMIT 0"));
     }
@@ -290,48 +305,113 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             mockColumn(SUMMARY_COUNT_FIELD, "long"),
             mockColumn("other", "keyword")
         );
-        EsqlDatafeedQueryValidator.checkRequiredColumns(columns, TIME_FIELD, SUMMARY_COUNT_FIELD);
+        EsqlDatafeedQueryValidator.checkRequiredColumns(columns, TIME_FIELD, SUMMARY_COUNT_FIELD, null);
     }
 
     public void testCheckRequiredColumnsGivenNoSummaryCountFieldRequiredSucceeds() {
         List<ColumnInfo> columns = List.of(mockColumn(TIME_FIELD, "date"));
-        EsqlDatafeedQueryValidator.checkRequiredColumns(columns, TIME_FIELD, null);
+        EsqlDatafeedQueryValidator.checkRequiredColumns(columns, TIME_FIELD, null, null);
     }
 
     public void testCheckRequiredColumnsGivenMissingTimeFieldThrows() {
         List<ColumnInfo> columns = List.of(mockColumn("other_field", "keyword"));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> EsqlDatafeedQueryValidator.checkRequiredColumns(columns, TIME_FIELD, null)
+            () -> EsqlDatafeedQueryValidator.checkRequiredColumns(columns, TIME_FIELD, null, null)
         );
-        assertThat(e.getMessage(), containsString("ESQL query response is missing the required columns: " + TIME_FIELD));
+        assertThat(e.getMessage(), containsString("final ES|QL output"));
+        assertThat(e.getMessage(), containsString("data_description.time_field [" + TIME_FIELD + "]"));
+    }
+
+    public void testCheckRequiredColumnsGivenMissingTimeFieldAndDatafeedIdNamesTheDatafeed() {
+        List<ColumnInfo> columns = List.of(mockColumn("other_field", "keyword"));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> EsqlDatafeedQueryValidator.checkRequiredColumns(columns, TIME_FIELD, null, "esql-datafeed")
+        );
+        assertThat(e.getMessage(), containsString("for datafeed [esql-datafeed]"));
+        assertThat(e.getMessage(), containsString("data_description.time_field [" + TIME_FIELD + "]"));
     }
 
     public void testCheckRequiredColumnsGivenMissingSummaryCountFieldThrows() {
         List<ColumnInfo> columns = List.of(mockColumn(TIME_FIELD, "date"));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> EsqlDatafeedQueryValidator.checkRequiredColumns(columns, TIME_FIELD, SUMMARY_COUNT_FIELD)
+            () -> EsqlDatafeedQueryValidator.checkRequiredColumns(columns, TIME_FIELD, SUMMARY_COUNT_FIELD, null)
         );
-        assertThat(e.getMessage(), containsString("ESQL query response is missing the required columns: " + SUMMARY_COUNT_FIELD));
+        assertThat(e.getMessage(), containsString(SUMMARY_COUNT_FIELD));
+        assertThat(e.getMessage(), containsString("numeric count column"));
     }
 
     public void testCheckRequiredColumnsGivenBothMissingListsBothInError() {
         List<ColumnInfo> columns = List.of(mockColumn("unrelated", "keyword"));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> EsqlDatafeedQueryValidator.checkRequiredColumns(columns, TIME_FIELD, SUMMARY_COUNT_FIELD)
+            () -> EsqlDatafeedQueryValidator.checkRequiredColumns(columns, TIME_FIELD, SUMMARY_COUNT_FIELD, null)
         );
         assertThat(e.getMessage(), containsString(TIME_FIELD));
         assertThat(e.getMessage(), containsString(SUMMARY_COUNT_FIELD));
+        assertThat(e.getMessage(), containsString("final ES|QL output"));
+        assertThat(e.getMessage(), containsString("numeric count column"));
     }
 
     public void testCheckRequiredColumnsGivenEmptyColumnsThrows() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> EsqlDatafeedQueryValidator.checkRequiredColumns(List.of(), TIME_FIELD, null)
+            () -> EsqlDatafeedQueryValidator.checkRequiredColumns(List.of(), TIME_FIELD, null, null)
         );
         assertThat(e.getMessage(), containsString(TIME_FIELD));
+    }
+
+    public void testConflictingOuterClausesShouldAddActionableWarnings() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        HeaderWarning.setThreadContext(threadContext);
+        try {
+            EsqlDatafeedQueryValidator.warnForConflictingOuterClauses(
+                "datafeed-1",
+                "FROM logs | WHERE ts >= 0 | SORT ts DESC | LIMIT 20",
+                TIME_FIELD
+            );
+
+            assertWarnings(
+                false,
+                List.of(
+                    allOf(
+                        containsString("ES|QL datafeed [datafeed-1] query contains an outer WHERE clause"),
+                        containsString("ML owns the request window")
+                    ),
+                    allOf(
+                        containsString("ES|QL datafeed [datafeed-1] query contains an outer SORT clause"),
+                        containsString("ML owns the request order")
+                    ),
+                    allOf(
+                        containsString("ES|QL datafeed [datafeed-1] query contains an outer LIMIT clause"),
+                        containsString("ML owns the safety ceiling")
+                    )
+                )
+            );
+        } finally {
+            HeaderWarning.removeThreadContext(threadContext);
+        }
+    }
+
+    public void testRawKeepAndLexicalFalsePositivesShouldNotWarn() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        HeaderWarning.setThreadContext(threadContext);
+        try {
+            EsqlDatafeedQueryValidator.warnForConflictingOuterClauses(
+                "datafeed-1",
+                "FROM logs | KEEP ts, value | EVAL note = \"WHERE ts | SORT ts | LIMIT 20\" "
+                    + "| EVAL triple_note = \"\"\"WHERE ts | SORT ts | LIMIT 20\"\"\" "
+                    + "| KEEP `WHERE ts`, value /* WHERE ts | SORT ts | LIMIT 20 /* WHERE ts */ */ "
+                    + "// WHERE ts | SORT ts | LIMIT 20\n | FORK (WHERE ts > 0 | SORT ts | LIMIT 20)",
+                TIME_FIELD
+            );
+
+            assertWarnings();
+        } finally {
+            HeaderWarning.removeThreadContext(threadContext);
+        }
     }
 
     public void testRequiredSummaryCountFieldWhenDelayedCheckEnabledAndFieldSet() {

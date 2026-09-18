@@ -323,6 +323,8 @@ public final class DatafeedManager {
             datafeedConfigProvider.getDatafeedConfig(datafeedId, null, listener.delegateFailureAndWrap((l, configBuilder) -> {
                 try {
                     final DatafeedConfig current = configBuilder.build();
+                    // Validate before creating credentials or retaining rollback state for a scope change.
+                    update.apply(current, Map.of(), state);
                     CredentialTransitions.TransitionContext ctx = new CredentialTransitions.TransitionContext(
                         crossProjectMlEnabled(),
                         hasCpsCredential,

@@ -18,6 +18,7 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
+import org.elasticsearch.xpack.core.ml.datafeed.EsqlDatafeedSourceCheckpoint;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -164,6 +165,15 @@ public class DatafeedJobBuilder {
                 ccsStabilizationCycles,
                 java.time.Duration.ofMillis(ccsStabilizationFloorMs)
             );
+            boolean isEsqlDatafeed = datafeedConfig.getEsqlQuery() != null;
+            String emittedTimeField = job.getDataDescription() == null ? null : job.getDataDescription().getTimeField();
+            String esqlCheckpointFingerprint = isEsqlDatafeed
+                ? EsqlDatafeedSourceCheckpoint.computeFingerprint(effectiveDatafeedConfig, emittedTimeField)
+                : null;
+            Long esqlSourceEndMs = null;
+            if (isEsqlDatafeed && context.esqlSourceCheckpoint() != null) {
+                esqlSourceEndMs = context.esqlSourceCheckpoint().getSourceEndMs();
+            }
             DatafeedJob datafeedJob = new DatafeedJob(
                 datafeedConfig.getId(),
                 effectiveDatafeedConfig.getProjectRouting(),
@@ -185,8 +195,12 @@ public class DatafeedJobBuilder {
                 context.restartTimeInfo().haveSeenDataPreviously(),
                 delayedDataCheckFreq,
                 bucketSpanMs,
-                datafeedConfig.getEsqlQuery() != null,
-                crossClusterSearchStats
+                isEsqlDatafeed,
+                crossClusterSearchStats,
+                isEsqlDatafeed ? effectiveDatafeedConfig.getGroupingInterval().millis() : 0L,
+                esqlCheckpointFingerprint,
+                esqlSourceEndMs,
+                isEsqlDatafeed ? jobResultsPersister::persistEsqlDatafeedSourceCheckpoint : null
             );
 
             listener.onResponse(datafeedJob);

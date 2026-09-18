@@ -72,8 +72,110 @@ setup:
           {
             "job_id": "esql-datafeed-lifecycle-job",
             "delayed_data_check_config": {"enabled": false},
+            "source_time_field": "time",
+            "grouping_interval": "1h",
             "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value"
           }
+
+---
+"Test ES|QL datafeed validation and STATS BUCKET preview":
+  - do:
+      catch: /source_time_field/
+      ml.put_datafeed:
+        datafeed_id: esql-datafeed-missing-source-time
+        body: >
+          {
+            "job_id": "esql-datafeed-lifecycle-job",
+            "grouping_interval": "1h",
+            "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value"
+          }
+
+  - do:
+      catch: /grouping_interval/
+      ml.put_datafeed:
+        datafeed_id: esql-datafeed-missing-grouping-interval
+        body: >
+          {
+            "job_id": "esql-datafeed-lifecycle-job",
+            "source_time_field": "time",
+            "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value"
+          }
+
+  - do:
+      catch: /calendar intervals such as 1w or 1M are not supported/
+      ml.put_datafeed:
+        datafeed_id: esql-datafeed-calendar-grouping-interval
+        body: >
+          {
+            "job_id": "esql-datafeed-lifecycle-job",
+            "source_time_field": "time",
+            "grouping_interval": "1w",
+            "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value"
+          }
+
+  - do:
+      ml.put_job:
+        job_id: esql-datafeed-mismatched-grouping-interval-job
+        body: >
+          {
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "count"}]
+            },
+            "data_description": {
+              "time_field": "time",
+              "time_format": "epoch_ms"
+            }
+          }
+
+  - do:
+      catch: /must equal the job bucket_span/
+      ml.put_datafeed:
+        datafeed_id: esql-datafeed-mismatched-grouping-interval
+        body: >
+          {
+            "job_id": "esql-datafeed-mismatched-grouping-interval-job",
+            "delayed_data_check_config": {"enabled": false},
+            "source_time_field": "time",
+            "grouping_interval": "2h",
+            "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value"
+          }
+
+  - do:
+      ml.put_job:
+        job_id: esql-datafeed-stats-bucket-job
+        body: >
+          {
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "count"}]
+            },
+            "data_description": {
+              "time_field": "time",
+              "time_format": "epoch_ms"
+            }
+          }
+
+  - do:
+      ml.put_datafeed:
+        datafeed_id: esql-datafeed-stats-bucket
+        body: >
+          {
+            "job_id": "esql-datafeed-stats-bucket-job",
+            "delayed_data_check_config": {"enabled": false},
+            "source_time_field": "time",
+            "grouping_interval": "1h",
+            "esql_query": "FROM esql-datafeed-lifecycle-index | STATS value = AVG(value) BY time = BUCKET(time, 1 hour)"
+          }
+
+  - do:
+      ml.preview_datafeed:
+        datafeed_id: esql-datafeed-stats-bucket
+        start: 0
+        end: 4000
+  - length: { $body: 1 }
+  - match: { 0.time: 0 }
+  - match: { 0.value: 2.0 }
 
 ---
 "Test disabling ES|QL datafeeds stops running datafeed but keeps lifecycle APIs available":
@@ -83,12 +185,114 @@ setup:
   - match: { datafeeds.0.esql_query: "FROM esql-datafeed-lifecycle-index | KEEP time, value" }
 
   - do:
+      catch: /Recreate datafeed \[.*\] to change its query shape/
+      ml.update_datafeed:
+        datafeed_id: esql-datafeed-lifecycle-datafeed
+        body: >
+          {
+            "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time"
+          }
+
+  - do:
+      catch: /Recreate datafeed \[.*\] to change its query shape/
+      ml.update_datafeed:
+        datafeed_id: esql-datafeed-lifecycle-datafeed
+        body: >
+          {
+            "query": {"match_all": {}}
+          }
+
+  - do:
+      catch: /Recreate datafeed \[.*\] to change its query shape/
+      ml.update_datafeed:
+        datafeed_id: esql-datafeed-lifecycle-datafeed
+        body: >
+          {
+            "indices": ["another-index"]
+          }
+
+  - do:
+      catch: /Recreate datafeed \[.*\] to change its query shape/
+      ml.update_datafeed:
+        datafeed_id: esql-datafeed-lifecycle-datafeed
+        body: >
+          {
+            "aggregations": {"max_value": {"max": {"field": "value"}}}
+          }
+
+  - do:
+      catch: /Recreate datafeed \[.*\] to change its query shape/
+      ml.update_datafeed:
+        datafeed_id: esql-datafeed-lifecycle-datafeed
+        body: >
+          {
+            "aggs": {"max_value": {"max": {"field": "value"}}}
+          }
+
+  - do:
+      catch: /Recreate datafeed \[.*\] to change its query shape/
+      ml.update_datafeed:
+        datafeed_id: esql-datafeed-lifecycle-datafeed
+        body: >
+          {
+            "script_fields": {"copied_value": {"script": "doc['value'].value"}}
+          }
+
+  - do:
+      catch: /Recreate datafeed \[.*\] to change its query shape/
+      ml.update_datafeed:
+        datafeed_id: esql-datafeed-lifecycle-datafeed
+        body: >
+          {
+            "runtime_mappings": {"runtime_value": {"type": "long"}}
+          }
+
+  - do:
+      catch: /Recreate datafeed \[.*\] to change its query shape/
+      ml.update_datafeed:
+        datafeed_id: esql-datafeed-lifecycle-datafeed
+        body: >
+          {
+            "scroll_size": 2000
+          }
+
+  - do:
+      catch: /Recreate datafeed \[.*\] to change its query shape/
+      ml.update_datafeed:
+        datafeed_id: esql-datafeed-lifecycle-datafeed
+        body: >
+          {
+            "indices_options": {"ignore_unavailable": true}
+          }
+
+  - do:
+      ml.update_datafeed:
+        datafeed_id: esql-datafeed-lifecycle-datafeed
+        body: >
+          {
+            "query_delay": "5m",
+            "frequency": "10m",
+            "max_empty_searches": 7,
+            "chunking_config": {"mode": "manual", "time_span": "1h"},
+            "delayed_data_check_config": {"enabled": false, "check_window": "2h"}
+          }
+  - match: { query_delay: "5m" }
+  - match: { frequency: "10m" }
+  - match: { max_empty_searches: 7 }
+  - match: { chunking_config.mode: "manual" }
+  - match: { chunking_config.time_span: "1h" }
+  - match: { delayed_data_check_config.enabled: false }
+  - match: { delayed_data_check_config.check_window: "2h" }
+
+  - do:
       catch: /query cannot be used in combination with esql_query/
       ml.put_datafeed:
         datafeed_id: esql-datafeed-dsl-mix
         body: >
           {
             "job_id": "esql-datafeed-lifecycle-job",
+            "source_time_field": "time",
+            "grouping_interval": "1h",
             "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value",
             "query": {"match_all": {}}
           }
@@ -100,6 +304,8 @@ setup:
         body: >
           {
             "job_id": "esql-datafeed-lifecycle-job",
+            "source_time_field": "time",
+            "grouping_interval": "1h",
             "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value",
             "aggregations": {"max_value": {"max": {"field": "value"}}}
           }
@@ -111,6 +317,8 @@ setup:
         body: >
           {
             "job_id": "esql-datafeed-lifecycle-job",
+            "source_time_field": "time",
+            "grouping_interval": "1h",
             "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value",
             "script_fields": {"copied_value": {"script": "doc['value'].value"}}
           }
@@ -122,6 +330,8 @@ setup:
         body: >
           {
             "job_id": "esql-datafeed-lifecycle-job",
+            "source_time_field": "time",
+            "grouping_interval": "1h",
             "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value",
             "runtime_mappings": {"runtime_value": {"type": "long"}}
           }
@@ -133,8 +343,23 @@ setup:
         body: >
           {
             "job_id": "esql-datafeed-lifecycle-job",
+            "source_time_field": "time",
+            "grouping_interval": "1h",
             "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value",
             "scroll_size": 2000
+          }
+
+  - do:
+      catch: /indices cannot be used in combination with esql_query/
+      ml.put_datafeed:
+        datafeed_id: esql-datafeed-dsl-indices
+        body: >
+          {
+            "job_id": "esql-datafeed-lifecycle-job",
+            "indices": ["esql-datafeed-lifecycle-index"],
+            "source_time_field": "time",
+            "grouping_interval": "1h",
+            "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value"
           }
 
   - do:

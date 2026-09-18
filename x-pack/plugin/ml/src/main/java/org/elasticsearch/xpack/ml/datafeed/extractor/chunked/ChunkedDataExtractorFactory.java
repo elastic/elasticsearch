@@ -74,6 +74,9 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
             // dropping or duplicating data.
             return newIntervalTimeAligner(datafeedConfig.getHistogramIntervalMillis(xContentRegistry));
         }
+        if (datafeedConfig.getEsqlQuery() != null) {
+            return newIntervalTimeAligner(datafeedConfig.getGroupingInterval().millis());
+        }
         return newIdentityTimeAligner();
     }
 

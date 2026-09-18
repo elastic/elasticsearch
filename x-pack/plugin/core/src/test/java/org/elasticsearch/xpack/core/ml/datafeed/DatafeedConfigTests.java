@@ -1859,10 +1859,122 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         }
     }
 
+    public void testWireRoundTrip_GivenEsqlQueryWithSourceTimeFieldAndGroupingInterval() throws IOException {
+        DatafeedConfig original = createEsqlDatafeedBuilder().build();
+        assertThat(original.getSourceTimeField(), equalTo("@timestamp"));
+        assertThat(original.getGroupingInterval(), equalTo(TimeValue.timeValueHours(1)));
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(TransportVersion.current());
+            original.writeTo(out);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(TransportVersion.current());
+                DatafeedConfig roundTripped = new DatafeedConfig(in);
+                assertThat(roundTripped.getEsqlQuery(), equalTo(original.getEsqlQuery()));
+                // Explicit field assertions against literal expected values, not just equals(original) or
+                // DatafeedConfig#equals -- a round-trip bug in one field could otherwise hide behind a
+                // builder default that happens to coincidentally match.
+                assertThat(roundTripped.getSourceTimeField(), equalTo("@timestamp"));
+                assertThat(roundTripped.getGroupingInterval(), equalTo(TimeValue.timeValueHours(1)));
+                assertThat(roundTripped.getSourceTimeField(), equalTo(original.getSourceTimeField()));
+                assertThat(roundTripped.getGroupingInterval(), equalTo(original.getGroupingInterval()));
+                assertThat(roundTripped, equalTo(original));
+            }
+        }
+    }
+
+    public void testWireSerializationBeforeEsqlSupportShouldFailClearly() throws IOException {
+        DatafeedConfig config = createEsqlDatafeedBuilder().build();
+        TransportVersion unsupportedVersion = TransportVersion.fromName("histogram_blocks_multivalue_support");
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(unsupportedVersion);
+            IOException exception = expectThrows(IOException.class, () -> config.writeTo(out));
+            assertThat(exception.getMessage(), containsString("Cannot send ES|QL datafeed [datafeed1]"));
+            assertThat(exception.getMessage(), containsString("upgrade every node before restoring or starting it"));
+        }
+    }
+
+    public void testEsqlQueryWithoutSourceTimeFieldShouldReject() {
+        DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
+        builder.setSourceTimeField(null);
+
+        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, builder::build);
+        assertThat(exception.getMessage(), equalTo(Messages.getMessage(Messages.DATAFEED_ESQL_REQUIRES_SOURCE_TIME_FIELD)));
+    }
+
+    public void testEsqlQueryWithoutGroupingIntervalShouldReject() {
+        DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
+        builder.setGroupingInterval(null);
+
+        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, builder::build);
+        assertThat(exception.getMessage(), equalTo(Messages.getMessage(Messages.DATAFEED_ESQL_REQUIRES_GROUPING_INTERVAL)));
+    }
+
+    public void testEsqlCalendarGroupingIntervalShouldReject() {
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> DatafeedConfig.Builder.parseFixedGroupingInterval("1w")
+        );
+        assertThat(exception.getMessage(), equalTo(Messages.getMessage(Messages.DATAFEED_ESQL_GROUPING_INTERVAL_MUST_BE_FIXED)));
+    }
+
+    public void testClassicDatafeedWithoutTimeDomainFieldsShouldSucceed() {
+        DatafeedConfig config = new DatafeedConfig.Builder("classic-datafeed", "classic-job").setIndices(Collections.singletonList("logs"))
+            .build();
+
+        assertThat(config.getSourceTimeField(), nullValue());
+        assertThat(config.getGroupingInterval(), nullValue());
+    }
+
+    public void testToXContentShouldRoundTripTimeDomainFields() throws IOException {
+        DatafeedConfig config = createEsqlDatafeedBuilder().build();
+
+        BytesReference bytes = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
+        DatafeedConfig parsedConfig = DatafeedConfig.STRICT_PARSER.apply(parser(bytes), null).build();
+
+        assertThat(parsedConfig.getSourceTimeField(), equalTo(config.getSourceTimeField()));
+        assertThat(parsedConfig.getGroupingInterval(), equalTo(config.getGroupingInterval()));
+        String json = bytes.utf8ToString();
+        assertThat(json, containsString("\"source_time_field\""));
+        assertThat(json, containsString("\"grouping_interval\""));
+    }
+
+    public void testWireRoundTripShouldPreserveTimeDomainFields() throws IOException {
+        DatafeedConfig original = createEsqlDatafeedBuilder().build();
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(TransportVersion.current());
+            original.writeTo(out);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(TransportVersion.current());
+                DatafeedConfig roundTripped = new DatafeedConfig(in);
+                assertThat(roundTripped.getSourceTimeField(), equalTo(original.getSourceTimeField()));
+                assertThat(roundTripped.getGroupingInterval(), equalTo(original.getGroupingInterval()));
+            }
+        }
+    }
+
+    public void testDatafeedConfigEqualsShouldConsiderEsqlFields() {
+        DatafeedConfig base = createEsqlDatafeedBuilder().build();
+        DatafeedConfig differentEsqlQuery = createEsqlDatafeedBuilder().setEsqlQuery("FROM other-index").build();
+        DatafeedConfig differentSourceTimeField = createEsqlDatafeedBuilder().setSourceTimeField("event.ingested").build();
+        DatafeedConfig differentGroupingInterval = createEsqlDatafeedBuilder().setGroupingInterval(TimeValue.timeValueMinutes(30)).build();
+
+        assertThat(base, not(equalTo(differentEsqlQuery)));
+        assertThat(base, not(equalTo(differentSourceTimeField)));
+        assertThat(base, not(equalTo(differentGroupingInterval)));
+        assertThat(base.hashCode(), not(equalTo(differentEsqlQuery.hashCode())));
+        assertThat(base.hashCode(), not(equalTo(differentSourceTimeField.hashCode())));
+        assertThat(base.hashCode(), not(equalTo(differentGroupingInterval.hashCode())));
+    }
+
     private DatafeedConfig.Builder createEsqlDatafeedBuilder() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         builder.setIndices(Collections.singletonList("logs"));
         builder.setEsqlQuery("FROM logs");
+        builder.setSourceTimeField("@timestamp");
+        builder.setGroupingInterval(TimeValue.timeValueHours(1));
         return builder;
     }
 

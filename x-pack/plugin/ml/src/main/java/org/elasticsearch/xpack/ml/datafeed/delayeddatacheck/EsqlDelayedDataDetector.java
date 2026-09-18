@@ -15,11 +15,13 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
+import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -52,7 +54,9 @@ public class EsqlDelayedDataDetector implements DelayedDataDetector {
     private final long bucketSpan;
     private final long window;
     private final String jobId;
+    private final String sourceTimeField;
     private final String timeField;
+    private final long groupingInterval;
     private final String summaryCountFieldName;
     private final DataExtractorFactory dataExtractorFactory;
     private final Client client;
@@ -61,7 +65,9 @@ public class EsqlDelayedDataDetector implements DelayedDataDetector {
         long bucketSpan,
         long window,
         String jobId,
+        String sourceTimeField,
         String timeField,
+        long groupingInterval,
         String summaryCountFieldName,
         DataExtractorFactory dataExtractorFactory,
         Client client
@@ -69,7 +75,9 @@ public class EsqlDelayedDataDetector implements DelayedDataDetector {
         this.bucketSpan = bucketSpan;
         this.window = window;
         this.jobId = Objects.requireNonNull(jobId);
+        this.sourceTimeField = Objects.requireNonNull(sourceTimeField);
         this.timeField = Objects.requireNonNull(timeField);
+        this.groupingInterval = groupingInterval;
         this.summaryCountFieldName = Objects.requireNonNull(summaryCountFieldName);
         this.dataExtractorFactory = Objects.requireNonNull(dataExtractorFactory);
         this.client = Objects.requireNonNull(client);
@@ -77,18 +85,26 @@ public class EsqlDelayedDataDetector implements DelayedDataDetector {
 
     @Override
     public List<BucketWithMissingData> detectMissingData(long latestFinalizedBucketMs) {
-        final long end = Intervals.alignToFloor(latestFinalizedBucketMs, bucketSpan);
-        final long start = Intervals.alignToFloor(latestFinalizedBucketMs - window, bucketSpan);
+        // The extractor uses sourceTimeField for its request range; keep the delayed re-query on
+        // the same epoch-fixed grouping boundaries as normal ES|QL extraction.
+        final long end = Intervals.alignToFloor(latestFinalizedBucketMs, groupingInterval);
+        final long start = Intervals.alignToFloor(latestFinalizedBucketMs - window, groupingInterval);
 
         if (end <= start) {
             return Collections.emptyList();
         }
 
         List<Bucket> finalizedBuckets = getBucketEvents(start, end);
-        Map<Long, Long> indexedData = getCurrentBucketEventCount(start, end);
+        Optional<Map<Long, Long>> indexedData = getCurrentBucketEventCount(start, end);
+        if (indexedData.isEmpty()) {
+            // The re-query was truncated: its counts are unreliable, so skip reporting for this
+            // call rather than risk a false "missing data" report (or mask real missing data).
+            return Collections.emptyList();
+        }
+        Map<Long, Long> bucketCounts = indexedData.get();
         List<BucketWithMissingData> result = new ArrayList<>();
         for (Bucket bucket : finalizedBuckets) {
-            long missing = calculateMissing(indexedData, bucket);
+            long missing = calculateMissing(bucketCounts, bucket);
             if (missing > 0) {
                 result.add(BucketWithMissingData.fromMissingAndBucket(missing, bucket));
             }
@@ -116,9 +132,10 @@ public class EsqlDelayedDataDetector implements DelayedDataDetector {
         }
     }
 
-    private Map<Long, Long> getCurrentBucketEventCount(long start, long end) {
+    private Optional<Map<Long, Long>> getCurrentBucketEventCount(long start, long end) {
         Map<Long, Long> bucketCounts = new HashMap<>();
         long nullCountRows = 0;
+        Optional<SearchInterval> incompleteSearchInterval;
         DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
         try {
             while (dataExtractor.hasNext()) {
@@ -126,14 +143,28 @@ public class EsqlDelayedDataDetector implements DelayedDataDetector {
                 Optional<InputStream> data = result.data();
                 if (data.isPresent()) {
                     try (InputStream in = data.get()) {
-                        nullCountRows += accumulateBucketCounts(bucketCounts, in);
+                        nullCountRows += accumulateBucketCounts(bucketCounts, in, start, end);
                     }
                 }
             }
+            incompleteSearchInterval = dataExtractor.getIncompleteSearchInterval();
         } catch (IOException e) {
             throw new UncheckedIOException("[" + jobId + "] Delayed data check failed while re-running the ES|QL query", e);
         } finally {
             dataExtractor.destroy();
+        }
+        if (incompleteSearchInterval.isPresent()) {
+            SearchInterval interval = incompleteSearchInterval.get();
+            logger.warn(
+                "[{}] Delayed data check re-query for window [{}, {}) was truncated at [{}, {}); the current-index counts "
+                    + "from this re-query are unreliable, so missing-data reporting is skipped for this check.",
+                jobId,
+                start,
+                end,
+                interval.startMs(),
+                interval.endMs()
+            );
+            return Optional.empty();
         }
         if (nullCountRows > 0) {
             logger.warn(
@@ -144,14 +175,15 @@ public class EsqlDelayedDataDetector implements DelayedDataDetector {
                 summaryCountFieldName
             );
         }
-        return bucketCounts;
+        return Optional.of(bucketCounts);
     }
 
     /**
      * Accumulates per-bucket event counts from one NDJSON batch. Returns the number of rows that
      * were skipped because their {@code summaryCountFieldName} value was null.
      */
-    private long accumulateBucketCounts(Map<Long, Long> bucketCounts, InputStream in) throws IOException {
+    private long accumulateBucketCounts(Map<Long, Long> bucketCounts, InputStream in, long sourceWindowStart, long sourceWindowEnd)
+        throws IOException {
         long skipped = 0;
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
             String line;
@@ -160,6 +192,13 @@ public class EsqlDelayedDataDetector implements DelayedDataDetector {
                     continue;
                 }
                 Map<String, Object> doc = parseRecord(line);
+                long emittedTime = EsqlDatafeedQueryValidator.validateEmittedTimeValueInSourceWindow(
+                    jobId,
+                    timeField,
+                    doc.get(timeField),
+                    sourceWindowStart,
+                    sourceWindowEnd
+                );
                 Object countValue = doc.get(summaryCountFieldName);
                 if (countValue == null) {
                     // A null aggregate (e.g. SUM over an all-null group) is legal ES|QL. The same
@@ -179,22 +218,7 @@ public class EsqlDelayedDataDetector implements DelayedDataDetector {
                             + "]. Check that the ES|QL query produces a numeric value for this field."
                     );
                 }
-                Object timeValue = doc.get(timeField);
-                if (timeValue == null) {
-                    continue;
-                }
-                if (timeValue instanceof Number == false) {
-                    throw new IllegalArgumentException(
-                        "["
-                            + jobId
-                            + "] Delayed data check: time field ["
-                            + timeField
-                            + "] must be a numeric (epoch-ms) column but got ["
-                            + timeValue.getClass().getSimpleName()
-                            + "]. Check that the ES|QL query produces a numeric timestamp for this field."
-                    );
-                }
-                long bucketStart = Intervals.alignToFloor(((Number) timeValue).longValue(), bucketSpan);
+                long bucketStart = Intervals.alignToFloor(emittedTime, groupingInterval);
                 bucketCounts.merge(bucketStart, ((Number) countValue).longValue(), Long::sum);
             }
         }

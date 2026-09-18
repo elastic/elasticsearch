@@ -400,6 +400,14 @@ public final class TimeSeriesBlockHash extends BlockHash {
         return finalHash.size();
     }
 
+    /**
+     * The number of distinct tsids seen by this hash. The tsid ordinals returned by {@link #tsidForGroup(long)}
+     * are dense in {@code [0, numTsids())}, so they can be used directly as array indices.
+     */
+    public int numTsids() {
+        return Math.toIntExact(tsidHash.size());
+    }
+
     private void maybeScanTimestampsFromFinalHash() {
         if (minTimestamp > maxTimestamp) {
             for (long i = 0; i < finalHash.size(); i++) {

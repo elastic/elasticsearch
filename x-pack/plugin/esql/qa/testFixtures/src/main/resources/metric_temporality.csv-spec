@@ -631,3 +631,55 @@ my_temporality:keyword | avg_ot:double | min_ot:double | max_ot:double | cnt_ot:
 delta                  | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 503.0..603.0
 null                   | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 503.0..603.0
 ;
+
+// ---------------------------------------------------------------------------------
+
+rateWithSparseOneSecondBuckets
+skip_flattened_rewrite: metric_temporality
+required_capability: rate_with_interpolation_v4
+required_capability: ts_command_v0
+required_capability: tsdb_temporality_support_v9
+
+TS metric_temporality
+ | WHERE cluster == "prod-cumulative"
+ | WHERE TRANGE(to_datetime("2024-05-10T00:00:00Z"), to_datetime("2024-05-10T00:02:00Z"))
+ | STATS rate = SUM(rate(network.total_bytes_in)) BY bucket = TBUCKET(1s)
+ | EVAL rate = ROUND(rate, 6)
+ | SORT bucket
+;
+
+bucket:datetime | rate:double
+2024-05-10T00:00:15.000Z | 0.069881
+2024-05-10T00:00:29.000Z | 0.098706
+2024-05-10T00:00:45.000Z | 0.284023
+2024-05-10T00:01:01.000Z | 0.388407
+2024-05-10T00:01:16.000Z | 0.238705
+2024-05-10T00:01:30.000Z | 0.169051
+2024-05-10T00:01:45.000Z | 0.196078
+;
+
+// ---------------------------------------------------------------------------------
+
+exponentialHistogramWithSparseOneSecondBuckets
+skip_flattened_rewrite: metric_temporality
+required_capability: rate_with_interpolation_v4
+required_capability: ts_command_v0
+required_capability: tsdb_temporality_support_v9
+
+TS metric_temporality
+ | WHERE cluster == "prod-cumulative"
+ | WHERE TRANGE(to_datetime("2024-05-10T00:00:00Z"), to_datetime("2024-05-10T00:02:00Z"))
+ | STATS count = COUNT(bytes_per_request) BY bucket = TBUCKET(1s)
+ | KEEP bucket, count
+ | SORT bucket
+;
+
+bucket:datetime | count:long
+2024-05-10T00:00:15.000Z | 0
+2024-05-10T00:00:29.000Z | 15
+2024-05-10T00:00:45.000Z | 17
+2024-05-10T00:01:01.000Z | 10
+2024-05-10T00:01:16.000Z | 1
+2024-05-10T00:01:30.000Z | 11
+2024-05-10T00:01:45.000Z | 14
+;

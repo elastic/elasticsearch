@@ -38,6 +38,31 @@ public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
         return new DriverContext(blockFactory.bigArrays(), blockFactory, null);
     }
 
+    public void testAdjacentGroupsAtLookbackLimitAreUsed() {
+        DriverContext driverContext = driverContext();
+        try (var context = lookbackContext(driverContext, new long[] { 0, 360_000 }, new long[] { 60_000, 420_000 })) {
+            assertTrue(AbstractRateGroupingFunction.isPreviousGroupWithinLookback(context, 0, 1));
+            assertTrue(AbstractRateGroupingFunction.isNextGroupWithinLookback(context, 0, 1));
+            assertEquals(60.0, AbstractRateGroupingFunction.interpolationBoundaryInSeconds(60_000, 60_000), 0.0);
+            assertEquals(210.0, AbstractRateGroupingFunction.interpolationBoundaryInSeconds(60_000, 360_000), 0.0);
+            assertEquals(0.0005, AbstractRateGroupingFunction.interpolationBoundaryInSeconds(0, 1), 0.0);
+        } finally {
+            driverContext.finish();
+        }
+    }
+
+    public void testAdjacentGroupsPastLookbackLimitAreIgnored() {
+        DriverContext driverContext = driverContext();
+        try (var context = lookbackContext(driverContext, new long[] { 0, 360_001 }, new long[] { 60_000, 420_001 })) {
+            assertFalse(AbstractRateGroupingFunction.isPreviousGroupWithinLookback(context, 0, 1));
+            assertFalse(AbstractRateGroupingFunction.isNextGroupWithinLookback(context, 0, 1));
+            assertFalse(AbstractRateGroupingFunction.isPreviousGroupWithinLookback(context, -1, 1));
+            assertFalse(AbstractRateGroupingFunction.isNextGroupWithinLookback(context, 0, -1));
+        } finally {
+            driverContext.finish();
+        }
+    }
+
     public void testFlushOnSliceChanged() {
         DriverContext driverContext = driverContext();
         List<Page> pages = new ArrayList<>();
@@ -250,6 +275,40 @@ public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
             @Override
             public int nextGroupId(int currentGroupId) {
                 return -1;
+            }
+
+            @Override
+            public void computeAdjacentGroupIds() {}
+        };
+    }
+
+    private static TimeSeriesGroupingAggregatorEvaluationContext lookbackContext(
+        DriverContext driverContext,
+        long[] rangeStarts,
+        long[] rangeEnds
+    ) {
+        return new TimeSeriesGroupingAggregatorEvaluationContext(driverContext) {
+            @Override
+            public long rangeStartInMillis(int groupId) {
+                return rangeStarts[groupId];
+            }
+
+            @Override
+            public long rangeEndInMillis(int groupId) {
+                return rangeEnds[groupId];
+            }
+
+            @Override
+            public void forEachGroupInRange(int startingGroupId, long rangeStartMillis, long rangeEndMillis, IntConsumer action) {}
+
+            @Override
+            public int previousGroupId(int currentGroupId) {
+                return currentGroupId - 1;
+            }
+
+            @Override
+            public int nextGroupId(int currentGroupId) {
+                return currentGroupId + 1;
             }
 
             @Override

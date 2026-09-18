@@ -189,6 +189,61 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         }
     }
 
+    /**
+     * Regression test for the cross-region redirect interaction. Simulates {@code S3CrossRegionAsyncClient}
+     * calling {@code prepare()} twice on the same {@link CrossRegionAwareResponseTransformer}: the first call
+     * represents the initial (wrong-region) attempt, which is failed with a 301 redirect exception; the second
+     * call represents the redirect attempt, which completes normally. The outer {@code readBytesAsync} listener
+     * must receive the correct bytes and no failure.
+     */
+    @SuppressWarnings("unchecked")
+    public void testCrossRegionRedirect_successOnSecondPrepare() throws Exception {
+        GetObjectResponse response = GetObjectResponse.builder()
+            .contentRange("bytes 0-" + (PAYLOAD.length - 1) + "/" + PAYLOAD.length)
+            .contentLength((long) PAYLOAD.length)
+            .lastModified(Instant.parse("2026-04-01T12:00:00Z"))
+            .build();
+
+        when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(invocation -> {
+            AsyncResponseTransformer<GetObjectResponse, DirectReadBuffer> transformer = invocation.getArgument(1);
+            // First prepare: wrong-region attempt — SDK receives 301 and fails via exceptionOccurred
+            transformer.prepare();
+            RuntimeException redirect301 = new RuntimeException("301 Moved Permanently");
+            transformer.exceptionOccurred(redirect301);
+            // Second prepare: redirect attempt — SDK calls prepare() again and completes successfully
+            CompletableFuture<DirectReadBuffer> redirectFuture = completeTransformer(transformer, response, PAYLOAD);
+            // Simulate Netty re-delivering the same 301 exception after the redirect completes.
+            // The duplicate-delivery guard in exceptionOccurred must drop it so the result is not lost.
+            transformer.exceptionOccurred(redirect301);
+            return redirectFuture;
+        });
+
+        S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
+
+        obj.readBytesAsync(0, PAYLOAD.length, FACTORY, Runnable::run, new ActionListener<>() {
+            @Override
+            public void onResponse(DirectReadBuffer buffer) {
+                result.set(buffer);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("unexpected failure from cross-region redirect: " + e.getMessage());
+            }
+        });
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        try (DirectReadBuffer drb = result.get()) {
+            byte[] bytes = new byte[drb.buffer().remaining()];
+            drb.buffer().get(bytes);
+            assertArrayEquals(PAYLOAD, bytes);
+        }
+    }
+
     @SuppressWarnings("unchecked")
     public void testReadBytesAsyncCachesMetadata() throws Exception {
         Instant lastModified = Instant.parse("2026-04-01T12:00:00Z");
@@ -462,16 +517,18 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
      * A retryable transport failure (an {@link IOException}, matching the AWS Standard strategy's
      * retry-on-IOException condition) must be retried by {@code readBytesAsync}'s own retry loop —
      * SDK retries are disabled on the async client — and, critically, each attempt must get a
-     * <b>fresh</b> {@link KnownLengthAsyncResponseTransformer}: a transformer must never span
-     * attempts (see its class javadoc for the stale-exceptionOccurred rationale).
+     * fresh {@link CrossRegionAwareResponseTransformer} (wrapping a fresh
+     * {@link KnownLengthAsyncResponseTransformer}): a transformer must never span attempts
+     * (see {@link KnownLengthAsyncResponseTransformer}'s class javadoc for the
+     * stale-exceptionOccurred rationale).
      */
     @SuppressWarnings("unchecked")
     public void testRetryableFailureRetriesWithFreshTransformer() throws Exception {
         GetObjectResponse response = GetObjectResponse.builder().contentLength((long) PAYLOAD.length).build();
-        List<KnownLengthAsyncResponseTransformer<GetObjectResponse>> transformers = new CopyOnWriteArrayList<>();
+        List<AsyncResponseTransformer<GetObjectResponse, DirectReadBuffer>> transformers = new CopyOnWriteArrayList<>();
 
         when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(invocation -> {
-            KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = invocation.getArgument(1);
+            AsyncResponseTransformer<GetObjectResponse, DirectReadBuffer> transformer = invocation.getArgument(1);
             transformers.add(transformer);
             if (transformers.size() == 1) {
                 return failTransformer(transformer, new IOException("connection reset by peer"));
@@ -503,8 +560,9 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
      * subscriber's {@code onError}, the retry loop starts attempt N+1, and only then does netty's
      * stale {@code exceptionOccurred} for attempt N arrive — once with the throwable the subscriber
      * already handled and once with a fresh {@code IOException} from the channel-inactive teardown.
-     * Because every attempt has its own transformer, the stale calls land on attempt N's (finished)
-     * transformer and cannot fail attempt N+1's future or free its buffer: the in-flight attempt
+     * Because every attempt has its own {@link CrossRegionAwareResponseTransformer} (wrapping its own
+     * {@link KnownLengthAsyncResponseTransformer}), the stale calls land on attempt N's (finished)
+     * wrapper and cannot fail attempt N+1's future or free its buffer: the in-flight attempt
      * completes successfully and no breaker charge leaks.
      */
     @SuppressWarnings("unchecked")
@@ -512,11 +570,11 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         CircuitBreaker breaker = new LimitedBreaker("stale-test", ByteSizeValue.ofMb(16));
         DirectBufferFactory factory = DirectBufferFactory.forBreaker(breaker);
         GetObjectResponse response = GetObjectResponse.builder().contentLength((long) PAYLOAD.length).build();
-        List<KnownLengthAsyncResponseTransformer<GetObjectResponse>> transformers = new CopyOnWriteArrayList<>();
+        List<AsyncResponseTransformer<GetObjectResponse, DirectReadBuffer>> transformers = new CopyOnWriteArrayList<>();
         IOException attemptOneError = new IOException("attempt 1: connection reset mid-stream");
 
         when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(invocation -> {
-            KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = invocation.getArgument(1);
+            AsyncResponseTransformer<GetObjectResponse, DirectReadBuffer> transformer = invocation.getArgument(1);
             transformers.add(transformer);
             if (transformers.size() == 1) {
                 // Attempt N: subscriber receives onError; this fails the attempt future, which is
@@ -550,7 +608,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         assertEquals(1, latch.getCount());
 
         // Attempt N+1 streams its payload; the read must succeed untouched by the stale calls.
-        KnownLengthAsyncResponseTransformer<GetObjectResponse> second = transformers.get(1);
+        AsyncResponseTransformer<GetObjectResponse, DirectReadBuffer> second = transformers.get(1);
         second.onResponse(response);
         second.onStream(new SdkPublisher<>() {
             @Override
@@ -583,7 +641,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         AtomicInteger calls = new AtomicInteger();
         when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(invocation -> {
             calls.incrementAndGet();
-            KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = invocation.getArgument(1);
+            AsyncResponseTransformer<GetObjectResponse, DirectReadBuffer> transformer = invocation.getArgument(1);
             return failTransformer(transformer, S3Exception.builder().statusCode(403).message("Access Denied").build());
         });
 
@@ -607,7 +665,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         AtomicInteger calls = new AtomicInteger();
         when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(invocation -> {
             int call = calls.incrementAndGet();
-            KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = invocation.getArgument(1);
+            AsyncResponseTransformer<GetObjectResponse, DirectReadBuffer> transformer = invocation.getArgument(1);
             return failTransformer(transformer, new IOException("transient failure #" + call));
         });
 
@@ -641,7 +699,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
             .build();
 
         when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(invocation -> {
-            KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = invocation.getArgument(1);
+            AsyncResponseTransformer<GetObjectResponse, DirectReadBuffer> transformer = invocation.getArgument(1);
             if (calls.incrementAndGet() == 1) {
                 // First attempt: throttled with a Retry-After: 1 header (1000 ms suggested delay).
                 S3Exception throttled = (S3Exception) S3Exception.builder()
@@ -739,7 +797,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
 
         // Single retryable failure: triggers the backoff after attempt 1.
         when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(invocation -> {
-            KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = invocation.getArgument(1);
+            AsyncResponseTransformer<GetObjectResponse, DirectReadBuffer> transformer = invocation.getArgument(1);
             return failTransformer(transformer, new IOException("connection reset"));
         });
 
@@ -778,7 +836,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         CountDownLatch requestStarted = new CountDownLatch(1);
 
         when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(invocation -> {
-            KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = invocation.getArgument(1);
+            AsyncResponseTransformer<GetObjectResponse, DirectReadBuffer> transformer = invocation.getArgument(1);
             CompletableFuture<DirectReadBuffer> future = transformer.prepare();
             requestStarted.countDown();
             // Return without completing the future, simulating an in-flight request.
@@ -828,7 +886,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
 
         // Always fail with a retryable IOException so attempt 1 triggers the backoff.
         when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(invocation -> {
-            KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = invocation.getArgument(1);
+            AsyncResponseTransformer<GetObjectResponse, DirectReadBuffer> transformer = invocation.getArgument(1);
             return failTransformer(transformer, new IOException("connection reset"));
         });
 
@@ -858,7 +916,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
      * completes (fails) the attempt future.
      */
     private static CompletableFuture<DirectReadBuffer> failTransformer(
-        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer,
+        AsyncResponseTransformer<GetObjectResponse, DirectReadBuffer> transformer,
         Throwable error
     ) {
         CompletableFuture<DirectReadBuffer> future = transformer.prepare();
@@ -879,7 +937,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
     }
 
     private static CompletableFuture<DirectReadBuffer> completeTransformer(
-        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer,
+        AsyncResponseTransformer<GetObjectResponse, DirectReadBuffer> transformer,
         GetObjectResponse response,
         byte[] payload
     ) {

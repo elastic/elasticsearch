@@ -19,6 +19,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeClient;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.operator.blocksource.BytesRefBlockSourceOperator;
@@ -208,6 +209,11 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
             @Override
             public IsBlockedResult waitForCompletion() {
                 return Operator.NOT_BLOCKED;
+            }
+
+            @Override
+            public BidirectionalBatchExchangeClient.Profile profile() {
+                return BidirectionalBatchExchangeClient.Profile.EMPTY;
             }
 
             @Override
@@ -1021,6 +1027,43 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
         }
     }
 
+    public void testExchangeWaitIsTrackedOncePerListener() throws Exception {
+        DriverContext driverContext = driverContext();
+        List<RemoteFetchService.FetchField> fields = List.of(new RemoteFetchService.FetchField("salary", DataType.INTEGER));
+        List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
+        RecordingClient client = new RecordingClient(driverContext) {
+            @Override
+            void onBatch(String nodeId, String sessionId, long batchId, List<RemoteFetchHandle> handles) {}
+        };
+
+        try (
+            RemoteFetchOperator operator = new RemoteFetchOperator(
+                driverContext,
+                0,
+                fields,
+                outputFields,
+                null,
+                ConfigurationTestUtils.randomConfigurationBuilder().profile(true).build(),
+                2,
+                client
+            )
+        ) {
+            operator.addInput(new Page(handles(driverContext), carry(driverContext)));
+            long enclosingStartNanos = System.nanoTime();
+            IsBlockedResult first = operator.isBlocked();
+            IsBlockedResult second = operator.isBlocked();
+            assertSame(first.listener(), second.listener());
+
+            Thread.sleep(10L);
+            client.fail("node-a", new IllegalStateException("complete exchange wait"));
+            long enclosingWaitNanos = System.nanoTime() - enclosingStartNanos;
+            long trackedWaitNanos = ((RemoteFetchOperator.Status) operator.status()).profile().exchangeWaitNanos();
+
+            assertTrue("the completed exchange wait should be recorded", trackedWaitNanos > 0L);
+            assertTrue("the same listener must not be counted twice", trackedWaitNanos <= enclosingWaitNanos);
+        }
+    }
+
     public void testIsBlockedDrainsReadyPagesBeforeCheckingBlockState() {
         DriverContext driverContext = driverContext();
         List<RemoteFetchService.FetchField> fields = List.of(new RemoteFetchService.FetchField("salary", DataType.INTEGER));
@@ -1320,6 +1363,11 @@ public class RemoteFetchOperatorTests extends OperatorTestCase {
             @Override
             public IsBlockedResult waitForCompletion() {
                 return Operator.NOT_BLOCKED;
+            }
+
+            @Override
+            public BidirectionalBatchExchangeClient.Profile profile() {
+                return BidirectionalBatchExchangeClient.Profile.EMPTY;
             }
 
             @Override

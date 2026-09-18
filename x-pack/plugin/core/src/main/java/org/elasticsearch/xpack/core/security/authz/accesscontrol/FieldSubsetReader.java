@@ -53,6 +53,7 @@ import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -167,8 +168,20 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         Function<String, Boolean> isMapped
     ) throws IOException {
         super(in);
-        ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
-        for (FieldInfo fi : in.getFieldInfos()) {
+        this.fieldInfos = filterPermittedFields(in.getFieldInfos(), filter, ignoredSourceFormat, isMapped);
+        this.filter = filter;
+        this.ignoredSourceFormat = ignoredSourceFormat;
+    }
+
+    // pkg-private for testing
+    static FieldInfos filterPermittedFields(
+        FieldInfos fieldInfos,
+        CharacterRunAutomaton filter,
+        IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
+        Function<String, Boolean> isMapped
+    ) {
+        final ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
+        for (FieldInfo fi : fieldInfos) {
             String name = fi.name;
 
             // Stored-value fallback companions (._original / ._ignore_malformed / ._on_failure) store a parent field's value(s) verbatim so
@@ -185,7 +198,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             // underlying index, so a user field that merely ends with the suffix but has no such parent is unaffected.
             if (name.endsWith(FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX) && isMapped.apply(fi.getName()) == false) {
                 String parent = name.substring(0, name.length() - FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX.length());
-                if (in.getFieldInfos().fieldInfo(parent) != null) {
+                if (fieldInfos.fieldInfo(parent) != null) {
                     name = parent;
                 }
             }
@@ -201,13 +214,11 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 continue;
             }
 
-            if (filter.run(name)) {
+            if (FieldPermissions.PREDICATE.test(name) || filter.run(name)) {
                 filteredInfos.add(fi);
             }
         }
-        fieldInfos = new FieldInfos(filteredInfos.toArray(new FieldInfo[filteredInfos.size()]));
-        this.filter = filter;
-        this.ignoredSourceFormat = ignoredSourceFormat;
+        return new FieldInfos(filteredInfos.toArray(new FieldInfo[0]));
     }
 
     /**
@@ -299,12 +310,23 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         };
     }
 
+    static Map<String, Object> filter(Map<String, ?> map, CharacterRunAutomaton includeAutomaton) {
+        return filter(map, includeAutomaton, 0);
+    }
+
     /** Filter a map by a {@link CharacterRunAutomaton} that defines the fields to retain. */
     @SuppressWarnings("unchecked")
-    static Map<String, Object> filter(Map<String, ?> map, CharacterRunAutomaton includeAutomaton, int initialState) {
+    private static Map<String, Object> filter(Map<String, ?> map, CharacterRunAutomaton includeAutomaton, int initialState) {
         Map<String, Object> filtered = new HashMap<>();
         for (Map.Entry<String, ?> entry : map.entrySet()) {
             String key = entry.getKey();
+
+            // only do this for `initialState == 0` since metadata fields would always only be top-level fields
+            if (initialState == 0 && FieldPermissions.PREDICATE.test(key)) {
+                // If the field is an allowlisted metadata field, we always include it.
+                filtered.put(key, entry.getValue());
+                continue;
+            }
 
             int state = step(includeAutomaton, key, initialState);
             if (state == -1) {
@@ -644,13 +666,13 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 // for _source, parse, filter out the fields we care about, and serialize back downstream
                 BytesReference bytes = new BytesArray(value);
                 Tuple<XContentType, Map<String, Object>> result = XContentHelper.convertToMap(bytes, true);
-                Map<String, Object> transformedSource = filter(result.v2(), filter, 0);
+                Map<String, Object> transformedSource = filter(result.v2(), filter);
                 XContentBuilder xContentBuilder = XContentBuilder.builder(result.v1().xContent()).map(transformedSource);
                 visitor.binaryField(fieldInfo, BytesReference.toBytes(BytesReference.bytes(xContentBuilder)));
             } else if (IgnoredSourceFieldMapper.NAME.equals(fieldInfo.name)) {
                 assert ignoredSourceFormat != IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
                 BytesRef valueRef = new BytesRef(value);
-                BytesRef filtered = ignoredSourceFormat.filterValue(valueRef, v -> filter(v, filter, 0), filter::run);
+                BytesRef filtered = ignoredSourceFormat.filterValue(valueRef, v -> filter(v, filter), filter::run);
                 if (filtered != null) {
                     byte[] filteredBytes = ArrayUtil.copyOfSubArray(filtered.bytes, filtered.offset, filtered.offset + filtered.length);
                     visitor.binaryField(fieldInfo, filteredBytes);

@@ -167,6 +167,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
@@ -1635,7 +1636,7 @@ public class LocalExecutionPlanner {
         // TODO: Merge HighlightOptions and HighlightConfig so we don't have to copy every option here.
         HighlightOptions options = HighlightOptions.from(highlight.options(), context.foldCtx());
         List<String> fieldNames = highlight.fields().stream().map(NamedExpression::name).toList();
-        String analyzerName = options.analyzerName();
+        String analyzerName = HighlightSupport.executionAnalyzerName(options.analyzerName(), highlight.fields());
 
         HighlightQueryBuilders.TranslatedQuery translated = HighlightQueryBuilders.translate(
             queryExpr,

@@ -104,25 +104,32 @@ public class RestMultiSearchAction extends BaseRestHandler {
             @Override
             public void accept(RestChannel channel) throws Exception {
                 final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-                dispatched = true;
-                cancellableClient.execute(
-                    TransportMultiSearchAction.TYPE,
-                    multiSearchRequest,
-                    ActionListener.runAfter(
-                        RestActions.wrapWithSearchMetricsHeader(
-                            client.threadPool().getThreadContext(),
-                            MultiSearchResponse::mergeDirectoryMetrics,
-                            new RestRefCountedChunkedToXContentListener<>(channel)
-                        ),
-                        () -> {
-                            for (SearchRequest sr : multiSearchRequest.requests()) {
-                                if (sr.source() != null) {
-                                    sr.source().close();
+                try {
+                    dispatched = true;
+                    cancellableClient.execute(
+                        TransportMultiSearchAction.TYPE,
+                        multiSearchRequest,
+                        ActionListener.runAfter(
+                            RestActions.wrapWithSearchMetricsHeader(
+                                client.threadPool().getThreadContext(),
+                                MultiSearchResponse::mergeDirectoryMetrics,
+                                new RestRefCountedChunkedToXContentListener<>(channel)
+                            ),
+                            () -> {
+                                for (SearchRequest sr : multiSearchRequest.requests()) {
+                                    if (sr.source() != null) {
+                                        sr.source().close();
+                                    }
                                 }
                             }
-                        }
-                    )
-                );
+                        )
+                    );
+                } catch (Exception e) {
+                    for (SearchRequest sr : multiSearchRequest.requests()) {
+                        if (sr.source() != null) sr.source().close();
+                    }
+                    throw e;
+                }
             }
 
             @Override

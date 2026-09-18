@@ -116,12 +116,17 @@ public class RestFleetSearchAction extends BaseRestHandler {
             public void accept(RestChannel channel) throws Exception {
                 RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
                 ActionListener<SearchResponse> completionListener = new RestRefCountedChunkedToXContentListener<>(channel);
-                dispatched = true;
-                cancelClient.execute(
-                    TransportSearchAction.TYPE,
-                    searchRequest,
-                    parsedSource != null ? ActionListener.runAfter(completionListener, parsedSource::close) : completionListener
-                );
+                try {
+                    dispatched = true;
+                    cancelClient.execute(
+                        TransportSearchAction.TYPE,
+                        searchRequest,
+                        parsedSource != null ? ActionListener.runAfter(completionListener, parsedSource::close) : completionListener
+                    );
+                } catch (Exception e) {
+                    if (parsedSource != null) parsedSource.close();
+                    throw e;
+                }
             }
 
             @Override

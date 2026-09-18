@@ -125,12 +125,17 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
                         return asyncSearchResponse.status();
                     }
                 };
-                dispatched = true;
-                cancelClient.execute(
-                    SubmitAsyncSearchAction.INSTANCE,
-                    submit,
-                    parsedSource != null ? ActionListener.runAfter(completionListener, parsedSource::close) : completionListener
-                );
+                try {
+                    dispatched = true;
+                    cancelClient.execute(
+                        SubmitAsyncSearchAction.INSTANCE,
+                        submit,
+                        parsedSource != null ? ActionListener.runAfter(completionListener, parsedSource::close) : completionListener
+                    );
+                } catch (Exception e) {
+                    if (parsedSource != null) parsedSource.close();
+                    throw e;
+                }
             }
 
             @Override

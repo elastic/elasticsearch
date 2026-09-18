@@ -163,12 +163,17 @@ public class RestSearchAction extends BaseRestHandler {
                     SearchResponse::getDirectoryMetrics,
                     new RestRefCountedChunkedToXContentListener<>(channel, params)
                 );
-                dispatched = true;
-                cancelClient.execute(
-                    TransportSearchAction.TYPE,
-                    searchRequest,
-                    parsedSource != null ? ActionListener.runAfter(completionListener, parsedSource::close) : completionListener
-                );
+                try {
+                    dispatched = true;
+                    cancelClient.execute(
+                        TransportSearchAction.TYPE,
+                        searchRequest,
+                        parsedSource != null ? ActionListener.runAfter(completionListener, parsedSource::close) : completionListener
+                    );
+                } catch (RuntimeException e) {
+                    if (parsedSource != null) parsedSource.close();
+                    throw e;
+                }
             }
 
             @Override

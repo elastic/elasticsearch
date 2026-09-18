@@ -108,8 +108,18 @@ public class RestRankEvalAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         RankEvalRequest rankEvalRequest = new RankEvalRequest();
+        boolean parseSucceeded = false;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             parseRankEvalRequest(rankEvalRequest, request, parser, clusterSupportsFeature);
+            parseSucceeded = true;
+        } finally {
+            // Release parse-time breaker charges for any rated requests accumulated before a thrown
+            // exception, since the RestChannelConsumer is never returned in that case.
+            if (parseSucceeded == false && rankEvalRequest.getRankEvalSpec() != null) {
+                rankEvalRequest.getRankEvalSpec().getRatedRequests().forEach(rr -> {
+                    if (rr.getEvaluationRequest() != null) rr.getEvaluationRequest().close();
+                });
+            }
         }
         List<RatedRequest> ratedRequests = rankEvalRequest.getRankEvalSpec().getRatedRequests();
         return new RestChannelConsumer() {
@@ -121,21 +131,26 @@ public class RestRankEvalAction extends BaseRestHandler {
                 // listener.onFailure before doExecute runs, Guard 1/2 there never fire, so we
                 // release parse-time breaker charges here on both success and failure paths.
                 // SearchSourceBuilder.close() is idempotent, so double-closing with Guard 2 is safe.
-                dispatched = true;
-                client.execute(
-                    RankEvalPlugin.ACTION,
-                    rankEvalRequest,
-                    ActionListener.runAfter(new RestToXContentListener<RankEvalResponse>(channel) {
-                        @Override
-                        public RestResponse buildResponse(RankEvalResponse response, XContentBuilder builder) throws Exception {
-                            try {
-                                return super.buildResponse(response, builder);
-                            } finally {
-                                response.close();
+                try {
+                    dispatched = true;
+                    client.execute(
+                        RankEvalPlugin.ACTION,
+                        rankEvalRequest,
+                        ActionListener.runAfter(new RestToXContentListener<RankEvalResponse>(channel) {
+                            @Override
+                            public RestResponse buildResponse(RankEvalResponse response, XContentBuilder builder) throws Exception {
+                                try {
+                                    return super.buildResponse(response, builder);
+                                } finally {
+                                    response.close();
+                                }
                             }
-                        }
-                    }, () -> ratedRequests.forEach(rr -> { if (rr.getEvaluationRequest() != null) rr.getEvaluationRequest().close(); }))
-                );
+                        }, () -> ratedRequests.forEach(rr -> { if (rr.getEvaluationRequest() != null) rr.getEvaluationRequest().close(); }))
+                    );
+                } catch (Exception e) {
+                    ratedRequests.forEach(rr -> { if (rr.getEvaluationRequest() != null) rr.getEvaluationRequest().close(); });
+                    throw e;
+                }
             }
 
             @Override

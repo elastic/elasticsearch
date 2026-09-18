@@ -228,7 +228,7 @@ Accepted endpoint forms, in every AWS partition:
 - Historical: `https://s3-us-west-2.amazonaws.com`
 - VPC interface: `https://bucket.vpce-0a1b2c3d.s3.us-east-1.vpce.amazonaws.com`
 
-Some of these forms need `addressing_style: virtual_hosted`; refer to that setting in the table above.
+If reads through one of these fail with an addressing error, set `addressing_style: virtual_hosted`; the default resolves to path-style whenever `endpoint` is set.
 
 Every other AWS endpoint family is rejected, including the global `https://s3.amazonaws.com`, transfer acceleration, access points, object lambda, Outposts, the account-level control plane, the legacy `s3-external-1` alias, and S3 Express. So are plain `http`, a value without a scheme, and a host the URL syntax does not allow, such as an underscore or a non-numeric port.
 

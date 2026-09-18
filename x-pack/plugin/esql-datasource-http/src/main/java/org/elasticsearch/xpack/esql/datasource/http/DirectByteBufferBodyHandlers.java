@@ -249,8 +249,6 @@ final class DirectByteBufferBodyHandlers {
         private final long skip;
         private final int length;
         private final DirectBufferFactory factory;
-        // Only for skip-past-EOF EUE; fill already holds path for short-window messages.
-        private final StoragePath path;
         private final KnownLengthBodyFill fill;
         private final CompletableFuture<DirectReadBuffer> body = new CompletableFuture<>();
         private final Object destinationLock = new Object();
@@ -270,7 +268,6 @@ final class DirectByteBufferBodyHandlers {
             this.length = length;
             this.skipRemaining = skip;
             this.factory = factory;
-            this.path = path;
             this.fill = new KnownLengthBodyFill("HTTP", path, length);
             body.whenComplete((ignored, error) -> {
                 if (body.isCancelled()) {
@@ -362,7 +359,7 @@ final class DirectByteBufferBodyHandlers {
                 }
                 if (skipRemaining > 0) {
                     transferred = null;
-                    readFailure = new ExternalUnavailableException("Position {} is beyond content length reading [{}]", skip, path);
+                    readFailure = fill.beyondContentLength(skip);
                 } else {
                     readFailure = fill.shortReadOrNull();
                     if (readFailure != null) {

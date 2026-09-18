@@ -20,7 +20,7 @@ import java.nio.ByteBuffer;
  * HTTP 206 and S3 already fail a truncated or over-long body as a non-throttling 503 so the
  * operator names the object instead of a generic "transient read failure". HTTP 200 skip-then-fill
  * has to raise the same exception or the mapper can only wrap {@code IOException}. This helper
- * owns those messages so the three callers cannot drift.
+ * owns those messages — overflow, short fill, and skip-past-EOF — so the callers cannot drift.
  * <p>
  * Not thread-safe: callers already serialize copies under {@code destinationLock}. Does not
  * allocate a destination, close buffers, cancel subscriptions, or complete futures — those stay
@@ -33,6 +33,11 @@ public final class KnownLengthBodyFill {
     private final int expectedLength;
     private int offset;
 
+    /**
+     * @param store first token of mismatch messages ({@code "HTTP"} or {@code "S3"})
+     * @param path named in every mismatch message
+     * @param expectedLength fill-window size in bytes
+     */
     public KnownLengthBodyFill(String store, StoragePath path, int expectedLength) {
         if (expectedLength < 0) {
             throw new IllegalArgumentException("expectedLength must be non-negative, got: " + expectedLength);
@@ -48,6 +53,10 @@ public final class KnownLengthBodyFill {
         this.expectedLength = expectedLength;
     }
 
+    /**
+     * Copies {@code chunk} in full, or returns overflow without touching the destination when
+     * extra bytes would pass the window. Does not close {@code dest}.
+     */
     public ExternalUnavailableException copyOrOverflow(DirectReadBuffer dest, ByteBuffer chunk) {
         int remaining = chunk.remaining();
         if (remaining > expectedLength - offset) {
@@ -64,6 +73,11 @@ public final class KnownLengthBodyFill {
         return null;
     }
 
+    /**
+     * Copies at most the remaining window. Extra bytes stay in {@code chunk} and are never
+     * overflow — a 200 that ignored {@code Range} still sends the rest of the object. Does not
+     * close {@code dest}.
+     */
     public int copyBounded(DirectReadBuffer dest, ByteBuffer chunk) {
         int toCopy = Math.min(chunk.remaining(), expectedLength - offset);
         if (toCopy == 0) {
@@ -77,6 +91,10 @@ public final class KnownLengthBodyFill {
         return toCopy;
     }
 
+    /**
+     * Short-window failure when the body ended before {@code expectedLength}. Distinct from
+     * {@link #beyondContentLength(long)}: skip finished, fill did not.
+     */
     public ExternalUnavailableException shortReadOrNull() {
         if (offset == expectedLength) {
             return null;
@@ -90,6 +108,15 @@ public final class KnownLengthBodyFill {
         );
     }
 
+    /**
+     * Skip landed past EOF. Caller still owns skip accounting; this only types the message so
+     * it stays next to the other mismatch EUEs.
+     */
+    public ExternalUnavailableException beyondContentLength(long skip) {
+        return new ExternalUnavailableException("Position {} is beyond content length reading [{}]", skip, path);
+    }
+
+    /** Bytes copied so far. Callers set {@code dest.buffer().position(0).limit(offset())} after a successful fill. */
     public int offset() {
         return offset;
     }

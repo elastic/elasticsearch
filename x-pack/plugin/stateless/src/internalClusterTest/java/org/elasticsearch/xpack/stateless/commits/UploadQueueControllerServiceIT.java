@@ -57,11 +57,14 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
         refresh(indexName);
         safeAwait(uploadStarted);
 
-        // Wait longer than the 1 ms activation threshold before polling.
+        // Since the threshold for pending commit age is so low, we should pretty much immediately start throttling.
+        // But let's sync with node time to avoid flakiness.
         var threadPool = internalCluster().getInstance(ThreadPool.class, indexNode);
         var currentTime = threadPool.relativeTimeInMillis();
 
-        assertBusy(() -> assertTrue(threadPool.relativeTimeInMillis() - currentTime > 1));
+        while (threadPool.relativeTimeInMillis() <= currentTime) {
+            safeSleep(10);
+        }
 
         var uploadQueueControllerService = internalCluster().getInstance(UploadQueueControllerService.class, indexNode);
         uploadQueueControllerService.runNow();
@@ -165,11 +168,14 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
         refresh(indexName);
         safeAwait(uploadStarted);
 
-        // Wait longer than the 1 ms activation threshold before polling.
+        // Since the threshold for pending commit age is so low, we should pretty much immediately start throttling.
+        // But let's sync with node time to avoid flakiness.
         var threadPool = internalCluster().getInstance(ThreadPool.class, indexNode);
         var currentTime = threadPool.relativeTimeInMillis();
 
-        assertBusy(() -> assertTrue(threadPool.relativeTimeInMillis() - currentTime > 1));
+        while (threadPool.relativeTimeInMillis() <= currentTime) {
+            safeSleep(10);
+        }
 
         var uploadQueueControllerService = internalCluster().getInstance(UploadQueueControllerService.class, indexNode);
         uploadQueueControllerService.runNow();

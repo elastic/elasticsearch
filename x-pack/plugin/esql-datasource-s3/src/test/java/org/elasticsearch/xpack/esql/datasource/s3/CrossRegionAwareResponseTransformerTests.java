@@ -158,6 +158,44 @@ public class CrossRegionAwareResponseTransformerTests extends ESTestCase {
     }
 
     /**
+     * A third {@code prepare()} call is a tripwire for accidental SDK-level retry re-enablement.
+     * {@code S3CrossRegionAsyncClient} does at most one redirect (one extra call); a third means
+     * {@code doNotRetry()} was removed from the async client.
+     */
+    public void testThirdPrepare_throwsIllegalStateException() {
+        CrossRegionAwareResponseTransformer<GetObjectResponse> wrapper = new CrossRegionAwareResponseTransformer<>(8, FACTORY, PATH);
+        wrapper.prepare();
+        wrapper.prepare();
+        IllegalStateException ex = expectThrows(IllegalStateException.class, wrapper::prepare);
+        assertThat(ex.getMessage(), containsString("at most 2 prepare() calls"));
+    }
+
+    /**
+     * Netty may re-deliver the redirect exception with the same object reference after a second
+     * {@code prepare()} has switched {@code currentInner} to the redirect inner. A duplicate
+     * delivery of the same throwable must be dropped so the redirect attempt is not spuriously
+     * failed with a non-retryable 301 status.
+     */
+    public void testStaleExceptionOccurred_duplicateThrowable_isDropped() {
+        CrossRegionAwareResponseTransformer<GetObjectResponse> wrapper = new CrossRegionAwareResponseTransformer<>(8, FACTORY, PATH);
+
+        // First attempt: SDK delivers the 301 redirect exception.
+        CompletableFuture<DirectReadBuffer> f1 = wrapper.prepare();
+        RuntimeException redirectException = new RuntimeException("301 Moved Permanently");
+        wrapper.exceptionOccurred(redirectException);
+        assertTrue("F1 must be failed by the redirect exception", f1.isCompletedExceptionally());
+
+        // Second prepare: redirect attempt is now current.
+        CompletableFuture<DirectReadBuffer> f2 = wrapper.prepare();
+
+        // Netty re-delivers the SAME 301 exception object after the second prepare().
+        // The wrapper must drop it — not forward to the redirect inner.
+        wrapper.exceptionOccurred(redirectException);
+
+        assertFalse("F2 must NOT be failed by the duplicate redirect exception", f2.isCompletedExceptionally());
+    }
+
+    /**
      * {@code exceptionOccurred} called before {@code prepare()} has no current inner transformer
      * and must not throw.
      */
@@ -175,14 +213,15 @@ public class CrossRegionAwareResponseTransformerTests extends ESTestCase {
     }
 
     /**
-     * Exercises the intra-wrapper stale-callback race documented in the class Javadoc: a late
-     * {@code exceptionOccurred} from the first attempt arrives AFTER {@code prepare()} has already
-     * been called a second time (updating {@code currentInner} to the new inner transformer). In that
-     * case the stale call is forwarded to the second inner transformer, spuriously failing it.
+     * Residual stale-callback race (distinct-throwable variant): a late {@code exceptionOccurred}
+     * carrying a DIFFERENT throwable object (e.g. a channel-teardown {@code IOException}, not the
+     * original 301) arrives after the second {@code prepare()} has updated {@code currentInner}.
+     * The identity check in {@code exceptionOccurred} does not match (it tracks only the last
+     * forwarded throwable), so this genuinely-distinct stale error is still forwarded to the redirect
+     * inner, spuriously failing it. The outer retry loop handles this.
      *
-     * <p>In practice this is prevented by Netty's ordering guarantees, but the wrapper must not
-     * crash or corrupt state when it does occur. The test verifies that after the stale call the
-     * second future is failed (triggering the outer retry loop) and no assertion error is thrown.
+     * <p>This contrasts with {@link #testStaleExceptionOccurred_duplicateThrowable_isDropped}, where
+     * the same throwable reference as the 301 is re-delivered and IS dropped.
      */
     public void testStaleExceptionOccurred_afterSecondPrepare_failsSecondInner() {
         byte[] payload = randomByteArrayOfLength(between(1, 256));

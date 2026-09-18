@@ -208,9 +208,14 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
             AsyncResponseTransformer<GetObjectResponse, DirectReadBuffer> transformer = invocation.getArgument(1);
             // First prepare: wrong-region attempt — SDK receives 301 and fails via exceptionOccurred
             transformer.prepare();
-            transformer.exceptionOccurred(S3Exception.builder().statusCode(301).message("Moved Permanently").build());
+            RuntimeException redirect301 = new RuntimeException("301 Moved Permanently");
+            transformer.exceptionOccurred(redirect301);
             // Second prepare: redirect attempt — SDK calls prepare() again and completes successfully
-            return completeTransformer(transformer, response, PAYLOAD);
+            CompletableFuture<DirectReadBuffer> redirectFuture = completeTransformer(transformer, response, PAYLOAD);
+            // Simulate Netty re-delivering the same 301 exception after the redirect completes.
+            // The duplicate-delivery guard in exceptionOccurred must drop it so the result is not lost.
+            transformer.exceptionOccurred(redirect301);
+            return redirectFuture;
         });
 
         S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, RETRY_STRATEGY, BUCKET, KEY, PATH);

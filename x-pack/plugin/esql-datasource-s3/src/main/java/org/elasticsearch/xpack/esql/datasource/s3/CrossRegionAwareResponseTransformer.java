@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -37,16 +38,22 @@ import java.util.concurrent.atomic.AtomicReference;
  * <p><b>Why SDK-level retry safety is preserved:</b> {@code doNotRetry()} on the async client
  * disables the SDK's {@code AsyncRetryableStage}, which is the only other code path that calls
  * {@code prepare()} more than once. The only remaining caller of a second {@code prepare()} is
- * {@code S3CrossRegionAsyncClient}, which this wrapper is specifically designed for.
+ * {@code S3CrossRegionAsyncClient}, which performs at most one redirect. A third {@code prepare()}
+ * call throws {@link IllegalStateException} as a tripwire for accidental retry re-enablement.
  *
- * <p><b>Stale-callback race:</b> a late Netty channel-teardown {@code exceptionOccurred(IOException)}
- * from the first attempt may arrive at this wrapper after {@link #prepare()} has already been called
- * for the second time (updating {@code currentInner} to the new inner transformer). Such a stale
- * call would then reach the second inner transformer, spuriously failing it. In practice this is
- * very unlikely: for 301 responses the Netty channel-inactive event fires on the same event-loop
- * thread that processed the response, sequentially before the {@code whenComplete} that triggers the
- * second {@code prepare()}. Worst case the spurious failure triggers one extra retry from
- * {@code S3StorageObject}'s outer retry loop, which succeeds because
+ * <p><b>Duplicate-delivery guard:</b> Netty may re-deliver the redirect exception with the same
+ * {@link Throwable} reference after {@link #prepare()} has been called a second time (switching
+ * {@code currentInner} to the redirect inner transformer). {@link #exceptionOccurred} detects this
+ * via an identity check against {@code lastForwardedThrowable} and drops the duplicate, preventing
+ * the redirect inner from being spuriously failed with a non-retryable 301 status.
+ *
+ * <p><b>Residual stale-callback race:</b> a genuinely distinct late {@code exceptionOccurred}
+ * (different throwable object, e.g. a channel-teardown {@code IOException}) from the first attempt
+ * may still arrive after the second {@code prepare()} and be forwarded to the redirect inner. In
+ * practice this is very unlikely: for 301 responses the Netty channel-inactive event fires on the
+ * same event-loop thread that processed the response, sequentially before the {@code whenComplete}
+ * that triggers the second {@code prepare()}. Worst case the spurious failure triggers one extra
+ * retry from {@code S3StorageObject}'s outer retry loop, which succeeds because
  * {@code S3CrossRegionAsyncClient} has already cached the correct region for the bucket.
  *
  * <p><b>Prepare-before-publish ordering:</b> the new inner transformer is {@link KnownLengthAsyncResponseTransformer#prepare() prepared}
@@ -57,11 +64,23 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 final class CrossRegionAwareResponseTransformer<R extends SdkResponse> implements AsyncResponseTransformer<R, DirectReadBuffer> {
 
+    // S3CrossRegionAsyncClient performs at most one redirect (one extra prepare() call).
+    // A third prepare() means SDK-level retries were re-enabled, which breaks the
+    // KnownLengthAsyncResponseTransformer single-use contract. Fail loudly.
+    private static final int MAX_PREPARE_CALLS = 2;
+
     private final int expectedLength;
     private final DirectBufferFactory factory;
     private final StoragePath path;
 
+    private final AtomicInteger prepareCallCount = new AtomicInteger();
     private final AtomicReference<KnownLengthAsyncResponseTransformer<R>> currentInner = new AtomicReference<>();
+
+    // Tracks the last Throwable forwarded via exceptionOccurred. Netty may re-deliver the redirect
+    // exception with the same reference after prepare() has been called a second time. The identity
+    // check in exceptionOccurred drops such duplicate deliveries so they cannot spuriously fail the
+    // redirect inner transformer with a non-retryable 301 status.
+    private volatile Throwable lastForwardedThrowable;
 
     CrossRegionAwareResponseTransformer(int expectedLength, DirectBufferFactory factory, StoragePath path) {
         if (expectedLength < 0) {
@@ -94,9 +113,21 @@ final class CrossRegionAwareResponseTransformer<R extends SdkResponse> implement
      * <p>The new inner transformer is prepared before being published, so a callback thread that
      * races {@code prepare()} and reads {@code currentInner} always sees a fully initialized
      * (prepared) transformer.
+     *
+     * @throws IllegalStateException if called more than {@value MAX_PREPARE_CALLS} times, which
+     *     would indicate SDK-level retries have been re-enabled on the async client.
      */
     @Override
     public CompletableFuture<DirectReadBuffer> prepare() {
+        int callCount = prepareCallCount.incrementAndGet();
+        if (callCount > MAX_PREPARE_CALLS) {
+            throw new IllegalStateException(
+                "CrossRegionAwareResponseTransformer allows at most "
+                    + MAX_PREPARE_CALLS
+                    + " prepare() calls (one initial + one cross-region redirect); "
+                    + "SDK-level retries must stay disabled — do not re-enable them on the async client."
+            );
+        }
         KnownLengthAsyncResponseTransformer<R> newInner = new KnownLengthAsyncResponseTransformer<>(expectedLength, factory, path);
         // Prepare before publishing to close the window where exceptionOccurred could reach
         // an unprepared transformer.
@@ -128,8 +159,20 @@ final class CrossRegionAwareResponseTransformer<R extends SdkResponse> implement
         }
     }
 
+    /**
+     * Forwards {@code error} to the current inner transformer, unless it is a duplicate delivery
+     * of a throwable already forwarded to a previous inner (identity check against
+     * {@link #lastForwardedThrowable}). Netty can re-deliver the 301 redirect exception with the
+     * same reference after the second {@link #prepare()} has switched {@code currentInner} to the
+     * redirect inner; forwarding it would fail the redirect attempt with a non-retryable status.
+     */
     @Override
     public void exceptionOccurred(Throwable error) {
+        // Identity guard: drop a throwable that was already forwarded to a superseded inner.
+        if (error != null && error == lastForwardedThrowable) {
+            return;
+        }
+        lastForwardedThrowable = error;
         KnownLengthAsyncResponseTransformer<R> inner = currentInner.get();
         if (inner != null) {
             inner.exceptionOccurred(error);

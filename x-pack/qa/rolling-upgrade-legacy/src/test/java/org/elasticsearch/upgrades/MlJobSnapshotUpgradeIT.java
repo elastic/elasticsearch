@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.upgrades;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
-
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -19,7 +17,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
@@ -36,7 +33,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
-import java.util.stream.Collectors;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -84,10 +80,10 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
             case OLD -> createJobAndSnapshots();
             case MIXED -> {
                 assumeTrue("We should only test if old cluster is before new cluster", isOriginalClusterCurrent() == false);
-            assumeTrue(
-                "Snapshot upgrade is rejected only when DiscoveryNodes min/max Version differ",
-                Version.fromString(getOldClusterVersion()).equals(Version.fromString(Build.current().version())) == false
-            );
+                assumeTrue(
+                    "Snapshot upgrade is rejected only when DiscoveryNodes min/max Version differ",
+                    Version.fromString(getOldClusterVersion()).equals(Version.fromString(Build.current().version())) == false
+                );
                 assumeTrue(
                     "Older versions could not always reliably determine if we were in a mixed cluster state",
                     Version.fromString(UPGRADE_FROM_VERSION).onOrAfter(Version.V_9_3_0)

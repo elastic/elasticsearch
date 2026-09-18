@@ -13,6 +13,9 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -38,6 +41,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * remote requests (e.g., S3 GETs) by merging nearby byte ranges and issuing them concurrently.
  */
 final class CoalescedRangeReader {
+
+    private static final Logger logger = LogManager.getLogger(CoalescedRangeReader.class);
 
     static final long DEFAULT_MAX_COALESCE_GAP = 1024 * 1024;
 
@@ -128,7 +133,7 @@ final class CoalescedRangeReader {
         Executor executor,
         ActionListener<CoalescedRangeResult> listener
     ) {
-        return readCoalesced(storageObject, ranges, maxCoalesceGap, breaker, ioWatermark, null, executor, listener);
+        return readCoalesced(storageObject, ranges, maxCoalesceGap, breaker, ioWatermark, null, null, executor, listener);
     }
 
     static Releasable readCoalesced(
@@ -138,6 +143,27 @@ final class CoalescedRangeReader {
         CircuitBreaker breaker,
         @Nullable ParquetIoWatermark ioWatermark,
         @Nullable ParquetIoWatermark.AdmitHold admitHold,
+        Executor executor,
+        ActionListener<CoalescedRangeResult> listener
+    ) {
+        return readCoalesced(storageObject, ranges, maxCoalesceGap, breaker, ioWatermark, admitHold, null, executor, listener);
+    }
+
+    /**
+     * @param footerBytes optional footer-tail cache. When a merged range is a subset of a cached
+     *                    suffix, the bytes are <em>copied</em> into a breaker {@link DirectReadBuffer}
+     *                    and no GET is issued (no watermark / admit-hold GET accounting). {@code null}
+     *                    is today's GET path. Never aliases the LRU {@code byte[]}. A miss, a short
+     *                    cached suffix, or a lookup failure falls through to {@code startReadBytesAsync}.
+     */
+    static Releasable readCoalesced(
+        StorageObject storageObject,
+        List<ByteRange> ranges,
+        long maxCoalesceGap,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable ParquetIoWatermark.AdmitHold admitHold,
+        @Nullable FooterByteCache footerBytes,
         Executor executor,
         ActionListener<CoalescedRangeResult> listener
     ) {
@@ -162,8 +188,47 @@ final class CoalescedRangeReader {
         // backends do not need to know about CircuitBreaker at all. The watermark wrapper
         // charges actual allocated bytes beside REQUEST so footer estimates cannot drift.
         DirectBufferFactory factory = ParquetIoWatermark.bufferFactory(breaker, ioWatermark, admitHold);
+        // Cache hits copy into a breaker buffer only: they are not a GET, so they must not
+        // charge the I/O watermark or consume admit-hold GET budget.
+        DirectBufferFactory cacheFactory = DirectBufferFactory.forBreaker(breaker);
 
         for (MergedRange mr : merged) {
+            FooterCacheHit hit = lookupFooterCacheHit(storageObject, mr, footerBytes);
+            if (hit != null) {
+                inflight.add(() -> {});
+                try {
+                    executor.execute(() -> {
+                        try {
+                            DirectReadBuffer copied = copyFooterCacheHit(hit, cacheFactory);
+                            try {
+                                synchronized (results) {
+                                    buffers.add(copied);
+                                    DirectReadBuffer owned = copied;
+                                    copied = null;
+                                    sliceConstituents(owned.buffer(), mr, results);
+                                }
+                            } finally {
+                                if (copied != null) {
+                                    copied.close();
+                                }
+                            }
+                        } catch (Throwable t) {
+                            Exception e = t instanceof Exception ex ? ex : new ElasticsearchException(t);
+                            if (firstFailure.compareAndSet(null, e) == false) {
+                                firstFailure.get().addSuppressed(e);
+                            }
+                        } finally {
+                            complete(remaining, firstFailure, buffers, results, listener);
+                        }
+                    });
+                } catch (Exception e) {
+                    if (firstFailure.compareAndSet(null, e) == false) {
+                        firstFailure.get().addSuppressed(e);
+                    }
+                    complete(remaining, firstFailure, buffers, results, listener);
+                }
+                continue;
+            }
             inflight.add(storageObject.startReadBytesAsync(mr.offset, mr.length, factory, executor, new ActionListener<>() {
                 @Override
                 public void onResponse(DirectReadBuffer result) {
@@ -187,7 +252,7 @@ final class CoalescedRangeReader {
                             firstFailure.get().addSuppressed(e);
                         }
                     } finally {
-                        complete();
+                        complete(remaining, firstFailure, buffers, results, listener);
                     }
                 }
 
@@ -199,19 +264,7 @@ final class CoalescedRangeReader {
                     if (firstFailure.compareAndSet(null, e) == false) {
                         firstFailure.get().addSuppressed(e);
                     }
-                    complete();
-                }
-
-                private void complete() {
-                    if (remaining.decrementAndGet() == 0) {
-                        Exception failure = firstFailure.get();
-                        if (failure != null) {
-                            Releasables.close(buffers);
-                            listener.onFailure(failure);
-                        } else {
-                            listener.onResponse(new CoalescedRangeResult(results, () -> Releasables.close(buffers)));
-                        }
-                    }
+                    complete(remaining, firstFailure, buffers, results, listener);
                 }
             }));
         }
@@ -241,6 +294,17 @@ final class CoalescedRangeReader {
         CircuitBreaker breaker,
         @Nullable ParquetIoWatermark ioWatermark
     ) throws IOException {
+        return readCoalescedSync(storageObject, ranges, maxCoalesceGap, breaker, ioWatermark, null);
+    }
+
+    static CoalescedRangeResult readCoalescedSync(
+        StorageObject storageObject,
+        List<ByteRange> ranges,
+        long maxCoalesceGap,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable FooterByteCache footerBytes
+    ) throws IOException {
         if (ranges.isEmpty()) {
             return new CoalescedRangeResult(Map.of(), () -> {});
         }
@@ -255,8 +319,16 @@ final class CoalescedRangeReader {
         Map<ByteRange, ByteBuffer> results = new HashMap<>(ranges.size());
         List<Releasable> buffers = new ArrayList<>(merged.size());
         DirectBufferFactory factory = ParquetIoWatermark.bufferFactory(breaker, ioWatermark);
+        DirectBufferFactory cacheFactory = DirectBufferFactory.forBreaker(breaker);
         try {
             for (MergedRange mr : merged) {
+                FooterCacheHit hit = lookupFooterCacheHit(storageObject, mr, footerBytes);
+                if (hit != null) {
+                    DirectReadBuffer copied = copyFooterCacheHit(hit, cacheFactory);
+                    buffers.add(copied);
+                    sliceConstituents(copied.buffer(), mr, results);
+                    continue;
+                }
                 int length = (int) mr.length();
                 DirectReadBuffer result = factory.allocateWritableWindow(length);
                 buffers.add(result);
@@ -318,6 +390,84 @@ final class CoalescedRangeReader {
             results.put(original, slice.slice());
         }
     }
+
+    private static void complete(
+        AtomicInteger remaining,
+        AtomicReference<Exception> firstFailure,
+        List<Releasable> buffers,
+        Map<ByteRange, ByteBuffer> results,
+        ActionListener<CoalescedRangeResult> listener
+    ) {
+        if (remaining.decrementAndGet() == 0) {
+            Exception failure = firstFailure.get();
+            if (failure != null) {
+                Releasables.close(buffers);
+                listener.onFailure(failure);
+            } else {
+                listener.onResponse(new CoalescedRangeResult(results, () -> Releasables.close(buffers)));
+            }
+        }
+    }
+
+    /**
+     * Hit iff {@code [fileAbsOffset, fileAbsOffset + len)} sits inside the cached suffix
+     * {@code [fileLength - cached.length, fileLength)}. Coordinates are file-absolute
+     * ({@link StorageObject#offsetForFooterCache} + {@link FooterByteCache.Key#keyFor}).
+     */
+    @Nullable
+    private static FooterCacheHit lookupFooterCacheHit(StorageObject storageObject, MergedRange mr, @Nullable FooterByteCache footerBytes) {
+        if (footerBytes == null || mr.length() <= 0L || mr.length() > Integer.MAX_VALUE) {
+            return null;
+        }
+        final FooterByteCache.Key key;
+        final long fileAbsOffset;
+        try {
+            key = FooterByteCache.Key.keyFor(storageObject);
+            fileAbsOffset = storageObject.offsetForFooterCache(mr.offset());
+        } catch (Exception e) {
+            logger.debug("footer cache lookup skipped", e);
+            return null;
+        }
+        byte[] cached = footerBytes.get(key);
+        if (cached == null || cached.length == 0) {
+            return null;
+        }
+        long fileLength = key.fileLength();
+        if (cached.length > fileLength || fileAbsOffset < 0L) {
+            return null;
+        }
+        long cacheStart = fileLength - cached.length;
+        final long rangeEnd;
+        try {
+            rangeEnd = Math.addExact(fileAbsOffset, mr.length());
+        } catch (ArithmeticException e) {
+            return null;
+        }
+        if (fileAbsOffset < cacheStart || rangeEnd > fileLength) {
+            return null;
+        }
+        return new FooterCacheHit(cached, Math.toIntExact(fileAbsOffset - cacheStart), (int) mr.length());
+    }
+
+    /**
+     * Copies cached bytes into a breaker-accounted buffer. Never aliases the LRU {@code byte[]}.
+     */
+    private static DirectReadBuffer copyFooterCacheHit(FooterCacheHit hit, DirectBufferFactory factory) throws IOException {
+        DirectReadBuffer dest = factory.allocateWritableWindow(hit.copyLen());
+        try {
+            dest.buffer().put(hit.cached(), hit.copyOffset(), hit.copyLen());
+            dest.buffer().flip();
+            DirectReadBuffer delivered = dest;
+            dest = null;
+            return delivered;
+        } finally {
+            if (dest != null) {
+                dest.close();
+            }
+        }
+    }
+
+    private record FooterCacheHit(byte[] cached, int copyOffset, int copyLen) {}
 
     /**
      * Sorts ranges by offset and merges adjacent/overlapping ranges whose gap is within threshold

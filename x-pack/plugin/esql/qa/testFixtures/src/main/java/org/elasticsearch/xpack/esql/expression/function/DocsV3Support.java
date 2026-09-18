@@ -1430,28 +1430,8 @@ public abstract class DocsV3Support {
             // documented availability says what that feature's pages say instead of reporting its own lifecycle.
             String declaredAppliesTo = param != null ? param.applies_to() : mapParam.applies_to();
             String declaredSince = param != null ? param.since() : mapParam.since();
+            checkAppliesToIsSelfSufficient(setting.name(), declaredAppliesTo, setting.serverlessOnly(), declaredSince);
             if (declaredAppliesTo.isEmpty() == false) {
-                // The declared string replaces the whole block, so anything the block would otherwise have derived is
-                // silently discarded. Refuse the contradiction rather than publish a badge that drops it: a setting
-                // declaring applies_to beside serverlessOnly() would lose its "stack: unavailable" with no error, and
-                // the docs-assert gate cannot catch it because it compares the emitter against the committed file,
-                // which would carry the same wrong badge.
-                if (setting.serverlessOnly()) {
-                    throw new IllegalStateException(
-                        "Setting "
-                            + setting.name()
-                            + " declares applies_to and serverlessOnly; applies_to would discard"
-                            + " the stack: unavailable this setting needs. State both axes in applies_to, or drop it."
-                    );
-                }
-                if (declaredSince.isEmpty() == false) {
-                    throw new IllegalStateException(
-                        "Setting "
-                            + setting.name()
-                            + " declares both applies_to and since; applies_to carries the"
-                            + " version, so since would never be read and the two could drift. Drop since."
-                    );
-                }
                 builder.append(declaredAppliesTo).append("\n");
             } else {
                 builder.append("serverless: ");
@@ -1566,6 +1546,38 @@ public abstract class DocsV3Support {
                 }
             }
             return null;
+        }
+
+        /**
+         * A declared {@code applies_to} replaces the whole badge, so every value the badge would otherwise derive is
+         * discarded. Refuse the combinations where that loses a statement, rather than publishing a badge that drops
+         * it: the docs-assert gate compares the emitter against the committed file, so a wrong badge passes green.
+         * <p>
+         * Stated as one function so the rule is executable and testable in one place; the renderer and
+         * {@code QuerySettingsTests} both call it rather than each carrying a copy.
+         */
+        public static void checkAppliesToIsSelfSufficient(String name, String appliesTo, boolean serverlessOnly, String since) {
+            if (appliesTo.isEmpty()) {
+                return;
+            }
+            // serverlessOnly is functional, not documentation -- QuerySettings gates resolution on it -- so the fix is
+            // to state the stack axis in applies_to, never to drop the flag.
+            if (serverlessOnly && appliesTo.contains("stack:") == false) {
+                throw new IllegalStateException(
+                    "Setting ["
+                        + name
+                        + "] is serverlessOnly but its applies_to does not state the stack axis, so the"
+                        + " stack: unavailable the badge would otherwise derive is lost. State stack: unavailable in applies_to."
+                );
+            }
+            if (since.isEmpty() == false) {
+                throw new IllegalStateException(
+                    "Setting ["
+                        + name
+                        + "] declares both applies_to and since; applies_to carries the version, so since"
+                        + " would never be read and the two could drift. Drop since."
+                );
+            }
         }
 
         private static org.elasticsearch.xpack.esql.expression.function.Param param(QuerySettingDef<?> def) {

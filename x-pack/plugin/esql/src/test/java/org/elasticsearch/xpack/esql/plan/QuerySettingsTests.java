@@ -458,29 +458,53 @@ public class QuerySettingsTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("cannot be both snapshotOnly and serverlessOnly"));
     }
 
-    public void testNoSettingDeclaresAppliesToBesideSinceOrServerlessOnly() throws IllegalAccessException {
-        // applies_to replaces the whole generated badge, so preview()/serverlessOnly()/since() are discarded when it
-        // is present. DocsV3Support throws on that pairing; this pins the corpus so the throw is never reached in CI
-        // by a real setting. It matters because the docs-assert gate compares the emitter against the committed file
-        // and would pass a badge that is wrong rather than merely stale.
+    public void testAppliesToRefusesSinceBecauseItCarriesTheVersionItself() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> DocsV3Support.SettingsDocsSupport.checkAppliesToIsSelfSufficient(
+                "some_setting",
+                "serverless: unavailable\nstack: experimental 9.6+",
+                false,
+                "9.6.0"
+            )
+        );
+        assertThat(e.getMessage(), containsString("declares both applies_to and since"));
+    }
+
+    public void testAppliesToRefusesServerlessOnlyOnlyWhenItOmitsTheStackAxis() {
+        // serverlessOnly is functional -- QuerySettings gates resolution on it -- so the remedy is to state the stack
+        // axis, never to drop the flag. A declaration that states both axes is therefore accepted.
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> DocsV3Support.SettingsDocsSupport.checkAppliesToIsSelfSufficient("some_setting", "serverless: ga", true, "")
+        );
+        assertThat(e.getMessage(), containsString("does not state the stack axis"));
+
+        DocsV3Support.SettingsDocsSupport.checkAppliesToIsSelfSufficient(
+            "some_setting",
+            "serverless: ga\nstack: unavailable",
+            true,
+            ""
+        );
+    }
+
+    public void testEverySettingSatisfiesTheAppliesToRule() throws IllegalAccessException {
+        // The corpus calls the same rule the renderer calls, rather than restating its conditions here, so the two
+        // cannot drift. Docs generation would throw on a violation; this names the offender instead.
         for (Field field : QuerySettings.class.getFields()) {
             if (QuerySettingDef.class.isAssignableFrom(field.getType()) == false) {
                 continue;
             }
             Param param = field.getAnnotation(Param.class);
-            if (param == null || param.applies_to().isEmpty()) {
+            if (param == null) {
                 continue;
             }
-            assertThat(
-                "[" + param.name() + "] declares applies_to, which carries the version, so since would never be read",
-                param.since(),
-                equalTo("")
-            );
             QuerySettingDef<?> def = asInstanceOf(QuerySettingDef.class, field.get(null));
-            assertThat(
-                "[" + param.name() + "] declares applies_to, which would discard the stack: unavailable serverlessOnly needs",
+            DocsV3Support.SettingsDocsSupport.checkAppliesToIsSelfSufficient(
+                param.name(),
+                param.applies_to(),
                 def.serverlessOnly(),
-                is(false)
+                param.since()
             );
         }
     }

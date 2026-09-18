@@ -2864,9 +2864,12 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     /**
-     * A wildcard that partially matches authorized datasets, combined with an explicitly-named unauthorized dataset in
-     * the same FROM: the wildcard silently keeps only the authorized matches, but the explicit unauthorized name still
-     * errors with {@code Unknown index} (it is not silently dropped).
+     * A wildcard that would match authorized datasets, combined with an explicitly-named unauthorized dataset in the
+     * same FROM. At the default the wildcard reaches no dataset at all, but the explicitly-named unauthorized one is
+     * unaffected by the setting and still errors with {@code Unknown index} rather than being silently dropped.
+     * <p>
+     * That second half is what makes this the discriminator for where "named exactly" is computed from: it goes red
+     * if the exact set is taken from the post-filter {@code indices()} instead of from {@code rawPatterns}.
      */
     public void testFromDatasetWildcardPartialWithExplicitUnauthorized() throws IOException {
         assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());

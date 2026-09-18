@@ -134,6 +134,10 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
             // either: the filter expands it, and ViewAndDatasetDlsFlsRequestInterceptor then rejects the request over
             // a DLS/FLS dataset this request will never read. rawPatterns keeps the full user-typed list.
             this.indices = wildcardsMatchDatasets ? rawPatterns : DatasetRewriter.exactPatterns(rawPatterns);
+            assert this.indices.length > 0
+                : "narrowed to nothing for " + Arrays.toString(rawPatterns) + "; an empty indices() means _all to the"
+                    + " security resolver. DatasetResolver dispatches only when an exact name is a registered dataset,"
+                    + " so a caller reaching here with none is a new dispatch site that must narrow differently.";
             this.rawPatterns = rawPatterns;
             this.wildcardsMatchDatasets = wildcardsMatchDatasets;
         }

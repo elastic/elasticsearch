@@ -42,7 +42,10 @@ public class EsqlResolveDatasetActionRequestTests extends ESTestCase {
     public void testRawPatternsSurviveIndicesNarrowing() {
         // rawPatterns() must keep the ORIGINAL FROM patterns even after the filter narrows indices() to the authorized
         // subset — the action body needs them to classify whether the relation also targets non-dataset abstractions.
-        var request = request("logs_*", "-logs_test");
+        // Constructed with the setting on, so indices() starts as the full list: with it off a wildcard-only FROM
+        // would narrow to nothing, which the constructor now asserts against because DatasetResolver never builds
+        // such a request -- an empty indices() would mean _all to the security resolver.
+        var request = new EsqlResolveDatasetAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "logs_*", "-logs_test" }, true);
         assertThat(request.rawPatterns(), arrayContaining("logs_*", "-logs_test"));
         request.indices("logs_a");
         assertThat(request.indices(), arrayContaining("logs_a"));

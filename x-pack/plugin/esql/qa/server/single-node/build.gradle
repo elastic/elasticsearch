@@ -143,6 +143,10 @@ restResources {
 tasks.named('javaRestTest') {
   usesDefaultDistribution("to be triaged")
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  filter {
+    // Runs on a schedule instead, via the generativeTests task below.
+    excludeTestsMatching 'org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT'
+  }
 }
 
 // Not wired into 'check': .buildkite/pipelines/periodic-esql-generative.yml invokes this by name.

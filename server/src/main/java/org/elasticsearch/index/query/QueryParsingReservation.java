@@ -14,7 +14,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Tracks circuit-breaker charges accumulated during query parsing and releases them once all holders
@@ -31,7 +30,7 @@ public final class QueryParsingReservation extends AbstractRefCounted {
     private final List<Releasable> releasables;
 
     public QueryParsingReservation(List<Releasable> releasables) {
-        this.releasables = new CopyOnWriteArrayList<>(releasables);
+        this.releasables = releasables;
     }
 
     /**

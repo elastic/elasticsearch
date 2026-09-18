@@ -76,6 +76,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
@@ -265,7 +266,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private List<Releasable> getQueryParsingReleasables() {
         if (queryParsingReservation == null) {
-            queryParsingReleasables = new ArrayList<>(2);
+            queryParsingReleasables = new CopyOnWriteArrayList<>();
             queryParsingReservation = new QueryParsingReservation(queryParsingReleasables);
             queryParsingHandle = Releasables.releaseOnce(queryParsingReservation::decRef);
         }

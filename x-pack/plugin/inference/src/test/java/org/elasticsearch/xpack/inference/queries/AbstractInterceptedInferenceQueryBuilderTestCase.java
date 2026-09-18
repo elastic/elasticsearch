@@ -266,19 +266,34 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             false,
             Map.of(preCcsRemoteClusterAlias, preCcsRemoteClusterConfig)
         );
+        String unsupportedRemote = "One or more remote clusters do not support "
+            + queryName
+            + " against a [semantic_text] field in cross-cluster search. Please update all clusters to at least "
+            + GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV.toReleaseVersion()
+            + ".";
+
         assertRewriteAndSerializeOnInferenceField(
             inferenceFieldQuery,
             preCcsRemoteClusterContext,
-            new IllegalArgumentException(
-                "One or more remote clusters do not support "
-                    + queryName
-                    + " query cross-cluster search when"
-                    + " [ccs_minimize_roundtrips] is false. Please update all clusters to at least "
-                    + GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV.toReleaseVersion()
-            ),
+            // A search request can turn the setting back on, so it is offered the alternative.
+            new IllegalArgumentException(unsupportedRemote + " Alternatively, set [ccs_minimize_roundtrips] to true."),
             null
         );
         assertRewriteAndSerializeOnNonInferenceField(nonInferenceFieldQuery, preCcsRemoteClusterContext);
+
+        // A caller that leaves the setting unset - ES|QL - has no such alternative and is not offered one.
+        QueryRewriteContext esqlStyleContext = createQueryRewriteContext(
+            localIndexInferenceFields,
+            TransportVersion.current(),
+            null,
+            Map.of(preCcsRemoteClusterAlias, preCcsRemoteClusterConfig)
+        );
+        assertRewriteAndSerializeOnInferenceField(
+            inferenceFieldQuery,
+            esqlStyleContext,
+            new IllegalArgumentException(unsupportedRemote),
+            null
+        );
     }
 
     public void testCcsBwCSerialization() throws Exception {

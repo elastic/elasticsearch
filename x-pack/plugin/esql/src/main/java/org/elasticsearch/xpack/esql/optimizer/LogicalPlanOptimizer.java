@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateNullable;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneColumns;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneConstantSortKeysFromOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyAggregates;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyForkBranches;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyMergeBranches;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneLiteralsInChangePointBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneLiteralsInLimitBy;
@@ -58,7 +58,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownFilterAndLim
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownFiltersIntoFork;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownInferencePlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownJoinPastProject;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownLimitAndOrderByIntoFork;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownLimitAndOrderByIntoMergePlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownRegexExtract;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushLimitToKnn;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RemoveStatsOverride;
@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceSparklineAggr
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTrivialTypeConversions;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteDateFunctionComparisons;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteSumOfExpressionPlusConstant;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SimplifyComparisonsArithmetics;
@@ -167,7 +168,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // SUM(field + c) into a pre-agg EVAL and hides the pattern from this rule.
             new RewriteSumOfExpressionPlusConstant(),
             // first extract nested expressions inside aggs
-            new ReplaceAggregateNestedExpressionWithEval(),
+            new ReplaceAggregateNestedExpressionWithEval(false, false),
             // then extract nested aggs top-level
             new ReplaceAggregateAggExpressionWithEval(),
             // lastly replace surrogate functions
@@ -175,7 +176,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // re-executing the next two rules is a relic of when time series aggregates were translated after surrogate substitution
             // removing this would fail in ccs scenarios where the remote cluster is on an older version (caught by bwc tests)
             new SubstituteSurrogateAggregations(),
-            new ReplaceAggregateNestedExpressionWithEval(),
+            new ReplaceAggregateNestedExpressionWithEval(false, true),
             // this one needs to be placed before ReplaceAliasingEvalWithProject, so that any potential aliasing eval (eval x = y)
             // is not replaced with a Project before the eval to be copied on the left hand side of an InlineJoin
             new PropagateInlineEvals(),
@@ -222,6 +223,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // boolean
             new BooleanSimplification(),
             new LiteralsOnTheRight(),
+            // invert DATE_TRUNC / monotonic DATE_EXTRACT so later rules see field-vs-literal inequalities
+            new RewriteDateFunctionComparisons(),
             // needs to occur before BinaryComparison combinations (see class)
             new PropagateEquals(),
             new PropagateNullable(),
@@ -254,7 +257,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PushDownAndCombineOrderBy(),
             new PushDownFilterAndLimitIntoUnionAll(),
             new PushAggregateThroughUnionAll(),
-            new PushDownLimitAndOrderByIntoFork(),
+            new PushDownLimitAndOrderByIntoMergePlan(),
             new PushDownFiltersIntoFork(),
             new PruneRedundantOrderBy(),
             new PruneRedundantSortClauses(),
@@ -262,7 +265,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PruneInlineJoinOnEmptyRightSide(),
             new HoistOrderByBeforeInlineJoin(),
             new PruneEmptyAggregates(),
-            new PruneEmptyForkBranches()
+            new PruneEmptyMergeBranches()
         );
     }
 

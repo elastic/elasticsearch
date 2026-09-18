@@ -257,10 +257,15 @@ public class AstKeywordFieldRewriterTests extends ESTestCase {
         assertThat(result.skipEvents(), hasItem(new SkipEvent(SkipSite.LOOKUP_JOIN_ON, "language_code")));
     }
 
-    /** An in-scope left-hand side of the {@code :} match operator is recorded as a {@code MATCH_OPERATOR_LHS} skip. */
-    public void testMatchOperatorLeftHandSideRecordedAsSkipEvent() {
+    /**
+     * The left-hand side of the {@code :} match operator is a {@code primaryExpression}, so an in-scope
+     * reference there is wrapped in {@code field_extract(field, "v")} in place rather than skipped.
+     */
+    public void testMatchOperatorLeftHandSideIsWrapped() {
         RewriteResult result = rewrite("FROM employees | WHERE first_name : \"Georgi\" | STATS c = COUNT(*)", Set.of("first_name"));
-        assertThat(result.skipEvents(), hasItem(new SkipEvent(SkipSite.MATCH_OPERATOR_LHS, "first_name")));
+        assertTrue(result.modified());
+        assertThat(result.rewrittenQuery(), containsString("WHERE field_extract(first_name, \"v\") : \"Georgi\""));
+        assertThat(result.rewrittenFieldNames(), hasItem("first_name"));
     }
 
     /** A {@code FORK} field flattened in every branch survives into the post-fork scope (the intersection). */

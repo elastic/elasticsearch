@@ -119,6 +119,9 @@ public class PromqlFunctionRegistry {
         PromqlBuiltinFunctionDefinitions.BOTTOMK,
         PromqlBuiltinFunctionDefinitions.LIMITK,
         //
+        PromqlBuiltinFunctionDefinitions.LABEL_REPLACE,
+        PromqlBuiltinFunctionDefinitions.LABEL_JOIN,
+        //
         ExtractHistogramComponent.PROMQL_HISTOGRAM_AVG,
         ExtractHistogramComponent.PROMQL_HISTOGRAM_COUNT,
         ExtractHistogramComponent.PROMQL_HISTOGRAM_SUM,
@@ -211,10 +214,6 @@ public class PromqlFunctionRegistry {
         // Prometheus 3.x: sort series by one or more label values; requires label-aware ordering.
         "sort_by_label",
         "sort_by_label_desc",
-
-        // Label manipulation functions
-        "label_join",
-        "label_replace",
 
         // Histogram functions
         "histogram_stddev",

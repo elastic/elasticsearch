@@ -19,13 +19,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -64,7 +65,9 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
@@ -76,6 +79,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVe
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.DeferredRegexExpression;
@@ -117,10 +121,12 @@ import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.junit.After;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -148,7 +154,6 @@ import static org.elasticsearch.web.UriParts.QUERY;
 import static org.elasticsearch.web.UriParts.SCHEME;
 import static org.elasticsearch.web.UriParts.USERNAME;
 import static org.elasticsearch.web.UriParts.USER_INFO;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
@@ -160,6 +165,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.TestAnalyzer.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
@@ -184,6 +190,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -191,6 +198,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql.analysis:TRACE", reason = "debug")
@@ -200,7 +208,11 @@ import static org.hamcrest.Matchers.startsWith;
  * Use this class if you want to test analysis phase
  * and especially if you expect to get a VerificationException during analysis
  */
-public class AnalyzerTests extends ESTestCase {
+public class AnalyzerTests extends AnalyzerTestCase {
+
+    public AnalyzerTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     private static final UnresolvedRelation UNRESOLVED_RELATION = unresolvedRelation("idx");
     private static final int MAX_LIMIT = AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY);
@@ -208,6 +220,14 @@ public class AnalyzerTests extends ESTestCase {
     private static final int DEFAULT_TIMESERIES_LIMIT = AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(
         Settings.EMPTY
     );
+
+    @After
+    public void resetNameIndexThreshold() {
+        // A few tests flip the mutable static Analyzer.ResolveRefs#nameIndexThreshold to force a specific
+        // resolution path. Restore the production default after every test so the setting can never leak across
+        // tests that share this JVM, even if a test were to change it without restoring.
+        Analyzer.ResolveRefs.nameIndexThreshold = Analyzer.ResolveRefs.NAME_INDEX_THRESHOLD_DEFAULT;
+    }
 
     public void testIndexResolution() {
         EsIndex idx = EsIndexGenerator.esIndex("idx");
@@ -1889,7 +1909,7 @@ public class AnalyzerTests extends ESTestCase {
         final String supportedTypes =
             "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or date_range or datetime "
                 + "or dense_vector or double_range or exponential_histogram or flattened or geo_point "
-                + "or geo_shape or geohash or geohex or geotile or histogram or ip or numeric or string or version";
+                + "or geo_shape or geohash or geohex or geotile or histogram or ip or numeric or string or tdigest or version";
         analyzer().error(
             "row period = 1 year | eval to_string(period)",
             containsString(
@@ -2582,7 +2602,7 @@ public class AnalyzerTests extends ESTestCase {
         checkDenseVectorCastingHexKnn("bfloat16_vector");
     }
 
-    private static void checkDenseVectorCastingKnn(String fieldName) {
+    private void checkDenseVectorCastingKnn(String fieldName) {
         var plan = denseVector().query(String.format(Locale.ROOT, """
             from test | where knn(%s, [0, 1, 2])
             """, fieldName));
@@ -2595,7 +2615,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(literal.value(), equalTo(List.of(0, 1, 2)));
     }
 
-    private static void checkDenseVectorCastingHexKnn(String fieldName) {
+    private void checkDenseVectorCastingHexKnn(String fieldName) {
         var plan = denseVector().query(String.format(Locale.ROOT, """
             from test | where knn(%s, "000102")
             """, fieldName));
@@ -2608,7 +2628,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(queryVector.value(), equalTo(List.of(0.0f, 1.0f, 2.0f)));
     }
 
-    private static void checkDenseVectorEvalCastingKnn(String fieldName) {
+    private void checkDenseVectorEvalCastingKnn(String fieldName) {
         var plan = denseVector().query(String.format(Locale.ROOT, """
             from test | eval query = to_dense_vector([0, 1, 2]) | where knn(%s, query)
             """, fieldName));
@@ -2768,7 +2788,7 @@ public class AnalyzerTests extends ESTestCase {
                 avg(rate(network.bytes_in[5m]))""", DEFAULT_TIMESERIES_LIMIT);
     }
 
-    private static void assertDefaultLimitForQuery(String query, int expectedLimit) {
+    private void assertDefaultLimitForQuery(String query, int expectedLimit) {
         var plan = tsdb().query(query);
         var limit = as(plan, Limit.class);
         assertThat(query, as(limit.limit(), Literal.class).value(), equalTo(expectedLimit));
@@ -4026,7 +4046,7 @@ public class AnalyzerTests extends ESTestCase {
         return allWarnings;
     }
 
-    private static LogicalPlan analyzeWithEmptyFieldCapsResponse(String query) throws IOException {
+    private LogicalPlan analyzeWithEmptyFieldCapsResponse(String query) throws IOException {
         List<FieldCapabilitiesIndexResponse> idxResponses = List.of(
             new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
         );
@@ -4493,7 +4513,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(completionFunction.prompt(), equalTo(string("Translate this text in French")));
         assertThat(completionFunction.inferenceId(), equalTo(string("completion-inference-id")));
         assertThat(completionFunction.taskSettings(), equalTo(new MapExpression(Source.EMPTY, List.of())));
-        assertThat(completionFunction.taskType(), equalTo(org.elasticsearch.inference.TaskType.COMPLETION));
+        assertThat(completionFunction.taskType(), equalTo(TaskType.COMPLETION));
     }
 
     public void testFoldableCompletionWithCustomTargetFieldTransformedToEval() {
@@ -4536,6 +4556,428 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(completionFunction.prompt(), instanceOf(Concat.class));
         assertThat(completionFunction.prompt().foldable(), equalTo(true));
         assertThat(completionFunction.inferenceId(), equalTo(string("completion-inference-id")));
+    }
+
+    private static void assumeDenseVectorCommandEnabled() {
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+    }
+
+    public void testDenseVectorResolvesTextField() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR title WITH {"inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.fields(), hasSize(1));
+        assertThat(denseVector.fields().get(0).name(), equalTo("title"));
+        assertThat(DataType.isString(denseVector.fields().get(0).dataType()), equalTo(true));
+
+        assertThat(denseVector.generatedAttributes(), hasSize(1));
+        Attribute generated = getAttributeByName(denseVector.output(), "title_dense_vector");
+        assertThat(generated, notNullValue());
+        assertThat(generated.dataType(), equalTo(DataType.DENSE_VECTOR));
+
+        assertThat(denseVector.inferenceId(), equalTo(string(TEXT_EMBEDDING_INFERENCE_ID)));
+    }
+
+    public void testDenseVectorResolvesMultipleFields() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR title, description WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.generatedAttributes(), hasSize(2));
+        assertThat(denseVector.generatedAttributes().get(0).name(), equalTo("title_dense_vector"));
+        assertThat(denseVector.generatedAttributes().get(1).name(), equalTo("description_dense_vector"));
+        assertThat(getAttributeByName(denseVector.output(), "title_dense_vector"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "description_dense_vector"), notNullValue());
+    }
+
+    public void testDenseVectorResolvesQualifiedFieldNames() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = analyzer().addIndex("test", "mapping-multi-field.json").addAnalysisTestsInferenceResolution().query("""
+            FROM test
+            | DENSE_VECTOR text.raw, text.english WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        // One generated column per input field, keyed by the full dotted field name (no collision/shadowing).
+        assertThat(denseVector.generatedAttributes(), hasSize(2));
+        assertThat(denseVector.generatedAttributes().get(0).name(), equalTo("text.raw_dense_vector"));
+        assertThat(denseVector.generatedAttributes().get(1).name(), equalTo("text.english_dense_vector"));
+        assertThat(getAttributeByName(denseVector.output(), "text.raw_dense_vector"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "text.english_dense_vector"), notNullValue());
+    }
+
+    public void testDenseVectorResolvesNestedAndMixedFields() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = analyzer().addIndex("test", "mapping-multi-field-variation.json").addAnalysisTestsInferenceResolution().query("""
+            FROM test
+            | DENSE_VECTOR keyword, some.dotted.field, some.string, some.string.typical
+                WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        // A plain root field, a deeply nested field, and a parent text field vs its keyword subfield all
+        // produce distinct full-path generated columns.
+        assertThat(denseVector.generatedAttributes(), hasSize(4));
+        assertThat(denseVector.generatedAttributes().get(0).name(), equalTo("keyword_dense_vector"));
+        assertThat(denseVector.generatedAttributes().get(1).name(), equalTo("some.dotted.field_dense_vector"));
+        assertThat(denseVector.generatedAttributes().get(2).name(), equalTo("some.string_dense_vector"));
+        assertThat(denseVector.generatedAttributes().get(3).name(), equalTo("some.string.typical_dense_vector"));
+        assertThat(getAttributeByName(denseVector.output(), "keyword_dense_vector"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "some.dotted.field_dense_vector"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "some.string_dense_vector"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "some.string.typical_dense_vector"), notNullValue());
+    }
+
+    public void testDenseVectorResolvesKeywordField() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR book_no WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.generatedAttributes(), hasSize(1));
+        assertThat(getAttributeByName(denseVector.output(), "book_no_dense_vector"), notNullValue());
+    }
+
+    public void testDenseVectorNonTextFieldFails() {
+        assumeDenseVectorCommandEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR year WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
+            containsString("DENSE_VECTOR field [year] must be [text] or [keyword], found [integer]")
+        );
+    }
+
+    public void testDenseVectorTextAcceptsTextEmbeddingEndpoint() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR title WITH { "inference_id" : "text-embedding-inference-id", "type" : "text" }
+            """);
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inferenceId(), equalTo(string(TEXT_EMBEDDING_INFERENCE_ID)));
+    }
+
+    public void testDenseVectorTextAcceptsEmbeddingEndpoint() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR title WITH { "inference_id" : "embedding-inference-id", "type" : "text" }
+            """);
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inferenceId(), equalTo(string(EMBEDDING_INFERENCE_ID)));
+    }
+
+    public void testDenseVectorImageAcceptsEmbeddingEndpoint() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR title WITH { "inference_id" : "embedding-inference-id", "type" : "image" }
+            """);
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inputType(), equalTo(org.elasticsearch.inference.DataType.IMAGE));
+        assertThat(denseVector.inferenceId(), equalTo(string(EMBEDDING_INFERENCE_ID)));
+    }
+
+    public void testDenseVectorImageRejectsTextEmbeddingEndpoint() {
+        assumeDenseVectorCommandEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"text-embedding-inference-id\", \"type\" : \"image\" }",
+            containsString(
+                "cannot use inference endpoint [text-embedding-inference-id] with task type [text_embedding] within a DENSE_VECTOR "
+                    + "command. Only inference endpoints with the task type [embedding] are supported"
+            )
+        );
+    }
+
+    /**
+     * The default {@code text} modality is the only case accepting more than one task type, so this is also where the
+     * rendered order of that list is pinned.
+     */
+    public void testDenseVectorRejectsCompletionEndpoint() {
+        assumeDenseVectorCommandEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"completion-inference-id\" }",
+            containsString(
+                "cannot use inference endpoint [completion-inference-id] with task type [completion] within a DENSE_VECTOR "
+                    + "command. Only inference endpoints with the task type [text_embedding, embedding] are supported"
+            )
+        );
+    }
+
+    /**
+     * A query naming no endpoint takes the first candidate this deployment has. The EIS endpoint is preferred over the ML-node
+     * one, so a serverless deployment - which runs no ML nodes - still resolves.
+     */
+    public void testDenseVectorDefaultInferenceIdPrefersEisCandidate() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .addInferenceResolution(DenseVector.DEFAULT_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .query("FROM books | DENSE_VECTOR title");
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inferenceId(), equalTo(string(DenseVector.EIS_JINA_V5_INFERENCE_ID)));
+        assertThat(denseVector.endpointTaskType(), equalTo(TaskType.TEXT_EMBEDDING));
+    }
+
+    /**
+     * Where the EIS endpoint is absent - a stateful deployment that never reached it - the ML-node endpoint is used instead.
+     */
+    public void testDenseVectorDefaultInferenceIdFallsBackToMlCandidate() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().addInferenceResolution(DenseVector.DEFAULT_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .query("FROM books | DENSE_VECTOR title");
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inferenceId(), equalTo(string(DenseVector.DEFAULT_INFERENCE_ID)));
+    }
+
+    /**
+     * An endpoint the query names is used as given, even when a candidate is available: selecting a candidate over it would move
+     * the query off the endpoint its author chose.
+     */
+    public void testDenseVectorExplicitInferenceIdIsNotReplacedByCandidate() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .query("FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"text-embedding-inference-id\" }");
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inferenceId(), equalTo(string(TEXT_EMBEDDING_INFERENCE_ID)));
+    }
+
+    /**
+     * Naming the ML-node endpoint explicitly keeps it, even though it is also the last candidate. The id alone cannot tell the
+     * two apart, so this pins the behaviour that distinguishes them.
+     */
+    public void testDenseVectorExplicitMlEndpointIsNotReplacedByCandidate() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .addInferenceResolution(DenseVector.DEFAULT_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .query("FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"" + DenseVector.DEFAULT_INFERENCE_ID + "\" }");
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inferenceId(), equalTo(string(DenseVector.DEFAULT_INFERENCE_ID)));
+    }
+
+    /**
+     * Where the deployment has no candidate at all, the failure names every candidate tried and the option to set.
+     */
+    public void testDenseVectorNoDefaultInferenceIdAvailable() {
+        assumeDenseVectorCommandEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR title",
+            containsString(
+                "no inference endpoint is available for the DENSE_VECTOR command: "
+                    + "["
+                    + DenseVector.EIS_JINA_V5_INFERENCE_ID
+                    + "]: unresolved inference ["
+                    + DenseVector.EIS_JINA_V5_INFERENCE_ID
+                    + "]; ["
+                    + DenseVector.DEFAULT_INFERENCE_ID
+                    + "]: unresolved inference ["
+                    + DenseVector.DEFAULT_INFERENCE_ID
+                    + "]. Specify an endpoint using the [inference_id] option."
+            )
+        );
+    }
+
+    /**
+     * A candidate whose task type the input cannot use is skipped. A sparse EIS endpoint under the candidate id leaves the
+     * ML-node candidate as the only usable one.
+     */
+    public void testDenseVectorSkipsCandidateWithUnusableTaskType() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.SPARSE_EMBEDDING)
+            .addInferenceResolution(DenseVector.DEFAULT_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .query("FROM books | DENSE_VECTOR title");
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.inferenceId(), equalTo(string(DenseVector.DEFAULT_INFERENCE_ID)));
+    }
+
+    /**
+     * When no candidate is usable, the failure explains each one: an absent candidate reports its resolution error, and a
+     * present candidate whose task type the input cannot use reports that task type. Here the EIS candidate embeds sparsely and
+     * the ML candidate is absent.
+     */
+    public void testDenseVectorNoDefaultInferenceIdReportsWhyEachCandidateFails() {
+        assumeDenseVectorCommandEnabled();
+        books().addInferenceResolution(DenseVector.EIS_JINA_V5_INFERENCE_ID, TaskType.SPARSE_EMBEDDING)
+            .error(
+                "FROM books | DENSE_VECTOR title",
+                containsString(
+                    "no inference endpoint is available for the DENSE_VECTOR command: "
+                        + "["
+                        + DenseVector.EIS_JINA_V5_INFERENCE_ID
+                        + "]: task type [sparse_embedding] is not supported; ["
+                        + DenseVector.DEFAULT_INFERENCE_ID
+                        + "]: unresolved inference ["
+                        + DenseVector.DEFAULT_INFERENCE_ID
+                        + "]. Specify an endpoint using the [inference_id] option."
+                )
+            );
+    }
+
+    public void testDenseVectorUnknownColumnFails() {
+        assumeDenseVectorCommandEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR nonexistent WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
+            containsString("Unknown column [nonexistent]")
+        );
+    }
+
+    public void testDenseVectorInvalidInferenceIdFails() {
+        assumeDenseVectorCommandEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"unknown-inference-id\" }",
+            containsString("unresolved inference [unknown-inference-id]")
+        );
+    }
+
+    public void testDenseVectorDuplicateFieldIsDeduped() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR title, title WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.fields(), hasSize(1));
+        assertThat(denseVector.generatedAttributes(), hasSize(1));
+        assertThat(getAttributeByName(denseVector.output(), "title_dense_vector"), notNullValue());
+    }
+
+    private static void assumeDenseVectorNamingEnabled() {
+        assumeTrue("DENSE_VECTOR naming requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND_V3.isEnabled());
+    }
+
+    public void testDenseVectorExplicitOutputNameResolves() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR vec = title WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.generatedAttributes(), hasSize(1));
+        assertThat(denseVector.generatedAttributes().get(0).name(), equalTo("vec"));
+        Attribute generated = getAttributeByName(denseVector.output(), "vec");
+        assertThat(generated, notNullValue());
+        assertThat(generated.dataType(), equalTo(DataType.DENSE_VECTOR));
+        // The default name is not produced alongside the explicit one.
+        assertThat(getAttributeByName(denseVector.output(), "title_dense_vector"), nullValue());
+        // The source column survives; DENSE_VECTOR appends rather than replaces.
+        assertThat(getAttributeByName(denseVector.output(), "title"), notNullValue());
+    }
+
+    public void testDenseVectorSuffixResolvesForEachField() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR suffix = "_dv" ON title, description WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.generatedAttributes(), hasSize(2));
+        assertThat(denseVector.generatedAttributes().get(0).name(), equalTo("title_dv"));
+        assertThat(denseVector.generatedAttributes().get(1).name(), equalTo("description_dv"));
+        assertThat(getAttributeByName(denseVector.output(), "title_dv"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "description_dv"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "title_dense_vector"), nullValue());
+    }
+
+    /**
+     * An explicit name that collides with an existing column replaces it, the same shadowing rule EVAL follows. The surviving
+     * column carries the generated {@code dense_vector} type rather than the shadowed column's type.
+     */
+    public void testDenseVectorExplicitNameShadowsExistingColumn() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR description = title WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        Attribute shadowed = getAttributeByName(denseVector.output(), "description");
+        assertThat(shadowed, notNullValue());
+        assertThat(shadowed.dataType(), equalTo(DataType.DENSE_VECTOR));
+        assertThat(denseVector.output().stream().filter(a -> a.name().equals("description")).count(), equalTo(1L));
+    }
+
+    /**
+     * Naming the output after its own input leaves the embedding in place of the source text, so the source column is no longer
+     * reachable downstream.
+     */
+    public void testDenseVectorOutputNameMatchingInputReplacesIt() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR title = title WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        Attribute title = getAttributeByName(denseVector.output(), "title");
+        assertThat(title, notNullValue());
+        assertThat(title.dataType(), equalTo(DataType.DENSE_VECTOR));
+        assertThat(denseVector.output().stream().filter(a -> a.name().equals("title")).count(), equalTo(1L));
+    }
+
+    /** Chained clauses naming the same output column: the later clause shadows the earlier one. */
+    public void testDenseVectorChainedClausesWithSameOutputName() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR vec = title WITH { "inference_id" : "text-embedding-inference-id" }
+            | DENSE_VECTOR vec = description WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector outer = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(outer.fields().get(0).name(), equalTo("description"));
+        assertThat(outer.output().stream().filter(a -> a.name().equals("vec")).count(), equalTo(1L));
+        assertThat(getAttributeByName(outer.output(), "vec").dataType(), equalTo(DataType.DENSE_VECTOR));
+    }
+
+    /** A suffix that reproduces an existing column's name shadows it, exactly as the default suffix would. */
+    public void testDenseVectorSuffixShadowsExistingColumn() {
+        assumeDenseVectorNamingEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | EVAL title_dv = "placeholder"
+            | DENSE_VECTOR suffix = "_dv" ON title WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        Attribute shadowed = getAttributeByName(denseVector.output(), "title_dv");
+        assertThat(shadowed, notNullValue());
+        assertThat(shadowed.dataType(), equalTo(DataType.DENSE_VECTOR));
+        assertThat(denseVector.output().stream().filter(a -> a.name().equals("title_dv")).count(), equalTo(1L));
+    }
+
+    public void testDenseVectorNamedOutputOnNonTextFieldFails() {
+        assumeDenseVectorNamingEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR vec = year WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
+            containsString("DENSE_VECTOR field [year] must be [text] or [keyword], found [integer]")
+        );
+        books().error(
+            "FROM books | DENSE_VECTOR suffix = \"_dv\" ON year WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
+            containsString("DENSE_VECTOR field [year] must be [text] or [keyword], found [integer]")
+        );
+    }
+
+    public void testDenseVectorNamedOutputOnUnknownColumnFails() {
+        assumeDenseVectorNamingEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR vec = no_such_column WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
+            containsString("Unknown column [no_such_column]")
+        );
     }
 
     public void testResolveGroupingsBeforeResolvingImplicitReferencesToGroupings() {
@@ -4701,6 +5143,17 @@ public class AnalyzerTests extends ESTestCase {
             """, containsString("with [include_empty_buckets] requires a range, i.e. both a [from] and a [to] argument"));
     }
 
+    public void testBucketOptionInsertEmptyBuckets_histogramsRejected() {
+        analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json").error("""
+            FROM exp_histo_sample
+            | STATS c = COUNT(*) BY b = BUCKET(responseTime, 10, 0, 100, {"include_empty_buckets": true})
+            """, containsString("does not support option [include_empty_buckets] for [exponential_histogram] inputs"));
+        analyzer().addIndex("tdigest_standard_index", "mapping-tdigest_standard_index.json").error("""
+            FROM tdigest_standard_index
+            | STATS c = COUNT(*) BY b = BUCKET(responseTime, 10, 0, 100, {"include_empty_buckets": true})
+            """, containsString("does not support option [include_empty_buckets] for [tdigest] inputs"));
+    }
+
     public void testProjectionForUnionTypeResolution() {
         LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
         typesToIndices.put("keyword", Set.of("union_index_1"));
@@ -4768,7 +5221,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(cleanedParent, instanceOf(KeywordEsField.class));
     }
 
-    private static EsField assertConflictedMultifieldIsCleaned(EsField conflictedMultifield) {
+    private EsField assertConflictedMultifieldIsCleaned(EsField conflictedMultifield) {
         EsField parent = new KeywordEsField(
             "my_field",
             Map.of(CONFLICTED_SUBFIELD, conflictedMultifield),
@@ -4926,7 +5379,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     /** Analyzes {@code query} over a single-field index and returns the last {@code fieldName} attribute's (cleaned) field. */
-    private static EsField shippedFieldAfterAnalysis(String fieldName, EsField field, String query) {
+    private EsField shippedFieldAfterAnalysis(String fieldName, EsField field, String query) {
         EsIndex index = new EsIndex(
             "idx",
             Map.of(fieldName, field),
@@ -4945,6 +5398,229 @@ public class AnalyzerTests extends ESTestCase {
         });
         assertFalse("expected a [" + fieldName + "] field attribute", found.isEmpty());
         return found.get(found.size() - 1);
+    }
+
+    public void testWideOutputResolvesThroughNameIndex() {
+        IndexResolution resolution = keywordFieldsIndex("wide", 200);
+
+        String query = """
+            FROM wide
+            | WHERE f5 == "a"
+            | SORT f10 ASC
+            | KEEP f0, f5, f10, f199
+            """;
+        LogicalPlan plan = analyzer().addIndex(resolution).query(query);
+
+        var output = plan.output();
+        assertThat(Expressions.names(output), contains("f0", "f5", "f10", "f199"));
+        for (Attribute a : output) {
+            assertTrue(a + " should be resolved", a.resolved());
+        }
+
+        // Explicit DROP at the same scale resolves the removals through dropResolver's index path; the
+        // four named columns are removed and every remaining column stays resolved.
+        String dropQuery = "FROM wide | DROP f0, f5, f10, f199";
+        LogicalPlan dropPlan = analyzer().addIndex(resolution).query(dropQuery);
+        var dropOutput = dropPlan.output();
+        assertThat(dropOutput, hasSize(196));
+        assertThat(Expressions.names(dropOutput), not(hasItems("f0", "f5", "f10", "f199")));
+        for (Attribute a : dropOutput) {
+            assertTrue(a + " should be resolved", a.resolved());
+        }
+
+        // Unknown column at the same scale still errors through the shared no-match path, for both KEEP and DROP.
+        String unknown = "FROM wide | KEEP does_not_exist";
+        VerificationException e = expectThrows(VerificationException.class, () -> analyzer().addIndex(resolution).query(unknown));
+        assertThat(e.getMessage(), containsString("Unknown column [does_not_exist]"));
+        VerificationException dropError = expectThrows(
+            VerificationException.class,
+            () -> analyzer().addIndex(resolution).query("FROM wide | DROP does_not_exist")
+        );
+        assertThat(dropError.getMessage(), containsString("Unknown column [does_not_exist]"));
+    }
+
+    public void testWideAndNarrowOutputsResolveIdentically() {
+        IndexResolution narrow = keywordFieldsIndex("narrow", 50);
+        IndexResolution wide = keywordFieldsIndex("wide", 200);
+
+        List<String> narrowKeep = Expressions.names(
+            analyzer().addIndex(narrow).query("FROM narrow | WHERE f5 == \"a\" | SORT f10 ASC | KEEP f0, f5, f10, f40").output()
+        );
+        List<String> wideKeep = Expressions.names(
+            analyzer().addIndex(wide).query("FROM wide | WHERE f5 == \"a\" | SORT f10 ASC | KEEP f0, f5, f10, f40").output()
+        );
+        assertThat(narrowKeep, contains("f0", "f5", "f10", "f40"));
+        assertThat(wideKeep, equalTo(narrowKeep));
+
+        List<String> narrowDrop = Expressions.names(analyzer().addIndex(narrow).query("FROM narrow | DROP f0, f5, f10, f40").output());
+        List<String> wideDrop = Expressions.names(analyzer().addIndex(wide).query("FROM wide | DROP f0, f5, f10, f40").output());
+        assertThat(narrowDrop, hasSize(46));
+        assertThat(wideDrop, hasSize(196));
+        for (int i = 0; i < 50; i++) {
+            String f = "f" + i;
+            assertThat(f + " parity", wideDrop.contains(f), equalTo(narrowDrop.contains(f)));
+        }
+    }
+
+    public void testNameIndexThresholdBoundary() {
+        IndexResolution atThreshold = keywordFieldsIndex("at_threshold", 128);
+        IndexResolution overThreshold = keywordFieldsIndex("over_threshold", 129);
+
+        List<String> atKeep = Expressions.names(
+            analyzer().addIndex(atThreshold).query("FROM at_threshold | WHERE f1 == \"a\" | KEEP f0, f1, f127").output()
+        );
+        List<String> overKeep = Expressions.names(
+            analyzer().addIndex(overThreshold).query("FROM over_threshold | WHERE f1 == \"a\" | KEEP f0, f1, f127").output()
+        );
+        assertThat(atKeep, contains("f0", "f1", "f127"));
+        assertThat(overKeep, equalTo(atKeep));
+
+        assertThat(analyzer().addIndex(atThreshold).query("FROM at_threshold | DROP f0").output(), hasSize(127));
+        assertThat(analyzer().addIndex(overThreshold).query("FROM over_threshold | DROP f0").output(), hasSize(128));
+    }
+
+    public void testIndexAndScanPathsResolveIdenticallyGenerative() {
+        int iterations = 100;
+        for (int iter = 0; iter < iterations; iter++) {
+            int width = randomIntBetween(1, 260);
+            IndexResolution index = keywordFieldsIndex("gen", width);
+            String query = randomResolutionQuery(width, randomInt(4) == 0);
+            String indexPath = resolveToComparable(index, query, 0);
+            String scanPath = resolveToComparable(index, query, Integer.MAX_VALUE);
+            assertEquals("index vs scan path divergence for query:\n" + query, scanPath, indexPath);
+        }
+    }
+
+    private String randomResolutionQuery(int width, boolean injectUnknown) {
+        String known1 = "f" + randomIntBetween(0, width - 1);
+        String known2 = "f" + randomIntBetween(0, width - 1);
+        String known3 = "f" + randomIntBetween(0, width - 1);
+        String absent = "f" + (width + randomIntBetween(1, 100)); // never present in the mapping
+        StringBuilder q = new StringBuilder("FROM gen");
+        q.append("\n| WHERE ").append(injectUnknown && randomBoolean() ? absent : known1).append(" == \"a\"");
+        q.append("\n| SORT ").append(known2).append(" ASC");
+        if (randomBoolean()) {
+            q.append("\n| KEEP ").append(known1).append(", ").append(known3);
+            if (injectUnknown) {
+                q.append(", ").append(absent);
+            }
+        } else {
+            q.append("\n| DROP ").append(known3);
+            if (injectUnknown) {
+                q.append(", ").append(absent);
+            }
+        }
+        return q.toString();
+    }
+
+    private String resolveToComparable(IndexResolution index, String query, int threshold) {
+        int previous = Analyzer.ResolveRefs.nameIndexThreshold;
+        Analyzer.ResolveRefs.nameIndexThreshold = threshold;
+        try {
+            return "names=" + Expressions.names(analyzer().addIndex(index).query(query).output());
+        } catch (VerificationException e) {
+            return "error=" + e.getMessage();
+        } finally {
+            Analyzer.ResolveRefs.nameIndexThreshold = previous;
+        }
+    }
+
+    public void testWideOutputUnknownColumnSuggestsSimilarThroughIndex() {
+        IndexResolution wide = keywordFieldsIndex("wide", 200);
+
+        VerificationException whereErr = expectThrows(
+            VerificationException.class,
+            () -> analyzer().addIndex(wide).query("FROM wide | WHERE f100x == \"a\"")
+        );
+        assertThat(whereErr.getMessage(), containsString("Unknown column [f100x]"));
+        assertThat(whereErr.getMessage(), containsString("f100"));
+
+        VerificationException keepErr = expectThrows(
+            VerificationException.class,
+            () -> analyzer().addIndex(wide).query("FROM wide | KEEP f100x")
+        );
+        assertThat(keepErr.getMessage(), containsString("Unknown column [f100x]"));
+        assertThat(keepErr.getMessage(), containsString("f100"));
+    }
+
+    public void testWideKeepExactAndWildcardCombine() {
+        IndexResolution wide = keywordFieldsIndex("wide", 200);
+        LogicalPlan plan = analyzer().addIndex(wide).query("FROM wide | KEEP f5, f1*");
+        List<String> names = Expressions.names(plan.output());
+        assertThat(names, hasSize(112));
+        assertThat(names, hasItems("f5", "f1", "f10", "f19", "f100", "f199"));
+        assertThat(names, not(hasItem("f0")));
+        for (Attribute a : plan.output()) {
+            assertTrue(a + " should be resolved", a.resolved());
+        }
+    }
+
+    public void testWideDropWildcardAndOverlap() {
+        IndexResolution wide = keywordFieldsIndex("wide", 200);
+
+        List<String> single = Expressions.names(analyzer().addIndex(wide).query("FROM wide | DROP f1*").output());
+        assertThat(single, hasSize(89));
+        assertThat(single, not(hasItems("f1", "f10", "f19", "f100", "f199")));
+        assertThat(single, hasItems("f0", "f2", "f9"));
+
+        List<String> overlap = Expressions.names(analyzer().addIndex(wide).query("FROM wide | DROP f1*, f1*").output());
+        assertThat(overlap, equalTo(single));
+
+        LogicalPlan mixedPlan = analyzer().addIndex(wide).query("FROM wide | DROP f0, f1*");
+        List<String> mixed = Expressions.names(mixedPlan.output());
+        assertThat(mixed, hasSize(88));
+        assertThat(mixed, not(hasItems("f0", "f1", "f10", "f199")));
+        for (Attribute a : mixedPlan.output()) {
+            assertTrue(a + " should be resolved", a.resolved());
+        }
+    }
+
+    public void testWideCustomMessageAttributeIsNotReResolvedToAmbiguity() {
+        List<Attribute> attrs = new ArrayList<>();
+        for (int i = 0; i < 129; i++) {
+            String f = "f" + i;
+            attrs.add(
+                new FieldAttribute(Source.EMPTY, f, new EsField(f, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+            );
+        }
+        EsField dupField = new EsField("dup", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        attrs.add(new FieldAttribute(Source.EMPTY, "dup", dupField));
+        attrs.add(new FieldAttribute(Source.EMPTY, "dup", dupField));
+
+        EsRelation relation = new EsRelation(
+            Source.EMPTY,
+            "wide",
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of("wide", new IndexProperties(IndexMode.STANDARD, 0)),
+            attrs
+        );
+
+        // A reference that already failed to resolve on an earlier pass (customMessage == true), matching the
+        // duplicated name.
+        String customMessage = "Unknown column [dup]";
+        UnresolvedAttribute alreadyFailed = new UnresolvedAttribute(Source.EMPTY, "dup", customMessage);
+        assertTrue(alreadyFailed.customMessage());
+        Filter filter = new Filter(Source.EMPTY, relation, alreadyFailed);
+
+        LogicalPlan resolved = new Analyzer.ResolveRefs().apply(filter, analyzer().buildContext());
+
+        Filter resolvedFilter = as(resolved, Filter.class);
+        UnresolvedAttribute condition = as(resolvedFilter.condition(), UnresolvedAttribute.class);
+        assertTrue("custom message must be preserved, not re-resolved into an ambiguity error", condition.customMessage());
+        assertThat(condition.unresolvedMessage(), equalTo(customMessage));
+    }
+
+    private static IndexResolution keywordFieldsIndex(String name, int fieldCount) {
+        LinkedHashMap<String, EsField> mapping = new LinkedHashMap<>();
+        for (int i = 0; i < fieldCount; i++) {
+            String f = "f" + i;
+            mapping.put(f, new EsField(f, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+        }
+        return IndexResolution.valid(
+            new EsIndex(name, mapping, Map.of(name, new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of())
+        );
     }
 
     public void testExplicitRetainOriginalFieldWithCast() {
@@ -5812,6 +6488,84 @@ public class AnalyzerTests extends ESTestCase {
         return super.createDefaultIndexAnalyzers();
     }
 
+    // ---- values-analyzer propagation: a reference to an analyzer-carrying TO_TEXT carries the declared analyzer
+    // as attribute metadata (set by Alias#toAttribute and preserved across RENAME/MV_EXPAND), so a full-text
+    // function consuming the reference discovers it the same way as with an inline TO_TEXT ----
+
+    public void testMatchOnAnalyzedToTextReferenceCarriesValuesAnalyzer() {
+        LogicalPlan plan = defaultMapping().query("""
+            from test
+            | eval t = to_text(concat(first_name, last_name), {"analyzer": "whitespace"})
+            | where match(t, "cat")
+            """);
+        assertAnalyzedReferenceField(plan, Match.class, "t");
+    }
+
+    public void testMatchOnRenamedAnalyzedToTextReferenceCarriesValuesAnalyzer() {
+        LogicalPlan plan = defaultMapping().query("""
+            from test
+            | eval t = to_text(concat(first_name, last_name), {"analyzer": "whitespace"})
+            | rename t as u
+            | where match(u, "cat")
+            """);
+        assertAnalyzedReferenceField(plan, Match.class, "u");
+    }
+
+    public void testMatchOnMvExpandedAnalyzedToTextReferenceCarriesValuesAnalyzer() {
+        LogicalPlan plan = defaultMapping().query("""
+            from test
+            | eval t = to_text(concat(first_name, last_name), {"analyzer": "whitespace"})
+            | mv_expand t
+            | where match(t, "cat")
+            """);
+        assertAnalyzedReferenceField(plan, Match.class, "t");
+    }
+
+    public void testMatchPhraseOnAnalyzedToTextReferenceCarriesValuesAnalyzer() {
+        LogicalPlan plan = defaultMapping().query("""
+            from test
+            | eval t = to_text(concat(first_name, last_name), {"analyzer": "whitespace"})
+            | where match_phrase(t, "cat dog")
+            """);
+        assertAnalyzedReferenceField(plan, MatchPhrase.class, "t");
+    }
+
+    public void testMatchOnPlainToTextReferenceHasNoValuesAnalyzer() {
+        // without a declared analyzer there is nothing to carry
+        LogicalPlan plan = defaultMapping().query("""
+            from test
+            | eval t = to_text(concat(first_name, last_name))
+            | where match(t, "cat")
+            """);
+        var filter = as(as(plan, Limit.class).child(), Filter.class);
+        var match = as(filter.condition(), Match.class);
+        var reference = as(match.field(), ReferenceAttribute.class);
+        assertNull(reference.valuesAnalyzer());
+    }
+
+    public void testMatchOnInlineToTextKeepsAnalyzer() {
+        LogicalPlan plan = defaultMapping().query("""
+            from test
+            | where match(to_text(concat(first_name, last_name), {"analyzer": "whitespace"}), "cat")
+            """);
+        var filter = as(as(plan, Limit.class).child(), Filter.class);
+        var match = as(filter.condition(), Match.class);
+        var toText = as(match.field(), ToText.class);
+        assertThat(toText.valuesAnalyzer(), equalTo("whitespace"));
+    }
+
+    private static void assertAnalyzedReferenceField(
+        LogicalPlan plan,
+        Class<? extends SingleFieldFullTextFunction> functionType,
+        String referenceName
+    ) {
+        var filter = as(as(plan, Limit.class).child(), Filter.class);
+        var function = as(filter.condition(), functionType);
+        var reference = as(function.field(), ReferenceAttribute.class);
+        assertThat(reference.name(), equalTo(referenceName));
+        assertThat(reference.valuesAnalyzer(), equalTo("whitespace"));
+    }
+
     static Alias alias(String name, Expression value) {
         return new Alias(EMPTY, name, value);
     }
@@ -5832,47 +6586,47 @@ public class AnalyzerTests extends ESTestCase {
         return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, hasTimeSeriesAggregation, true);
     }
 
-    private static TestAnalyzer basic() {
+    private TestAnalyzer basic() {
         return analyzer().addEmployees("test").stripErrorPrefix(true);
     }
 
-    private static TestAnalyzer basicWithEnrich() {
+    private TestAnalyzer basicWithEnrich() {
         return basic().addEnrichPolicy("match", "languages", "language_code", "languages_idx", "mapping-languages.json");
     }
 
-    private static TestAnalyzer denseVector() {
+    private TestAnalyzer denseVector() {
         return analyzer().addIndex("test", "mapping-dense_vector-all_element_types.json");
     }
 
-    private static TestAnalyzer tsdb() {
+    private TestAnalyzer tsdb() {
         return analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES);
     }
 
-    private static TestAnalyzer k8s() {
+    private TestAnalyzer k8s() {
         return analyzer().addK8sDownsampled();
     }
 
-    private static TestAnalyzer allTypes() {
+    private TestAnalyzer allTypes() {
         return analyzer().addIndex("books", "mapping-all-types.json").addAnalysisTestsInferenceResolution();
     }
 
-    private static TestAnalyzer sampleData() {
+    private TestAnalyzer sampleData() {
         return analyzer().addSampleData();
     }
 
-    private static TestAnalyzer books() {
+    private TestAnalyzer books() {
         return analyzer().addIndex("books", "mapping-books.json").addAnalysisTestsInferenceResolution();
     }
 
-    private static TestAnalyzer defaultMapping() {
+    private TestAnalyzer defaultMapping() {
         return analyzer().addDefaultIndex();
     }
 
-    private static TestAnalyzer multiFieldVariation() {
+    private TestAnalyzer multiFieldVariation() {
         return analyzer().addIndex("test", "mapping-multi-field-variation.json");
     }
 
-    private static TestAnalyzer multiFieldWithNested() {
+    private TestAnalyzer multiFieldWithNested() {
         return analyzer().addIndex("test", "mapping-multi-field-with-nested.json");
     }
 }

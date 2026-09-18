@@ -14,7 +14,7 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Base class for the external-format page iterators (NDJSON, CSV, parquet-rs) that buffer a single look-ahead
+ * Base class for the external-format page iterators (NDJSON, CSV) that buffer a single look-ahead
  * {@link Page} in {@link #nextPage} — materialized by the subclass's {@code hasNext()} and handed out (and
  * nulled) by its {@code next()}.
  * <p>
@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Threading contract: iteration ({@code hasNext()}/{@code next()}) is single-threaded — one consumer drives
  * the iterator and is the only writer of {@link #nextPage}. {@code close()} is idempotent and thread-safe
  * (first caller wins) so it may run on a different thread than iteration: a consumer hands the iterator off to
- * a cancel/abort path, and some backends (e.g. the native parquet-rs reader) must not be torn down twice. The
+ * a cancel/abort path, and some backends must not be torn down twice. The
  * buffered page is published to the closing thread by the same handoff that transfers ownership. Subclasses
  * must preserve the single-threaded-iteration precondition; {@code nextPage} is not safe to publish across
  * concurrent iterators.

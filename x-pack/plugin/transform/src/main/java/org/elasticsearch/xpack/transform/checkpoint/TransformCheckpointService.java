@@ -14,7 +14,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointStats;
@@ -47,20 +46,17 @@ public class TransformCheckpointService {
     private final Clock clock;
     private final TransformConfigManager transformConfigManager;
     private final TransformAuditor transformAuditor;
-    private final CrossProjectModeDecider crossProjectModeDecider;
     private final TransformCloudCredentialManager cloudCredentialManager;
 
     public TransformCheckpointService(
         final Clock clock,
         final TransformConfigManager transformConfigManager,
         TransformAuditor transformAuditor,
-        CrossProjectModeDecider crossProjectModeDecider,
         TransformCloudCredentialManager cloudCredentialManager
     ) {
         this.clock = clock;
         this.transformConfigManager = transformConfigManager;
         this.transformAuditor = transformAuditor;
-        this.crossProjectModeDecider = crossProjectModeDecider;
         this.cloudCredentialManager = cloudCredentialManager;
     }
 
@@ -97,7 +93,6 @@ public class TransformCheckpointService {
                 transformConfigManager,
                 transformAuditor,
                 transformConfig,
-                crossProjectModeDecider,
                 initialDelay,
                 hasProcessedData
             );
@@ -109,8 +104,7 @@ public class TransformCheckpointService {
             clientSupplier,
             transformConfigManager,
             transformAuditor,
-            transformConfig,
-            crossProjectModeDecider
+            transformConfig
         );
     }
 

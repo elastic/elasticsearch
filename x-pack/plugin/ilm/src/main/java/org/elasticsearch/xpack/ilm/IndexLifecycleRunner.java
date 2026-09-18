@@ -25,6 +25,8 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.ilm.AsyncActionStep;
@@ -181,6 +183,10 @@ class IndexLifecycleRunner {
             logger.debug("[{}] skipping policy [{}] because [{}] is true", index, policy, IndexMetadata.LIFECYCLE_SKIP);
             return;
         }
+        if (IndexSettings.MODE.get(indexMetadata.getSettings()) == IndexMode.LOOKUP) {
+            logger.debug("[{}] skipping policy [{}] because it is a lookup index", index, policy);
+            return;
+        }
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         final Step currentStep;
         try {
@@ -319,6 +325,10 @@ class IndexLifecycleRunner {
             logger.info("[{}] skipping policy [{}] because [{}] is true", index, policy, IndexMetadata.LIFECYCLE_SKIP);
             return;
         }
+        if (IndexSettings.MODE.get(indexMetadata.getSettings()) == IndexMode.LOOKUP) {
+            logger.debug("[{}] skipping policy [{}] because it is a lookup index", index, policy);
+            return;
+        }
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         final Step currentStep;
         try {
@@ -401,6 +411,10 @@ class IndexLifecycleRunner {
         String index = indexMetadata.getIndex().getName();
         if (IndexMetadata.LIFECYCLE_SKIP_SETTING.get(indexMetadata.getSettings())) {
             logger.info("[{}] skipping policy [{}] because [{}] is true", index, policy, IndexMetadata.LIFECYCLE_SKIP);
+            return;
+        }
+        if (IndexSettings.MODE.get(indexMetadata.getSettings()) == IndexMode.LOOKUP) {
+            logger.debug("[{}] skipping policy [{}] because it is a lookup index", index, policy);
             return;
         }
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();

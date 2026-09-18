@@ -73,15 +73,12 @@ public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldD
             || (sortMissingLast(missingValue) == false && sortMissingFirst(missingValue) == false)) {
             return new SortField(getFieldName(), source, reverse);
         }
-        SortField sortField = new SortedSetSortField(
+        return new SortedSetSortField(
             getFieldName(),
             reverse,
-            sortMode == MultiValueMode.MAX ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN
-        );
-        sortField.setMissingValue(
+            sortMode == MultiValueMode.MAX ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN,
             sortMissingLast(missingValue) ^ reverse ? SortedSetSortField.STRING_LAST : SortedSetSortField.STRING_FIRST
         );
-        return sortField;
     }
 
     @Override

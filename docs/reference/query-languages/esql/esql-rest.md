@@ -41,6 +41,14 @@ James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00.000Z
 % TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
 % TESTRESPONSE[non_json]
 
+## Prerequisites [esql-rest-prerequisites]
+
+To run an {{esql}} query with [`POST /_query`]({{es-apis}}operation/operation-esql-query) or [`POST /_query/async`]({{es-apis}}operation/operation-esql-async-query), you need the [`read`](/reference/elasticsearch/security-privileges.md#privileges-list-indices) index privilege on the indices, data streams, aliases, or views you query.
+
+The [`monitor_esql`](/reference/elasticsearch/security-privileges.md#privileges-list-cluster) cluster privilege is only for inspecting queries that are currently running.
+It doesn't grant the ability to run queries or to retrieve async results.
+
+
 ## Run the {{esql}} query API in Console [esql-kibana-console]
 
 We recommend using [Console](docs-content://explore-analyze/query-filter/tools/console.md) to run the {{esql}} query API, because of its rich autocomplete features.

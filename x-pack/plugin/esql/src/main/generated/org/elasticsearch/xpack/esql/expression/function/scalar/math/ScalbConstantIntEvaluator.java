@@ -65,10 +65,11 @@ public final class ScalbConstantIntEvaluator implements ExpressionEvaluator {
   public DoubleBlock eval(int positionCount, DoubleBlock dBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (dBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (dBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

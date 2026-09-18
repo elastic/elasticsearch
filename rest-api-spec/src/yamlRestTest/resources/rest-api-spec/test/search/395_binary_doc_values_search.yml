@@ -174,6 +174,88 @@ setup:
   - match: { hits.hits.0.sort.0: key2 }
   - match: { hits.hits.1.sort.0: key1 }
 
+---
+"Test keyword range uses indexed byte ordering for binary doc values":
+
+  - do:
+      indices.create:
+        index: keyword_range_indexed
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              keyword:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: keyword_range_binary
+        body:
+          settings:
+            index:
+              mode: columnar
+          mappings:
+            dynamic: false
+            properties:
+              keyword:
+                type: keyword
+                index: false
+
+  - do:
+      index:
+        index: keyword_range_indexed
+        id: "1"
+        body:
+          keyword: "\U0001F600"
+
+  - do:
+      index:
+        index: keyword_range_binary
+        id: "1"
+        body:
+          keyword: "\U0001F600"
+
+  - do:
+      index:
+        index: keyword_range_indexed
+        id: "2"
+        body:
+          keyword: "\uF000"
+
+  - do:
+      index:
+        index: keyword_range_binary
+        id: "2"
+        body:
+          keyword: "\uF000"
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: keyword_range_indexed
+        body:
+          size: 0
+          track_total_hits: true
+          query:
+            range:
+              keyword:
+                gte: "\uE000"
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: keyword_range_binary
+        body:
+          size: 0
+          track_total_hits: true
+          query:
+            range:
+              keyword:
+                gte: "\uE000"
+  - match: { hits.total.value: 2 }
+
 
 ---
 "Test match query on ip field where only doc values are enabled":
@@ -201,4 +283,3 @@ setup:
         index: test
         body: { query: { range: { ip: { gte: "192.168.0.1" } } } }
   - length:   { hits.hits: 2  }
-

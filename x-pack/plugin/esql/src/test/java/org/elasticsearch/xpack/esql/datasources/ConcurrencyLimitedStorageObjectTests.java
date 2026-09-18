@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
@@ -50,14 +48,7 @@ import static org.mockito.Mockito.when;
  */
 public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
 
-    // Hold a strong reference to the BlockFactory so the JVM Cleaner does not close the
-    // arrow root allocator mid-test (BlockFactory.arrowAllocator() registers a cleaner action
-    // on its own BlockFactory instance, which is otherwise unreachable from ALLOCATOR alone).
-    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("test"))
-        .build();
-    private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
 
     public void testStreamCloseReleasesPermit() throws Exception {
         ConcurrencyLimiter limiter = new ConcurrencyLimiter(3);
@@ -143,11 +134,13 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
         StorageObject delegate = mock(StorageObject.class);
         when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
         DirectReadBuffer result = new DirectReadBuffer(ByteBuffer.wrap("data".getBytes(StandardCharsets.UTF_8)), () -> {});
+        // Decorators call startReadBytesAsync. Mockito mocks skip interface defaults,
+        // so stubbing readBytesAsync never completes the listener.
         doAnswer(inv -> {
             ActionListener<DirectReadBuffer> listener = inv.getArgument(4);
             listener.onResponse(result);
-            return null;
-        }).when(delegate).readBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class));
+            return (Releasable) () -> {};
+        }).when(delegate).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class));
 
         ConcurrencyLimitedStorageObject obj = new ConcurrencyLimitedStorageObject(delegate, limiter);
         CountDownLatch latch = new CountDownLatch(1);
@@ -171,8 +164,8 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
         doAnswer(inv -> {
             ActionListener<DirectReadBuffer> listener = inv.getArgument(4);
             listener.onFailure(new IOException("async error"));
-            return null;
-        }).when(delegate).readBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class));
+            return (Releasable) () -> {};
+        }).when(delegate).startReadBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class));
 
         ConcurrencyLimitedStorageObject obj = new ConcurrencyLimitedStorageObject(delegate, limiter);
         CountDownLatch latch = new CountDownLatch(1);

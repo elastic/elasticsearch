@@ -48,13 +48,14 @@ import java.util.zip.GZIPOutputStream;
  * G1GC region pinning). When either buffer is heap, the decompressor falls back to the
  * byte-array path. Two call sites reach these decompressors:
  * <ul>
- *   <li>{@code PrefetchedPageReader} explicitly calls the {@code decompress(ByteBuffer, int,
- *       ByteBuffer, int)} overload with both sides guaranteed direct: all {@code StorageObject}
- *       backends return direct {@link java.nio.ByteBuffer}s from {@code readBytesAsync}, and
- *       {@link ColumnChunkPrefetcher} promotes any heap buffer to direct as defense-in-depth for
- *       future backends. Page slices derived from that direct buffer are already direct when they
- *       reach {@code PrefetchedPageReader}, so the direct-to-direct fast path is always taken with
- *       no per-page copy.</li>
+ *   <li>{@code PrefetchedPageReader} decompresses compressed pages onto a grow-only heap
+ *       {@code byte[]} via {@link HeapDestDecompressor#decompressInto}. Uncompressed pages
+ *       alias the prefetched I/O {@link BytesInput} and are not charged. The reusable dest's
+ *       live capacity is charged to the request breaker until the reader closes.
+ *       Snappy's heap JNI still uses {@code GetPrimitiveArrayCritical}; that is the cost of
+ *       a heap destination versus glibc RSS from direct malloc. LZ4/Zstd do not take that
+ *       JNI pin path. {@code decompress(BytesInput, int)} still allocates for parquet-mr's
+ *       non-prefetched path and for dictionary pages.</li>
  *   <li>Parquet-MR's {@code ColumnChunkPageReadStore.ColumnChunkPageReader.readPage()} (the
  *       non-prefetched path) invokes only the {@code decompress(BytesInput, int)} overload — it
  *       never reaches the {@code ByteBuffer} overload, regardless of the allocator or the
@@ -164,15 +165,49 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
         input.position(origPos + compressedSize);
     }
 
+    /**
+     * Heap decompress into a caller-owned dest. {@code dest.length} may exceed {@code destLen};
+     * implementations write exactly {@code destLen} bytes at {@code dest[0..destLen)} and must
+     * not treat {@code dest.length} as the output cap (Zstd's full-buffer {@code decompressHeap}
+     * overload does that). {@link #decompress(BytesInput, int)} allocates a right-sized array and
+     * delegates here so parquet-mr and dictionary pages keep working.
+     *
+     * <p>{@link NoopDecompressor} does not implement this: uncompressed pages never decompress.
+     */
+    interface HeapDestDecompressor extends BytesInputDecompressor {
+        @Override
+        default BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
+            byte[] out = UninitializedArrays.newByteArray(decompressedSize);
+            decompressInto(bytes, out, decompressedSize);
+            return BytesInput.from(out);
+        }
+
+        void decompressInto(BytesInput compressed, byte[] dest, int destLen) throws IOException;
+    }
+
+    private static void requireDestCapacity(byte[] dest, int destLen) {
+        if (destLen < 0 || destLen > dest.length) {
+            throw new IllegalArgumentException(
+                "decompress destLen [" + destLen + "] is out of range for dest.length [" + dest.length + "]"
+            );
+        }
+    }
+
+    private static void requireExactUncompressedSize(int written, int destLen, String codec) throws IOException {
+        if (written != destLen) {
+            throw new IOException(codec + " decompression produced " + written + " bytes, expected " + destLen + " from page header");
+        }
+    }
+
     // ------------------------------- decompressors -------------------------------
 
     /**
      * Pass-through decompressor for files written with {@link CompressionCodecName#UNCOMPRESSED}.
      *
-     * <p>Visible at package level so {@link PrefetchedPageReader#decompressToDirectBuffer} can
-     * detect this case via {@code instanceof} and skip the {@code allocateDirect} + memcopy that
-     * the {@code ByteBuffer} overload below would otherwise perform. The marker check is a narrow
-     * coupling to the only built-in pass-through codec.
+     * <p>Visible at package level so {@link PrefetchedPageReader} can detect this case via
+     * {@code instanceof} and return the compressed input as-is (no heap copy, no breaker charge)
+     * instead of routing through {@code decompress(BytesInput, int)}. The marker check is a
+     * narrow coupling to the only built-in pass-through codec.
      */
     static class NoopDecompressor implements BytesInputDecompressor {
         @Override
@@ -193,36 +228,37 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
     }
 
     /**
-     * Snappy decompressor. Two JNI overloads are used depending on input shape:
-     * <ul>
-     *   <li>{@code Snappy.uncompress(byte[], int, int, byte[], int)} when the compressed input is
-     *       backed by a Java heap array (the common case for the prefetch path: column chunks
-     *       arrive as {@link ByteBuffer#wrap(byte[], int, int)}-style {@code BytesInput}s).</li>
-     *   <li>{@code Snappy.uncompress(ByteBuffer, ByteBuffer)} when both input and output are
-     *       direct buffers — the only case where the JNI binding can avoid a copy.</li>
-     * </ul>
-     * The JNI call returns the number of decompressed bytes written but does not advance the
-     * output buffer position; we advance it manually for the {@code ByteBuffer} overload.
+     * Snappy decompressor. Heap {@code BytesInput} uses
+     * {@code Snappy.uncompress(byte[], ...)} ({@code GetPrimitiveArrayCritical}). That G1 pin is
+     * the cost of a heap destination versus glibc RSS from the old direct malloc path.
+     * Direct-to-direct {@code Snappy.uncompress(ByteBuffer, ByteBuffer)} remains on the
+     * {@code ByteBuffer} overload for tests and the parquet-mr SPI.
      */
-    private static class SnappyBytesDecompressor implements BytesInputDecompressor {
+    private static class SnappyBytesDecompressor implements HeapDestDecompressor {
         @Override
-        public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
-            byte[] out = UninitializedArrays.newByteArray(decompressedSize);
-            // PrefetchedPageReader (the optimized path) uses the ByteBuffer overload with Arrow
-            // buffers on both sides. This BytesInput overload is what everything else reaches:
-            // parquet-mr's ColumnChunkPageReadStore.readPage() on the baseline path, and
-            // ParquetFileReader.readDictionary during dictionary filtering on the optimized path.
+        public void decompressInto(BytesInput compressed, byte[] dest, int destLen) throws IOException {
+            requireDestCapacity(dest, destLen);
+            // JNI Snappy.uncompress uses dest.length as the write allowance. On a reused dest that
+            // is larger than this page, a stream whose uncompressed size exceeds destLen would
+            // clobber dest[destLen..). Check the stream length first, then uncompress.
             // Fast path: avoid BytesInput.toByteArray() for heap-buffer-backed inputs — the default
             // toByteArray() funnels through a sized ByteArrayOutputStream, adding one allocation
             // and one System.arraycopy that the JNI Snappy binding does not need.
-            ByteBuffer input = bytes.toByteBuffer();
+            ByteBuffer input = compressed.toByteBuffer();
             if (input.hasArray()) {
-                Snappy.uncompress(input.array(), input.arrayOffset() + input.position(), input.remaining(), out, 0);
+                snappyUncompress(input.array(), input.arrayOffset() + input.position(), input.remaining(), dest, destLen);
             } else {
-                byte[] in = bytes.toByteArray();
-                Snappy.uncompress(in, 0, in.length, out, 0);
+                byte[] in = compressed.toByteArray();
+                snappyUncompress(in, 0, in.length, dest, destLen);
             }
-            return BytesInput.from(out);
+        }
+
+        private static void snappyUncompress(byte[] src, int srcOff, int srcLen, byte[] dest, int destLen) throws IOException {
+            int declared = Snappy.uncompressedLength(src, srcOff, srcLen);
+            if (declared != destLen) {
+                throw new IOException("Snappy uncompressed length " + declared + " bytes, expected " + destLen + " from page header");
+            }
+            requireExactUncompressedSize(Snappy.uncompress(src, srcOff, srcLen, dest, 0), destLen, "Snappy");
         }
 
         @Override
@@ -244,21 +280,23 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
         public void release() {}
     }
 
-    private static class GzipBytesDecompressor implements BytesInputDecompressor {
+    private static class GzipBytesDecompressor implements HeapDestDecompressor {
         @Override
-        public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
-            byte[] out = UninitializedArrays.newByteArray(decompressedSize);
-            try (GZIPInputStream gis = new GZIPInputStream(bytes.toInputStream())) {
+        public void decompressInto(BytesInput compressed, byte[] dest, int destLen) throws IOException {
+            requireDestCapacity(dest, destLen);
+            try (GZIPInputStream gis = new GZIPInputStream(compressed.toInputStream())) {
                 int off = 0;
-                while (off < decompressedSize) {
-                    int read = gis.read(out, off, decompressedSize - off);
+                while (off < destLen) {
+                    int read = gis.read(dest, off, destLen - off);
                     if (read < 0) {
-                        throw new IOException("Premature end of GZIP stream: expected " + decompressedSize + " bytes, got " + off);
+                        throw new IOException("Premature end of GZIP stream: expected " + destLen + " bytes, got " + off);
                     }
                     off += read;
                 }
+                if (gis.read() >= 0) {
+                    throw new IOException("GZIP stream produced more than " + destLen + " uncompressed bytes declared by the page header");
+                }
             }
-            return BytesInput.from(out);
         }
 
         @Override
@@ -273,15 +311,14 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
     /**
      * Zstd decompressor.
      *
-     * <p>Both code paths — the direct→direct hot path invoked by parquet-mr's
-     * {@code ColumnChunkPageReadStore} and our own {@code PrefetchedPageReader}, and the cold
-     * {@code BytesInput}/{@code byte[]} path — delegate to {@link PanamaZstd}, the shared Panama
-     * FFI binding that lives in {@code esql-datasource-compression-libs} (so Iceberg/ORC adopters
-     * can route their direct paths through the same code). This eliminates zstd-jni from the
-     * production runtime classpath entirely. The cold path uses {@code PanamaZstd.decompressHeap}
-     * which is bound with {@code Linker.Option.critical(true)}, so heap segments cross into
-     * libzstd without an off-heap staging copy — equivalent to zstd-jni's
-     * {@code GetPrimitiveArrayCritical} path but without G1's region pinning.
+     * <p>The hot path for {@code PrefetchedPageReader} and parquet-mr's
+     * {@code ColumnChunkPageReadStore} is {@code BytesInput}/{@code byte[]} via
+     * {@link PanamaZstd#decompressHeap}, bound with {@code Linker.Option.critical(true)} so heap
+     * segments cross into libzstd without an off-heap staging copy and without zstd-jni's G1
+     * region pinning. Production data pages use {@link #decompressInto}; {@code decompress(BytesInput,
+     * int)} still allocates for parquet-mr and dictionary pages.
+     * The {@code ByteBuffer} overload remains for the parquet-mr SPI and tests; it still uses a
+     * direct-to-direct Panama path when both sides are direct.
      *
      * <p>When the Panama binding is unavailable on a platform ({@link PanamaZstd#isAvailable()}
      * returns {@code false}), both paths fail with the same {@link IllegalStateException} from
@@ -290,31 +327,36 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
      * it merely deferred the same error. Aligns with {@code ZstdDecompressionCodec}'s
      * hard-fail-on-construction stance.
      */
-    private static class ZstdBytesDecompressor implements BytesInputDecompressor {
+    private static class ZstdBytesDecompressor implements HeapDestDecompressor {
         private final PanamaZstd panamaZstd = PanamaZstd.instance();
 
         @Override
-        public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
-            byte[] out = UninitializedArrays.newByteArray(decompressedSize);
+        public void decompressInto(BytesInput compressed, byte[] dest, int destLen) throws IOException {
+            requireDestCapacity(dest, destLen);
             int written;
             try {
-                // BytesInput.toByteArray() may copy or alias depending on the BytesInput
-                // implementation; we accept whatever parquet-mr hands us. The
-                // PanamaZstd.decompressHeap downcall is critical(true), so the heap segments
-                // cross into libzstd with no off-heap staging copy — same behavior as zstd-jni's
-                // GetPrimitiveArrayCritical path, minus the G1 region pinning.
-                written = panamaZstd.decompressHeap(out, bytes.toByteArray());
+                // PanamaZstd.decompressHeap is critical(true): heap segments cross into libzstd
+                // with no off-heap staging copy. Pass destLen as dstSize, not dest.length: a
+                // reused dest may be larger than this page, and the two-arg decompressHeap(dest,
+                // src) uses dest.length as the cap.
+                ByteBuffer input = compressed.toByteBuffer();
+                if (input.hasArray()) {
+                    written = panamaZstd.decompressHeap(
+                        dest,
+                        0,
+                        destLen,
+                        input.array(),
+                        input.arrayOffset() + input.position(),
+                        input.remaining()
+                    );
+                } else {
+                    byte[] src = compressed.toByteArray();
+                    written = panamaZstd.decompressHeap(dest, 0, destLen, src, 0, src.length);
+                }
             } catch (RuntimeException e) {
                 throw new IOException("Zstd decompression failed", e);
             }
-            // Guard against silent corruption: out is allocated via UninitializedArrays so any
-            // shortfall would leak uninitialized bytes into the BytesInput we hand back.
-            if (written != decompressedSize) {
-                throw new IOException(
-                    "Zstd decompression produced " + written + " bytes, expected " + decompressedSize + " from page header"
-                );
-            }
-            return BytesInput.from(out);
+            requireExactUncompressedSize(written, destLen, "Zstd");
         }
 
         @Override
@@ -353,15 +395,21 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
      * LZ4 raw decompressor. Aircompressor's {@code Lz4Decompressor} works with both heap and
      * direct {@code ByteBuffer}s, so no fallback is needed.
      */
-    private static class Lz4RawBytesDecompressor implements BytesInputDecompressor {
+    private static class Lz4RawBytesDecompressor implements HeapDestDecompressor {
         private final Lz4Decompressor lz4 = new Lz4Decompressor();
 
         @Override
-        public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
-            byte[] in = bytes.toByteArray();
-            byte[] out = UninitializedArrays.newByteArray(decompressedSize);
-            lz4.decompress(in, 0, in.length, out, 0, decompressedSize);
-            return BytesInput.from(out);
+        public void decompressInto(BytesInput compressed, byte[] dest, int destLen) throws IOException {
+            requireDestCapacity(dest, destLen);
+            ByteBuffer input = compressed.toByteBuffer();
+            int written;
+            if (input.hasArray()) {
+                written = lz4.decompress(input.array(), input.arrayOffset() + input.position(), input.remaining(), dest, 0, destLen);
+            } else {
+                byte[] in = compressed.toByteArray();
+                written = lz4.decompress(in, 0, in.length, dest, 0, destLen);
+            }
+            requireExactUncompressedSize(written, destLen, "LZ4_RAW");
         }
 
         @Override
@@ -409,15 +457,14 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
      * mid-2024, and Spark 3.0–3.4 with explicit {@code lz4} compression) but never emits the
      * deprecated codec itself. No entry is registered in the compressors map.
      */
-    private static class Lz4HadoopFramedBytesDecompressor implements BytesInputDecompressor {
+    private static class Lz4HadoopFramedBytesDecompressor implements HeapDestDecompressor {
         private final Lz4Decompressor lz4 = new Lz4Decompressor();
 
         @Override
-        public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
-            byte[] in = bytes.toByteArray();
-            byte[] out = UninitializedArrays.newByteArray(decompressedSize);
-            decompressHadoopFramed(in, 0, in.length, out, 0, decompressedSize);
-            return BytesInput.from(out);
+        public void decompressInto(BytesInput compressed, byte[] dest, int destLen) throws IOException {
+            requireDestCapacity(dest, destLen);
+            byte[] in = compressed.toByteArray();
+            decompressHadoopFramed(in, 0, in.length, dest, 0, destLen);
         }
 
         @Override

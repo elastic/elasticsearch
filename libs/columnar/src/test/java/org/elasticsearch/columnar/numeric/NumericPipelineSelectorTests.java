@@ -46,6 +46,7 @@ import static org.elasticsearch.columnar.ColumnarTestUtils.singleValuedCursor;
 public class NumericPipelineSelectorTests extends ESTestCase {
 
     private static final byte[] DEFAULT_TRANSFORM_IDS = { DeltaTransform.ID, OffsetTransform.ID, GcdTransform.ID };
+    private static final byte[] ORDINAL_TRANSFORM_IDS = { RunTransform.ID, DeltaTransform.ID, OffsetTransform.ID, PatchedTransform.ID };
     private static final byte[] SPLIT_DELTA_TRANSFORM_IDS = {
         SplitDeltaTransform.ID,
         DeltaTransform.ID,
@@ -71,6 +72,10 @@ public class NumericPipelineSelectorTests extends ESTestCase {
         assertTransformIds((f, t) -> NumericPipeline::defaultPipeline, longValues(), DEFAULT_TRANSFORM_IDS);
     }
 
+    public void testOrdinalPipelineTransformIds() throws IOException {
+        assertTransformIds((f, t) -> NumericPipeline::runsAndOutliersPipeline, longValues(), ORDINAL_TRANSFORM_IDS);
+    }
+
     public void testSplitDeltaPipelineTransformIds() throws IOException {
         assertTransformIds((f, t) -> NumericPipeline::monotonicLongPipeline, monotonicLongs(), SPLIT_DELTA_TRANSFORM_IDS);
     }
@@ -92,9 +97,9 @@ public class NumericPipelineSelectorTests extends ESTestCase {
             return NumericPipeline.defaultPipeline(bs);
         };
 
-        final ColumNARDocValuesFormat format = new ColumNARDocValuesFormat(capturingSelector, blockSize);
+        final ColumNARDocValuesFormat format = new ColumNARDocValuesFormat(capturingSelector, field -> ColumnarFieldType.LONG, blockSize);
 
-        final FieldType fieldType = columnarBinaryFieldType(ColumnarFieldType.LONG);
+        final FieldType fieldType = columnarBinaryFieldType();
         final BytesRefBuilder builder = new BytesRefBuilder();
         try (
             Directory dir = newDirectory();
@@ -161,23 +166,30 @@ public class NumericPipelineSelectorTests extends ESTestCase {
 
         try (Directory dir = newDirectory()) {
             final NumericColumnMetadata written;
-            try (IndexOutput out = dir.createOutput("num.cnd", IOContext.DEFAULT)) {
+            try (
+                IndexOutput out = dir.createOutput("num.cnd", IOContext.DEFAULT);
+                IndexOutput skip = dir.createOutput("num.cns", IOContext.DEFAULT)
+            ) {
                 ColumnarCodecUtil.writeHeader(out, "ColumNARData", FormatVersion.CURRENT, segmentId, "");
+                ColumnarCodecUtil.writeHeader(skip, "ColumNARSkipIndex", FormatVersion.CURRENT, segmentId, "");
                 final int blockSize = randomValidBlockSize();
                 final NumericPipeline pipeline = selector.select(fieldName, ColumnarFieldType.LONG).build(blockSize);
                 written = NumericColumnWriter.write(
                     values.length,
                     values.length,
                     values.length,
+                    true,
                     () -> singleValuedCursor(values),
                     pipeline,
                     BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
                     SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID),
                     dir,
                     IOContext.DEFAULT,
-                    out
+                    out,
+                    skip
                 );
                 ColumnarCodecUtil.writeFooter(out);
+                ColumnarCodecUtil.writeFooter(skip);
             }
             try (IndexOutput meta = dir.createOutput("num.cnm", IOContext.DEFAULT)) {
                 ColumnarCodecUtil.writeHeader(meta, "ColumNARMeta", FormatVersion.CURRENT, segmentId, "");
@@ -192,7 +204,7 @@ public class NumericPipelineSelectorTests extends ESTestCase {
                 final ColumnIterator iterator = reader.iterator();
                 int idx = 0;
                 for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
-                    assertEquals(values[idx++], reader.valueForOrdinal(reader.firstOrdinal(iterator.index())));
+                    assertEquals(values[idx++], reader.valueAt(reader.firstValueAddress(iterator.rank())));
                 }
             }
             return read;

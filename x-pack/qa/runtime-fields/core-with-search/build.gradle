@@ -76,6 +76,8 @@ tasks.named("yamlRestTest").configure {
       'aggregations/time_series/*',
       // columnar index modes reject mapping-level runtime fields
       'search/400_columnar_default_field/*',
+      // runtime keyword fields compare range bounds as Java strings, not indexed UTF-8 bytes
+      'search/395_binary_doc_values_search/Test keyword range uses indexed byte ordering for binary doc values',
       // The error messages are different
       'search/330_fetch_fields/error includes field name',
       'search/330_fetch_fields/error includes glob pattern',

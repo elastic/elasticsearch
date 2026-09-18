@@ -13,6 +13,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -32,34 +33,64 @@ public final class ScanningBinaryDocValuesRangeQuery extends AbstractBinaryDocVa
 
     private final BytesRef lower;
     private final BytesRef upper;
+    private final boolean includeLower;
+    private final boolean includeUpper;
 
-    public ScanningBinaryDocValuesRangeQuery(String fieldName, BytesRef lower, BytesRef upper, boolean arrayOrderInlineNull) {
-        super(fieldName, rangeMatcher(Objects.requireNonNull(lower), Objects.requireNonNull(upper)), arrayOrderInlineNull);
-        assert lower.compareTo(upper) <= 0;
-        this.lower = lower;
-        this.upper = upper;
+    public ScanningBinaryDocValuesRangeQuery(String fieldName, BytesRef lower, BytesRef upper, BinaryDocValuesFormat binaryFormat) {
+        this(fieldName, lower, upper, true, true, binaryFormat);
     }
 
-    private static Predicate<BytesRef> rangeMatcher(BytesRef lower, BytesRef upper) {
-        return value -> lower.compareTo(value) <= 0 && upper.compareTo(value) >= 0;
+    public ScanningBinaryDocValuesRangeQuery(
+        String fieldName,
+        BytesRef lower,
+        BytesRef upper,
+        boolean includeLower,
+        boolean includeUpper,
+        BinaryDocValuesFormat binaryFormat
+    ) {
+        super(fieldName, rangeMatcher(lower, upper, includeLower, includeUpper), binaryFormat);
+        this.lower = lower;
+        this.upper = upper;
+        this.includeLower = includeLower;
+        this.includeUpper = includeUpper;
+    }
+
+    private static Predicate<BytesRef> rangeMatcher(BytesRef lower, BytesRef upper, boolean includeLower, boolean includeUpper) {
+        return value -> isAboveLowerBound(value, lower, includeLower) && isBelowUpperBound(value, upper, includeUpper);
+    }
+
+    private static boolean isAboveLowerBound(BytesRef value, BytesRef lower, boolean includeLower) {
+        if (lower == null) {
+            return true;
+        }
+        int cmp = value.compareTo(lower);
+        return includeLower ? cmp >= 0 : cmp > 0;
+    }
+
+    private static boolean isBelowUpperBound(BytesRef value, BytesRef upper, boolean includeUpper) {
+        if (upper == null) {
+            return true;
+        }
+        int cmp = value.compareTo(upper);
+        return includeUpper ? cmp <= 0 : cmp < 0;
     }
 
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-        if (lower.bytesEquals(upper)) {
-            return new ScanningBinaryDocValuesTermQuery(fieldName, lower, arrayOrderInlineNull);
+        if (lower != null && upper != null && includeLower && includeUpper && lower.bytesEquals(upper)) {
+            return new ScanningBinaryDocValuesTermQuery(fieldName, lower, binaryFormat);
         }
         return super.rewrite(indexSearcher);
     }
 
     @Override
     protected float matchCost() {
-        return 20; // two comparisons per candidate value
+        return 20;
     }
 
     @Override
     public String toString(String field) {
-        return "ScanningBinaryDocValuesRangeQuery(fieldName=" + field + ",lower=" + lower.toString() + ",upper=" + upper.toString() + ")";
+        return "ScanningBinaryDocValuesRangeQuery(fieldName=" + fieldName + ",lower=" + lower + ",upper=" + upper + ")";
     }
 
     @Override
@@ -71,11 +102,16 @@ public final class ScanningBinaryDocValuesRangeQuery extends AbstractBinaryDocVa
             return false;
         }
         ScanningBinaryDocValuesRangeQuery that = (ScanningBinaryDocValuesRangeQuery) o;
-        return Objects.equals(fieldName, that.fieldName) && lower.bytesEquals(that.lower) && upper.bytesEquals(that.upper);
+        return Objects.equals(fieldName, that.fieldName)
+            && Objects.equals(lower, that.lower)
+            && Objects.equals(upper, that.upper)
+            && includeLower == that.includeLower
+            && includeUpper == that.includeUpper
+            && binaryFormat == that.binaryFormat;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), fieldName, lower, upper);
+        return Objects.hash(classHash(), fieldName, lower, upper, includeLower, includeUpper, binaryFormat);
     }
 }

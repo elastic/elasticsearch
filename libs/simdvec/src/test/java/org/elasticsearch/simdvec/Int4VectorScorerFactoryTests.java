@@ -42,8 +42,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
-import static org.elasticsearch.nativeaccess.Int4TestUtils.packNibbles;
-import static org.elasticsearch.nativeaccess.Int4TestUtils.unpackNibbles;
+import static org.elasticsearch.simdvec.Int4TestUtils.packNibbles;
+import static org.elasticsearch.simdvec.Int4TestUtils.unpackNibbles;
 import static org.elasticsearch.simdvec.VectorSimilarityType.DOT_PRODUCT;
 import static org.elasticsearch.simdvec.VectorSimilarityType.EUCLIDEAN;
 import static org.elasticsearch.simdvec.VectorSimilarityType.MAXIMUM_INNER_PRODUCT;

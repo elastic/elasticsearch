@@ -665,6 +665,8 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
         assertThat(remoteFetchRowsEmitted(response), equalTo((long) rowsEmitted));
         assertThat(statuses.stream().mapToLong(RemoteFetchOperator.Status::batchesSent).sum(), greaterThan(0L));
         assertThat(statuses.stream().mapToInt(RemoteFetchOperator.Status::exchangesOpened).sum(), greaterThan(0));
+        assertThat(statuses.stream().mapToLong(status -> status.profile().totalSetupNanos()).sum(), greaterThan(0L));
+        assertThat(statuses.stream().mapToLong(status -> status.profile().fetchNanos()).sum(), greaterThan(0L));
     }
 
     private static long remoteFetchRowsEmitted(EsqlQueryResponse response) {

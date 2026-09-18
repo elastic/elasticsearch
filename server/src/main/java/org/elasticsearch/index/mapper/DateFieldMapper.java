@@ -518,7 +518,8 @@ public final class DateFieldMapper extends FieldMapper {
                 resolution,
                 context.isSourceSynthetic(),
                 this,
-                offsetsFieldName
+                offsetsFieldName,
+                context.isDataStream()
             );
         }
     }
@@ -1201,7 +1202,8 @@ public final class DateFieldMapper extends FieldMapper {
         Resolution resolution,
         boolean isSourceSynthetic,
         Builder builder,
-        String offsetsFieldName
+        String offsetsFieldName,
+        boolean isDataStream
     ) {
         super(leafName, mappedFieldType, builderParams);
         this.stored = builder.store.getValue();
@@ -1222,7 +1224,7 @@ public final class DateFieldMapper extends FieldMapper {
         this.script = builder.script.get();
         this.scriptCompiler = builder.scriptCompiler;
         this.scriptValues = builder.scriptValues();
-        this.isDataStreamTimestampField = mappedFieldType.name().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        this.isDataStreamTimestampField = isDataStream && mappedFieldType.name().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         this.indexSettings = builder.indexSettings;
         this.offsetsFieldName = offsetsFieldName;
     }

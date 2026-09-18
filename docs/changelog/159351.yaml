@@ -1,4 +1,4 @@
-area: "Authorization, ES|QL, Search"
+area: "Authorization"
 issues: []
 pr: 159351
 summary: Apply field visibility to `constant_keyword`

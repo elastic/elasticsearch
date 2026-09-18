@@ -40,9 +40,14 @@ import java.util.function.Predicate;
  * endpoint id is minted per customer — so {@code [<prefix>.]vpce-<id>.<service>.<region>.vpce} is matched
  * against a generated tail, leaving only the id and its optional prefix to be read from the name.
  *
- * <p>Requiring a region is load-bearing: without it a bucket anyone can create named {@code sts-anything}
- * answers to {@code sts-anything.s3.us-east-1.amazonaws.com} and would be admitted. Every other AWS endpoint
- * family is refused — see {@link #S3_SERVICE_LABELS}.
+ * <p>The two global endpoints, {@code s3.amazonaws.com} and {@code sts.amazonaws.com}, are admitted as
+ * literals. They name no region, so they reach a {@code us-east-1} bucket and fail loudly for any other,
+ * because the cross-region redirect S3 answers with is not followed.
+ *
+ * <p>Requiring a region after the service label is load-bearing, and the global literals do not weaken it:
+ * without that requirement a bucket anyone can create named {@code sts-anything} answers to
+ * {@code sts-anything.s3.us-east-1.amazonaws.com} and would be admitted. Every other AWS endpoint family is
+ * refused — see {@link #S3_SERVICE_LABELS}.
  */
 final class S3EndpointCheck {
 
@@ -130,6 +135,18 @@ final class S3EndpointCheck {
             s3Hosts.add(S3_SERVICE + "-" + id + "." + suffix);
             s3Tails.add("." + S3_SERVICE + "." + id + ".vpce." + suffix);
             stsTails.add("." + STS_SERVICE + "." + id + ".vpce." + suffix);
+        }
+        // The global endpoints, which name no region. S3 answers for us-east-1 and redirects anywhere else
+        // with a cross-region 301 this data source does not follow, so they reach a us-east-1 bucket and fail
+        // loudly for any other. Only the bare service label has a global form; an enabled family does not
+        // acquire one. They are literals rather than a relaxation: admitting them adds exactly these two
+        // names, and the requirement that a region follow the service label — which is what refuses a bucket
+        // named sts-anything answering on sts-anything.s3.us-east-1.amazonaws.com — is untouched.
+        String globalSuffix = PartitionMetadata.of(Region.AWS_GLOBAL).dnsSuffix();
+        if (Strings.hasText(globalSuffix)) {
+            globalSuffix = globalSuffix.toLowerCase(Locale.ROOT);
+            s3Hosts.add(S3_SERVICE + "." + globalSuffix);
+            stsHosts.add(STS_SERVICE + "." + globalSuffix);
         }
         if (s3Hosts.isEmpty() || stsHosts.isEmpty()) {
             // Both come from SDK metadata. Empty would silently refuse every endpoint value on the node,

@@ -189,6 +189,24 @@ public class S3EndpointCheckTests extends ESTestCase {
     }
 
     /**
+     * The two global endpoints. They name no region, so they reach a {@code us-east-1} bucket and fail for
+     * any other — setting any endpoint turns off the SDK's cross-region decorator, so the redirect S3
+     * answers with is not followed. They are admitted because they are AWS hosts that work, and refusing the
+     * most commonly typed override of all would break configurations for no gain.
+     *
+     * <p>Only the bare service label has a global form. The per-partition pseudo-region spellings stay
+     * refused — see {@link #testRefusesPseudoRegions}.
+     */
+    public void testAcceptsGlobalEndpoints() {
+        assertTrue(S3EndpointCheck.isPermittedHost("s3.amazonaws.com", S3_SERVICE));
+        assertTrue(S3EndpointCheck.isPermittedHost("sts.amazonaws.com", STS_SERVICE));
+        assertTrue(S3EndpointCheck.isPermittedHost("S3.AMAZONAWS.COM", S3_SERVICE));
+        // The global form belongs to the bare service only, and not to the other service.
+        assertAllRefused(S3_SERVICE, "sts.amazonaws.com", "s3-fips.amazonaws.com", "s3-accelerate.amazonaws.com");
+        assertAllRefused(STS_SERVICE, "s3.amazonaws.com", "sts-fips.amazonaws.com");
+    }
+
+    /**
      * AWS PrivateLink, which is how a cluster with no route to the public internet reaches S3, and therefore
      * the form that has to keep working. The three prefixes are the ones AWS assigns for S3; STS publishes
      * the same shape with no prefix. {@link #testRefusesVpcFormsOutsideTheExactShape} is the other half.
@@ -211,15 +229,10 @@ public class S3EndpointCheckTests extends ESTestCase {
      * AWS host, under an AWS suffix, and each is refused: an operator who needs one names it in
      * {@code esql.external.allowed_endpoint_hosts} rather than having it permitted for everybody.
      *
-     * <p>The global endpoint is in here rather than in the regional set on purpose. {@code s3.amazonaws.com}
-     * is the most commonly typed override there is, and it names no region — it answers for
-     * {@code us-east-1} and redirects elsewhere, which is exactly the destination-follows-the-request
-     * behaviour a host rule cannot confine.
      */
     public void testRefusesNonRegionalAwsFamilies() {
         assertAllRefused(
             S3_SERVICE,
-            "s3.amazonaws.com",                           // the global endpoint
             "s3.dualstack.amazonaws.com",
             "s3-fips.amazonaws.com",
             "s3-accelerate.amazonaws.com",                // transfer acceleration
@@ -236,13 +249,7 @@ public class S3EndpointCheckTests extends ESTestCase {
             "s3-fips.us-east-1.amazonaws.com",            // FIPS, which an endpoint override cannot ask for
             "s3-fips.dualstack.eu-west-1.amazonaws.com"
         );
-        assertAllRefused(
-            STS_SERVICE,
-            "sts.amazonaws.com",
-            "sts.dualstack.amazonaws.com",
-            "sts-fips.amazonaws.com",
-            "sts-fips.us-east-1.amazonaws.com"
-        );
+        assertAllRefused(STS_SERVICE, "sts.dualstack.amazonaws.com", "sts-fips.amazonaws.com", "sts-fips.us-east-1.amazonaws.com");
     }
 
     /**

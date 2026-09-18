@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.encryption.spi.test;
 
+import org.apache.http.Header;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -15,10 +18,17 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestRule;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 
 /**
  * Verifies that {@code EncryptedDataHandlerProvider} implementations contributed by other plugins via
@@ -30,18 +40,23 @@ import static org.hamcrest.Matchers.greaterThan;
  */
 public class EncryptedDataHandlerProviderSpiIT extends ESRestTestCase {
 
-    @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+    private static final TemporaryFolder repoDirectory = new TemporaryFolder();
+
+    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .name("test-encryption-spi-cluster")
         .plugin("test-encryption-spi-extension")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.encryption.key_rotation.interval", "1s")
         .setting("xpack.encryption.key_rotation.check_interval", "1s")
+        .setting("path.repo", () -> repoDirectory.getRoot().getPath())
         .keystore("cluster.state.encryption.active_password_id", "v1")
         .keystore("cluster.state.encryption.password.v1", "encryption-test-password")
         .user("test-admin", "x-pack-test-password")
         .build();
+
+    @ClassRule
+    public static final TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
 
     @Override
     protected String getTestRestCluster() {
@@ -75,5 +90,34 @@ public class EncryptedDataHandlerProviderSpiIT extends ESRestTestCase {
             int count = assertOKAndCreateObjectPath(response).evaluate("invocations");
             assertThat(count, greaterThan(0));
         }, 30, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Verifies that the snapshot Warning header is emitted when the cluster has encrypted data in project state.
+     * The test handler's reEncrypt seeds a TestEncryptedBlob on the first rotation, so the Warning fires once the
+     * coordinator has run at least once.
+     */
+    public void testSnapshotWarningEmittedWhenEncryptedDataPresent() throws Exception {
+        // Wait for the key rotation coordinator to seed the TestEncryptedBlob into cluster state.
+        assertBusy(() -> {
+            var response = client().performRequest(new Request("GET", "/_test/encryption_spi/invocations"));
+            assertThat(assertOKAndCreateObjectPath(response).<Integer>evaluate("invocations"), greaterThan(0));
+        }, 30, TimeUnit.SECONDS);
+
+        var putRepo = new Request("PUT", "/_snapshot/test-repo");
+        putRepo.setJsonEntity("{\"type\":\"fs\",\"settings\":{\"location\":\"" + repoDirectory.getRoot().getPath() + "\"}}");
+        assertOK(client().performRequest(putRepo));
+
+        var snapshotRequest = new Request("PUT", "/_snapshot/test-repo/snap");
+        snapshotRequest.addParameter("wait_for_completion", "true");
+        snapshotRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> false).build());
+        var response = client().performRequest(snapshotRequest);
+
+        List<String> warningValues = Arrays.stream(response.getHeaders())
+            .filter(h -> h.getName().equals("Warning"))
+            .map(Header::getValue)
+            .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
+            .toList();
+        assertThat(warningValues, hasItem(containsString("Encrypted data source credentials")));
     }
 }

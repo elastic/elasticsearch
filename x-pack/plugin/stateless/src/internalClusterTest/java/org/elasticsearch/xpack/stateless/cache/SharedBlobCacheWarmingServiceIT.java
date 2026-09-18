@@ -107,6 +107,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
@@ -1623,7 +1624,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         @Override
         public void warmCacheForSearchShardRecovery(
-            ClusterState clusterState,
+            Supplier<ClusterState> clusterStateSupplier,
             IndexShard indexShard,
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
@@ -1642,8 +1643,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     endTargetsToWarm,
                     false,
                     searchRecoveryWarmingListener(
-                        TimeValue.timeValueMinutes(1),
-                        "test: awaiting warming",
+                        new SearchRecoveryTimeout(TimeValue.timeValueMinutes(1), "test: awaiting warming"),
+                        clusterStateSupplier,
                         indexShard,
                         directory,
                         totalBytesToWarm(endTargetsToWarm),
@@ -1652,7 +1653,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 );
             } else {
                 super.warmCacheForSearchShardRecovery(
-                    clusterState,
+                    clusterStateSupplier,
                     indexShard,
                     commit,
                     directory,

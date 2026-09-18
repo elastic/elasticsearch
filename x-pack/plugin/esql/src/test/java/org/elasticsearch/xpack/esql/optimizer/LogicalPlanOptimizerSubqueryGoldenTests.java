@@ -49,4 +49,17 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             | WHERE match_phrase(first_name, "Meditation")
             """, STAGES);
     }
+
+    /**
+     * Verifies the plan shape when a type conversion is applied to a grouping key after STATS above a
+     * multi-subquery FROM. The conversion must remain above the Aggregate (reading aggregate output), not
+     * be pushed into the UnionAll branches. esql-planning#1987
+     */
+    public void testConvertGroupKeyAfterStats() {
+        runGoldenTest("""
+            FROM (FROM employees), (FROM employees)
+            | STATS max_salary = MAX(salary) BY gender
+            | EVAL g = TO_STRING(gender)
+            """, STAGES);
+    }
 }

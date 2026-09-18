@@ -1173,6 +1173,7 @@ public class InternalEngine extends Engine {
                 }
                 versionMap.enforceSafeAccess();
             }
+            // The versionMap can still be unsafe at this point due to archive being unsafe
         }
         return versionMap.getUnderLock(id);
     }

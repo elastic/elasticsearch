@@ -790,3 +790,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecMatchPhraseFunctionIT
   method: test {csv-spec:match-phrase-function.matchPhraseOnToStringOverIndexedTextFieldViaEvalAlias}
   issue: https://github.com/elastic/elasticsearch/issues/159769
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecMatchPhraseFunctionIT
+  method: test {csv-spec:match-phrase-function.matchPhraseOnToTextOverIndexedKeywordFieldViaEvalAlias}
+  issue: https://github.com/elastic/elasticsearch/issues/159770

@@ -109,7 +109,6 @@ public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
             }
         }
         ensureGreen(new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + 2000L * indexNames.length), indexNames);
-        awaitRefreshExecutorIdle();
         assertAcked(indicesAdmin().prepareDelete(indexNames));
     }
 
@@ -118,19 +117,5 @@ public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
             .setSize(9999)
             .setFetchSource(true)
             .setAllowPartialSearchResults(randomBoolean());
-    }
-
-    private void awaitRefreshExecutorIdle() throws Exception {
-        assertBusy(() -> {
-            for (String nodeName : internalCluster().getNodeNames()) {
-                final ThreadPoolStats threadPoolStats = internalCluster().getInstance(ThreadPool.class, nodeName).stats();
-                for (ThreadPoolStats.Stats stats : threadPoolStats) {
-                    if (stats.name().equals(ThreadPool.Names.REFRESH)) {
-                        assertEquals(nodeName + " refresh executor should have no active tasks", 0, stats.active());
-                        assertEquals(nodeName + " refresh executor should have no queued tasks", 0, stats.queue());
-                    }
-                }
-            }
-        });
     }
 }

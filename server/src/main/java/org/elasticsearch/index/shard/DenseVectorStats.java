@@ -14,7 +14,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.vectors.diskbbq.SegmentCalibrationParameters;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -281,14 +280,13 @@ public class DenseVectorStats implements Writeable, ToXContentFragment {
      */
     public static final class AutoCalibrationEntry implements Writeable, ToXContentFragment {
 
-        @Nullable
         public final SegmentCalibrationParameters parameters;
         public final long numberOfVectors;
         public final long sizeInBytes;
         public final int numberOfSegments;
 
         public AutoCalibrationEntry(
-            @Nullable SegmentCalibrationParameters parameters,
+            SegmentCalibrationParameters parameters,
             long numberOfVectors,
             long sizeInBytes,
             int numberOfSegments
@@ -300,7 +298,9 @@ public class DenseVectorStats implements Writeable, ToXContentFragment {
         }
 
         public AutoCalibrationEntry(StreamInput in) throws IOException {
-            this.parameters = in.readBoolean() ? SegmentCalibrationParameters.readFrom(in) : null;
+            this.parameters = in.readBoolean()
+                ? SegmentCalibrationParameters.readFrom(in)
+                : new SegmentCalibrationParameters.Osq(null, false, Float.NaN);
             this.numberOfVectors = in.readVLong();
             this.sizeInBytes = in.readVLong();
             this.numberOfSegments = in.readVInt();
@@ -308,8 +308,8 @@ public class DenseVectorStats implements Writeable, ToXContentFragment {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeBoolean(parameters != null);
-            if (parameters != null) {
+            out.writeBoolean(parameters.calibrated());
+            if (parameters.calibrated()) {
                 parameters.writeTo(out);
             }
             out.writeVLong(numberOfVectors);
@@ -330,11 +330,12 @@ public class DenseVectorStats implements Writeable, ToXContentFragment {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("calibrated", parameters != null);
+            builder.field("calibrated", parameters.calibrated());
+            builder.field("type", parameters.type());
             builder.field("number_of_vectors", numberOfVectors);
             builder.humanReadableField("size_in_bytes", "size", ofBytes(sizeInBytes));
             builder.field("number_of_segments", numberOfSegments);
-            if (parameters != null) {
+            if (parameters.calibrated()) {
                 builder.startObject("parameters");
                 parameters.toXContent(builder);
                 builder.endObject();

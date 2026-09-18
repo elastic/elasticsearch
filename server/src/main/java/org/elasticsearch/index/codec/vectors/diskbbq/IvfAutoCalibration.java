@@ -296,10 +296,8 @@ public class IvfAutoCalibration {
             }
             if (reader instanceof CalibrationAwareReader car) {
                 switch (car.getCalibrationParameters(fieldInfo)) {
-                    case null -> {
-                    } // not calibrated
                     case SegmentCalibrationParameters.Osq osq -> {
-                        if (Float.isNaN(osq.oversample())) {
+                        if (osq.calibrated() == false) {
                             continue;
                         }
                         long vectors = liveVectorCount(reader, fieldInfo, mergeState.liveDocs[i]);

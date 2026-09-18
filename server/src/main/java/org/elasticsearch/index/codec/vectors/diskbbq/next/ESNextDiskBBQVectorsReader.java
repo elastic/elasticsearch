@@ -122,7 +122,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
     public SegmentCalibrationParameters getCalibrationParameters(FieldInfo fieldInfo) {
         final NextFieldEntry e = fields.get(fieldInfo.number);
         if (e == null || e.quantEncoding() == null) {
-            return null;
+            return new SegmentCalibrationParameters.Osq(null, false, IvfAutoCalibration.NO_CALIBRATED_OVERSAMPLE);
         }
         float oversample = e.rescoreOversample();
         if (Float.isFinite(oversample) == false) {

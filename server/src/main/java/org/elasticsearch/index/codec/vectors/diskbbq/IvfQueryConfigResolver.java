@@ -93,7 +93,7 @@ public class IvfQueryConfigResolver {
         }
         if (vectorsReader instanceof CalibrationAwareReader calibrationAwareReader) {
             return switch (calibrationAwareReader.getCalibrationParameters(fieldInfo)) {
-                case null -> mappingDefaults();
+                case SegmentCalibrationParameters.Osq osq when osq.calibrated() == false -> mappingDefaults();
                 case SegmentCalibrationParameters.Osq osq -> new IvfSegmentConfig(
                     CentroidIndexFormat.FLAT,
                     new IvfSegmentConfig.OsqConfig(osq.encoding()),

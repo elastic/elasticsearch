@@ -10,7 +10,6 @@
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.index.FieldInfo;
-import org.elasticsearch.core.Nullable;
 
 /**
  * Implemented by {@link org.apache.lucene.codecs.KnnVectorsReader} implementations that
@@ -19,10 +18,8 @@ import org.elasticsearch.core.Nullable;
 public interface CalibrationAwareReader {
 
     /**
-     * Returns the calibration parameters for the given field, or {@code null} if this segment
-     * was not auto-calibrated for that field.
+     * Returns the calibration parameters for the given field.
      */
-    @Nullable
     SegmentCalibrationParameters getCalibrationParameters(FieldInfo fieldInfo);
 
 }

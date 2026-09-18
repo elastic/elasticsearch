@@ -73,7 +73,7 @@ public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<Dense
         List<AutoCalibrationEntry> entries = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             SegmentCalibrationParameters params = rarely()
-                ? null
+                ? new SegmentCalibrationParameters.Osq(null, false, Float.NaN)
                 : new SegmentCalibrationParameters.Osq(
                     randomFrom(QuantEncoding.values()),
                     randomBoolean(),
@@ -303,13 +303,14 @@ public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<Dense
         builder.endObject();
         String output = Strings.toString(builder);
         assertThat(output, containsString("\"calibrated\":true"));
+        assertThat(output, containsString("\"type\":\"osq\""));
+        assertThat(output, containsString("\"number_of_vectors\":100000"));
+        assertThat(output, containsString("\"size_in_bytes\":10000000"));
+        assertThat(output, containsString("\"number_of_segments\":2"));
         assertThat(output, containsString("\"bits\":1"));
         assertThat(output, containsString("\"query_bits\":4"));
         assertThat(output, containsString("\"precondition\":true"));
         assertThat(output, containsString("\"oversample\":2.0"));
-        assertThat(output, containsString("\"number_of_vectors\":100000"));
-        assertThat(output, containsString("\"size_in_bytes\":10000000"));
-        assertThat(output, containsString("\"number_of_segments\":2"));
     }
 
     public void testAutoCalibrationXContentHumanReadable() throws IOException {
@@ -330,6 +331,7 @@ public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<Dense
         );
         builder.endObject();
         String output = Strings.toString(builder);
+        assertThat(output, containsString("\"type\" : \"osq\""));
         assertTrue("size human-readable should appear", output.contains("\"size\" : \"4mb\""));
         assertTrue("size_in_bytes should appear", output.contains("\"size_in_bytes\" : 4194304"));
     }
@@ -359,6 +361,36 @@ public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<Dense
         );
         builder.endObject();
         assertFalse(Strings.toString(builder).contains("auto_calibration"));
+    }
+
+    public void testAutoCalibrationNotShownForNonCalibratedField() throws IOException {
+        var calibEntry = new AutoCalibrationEntry(
+            new SegmentCalibrationParameters.Osq(QuantEncoding.ONE_BIT_4BIT_QUERY, true, 2.0f),
+            5000L,
+            500000L,
+            1
+        );
+        var stats = new DenseVectorStats(
+            15000L,
+            Map.of("calibrated_field", Map.of("vec", 500000L), "plain_field", Map.of("vec", 1000000L)),
+            Map.of("calibrated_field", List.of(calibEntry))
+        );
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        stats.toXContent(
+            builder,
+            new ToXContent.MapParams(Map.of(INCLUDE_OFF_HEAP, "true", INCLUDE_PER_FIELD_STATS, "true", INCLUDE_AUTO_CALIBRATION, "true"))
+        );
+        builder.endObject();
+        String output = Strings.toString(builder);
+
+        assertThat(output, containsString("auto_calibration"));
+        String afterPlainField = output.substring(output.indexOf("\"plain_field\""));
+        assertFalse(
+            "auto_calibration should not appear in plain_field block",
+            afterPlainField.contains("auto_calibration")
+        );
     }
 
     public void testBasicAdd() {
@@ -472,31 +504,33 @@ public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<Dense
     }
 
     public void testAutoCalibrationAddUncalibrated() {
+        var uncalibrated = new SegmentCalibrationParameters.Osq(null, false, Float.NaN);
         var stats1 = new DenseVectorStats(
             5000L,
             Map.of("f", Map.of("vec", 500000L)),
-            Map.of("f", List.of(new AutoCalibrationEntry(null, 5000L, 500000L, 2)))
+            Map.of("f", List.of(new AutoCalibrationEntry(uncalibrated, 5000L, 500000L, 2)))
         );
         var stats2 = new DenseVectorStats(
             3000L,
             Map.of("f", Map.of("vec", 300000L)),
-            Map.of("f", List.of(new AutoCalibrationEntry(null, 3000L, 300000L, 1)))
+            Map.of("f", List.of(new AutoCalibrationEntry(uncalibrated, 3000L, 300000L, 1)))
         );
         stats1.add(stats2);
 
         List<AutoCalibrationEntry> merged = stats1.calibrationStats().get("f");
         assertEquals(1, merged.size());
-        assertNull(merged.get(0).parameters);
+        assertFalse(merged.get(0).parameters.calibrated());
         assertEquals(8000L, merged.get(0).numberOfVectors);
         assertEquals(800000L, merged.get(0).sizeInBytes);
         assertEquals(3, merged.get(0).numberOfSegments);
     }
 
     public void testUncalibratedXContent() throws IOException {
+        var uncalibrated = new SegmentCalibrationParameters.Osq(null, false, Float.NaN);
         var stats = new DenseVectorStats(
             5000L,
             Map.of("f", Map.of("vec", 500000L)),
-            Map.of("f", List.of(new AutoCalibrationEntry(null, 5000L, 500000L, 3)))
+            Map.of("f", List.of(new AutoCalibrationEntry(uncalibrated, 5000L, 500000L, 3)))
         );
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -508,19 +542,22 @@ public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<Dense
         builder.endObject();
         String output = Strings.toString(builder);
         assertThat(output, containsString("\"calibrated\":false"));
+        assertThat(output, containsString("\"type\":\"osq\""));
         assertThat(output, containsString("\"number_of_vectors\":5000"));
         assertThat(output, containsString("\"size_in_bytes\":500000"));
         assertThat(output, containsString("\"number_of_segments\":3"));
         assertFalse("parameters block should not appear for uncalibrated entry", output.contains("\"parameters\""));
+        assertFalse("calibration-only fields should not appear for uncalibrated entry", output.contains("\"bits\""));
     }
 
     public void testUncalibratedEntrySerialization() throws IOException {
-        var entry = new AutoCalibrationEntry(null, 1234L, 56789L, 2);
+        var entry = new AutoCalibrationEntry(new SegmentCalibrationParameters.Osq(null, false, Float.NaN), 1234L, 56789L, 2);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             entry.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 var deserialized = new AutoCalibrationEntry(in);
-                assertNull(deserialized.parameters);
+                assertFalse(deserialized.parameters.calibrated());
+                assertEquals("osq", deserialized.parameters.type());
                 assertEquals(1234L, deserialized.numberOfVectors);
                 assertEquals(56789L, deserialized.sizeInBytes);
                 assertEquals(2, deserialized.numberOfSegments);

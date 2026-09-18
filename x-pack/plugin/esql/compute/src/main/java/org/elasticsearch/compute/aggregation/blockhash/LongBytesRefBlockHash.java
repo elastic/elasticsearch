@@ -333,6 +333,9 @@ public final class LongBytesRefBlockHash extends BlockHash {
     @Override
     public void close() {
         Releasables.close(bytesHash, longIntHash);
+        if (addBytesBatchWork != null) {
+            addBytesBatchWork.prefetchBarrier.flush();
+        }
     }
 
     // for testing
@@ -360,7 +363,7 @@ public final class LongBytesRefBlockHash extends BlockHash {
     }
 
     private static class AddBytesBatchWork {
-        private static final int PREFETCH_BATCH = 32;
+        private static final int PREFETCH_BATCH = 64;
         private final PrefetchBarrier prefetchBarrier = new PrefetchBarrier();
         private final BlockFactory blockFactory;
         private final long[] batchHashes = new long[PREFETCH_BATCH];

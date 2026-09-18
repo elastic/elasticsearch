@@ -138,6 +138,9 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/search/search-your-data/retrievers-examples/line_118}
   issue: https://github.com/elastic/elasticsearch/issues/159676
+- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
+  method: builds distribution from branches via archives extractedAssemble
+  issue: https://github.com/elastic/elasticsearch/issues/159719
 
 # Examples:
 #

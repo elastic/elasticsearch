@@ -2120,34 +2120,34 @@ Return of the King Being the Third Part of The Lord of the Rings | Return of the
 ;
 
 
-# Explicit query, no WHERE, still uses the mapping analyzer.
+# Explicit query, no WHERE, still uses the mapping analyzer. 2714 is "Rings"; standard would miss it.
 highlightMappingAnalyzerExplicitStringQuery
 required_capability: highlight_mapping_analyzer
 
 FROM books_english
 | HIGHLIGHT "ring" ON title
-| WHERE highlight_title IS NOT NULL AND book_no == "2936"
+| WHERE highlight_title IS NOT NULL AND book_no == "2714"
 | KEEP title, highlight_title
 | SORT title
 ;
 
-title:text                         | highlight_title:keyword
-Fellowship of the Ring 2ND Edition | Fellowship of the <em>Ring</em> 2ND Edition
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
 ;
 
 
-# title stems (english), publisher does not (standard), in one command.
+# title stems (english), publisher does not (standard), in one command. 2714 is "Rings".
 highlightMappingAnalyzerPerField
 required_capability: highlight_mapping_analyzer
 
 FROM books_english
-| WHERE MATCH(title, "ring") AND MATCH(publisher, "harpercollins") AND book_no == "2936"
+| WHERE MATCH(title, "ring") AND MATCH(publisher, "harpercollins") AND book_no == "2714"
 | HIGHLIGHT ON title, publisher
 | KEEP title, publisher, highlight_title, highlight_publisher
 ;
 
-title:text                         | publisher:text    | highlight_title:keyword                     | highlight_publisher:keyword
-Fellowship of the Ring 2ND Edition | HarperCollins UK  | Fellowship of the <em>Ring</em> 2ND Edition | <em>HarperCollins</em> UK
+title:text | publisher:text | highlight_title:keyword | highlight_publisher:keyword
+Return of the King Being the Third Part of The Lord of the Rings | HarperCollins | Return of the King Being the Third Part of The Lord of the <em>Rings</em> | <em>HarperCollins</em>
 ;
 
 
@@ -2167,17 +2167,18 @@ Return of the King Being the Third Part of The Lord of the Rings | null
 
 
 # MATCH whitespace tokenizes the query only. Document uses mapping english, so the same rows WHERE returned get snippets.
+# 2714 is "Rings": standard values would miss it; english values still paint.
 highlightMappingAnalyzerLeafOptionIsQuerySideOnly
 required_capability: highlight_mapping_analyzer
 
 FROM books_english
-| WHERE MATCH(title, "ring", { "analyzer": "whitespace" }) AND book_no == "2936"
+| WHERE MATCH(title, "ring", { "analyzer": "whitespace" }) AND book_no == "2714"
 | HIGHLIGHT
 | KEEP title, highlight_title
 ;
 
-title:text                         | highlight_title:keyword
-Fellowship of the Ring 2ND Edition | Fellowship of the <em>Ring</em> 2ND Edition
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
 ;
 
 
@@ -2259,6 +2260,238 @@ FROM books_english
 
 highlight_title:keyword | highlight_note:keyword
 Return of the King Being the Third Part of The Lord of the <em>Rings</em> | <em>Tolkien-wrote-of-rings</em>
+;
+
+
+# books title is default/standard: "ring" paints "Ring" and misses "Rings".
+highlightDefaultMappingAnalyzerUsesStandard
+required_capability: highlight_mapping_analyzer
+
+FROM books
+| WHERE book_no IN ("2714", "2936")
+| HIGHLIGHT "ring" ON title
+| KEEP book_no, highlight_title
+| SORT book_no
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | null
+2936            | Fellowship of the <em>Ring</em> 2ND Edition
+;
+
+
+# Mapping english paints both "Ring" and "Rings" in one result set.
+highlightMappingAnalyzerStemsRingAndRings
+required_capability: highlight_mapping_analyzer
+
+FROM books_english
+| WHERE MATCH(title, "ring") AND book_no IN ("2714", "2936")
+| HIGHLIGHT
+| KEEP book_no, highlight_title
+| SORT book_no
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+2936            | Fellowship of the <em>Ring</em> 2ND Edition
+;
+
+
+# Two MATCH leaves on the same mapped field with different analyzers are both query-side.
+highlightMappingAnalyzerTwoLeavesSameField
+required_capability: highlight_mapping_analyzer
+
+FROM books_english
+| WHERE book_no == "2714"
+| HIGHLIGHT MATCH(title, "ring") OR MATCH(title, "King", { "analyzer": "standard" }) ON title
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+Return of the <em>King</em> Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
+# WITH english strips the MATCH standard leaf and stems both sides, so "Rings" paints.
+highlightMappingAnalyzerWithOverridesLeafAnalyzer
+required_capability: highlight_mapping_analyzer
+
+FROM books_english
+| WHERE book_no == "2714"
+| HIGHLIGHT MATCH(title, "Rings", { "analyzer": "standard" }) ON title WITH { "analyzer": "english" }
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
+# Keyword ON fields still use standard, not the keyword analyzer. "Tolkien" is a token of the value.
+highlightMappingAnalyzerKeywordFieldUsesStandard
+required_capability: highlight_mapping_analyzer
+
+FROM books_english
+| WHERE book_no == "2714"
+| HIGHLIGHT "Tolkien" ON `author.keyword` WITH { "number_of_fragments": 0 }
+| KEEP `highlight_author.keyword`
+;
+
+highlight_author.keyword:keyword
+J. R. R. <em>Tolkien</em>
+;
+
+
+# EVAL copies of mapped fields drop the mapping analyzer. TO_TEXT cannot take a mapped field, so CONCAT makes a runtime column.
+highlightMappingAnalyzerEvalCopyVsToText
+required_capability: highlight_mapping_analyzer
+
+FROM books_english
+| WHERE book_no == "2714"
+| EVAL copied = title, declared = TO_TEXT(CONCAT(title, ""), {"analyzer": "english"})
+| HIGHLIGHT "ring" ON copied, declared
+| KEEP highlight_copied, highlight_declared
+;
+
+highlight_copied:keyword | highlight_declared:keyword
+null | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
+# Declared whitespace on a runtime copy of a mapped english field: "ring" misses "Rings".
+highlightMappingAnalyzerToTextOverridesMapping
+required_capability: highlight_mapping_analyzer
+
+FROM books_english
+| WHERE book_no == "2714"
+| EVAL t = TO_TEXT(CONCAT(title, ""), {"analyzer": "whitespace"})
+| HIGHLIGHT "ring" ON t
+| KEEP highlight_t
+;
+
+highlight_t:keyword
+null
+;
+
+
+# QSTR with no analyzer option uses the mapping analyzer.
+highlightMappingAnalyzerQstrUsesMapping
+required_capability: highlight_mapping_analyzer
+required_capability: qstr_function
+
+FROM books_english
+| WHERE book_no == "2714"
+| HIGHLIGHT QSTR("title:ring") ON title
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
+# KQL has no analyzer option; it uses the mapping analyzer.
+highlightMappingAnalyzerKqlUsesMapping
+required_capability: highlight_mapping_analyzer
+required_capability: kql_function
+
+FROM books_english
+| WHERE book_no == "2714"
+| HIGHLIGHT KQL("title:ring") ON title
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
+# MATCH with no leaf analyzer uses the TO_TEXT values analyzer.
+highlightUnindexedMatchUsesDeclaredValuesAnalyzer
+required_capability: highlight_mapping_analyzer
+
+ROW t = to_text("The Lord of the Rings", {"analyzer": "english"})
+| HIGHLIGHT MATCH(t, "ring") ON t
+| KEEP highlight_t
+;
+
+highlight_t:keyword
+The Lord of the <em>Rings</em>
+;
+
+
+# Two MATCH leaves on one unindexed field with different query analyzers.
+highlightUnindexedTwoLeavesSameFieldDifferentAnalyzers
+required_capability: highlight_mapping_analyzer
+
+ROW t = to_text("The Lord of the Rings", {"analyzer": "english"})
+| HIGHLIGHT MATCH(t, "ring") OR MATCH(t, "Lord", { "analyzer": "standard" }) ON t
+| KEEP highlight_t
+;
+
+highlight_t:keyword
+The <em>Lord</em> of the <em>Rings</em>
+;
+
+
+# RENAME keeps a TO_TEXT analyzer declaration; mapped-field RENAME does not (see highlightMappingAnalyzerRenamedFieldFallsBackToStandard).
+highlightUnindexedDeclaredAnalyzerSurvivesRename
+required_capability: highlight_mapping_analyzer
+
+ROW t = to_text("The Lord of the Rings", {"analyzer": "english"})
+| RENAME t AS title
+| HIGHLIGHT "ring" ON title
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+The Lord of the <em>Rings</em>
+;
+
+
+# EVAL of a ROW literal has no declared analyzer, so HIGHLIGHT uses standard.
+highlightUnindexedEvalWithoutDeclarationUsesStandard
+required_capability: highlight_mapping_analyzer
+
+ROW raw = "The Lord of the Rings"
+| EVAL t = raw
+| HIGHLIGHT "ring" ON t
+| KEEP highlight_t
+;
+
+highlight_t:keyword
+null
+;
+
+
+# WITH keyword strips the whitespace leaf. "new" is not the whole value, so the snippet is null.
+highlightAnalyzerWithOverridesWhitespaceLeafWithKeyword
+required_capability: highlight_mapping_analyzer
+
+ROW location = to_text("New York City")
+| HIGHLIGHT MATCH(location, "new", { "analyzer": "whitespace" }) ON location WITH { "analyzer": "keyword" }
+| KEEP highlight_location
+;
+
+highlight_location:keyword
+null
+;
+
+
+# Two implicit MATCH leaves that share the TO_TEXT analyzer. HIGHLIGHT does not synthesize WITH.
+implicitAnalyzerAndBothLeavesAgreeOnAnalyzer
+required_capability: highlight_mapping_analyzer
+
+ROW title = to_text(["The Lord of the Rings"], { "analyzer": "english" }), author = to_text(["Tolkien wrote about rings"], { "analyzer": "english" })
+| MV_EXPAND title
+| MV_EXPAND author
+| WHERE MATCH(title, "ring") AND MATCH(author, "ring")
+| HIGHLIGHT
+| KEEP highlight_title, highlight_author
+;
+
+highlight_title:keyword        | highlight_author:keyword
+The Lord of the <em>Rings</em> | Tolkien wrote about <em>rings</em>
 ;
 
 

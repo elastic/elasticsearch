@@ -213,10 +213,15 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
         if (metricsTask != null) {
             metricsTask.cancel();
             metricsTask = null;
+
+            // If there were previous measurements (metricsTask was running) and we're stooping it, publish zeros so Observability does not
+            // retain a stale last sample.
+            if (TimeValue.MINUS_ONE.equals(metricsInterval)) {
+                clearGauges();
+            }
         }
+
         if (TimeValue.MINUS_ONE.equals(metricsInterval)) {
-            // Keep instruments registered but publish zeros so Observability does not retain a stale last sample.
-            clearGauges();
             return;
         }
         metricsTask = threadPool.scheduleWithFixedDelay(this::sample, metricsInterval, threadPool.generic());

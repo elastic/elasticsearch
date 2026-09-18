@@ -187,7 +187,7 @@ public class KoelnerPhonetik implements StringEncoder {
                 // replacement variants just appended to varNew. Add only as many replacement branches as fit
                 // under maxVariations, rather than always doubling, so a budget that isn't a power of two
                 // (e.g. left over from an earlier part) can't be overshot.
-int sizeBeforeBranching = variations.size();
+                int sizeBeforeBranching = variations.size();
                 if (sizeBeforeBranching >= maxVariations) {
                     String remainingPart = str.substring(position);
                     for (int ii = 0; ii < sizeBeforeBranching; ii++) {

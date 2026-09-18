@@ -3587,3 +3587,276 @@ FROM all_types_unmapped
 dense_vector:dense_vector | keyword:keyword | semantic_text:text | boolean:keyword | byte:keyword | constant_keyword-foo:keyword | date:keyword             | date_nanos:keyword             | double:keyword | float:keyword | half_float:keyword | integer:keyword | ip:keyword | long:keyword | scaled_float:keyword | short:keyword | text:keyword | unsigned_long:keyword | version:keyword | wildcard:keyword
 null                      | key1            | null               | true            | 1            | foo                          | 2024-01-01T00:00:00.000Z | 2024-01-01T00:00:00.000000001Z | 1.1            | 1.1           | 1.1                | 1               | 127.0.0.1  | 100          | 1.1                  | 10            | text1        | 100                   | 1.0.0           | wild1
 ;
+
+disabledSourceNamedUnmappedFieldsAreNullColumns
+required_capability: optional_fields_load_all_v2
+required_capability: source_field_mapping
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+request_stored: skip
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_disabled
+| KEEP id, a.b, arr, nest.inner.leaf
+| SORT id::long
+| LIMIT 3
+;
+
+id:keyword | a.b:keyword | arr:keyword | nest.inner.leaf:keyword
+1          | null        | null        | null
+2          | null        | null        | null
+3          | null        | null        | null
+;
+
+disabledSourceRenameMappedAndUnmappedField
+required_capability: optional_fields_load_all_v2
+required_capability: source_field_mapping
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+request_stored: skip
+
+// RENAME resolves an unmapped name the same way KEEP does, so the renamed column exists and is null.
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_disabled
+| RENAME id AS doc_id, arr AS tags
+| KEEP doc_id, tags
+| SORT doc_id::long
+| LIMIT 3
+;
+
+doc_id:keyword | tags:keyword
+1              | null
+2              | null
+3              | null
+;
+
+disabledSourceDropUnmappedAndWildcard
+required_capability: optional_fields_load_all_v2
+required_capability: source_field_mapping
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+request_stored: skip
+
+// DROP removes the fabricated columns again, by name and by wildcard, leaving the mapped id and the one named field not dropped.
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_disabled
+| KEEP id, a.b, arr, deep.l1.l2.l3
+| DROP arr, deep*
+| SORT id::long
+| LIMIT 3
+;
+
+id:keyword | a.b:keyword
+1          | null
+2          | null
+3          | null
+;
+
+disabledSourceWhereOnUnmappedFieldMatchesNothing
+required_capability: optional_fields_load_all_v2
+required_capability: source_field_mapping
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+request_stored: skip
+
+// Every value of an unmapped field is null here, so an equality filter on one removes every row.
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_disabled
+| WHERE arr == "x"
+| KEEP id, arr
+| SORT id::long
+;
+
+id:keyword | arr:keyword
+;
+
+disabledSourceStatsCountsRowsButNotUnmappedValues
+required_capability: optional_fields_load_all_v2
+required_capability: optional_fields_load_all_stats
+required_capability: source_field_mapping
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+request_stored: skip
+
+// The documents are still there and still counted; only their unmapped values are gone.
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_disabled
+| STATS rows = COUNT(*), ids = COUNT(id), tags = COUNT(arr)
+;
+
+rows:long | ids:long | tags:long
+13        | 13       | 0
+;
+
+disabledSourceWithStoredSourceSiblingOnlyStoredLegDiscovers
+required_capability: optional_fields_load_all_v2
+required_capability: source_field_mapping
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+request_stored: skip
+
+// Discovery is a union across the pattern: the stored leg contributes the column names and the disabled leg fills them with null
+// rather than dropping out. The union is taken over the rows that survive the WHERE, so a* yields only a.b here - arr belongs to
+// id 5 and the scalar a to id 13, and neither row is in the result to be discovered from.
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_disabled, unmapped_source_stored METADATA _index, _source
+| WHERE id::long <= 2
+| KEEP _index, id, a*, _source
+| SORT id::long, _index
+;
+
+_index:keyword           | id:keyword | a.b:keyword | _source:_source
+unmapped_source_disabled | 1          | null        | null
+unmapped_source_stored   | 1          | v1          | "{""id"":""1"",""a"":{""b"":""v1""}}"
+unmapped_source_disabled | 2          | null        | null
+unmapped_source_stored   | 2          | v2          | "{""id"":""2"",""a.b"":""v2""}"
+;
+
+disabledSourceAcrossSourceModesIsANetZeroProjection
+required_capability: optional_fields_load_all_v2
+required_capability: optional_fields_load_all_net_zero_projection
+required_capability: source_field_mapping
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+request_stored: skip
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_disabled, unmapped_source_stored, unmapped_source_synthetic, unmapped_source_mapped METADATA _index
+| WHERE id::long == 1
+| KEEP _index, id, a.b*
+| SORT _index
+;
+
+_index:keyword            | id:keyword | a.b:keyword
+unmapped_source_disabled  | 1          | null
+unmapped_source_mapped    | 1          | v1
+unmapped_source_stored    | 1          | v1
+unmapped_source_synthetic | 1          | v1
+;
+
+disabledSourceWithIncludesAndExcludesSiblings
+required_capability: optional_fields_load_all_v2
+required_capability: source_field_mapping
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+request_stored: skip
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_disabled, unmapped_source_excludes, unmapped_source_includes METADATA _index
+| WHERE id::long == 1 OR id::long == 5
+| KEEP _index, id, a.b*, arr*
+| SORT id::long, _index
+;
+
+_index:keyword           | id:keyword | a.b:keyword | arr:keyword
+unmapped_source_disabled | 1          | null        | null
+unmapped_source_excludes | 1          | v1          | null
+unmapped_source_includes | 1          | null        | null
+unmapped_source_disabled | 5          | null        | null
+unmapped_source_excludes | 5          | null        | [x, y]
+unmapped_source_includes | 5          | null        | [x, y]
+;
+
+disabledSourceWildcardsMatchNothing
+required_capability: optional_fields_load_all_v2
+required_capability: source_field_mapping
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+request_stored: skip
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_disabled
+| KEEP id, a*, a.*
+| SORT id::long
+| LIMIT 3
+;
+
+id:keyword
+1
+2
+3
+;
+
+disabledSourceWildcardsMatchNothingButLiteralIsFabricated
+required_capability: optional_fields_load_all_v2
+required_capability: source_field_mapping
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+request_stored: skip
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_disabled
+| KEEP id, a*, a.*, nested.inner.leaf
+| SORT id::long
+| LIMIT 3
+;
+
+id:keyword | nested.inner.leaf:keyword
+1          | null
+2          | null
+3          | null
+;
+
+disabledSourceMixedWildcardsAndLiteralsWithSource
+required_capability: optional_fields_load_all_v2
+required_capability: source_field_mapping
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+request_stored: skip
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_disabled METADATA _source
+| KEEP id, a*, a.*, a.b, l*.*, l1.l2.l3, does_not_exist_anywhere, _source
+| SORT id::long
+| LIMIT 3
+;
+
+id:keyword | a.b:keyword | l1.l2.l3:keyword | does_not_exist_anywhere:keyword | _source:_source
+1          | null        | null             | null                            | null
+2          | null        | null             | null                            | null
+3          | null        | null             | null                            | null
+;
+
+disabledSourceInlineStatsAndEvalOverUnmappedName
+required_capability: optional_fields_load_all_v2
+required_capability: optional_fields_load_all_inline_stats
+required_capability: source_field_mapping
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+request_stored: skip
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_disabled METADATA _source
+| WHERE arr IS NULL
+| SORT id::long
+| INLINE STATS count_all = COUNT(*)
+| LIMIT 3
+| EVAL a.b = 0
+| KEEP id, a*, *
+;
+
+id:keyword | arr:keyword | a.b:integer | _source:_source | count_all:long
+1          | null        | 0           | null            | 13
+2          | null        | 0           | null            | 13
+3          | null        | 0           | null            | 13
+;
+
+disabledSourceAcrossAllSourceFilteringModes
+required_capability: optional_fields_load_all_v2
+required_capability: source_field_mapping
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
+request_stored: skip
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_source_disabled, unmapped_source_excludes, unmapped_source_includes, unmapped_source_mapped METADATA _index, _source
+| WHERE id::long IN (1,5,6,7)
+| KEEP _index, id, a.b*, *arr*, _source
+| SORT id::long, _index
+;
+
+_index:keyword           | id:keyword | a.b:keyword | arr:keyword | objarr.j:keyword | objarr.k:keyword | _source:_source
+unmapped_source_disabled | 1          | null        | null        | null             | null             | null
+unmapped_source_excludes | 1          | v1          | null        | null             | null             | "{""id"":""1"",""a"":{""b"":""v1""}}"
+unmapped_source_includes | 1          | null        | null        | null             | null             | "{""id"":""1""}"
+unmapped_source_mapped   | 1          | v1          | null        | null             | null             | "{""id"":""1"",""a"":{""b"":""v1""}}"
+unmapped_source_disabled | 5          | null        | null        | null             | null             | null
+unmapped_source_excludes | 5          | null        | [x, y]      | null             | null             | "{""id"":""5"",""arr"":[""x"",""y""]}"
+unmapped_source_includes | 5          | null        | [x, y]      | null             | null             | "{""id"":""5"",""arr"":[""x"",""y""]}"
+unmapped_source_mapped   | 5          | null        | [x, y]      | null             | null             | "{""id"":""5"",""arr"":[""x"",""y""]}"
+unmapped_source_disabled | 6          | null        | null        | null             | null             | null
+unmapped_source_excludes | 6          | null        | null        | null             | null             | "{""id"":""6""}"
+unmapped_source_includes | 6          | null        | null        | null             | null             | "{""id"":""6""}"
+unmapped_source_mapped   | 6          | null        | null        | null             | null             | "{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"
+unmapped_source_disabled | 7          | null        | null        | null             | null             | null
+unmapped_source_excludes | 7          | null        | null        | null             | null             | "{""id"":""7""}"
+unmapped_source_includes | 7          | null        | null        | null             | null             | "{""id"":""7""}"
+unmapped_source_mapped   | 7          | null        | null        | null             | null             | "{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"
+;

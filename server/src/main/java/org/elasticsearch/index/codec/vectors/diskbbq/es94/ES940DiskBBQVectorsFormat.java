@@ -61,7 +61,8 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final int VERSION_DIRECT_IO = VERSION_START;
     public static final int VERSION_PACKED_INT4 = 2;
     public static final int VERSION_PACKED_INT2 = 3;
-    public static final int VERSION_CURRENT = VERSION_PACKED_INT2;
+    public static final int VERSION_ON_DISK_MERGE = 4;
+    public static final int VERSION_CURRENT = VERSION_ON_DISK_MERGE;
     public static final float DYNAMIC_VISIT_RATIO = 0.0f;
 
     private static final DirectIOCapableFlatVectorsFormat float32VectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
@@ -535,6 +536,9 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
         }
         if (writeVersion >= VERSION_PACKED_INT4 && quantEncoding == QuantEncoding.FOUR_BIT_SYMMETRIC_STRIPED) {
             throw new IllegalArgumentException("Striped 4-bit encoding requires version before " + VERSION_PACKED_INT4);
+        }
+        if (writeVersion < VERSION_ON_DISK_MERGE && onDiskMerge) {
+            throw new IllegalArgumentException("on_disk_merge requires version " + VERSION_ON_DISK_MERGE + " or later");
         }
     }
 

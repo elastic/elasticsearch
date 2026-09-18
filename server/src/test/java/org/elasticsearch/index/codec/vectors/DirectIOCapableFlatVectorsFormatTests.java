@@ -286,12 +286,6 @@ public class DirectIOCapableFlatVectorsFormatTests extends ESTestCase {
             }
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 assertEquals(2, reader.leaves().size());
-                for (var leaf : reader.leaves()) {
-                    assertEquals(
-                        "true",
-                        leaf.reader().getFieldInfos().fieldInfo("v").getAttribute(DirectIOCapableFlatVectorsFormat.ON_DISK_MERGE_ATTRIBUTE)
-                    );
-                }
             }
             dir.recorded.clear();
             // the mapping has been flipped off: the merge runs with a format that carries false
@@ -303,14 +297,6 @@ public class DirectIOCapableFlatVectorsFormatTests extends ESTestCase {
                     writer.forceMerge(1);
                 }
                 writer.commit();
-                try (DirectoryReader reader = DirectoryReader.open(writer)) {
-                    assertEquals(
-                        "false",
-                        getOnlyLeafReader(reader).getFieldInfos()
-                            .fieldInfo("v")
-                            .getAttribute(DirectIOCapableFlatVectorsFormat.ON_DISK_MERGE_ATTRIBUTE)
-                    );
-                }
             }
             assertTrue(
                 "the sources were written with the flag on, so the merge must have read them with direct I/O",

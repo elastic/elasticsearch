@@ -31,7 +31,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringVectorValues;
@@ -100,6 +99,11 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     private static final double BOOST_EXPONENT = 0.30;
     private static final int BOOST_K_REF = 10;
     private static final double BOOST_K_EXPONENT = 0.10;
+    /**
+     * the {@code versionOnDiskMerge} of a codec whose meta never records {@code on_disk_merge}; negative, so a bare
+     * {@code versionMeta >= versionOnDiskMerge} is always true and every use site must check {@code >= 0} first
+     */
+    protected static final int NO_ON_DISK_MERGE_IN_META = -1;
 
     protected final IndexInput ivfCentroids, ivfClusters;
     private final SegmentReadState state;
@@ -109,6 +113,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     private final String centroidExtension;
     private final String clusterExtension;
     private final int versionDirectIo;
+    private final int versionOnDiskMerge;
     private final float dynamicVisitRatio;
     protected int versionMeta = -1;
 
@@ -123,6 +128,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         int versionStart,
         int versionCurrent,
         int versionDirectIo,
+        int versionOnDiskMerge,
         float dynamicVisitRatio
     ) throws IOException {
         this.state = state;
@@ -132,6 +138,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         this.centroidExtension = centroidExtension;
         this.clusterExtension = clusterExtension;
         this.versionDirectIo = versionDirectIo;
+        this.versionOnDiskMerge = versionOnDiskMerge;
         this.dynamicVisitRatio = dynamicVisitRatio;
         String meta = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
 
@@ -174,6 +181,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         this.centroidExtension = other.centroidExtension;
         this.clusterExtension = other.clusterExtension;
         this.versionDirectIo = other.versionDirectIo;
+        this.versionOnDiskMerge = other.versionOnDiskMerge;
         this.dynamicVisitRatio = other.dynamicVisitRatio;
         this.versionMeta = other.versionMeta;
         this.ivfCentroids = other.ivfCentroids;
@@ -245,17 +253,17 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
                 throw new CorruptIndexException("Invalid field number: " + fieldNumber, meta);
             }
 
-            E fieldEntry = readField(meta, info, versionMeta);
-            // the merge flag rides on the field info, not in this meta
-            genericFields.loadField(fieldNumber, fieldEntry, DirectIOCapableFlatVectorsFormat.onDiskMerge(info), loadReader);
+            final String rawVectorFormat = meta.readString();
+            final boolean useDirectIOReads = versionMeta >= versionDirectIo && meta.readByte() == 1;
+            final boolean onDiskMerge = versionOnDiskMerge >= 0 && versionMeta >= versionOnDiskMerge && meta.readByte() == 1;
+            E fieldEntry = readField(meta, info, rawVectorFormat, useDirectIOReads);
+            genericFields.loadField(fieldNumber, fieldEntry, onDiskMerge, loadReader);
 
             fields.put(info.number, fieldEntry);
         }
     }
 
-    private E readField(IndexInput input, FieldInfo info, int versionMeta) throws IOException {
-        final String rawVectorFormat = input.readString();
-        final boolean useDirectIOReads = versionMeta >= versionDirectIo && input.readByte() == 1;
+    private E readField(IndexInput input, FieldInfo info, String rawVectorFormat, boolean useDirectIOReads) throws IOException {
         final VectorEncoding vectorEncoding = readVectorEncoding(input);
         final VectorSimilarityFunction similarityFunction = readSimilarityFunction(input);
         if (similarityFunction != info.getVectorSimilarityFunction()) {

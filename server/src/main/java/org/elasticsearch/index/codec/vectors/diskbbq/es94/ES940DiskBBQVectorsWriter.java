@@ -140,7 +140,8 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter<ES940DiskBBQVect
             ES940DiskBBQVectorsFormat.CLUSTER_EXTENSION,
             true,
             flatVectorThreshold,
-            onDiskMerge
+            onDiskMerge,
+            writeVersion >= ES940DiskBBQVectorsFormat.VERSION_ON_DISK_MERGE
         );
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;

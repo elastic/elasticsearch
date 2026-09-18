@@ -73,6 +73,7 @@ public class ES950DiskBBQVectorsReader extends IVFVectorsReader<ES950DiskBBQVect
             ES950DiskBBQVectorsFormat.VERSION_START,
             ES950DiskBBQVectorsFormat.VERSION_CURRENT,
             ES950DiskBBQVectorsFormat.VERSION_DIRECT_IO,
+            ES950DiskBBQVectorsFormat.VERSION_ON_DISK_MERGE,
             ES950DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO
         );
     }

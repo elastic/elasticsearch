@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.FlushInfo;
@@ -27,26 +26,6 @@ import java.util.Set;
 public abstract class DirectIOCapableFlatVectorsFormat extends AbstractFlatVectorsFormat {
     protected DirectIOCapableFlatVectorsFormat(String name) {
         super(name);
-    }
-
-    /**
-     * {@link FieldInfo} attribute recording whether the field's raw vectors were written with {@code on_disk_merge} on,
-     * so a later merge knows to read them with direct I/O. A reader has the directory but not the mapping; Lucene's own
-     * per-field vectors format name travels on the field info the same way. An absent attribute means off.
-     */
-    public static final String ON_DISK_MERGE_ATTRIBUTE = "DirectIOCapableFlatVectorsFormat.on_disk_merge";
-
-    /**
-     * Records the field's {@code on_disk_merge} option on the segment's field info. Always written, so a merged
-     * segment never inherits a stale value from its sources.
-     */
-    public static void recordOnDiskMerge(FieldInfo fieldInfo, boolean onDiskMerge) {
-        fieldInfo.putAttribute(ON_DISK_MERGE_ATTRIBUTE, Boolean.toString(onDiskMerge));
-    }
-
-    /** Whether the field's raw vectors in this segment were written with {@code on_disk_merge} on. */
-    public static boolean onDiskMerge(FieldInfo fieldInfo) {
-        return Boolean.parseBoolean(fieldInfo.getAttribute(ON_DISK_MERGE_ATTRIBUTE));
     }
 
     protected abstract FlatVectorsReader createReader(SegmentReadState state) throws IOException;

@@ -115,7 +115,8 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             ESNextDiskASHVectorsFormat.CLUSTER_EXTENSION,
             true,
             flatVectorThreshold,
-            onDiskMerge
+            onDiskMerge,
+            true
         );
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;

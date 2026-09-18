@@ -19,7 +19,6 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -67,7 +66,6 @@ class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
 
     @Override
     public FlatFieldVectorsWriter<?> addField(FieldInfo fieldInfo) throws IOException {
-        DirectIOCapableFlatVectorsFormat.recordOnDiskMerge(fieldInfo, onDiskMerge);
         var writer = rawVectorWriter.addField(fieldInfo);
         fieldNumbers.add(fieldInfo.number);
         return writer;
@@ -75,7 +73,6 @@ class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
 
     @Override
     public void mergeOneFlatVectorField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        DirectIOCapableFlatVectorsFormat.recordOnDiskMerge(fieldInfo, onDiskMerge);
         rawVectorWriter.mergeOneFlatVectorField(fieldInfo, mergeState);
         writeMeta(fieldInfo.number);
     }
@@ -93,6 +90,7 @@ class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
         metaOut.writeInt(field);
         metaOut.writeString(rawVectorFormatName);
         metaOut.writeByte(useDirectIOReads ? (byte) 1 : 0);
+        metaOut.writeByte(onDiskMerge ? (byte) 1 : 0);
     }
 
     @Override

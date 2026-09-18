@@ -34,7 +34,6 @@ import org.apache.lucene.util.IORunnable;
 import org.apache.lucene.util.LongValues;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.cluster.CentroidOps;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringByteVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringVectorValues;
@@ -63,6 +62,7 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
     private final String rawVectorFormatName;
     private final Boolean useDirectIOReads;
     private final boolean onDiskMerge;
+    private final boolean shouldWriteOnDiskMerge;
     private final FlatVectorsWriter rawVectorDelegate;
     protected final int flatVectorThreshold;
     private final boolean shouldWriteDirectIoReads;
@@ -75,10 +75,7 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         return false;
     }
 
-    /**
-     * @param onDiskMerge whether merges use direct I/O for the raw vectors (the field's {@code on_disk_merge}
-     *                    option), recorded on the field info
-     */
+    /** @param shouldWriteOnDiskMerge whether this codec version records {@code onDiskMerge} in the meta */
     @SuppressWarnings("this-escape")
     protected IVFVectorsWriter(
         SegmentWriteState state,
@@ -92,10 +89,12 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         String clusterExtension,
         boolean shouldWriteDirectIoReads,
         int flatVectorThreshold,
-        boolean onDiskMerge
+        boolean onDiskMerge,
+        boolean shouldWriteOnDiskMerge
     ) throws IOException {
         this.rawVectorFormatName = rawVectorFormatName;
         this.onDiskMerge = onDiskMerge;
+        this.shouldWriteOnDiskMerge = shouldWriteOnDiskMerge;
         this.useDirectIOReads = useDirectIOReads;
         this.rawVectorDelegate = rawVectorDelegate;
         this.flatVectorThreshold = flatVectorThreshold;
@@ -119,7 +118,6 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
 
     @Override
     public final KnnFieldVectorsWriter<?> addField(FieldInfo fieldInfo) throws IOException {
-        DirectIOCapableFlatVectorsFormat.recordOnDiskMerge(fieldInfo, onDiskMerge);
         if (fieldInfo.getVectorSimilarityFunction() == VectorSimilarityFunction.COSINE) {
             throw new IllegalArgumentException("IVF does not support cosine similarity");
         }
@@ -613,7 +611,6 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
 
     @Override
     public final IORunnable mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        DirectIOCapableFlatVectorsFormat.recordOnDiskMerge(fieldInfo, onDiskMerge);
         IvfSegmentConfig resolvedConfig = resolveMergeConfig(fieldInfo, mergeState);
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32)
             || (fieldInfo.getVectorEncoding().equals(VectorEncoding.BYTE) && supportsByteNative())) {
@@ -647,6 +644,9 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         if (shouldWriteDirectIoReads) {
             assert useDirectIOReads != null : "shouldWriteDirectIoReads is true but useDirectIOReads is null";
             ivfMeta.writeByte(useDirectIOReads ? (byte) 1 : 0);
+        }
+        if (shouldWriteOnDiskMerge) {
+            ivfMeta.writeByte(onDiskMerge ? (byte) 1 : 0);
         }
         ivfMeta.writeInt(field.getVectorEncoding().ordinal());
         ivfMeta.writeInt(distFuncToOrd(field.getVectorSimilarityFunction()));

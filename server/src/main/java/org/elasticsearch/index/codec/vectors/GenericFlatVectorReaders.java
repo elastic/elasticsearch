@@ -49,8 +49,7 @@ public class GenericFlatVectorReaders {
     private final Map<Integer, FlatVectorsReader> readersForFields = new HashMap<>();
 
     /**
-     * @param onDiskMerge whether merges read this field's raw vectors with direct I/O (the field's {@code on_disk_merge}
-     *                    option, as recorded in the segment's field info)
+     * @param onDiskMerge whether merges read this field's raw vectors with direct I/O (the field's {@code on_disk_merge} option)
      */
     public void loadField(int fieldNumber, Field field, boolean onDiskMerge, LoadFlatVectorsReader loadReader) throws IOException {
         FlatVectorsReaderKey key = new FlatVectorsReaderKey(field, onDiskMerge);

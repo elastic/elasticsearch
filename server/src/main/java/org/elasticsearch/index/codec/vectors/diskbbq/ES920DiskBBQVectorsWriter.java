@@ -106,6 +106,8 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
             ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION,
             writeVersion >= ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO,
             flatVectorThreshold,
+            // this codec predates on_disk_merge: nothing can ask it for the flag and it never records it
+            false,
             false
         );
         this.vectorPerCluster = vectorPerCluster;

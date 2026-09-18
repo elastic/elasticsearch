@@ -120,7 +120,8 @@ public class ES950DiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInde
             ES950DiskBBQVectorsFormat.CLUSTER_EXTENSION,
             true,
             flatVectorThreshold,
-            onDiskMerge
+            onDiskMerge,
+            true
         );
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;

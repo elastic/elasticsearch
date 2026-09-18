@@ -95,8 +95,9 @@ public class MergeReaderWrapper extends FlatVectorsReader {
         mainReader.search(field, target, knnCollector, acceptDocs);
     }
 
-    // only the single thread running the merge calls getMergeInstance() and finishMerge(); close() runs
-    // once the merge has released the pooled reader, so no synchronization is needed
+    // a segment is in at most one merge at a time, and IndexWriter's own synchronization orders successive merges of a
+    // pooled reader, so getMergeInstance() and finishMerge() need none here; close() runs once the merge has released
+    // the reader. The closed check catches a use after close, which would otherwise create a merge reader nothing closes
 
     @Override
     public FlatVectorsReader getMergeInstance() throws IOException {

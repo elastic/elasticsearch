@@ -33,7 +33,8 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
     static final String META_CODEC_NAME = "ES93GenericFlatVectorsFormatMeta";
 
     public static final int VERSION_START = 0;
-    public static final int VERSION_CURRENT = VERSION_START;
+    public static final int VERSION_ON_DISK_MERGE = 1;
+    public static final int VERSION_CURRENT = VERSION_ON_DISK_MERGE;
 
     private static final GenericFormatMetaInformation META = new GenericFormatMetaInformation(
         VECTOR_FORMAT_INFO_EXTENSION,

@@ -1819,10 +1819,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 .map(PendingUploadVirtualBatchCompoundCommit::commit);
         }
 
-        private Optional<VirtualBatchedCompoundCommit> getMaxPendingUploadBccBoundedByMaxGenerationToUpload() {
+        private Optional<VirtualBatchedCompoundCommit> getMaxPendingUploadBccWithUnpausedUpload() {
             return pendingUploadBccGenerations.values()
                 .stream()
-                .filter(pending -> pauseUpload(pending.getPrimaryTermAndGeneration().generation()) == false)
+                .filter(pending -> pauseUpload(pending.commit().getMaxGeneration()) == false)
                 .max(Comparator.comparing(PendingUploadVirtualBatchCompoundCommit::getPrimaryTermAndGeneration))
                 .map(PendingUploadVirtualBatchCompoundCommit::commit);
         }
@@ -3051,7 +3051,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             if (virtualBcc != null && pauseUpload(virtualBcc.getMaxGeneration()) == false) {
                 return virtualBcc;
             }
-            return getMaxPendingUploadBccBoundedByMaxGenerationToUpload().orElse(null);
+            return getMaxPendingUploadBccWithUnpausedUpload().orElse(null);
         }
 
         /**
@@ -3130,7 +3130,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         /// Register the virtual batched compound commit as the commit to use for the unpromotable shard recovery.
         ///
-        /// If a VBCC that can be exposed to search shards exists at the time this method is called (see
+        /// If a VBCC eligible for unpromotable recovery exists at the time this method is called (see
         /// [#getLatestVirtualBccForUnpromotableRecovery()]), then the latest appended commit of that VBCC is retrieved to compute a
         /// list of referenced BCCs to retain during the recovery. The method then tries to register the `nodeId` for every referenced
         /// BCC (using [#registerUnpromoteableCommitRefs(Set, BlobReference)]). If that works a registration response is returned to the

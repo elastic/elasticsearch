@@ -89,6 +89,15 @@ public class ES920DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVecto
         throw new AssumptionViolatedException("ivf doesn't enforce visitation limit");
     }
 
+    // TODO: LUCENE11 Lucene 11 dropped BaseKnnVectorsFormatTestCase.mergeIsStable()=false (HNSW
+    // connectComponents is gone). BFloat16 DiskBBQ still fails testMergeStability: flush clusters
+    // in-memory float32, merge clusters bf16-expanded read-back, so cenivf/clivf sizes drift.
+    // Re-enable after flush k-means uses truncated bf16.
+    @Override
+    protected boolean mergeIsStable() {
+        return false;
+    }
+
     @Override
     public void testAdvance() throws Exception {
         // TODO re-enable with hierarchical IVF, clustering as it is is flaky

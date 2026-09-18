@@ -251,11 +251,7 @@ public class MappingLookupTests extends ESTestCase {
 
     public void testMappedFieldIsNotRuntimeFieldWhenRuntimeFieldsExist() {
         MockFieldMapper mapped = new MockFieldMapper("mapped");
-        MappingLookup mappingLookup = createMappingLookup(
-            List.of(mapped),
-            emptyList(),
-            List.of(new TestRuntimeField("runtime", "type"))
-        );
+        MappingLookup mappingLookup = createMappingLookup(List.of(mapped), emptyList(), List.of(new TestRuntimeField("runtime", "type")));
 
         assertFalse(mappingLookup.isRuntimeField("mapped"));
         assertTrue(mappingLookup.isRuntimeField("runtime"));
@@ -268,17 +264,9 @@ public class MappingLookupTests extends ESTestCase {
             IndexSettingsModule.newIndexSettings("index", Settings.EMPTY)
         ).build(MapperBuilderContext.root(false, false));
 
-        MappingLookup mappingLookup = createMappingLookup(
-            List.of(flattened),
-            emptyList(),
-            emptyList(),
-            IndexMode.STANDARD
-        );
+        MappingLookup mappingLookup = createMappingLookup(List.of(flattened), emptyList(), emptyList(), IndexMode.STANDARD);
 
-        assertThat(
-            mappingLookup.getFieldType("flattened.key"),
-            instanceOf(FlattenedFieldMapper.KeyedFlattenedFieldType.class)
-        );
+        assertThat(mappingLookup.getFieldType("flattened.key"), instanceOf(FlattenedFieldMapper.KeyedFlattenedFieldType.class));
         assertFalse(mappingLookup.isRuntimeField("flattened"));
         assertFalse(mappingLookup.isRuntimeField("flattened.key"));
     }

@@ -159,15 +159,15 @@ public class KoelnerPhonetik implements StringEncoder {
             // unbounded: without a limit, split() allocates a String and array/list slot per segment before
             // the cap above ever gets a chance to apply, so a punctuation-heavy token with many segments
             // would still force an allocation proportional to its segment count. The "+ 1" is a single extra
-            // slot used only to detect whether more segments exist beyond what we keep; per String.split's
-            // documented limit behavior, that slot may itself hold more than one unsplit trailing segment,
-            // but either way its mere presence means our kept batch isn't the token's complete segment list.
+            // slot used only to detect whether more segments exist beyond what we keep.
             String[] rawParts = str.split("[\\p{Z}\\p{C}\\p{P}]", MAX_VARIATIONS + 1);
             // A positive split() limit, unlike the unlimited split() it replaces, does not drop trailing
-            // empty strings, so a token ending in a separator would otherwise gain a spurious empty segment.
-            // Trim them so trailing separators have no effect, matching the original unlimited behavior.
+            // empty strings, and a long enough run of trailing separators lands entirely inside the final
+            // slot as one non-empty separator-only string (e.g. "----"). Trim any trailing slot that is
+            // wholly separator characters (including empty ones, matched by "*" as zero occurrences), not
+            // just empty ones, so trailing separators have no effect regardless of how many there are.
             int effectiveLength = rawParts.length;
-            while (effectiveLength > 0 && rawParts[effectiveLength - 1].isEmpty()) {
+            while (effectiveLength > 0 && rawParts[effectiveLength - 1].matches("[\\p{Z}\\p{C}\\p{P}]*")) {
                 effectiveLength--;
             }
             boolean moreSegmentsExist = effectiveLength > MAX_VARIATIONS;

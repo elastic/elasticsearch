@@ -219,12 +219,25 @@ public class SimplePhoneticAnalysisTests extends ESTestCase {
         assertEquals(List.of("BRAUN"), encoder.generateParts("BRAUN---"));
     }
 
+    public void testKoelnerPhonetikGeneratePartsIgnoresLongRunOfTrailingSeparators() {
+        KoelnerPhonetik encoder = new KoelnerPhonetik();
+        assertEquals(List.of("BRAUN"), encoder.generateParts("BRAUN" + "-".repeat(20)));
+    }
+
     // Same regression, observed through the public encode() path: trailing punctuation must not change a
     // token's phonetic codes at all, since it carries no letters of its own.
     public void testPhoneticTokenFilterKoelnerPhonetikTrailingPunctuation() throws IOException {
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("koelnerphonetikfilter");
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader("BRAUN-"));
+        String[] expected = new String[] { "176_1736" };
+        BaseTokenStreamTestCase.assertTokenStreamContents(filterFactory.create(tokenizer), expected);
+    }
+
+    public void testPhoneticTokenFilterKoelnerPhonetikLongRunOfTrailingPunctuation() throws IOException {
+        TokenFilterFactory filterFactory = analysis.tokenFilter.get("koelnerphonetikfilter");
+        Tokenizer tokenizer = new WhitespaceTokenizer();
+        tokenizer.setReader(new StringReader("BRAUN" + "-".repeat(20)));
         String[] expected = new String[] { "176_1736" };
         BaseTokenStreamTestCase.assertTokenStreamContents(filterFactory.create(tokenizer), expected);
     }

@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
@@ -5579,6 +5580,190 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows.get(2).get(0), equalTo(3));
             assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
         }
+    }
+
+    public void testMetadataIdWinsOverPhysicalColumn() throws Exception {
+        Path fixture = createTempFile("collision-id-", ".csv");
+        Files.writeString(
+            fixture,
+            String.join("\n", "_id:keyword,emp_no:integer,first_name:keyword", "row-a,1,Alice", "row-b,2,Bob", "row-c,3,Carol") + "\n"
+        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("collision_id", "local_ds", fixture.toUri().toString(), Map.of("format", "csv"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM collision_id METADATA _id | KEEP _id, emp_no | SORT emp_no"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            int idIdx = names.indexOf("_id");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (List<Object> row : rows) {
+                String id = row.get(idIdx).toString();
+                assertThat(id, not(equalTo("row-a")));
+                assertThat(id, not(equalTo("row-b")));
+                assertThat(id, not(equalTo("row-c")));
+            }
+        }
+
+        try (var response = run(syncEsqlQueryRequest("FROM collision_id | KEEP _id, emp_no | SORT emp_no"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            int idIdx = names.indexOf("_id");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.get(0).get(idIdx).toString(), equalTo("row-a"));
+            assertThat(rows.get(1).get(idIdx).toString(), equalTo("row-b"));
+            assertThat(rows.get(2).get(idIdx).toString(), equalTo("row-c"));
+        }
+
+        try (var response = run(syncEsqlQueryRequest("FROM collision_id METADATA _id | KEEP * | SORT emp_no"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat(names, not(hasItem("_id")));
+            assertThat(names, hasItem("emp_no"));
+            assertThat(names, hasItem("first_name"));
+        }
+
+        try (var response = run(syncEsqlQueryRequest("FROM collision_id METADATA _id, _source | KEEP _source | LIMIT 1"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertTrue(rows.get(0).get(0) instanceof Map);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> source = (Map<String, Object>) rows.get(0).get(0);
+            assertFalse(source.containsKey("_id"));
+            assertTrue(source.containsKey("emp_no"));
+            assertTrue(source.containsKey("first_name"));
+        }
+    }
+
+    public void testIdPathStampsFromDeclaredColumnDespitePhysicalIdHeader() throws Exception {
+        Path fixture = createTempFile("collision-id-path-", ".csv");
+        Files.writeString(
+            fixture,
+            String.join("\n", "_id:keyword,emp_no:integer,first_name:keyword", "row-a,1,Alice", "row-b,2,Bob", "row-c,3,Carol") + "\n"
+        );
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, new LinkedHashMap<>(), "first_name")
+        );
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "collision_id_path",
+                    "local_ds",
+                    fixture.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM collision_id_path METADATA _id | KEEP _id, first_name | SORT first_name"),
+                TIMEOUT
+            )
+        ) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            int idIdx = names.indexOf("_id");
+            int nameIdx = names.indexOf("first_name");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (List<Object> row : rows) {
+                assertThat("_id is stamped from first_name, not the file _id header", row.get(idIdx), equalTo(row.get(nameIdx)));
+            }
+            assertThat(rows.get(0).get(nameIdx).toString(), equalTo("Alice"));
+        }
+    }
+
+    /**
+     * {@code file1.csv} binds engine {@code _file.name} ({@code file1.csv}). {@code file2.csv}
+     * declares {@code mappings._id.path = _file.name}, so {@code METADATA _id, _file.name} keeps
+     * the file cell {@code cell-from-file2} instead of the storage name. A mixed FROM therefore
+     * returns {@code file1.csv} and {@code cell-from-file2}, not {@code file1.csv} and
+     * {@code file2.csv}, in either source order.
+     */
+    public void testMetadataFileNameFileAndEngineMixIsOrderIndependent() throws Exception {
+        Path dir = createTempDir();
+        Path file1 = dir.resolve("file1.csv");
+        Files.writeString(file1, String.join("\n", "_file.name:keyword", "ignored-in-file1") + "\n");
+        Path file2 = dir.resolve("file2.csv");
+        Files.writeString(file2, String.join("\n", "_file.name:keyword", "cell-from-file2") + "\n");
+
+        DatasetMapping keepPhysicalFileName = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, new LinkedHashMap<>(), FileMetadataColumns.NAME)
+        );
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        registerDataset("mix_file1", "local_ds", file1.toUri().toString(), Map.of("format", "csv"));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "mix_file2",
+                    "local_ds",
+                    file2.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    keepPhysicalFileName
+                )
+            )
+        );
+
+        assertThat(metadataFileNames("FROM mix_file1 METADATA _file.name | KEEP `_file.name`"), equalTo(List.of("file1.csv")));
+        assertThat(metadataFileNames("FROM mix_file2 METADATA _id, _file.name | KEEP `_file.name`"), equalTo(List.of("cell-from-file2")));
+
+        List<String> mixed = List.of("cell-from-file2", "file1.csv");
+        assertThat(
+            metadataFileNames("FROM mix_file1, mix_file2 METADATA _id, _file.name | KEEP `_file.name` | SORT `_file.name`"),
+            equalTo(mixed)
+        );
+        assertThat(
+            metadataFileNames("FROM mix_file2, mix_file1 METADATA _id, _file.name | KEEP `_file.name` | SORT `_file.name`"),
+            equalTo(mixed)
+        );
+    }
+
+    private List<String> metadataFileNames(String query) {
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            assertThat(response.columns().stream().map(ColumnInfo::name).toList(), equalTo(List.of(FileMetadataColumns.NAME)));
+            return getValuesList(response).stream().map(row -> row.get(0).toString()).toList();
+        }
+    }
+
+    public void testIdPathTypoWithPhysicalIdHeaderRejected() throws Exception {
+        Path fixture = createTempFile("collision-id-typo-", ".csv");
+        Files.writeString(
+            fixture,
+            String.join("\n", "_id:keyword,emp_no:integer,first_name:keyword", "row-a,1,Alice", "row-b,2,Bob", "row-c,3,Carol") + "\n"
+        );
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, new LinkedHashMap<>(), "no_such_column")
+        );
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "collision_id_typo",
+                    "local_ds",
+                    fixture.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest("FROM collision_id_typo METADATA _id | KEEP _id, emp_no | LIMIT 5"), TIMEOUT).close()
+        );
+        assertThat(e.getMessage(), containsString("no_such_column"));
+        assertThat(e.getMessage(), containsString("_id"));
     }
 
     public void testIdFromRenamedColumn() throws Exception {

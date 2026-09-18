@@ -1,0 +1,76 @@
+// Reserved-name collision fixture: every METADATA special word is also a physical keyword column
+// whose cell is "<row> from file <name>". Without METADATA the file cells win; with METADATA the
+// engine value wins and the physical column is dropped (warning).
+//
+// Authored as FROM <dataset>. Parquet and ORC pick this file up via the external-* glob; CSV, TSV,
+// and NDJSON list it explicitly. {{md_collision}} is materialized from data/md_collision.csv.
+
+physicalMetadataNames
+required_capability: dataset_in_from_command
+required_capability: external_source_metadata_wins_over_physical_column
+dataset: md_collision: "{{md_collision}}"
+
+FROM md_collision
+| KEEP row_no, _id, _index, _version, _source, _ignored, _index_mode, _tsid, _size, _score, `_file.path`, `_file.name`, `_file.directory`, `_file.size`, `_file.modified`, `_file.record_ref`
+| SORT row_no
+;
+
+row_no:integer | _id:keyword        | _index:keyword        | _version:keyword        | _source:keyword        | _ignored:keyword        | _index_mode:keyword        | _tsid:keyword        | _size:keyword        | _score:keyword        | _file.path:keyword        | _file.name:keyword        | _file.directory:keyword        | _file.size:keyword        | _file.modified:keyword        | _file.record_ref:keyword
+1              | "1 from file _id"  | "1 from file _index"  | "1 from file _version"  | "1 from file _source"  | "1 from file _ignored"  | "1 from file _index_mode"  | "1 from file _tsid"  | "1 from file _size"  | "1 from file _score"  | "1 from file _file.path"  | "1 from file _file.name"  | "1 from file _file.directory"  | "1 from file _file.size"  | "1 from file _file.modified"  | "1 from file _file.record_ref"
+2              | "2 from file _id"  | "2 from file _index"  | "2 from file _version"  | "2 from file _source"  | "2 from file _ignored"  | "2 from file _index_mode"  | "2 from file _tsid"  | "2 from file _size"  | "2 from file _score"  | "2 from file _file.path"  | "2 from file _file.name"  | "2 from file _file.directory"  | "2 from file _file.size"  | "2 from file _file.modified"  | "2 from file _file.record_ref"
+3              | "3 from file _id"  | "3 from file _index"  | "3 from file _version"  | "3 from file _source"  | "3 from file _ignored"  | "3 from file _index_mode"  | "3 from file _tsid"  | "3 from file _size"  | "3 from file _score"  | "3 from file _file.path"  | "3 from file _file.name"  | "3 from file _file.directory"  | "3 from file _file.size"  | "3 from file _file.modified"  | "3 from file _file.record_ref"
+;
+
+metadataWinsOverPhysical
+required_capability: dataset_in_from_command
+required_capability: external_source_metadata_wins_over_physical_column
+required_capability: external_source_standard_metadata_columns
+required_capability: external_source_file_metadata_columns
+dataset: md_collision: "{{md_collision}}"
+
+// {any} is not usable on date: the spec runner reformats expected dates before the wildcard check.
+FROM md_collision METADATA _id, _index, _version, _source, _ignored, _index_mode, _tsid, _size, _score, _file.path, _file.name, _file.directory, _file.size, _file.modified, _file.record_ref
+| EVAL `_file.modified` = TO_STRING(`_file.modified`)
+| KEEP row_no, _id, _index, _version, _source, _ignored, _index_mode, _tsid, _size, _score, `_file.path`, `_file.name`, `_file.directory`, `_file.size`, `_file.modified`, `_file.record_ref`
+| SORT row_no
+;
+
+warningRegex:Physical columns \[.*\] in dataset \[md_collision\] are shadowed by METADATA
+
+row_no:integer | _id:keyword | _index:keyword | _version:long | _source:_source | _ignored:keyword | _index_mode:keyword | _tsid:null | _size:integer | _score:double | _file.path:keyword | _file.name:keyword | _file.directory:keyword | _file.size:long | _file.modified:keyword | _file.record_ref:long
+1              | {any}       | "md_collision" | {any}         | {any}           | null             | null                | null        | null          | null          | {any}              | {any}              | {any}                   | {any}           | {any}                 | {any}
+2              | {any}       | "md_collision" | {any}         | {any}           | null             | null                | null        | null          | null          | {any}              | {any}              | {any}                   | {any}           | {any}                 | {any}
+3              | {any}       | "md_collision" | {any}         | {any}           | null             | null                | null        | null          | null          | {any}              | {any}              | {any}                   | {any}           | {any}                 | {any}
+;
+
+scoreFilterUsesPhysical
+required_capability: dataset_in_from_command
+required_capability: external_source_metadata_wins_over_physical_column
+dataset: md_collision: "{{md_collision}}"
+
+FROM md_collision
+| WHERE _score == "1 from file _score"
+| KEEP row_no, _id, _index, _version, _source, _ignored, _index_mode, _tsid, _size, _score, `_file.path`, `_file.name`, `_file.directory`, `_file.size`, `_file.modified`, `_file.record_ref`
+;
+
+row_no:integer | _id:keyword        | _index:keyword        | _version:keyword        | _source:keyword        | _ignored:keyword        | _index_mode:keyword        | _tsid:keyword        | _size:keyword        | _score:keyword        | _file.path:keyword        | _file.name:keyword        | _file.directory:keyword        | _file.size:keyword        | _file.modified:keyword        | _file.record_ref:keyword
+1              | "1 from file _id"  | "1 from file _index"  | "1 from file _version"  | "1 from file _source"  | "1 from file _ignored"  | "1 from file _index_mode"  | "1 from file _tsid"  | "1 from file _size"  | "1 from file _score"  | "1 from file _file.path"  | "1 from file _file.name"  | "1 from file _file.directory"  | "1 from file _file.size"  | "1 from file _file.modified"  | "1 from file _file.record_ref"
+;
+
+scoreFilterUsesEngineNull
+required_capability: dataset_in_from_command
+required_capability: external_source_metadata_wins_over_physical_column
+required_capability: external_source_standard_metadata_columns
+required_capability: external_source_file_metadata_columns
+dataset: md_collision: "{{md_collision}}"
+
+FROM md_collision METADATA _id, _index, _version, _source, _ignored, _index_mode, _tsid, _size, _score, _file.path, _file.name, _file.directory, _file.size, _file.modified, _file.record_ref
+| WHERE _score IS NULL
+| STATS c = COUNT(*)
+;
+
+warningRegex:Physical columns \[.*\] in dataset \[md_collision\] are shadowed by METADATA
+
+c:long
+3
+;

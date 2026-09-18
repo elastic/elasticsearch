@@ -1590,7 +1590,8 @@ public final class GlobExpander {
                 StoragePath parent = entry.path().parentDirectory();
                 yield parent != null ? evaluateString(parent.toString(), hint) : true;
             }
-            default -> true; // Unknown hint — don't filter (safe fallback)
+            case FileMetadataColumns.RECORD_REF -> true;
+            default -> throw new AssertionError("unexpected file metadata hint [" + hint.columnName() + "]");
         };
     }
 

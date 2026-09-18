@@ -561,10 +561,20 @@ public class FileSplitProvider implements SplitProvider {
         int certifiedSkips = 0;
         long probedFileBytes = 0;
         List<FileTask> tasks = new ArrayList<>(fileList.fileCount());
-        // Hive / _file.* listing values already live in partitionValues. Overlay the engine
-        // per-file constants only when a hint names one of them.
         boolean overlayPerFileConstants = filterHints.isEmpty() == false
             && hintsReferencePerFileConstants(filterHints, metadataColumnNames);
+        Set<String> unboundFileMetadataNames = Set.of();
+        if (filterHints.isEmpty() == false) {
+            unboundFileMetadataNames = new LinkedHashSet<>();
+            for (String name : FileMetadataColumns.NAMES) {
+                if (metadataColumnNames.contains(name) == false) {
+                    unboundFileMetadataNames.add(name);
+                }
+            }
+        }
+        // Hive / _file.* listing values already live in partitionValues. Copy and strip unbound
+        // _file.* (or overlay engine per-file constants) only when a hint names one of those keys.
+        boolean copyFilterValues = overlayPerFileConstants || hintsReferenceUnboundFileMetadata(filterHints, unboundFileMetadataNames);
         for (int i = 0; i < fileList.fileCount(); i++) {
             StoragePath filePath = fileList.path(i);
 
@@ -579,8 +589,16 @@ public class FileSplitProvider implements SplitProvider {
             SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo.get(filePath);
 
             if (filterHints.isEmpty() == false) {
-                Map<String, Object> filterValues = overlayPerFileConstants
-                    ? discoveryFilterValues(partitionValues, context.datasetName(), fileList, i, metadataColumnNames)
+                Map<String, Object> filterValues = copyFilterValues
+                    ? discoveryFilterValues(
+                        partitionValues,
+                        context.datasetName(),
+                        fileList,
+                        i,
+                        metadataColumnNames,
+                        overlayPerFileConstants,
+                        unboundFileMetadataNames
+                    )
                     : partitionValues;
                 if (filterValues.isEmpty() == false && matchesPartitionFilters(filterValues, filterHints) == false) {
                     certifiedSkips++;
@@ -2853,25 +2871,32 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Hive partitions and {@code _file.*} listing values plus the engine-materialised per-file
-     * constants ({@code _index}, {@code _version}, and the all-null standard names). Used only for
-     * discovery filter evaluation; the {@link FileTask} carries hive + {@code _file.*} only.
-     * Only names bound as metadata in the relation's output receive constants, matching the
-     * reader. Data columns retain their physical values or missing-column null-fill.
+     * Discovery-only value map for filter evaluation. Always a fresh copy of {@code partitionValues}
+     * so the {@link FileTask} overlay is not mutated. Unbound {@code _file.*} keys are dropped:
+     * those names are ordinary data columns and must not prune the listing by storage stat or
+     * block a missing-column skip. Bound per-file constants ({@code _index}, {@code _version},
+     * and the all-null standard names) are overlaid only when a hint names one of them.
      */
     private static Map<String, Object> discoveryFilterValues(
         Map<String, Object> partitionValues,
         @Nullable String datasetName,
         FileList fileList,
         int index,
-        Set<String> metadataColumnNames
+        Set<String> metadataColumnNames,
+        boolean overlayPerFileConstants,
+        Set<String> unboundFileMetadataNames
     ) {
         Map<String, Object> filterValues = new HashMap<>(partitionValues.size() + ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.size());
         filterValues.putAll(partitionValues);
-        for (Map.Entry<String, Object> constant : ExternalMetadataColumns.extractPerFileConstants(datasetName, fileList, index)
-            .entrySet()) {
-            if (metadataColumnNames.contains(constant.getKey())) {
-                filterValues.put(constant.getKey(), constant.getValue());
+        for (String name : unboundFileMetadataNames) {
+            filterValues.remove(name);
+        }
+        if (overlayPerFileConstants) {
+            for (Map.Entry<String, Object> constant : ExternalMetadataColumns.extractPerFileConstants(datasetName, fileList, index)
+                .entrySet()) {
+                if (metadataColumnNames.contains(constant.getKey())) {
+                    filterValues.put(constant.getKey(), constant.getValue());
+                }
             }
         }
         return filterValues;
@@ -2884,6 +2909,18 @@ public class FileSplitProvider implements SplitProvider {
                 .anyMatch(
                     a -> metadataColumnNames.contains(a.name()) && ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.contains(a.name())
                 )) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hintsReferenceUnboundFileMetadata(List<Expression> filterHints, Set<String> unboundFileMetadataNames) {
+        if (unboundFileMetadataNames.isEmpty()) {
+            return false;
+        }
+        for (Expression hint : filterHints) {
+            if (hint.references().stream().anyMatch(a -> unboundFileMetadataNames.contains(a.name()))) {
                 return true;
             }
         }

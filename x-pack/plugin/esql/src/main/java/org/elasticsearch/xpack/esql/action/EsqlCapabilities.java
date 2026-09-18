@@ -4011,6 +4011,16 @@ public class EsqlCapabilities {
         EXTERNAL_CSV_BLANK_CELL_NULL_UNLESS_DECLARED,
 
         /**
+         * When {@code METADATA} names a column that also exists as a physical file column, the
+         * engine-generated metadata value is used and the physical column is dropped, with a warning.
+         * Without {@code METADATA}, the physical column is used. {@code METADATA} of a name that is
+         * not a metadata column is an {@code Unresolved metadata pattern} error, matching indexed
+         * {@code FROM}. Discriminates tests that assert this collision rule, since a pre-change
+         * node still answers the file column's value.
+         */
+        EXTERNAL_SOURCE_METADATA_WINS_OVER_PHYSICAL_COLUMN,
+
+        /**
          * Materialize more aggregate inputs into a synthetic pre-agg eval.
          * This covers two cases that previously failed, namely expressions in an aggregate
          * parameter (e.g. {@code TOP(field, 1, "asc", CONCAT("first", " ", "last")}), and

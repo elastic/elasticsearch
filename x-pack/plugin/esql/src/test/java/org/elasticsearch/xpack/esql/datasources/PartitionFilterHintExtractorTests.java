@@ -8,10 +8,13 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -404,6 +407,146 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         assertEquals("year", hints.get(0).columnName());
     }
 
+    /**
+     * A {@code _file.*} predicate is a listing hint only when that name is in the relation's
+     * {@code METADATA} clause. Without the clause the name is an ordinary data column.
+     */
+    public void testFileMetadataHintRequiresMetadataClause() {
+        Expression sizeFilter = new GreaterThan(SRC, unresolved(FileMetadataColumns.SIZE), intLiteral(100));
+
+        assertTrue(
+            "no METADATA clause: the storage-stat predicate is not a listing hint",
+            PartitionFilterHintExtractor.extract(filterAboveExternal(sizeFilter, PATH)).isEmpty()
+        );
+
+        NamedExpression requested = MetadataAttribute.create(SRC, FileMetadataColumns.SIZE);
+        UnresolvedExternalRelation rel = new UnresolvedExternalRelation(SRC, Literal.keyword(SRC, PATH), Map.of(), List.of(requested));
+        LogicalPlan plan = new Filter(SRC, rel, sizeFilter);
+
+        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.extract(plan).get(PATH);
+        assertNotNull(hints);
+        assertEquals(1, hints.size());
+        assertEquals(FileMetadataColumns.SIZE, hints.get(0).columnName());
+        assertEquals(Operator.GREATER_THAN, hints.get(0).operator());
+    }
+
+    /**
+     * {@code MetadataAttribute.create} returns {@code UnresolvedMetadataAttributeExpression} for
+     * {@code _file.*} names, whose {@code name()} throws. The extractor must read the clause through
+     * {@link MetadataAttribute#metadataName}.
+     */
+    public void testFileMetadataClauseNameDoesNotUseThrowingAccessor() {
+        NamedExpression requested = MetadataAttribute.create(SRC, FileMetadataColumns.PATH);
+        expectThrows(Exception.class, requested::name);
+        assertEquals(FileMetadataColumns.PATH, MetadataAttribute.metadataName(requested));
+    }
+
+    /**
+     * One listing serves every occurrence of a path. A branch that omits {@code METADATA _file.size}
+     * must veto a listing prune the other branch would have applied.
+     */
+    public void testUnboundOccurrenceVetoesFileMetadataListingHint() {
+        Expression sizeFilter = new GreaterThan(SRC, unresolved(FileMetadataColumns.SIZE), intLiteral(100));
+        UnresolvedExternalRelation bound = new UnresolvedExternalRelation(
+            SRC,
+            Literal.keyword(SRC, PATH),
+            Map.of(),
+            List.of(MetadataAttribute.create(SRC, FileMetadataColumns.SIZE))
+        );
+        UnresolvedExternalRelation unbound = externalRelation(PATH);
+        LogicalPlan left = new Filter(SRC, bound, sizeFilter);
+        LogicalPlan right = new Filter(SRC, unbound, sizeFilter);
+        LogicalPlan fork = new Fork(SRC, List.of(left, right), List.of());
+
+        assertTrue(
+            "an occurrence without METADATA _file.size must keep the shared listing unpruned",
+            PartitionFilterHintExtractor.extract(fork).isEmpty()
+        );
+    }
+
+    /**
+     * Bind skips {@code _file.path} when it is the {@code _id.path} source and {@code METADATA}
+     * requests {@code _id}. Listing must not prune by the storage path: the surviving column is
+     * the file value.
+     */
+    public void testFilePathHintOmittedWhenIdPathAndIdRequested() {
+        Expression pathFilter = new Equals(SRC, unresolved(FileMetadataColumns.PATH), keywordLiteral("s3://b/a.parquet"));
+        UnresolvedExternalRelation rel = relationWithMetadata(
+            PATH,
+            mappingWithIdPath(FileMetadataColumns.PATH),
+            ExternalMetadataColumns.ID,
+            FileMetadataColumns.PATH
+        );
+        LogicalPlan plan = new Filter(SRC, rel, pathFilter);
+
+        assertTrue(
+            "physical _file.path survives for the reader; listing must not prune by storage path",
+            PartitionFilterHintExtractor.extract(plan).isEmpty()
+        );
+    }
+
+    /**
+     * Without {@code METADATA _id}, bind still owns {@code _file.path}, so a path predicate remains
+     * a listing hint even when {@code _id.path} names that column.
+     */
+    public void testFilePathHintKeptWhenIdPathSetButIdNotRequested() {
+        Expression pathFilter = new Equals(SRC, unresolved(FileMetadataColumns.PATH), keywordLiteral("s3://b/a.parquet"));
+        UnresolvedExternalRelation rel = relationWithMetadata(PATH, mappingWithIdPath(FileMetadataColumns.PATH), FileMetadataColumns.PATH);
+        LogicalPlan plan = new Filter(SRC, rel, pathFilter);
+
+        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.extract(plan).get(PATH);
+        assertNotNull(hints);
+        assertEquals(1, hints.size());
+        assertEquals(FileMetadataColumns.PATH, hints.get(0).columnName());
+        assertEquals(Operator.EQUALS, hints.get(0).operator());
+    }
+
+    public void testUnboundFileSizeInHintIsNotExtracted() {
+        Expression sizeFilter = new In(SRC, unresolved(FileMetadataColumns.SIZE), List.of(intLiteral(10), intLiteral(100)));
+
+        assertTrue(
+            "no METADATA clause: an IN predicate on storage size is not a listing hint",
+            PartitionFilterHintExtractor.extract(filterAboveExternal(sizeFilter, PATH)).isEmpty()
+        );
+    }
+
+    public void testFilePathInHintOmittedWhenIdPathAndIdRequested() {
+        Expression pathFilter = new In(
+            SRC,
+            unresolved(FileMetadataColumns.PATH),
+            List.of(keywordLiteral("s3://b/a.parquet"), keywordLiteral("s3://b/b.parquet"))
+        );
+        UnresolvedExternalRelation rel = relationWithMetadata(
+            PATH,
+            mappingWithIdPath(FileMetadataColumns.PATH),
+            ExternalMetadataColumns.ID,
+            FileMetadataColumns.PATH
+        );
+        LogicalPlan plan = new Filter(SRC, rel, pathFilter);
+
+        assertTrue(
+            "physical _file.path survives for the reader; listing must not prune by storage path",
+            PartitionFilterHintExtractor.extract(plan).isEmpty()
+        );
+    }
+
+    public void testFileSizeHintKeptWhenIdPathIsFilePath() {
+        Expression sizeFilter = new GreaterThan(SRC, unresolved(FileMetadataColumns.SIZE), intLiteral(100));
+        UnresolvedExternalRelation rel = relationWithMetadata(
+            PATH,
+            mappingWithIdPath(FileMetadataColumns.PATH),
+            ExternalMetadataColumns.ID,
+            FileMetadataColumns.SIZE
+        );
+        LogicalPlan plan = new Filter(SRC, rel, sizeFilter);
+
+        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.extract(plan).get(PATH);
+        assertNotNull(hints);
+        assertEquals(1, hints.size());
+        assertEquals(FileMetadataColumns.SIZE, hints.get(0).columnName());
+        assertEquals(Operator.GREATER_THAN, hints.get(0).operator());
+    }
+
     /** Branches wanting different years between them need every folder, so nothing may be skipped. */
     public void testForkDisagreeingBranchesKeepNoHint() {
         UnresolvedExternalRelation rel = externalRelation(PATH);
@@ -491,6 +634,18 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
 
     private static UnresolvedExternalRelation externalRelation(String path) {
         return new UnresolvedExternalRelation(SRC, Literal.keyword(SRC, path), Map.of());
+    }
+
+    private static UnresolvedExternalRelation relationWithMetadata(String path, DatasetMapping mapping, String... metadataNames) {
+        NamedExpression[] fields = new NamedExpression[metadataNames.length];
+        for (int i = 0; i < metadataNames.length; i++) {
+            fields[i] = MetadataAttribute.create(SRC, metadataNames[i]);
+        }
+        return new UnresolvedExternalRelation(SRC, Literal.keyword(SRC, path), Map.of(), List.of(fields), null, mapping);
+    }
+
+    private static DatasetMapping mappingWithIdPath(String idPath) {
+        return new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of(), idPath));
     }
 
     private static LogicalPlan filterAboveExternal(Expression condition, String path) {

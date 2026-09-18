@@ -185,6 +185,15 @@ public final class UnresolvedExternalRelation extends LeafPlan implements Unreso
         return mapping;
     }
 
+    /**
+     * The declared {@code mappings._id.path}, or {@code null} when the dataset does not set {@code _id}
+     * from a column.
+     */
+    @Nullable
+    public String declaredIdPath() {
+        return mapping != null && mapping.mappings() != null ? mapping.mappings().idPath() : null;
+    }
+
     @Override
     public boolean resolved() {
         return false;

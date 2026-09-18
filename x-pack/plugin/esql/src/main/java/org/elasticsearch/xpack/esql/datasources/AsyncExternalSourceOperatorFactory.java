@@ -429,32 +429,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.rowLimit = rowLimit;
         this.fileList = fileList;
         this.schemaMap = schemaMap != null ? schemaMap : Map.of();
-        // Route requested standard metadata names (and _id when requested) through
-        // VirtualColumnIterator's materialization paths by unioning them into the partition-column
-        // set. Per-file constants take the constant-block path; _id takes the iterator's per-row
-        // composition path; _source is handled by a separate operator wrapper.
+        // Route engine-owned metadata names through VirtualColumnIterator by unioning them into
+        // the partition-column set. Per-file constants take the constant-block path; _id takes
+        // the iterator's per-row composition path; _source is handled by a separate operator wrapper.
         Set<String> metadataNames = ExternalMetadataColumns.metadataNames(attributes);
         Set<String> stdMetaNames = new LinkedHashSet<>(metadataNames);
         stdMetaNames.retainAll(ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES);
-        boolean idRequested = metadataNames.contains(ExternalMetadataColumns.ID);
-        boolean sourceRequested = metadataNames.contains(ExternalMetadataColumns.SOURCE);
-        this.idColumnRequested = idRequested;
+        this.idColumnRequested = metadataNames.contains(ExternalMetadataColumns.ID);
         this.standardMetadataPerFileNames = stdMetaNames.isEmpty() ? Set.of() : Set.copyOf(stdMetaNames);
-        if (stdMetaNames.isEmpty() && idRequested == false && sourceRequested == false) {
+        if (metadataNames.isEmpty()) {
             this.partitionColumnNames = partitionColumnNames != null ? partitionColumnNames : Set.of();
         } else {
-            // Union the standard metadata names (plus {@code _id} / {@code _source} when projected)
-            // into the effective partition-column set so VirtualColumnIterator routes them through
-            // its constant-block / id-composition / source-synthesis path. Hive partition columns
-            // and {@code _file.*} always take precedence on key collision (they overlay last in
-            // the per-file merge).
-            Set<String> union = new LinkedHashSet<>(stdMetaNames);
-            if (idRequested) {
-                union.add(ExternalMetadataColumns.ID);
-            }
-            if (sourceRequested) {
-                union.add(ExternalMetadataColumns.SOURCE);
-            }
+            Set<String> union = new LinkedHashSet<>(metadataNames);
             if (partitionColumnNames != null) {
                 union.addAll(partitionColumnNames);
             }
@@ -1545,7 +1531,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // Stamp how THIS file is read, from the split's own coordinator-minted schema. Deliberately not from the
         // schema handed to the reader below: that one is physicalized and narrowed to the per-file projection, so a
         // value derived from it would not match the coordinator's.
-        FormatReader reader = readerForMapping(fileSplit.columnMapping()).withReadConfig(
+        // Filter adaptation uses the query-width mapping. An empty queryDataSchema (COUNT(*),
+        // metadata-only) skips adaptSchema and must not hand mapFilters a unified-width mapping.
+        FormatReader reader = readerForMapping(queryDataSchema.isEmpty() ? null : fileSplit.columnMapping()).withReadConfig(
             readConfigFingerprinter.apply(fileSplit.readSchema())
         );
         return wrapForObject(reader, fileSplit.path().objectName());

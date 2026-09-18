@@ -123,6 +123,16 @@ public final class ExternalMetadataColumns {
     private ExternalMetadataColumns() {}
 
     /**
+     * Whether a {@code METADATA} name equal to {@code idPath} stays a file column so the reader
+     * can stamp {@code _id} from it. True when {@code _id} is requested and {@code idPath} is set.
+     * Callers with a resolved schema still require that column to exist physically; listing still
+     * requires the name to be a {@code _file.*} storage stat.
+     */
+    public static boolean idPathKeepsPhysical(@Nullable String idPath, Set<String> requestedNames) {
+        return idPath != null && requestedNames.contains(ID);
+    }
+
+    /**
      * Names bound to engine-generated metadata in the relation's output. A data column with a
      * metadata name is not engine-generated, even on files where that data column is missing.
      * Discovery and readers must use this binding rather than infer ownership from file schemas.

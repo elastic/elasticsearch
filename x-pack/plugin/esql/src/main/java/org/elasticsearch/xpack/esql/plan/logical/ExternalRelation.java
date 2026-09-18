@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
@@ -321,9 +320,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             fileList,
             schemaMap,
             List.of()
-        ).withUnifiedSchema(new ExternalSchema(dataOnlyUnifiedSchema()))
-            .withDatasetName(datasetName)
-            .withDeclaredReadSpec(declaredReadSpec);
+        ).withUnifiedSchema(dataOnlyUnifiedSchema()).withDatasetName(datasetName).withDeclaredReadSpec(declaredReadSpec);
     }
 
     /**
@@ -349,13 +346,15 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
      * Partition names come from the serialized stamp ({@link #partitionColumnNames()}), NOT the fileList, so
      * this produces the same narrow schema on a data node (where the fileList is {@code UNRESOLVED}) as on the
      * coordinator — previously the data-node build silently kept the wider, partition-inclusive view.
+     * <p>
+     * Delegates to {@link ExternalSchema#dataAttributesOf(List, Set)}. {@code metadata.schema()} is
+     * constrained to {@code ReferenceAttribute}, so the virtual-column arm is a no-op: the metadata
+     * bind appends to the relation's {@code output}, not to {@code metadata.schema()}. A bound
+     * metadata name can therefore leave this unified view wider than the query schema;
+     * {@code ColumnMapping.pruneToPerFileQuery} drops the extra output slot.
      */
-    private List<Attribute> dataOnlyUnifiedSchema() {
-        Set<String> partitionNames = partitionColumnNames();
-        return metadata.schema()
-            .stream()
-            .filter(a -> a instanceof VirtualAttribute == false && partitionNames.contains(a.name()) == false)
-            .toList();
+    private ExternalSchema dataOnlyUnifiedSchema() {
+        return ExternalSchema.dataAttributesOf(metadata.schema(), partitionColumnNames());
     }
 
     @Override

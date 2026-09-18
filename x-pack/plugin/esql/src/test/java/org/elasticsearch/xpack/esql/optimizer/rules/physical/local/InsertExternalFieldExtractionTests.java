@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -18,6 +19,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
+import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
+import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
@@ -469,6 +472,114 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         ExternalSourceExec narrowed = (ExternalSourceExec) ((TopNExec) extract.child()).child();
         List<String> narrowedNames = narrowed.output().stream().map(Attribute::name).toList();
         assertEquals(List.of("id", "STATION", ColumnExtractor.ROW_POSITION_COLUMN), narrowedNames);
+    }
+
+    public void testIdPathDataColumnPinnedEager() {
+        Attribute sortKey = field("ts", DataType.DATETIME);
+        Attribute id = new ExternalMetadataAttribute(Source.EMPTY, ExternalMetadataColumns.ID, DataType.KEYWORD);
+        Attribute firstName = field("first_name", DataType.KEYWORD);
+        List<Attribute> schema = List.of(
+            sortKey,
+            id,
+            firstName,
+            field("a", DataType.KEYWORD),
+            field("b", DataType.KEYWORD),
+            field("c", DataType.INTEGER)
+        );
+        ExternalSourceExec source = parquetSource(schema, null).withDeclaredReadSpec(DeclaredReadSpec.of(Map.of(), "first_name"));
+        TopNExec topN = topN(sortKey, 100, source);
+
+        PhysicalPlan rewritten = applyRule(topN, columnExtractorAwareRegistry());
+        ExternalFieldExtractExec extract = (ExternalFieldExtractExec) rewritten;
+
+        List<String> deferredNames = extract.attributesToExtract().stream().map(Attribute::name).toList();
+        assertEquals(List.of("a", "b", "c"), deferredNames);
+
+        ExternalSourceExec narrowed = (ExternalSourceExec) ((TopNExec) extract.child()).child();
+        List<String> narrowedNames = narrowed.output().stream().map(Attribute::name).toList();
+        assertEquals(List.of("ts", ExternalMetadataColumns.ID, "first_name", ColumnExtractor.ROW_POSITION_COLUMN), narrowedNames);
+    }
+
+    public void testKeepPhysicalFilePathIdPathPinnedEager() {
+        Attribute sortKey = field("ts", DataType.DATETIME);
+        Attribute id = new ExternalMetadataAttribute(Source.EMPTY, ExternalMetadataColumns.ID, DataType.KEYWORD);
+        Attribute filePath = refField(FileMetadataColumns.PATH, DataType.KEYWORD);
+        List<Attribute> schema = List.of(
+            sortKey,
+            id,
+            filePath,
+            field("a", DataType.KEYWORD),
+            field("b", DataType.KEYWORD),
+            field("c", DataType.INTEGER)
+        );
+        ExternalSourceExec source = parquetSource(schema, null).withDeclaredReadSpec(
+            DeclaredReadSpec.of(Map.of(), FileMetadataColumns.PATH)
+        );
+        TopNExec topN = topN(sortKey, 100, source);
+
+        PhysicalPlan rewritten = applyRule(topN, columnExtractorAwareRegistry());
+        ExternalFieldExtractExec extract = (ExternalFieldExtractExec) rewritten;
+
+        List<String> deferredNames = extract.attributesToExtract().stream().map(Attribute::name).toList();
+        assertEquals(List.of("a", "b", "c"), deferredNames);
+
+        ExternalSourceExec narrowed = (ExternalSourceExec) ((TopNExec) extract.child()).child();
+        List<String> narrowedNames = narrowed.output().stream().map(Attribute::name).toList();
+        assertEquals(
+            List.of("ts", ExternalMetadataColumns.ID, FileMetadataColumns.PATH, ColumnExtractor.ROW_POSITION_COLUMN),
+            narrowedNames
+        );
+    }
+
+    public void testIdWithoutIdPathDoesNotPinDataColumn() {
+        Attribute sortKey = field("ts", DataType.DATETIME);
+        Attribute id = new ExternalMetadataAttribute(Source.EMPTY, ExternalMetadataColumns.ID, DataType.KEYWORD);
+        List<Attribute> schema = List.of(
+            sortKey,
+            id,
+            field("first_name", DataType.KEYWORD),
+            field("a", DataType.KEYWORD),
+            field("b", DataType.KEYWORD),
+            field("c", DataType.INTEGER)
+        );
+        ExternalSourceExec source = parquetSource(schema, null);
+        TopNExec topN = topN(sortKey, 100, source);
+
+        PhysicalPlan rewritten = applyRule(topN, columnExtractorAwareRegistry());
+        ExternalFieldExtractExec extract = (ExternalFieldExtractExec) rewritten;
+
+        List<String> deferredNames = extract.attributesToExtract().stream().map(Attribute::name).toList();
+        assertEquals(List.of("first_name", "a", "b", "c"), deferredNames);
+    }
+
+    public void testIdPathWithoutProjectedIdDoesNotPin() {
+        Attribute sortKey = field("ts", DataType.DATETIME);
+        List<Attribute> schema = List.of(
+            sortKey,
+            field("first_name", DataType.KEYWORD),
+            field("a", DataType.KEYWORD),
+            field("b", DataType.KEYWORD),
+            field("c", DataType.INTEGER)
+        );
+        ExternalSourceExec source = parquetSource(schema, null).withDeclaredReadSpec(DeclaredReadSpec.of(Map.of(), "first_name"));
+        TopNExec topN = topN(sortKey, 100, source);
+
+        PhysicalPlan rewritten = applyRule(topN, columnExtractorAwareRegistry());
+        ExternalFieldExtractExec extract = (ExternalFieldExtractExec) rewritten;
+
+        List<String> deferredNames = extract.attributesToExtract().stream().map(Attribute::name).toList();
+        assertEquals(List.of("first_name", "a", "b", "c"), deferredNames);
+    }
+
+    public void testBailsWhenIdPathPinningLeavesTooFewDeferred() {
+        Attribute sortKey = field("ts", DataType.DATETIME);
+        Attribute id = new ExternalMetadataAttribute(Source.EMPTY, ExternalMetadataColumns.ID, DataType.KEYWORD);
+        List<Attribute> schema = List.of(sortKey, id, field("first_name", DataType.KEYWORD), field("a", DataType.KEYWORD));
+        ExternalSourceExec source = parquetSource(schema, null).withDeclaredReadSpec(DeclaredReadSpec.of(Map.of(), "first_name"));
+        TopNExec topN = topN(sortKey, 100, source);
+
+        PhysicalPlan result = applyRule(topN, columnExtractorAwareRegistry());
+        assertSame("rule must bail when pinning the id-path column leaves too few deferred", topN, result);
     }
 
     // ---------------------------------------------------------------------------------------------

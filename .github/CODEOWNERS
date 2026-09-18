@@ -68,6 +68,7 @@ build-tools-internal/version.properties
 .buildkite @elastic/es-core-infra
 .ci @elastic/es-core-infra
 .idea @elastic/es-core-infra
+.libra @elastic/es-core-infra
 distribution/src @elastic/es-core-infra
 distribution/packages/src @elastic/es-core-infra
 distribution/docker/src @elastic/es-core-infra

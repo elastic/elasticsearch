@@ -1,0 +1,10 @@
+version: 1
+enabled: true
+review_drafts: false
+required_labels:
+  - Team:Core/Infra
+paths:
+  exclude:
+    - "docs/reference/**"
+    - "**/build/**"
+    - "**/*.csv"

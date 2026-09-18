@@ -218,7 +218,7 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             try (DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildTwoCommitsCodecDefaults(dir, 4, 64)) {
                 LeafReader leaf = reader.leaves().getFirst().reader();
-                assertNull(ESNextRescoreOversampleTestFixture.readPersistedSegmentConfig(leaf));
+                assertFalse(Float.isFinite(ESNextRescoreOversampleTestFixture.readPersistedSegmentConfig(leaf).rescoreOversample()));
 
                 FieldInfo fieldInfo = leaf.getFieldInfos().fieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
                 IvfQueryConfigResolver resolver = IvfQueryConfigResolver.from(true, false, 1, MAPPING_OVERSAMPLE, null);

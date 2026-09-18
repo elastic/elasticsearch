@@ -57,7 +57,8 @@ public final class Case extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Case", Case::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Case.class)
         .unaryVariadic(Case::new)
-        .capabilities("flattened")
+        // A one value list condition is single valued, so it picks a branch like a plain boolean.
+        .capabilities("flattened", "single_value_list_condition")
         .name("case");
 
     private static final String MULTIVALUE_CONDITION_MESSAGE = "CASE expects a single-valued boolean";

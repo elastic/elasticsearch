@@ -170,6 +170,31 @@ foo:keyword
 a
 ;
 
+// A one value list is single valued, so it picks the same branch a plain true does, and
+// raises no multivalue warning. All values are constant here, so the CASE is folded.
+caseOnConstantSingleValueList
+required_capability: fn_case_single_value_list_condition
+
+ROW from_list = CASE([true], "a", "b"), from_boolean = CASE(true, "a", "b"), from_false_list = CASE([false], "a", "b");
+
+from_list:keyword | from_boolean:keyword | from_false_list:keyword
+a                 | a                    | b
+;
+
+// Same, but the values are fields, so the CASE is not foldable and the condition is
+// dropped by partiallyFold rather than fold.
+caseOnFieldsWithSingleValueListCondition
+required_capability: fn_case_single_value_list_condition
+
+FROM employees
+| WHERE emp_no == 10010
+| EVAL from_list = CASE([true], first_name, last_name), from_boolean = CASE(true, first_name, last_name)
+| KEEP first_name, last_name, from_list, from_boolean;
+
+first_name:keyword | last_name:keyword | from_list:keyword | from_boolean:keyword
+Duangkaew          | Piveteau          | Duangkaew         | Duangkaew
+;
+
 docsCaseSuccessRate
 // tag::docsCaseSuccessRate[]
 FROM sample_data

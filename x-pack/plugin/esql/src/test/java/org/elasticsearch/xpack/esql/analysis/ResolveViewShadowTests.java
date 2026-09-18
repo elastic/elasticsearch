@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.LoadMapping;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -31,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 
 /**
@@ -58,7 +57,11 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
  * "No limit defined" warning that {@code AddImplicitLimit} adds since the test inputs are bare
  * relations.
  */
-public class ResolveViewShadowTests extends ESTestCase {
+public class ResolveViewShadowTests extends AnalyzerTestCase {
+
+    public ResolveViewShadowTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     private static final Source EMPTY = Source.EMPTY;
     private static final String NO_LIMIT_WARNING = "No limit defined, adding default limit of [1000]";

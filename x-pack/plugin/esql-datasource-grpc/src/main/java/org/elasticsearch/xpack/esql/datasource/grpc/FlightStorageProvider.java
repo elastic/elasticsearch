@@ -14,6 +14,7 @@ import org.apache.arrow.flight.Location;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -56,6 +57,11 @@ public final class FlightStorageProvider implements StorageProvider {
     @Override
     public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
         throw new UnsupportedOperationException("Arrow Flight does not support directory listing");
+    }
+
+    @Override
+    public StorageChildren listChildren(StoragePath prefix, int limit) {
+        return null; // Arrow Flight has no directory listing at all
     }
 
     @Override

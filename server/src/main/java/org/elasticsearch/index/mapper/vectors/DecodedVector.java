@@ -16,11 +16,9 @@ import org.elasticsearch.xcontent.XContentString;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * A dense vector decoded from a hex or base64 string, or UTF-8 byte slice.
@@ -268,13 +266,12 @@ public abstract sealed class DecodedVector permits DecodedVector.ByteVector, Dec
         }
 
         int length = base64Bytes.remaining();
-        int[] expectedLengths = expectedBase64ByteLengths(elementType, dims);
-        if (matchesExpectedBase64Length(length, expectedLengths) == false) {
+        if (matchesExpectedBase64Length(length, elementType, dims) == false) {
             // The value is also valid hex, so the hex dimension mismatch is the more useful message
             if (isHex) {
                 throw invalidHexDimensions(elementType, hexVectorLength, dims);
             }
-            throw invalidBase64Length(length, expectedLengths, dims);
+            throw invalidBase64Length(length, elementType, dims);
         }
 
         if ((elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16) && length == dims * BFloat16.BYTES) {
@@ -358,20 +355,27 @@ public abstract sealed class DecodedVector permits DecodedVector.ByteVector, Dec
         return bytes;
     }
 
-    private static int[] expectedBase64ByteLengths(ElementType elementType, int dims) {
+    private static boolean matchesExpectedBase64Length(int length, ElementType elementType, int dims) {
         return switch (elementType) {
-            case BYTE, BIT -> new int[] { elementType.vectorLength(dims) };
-            case FLOAT, BFLOAT16 -> new int[] { dims * Float.BYTES, dims * BFloat16.BYTES };
+            case BYTE, BIT -> length == elementType.vectorLength(dims);
+            case FLOAT, BFLOAT16 -> length == dims * Float.BYTES || length == dims * BFloat16.BYTES;
         };
     }
 
-    private static boolean matchesExpectedBase64Length(int length, int[] expectedLengths) {
-        for (int expected : expectedLengths) {
-            if (length == expected) {
-                return true;
-            }
-        }
-        return false;
+    private static IllegalArgumentException invalidBase64Length(int length, ElementType elementType, int dims) {
+        String expected = switch (elementType) {
+            case BYTE, BIT -> "[" + elementType.vectorLength(dims) + ']';
+            case FLOAT, BFLOAT16 -> "[" + dims * Float.BYTES + "] or [" + dims * BFloat16.BYTES + "]";
+        };
+        return new IllegalArgumentException(
+            "failed to decode vector: Base64 decoded vector byte length ["
+                + length
+                + "] does not match the expected length of "
+                + expected
+                + " for dimension count ["
+                + dims
+                + "]"
+        );
     }
 
     private static IllegalArgumentException invalidHexDimensions(ElementType elementType, int hexVectorLength, int dims) {
@@ -379,19 +383,6 @@ public abstract sealed class DecodedVector permits DecodedVector.ByteVector, Dec
             "failed to decode vector: hex-decoded vector has a different number of dimensions ["
                 + elementType.dims(hexVectorLength)
                 + "] than the expected ["
-                + dims
-                + "]"
-        );
-    }
-
-    private static IllegalArgumentException invalidBase64Length(int length, int[] expectedLengths, int dims) {
-        String expected = Arrays.stream(expectedLengths).mapToObj(l -> "[" + l + "]").collect(Collectors.joining(" or "));
-        return new IllegalArgumentException(
-            "failed to decode vector: Base64 decoded vector byte length ["
-                + length
-                + "] does not match the expected length of "
-                + expected
-                + " for dimension count ["
                 + dims
                 + "]"
         );

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
@@ -341,7 +343,14 @@ public class Mapper {
             newChildren.add(child);
         }
 
-        return new MergeExec(merge.source(), newChildren, merge.output());
+        // ViewUnionAll extends UnionAll, so it maps as UNION. A new MergePlan sibling fails here
+        // instead of inheriting UNION placement.
+        MergeExec.Kind kind = switch (merge) {
+            case Fork ignored -> MergeExec.Kind.FORK;
+            case UnionAll ignored -> MergeExec.Kind.UNION;
+            default -> throw new IllegalStateException("unexpected MergePlan subclass: " + merge.getClass().getName());
+        };
+        return new MergeExec(merge.source(), newChildren, merge.output(), kind);
     }
 
     /**

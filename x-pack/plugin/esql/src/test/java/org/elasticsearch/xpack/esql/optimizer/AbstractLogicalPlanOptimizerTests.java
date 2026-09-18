@@ -378,7 +378,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         List<Expression> dims = new ArrayList<>();
         for (NamedExpression aggregate : aggregates) {
             aggregate.forEachDown(DimensionValues.class, values -> dims.add(values.field()));
-            aggregate.forEachDown(PackDimsAgg.class, packed -> dims.addAll(packed.dims()));
+            aggregate.forEachDown(PackDimsAgg.class, packed -> dims.addAll(packed.fields()));
         }
         return dims;
     }

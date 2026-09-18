@@ -3038,14 +3038,9 @@ public class EsqlCapabilities {
         EXTERNAL_DEFAULT_SCHEMA_RESOLUTION_FIRST_FILE_WINS,
 
         /**
-         * The {@code partition_detection} and {@code partition_path} dataset settings reach the read path, so
-         * {@code none} suppresses detection — and with it the Hive column-shadow substitution — and
-         * {@code template} binds and prunes on the templated column. Before this, every dataset resolved to the
-         * Hive detector whatever the settings said, and the shadow warning prescribed
-         * {@code hive_partitioning: false} rather than {@code partition_detection: none}. Added in #157208,
-         * backported to 9.5 in #159140, so the first release that reports it is 9.5.5. Mixed-cluster and BWC
-         * csv-spec cases whose result table or warning text depends on any of that MUST gate on this: an older
-         * coordinator answers such a query with Hive-derived columns and the old warning wording.
+         * The {@code partition_detection} and {@code partition_path} dataset settings reach the read path:
+         * {@code none} suppresses detection and the Hive column-shadow substitution with it, and
+         * {@code template} binds and prunes on the templated column.
          */
         PARTITION_DETECTION_ON_READ_PATH,
 

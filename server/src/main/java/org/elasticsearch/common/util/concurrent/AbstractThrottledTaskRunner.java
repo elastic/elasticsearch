@@ -165,6 +165,11 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
                 if (tasks.peek() == null) break;
             } else {
                 final Long queueStartNanos = queuedNanosByTask != null ? queuedNanosByTask.remove(task) : null;
+                if (queueStartNanos != null) {
+                    queueLatencyMillisHistogram.record(
+                        TimeUnit.NANOSECONDS.toMillis(relativeTimeNanosProvider.getAsLong() - queueStartNanos)
+                    );
+                }
 
                 final boolean isForceExecution = isForceExecution(task);
                 var runnable = new AbstractRunnable() {
@@ -208,11 +213,6 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
 
                     @Override
                     protected void doRun() {
-                        if (queueStartNanos != null) {
-                            queueLatencyMillisHistogram.record(
-                                TimeUnit.NANOSECONDS.toMillis(relativeTimeNanosProvider.getAsLong() - queueStartNanos)
-                            );
-                        }
                         logger.trace("[{}] running task {}", taskRunnerName, task);
                         task.onResponse(releasable);
                     }
@@ -222,6 +222,7 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
                         return task.toString();
                     }
                 };
+
                 executor.execute(runnable);
                 runnable.callerLoopProceeded = true;
             }

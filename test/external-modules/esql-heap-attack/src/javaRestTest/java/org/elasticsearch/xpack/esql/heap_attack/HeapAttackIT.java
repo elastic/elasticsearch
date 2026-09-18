@@ -699,7 +699,7 @@ public class HeapAttackIT extends ESRestTestCase {
      */
     public void testAggGiantTextField() throws IOException {
         int docs = 100;
-        initGiantTextField(docs);
+        initGiantTextField(docs, false, 5);
         Map<?, ?> response = aggGiantTextField();
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
         assertMap(
@@ -719,7 +719,7 @@ public class HeapAttackIT extends ESRestTestCase {
 
     public void testAggMvLongs() throws IOException {
         int fieldValues = 100;
-        initMvLongsIndex(1, 3, fieldValues);
+        initMvLongsIndex(1, 3, fieldValues, false);
         Map<?, ?> response = aggMvLongs(3);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "MAX(f00)").entry("type", "long"))
             .item(matchesMap().entry("name", "f00").entry("type", "long"))
@@ -729,7 +729,7 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     public void testAggTooManyMvLongs() throws IOException {
-        initMvLongsIndex(1, 3, 1000);
+        initMvLongsIndex(1, 3, 1000, false);
         // 3 fields is plenty on most nodes
         assertCircuitBreaks(attempt -> aggMvLongs(attempt * 3));
     }
@@ -745,7 +745,7 @@ public class HeapAttackIT extends ESRestTestCase {
 
     public void testFetchMvLongs() throws IOException {
         int fields = 100;
-        initMvLongsIndex(100, fields, 1000);
+        initMvLongsIndex(100, fields, 1000, false);
         Map<?, ?> response = fetchMvLongs();
         ListMatcher columns = matchesList();
         for (int f = 0; f < fields; f++) {
@@ -755,7 +755,7 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     public void testFetchTooManyMvLongs() throws IOException {
-        initMvLongsIndex(500, 100, 1000);
+        initMvLongsIndex(500, 100, 1000, false);
         assertCircuitBreaks(attempt -> fetchMvLongs());
     }
 
@@ -964,7 +964,7 @@ public class HeapAttackIT extends ESRestTestCase {
         initIndex("manybigfields", bulk.toString());
     }
 
-    private void initGiantTextField(int docs) throws IOException {
+    private void initGiantTextField(int docs, boolean includeId, long fieldSizeInMb) throws IOException {
         int docsPerBulk = 10;
         for (Map<?, ?> nodeInfo : getNodesInfo(adminClient()).values()) {
             for (Object module : (List<?>) nodeInfo.get("modules")) {
@@ -976,11 +976,14 @@ public class HeapAttackIT extends ESRestTestCase {
             }
         }
         logger.info("loading many documents with one big text field - docs per bulk {}", docsPerBulk);
-        int fieldSize = Math.toIntExact(ByteSizeValue.ofMb(5).getBytes());
+        int fieldSize = Math.toIntExact(ByteSizeValue.ofMb(fieldSizeInMb).getBytes());
 
         Request request = new Request("PUT", "/bigtext");
         XContentBuilder config = JsonXContent.contentBuilder().startObject();
         config.startObject("mappings").startObject("properties");
+        if (includeId) {
+            config.startObject("id").field("type", "long").endObject();
+        }
         config.startObject("f").field("type", "text").endObject();
         config.endObject().endObject();
         request.setJsonEntity(Strings.toString(config.endObject()));
@@ -993,7 +996,11 @@ public class HeapAttackIT extends ESRestTestCase {
         StringBuilder bulk = new StringBuilder();
         for (int d = 0; d < docs; d++) {
             bulk.append("{\"create\":{}}\n");
-            bulk.append("{\"f\":\"");
+            if (includeId) {
+                bulk.append(String.format(Locale.ROOT, "{\"id\":\"%s\", \"f\":\"", d));
+            } else {
+                bulk.append("{\"f\":\"");
+            }
             bulk.append(Integer.toString(d % 10).repeat(fieldSize));
             bulk.append("\"}\n");
             if (d % docsPerBulk == docsPerBulk - 1 && d != docs - 1) {
@@ -1004,7 +1011,7 @@ public class HeapAttackIT extends ESRestTestCase {
         initIndex("bigtext", bulk.toString());
     }
 
-    private void initMvLongsIndex(int docs, int fields, int fieldValues) throws IOException {
+    private void initMvLongsIndex(int docs, int fields, int fieldValues, boolean includeId) throws IOException {
         logger.info("loading documents with many multivalued longs");
         int docsPerBulk = 100;
 
@@ -1014,6 +1021,10 @@ public class HeapAttackIT extends ESRestTestCase {
             for (int f = 0; f < fields; f++) {
                 if (f == 0) {
                     bulk.append('{');
+                    if (includeId) {
+                        String idField = String.format(Locale.ROOT, "\"id\": %s, ", d);
+                        bulk.append(idField);
+                    }
                 } else {
                     bulk.append(", ");
                 }

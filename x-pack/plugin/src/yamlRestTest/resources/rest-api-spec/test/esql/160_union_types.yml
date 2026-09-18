@@ -883,7 +883,7 @@ CASE:
 
   - do:
       warnings_regex:
-        - ".+evaluation of \\[f?\\] failed, treating result as false. Only first 20 failures recorded."
+        - ".+evaluation of \\[CASE\\(f::BOOLEAN, .+\\)\\] failed, treating result as false. Only first 20 failures recorded."
         - ".+java.lang.IllegalArgumentException: single-value function encountered multi-value"
       esql.query:
         body:

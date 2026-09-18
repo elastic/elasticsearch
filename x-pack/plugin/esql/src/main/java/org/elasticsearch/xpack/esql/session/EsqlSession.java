@@ -538,9 +538,9 @@ public class EsqlSession {
                     TransportVersion minimumVersion = analyzedPlan.minimumVersion();
 
                     // Apply the out-of-band request filter to external-source (dataset) leaves, translated
-                    // against each source's schema. Index leaves keep their existing filter path. Version-gated:
-                    // the translated predicate can contain mv_in_range / mv_greater / mv_less, which older
-                    // nodes cannot deserialize.
+                    // against each source's schema. Index leaves keep their existing filter path. Version-gated,
+                    // but the pin covers mv_in_range only: it predates mv_greater and mv_less, which the translator
+                    // also emits (elastic/elasticsearch#159672).
                     // Applies the translatable subset and drops the rest with a warning naming each clause.
                     // This callback runs outside the SubscribableListener chain below, so a synchronous throw here
                     // would not be routed to the listener — catch it and fail the query explicitly.

@@ -784,3 +784,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecMatchPhraseFunctionIT
   method: test {csv-spec:match-phrase-function.matchPhraseOnToStringOverIndexedTextFieldIsExact}
   issue: https://github.com/elastic/elasticsearch/issues/159767
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecMatchPhraseFunctionIT
+  method: test {csv-spec:match-phrase-function.matchPhraseOnToTextOverIndexedKeywordField}
+  issue: https://github.com/elastic/elasticsearch/issues/159768

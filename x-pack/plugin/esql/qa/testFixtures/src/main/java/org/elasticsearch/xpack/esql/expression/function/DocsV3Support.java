@@ -1560,15 +1560,18 @@ public abstract class DocsV3Support {
             if (appliesTo.isEmpty()) {
                 return;
             }
-            // serverlessOnly is functional, not documentation -- QuerySettings.applicableIn drops the setting when
-            // isServerless is false -- so the fix is to state stack: unavailable in applies_to, never to drop the flag.
-            // Testing that the axis is merely mentioned would accept stack: ga, which contradicts that gate.
+            // The derived badge above states stack: unavailable for a serverlessOnly setting, and a declared
+            // applies_to replaces the badge wholesale -- so declaring one must not quietly drop that statement.
+            // Requiring the axis to be present is not enough: stack: ga names it and still contradicts it.
+            // (serverlessOnly itself is only a deployment marker; QuerySettings reads it in applicableIn, which
+            // feeds telemetry. What makes such a setting unavailable on stack is its own validator, as
+            // project_routing's cross-project check does. This rule keeps the badge honest about that.)
             if (serverlessOnly && appliesTo.contains("stack: unavailable") == false) {
                 throw new IllegalStateException(
                     "Setting ["
                         + name
-                        + "] is serverlessOnly but its applies_to does not state stack: unavailable, so the badge"
-                        + " would claim an availability on stack that QuerySettings refuses. State stack: unavailable in applies_to."
+                        + "] is serverlessOnly but its applies_to does not state stack: unavailable, which is what"
+                        + " the derived badge would have stated. State stack: unavailable in applies_to."
                 );
             }
             if (since.isEmpty() == false) {

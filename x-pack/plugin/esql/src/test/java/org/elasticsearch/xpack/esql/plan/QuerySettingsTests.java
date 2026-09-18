@@ -472,23 +472,23 @@ public class QuerySettingsTests extends ESTestCase {
     }
 
     public void testAppliesToRefusesServerlessOnlyUnlessTheStackAxisSaysUnavailable() {
-        // serverlessOnly is functional -- applicableIn drops the setting when isServerless is false -- so the remedy is
-        // to state stack: unavailable, never to drop the flag.
+        // A declared applies_to replaces the whole badge, so it must not drop the stack: unavailable the emitter
+        // derives for a serverlessOnly setting. The remedy is to state it, never to drop the flag.
         IllegalStateException omitted = expectThrows(
             IllegalStateException.class,
             () -> DocsV3Support.SettingsDocsSupport.checkAppliesToIsSelfSufficient("some_setting", "serverless: ga", true, "")
         );
         assertThat(omitted.getMessage(), containsString("does not state stack: unavailable"));
 
-        // Naming the axis is not enough: a stack value that contradicts applicableIn is the badge this rule exists to
-        // stop, and a predicate that only looked for "stack:" would publish it.
+        // Naming the axis is not enough: a stack value that contradicts the derived badge is what this rule exists
+        // to stop, and a predicate that only looked for "stack:" would publish it.
         IllegalStateException contradicted = expectThrows(
             IllegalStateException.class,
             () -> DocsV3Support.SettingsDocsSupport.checkAppliesToIsSelfSufficient("some_setting", "serverless: ga\nstack: ga", true, "")
         );
         assertThat(contradicted.getMessage(), containsString("does not state stack: unavailable"));
 
-        // The accepting arm, proven by a call that returns: the axis states what applicableIn does.
+        // The accepting arm, proven by a call that returns: the axis states what the derivation would have.
         DocsV3Support.SettingsDocsSupport.checkAppliesToIsSelfSufficient("some_setting", "serverless: ga\nstack: unavailable", true, "");
     }
 

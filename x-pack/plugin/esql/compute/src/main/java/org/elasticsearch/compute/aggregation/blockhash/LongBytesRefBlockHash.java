@@ -357,10 +357,10 @@ public final class LongBytesRefBlockHash extends BlockHash {
 
     @Override
     public String toString() {
-        return "BytesRefLongBlockHash{keys=[BytesRefKey[channel="
-            + bytesChannel
-            + "], LongKey[channel="
+        return "LongBytesRefBlockHash{keys=[LongKey[channel="
             + longChannel
+            + "], BytesRefKey[channel="
+            + bytesChannel
             + "]], entries="
             + longIntHash.numKeys()
             + ", size="

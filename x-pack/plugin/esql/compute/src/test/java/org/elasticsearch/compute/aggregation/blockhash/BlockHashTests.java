@@ -1093,7 +1093,7 @@ public class BlockHashTests extends BlockHashTestCase {
                     startsWith(
                         forcePackedHash
                             ? "PackedValuesBlockHash{groups=[0:LONG, 1:BYTES_REF], entries=4, size="
-                            : "BytesRefLongBlockHash{keys=[BytesRefKey[channel=1], LongKey[channel=0]], entries=4, size="
+                            : "LongBytesRefBlockHash{keys=[LongKey[channel=0], BytesRefKey[channel=1]], entries=4, size="
                     )
                 );
                 assertThat(ordsAndKeys.description(), endsWith("b}"));
@@ -1123,7 +1123,7 @@ public class BlockHashTests extends BlockHashTestCase {
                     startsWith(
                         forcePackedHash
                             ? "PackedValuesBlockHash{groups=[0:LONG, 1:BYTES_REF], entries=5, size="
-                            : "BytesRefLongBlockHash{keys=[BytesRefKey[channel=1], LongKey[channel=0]], entries=5, size="
+                            : "LongBytesRefBlockHash{keys=[LongKey[channel=0], BytesRefKey[channel=1]], entries=5, size="
                     )
                 );
                 assertThat(ordsAndKeys.description(), endsWith("b}"));
@@ -1198,7 +1198,7 @@ public class BlockHashTests extends BlockHashTestCase {
                     startsWith(
                         forcePackedHash
                             ? "PackedValuesBlockHash{groups=[0:LONG, 1:BYTES_REF], entries=10, size="
-                            : "BytesRefLongBlockHash{keys=[BytesRefKey[channel=1], LongKey[channel=0]], entries=10, size="
+                            : "LongBytesRefBlockHash{keys=[LongKey[channel=0], BytesRefKey[channel=1]], entries=10, size="
                     )
                 );
                 assertThat(ordsAndKeys.description(), endsWith("b}"));
@@ -1254,7 +1254,7 @@ public class BlockHashTests extends BlockHashTestCase {
                     startsWith(
                         forcePackedHash
                             ? "PackedValuesBlockHash{groups=[0:LONG, 1:BYTES_REF], entries=" + expectedEntries[0] + ", size="
-                            : "BytesRefLongBlockHash{keys=[BytesRefKey[channel=1], LongKey[channel=0]], entries="
+                            : "LongBytesRefBlockHash{keys=[LongKey[channel=0], BytesRefKey[channel=1]], entries="
                                 + expectedEntries[0]
                                 + ", size="
                     )

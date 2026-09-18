@@ -81,7 +81,6 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TEXT_EMBE
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.assertNotPartial;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
-import static org.junit.Assume.assumeFalse;
 
 // Each class covers one csv-spec file and should complete well within 20 minutes;
 // monolithic subclasses that run all spec files must add their own longer annotation.
@@ -146,7 +145,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     private static class Protected {
         private final String description;
-        private volatile Boolean completed = null;
+        private volatile boolean completed = false;
         private volatile boolean started = false;
         private volatile Throwable failure = null;
 
@@ -155,13 +154,13 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
 
         private void protectedBlock(Callable<Void> callable) {
-            if (completed != null && completed) {
+            if (completed) {
                 LOGGER.debug("Skipping [{}]: already completed", description);
                 return;
             }
             // In case tests get run in parallel, we ensure only one setup is run, and other tests wait for this
             synchronized (this) {
-                if (completed != null && completed) {
+                if (completed) {
                     LOGGER.debug("Skipping [{}]: already completed", description);
                     return;
                 }
@@ -183,10 +182,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                     fail(failure, "Current test setup failed: " + failure.getMessage());
                 }
             }
-        }
-
-        private boolean wasCompleted() {
-            return completed != null && completed;
         }
 
         private synchronized void reset() {
@@ -244,7 +239,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                     supportsViews()
                 );
             }
-        } else if (VIEWS.wasCompleted()) {
+        } else {
             deleteViews(adminClient());
             VIEWS.reset();
         }

@@ -12,6 +12,7 @@ package org.elasticsearch.columnar.substrate;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.IOSupplier;
 
 import java.io.IOException;
 
@@ -49,5 +50,29 @@ public final class ColumnIteratorWriter {
             numDocsWithField,
             maxDoc
         );
+    }
+
+    /**
+     * Lazy variant: the supplier is only called when the column is sparse. Dense and empty columns
+     * short-circuit before the iterator is constructed, so no cursor is built for them.
+     *
+     * @param docsWithField   supplier of the iterator; called at most once, and only for a sparse field
+     * @param numDocsWithField number of documents that have a value (the cardinality)
+     * @param maxDoc          number of documents in the segment
+     * @param data            output the sparse structure is appended to
+     */
+    public static ColumnIteratorMetadata write(
+        IOSupplier<? extends DocIdSetIterator> docsWithField,
+        int numDocsWithField,
+        int maxDoc,
+        IndexOutput data
+    ) throws IOException {
+        if (numDocsWithField == 0) {
+            return ColumnIteratorMetadata.empty(maxDoc);
+        }
+        if (numDocsWithField == maxDoc) {
+            return ColumnIteratorMetadata.dense(maxDoc);
+        }
+        return write(docsWithField.get(), numDocsWithField, maxDoc, data);
     }
 }

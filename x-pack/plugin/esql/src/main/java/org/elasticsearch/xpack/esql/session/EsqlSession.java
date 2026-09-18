@@ -536,17 +536,16 @@ public class EsqlSession {
         final Configuration finalConfiguration = explainContext != null ? configuration.withExplainOnly() : configuration;
         final FoldContext foldContext = finalConfiguration.newFoldContext();
 
-        // Collect dataset names now (pre-analysis plan has UnresolvedExternalRelation nodes) so that if
-        // resolution fails with a LocatedException, we can check privilege and reinstate the path for
-        // authorised callers before the exception reaches the REST layer.
-        Set<String> resolverDatasetNames = plan.collect(UnresolvedExternalRelation.class)
-            .stream()
-            .map(UnresolvedExternalRelation::datasetName)
-            .filter(n -> n != null)
-            .collect(toSet());
-        ActionListener<Versioned<Result>> analysisListener = resolverDatasetNames.isEmpty()
-            ? listener
-            : ActionListener.wrap(listener::onResponse, e -> reinstateLocationIfAuthorized(e, resolverDatasetNames, listener));
+        // Dataset names are only known after DatasetResolver.replaceDatasets() runs (which rewrites
+        // FROM <name> UnresolvedRelation nodes into UnresolvedExternalRelation nodes with datasetName
+        // set). Collect them lazily via a Holder that analyzedPlan() populates once the rewrite
+        // completes; the Holder is safe to read in the failure callback because replaceDatasets always
+        // completes before any ExternalSourceResolver failure can propagate to the listener.
+        Holder<Set<String>> resolverDatasetNames = new Holder<>(Set.of());
+        ActionListener<Versioned<Result>> analysisListener = ActionListener.wrap(
+            listener::onResponse,
+            e -> reinstateLocationIfAuthorized(e, resolverDatasetNames.get(), listener)
+        );
 
         analyzedPlan(
             plan,
@@ -554,6 +553,7 @@ public class EsqlSession {
             finalConfiguration,
             executionInfo,
             request.filter(),
+            resolverDatasetNames,
             new EsqlCCSUtils.CssPartialErrorsActionListener(finalConfiguration, executionInfo, analysisListener) {
                 @Override
                 public void onResponse(Versioned<LogicalPlan> analyzedPlan) {
@@ -1677,6 +1677,18 @@ public class EsqlSession {
         QueryBuilder requestFilter,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
+        analyzedPlan(parsed, unmappedResolution, configuration, executionInfo, requestFilter, null, logicalPlanListener);
+    }
+
+    private void analyzedPlan(
+        LogicalPlan parsed,
+        UnmappedResolution unmappedResolution,
+        Configuration configuration,
+        EsqlExecutionInfo executionInfo,
+        QueryBuilder requestFilter,
+        @Nullable Holder<Set<String>> datasetNamesHolder,
+        ActionListener<Versioned<LogicalPlan>> logicalPlanListener
+    ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         executionInfo.queryProfile().setUnmappedResolution(unmappedResolution);
 
@@ -1688,6 +1700,15 @@ public class EsqlSession {
         // no FROM pattern can match a registered dataset.
         datasetResolver.replaceDatasets(parsed, projectMetadata, logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
             datasetResolutionProfile.stop();
+            if (datasetNamesHolder != null) {
+                datasetNamesHolder.set(
+                    rewritten.collect(UnresolvedExternalRelation.class)
+                        .stream()
+                        .map(UnresolvedExternalRelation::datasetName)
+                        .filter(n -> n != null)
+                        .collect(toSet())
+                );
+            }
             analyzedPlanAfterDatasetResolution(rewritten, unmappedResolution, configuration, executionInfo, requestFilter, delegate);
         }));
     }

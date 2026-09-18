@@ -3532,9 +3532,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             String where = "format [" + formatName + "]";
             Exception e = expectThrows(Exception.class, future::actionGet);
-            assertThat(where + " must name the source", e.getMessage(), containsString(path));
-            assertThat(where + " must carry the reader's diagnosis", e.getMessage(), containsString(detail));
-            assertThat(where + " must not leak a java type name", e.getMessage(), not(containsString("java.")));
+            // Authorised callers see the storage path via the located form; unauthorised callers get the
+            // unlocated form (no path). The reader's diagnosis must survive in both.
+            String locatedMsg = resolveLocated(e).getMessage();
+            String unlocatedMsg = resolveUnlocated(e).getMessage();
+            assertThat(where + " located form must name the source", locatedMsg, containsString(path));
+            assertThat(where + " located form must carry the reader's diagnosis", locatedMsg, containsString(detail));
+            assertThat(where + " unlocated form must NOT name the source", unlocatedMsg, not(containsString(path)));
+            assertThat(where + " unlocated form must carry the reader's diagnosis", unlocatedMsg, containsString(detail));
+            assertThat(where + " must not leak a java type name", locatedMsg, not(containsString("java.")));
         }
     }
 
@@ -3556,8 +3562,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
         resolver.resolve(List.of(path), Map.of(), future);
 
-        String message = expectThrows(Exception.class, future::actionGet).getMessage();
-        assertEquals("the path must appear once in [" + message + "]", 1, occurrences(message, path));
+        Exception e = expectThrows(Exception.class, future::actionGet);
+        String locatedMsg = resolveLocated(e).getMessage();
+        String unlocatedMsg = resolveUnlocated(e).getMessage();
+        assertEquals("the path must appear once in the located form [" + locatedMsg + "]", 1, occurrences(locatedMsg, path));
+        assertEquals("the path must not appear in the unlocated form [" + unlocatedMsg + "]", 0, occurrences(unlocatedMsg, path));
     }
 
     /**
@@ -7090,5 +7099,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
      */
     private static Exception resolveUnlocated(Exception e) {
         return e instanceof ExternalFailures.LocatedException located ? located.resolve(false) : e;
+    }
+
+    /**
+     * Resolves a {@link ExternalFailures.LocatedException} to its {@code located} variant (storage path included in the
+     * message), or returns {@code e} unchanged for any other exception type. Used in tests that verify that authorised
+     * callers receive the storage path without exercising the privilege-check logic itself.
+     */
+    private static Exception resolveLocated(Exception e) {
+        return e instanceof ExternalFailures.LocatedException located ? located.resolve(true) : e;
     }
 }

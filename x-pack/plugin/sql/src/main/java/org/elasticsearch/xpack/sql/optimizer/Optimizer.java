@@ -1137,7 +1137,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             return p.transformExpressionsUp(PercentileRank.class, per -> {
                 PercentileRanks ranks = ranksPerAggKey.get(new PercentileKey(per));
-                return new InnerAggregate(per, ranks);
+                // the key can only miss if this PERCENTILE_RANK's field was rewritten between the collecting pass above
+                // and this one, i.e. if it holds a nested aggregate that got promoted first. The Verifier rejects
+                // those, so defensively leave the PERCENTILE_RANK alone rather than build an InnerAggregate over null.
+                return ranks == null ? per : new InnerAggregate(per, ranks);
             });
         }
     }

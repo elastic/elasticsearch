@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
@@ -104,6 +105,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class DatafeedManagerTests extends ESTestCase {
@@ -707,7 +709,10 @@ public class DatafeedManagerTests extends ESTestCase {
             return null;
         }).when(datafeedConfigProvider).putDatafeedConfig(any(), any(), any());
 
-        DatafeedConfig datafeed = new DatafeedConfig.Builder("test-datafeed", "test-job").setEsqlQuery("FROM logs").build();
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("test-datafeed", "test-job").setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
         PutDatafeedAction.Request request = new PutDatafeedAction.Request(datafeed);
 
         SecurityContext securityContext = mockSecurityContextWithUser("df-user");
@@ -2397,6 +2402,48 @@ public class DatafeedManagerTests extends ESTestCase {
             "_alias:prod-*",
             true
         );
+    }
+
+    public void testEsqlQueryShapeUpdateShouldRejectBeforeCredentialOrRollbackSideEffects() {
+        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+
+        DatafeedManager manager = newDatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            settings,
+            client,
+            mockMlExtension(credentialManager, apiKeyService),
+            mockAuditor()
+        );
+        DatafeedConfig current = new DatafeedConfig.Builder("esql-datafeed", "job-1").setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .setProjectRouting(ProjectRoutingResolver.LOCAL_ONLY)
+            .build();
+        stubGetDatafeedConfig(datafeedConfigProvider, current);
+
+        DatafeedUpdate update = new DatafeedUpdate.Builder("esql-datafeed").setQueryDelay(
+            org.elasticsearch.core.TimeValue.timeValueMinutes(5)
+        ).setIndices(List.of("other-logs")).setProjectRouting("_alias:other-project").build();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        manager.updateDatafeed(
+            new UpdateDatafeedAction.Request(update),
+            mockClusterStateForUpdate(),
+            null,
+            threadPool,
+            ActionListener.wrap(r -> fail("expected failure"), failure::set)
+        );
+
+        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(failure.get().getMessage(), containsString("Recreate datafeed [esql-datafeed] to change its query shape"));
+        verifyNoInteractions(jobConfigProvider, client, apiKeyService);
     }
 
     @SuppressWarnings("unchecked")

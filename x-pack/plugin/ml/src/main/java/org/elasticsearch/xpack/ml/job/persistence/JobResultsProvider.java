@@ -102,6 +102,7 @@ import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.core.ml.datafeed.EsqlDatafeedSourceCheckpoint;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -708,6 +709,49 @@ public class JobResultsProvider {
             errorHandler,
             () -> new DatafeedTimingStats(jobId)
         );
+    }
+
+    /**
+     * Load the ES|QL source checkpoint by realtime GET against the results write alias.
+     * Search would miss a {@link WriteRequest.RefreshPolicy#NONE} persist until refresh; GET is the
+     * restart-freshness pair for that persist policy.
+     */
+    public void esqlDatafeedSourceCheckpoint(
+        String jobId,
+        Consumer<EsqlDatafeedSourceCheckpoint> handler,
+        Consumer<Exception> errorHandler
+    ) {
+        GetRequest getRequest = new GetRequest(
+            AnomalyDetectorsIndex.resultsWriteAlias(jobId),
+            EsqlDatafeedSourceCheckpoint.documentId(jobId)
+        );
+        getRequest.realtime(true);
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, getRequest, new ActionListener<GetResponse>() {
+            @Override
+            public void onResponse(GetResponse getDocResponse) {
+                try {
+                    if (getDocResponse.isExists() == false) {
+                        handler.accept(null);
+                        return;
+                    }
+                    BytesReference docSource = getDocResponse.getSourceAsBytesRef();
+                    try (XContentParser parser = createParser(docSource)) {
+                        handler.accept(EsqlDatafeedSourceCheckpoint.PARSER.apply(parser, null));
+                    }
+                } catch (Exception e) {
+                    errorHandler.accept(e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                    handler.accept(null);
+                    return;
+                }
+                errorHandler.accept(e);
+            }
+        }, client::get);
     }
 
     private SearchRequestBuilder createLatestDatafeedTimingStatsSearch(String indexName, String jobId) {

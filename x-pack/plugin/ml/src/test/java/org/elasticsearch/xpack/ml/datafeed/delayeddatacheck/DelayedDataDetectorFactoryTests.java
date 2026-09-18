@@ -218,6 +218,8 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
     private DatafeedConfig createEsqlDatafeed(boolean shouldDetectDelayedData, TimeValue delayedDataCheckWindow) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("id", "jobId");
         builder.setEsqlQuery("FROM index1");
+        builder.setSourceTimeField("source_time");
+        builder.setGroupingInterval(TimeValue.timeValueSeconds(2));
         if (shouldDetectDelayedData) {
             builder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(delayedDataCheckWindow));
         } else {

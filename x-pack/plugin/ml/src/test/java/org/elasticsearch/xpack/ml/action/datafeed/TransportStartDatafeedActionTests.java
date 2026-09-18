@@ -8,11 +8,14 @@
 package org.elasticsearch.xpack.ml.action.datafeed;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchModule;
@@ -53,18 +56,38 @@ import static org.mockito.Mockito.verify;
 public class TransportStartDatafeedActionTests extends ESTestCase {
 
     public void testEsqlDatafeedWhenFlagOffShouldRejectStart() {
-        DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", "job").setEsqlQuery("FROM logs").build();
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", "job").setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
         ElasticsearchStatusException exception = expectThrows(
             ElasticsearchStatusException.class,
-            () -> TransportStartDatafeedAction.validateEsqlDatafeedEnabled(
-                datafeed,
-                ClusterState.builder(new ClusterName("test")).build(),
-                ProjectId.DEFAULT
-            )
+            () -> TransportStartDatafeedAction.validateEsqlDatafeedEnabled(datafeed, currentCompatibleClusterState(), ProjectId.DEFAULT)
         );
         assertThat(exception.getMessage(), containsString("xpack.ml.esql_datafeeds.enabled"));
         assertThat(exception.getMessage(), containsString("enable"));
         assertThat(exception.getMessage(), not(containsString("ml_datafeed_esql_query")));
+    }
+
+    public void testStoredEsqlDatafeedOnMixedVersionClusterShouldRejectStart() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", "job").setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
+        ClusterState state = ClusterState.builder(new ClusterName("test"))
+            .putCompatibilityVersions(
+                "older-node",
+                TransportVersion.fromName("histogram_blocks_multivalue_support"),
+                SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS
+            )
+            .build();
+
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> TransportStartDatafeedAction.validateEsqlDatafeedEnabled(datafeed, state, ProjectId.DEFAULT)
+        );
+        assertThat(exception.getMessage(), containsString("cluster upgrade is in progress"));
+        assertThat(exception.getMessage(), containsString("before restoring or starting it"));
     }
 
     public void testClassicDatafeedWhenFlagOffShouldAllowStart() {
@@ -74,6 +97,12 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
             ClusterState.builder(new ClusterName("test")).build(),
             ProjectId.DEFAULT
         );
+    }
+
+    private static ClusterState currentCompatibleClusterState() {
+        return ClusterState.builder(new ClusterName("test"))
+            .putCompatibilityVersions("current-node", TransportVersion.current(), SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS)
+            .build();
     }
 
     @Override
@@ -167,7 +196,10 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
     public void testStartEsqlDatafeedWithCrossProjectEnabledSkipsIndicesOptions() {
         assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
 
-        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder("esql-datafeed", "job_id").setEsqlQuery("FROM logs").build();
+        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder("esql-datafeed", "job_id").setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
 
         CrossProjectModeDecider decider = new CrossProjectModeDecider(
             Settings.builder().put("serverless.cross_project.enabled", true).build()
@@ -186,6 +218,18 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         assertThat(TransportStartDatafeedAction.isCrossProjectMode(effectiveDatafeed), is(false));
         verify(params, never()).setIndicesOptions(any());
         assertThat(params.getIndicesOptions(), sameInstance(SearchRequest.DEFAULT_INDICES_OPTIONS));
+    }
+
+    public void testStartClassicDatafeedSetsIndicesOptions() {
+        DatafeedConfig classicDatafeed = new DatafeedConfig.Builder("classic-datafeed", "job_id").setIndices(List.of("logs"))
+            .setIndicesOptions(org.elasticsearch.action.support.IndicesOptions.STRICT_EXPAND_OPEN)
+            .build();
+        StartDatafeedAction.DatafeedParams params = spy(new StartDatafeedAction.DatafeedParams("classic-datafeed", 0L));
+
+        TransportStartDatafeedAction.setIndicesOptionsIfPresent(params, classicDatafeed);
+
+        verify(params).setIndicesOptions(org.elasticsearch.action.support.IndicesOptions.STRICT_EXPAND_OPEN);
+        assertThat(params.getIndicesOptions(), sameInstance(org.elasticsearch.action.support.IndicesOptions.STRICT_EXPAND_OPEN));
     }
 
     public static TransportStartDatafeedAction.DatafeedTask createDatafeedTask(

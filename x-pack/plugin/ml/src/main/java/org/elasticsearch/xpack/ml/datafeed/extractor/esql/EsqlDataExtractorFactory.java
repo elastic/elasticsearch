@@ -35,7 +35,9 @@ public record EsqlDataExtractorFactory(Client client, DatafeedConfig datafeed, J
         EsqlDataExtractorContext ctx = new EsqlDataExtractorContext(
             job.getId(),
             datafeed.getEsqlQuery(),
+            datafeed.getSourceTimeField(),
             job.getDataDescription().getTimeField(),
+            datafeed.getGroupingInterval().millis(),
             start,
             end,
             datafeed.getHeaders(),

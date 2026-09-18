@@ -341,12 +341,15 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     }
 
     static void validateEsqlDatafeedEnabled(DatafeedConfig datafeedConfig, ClusterState state, ProjectId projectId) {
-        if (datafeedConfig.getEsqlQuery() != null && MachineLearning.isEsqlDatafeedsEnabled(state, projectId) == false) {
+        if (datafeedConfig.minRequiredTransportVersion()
+            .map(required -> state.getMinTransportVersion().supports(required.v1()) == false)
+            .orElse(false)) {
             throw ExceptionsHelper.badRequestException(
-                "Cannot start ES|QL datafeed [{}] while [xpack.ml.esql_datafeeds.enabled] is disabled; "
-                    + "enable ES|QL datafeeds and try again.",
-                datafeedConfig.getId()
+                Messages.getMessage(Messages.DATAFEED_ESQL_START_UPGRADE_IN_PROGRESS, datafeedConfig.getId())
             );
+        }
+        if (datafeedConfig.getEsqlQuery() != null && MachineLearning.isEsqlDatafeedsEnabled(state, projectId) == false) {
+            throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.DATAFEED_ESQL_START_DISABLED, datafeedConfig.getId()));
         }
     }
 

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -82,6 +83,46 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         assertThat(timeAligner.alignToCeil(301L), equalTo(301L));
         assertThat(timeAligner.alignToCeil(399L), equalTo(399L));
         assertThat(timeAligner.alignToCeil(400L), equalTo(400L));
+    }
+
+    public void testEsqlWindowShouldAlignToDeclaredGroupingInterval() {
+        ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueSeconds(1));
+
+        ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(3_980L, 9_200L);
+
+        assertThat(dataExtractor.getContext().start(), equalTo(4_000L));
+        assertThat(dataExtractor.getContext().end(), equalTo(9_000L));
+    }
+
+    public void testRawEsqlQueryShouldUseSameGroupingIntervalAlignment() {
+        ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueMinutes(1));
+
+        ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(3_650_000L, 7_250_000L);
+
+        assertThat(dataExtractor.getContext().start(), equalTo(3_660_000L));
+        assertThat(dataExtractor.getContext().end(), equalTo(7_200_000L));
+    }
+
+    private ChunkedDataExtractorFactory createEsqlFactory(TimeValue groupingInterval) {
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Detector.Builder detectorBuilder = new Detector.Builder();
+        detectorBuilder.setFunction("count");
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Arrays.asList(detectorBuilder.build()));
+        analysisConfig.setBucketSpan(groupingInterval);
+        Job.Builder jobBuilder = new Job.Builder("foo");
+        jobBuilder.setDataDescription(dataDescription);
+        jobBuilder.setAnalysisConfig(analysisConfig);
+        DatafeedConfig.Builder datafeedConfigBuilder = new DatafeedConfig.Builder("foo-feed", jobBuilder.getId());
+        datafeedConfigBuilder.setEsqlQuery("FROM logs");
+        datafeedConfigBuilder.setSourceTimeField("@timestamp");
+        datafeedConfigBuilder.setGroupingInterval(groupingInterval);
+        return new ChunkedDataExtractorFactory(
+            datafeedConfigBuilder.build(),
+            jobBuilder.build(new Date()),
+            xContentRegistry(),
+            dataExtractorFactory
+        );
     }
 
     private ChunkedDataExtractorFactory createFactory(long histogramInterval) {

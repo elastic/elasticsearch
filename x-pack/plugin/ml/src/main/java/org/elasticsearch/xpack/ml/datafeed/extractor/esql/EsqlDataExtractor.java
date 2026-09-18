@@ -9,11 +9,23 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.NodeDisconnectedException;
+import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -36,6 +48,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.IDENTIFIER;
 
 public class EsqlDataExtractor implements DataExtractor {
@@ -43,13 +56,25 @@ public class EsqlDataExtractor implements DataExtractor {
     private static final Logger LOGGER = LogManager.getLogger(EsqlDataExtractor.class);
 
     private static final String EPOCH_MILLIS = "epoch_millis";
-    private static final String DEFAULT_LIMIT = " | LIMIT 10000";
+
+    /**
+     * The row limit this extractor injects into a user's ES|QL query when it has no explicit outer LIMIT
+     * of its own. Once an explicit LIMIT is present in the pipeline (whether the user's or this injected
+     * one), ES|QL applies that LIMIT as its row cap instead of its no-limit default
+     * ({@code esql.query.result_truncation_default_size}, 1000 rows). Callers that need to detect genuine
+     * row-count truncation (e.g. {@code ChunkedDataExtractor}) must compare against this constant, not the
+     * unrelated no-limit default, so the two can never drift apart.
+     */
+    public static final long INJECTED_ROW_LIMIT = 10_000L;
+    private static final String DEFAULT_LIMIT = " | LIMIT " + INJECTED_ROW_LIMIT;
 
     private final Client client;
     private final EsqlDataExtractorContext context;
     private final DatafeedTimingStatsReporter timingStatsReporter;
     private boolean hasNext = true;
     private boolean isCancelled = false;
+    private final Object cancellationLock = new Object();
+    private Task inFlightQueryTask;
 
     public EsqlDataExtractor(Client client, EsqlDataExtractorContext context, DatafeedTimingStatsReporter timingStatsReporter) {
         this.client = Objects.requireNonNull(client);
@@ -71,6 +96,12 @@ public class EsqlDataExtractor implements DataExtractor {
     public void cancel() {
         LOGGER.trace("[{}] Data extractor received cancel request", context.jobId());
         isCancelled = true;
+        Task query;
+        synchronized (cancellationLock) {
+            query = inFlightQueryTask;
+            inFlightQueryTask = null;
+        }
+        cancelQueryTask(query);
     }
 
     @Override
@@ -93,7 +124,7 @@ public class EsqlDataExtractor implements DataExtractor {
             + " | STATS earliest_time = MIN(??timeField), latest_time = MAX(??timeField), total_hits = COUNT(*)";
         QueryBuilder timeFilter = buildTimeFilter();
         long startMs = client.threadPool().relativeTimeInMillis();
-        try (EsqlQueryResponse response = runEsqlQuery(summaryQuery, timeFilter, timeFieldParam())) {
+        try (EsqlQueryResponse response = runEsqlQueryWithSingleRetry(summaryQuery, timeFilter, timeFieldParam())) {
             long durationMs = client.threadPool().relativeTimeInMillis() - startMs;
             timingStatsReporter.reportSearchDuration(TimeValue.timeValueMillis(durationMs));
             return parseSummaryResponse(response.response());
@@ -101,7 +132,7 @@ public class EsqlDataExtractor implements DataExtractor {
     }
 
     private QueryBuilder buildTimeFilter() {
-        return new RangeQueryBuilder(context.timeField()).gte(context.start()).lt(context.end()).format(EPOCH_MILLIS);
+        return new RangeQueryBuilder(context.sourceTimeField()).gte(context.start()).lt(context.end()).format(EPOCH_MILLIS);
     }
 
     private static DataSummary parseSummaryResponse(EsqlResponse response) {
@@ -154,11 +185,18 @@ public class EsqlDataExtractor implements DataExtractor {
         String orderedQuery = appendGeneratedPipeline(maybeInjectLimit(context.esqlQuery()), " | SORT ??timeField ASC");
 
         long startMs = client.threadPool().relativeTimeInMillis();
-        try (EsqlQueryResponse response = runEsqlQuery(orderedQuery, timeFilter, timeFieldParam())) {
+        try (EsqlQueryResponse response = runEsqlQueryWithSingleRetry(orderedQuery, timeFilter, timeFieldParam())) {
             long durationMs = client.threadPool().relativeTimeInMillis() - startMs;
             timingStatsReporter.reportSearchDuration(TimeValue.timeValueMillis(durationMs));
-            Optional<InputStream> data = toNdjson(response.response(), context.timeField(), context.requiredSummaryCountField());
-            return new Result(searchInterval, data, List.of());
+            ExtractedData extractedData = toNdjson(
+                response.response(),
+                context.jobId(),
+                context.emittedTimeField(),
+                context.start(),
+                context.end(),
+                context.requiredSummaryCountField()
+            );
+            return new Result(searchInterval, extractedData.data(), List.of(), extractedData.rowCount());
         }
     }
 
@@ -173,6 +211,32 @@ public class EsqlDataExtractor implements DataExtractor {
             request.projectRouting(context.projectRouting());
         }
         return execute(request);
+    }
+
+    private EsqlQueryResponse runEsqlQueryWithSingleRetry(String query, QueryBuilder timeFilter, List<EsqlQueryParam> params) {
+        for (int attempt = 0; attempt < 2; attempt++) {
+            if (isCancelled) {
+                throw new IllegalStateException("ES|QL query was cancelled");
+            }
+            try {
+                return runEsqlQuery(query, timeFilter, params);
+            } catch (RuntimeException e) {
+                if (attempt == 0 && isCancelled == false && isNodeChurnFailure(e)) {
+                    LOGGER.debug(() -> "[" + context.jobId() + "] ES|QL query failed due to node churn; retrying the same range", e);
+                    continue;
+                }
+                throw e;
+            }
+        }
+        throw new AssertionError("unreachable");
+    }
+
+    public static boolean isNodeChurnFailure(Exception e) {
+        Throwable cause = ExceptionsHelper.unwrapCause(e);
+        return cause instanceof NodeClosedException
+            || cause instanceof NodeDisconnectedException
+            || cause instanceof NodeNotConnectedException
+            || cause instanceof UnavailableShardsException;
     }
 
     static String maybeInjectLimit(String query) {
@@ -190,167 +254,124 @@ public class EsqlDataExtractor implements DataExtractor {
      * a depth-zero pipeline command that determines whether the datafeed needs its safety limit.
      */
     private static LimitScan scanForOuterLimit(String query) {
-        int nestingDepth = 0;
-        boolean hasOuterLimit = false;
-        for (int index = 0; index < query.length();) {
-            char character = query.charAt(index);
-            if (character == '"') {
-                index = skipQuotedString(query, index);
-            } else if (character == '`') {
-                index = skipQuotedIdentifier(query, index);
-            } else if (character == '/' && index + 1 < query.length() && query.charAt(index + 1) == '/') {
-                index = skipLineComment(query, index + 2);
-            } else if (character == '/' && index + 1 < query.length() && query.charAt(index + 1) == '*') {
-                index = skipBlockComment(query, index + 2);
-            } else if (isOpeningDelimiter(character)) {
-                nestingDepth++;
-                index++;
-            } else if (isClosingDelimiter(character)) {
-                nestingDepth = Math.max(0, nestingDepth - 1);
-                index++;
-            } else if (character == '|' && nestingDepth == 0) {
-                index++;
-                index = skipWhitespaceAndComments(query, index);
-                if (isLimitCommandAt(query, index)) {
-                    hasOuterLimit = true;
-                }
-            } else {
-                index++;
-            }
-        }
-        return new LimitScan(hasOuterLimit);
+        return new LimitScan(EsqlQueryClauseScanner.scan(query, "").hasOuterLimit());
     }
 
     private static boolean endsInLineComment(String query) {
-        for (int index = 0; index < query.length();) {
-            char character = query.charAt(index);
-            if (character == '"') {
-                index = skipQuotedString(query, index);
-            } else if (character == '`') {
-                index = skipQuotedIdentifier(query, index);
-            } else if (character == '/' && index + 1 < query.length() && query.charAt(index + 1) == '/') {
-                index = skipLineComment(query, index + 2);
-                if (index == query.length()) {
-                    return true;
-                }
-            } else if (character == '/' && index + 1 < query.length() && query.charAt(index + 1) == '*') {
-                index = skipBlockComment(query, index + 2);
-            } else {
-                index++;
-            }
-        }
-        return false;
-    }
-
-    private static boolean isOpeningDelimiter(char character) {
-        return character == '(' || character == '[' || character == '{';
-    }
-
-    private static boolean isClosingDelimiter(char character) {
-        return character == ')' || character == ']' || character == '}';
-    }
-
-    private static int skipWhitespaceAndComments(String query, int index) {
-        while (index < query.length()) {
-            if (Character.isWhitespace(query.charAt(index))) {
-                index++;
-            } else if (query.startsWith("//", index)) {
-                index = skipLineComment(query, index + 2);
-            } else if (query.startsWith("/*", index)) {
-                index = skipBlockComment(query, index + 2);
-            } else {
-                break;
-            }
-        }
-        return index;
-    }
-
-    private static boolean isLimitCommandAt(String query, int index) {
-        return index + "LIMIT".length() <= query.length()
-            && query.regionMatches(true, index, "LIMIT", 0, "LIMIT".length())
-            && (index + "LIMIT".length() == query.length() || isCommandBoundary(query.charAt(index + "LIMIT".length())));
-    }
-
-    private static boolean isCommandBoundary(char character) {
-        return Character.isWhitespace(character) || character == '/' || character == '(' || character == ')';
-    }
-
-    private static int skipQuotedString(String query, int index) {
-        boolean tripleQuoted = query.startsWith("\"\"\"", index);
-        int closingQuoteLength = tripleQuoted ? 3 : 1;
-        index += closingQuoteLength;
-        while (index < query.length()) {
-            if (tripleQuoted && query.startsWith("\"\"\"", index)) {
-                index += closingQuoteLength;
-                for (int optionalQuote = 0; optionalQuote < 2 && index < query.length() && query.charAt(index) == '"'; optionalQuote++) {
-                    index++;
-                }
-                return index;
-            }
-            if (tripleQuoted == false && query.charAt(index) == '\\') {
-                index += 2;
-            } else if (tripleQuoted == false && query.charAt(index) == '"') {
-                return index + 1;
-            } else {
-                index++;
-            }
-        }
-        return index;
-    }
-
-    private static int skipQuotedIdentifier(String query, int index) {
-        index++;
-        while (index < query.length()) {
-            if (query.charAt(index) == '`') {
-                if (index + 1 < query.length() && query.charAt(index + 1) == '`') {
-                    index += 2;
-                } else {
-                    return index + 1;
-                }
-            } else {
-                index++;
-            }
-        }
-        return index;
-    }
-
-    private static int skipLineComment(String query, int index) {
-        while (index < query.length() && query.charAt(index) != '\n' && query.charAt(index) != '\r') {
-            index++;
-        }
-        return index;
-    }
-
-    private static int skipBlockComment(String query, int index) {
-        int depth = 1;
-        while (index < query.length() && depth > 0) {
-            if (query.startsWith("/*", index)) {
-                depth++;
-                index += 2;
-            } else if (query.startsWith("*/", index)) {
-                depth--;
-                index += 2;
-            } else {
-                index++;
-            }
-        }
-        return index;
+        return EsqlQueryClauseScanner.endsInLineComment(query);
     }
 
     private record LimitScan(boolean hasOuterLimit) {}
 
     private List<EsqlQueryParam> timeFieldParam() {
-        return List.of(new EsqlQueryParam("timeField", context.timeField(), IDENTIFIER));
+        return List.of(new EsqlQueryParam("timeField", context.emittedTimeField(), IDENTIFIER));
     }
 
-    private EsqlQueryResponse execute(EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> request) {
+    EsqlQueryResponse execute(EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> request) {
+        NodeClient nodeClient = nodeClient();
+        if (nodeClient != null) {
+            if (client instanceof ParentTaskAssigningClient parentTaskClient) {
+                request.request().setParentTask(parentTaskClient.getParentTask());
+            }
+            return executeTracked(nodeClient, request);
+        }
         return ClientHelper.executeWithHeaders(context.headers(), ClientHelper.ML_ORIGIN, client, () -> request.execute().actionGet());
     }
 
-    private static Optional<InputStream> toNdjson(EsqlResponse response, String timeField, String requiredSummaryCountField)
-        throws IOException {
+    private EsqlQueryResponse executeTracked(
+        NodeClient nodeClient,
+        EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> request
+    ) {
+        // Stored datafeed headers must reach _query for the same security behavior as classic extractors.
+        return ClientHelper.executeWithHeaders(context.headers(), ClientHelper.ML_ORIGIN, client, () -> {
+            var future = new org.elasticsearch.action.support.PlainActionFuture<EsqlQueryResponse>();
+            // TransportEsqlQueryAction#doExecute wraps the terminal listener with ActionListener::respondAndRelease,
+            // which decRefs the response as soon as onResponse() returns, on the assumption that a synchronous
+            // consumer already read it (or took its own reference) before returning. PlainActionFuture#onResponse
+            // only stores the reference for a later actionGet() call and does not take a reference of its own, so
+            // without incRef-ing here the response is already closed (ref count 0) by the time future.actionGet()
+            // hands it back below, and response.response()/response() throws IllegalStateException("closed").
+            ActionListener<EsqlQueryResponse> retainingListener = ActionListener.wrap(response -> {
+                response.incRef();
+                future.onResponse(response);
+            }, future::onFailure);
+            Task task = executeAndReturnTask(nodeClient, request, retainingListener);
+            synchronized (cancellationLock) {
+                if (isCancelled) {
+                    cancelQueryTask(task);
+                } else {
+                    inFlightQueryTask = task;
+                }
+            }
+            try {
+                return future.actionGet();
+            } finally {
+                synchronized (cancellationLock) {
+                    if (inFlightQueryTask == task) {
+                        inFlightQueryTask = null;
+                    }
+                }
+            }
+        });
+    }
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private static Task executeAndReturnTask(
+        NodeClient client,
+        EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> request,
+        ActionListener<EsqlQueryResponse> listener
+    ) {
+        return client.executeAndReturnTask(request.action(), request.request(), (ActionListener) listener);
+    }
+
+    private void cancelQueryTask(Task task) {
+        NodeClient nodeClient = nodeClient();
+        if (task == null || nodeClient == null) {
+            return;
+        }
+        CancelTasksRequest request = new CancelTasksRequest().setTargetTaskId(new TaskId(nodeClient.getLocalNodeId(), task.getId()));
+        request.setReason("datafeed stopped");
+        new OriginSettingClient(nodeClient, TASKS_ORIGIN).admin().cluster().cancelTasks(request, ActionListener.noop());
+    }
+
+    private NodeClient nodeClient() {
+        if (client instanceof NodeClient nodeClient) {
+            return nodeClient;
+        }
+        if (client instanceof ParentTaskAssigningClient parentTaskClient && parentTaskClient.unwrap() instanceof NodeClient nodeClient) {
+            return nodeClient;
+        }
+        return null;
+    }
+
+    private static ExtractedData toNdjson(
+        EsqlResponse response,
+        String jobId,
+        String emittedTimeField,
+        long sourceWindowStart,
+        long sourceWindowEnd,
+        String requiredSummaryCountField
+    ) throws IOException {
         List<? extends ColumnInfo> columns = response.columns();
-        EsqlDatafeedQueryValidator.checkRequiredColumns(columns, timeField, requiredSummaryCountField);
+        // datafeedId isn't threaded through EsqlDataExtractorContext (extraction runtime path); the message
+        // degrades gracefully to the datafeed-agnostic wording in that case.
+        EsqlDatafeedQueryValidator.checkRequiredColumns(columns, emittedTimeField, requiredSummaryCountField, null);
+        List<List<Object>> materializedRows = new ArrayList<>();
+        for (Iterable<Object> row : response.rows()) {
+            List<Object> values = new ArrayList<>();
+            for (Object value : row) {
+                values.add(value);
+            }
+            materializedRows.add(values);
+        }
+        EsqlDatafeedQueryValidator.validateEmittedTimesInSourceWindow(
+            columns,
+            materializedRows,
+            jobId,
+            emittedTimeField,
+            sourceWindowStart,
+            sourceWindowEnd
+        );
         boolean[] isDateColumn = new boolean[columns.size()];
         for (int i = 0; i < columns.size(); i++) {
             String type = columns.get(i).outputType();
@@ -359,15 +380,17 @@ public class EsqlDataExtractor implements DataExtractor {
 
         BytesStreamOutput out = new BytesStreamOutput();
         boolean hasRows = false;
-        for (Iterable<Object> row : response.rows()) {
+        for (List<Object> row : materializedRows) {
             hasRows = true;
             try (XContentBuilder b = XContentFactory.jsonBuilder(out)) {
                 writeRow(b, row, columns, isDateColumn);
             }
             out.write('\n');
         }
-        return hasRows ? Optional.of(out.bytes().streamInput()) : Optional.empty();
+        return new ExtractedData(hasRows ? Optional.of(out.bytes().streamInput()) : Optional.empty(), materializedRows.size());
     }
+
+    private record ExtractedData(Optional<InputStream> data, long rowCount) {}
 
     private static void writeRow(XContentBuilder b, Iterable<Object> row, List<? extends ColumnInfo> columns, boolean[] isDateColumn)
         throws IOException {

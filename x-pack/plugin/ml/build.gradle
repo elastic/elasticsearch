@@ -89,6 +89,9 @@ dependencies {
   // This should not be here
   testImplementation(testArtifact(project(xpackModule('security'))))
   testImplementation project(path: xpackModule('wildcard'))
+  testImplementation project(path: xpackModule('esql'))
+  testImplementation project(path: xpackModule('esql-core'))
+  testImplementation project(':x-pack:plugin:encryption')
   // ml deps
   api project(':libs:grok')
   api project(':modules:lang-mustache')

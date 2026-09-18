@@ -761,7 +761,8 @@ public class JobConfigProvider {
                         config.getProjectRouting(),
                         job.getDataDescription().getTimeField(),
                         EsqlDatafeedQueryValidator.requiredSummaryCountField(config, job),
-                        listener
+                        listener,
+                        config.getId()
                     );
                 } else {
                     listener.onResponse(Boolean.TRUE);

@@ -21,6 +21,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
@@ -28,11 +29,13 @@ import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
+import org.elasticsearch.xpack.core.ml.datafeed.EsqlDatafeedSourceCheckpoint;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
@@ -43,6 +46,7 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DatafeedFieldConflictDiagnostics;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DatafeedFieldConflictTracker;
 import org.elasticsearch.xpack.ml.datafeed.extractor.chunked.ChunkedDataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorFactory;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
@@ -56,7 +60,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
@@ -94,6 +100,11 @@ class DatafeedJob {
     private final long delayedDataCheckFreq;
     private final long bucketSpanMs;
     private final boolean isEsqlDatafeed;
+    private final long groupingIntervalMs;
+    @Nullable
+    private final String esqlCheckpointFingerprint;
+    @Nullable
+    private final Consumer<EsqlDatafeedSourceCheckpoint> esqlSourceCheckpointPersister;
     private final CrossClusterSearchStats crossClusterSearchStats;
     private final DatafeedFieldConflictTracker fieldConflictTracker = new DatafeedFieldConflictTracker();
 
@@ -105,8 +116,18 @@ class DatafeedJob {
     private final AtomicBoolean running = new AtomicBoolean(true);
     private volatile boolean isIsolated;
     private volatile boolean haveEverSeenData;
+    private volatile boolean completedContinuousLookback;
+    private volatile boolean completedContinuousLookbackProvesEmptyFinalizedGap;
+    private volatile boolean collectingLookbackRecordTimes;
+    private volatile boolean lookbackPostedRecords;
+    @Nullable
+    private volatile Long latestLookbackRecordTimeMs;
     private volatile long consecutiveDelayedDataBuckets;
     private volatile SearchInterval searchInterval;
+    @Nullable
+    private volatile DataExtractor activeDataExtractor;
+    @Nullable
+    private volatile Long esqlSourceEndMs;
 
     DatafeedJob(
         String datafeedId,
@@ -130,7 +151,11 @@ class DatafeedJob {
         long delayedDataCheckFreq,
         long bucketSpanMs,
         boolean isEsqlDatafeed,
-        CrossClusterSearchStats crossClusterSearchStats
+        CrossClusterSearchStats crossClusterSearchStats,
+        long groupingIntervalMs,
+        @Nullable String esqlCheckpointFingerprint,
+        @Nullable Long esqlSourceEndMs,
+        @Nullable Consumer<EsqlDatafeedSourceCheckpoint> esqlSourceCheckpointPersister
     ) {
         this.datafeedId = datafeedId;
         this.projectRouting = projectRouting;
@@ -156,12 +181,17 @@ class DatafeedJob {
         this.delayedDataCheckFreq = delayedDataCheckFreq;
         this.bucketSpanMs = bucketSpanMs;
         this.isEsqlDatafeed = isEsqlDatafeed;
+        this.groupingIntervalMs = groupingIntervalMs;
+        this.esqlCheckpointFingerprint = esqlCheckpointFingerprint;
+        this.esqlSourceEndMs = esqlSourceEndMs;
+        this.esqlSourceCheckpointPersister = esqlSourceCheckpointPersister;
         this.crossClusterSearchStats = Objects.requireNonNull(crossClusterSearchStats);
     }
 
     void isolate() {
         isIsolated = true;
         timingStatsReporter.disallowPersisting();
+        cancelActiveExtractor();
     }
 
     boolean isIsolated() {
@@ -215,7 +245,17 @@ class DatafeedJob {
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
         request.setCalcInterim(true);
         request.setRefreshRequired(false);
-        run(lookbackStartTimeMs, lookbackEnd, request);
+        resetLookbackRecordState();
+        collectingLookbackRecordTimes = true;
+        try {
+            run(lookbackStartTimeMs, lookbackEnd, request);
+        } catch (EmptyDataCountException e) {
+            markCompletedContinuousLookback(isLookbackOnly);
+            throw e;
+        } finally {
+            collectingLookbackRecordTimes = false;
+        }
+        markCompletedContinuousLookback(isLookbackOnly);
         if (shouldPersistAfterLookback(isLookbackOnly)) {
             sendPersistRequest();
         }
@@ -237,12 +277,11 @@ class DatafeedJob {
     }
 
     private long skipToStartTime(long startTime) {
-        if (lastEndTimeMs != null) {
-            if (lastEndTimeMs + 1 > startTime) {
-                // start time is before last checkpoint, thus continue from checkpoint
-                return lastEndTimeMs + 1;
+        Long resumeFromMs = sourceResumeFromMs();
+        if (resumeFromMs != null) {
+            if (resumeFromMs > startTime) {
+                return resumeFromMs;
             }
-            // start time is after last checkpoint, thus we need to skip time
             FlushJobAction.Request request = new FlushJobAction.Request(jobId);
             request.setSkipTime(String.valueOf(startTime));
             request.setRefreshRequired(false);
@@ -253,44 +292,133 @@ class DatafeedJob {
         return startTime;
     }
 
-    private void skipStaleEmptyBuckets(long realtimeStart) {
-        if (isEsqlDatafeed == false) {
+    private long sourceWindowStart(long configuredStart) {
+        Long resumeFromMs = sourceResumeFromMs();
+        if (resumeFromMs == null) {
+            return configuredStart;
+        }
+        return Math.max(configuredStart, resumeFromMs);
+    }
+
+    @Nullable
+    private Long sourceResumeFromMs() {
+        if (isEsqlDatafeed) {
+            return esqlSourceEndMs;
+        }
+        return lastEndTimeMs == null ? null : lastEndTimeMs + 1;
+    }
+
+    private long realtimeAdvanceTime(long frequencyAlignedEnd) {
+        if (isEsqlDatafeed == false || groupingIntervalMs <= 0) {
+            return frequencyAlignedEnd;
+        }
+        return Intervals.alignToFloor(frequencyAlignedEnd, groupingIntervalMs);
+    }
+
+    private void resetLookbackRecordState() {
+        lookbackPostedRecords = false;
+        latestLookbackRecordTimeMs = null;
+    }
+
+    private void markCompletedContinuousLookback(boolean isLookbackOnly) {
+        completedContinuousLookback = false;
+        completedContinuousLookbackProvesEmptyFinalizedGap = false;
+        if (isLookbackOnly || isRunning() == false || isIsolated) {
             return;
         }
-        if (latestFinalBucketEndTimeMs <= 0) {
+        completedContinuousLookback = true;
+        // A zero-row lookback proves the gap empty. With posted rows, a missing latest timestamp is ambiguous and must not skip.
+        completedContinuousLookbackProvesEmptyFinalizedGap = lookbackPostedRecords == false
+            || (latestLookbackRecordTimeMs != null && latestLookbackRecordTimeMs <= latestFinalBucketEndTimeMs);
+    }
+
+    private void recordLookbackDataCounts(DataCounts counts) {
+        if (collectingLookbackRecordTimes == false || counts.getProcessedRecordCount() == 0) {
             return;
         }
-        long gapBuckets = (realtimeStart - latestFinalBucketEndTimeMs) / bucketSpanMs;
-        if (gapBuckets <= MAX_EMPTY_BUCKETS_TO_MATERIALISE) {
+        lookbackPostedRecords = true;
+        if (counts.getLatestRecordTimeStamp() == null) {
             return;
         }
-        long skipTo = realtimeStart - MAX_EMPTY_BUCKETS_TO_MATERIALISE * bucketSpanMs;
+        long latestRecordTimeMs = counts.getLatestRecordTimeStamp().getTime();
+        latestLookbackRecordTimeMs = latestLookbackRecordTimeMs == null
+            ? latestRecordTimeMs
+            : Math.max(latestLookbackRecordTimeMs, latestRecordTimeMs);
+    }
+
+    private boolean shouldSkipEmptyBucketsAfterCompletedLookback(long realtimeStart) {
+        if (isEsqlDatafeed == false
+            || completedContinuousLookbackProvesEmptyFinalizedGap == false
+            || latestFinalBucketEndTimeMs <= 0
+            || realtimeStart <= latestFinalBucketEndTimeMs) {
+            return false;
+        }
+        assert bucketSpanMs > 0;
+        long gapMs = realtimeStart - latestFinalBucketEndTimeMs;
+        long completeBuckets = gapMs / bucketSpanMs;
+        return completeBuckets > MAX_EMPTY_BUCKETS_TO_MATERIALISE
+            || (completeBuckets == MAX_EMPTY_BUCKETS_TO_MATERIALISE && gapMs % bucketSpanMs > 0);
+    }
+
+    private void skipEmptyBucketsAfterCompletedLookback(long realtimeStart) {
+        if (isRunning() == false || isIsolated) {
+            return;
+        }
+        long gapMs = realtimeStart - latestFinalBucketEndTimeMs;
+        long gapBuckets = gapMs / bucketSpanMs + (gapMs % bucketSpanMs == 0 ? 0 : 1);
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
-        request.setSkipTime(String.valueOf(skipTo));
+        request.setSkipTime(String.valueOf(realtimeStart));
         request.setRefreshRequired(false);
-        FlushJobAction.Response response = flushJob(request);
+        if (isRunning() == false || isIsolated) {
+            return;
+        }
+        FlushJobAction.Response response;
+        try {
+            response = flushJob(request);
+        } catch (AnalysisProblemException e) {
+            throw new AnalysisProblemException(
+                e.nextDelayInMsSinceEpoch,
+                e.shouldStop,
+                new ElasticsearchException(
+                    format(
+                        "datafeed [%s] for job [%s] failed to skip empty ES|QL window [%d, %d) (gap [%dms], [%d] bucket spans "
+                            + "at [%dms]) with skip_time to [%d]; adjust the ES|QL query window or bucket span, then restart "
+                            + "the datafeed to retry",
+                        datafeedId,
+                        jobId,
+                        latestFinalBucketEndTimeMs,
+                        realtimeStart,
+                        gapMs,
+                        gapBuckets,
+                        bucketSpanMs,
+                        realtimeStart
+                    ),
+                    e
+                )
+            );
+        }
         if (response.getLastFinalizedBucketEnd() != null) {
             this.latestFinalBucketEndTimeMs = response.getLastFinalizedBucketEnd().toEpochMilli();
         }
-        String msg = Messages.getMessage(
-            Messages.JOB_AUDIT_DATAFEED_SKIPPED_EMPTY_BUCKETS,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(skipTo),
-            gapBuckets
-        );
-        auditor.info(jobId, msg);
-        LOGGER.info("[{}] {}", jobId, msg);
     }
 
     long runRealtime() throws Exception {
-        long start = lastEndTimeMs == null ? lookbackStartTimeMs : Math.max(lookbackStartTimeMs, lastEndTimeMs + 1);
+        long start = sourceWindowStart(lookbackStartTimeMs);
         long nowMinusQueryDelay = currentTimeSupplier.get() - queryDelayMs;
         long end = toIntervalStartEpochMs(nowMinusQueryDelay);
-        skipStaleEmptyBuckets(start);
+        if (completedContinuousLookback && isRunning() && isIsolated == false) {
+            // A completed lookback has extracted and posted this range, so skip_time avoids materialising empty bucket results.
+            if (shouldSkipEmptyBucketsAfterCompletedLookback(start)) {
+                skipEmptyBucketsAfterCompletedLookback(start);
+            }
+            completedContinuousLookback = false;
+            completedContinuousLookbackProvesEmptyFinalizedGap = false;
+        }
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
         request.setWaitForNormalization(false);
         request.setRefreshRequired(false);
         request.setCalcInterim(true);
-        request.setAdvanceTime(String.valueOf(end));
+        request.setAdvanceTime(String.valueOf(realtimeAdvanceTime(end)));
         run(start, end, request);
         checkForMissingDataIfNecessary();
         return nextRealtimeTimestamp();
@@ -412,7 +540,11 @@ class DatafeedJob {
      *         otherwise <code>false</code> is returned
      */
     public boolean stop() {
-        return running.compareAndSet(true, false);
+        boolean stopped = running.compareAndSet(true, false);
+        if (stopped) {
+            cancelActiveExtractor();
+        }
+        return stopped;
     }
 
     public boolean isRunning() {
@@ -432,6 +564,7 @@ class DatafeedJob {
         long recordCount = 0;
         List<LinkedClusterState> linkedClusterStates = List.of();
         DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
+        activeDataExtractor = dataExtractor;
         try {
             while (dataExtractor.hasNext()) {
                 if ((isIsolated || isRunning() == false) && dataExtractor.isCancelled() == false) {
@@ -453,7 +586,18 @@ class DatafeedJob {
                         );
                     }
                 } catch (Exception e) {
-                    LOGGER.warn(() -> "[" + jobId + "] error while extracting data", e);
+                    if (dataExtractor.isCancelled()
+                        || isRunning() == false
+                        || isIsolated
+                        || e instanceof CancellationException
+                        || e instanceof TaskCancelledException) {
+                        return;
+                    }
+                    if (EsqlDataExtractor.isNodeChurnFailure(e)) {
+                        LOGGER.debug(() -> "[" + jobId + "] ES|QL extraction failed due to node churn", e);
+                    } else {
+                        LOGGER.warn(() -> "[" + jobId + "] error while extracting data", e);
+                    }
                     // When extraction problems are encountered, we do not want to advance time.
                     // Instead, it is preferable to retry the given interval next time an extraction
                     // is triggered.
@@ -530,14 +674,17 @@ class DatafeedJob {
                         break;
                     }
                     recordCount += counts.getProcessedRecordCount();
+                    recordLookbackDataCounts(counts);
                     haveEverSeenData |= (recordCount > 0);
-                    if (counts.getLatestRecordTimeStamp() != null) {
+                    if (isEsqlDatafeed == false && counts.getLatestRecordTimeStamp() != null) {
                         lastEndTimeMs = counts.getLatestRecordTimeStamp().getTime();
                     }
                 }
             }
 
-            lastEndTimeMs = Math.max(lastEndTimeMs == null ? 0 : lastEndTimeMs, dataExtractor.getEndTime() - 1);
+            if (isEsqlDatafeed == false && isRunning() && isIsolated == false && dataExtractor.isCancelled() == false) {
+                lastEndTimeMs = Math.max(lastEndTimeMs == null ? 0 : lastEndTimeMs, dataExtractor.getEndTime() - 1);
+            }
             LOGGER.debug(
                 "[{}] Complete iterating data extractor [{}], [{}], [{}], [{}], [{}]",
                 jobId,
@@ -549,6 +696,8 @@ class DatafeedJob {
             );
 
             CrossClusterSearchStats.ScopeChangeResult scopeChange = updateCrossClusterSearchStats(linkedClusterStates);
+
+            Optional<SearchInterval> incompleteSearchInterval = dataExtractor.getIncompleteSearchInterval();
 
             // We can now throw any stored error as we have updated time.
             if (error != null) {
@@ -568,6 +717,14 @@ class DatafeedJob {
                     handleFieldConflictsAfterScopeChange(scopeChange);
                     checkForAnomaliesAfterScopeChange(scopeChange);
                 }
+
+                if (incompleteSearchInterval.isPresent()) {
+                    notifyIncompleteEsqlChunk(incompleteSearchInterval.get());
+                }
+
+                if (isEsqlDatafeed && dataExtractor.isCancelled() == false && incompleteSearchInterval.isEmpty()) {
+                    commitEsqlSourceCheckpoint(dataExtractor.getEndTime());
+                }
             }
 
             if (recordCount == 0) {
@@ -576,6 +733,24 @@ class DatafeedJob {
         } finally {
             // Ensure the extractor is always destroyed to clean up scroll contexts
             dataExtractor.destroy();
+            activeDataExtractor = null;
+        }
+    }
+
+    private void notifyIncompleteEsqlChunk(SearchInterval interval) {
+        String message = Messages.getMessage(
+            Messages.DATAFEED_ESQL_INCOMPLETE_CHUNK,
+            Instant.ofEpochMilli(interval.startMs()),
+            Instant.ofEpochMilli(interval.endMs())
+        );
+        LOGGER.warn("[{}] {}", jobId, message);
+        auditor.warning(jobId, message);
+    }
+
+    private void cancelActiveExtractor() {
+        DataExtractor extractor = activeDataExtractor;
+        if (extractor != null) {
+            extractor.cancel();
         }
     }
 
@@ -826,10 +1001,39 @@ class DatafeedJob {
     }
 
     /**
+     * Persist the exclusive source upper bound after extraction, post, and flush all succeed.
+     * Truncation (Task 6) must not call this until a complete window is committed; cancel/isolate
+     * paths skip this call entirely. The persister blocks on bulk index ack (RefreshPolicy.NONE);
+     * {@link #esqlSourceEndMs} updates only after that ack returns. Restart load uses realtime GET,
+     * so the unrefreshed write is visible without waiting for a refresh.
+     */
+    private void commitEsqlSourceCheckpoint(long sourceEndMs) {
+        if (esqlSourceCheckpointPersister == null || esqlCheckpointFingerprint == null) {
+            return;
+        }
+        EsqlDatafeedSourceCheckpoint checkpoint = new EsqlDatafeedSourceCheckpoint(
+            jobId,
+            datafeedId,
+            sourceEndMs,
+            esqlCheckpointFingerprint
+        );
+        esqlSourceCheckpointPersister.accept(checkpoint);
+        esqlSourceEndMs = sourceEndMs;
+    }
+
+    /**
      * Visible for testing
      */
     Long lastEndTimeMs() {
         return lastEndTimeMs;
+    }
+
+    /**
+     * Visible for testing
+     */
+    @Nullable
+    Long esqlSourceEndMs() {
+        return esqlSourceEndMs;
     }
 
     CrossClusterSearchStats getCrossClusterSearchStats() {

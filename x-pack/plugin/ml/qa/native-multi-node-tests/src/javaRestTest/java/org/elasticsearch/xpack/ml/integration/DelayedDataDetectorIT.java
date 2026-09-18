@@ -252,6 +252,6 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private DelayedDataDetector newDetector(Job job, DatafeedConfig datafeedConfig) {
-        return DelayedDataDetectorFactory.buildDetector(job, datafeedConfig, client(), xContentRegistry());
+        return DelayedDataDetectorFactory.buildDetector(job, datafeedConfig, client(), xContentRegistry(), null);
     }
 }

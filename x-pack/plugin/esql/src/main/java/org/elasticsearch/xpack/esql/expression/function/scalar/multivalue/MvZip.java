@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -169,7 +168,7 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
     @Evaluator
     static void process(
         BytesRefBlock.Builder builder,
-        @Position int position,
+        int position,
         BytesRefBlock leftField,
         BytesRefBlock rightField,
         BytesRef delim,

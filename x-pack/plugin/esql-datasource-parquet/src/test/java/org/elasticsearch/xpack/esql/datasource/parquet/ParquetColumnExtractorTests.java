@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.Releasables;
@@ -1169,9 +1170,11 @@ public class ParquetColumnExtractorTests extends ESTestCase {
 
     private static void assertAllNull(Block block, int expectedCount) {
         assertEquals(expectedCount, block.getPositionCount());
-        for (int i = 0; i < expectedCount; i++) {
-            assertTrue("slot " + i + " should be null", block.isNull(i));
-        }
+        // Eager scan emits ConstantNullBlock; a typed dense all-null would also pass isNull(i)
+        // and areAllValuesNull(). Pin the constant-null shape so a stitch/decode regression
+        // that still null-fills cells cannot hide here.
+        assertTrue("unresolved extract must emit ConstantNullBlock", block instanceof ConstantNullBlock);
+        assertTrue(block.areAllValuesNull());
     }
 
     private static long nextRowDivisibleByFive(long row) {

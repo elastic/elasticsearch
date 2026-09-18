@@ -341,8 +341,9 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         } catch (Throwable e) {
             // Defensive cleanup: anything left in perBucketBlocks (e.g. when decode partially
             // completed before failing, or stitchAndGather threw between two columns) needs
-            // releasing. On success all entries are null (stitchAndGather nulls them), so this
-            // path is failure-only in practice.
+            // releasing. On success, resolved columns have their slots nulled by stitchAndGather;
+            // unresolved columns never enter stitch, so those rows stay null by construction.
+            // Either way this path is failure-only in practice.
             for (Block[] perBucket : perBucketBlocks) {
                 for (Block b : perBucket) {
                     if (b != null) {

@@ -14,6 +14,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -485,6 +486,45 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         deleteDataSource(parent);
     }
 
+    /**
+     * A dataset registered with a bare budget (max_errors or max_error_ratio without error_mode) must be
+     * refused at PUT time with a 400 whose message names error_mode and the two modes that accept a budget.
+     * Registering the same budget alongside an explicit mode must succeed, so the check discriminates
+     * rather than refusing every budget.
+     */
+    public void testPutDatasetRejectsBareErrorBudget() throws IOException {
+        final String parent = "bare_budget_parent";
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
+
+        // bare max_errors — refused
+        ResponseException exMaxErrors = expectThrows(
+            ResponseException.class,
+            () -> putDataset("bare_max_errors_child", parent, "s3://bucket/data.parquet", Map.of("max_errors", "100"))
+        );
+        assertThat(exMaxErrors.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        String bodyMaxErrors = EntityUtils.toString(exMaxErrors.getResponse().getEntity());
+        assertThat(bodyMaxErrors, containsString("error_mode"));
+        assertThat(bodyMaxErrors, containsString("skip_row"));
+        assertThat(bodyMaxErrors, containsString("null_field"));
+
+        // bare max_error_ratio — refused, same message shape as max_errors
+        ResponseException exRatio = expectThrows(
+            ResponseException.class,
+            () -> putDataset("bare_ratio_child", parent, "s3://bucket/data.parquet", Map.of("max_error_ratio", "0.1"))
+        );
+        assertThat(exRatio.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        String bodyRatio = EntityUtils.toString(exRatio.getResponse().getEntity());
+        assertThat(bodyRatio, containsString("error_mode"));
+        assertThat(bodyRatio, containsString("skip_row"));
+        assertThat(bodyRatio, containsString("null_field"));
+
+        // max_errors with explicit skip_row — accepted
+        putDataset("explicit_mode_child", parent, "s3://bucket/data.parquet", Map.of("max_errors", "100", "error_mode", "skip_row"));
+        deleteDataset("explicit_mode_child");
+
+        deleteDataSource(parent);
+    }
+
     private static Map<String, Object> getDataSource(String name) throws IOException {
         Response resp = client().performRequest(new Request("GET", "/_query/data_source/" + name));
         return entityAsMap(resp);
@@ -492,6 +532,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
 
     private static void putDataSource(String name, String type, Map<String, Object> settings) throws IOException {
         Request req = new Request("PUT", "/_query/data_source/" + name);
+        req.setOptions(req.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
         try (XContentBuilder b = jsonBuilder()) {
             b.startObject().field("type", type);
             if (settings.isEmpty() == false) {

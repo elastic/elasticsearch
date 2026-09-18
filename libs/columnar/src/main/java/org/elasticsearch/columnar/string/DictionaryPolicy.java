@@ -24,7 +24,7 @@ package org.elasticsearch.columnar.string;
  * for has bought nothing, however well it covers them.
  *
  * @param maxBytes         the most term bytes a dictionary may hold
- * @param minCoverage      the share of a column's values the dictionary must account for
+ * @param minCoverage      the share of a column's raw bytes the dictionary must account for
  * @param maxShareOfColumn the largest share of the column's value bytes the dictionary may occupy
  */
 public record DictionaryPolicy(int maxBytes, double minCoverage, double maxShareOfColumn) {

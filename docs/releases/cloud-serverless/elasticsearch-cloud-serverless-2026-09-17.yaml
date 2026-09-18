@@ -271,13 +271,12 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/158824
 - file:
     name: 157968.yaml
-    checksum: 7e655b2bb10d5e163841c045a1d38321dea0b2a5
+    checksum: e2494d3af7c22e4dfafc4aa3defbb012a34ab444
   type: bug-fix
   title: Guard against oversized protobuf requests causing out of memory failures
   products:
   - product: cloud-serverless
   - product: elasticsearch
-  description: Fixes unbounded in-memory expansion when Prometheus and OTLP ingest copy labels and attributes onto generated documents. Requests that would exceed `http.max_protobuf_expanded_content_length` return HTTP 413.
   areas:
   - TSDB
   prs:
@@ -297,13 +296,12 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/158562
 - file:
     name: 158831.yaml
-    checksum: 337ad046961b20af50241a26525e11a663750906
+    checksum: 43a20c09c72e3f1cf89a87286adb88cc61183da6
   type: bug-fix
-  title: Fix `manage_roles` allowing `allow_restricted_indices=true`
+  title: Reject `allow_restricted_indices=true` consistently in roles granted by users with the `manage_roles` privilege
   products:
   - product: cloud-serverless
   - product: elasticsearch
-  description: Fixes role updates so users with only the `manage_roles` privilege cannot grant `allow_restricted_indices=true`.
   areas:
   - Authorization
   prs:
@@ -322,13 +320,12 @@ entries:
   - https://github.com/elastic/elasticsearch/issues/150408
 - file:
     name: 158935.yaml
-    checksum: fab6ab1eb7164b51c8e929384fc52ec176895470
+    checksum: ab42a4893535d58f2022dc411c27399f466611de
   type: bug-fix
-  title: Fix unbounded `_text_structure/find_structure` concurrency
+  title: Limit concurrent text structure analyses to the allocated processor count
   products:
   - product: cloud-serverless
   - product: elasticsearch
-  description: Fixes unbounded `find_structure` concurrency by limiting analyses to the node's allocated processors so burst traffic cannot multiply peak heap.
   areas:
   - Machine learning
   prs:
@@ -379,13 +376,12 @@ entries:
   - https://github.com/elastic/elasticsearch/issues/155636
 - file:
     name: 158186.yaml
-    checksum: 59b8b9dd87d811e91f14d4616b63eeb3b54662dc
+    checksum: c0ce04ca4a749ea3453a3d4f25c8f0750a7404f5
   type: bug-fix
-  title: Fix `failed_category_count` in machine learning anomaly detector CAT API
+  title: Fix `model.failed_category_count` in `_cat/ml/anomaly_detectors` reporting the dead category count
   products:
   - product: cloud-serverless
   - product: elasticsearch
-  description: Fixes `GET _cat/ml/anomaly_detectors` so `model.failed_category_count` reports the failed category count instead of the dead category count.
   areas:
   - Machine learning
   prs:
@@ -513,13 +509,12 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/158354
 - file:
     name: 158745.yaml
-    checksum: acb7a1fd8d123bafeb722a79da0aefaf20726d79
+    checksum: b3dc8c202ebe9d3069f8b59cd3de80b354963f33
   type: bug-fix
-  title: Fix ES|QL handling of CR+LF grapheme clusters
+  title: When reversing strings, treat carriage return line feed (CRLF) as a single control character, in line with UTF guidelines
   products:
   - product: cloud-serverless
   - product: elasticsearch
-  description: Fixes ES|QL string operations so a carriage return followed by a line feed is treated as a single grapheme cluster instead of being reversed independently.
   areas:
   - ES|QL
   prs:
@@ -595,13 +590,12 @@ entries:
   - https://github.com/elastic/elasticsearch/pull/158508
 - file:
     name: 158820.yaml
-    checksum: ae94116ad45d2447cfafad4d87e3692512f20914
+    checksum: d0803c09a364840b2ef5a944c3970a88b6c4c5cb
   type: bug-fix
-  title: Fix stuck trained-model routes during node shutdown
+  title: STOPPING trained model routes with no local deployment process no longer block machine learning node shutdown during node drain
   products:
   - product: cloud-serverless
   - product: elasticsearch
-  description: Fixes orphan `STOPPING` trained-model assignment routes by marking them `STOPPED` when a draining node has no local deployment task, unblocking rolling upgrades.
   areas:
   - Machine learning
   prs:
@@ -653,13 +647,12 @@ entries:
   - https://github.com/elastic/competitive-benchmarking/issues/1171
 - file:
     name: 158713.yaml
-    checksum: df3f6c804ab8442db1cf7672c85206e806d69baa
+    checksum: b9ce0763a320819ecaacdb4094f41b812e326e50
   type: bug-fix
-  title: Fix unbounded `_analyze` output from analyze filters
+  title: Add option to limit the number of characters in analyze filters
   products:
   - product: cloud-serverless
   - product: elasticsearch
-  description: Fixes unbounded `_analyze` output by failing requests with HTTP 400 when they would produce more characters than `index.analyze.max_char_count`.
   areas:
   - Analysis
   prs:

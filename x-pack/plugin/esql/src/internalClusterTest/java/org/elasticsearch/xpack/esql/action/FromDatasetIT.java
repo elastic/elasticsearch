@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
@@ -5672,6 +5673,62 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                 assertThat("_id is stamped from first_name, not the file _id header", row.get(idIdx), equalTo(row.get(nameIdx)));
             }
             assertThat(rows.get(0).get(nameIdx).toString(), equalTo("Alice"));
+        }
+    }
+
+    /**
+     * {@code file1.csv} binds engine {@code _file.name} ({@code file1.csv}). {@code file2.csv}
+     * declares {@code mappings._id.path = _file.name}, so {@code METADATA _id, _file.name} keeps
+     * the file cell {@code cell-from-file2} instead of the storage name. A mixed FROM therefore
+     * returns {@code file1.csv} and {@code cell-from-file2}, not {@code file1.csv} and
+     * {@code file2.csv}, in either source order.
+     */
+    public void testMetadataFileNameFileAndEngineMixIsOrderIndependent() throws Exception {
+        Path dir = createTempDir();
+        Path file1 = dir.resolve("file1.csv");
+        Files.writeString(file1, String.join("\n", "_file.name:keyword", "ignored-in-file1") + "\n");
+        Path file2 = dir.resolve("file2.csv");
+        Files.writeString(file2, String.join("\n", "_file.name:keyword", "cell-from-file2") + "\n");
+
+        DatasetMapping keepPhysicalFileName = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, new LinkedHashMap<>(), FileMetadataColumns.NAME)
+        );
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        registerDataset("mix_file1", "local_ds", file1.toUri().toString(), Map.of("format", "csv"));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "mix_file2",
+                    "local_ds",
+                    file2.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    keepPhysicalFileName
+                )
+            )
+        );
+
+        assertThat(metadataFileNames("FROM mix_file1 METADATA _file.name | KEEP `_file.name`"), equalTo(List.of("file1.csv")));
+        assertThat(metadataFileNames("FROM mix_file2 METADATA _id, _file.name | KEEP `_file.name`"), equalTo(List.of("cell-from-file2")));
+
+        List<String> mixed = List.of("cell-from-file2", "file1.csv");
+        assertThat(
+            metadataFileNames("FROM mix_file1, mix_file2 METADATA _id, _file.name | KEEP `_file.name` | SORT `_file.name`"),
+            equalTo(mixed)
+        );
+        assertThat(
+            metadataFileNames("FROM mix_file2, mix_file1 METADATA _id, _file.name | KEEP `_file.name` | SORT `_file.name`"),
+            equalTo(mixed)
+        );
+    }
+
+    private List<String> metadataFileNames(String query) {
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            assertThat(response.columns().stream().map(ColumnInfo::name).toList(), equalTo(List.of(FileMetadataColumns.NAME)));
+            return getValuesList(response).stream().map(row -> row.get(0).toString()).toList();
         }
     }
 

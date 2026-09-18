@@ -754,3 +754,27 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:PARQUET_DATASET}
   issue: https://github.com/elastic/elasticsearch/issues/156789
+- class: org.elasticsearch.painless.resourceexhaustion.PainlessConcurrentAllocationIT
+  method: testConcurrentScriptsUnderLimitAllSucceed
+  issue: https://github.com/elastic/elasticsearch/issues/159759
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecMatchPhraseFunctionIT
+  method: test {csv-spec:match-phrase-function.matchPhraseOnToStringOverIndexedTextFieldIsExact}
+  issue: https://github.com/elastic/elasticsearch/issues/159767
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecMatchPhraseFunctionIT
+  method: test {csv-spec:match-phrase-function.matchPhraseOnToTextOverIndexedKeywordField}
+  issue: https://github.com/elastic/elasticsearch/issues/159768
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecMatchPhraseFunctionIT
+  method: test {csv-spec:match-phrase-function.matchPhraseOnToStringOverIndexedTextFieldViaEvalAlias}
+  issue: https://github.com/elastic/elasticsearch/issues/159769
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecMatchPhraseFunctionIT
+  method: test {csv-spec:match-phrase-function.matchPhraseOnToTextOverIndexedKeywordFieldViaEvalAlias}
+  issue: https://github.com/elastic/elasticsearch/issues/159770
+- class: org.elasticsearch.painless.resourceexhaustion.PainlessConcurrentAllocationIT
+  method: testConcurrentScriptsOverLimitAllFail
+  issue: https://github.com/elastic/elasticsearch/issues/159771
+- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
+  method: testEsqlSource
+  issue: https://github.com/elastic/elasticsearch/issues/159773
+- class: org.elasticsearch.xpack.logsdb.qa.BulkStoredSourceChallengeRestIT
+  method: testEsqlSource
+  issue: https://github.com/elastic/elasticsearch/issues/159774

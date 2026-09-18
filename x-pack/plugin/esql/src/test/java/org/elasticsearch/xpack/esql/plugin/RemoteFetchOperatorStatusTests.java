@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.operator.exchange.BatchExchangeStatusResponse;
 import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeClient;
-import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -67,8 +66,6 @@ public class RemoteFetchOperatorStatusTests extends AbstractWireSerializingTestC
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
             List.of(randomWorkerProfile())
         );
     }
@@ -82,8 +79,8 @@ public class RemoteFetchOperatorStatusTests extends AbstractWireSerializingTestC
             randomBoolean(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            new ExchangeSinkHandler.Profile(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
             new BatchExchangeStatusResponse.Profile(
+                randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
@@ -136,31 +133,7 @@ public class RemoteFetchOperatorStatusTests extends AbstractWireSerializingTestC
             20,
             4,
             3,
-            new RemoteFetchOperator.Profile(
-                100,
-                50,
-                25,
-                80,
-                10,
-                20,
-                15,
-                70,
-                40,
-                30,
-                60,
-                25,
-                12,
-                24,
-                1024,
-                2048,
-                5,
-                30,
-                300,
-                6,
-                20,
-                400,
-                List.of()
-            )
+            new RemoteFetchOperator.Profile(100, 50, 25, 80, 10, 20, 15, 70, 40, 30, 60, 25, 12, 24, 1024, 2048, 5, 30, 6, 20, List.of())
         );
         assertThat(Strings.toString(status), equalTo("""
             {"pages_received":1,"pages_emitted":2,"rows_received":30,"rows_emitted":20,"batches_sent":4,"exchanges_opened":3,\
@@ -168,8 +141,7 @@ public class RemoteFetchOperatorStatusTests extends AbstractWireSerializingTestC
             "setup_nanos":20,"max_setup_nanos":15,\
             "fetch_nanos":70,"max_fetch_nanos":40,"fetch_cpu_nanos":30,"field_load_nanos":60,"values_loaded":25,\
             "source_docs_loaded":12,"source_field_reads":24,"source_bytes_loaded":1024,"bytes_read":2048,\
-            "request_pages":5,"request_rows":30,"request_serialized_bytes":300,"response_pages":6,"response_rows":20,\
-            "response_serialized_bytes":400,"workers":[]}"""));
+            "request_pages":5,"request_rows":30,"response_pages":6,"response_rows":20,"workers":[]}"""));
     }
 
     public void testWorkerToXContent() {
@@ -262,8 +234,6 @@ public class RemoteFetchOperatorStatusTests extends AbstractWireSerializingTestC
                         profile.sourceFieldReads(),
                         profile.sourceBytesLoaded(),
                         profile.bytesRead(),
-                        0L,
-                        0L,
                         0L,
                         0L,
                         0L,

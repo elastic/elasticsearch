@@ -9,14 +9,10 @@ package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 
-import java.io.IOException;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
@@ -45,7 +41,6 @@ public final class ExchangeSinkHandler {
     private final LongSupplier nowInMillis;
     private final AtomicLong lastUpdatedInMillis;
     private final BlockFactory blockFactory;
-    private volatile ProfileTracker profileTracker;
 
     public ExchangeSinkHandler(BlockFactory blockFactory, int maxBufferSize, LongSupplier nowInMillis) {
         this.blockFactory = blockFactory;
@@ -157,16 +152,7 @@ public final class ExchangeSinkHandler {
                 if (listener == null) {
                     continue;
                 }
-                Page page = buffer.pollPage();
-                ProfileTracker tracker = profileTracker;
-                if (page != null && tracker != null) {
-                    tracker.pages.incrementAndGet();
-                    tracker.rows.addAndGet(page.getPositionCount());
-                    tracker.responseStarted();
-                }
-                response = tracker == null || page == null
-                    ? new ExchangeResponse(blockFactory, page, buffer.isFinished())
-                    : new ExchangeResponse(blockFactory, page, buffer.isFinished(), tracker);
+                response = new ExchangeResponse(blockFactory, buffer.pollPage(), buffer.isFinished());
             } finally {
                 promised.release();
             }
@@ -183,99 +169,6 @@ public final class ExchangeSinkHandler {
      */
     public ExchangeSink createExchangeSink(Runnable onPageFetched) {
         return new ExchangeSinkImpl(onPageFetched);
-    }
-
-    /**
-     * Returns a snapshot of profiled data-page traffic.
-     */
-    public Profile profile() {
-        ProfileTracker tracker = profileTracker;
-        return tracker == null ? Profile.EMPTY : new Profile(tracker.pages.get(), tracker.rows.get(), tracker.serializedBytes.get());
-    }
-
-    /**
-     * Enables traffic profiling. Must be called before exchanging pages.
-     */
-    public void enableProfiling() {
-        if (profileTracker == null) {
-            synchronized (this) {
-                if (profileTracker == null) {
-                    ProfileTracker tracker = new ProfileTracker();
-                    profileTracker = tracker;
-                    completionFuture.addListener(ActionListener.wrap(ignored -> tracker.bufferFinished(), tracker.completion::onFailure));
-                }
-            }
-        }
-    }
-
-    /**
-     * Notifies the listener after the handler and all profiled responses complete.
-     */
-    public void addProfileCompletionListener(ActionListener<Void> listener) {
-        ProfileTracker tracker = profileTracker;
-        if (tracker == null) {
-            addCompletionListener(listener);
-        } else {
-            tracker.completion.addListener(listener);
-        }
-    }
-
-    /**
-     * Data-page traffic emitted by an exchange sink handler.
-     *
-     * @param pages number of data-page responses created
-     * @param rows total positions in those pages
-     * @param serializedBytes serialized data-page response bytes before transport framing or compression
-     */
-    public record Profile(long pages, long rows, long serializedBytes) implements Writeable {
-        public static final Profile EMPTY = new Profile(0L, 0L, 0L);
-
-        public Profile(StreamInput in) throws IOException {
-            this(in.readVLong(), in.readVLong(), in.readVLong());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(pages);
-            out.writeVLong(rows);
-            out.writeVLong(serializedBytes);
-        }
-    }
-
-    private static class ProfileTracker implements ExchangeResponse.ProfileListener {
-        private final AtomicLong pages = new AtomicLong();
-        private final AtomicLong rows = new AtomicLong();
-        private final AtomicLong serializedBytes = new AtomicLong();
-        private final AtomicInteger inFlightResponses = new AtomicInteger();
-        private final SubscribableListener<Void> completion = new SubscribableListener<>();
-        private volatile boolean bufferFinished;
-
-        private void responseStarted() {
-            inFlightResponses.incrementAndGet();
-        }
-
-        @Override
-        public void onSerialized(long bytes) {
-            serializedBytes.addAndGet(bytes);
-        }
-
-        @Override
-        public void onReleased() {
-            if (inFlightResponses.decrementAndGet() == 0) {
-                completeIfFinished();
-            }
-        }
-
-        private void bufferFinished() {
-            bufferFinished = true;
-            completeIfFinished();
-        }
-
-        private void completeIfFinished() {
-            if (bufferFinished && inFlightResponses.get() == 0) {
-                completion.onResponse(null);
-            }
-        }
     }
 
     /**

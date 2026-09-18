@@ -24,7 +24,6 @@ import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.exchange.BatchExchangeStatusResponse;
 import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeClient;
-import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -584,10 +583,8 @@ public final class RemoteFetchOperator implements Operator {
         long sourceBytesLoaded = 0L;
         long requestPages = 0L;
         long requestRows = 0L;
-        long requestSerializedBytes = 0L;
         long responsePages = 0L;
         long responseRows = 0L;
-        long responseSerializedBytes = 0L;
         List<BidirectionalBatchExchangeClient.WorkerProfile> workers = new ArrayList<>();
         for (RemoteFetchService.TargetExchange exchange : exchanges.values()) {
             BidirectionalBatchExchangeClient.Profile exchangeProfile = exchange.profile();
@@ -596,13 +593,12 @@ public final class RemoteFetchOperator implements Operator {
             bytesRead += exchangeProfile.bytesRead();
             workers.addAll(exchangeProfile.workers());
             for (BidirectionalBatchExchangeClient.WorkerProfile worker : exchangeProfile.workers()) {
-                requestPages += worker.request().pages();
-                requestRows += worker.request().rows();
-                requestSerializedBytes += worker.request().serializedBytes();
                 BatchExchangeStatusResponse.Profile fetchProfile = worker.server();
                 if (fetchProfile == null) {
                     continue;
                 }
+                requestPages += fetchProfile.requestPages();
+                requestRows += fetchProfile.requestRows();
                 fetchNanos += fetchProfile.driverTookNanos();
                 maxFetchNanos = Math.max(maxFetchNanos, fetchProfile.driverTookNanos());
                 fetchCpuNanos += fetchProfile.driverCpuNanos();
@@ -613,7 +609,6 @@ public final class RemoteFetchOperator implements Operator {
                 sourceBytesLoaded += fetchProfile.sourceBytesLoaded();
                 responsePages += fetchProfile.responsePages();
                 responseRows += fetchProfile.responseRows();
-                responseSerializedBytes += fetchProfile.responseSerializedBytes();
             }
         }
         workers.sort(
@@ -639,10 +634,8 @@ public final class RemoteFetchOperator implements Operator {
             bytesRead,
             requestPages,
             requestRows,
-            requestSerializedBytes,
             responsePages,
             responseRows,
-            responseSerializedBytes,
             workers
         );
     }
@@ -733,7 +726,7 @@ public final class RemoteFetchOperator implements Operator {
      * {@code processNanos} covers the operator's end-to-end critical path, {@code exchangeWaitNanos} sums the time
      * unresolved exchange listeners remained pending, and {@code responseNanos} is the span from the first to the last response page.
      * Setup and fetch totals sum work across exchanges, while their maxima identify the slowest individual exchange.
-     * Request and response serialized bytes cover exchange-response payloads before transport framing or compression.
+     * Request and response page and row counts come from the server-side exchange operators.
      * <p>
      * {@code valuesLoaded} aggregates {@link org.elasticsearch.compute.operator.OperatorStatus#valuesLoaded()} across every
      * operator in the server-side fetch driver. {@code fieldLoadNanos} and the {@code source*} fields come only from
@@ -758,37 +751,11 @@ public final class RemoteFetchOperator implements Operator {
         long bytesRead,
         long requestPages,
         long requestRows,
-        long requestSerializedBytes,
         long responsePages,
         long responseRows,
-        long responseSerializedBytes,
         List<BidirectionalBatchExchangeClient.WorkerProfile> workers
     ) implements org.elasticsearch.common.io.stream.Writeable {
-        static final Profile EMPTY = new Profile(
-            0L,
-            0L,
-            0L,
-            0L,
-            0L,
-            0L,
-            0L,
-            0L,
-            0L,
-            0L,
-            0L,
-            0L,
-            0L,
-            0L,
-            0L,
-            0L,
-            0L,
-            0L,
-            0L,
-            0L,
-            0L,
-            0L,
-            List.of()
-        );
+        static final Profile EMPTY = new Profile(0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, List.of());
 
         public Profile {
             workers = List.copyOf(workers);
@@ -812,8 +779,6 @@ public final class RemoteFetchOperator implements Operator {
                 in.readVLong(),
                 in.readVLong(),
                 in.readVLong(),
-                in.getTransportVersion().supports(BatchExchangeStatusResponse.ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE) ? in.readVLong() : 0L,
-                in.getTransportVersion().supports(BatchExchangeStatusResponse.ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE) ? in.readVLong() : 0L,
                 in.getTransportVersion().supports(BatchExchangeStatusResponse.ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE) ? in.readVLong() : 0L,
                 in.getTransportVersion().supports(BatchExchangeStatusResponse.ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE) ? in.readVLong() : 0L,
                 in.getTransportVersion().supports(BatchExchangeStatusResponse.ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE) ? in.readVLong() : 0L,
@@ -845,10 +810,8 @@ public final class RemoteFetchOperator implements Operator {
             if (out.getTransportVersion().supports(BatchExchangeStatusResponse.ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE)) {
                 out.writeVLong(requestPages);
                 out.writeVLong(requestRows);
-                out.writeVLong(requestSerializedBytes);
                 out.writeVLong(responsePages);
                 out.writeVLong(responseRows);
-                out.writeVLong(responseSerializedBytes);
                 out.writeCollection(workers);
             }
         }
@@ -872,10 +835,8 @@ public final class RemoteFetchOperator implements Operator {
             builder.field("bytes_read", bytesRead);
             builder.field("request_pages", requestPages);
             builder.field("request_rows", requestRows);
-            builder.field("request_serialized_bytes", requestSerializedBytes);
             builder.field("response_pages", responsePages);
             builder.field("response_rows", responseRows);
-            builder.field("response_serialized_bytes", responseSerializedBytes);
             builder.startArray("workers");
             for (BidirectionalBatchExchangeClient.WorkerProfile worker : workers) {
                 workerToXContent(builder, worker);
@@ -896,12 +857,14 @@ public final class RemoteFetchOperator implements Operator {
             builder.field("round_trip_nanos", worker.setupNanos());
             BatchExchangeStatusResponse.Profile server = worker.server();
             builder.endObject();
-            exchangeToXContent(builder, "request", worker.request());
             if (server != null) {
+                builder.startObject("request");
+                builder.field("pages", server.requestPages());
+                builder.field("rows", server.requestRows());
+                builder.endObject();
                 builder.startObject("response");
                 builder.field("pages", server.responsePages());
                 builder.field("rows", server.responseRows());
-                builder.field("serialized_bytes", server.responseSerializedBytes());
                 builder.endObject();
                 builder.startObject("driver");
                 builder.field("took_nanos", server.driverTookNanos());
@@ -913,15 +876,6 @@ public final class RemoteFetchOperator implements Operator {
                 builder.field("source_bytes_loaded", server.sourceBytesLoaded());
                 builder.endObject();
             }
-            builder.endObject();
-        }
-
-        private static void exchangeToXContent(XContentBuilder builder, String name, ExchangeSinkHandler.Profile exchange)
-            throws IOException {
-            builder.startObject(name);
-            builder.field("pages", exchange.pages());
-            builder.field("rows", exchange.rows());
-            builder.field("serialized_bytes", exchange.serializedBytes());
             builder.endObject();
         }
     }

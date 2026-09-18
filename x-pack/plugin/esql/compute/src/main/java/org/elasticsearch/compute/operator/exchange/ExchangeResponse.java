@@ -26,31 +26,22 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
     private final boolean finished;
     private boolean pageTaken;
     private final BlockFactory blockFactory;
-    @Nullable
-    private final ProfileListener profileListener;
     private long reservedBytes = 0;
 
     public ExchangeResponse(BlockFactory blockFactory, Page page, boolean finished) {
-        this(blockFactory, page, finished, null);
-    }
-
-    ExchangeResponse(BlockFactory blockFactory, Page page, boolean finished, @Nullable ProfileListener profileListener) {
         this.blockFactory = blockFactory;
         this.page = page;
         this.finished = finished;
-        this.profileListener = profileListener;
     }
 
     public ExchangeResponse(BlockStreamInput in) throws IOException {
         this.blockFactory = in.blockFactory();
         this.page = in.readOptionalWriteable(Page::new);
         this.finished = in.readBoolean();
-        this.profileListener = null;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        long startPosition = profileListener == null ? 0L : out.position();
         if (page != null) {
             long bytes = page.ramBytesUsedByBlocks();
             blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize exchange response");
@@ -58,9 +49,6 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
         }
         out.writeOptionalWriteable(page);
         out.writeBoolean(finished);
-        if (profileListener != null) {
-            profileListener.onSerialized(out.position() - startPosition);
-        }
     }
 
     /**
@@ -131,21 +119,9 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
     }
 
     private void closeInternal() {
-        try {
-            blockFactory.breaker().addWithoutBreaking(-reservedBytes);
-            if (pageTaken == false && page != null) {
-                page.releaseBlocks();
-            }
-        } finally {
-            if (profileListener != null) {
-                profileListener.onReleased();
-            }
+        blockFactory.breaker().addWithoutBreaking(-reservedBytes);
+        if (pageTaken == false && page != null) {
+            page.releaseBlocks();
         }
-    }
-
-    interface ProfileListener {
-        void onSerialized(long bytes);
-
-        void onReleased();
     }
 }

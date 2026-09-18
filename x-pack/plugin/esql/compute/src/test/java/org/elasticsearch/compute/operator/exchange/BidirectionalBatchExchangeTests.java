@@ -270,16 +270,14 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             assertThat(profile.maxSetupNanos(), greaterThan(0L));
             assertThat(profile.workers().size(), equalTo(createdWorkerNodeIds.size()));
             assertTrue(profile.workers().stream().allMatch(worker -> worker.setupNanos() > 0L));
-            assertTrue(profile.workers().stream().allMatch(worker -> worker.request().pages() > 0L));
-            assertTrue(profile.workers().stream().allMatch(worker -> worker.request().rows() > 0L));
-            assertTrue(profile.workers().stream().allMatch(worker -> worker.request().serializedBytes() > 0L));
             assertTrue(profile.workers().stream().allMatch(worker -> worker.server() != null));
             assertTrue(profile.workers().stream().allMatch(worker -> worker.server().driverTookNanos() > 0L));
+            assertTrue(profile.workers().stream().allMatch(worker -> worker.server().requestPages() > 0L));
+            assertTrue(profile.workers().stream().allMatch(worker -> worker.server().requestRows() > 0L));
             assertTrue(profile.workers().stream().allMatch(worker -> worker.server().responsePages() > 0L));
             assertTrue(profile.workers().stream().allMatch(worker -> worker.server().responseRows() > 0L));
-            assertTrue(profile.workers().stream().allMatch(worker -> worker.server().responseSerializedBytes() > 0L));
-            assertThat(profile.workers().stream().mapToLong(worker -> worker.request().pages()).sum(), equalTo(expectedRequestPages));
-            assertThat(profile.workers().stream().mapToLong(worker -> worker.request().rows()).sum(), equalTo(expectedRequestRows));
+            assertThat(profile.workers().stream().mapToLong(worker -> worker.server().requestPages()).sum(), equalTo(expectedRequestPages));
+            assertThat(profile.workers().stream().mapToLong(worker -> worker.server().requestRows()).sum(), equalTo(expectedRequestRows));
             assertThat(
                 profile.workers().stream().mapToLong(worker -> worker.server().responsePages()).sum(),
                 equalTo(expectedResponsePages)

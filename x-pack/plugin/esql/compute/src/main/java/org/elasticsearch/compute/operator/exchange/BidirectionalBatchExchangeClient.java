@@ -298,9 +298,6 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         // Create or get sink handler for client-to-server direction (per-worker)
         // Uses getOrCreateSinkHandler to allow pre-registration of the handler (e.g., for test setup coordination)
         worker.clientToServerSinkHandler = exchangeService.getOrCreateSinkHandler(worker.clientToServerId, maxBufferSize);
-        if (profiling) {
-            worker.clientToServerSinkHandler.enableProfiling();
-        }
         worker.clientToServerSink = worker.clientToServerSinkHandler.createExchangeSink(() -> {});
 
         // When handler completes (buffer finished), clean up the sink handler.
@@ -685,15 +682,10 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     }
 
     /**
-     * Enables per-worker exchange traffic profiling before batches are sent.
+     * Enables per-worker setup timing before batches are sent.
      */
     public void enableProfiling() {
         profiling = true;
-        for (Worker worker : workers) {
-            if (worker.clientToServerSinkHandler != null) {
-                worker.clientToServerSinkHandler.enableProfiling();
-            }
-        }
     }
 
     /**
@@ -712,7 +704,6 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                     localNode != null && worker.serverNode.getId().equals(localNode.getId()),
                     worker.setupNanos,
                     worker.bytesRead,
-                    worker.clientToServerSinkHandler.profile(),
                     worker.serverProfile
                 )
             );
@@ -762,7 +753,6 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         boolean local,
         long setupNanos,
         long bytesRead,
-        ExchangeSinkHandler.Profile request,
         @Nullable BatchExchangeStatusResponse.Profile server
     ) implements Writeable {
 
@@ -775,7 +765,6 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                 in.readBoolean(),
                 in.readVLong(),
                 in.readVLong(),
-                new ExchangeSinkHandler.Profile(in),
                 in.readOptionalWriteable(BatchExchangeStatusResponse.Profile::new)
             );
         }
@@ -789,7 +778,6 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
             out.writeBoolean(local);
             out.writeVLong(setupNanos);
             out.writeVLong(bytesRead);
-            request.writeTo(out);
             out.writeOptionalWriteable(server);
         }
     }

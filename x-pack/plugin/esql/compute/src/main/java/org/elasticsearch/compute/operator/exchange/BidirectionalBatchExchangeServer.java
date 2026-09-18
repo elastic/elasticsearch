@@ -163,9 +163,6 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         ActionListener<Void> readyListener
     ) {
         this.profile = profile;
-        if (profile) {
-            serverToClientSinkHandler.enableProfiling();
-        }
         startBatchProcessing(driverContext, threadContext, intermediateOperators, clusterName, TimeValue.timeValueSeconds(1), releasable);
         remoteSinkReady.addListener(readyListener);
     }
@@ -366,11 +363,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                         ? DriverCompletionInfo.excludingProfiles(List.of(batchDriver), 0L, false)
                         : DriverCompletionInfo.EMPTY;
                     BatchExchangeStatusResponse.Profile driverProfile = profile && batchDriver != null
-                        ? BatchExchangeStatusResponse.Profile.from(
-                            batchDriver.profile(),
-                            driverTookNanos,
-                            serverToClientSinkHandler.profile()
-                        )
+                        ? BatchExchangeStatusResponse.Profile.from(batchDriver.profile(), driverTookNanos)
                         : null;
                     response = new BatchExchangeStatusResponse(completionInfo.bytesRead(), completionInfo.warnings(), driverProfile);
                 } else {
@@ -449,11 +442,6 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             // which is less informative. The FailureCollector categorizes it as CANCELLATION and
             // prefers CLIENT/SERVER errors from the sink channel.
             driverResponseRef = responseCoordinator.acquire();
-
-            if (profile) {
-                // Wait until every output page has been fetched and serialized before taking the response-traffic profile.
-                serverToClientSinkHandler.addProfileCompletionListener(responseCoordinator.acquire());
-            }
 
             // Connect to the client's sink handler for client-to-server exchange
             // This should be called after the client has created its sink handler

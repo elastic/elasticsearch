@@ -101,7 +101,8 @@ public class BatchExchangeStatusResponseBwcWarningsTests extends ESTestCase {
             107L,
             108L,
             109L,
-            110L
+            110L,
+            111L
         );
         BatchExchangeStatusResponse original = new BatchExchangeStatusResponse(108L, List.of("warning"), profile);
 
@@ -138,7 +139,8 @@ public class BatchExchangeStatusResponseBwcWarningsTests extends ESTestCase {
             107L,
             108L,
             109L,
-            110L
+            110L,
+            111L
         );
         BatchExchangeStatusResponse original = new BatchExchangeStatusResponse(108L, List.of(), profile);
 
@@ -176,12 +178,15 @@ public class BatchExchangeStatusResponseBwcWarningsTests extends ESTestCase {
             999L,
             102L,
             1L,
-            List.of(new OperatorStatus("values reader", readerStatus)),
+            List.of(
+                new OperatorStatus("ExchangeSourceOperator[]", new ExchangeSourceOperator.Status(0, 8, 111L)),
+                new OperatorStatus("values reader", readerStatus),
+                new OperatorStatus("ExchangeSinkOperator", new ExchangeSinkOperator.Status(9, 112L))
+            ),
             new DriverSleeps(Map.of(), List.of(), List.of())
         );
 
-        ExchangeSinkHandler.Profile responseProfile = new ExchangeSinkHandler.Profile(111L, 112L, 113L);
-        BatchExchangeStatusResponse.Profile profile = BatchExchangeStatusResponse.Profile.from(driverProfile, 101L, responseProfile);
+        BatchExchangeStatusResponse.Profile profile = BatchExchangeStatusResponse.Profile.from(driverProfile, 101L);
 
         assertThat(profile.driverTookNanos(), equalTo(101L));
         assertThat(profile.driverCpuNanos(), equalTo(102L));
@@ -190,9 +195,10 @@ public class BatchExchangeStatusResponseBwcWarningsTests extends ESTestCase {
         assertThat(profile.sourceDocsLoaded(), equalTo(105L));
         assertThat(profile.sourceFieldReads(), equalTo(106L));
         assertThat(profile.sourceBytesLoaded(), equalTo(107L));
-        assertThat(profile.responsePages(), equalTo(111L));
+        assertThat(profile.requestPages(), equalTo(8L));
+        assertThat(profile.requestRows(), equalTo(111L));
+        assertThat(profile.responsePages(), equalTo(9L));
         assertThat(profile.responseRows(), equalTo(112L));
-        assertThat(profile.responseSerializedBytes(), equalTo(113L));
     }
 
     private static BytesReference serialize(BatchExchangeStatusResponse response, TransportVersion version) throws IOException {

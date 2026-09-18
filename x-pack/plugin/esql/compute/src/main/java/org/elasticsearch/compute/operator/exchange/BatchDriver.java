@@ -300,6 +300,11 @@ public final class BatchDriver extends Driver {
         }
 
         @Override
+        public Operator.Status status() {
+            return delegate.status();
+        }
+
+        @Override
         public void close() {
             delegate.close();
         }

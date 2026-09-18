@@ -421,16 +421,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return useColumnarPayload;
         }
 
-        /** Which framing a doc-values query has to decode for this field. */
-        /**
-         * The queries this field answers from its doc values, chosen by how those doc values are framed, so the query
-         * methods below each delegate instead of branching on the format.
-         */
+        /** The queries this field answers from its doc values, chosen by how those doc values are framed. */
         private BinaryDocValuesQueries binaryQueries() {
             return BinaryDocValuesQueries.forFormat(binaryFormat());
         }
 
-        private BinaryDocValuesFormat binaryFormat() {
+        /** How this field's binary doc values are framed, and so which decoder reads them back. */
+        public BinaryDocValuesFormat binaryFormat() {
             if (useColumnarPayload) {
                 return BinaryDocValuesFormat.COLUMNAR_PAYLOAD;
             }

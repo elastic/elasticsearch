@@ -144,46 +144,16 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         return expandExternalSpecTests(readBaseSpecTests(specPatterns), List.of(), policy);
     }
 
-    /**
-     * Load csv-spec files and cross-product each test with all formats and storage backends.
-     * Returns parameter arrays suitable for a {@code @ParametersFactory} constructor with 8 arguments:
-     * (fileName, groupName, testName, lineNumber, testCase, instructions, format, storageBackend).
-     */
-    protected static List<Object[]> readExternalSpecTestsWithFormats(List<String> formats, String... specPatterns) throws Exception {
-        return readExternalSpecTestsWithExtraParam(formats, specPatterns);
-    }
-
     /** Policy-aware counterpart used by BWC-enabled text-format suites. */
     protected static List<Object[]> readExternalSpecTestsWithFormats(BwcMatrixPolicy policy, List<String> formats, String... specPatterns)
         throws Exception {
         return readExternalSpecTestsWithExtraParam(policy, formats, specPatterns);
     }
 
-    /**
-     * Load csv-spec files and cross-product each test with all codecs and storage backends.
-     * Returns parameter arrays suitable for a {@code @ParametersFactory} constructor with 8 arguments:
-     * (fileName, groupName, testName, lineNumber, testCase, instructions, codecName, storageBackend).
-     * Identical shape to {@link #readExternalSpecTestsWithFormats}; the separate name documents the
-     * intent of the extra column ("codec" vs. "format") at the call site.
-     */
-    protected static List<Object[]> readExternalSpecTestsWithCodecs(List<String> codecs, String... specPatterns) throws Exception {
-        return readExternalSpecTestsWithExtraParam(codecs, specPatterns);
-    }
-
     /** Policy-aware counterpart used by BWC-enabled internal-codec suites. */
     protected static List<Object[]> readExternalSpecTestsWithCodecs(BwcMatrixPolicy policy, List<String> codecs, String... specPatterns)
         throws Exception {
         return readExternalSpecTestsWithExtraParam(policy, codecs, specPatterns);
-    }
-
-    /**
-     * Shared cross-product helper used by {@link #readExternalSpecTestsWithFormats} and
-     * {@link #readExternalSpecTestsWithCodecs}. Builds the cross product on the un-expanded base tuple
-     * (so the resulting array is always {@code (baseTest..., extraParam, backend)}) rather than splicing
-     * into a tuple that already has the backend appended.
-     */
-    private static List<Object[]> readExternalSpecTestsWithExtraParam(List<String> extraParams, String... specPatterns) throws Exception {
-        return expandExternalSpecTests(readBaseSpecTests(specPatterns), extraParams);
     }
 
     private static List<Object[]> readExternalSpecTestsWithExtraParam(

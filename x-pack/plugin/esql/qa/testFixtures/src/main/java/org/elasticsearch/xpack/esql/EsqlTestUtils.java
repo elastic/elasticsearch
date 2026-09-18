@@ -163,6 +163,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
+import java.net.URI;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
@@ -185,6 +186,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.jar.JarInputStream;
 import java.util.regex.Pattern;
@@ -232,6 +235,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public final class EsqlTestUtils {
 
@@ -1176,20 +1180,25 @@ public final class EsqlTestUtils {
      * sets) rather than a genuine duplicate.
      */
     @SuppressForbidden(reason = "classpath discovery")
-    public static List<URL> classpathResources(String... pattern) throws IOException {
+    public static List<URL> classpathResources(String... patterns) throws IOException {
+        assert patterns.length > 0 : "Must supply at least a single pattern";
         String[] classpathEntries = System.getProperty("java.class.path").split(Pattern.quote(System.getProperty("path.separator")));
-        return classpathResources(List.of(pattern), Arrays.stream(classpathEntries).map(PathUtils::get).toList());
+        return classpathResources(List.of(patterns), Arrays.stream(classpathEntries).map(PathUtils::get).toList());
     }
 
     /**
-     * Resolves {@code pattern} against explicit classpath roots. Kept package-private so tests can
-     * exercise exploded directories and JARs without mutating the JVM's real classpath.
+     * Resolves {@code patterns} against explicit classpath roots.
+     * Ensures resources are uniquely matched (not referenced by several patterns).
+     * Kept package-private so tests can exercise exploded directories and JARs without mutating the JVM's real classpath.
      */
     @SuppressForbidden(reason = "classpath discovery")
     static List<URL> classpathResources(List<String> patterns, List<Path> classpathRoots) throws IOException {
-        long start = System.currentTimeMillis();
-        final var preparedPatterns = preparePatterns(patterns);
-        Map<String, ResourceMatch> matches = new TreeMap<>();
+        long start = System.nanoTime();
+        final var preparedPatterns = (Collection<PathAndName>) patterns.stream()
+            .map(EsqlTestUtils::normalizeResourcePath)
+            .map(PathAndName::from)
+            .toList();
+        Set<String> matches = new TreeSet<>();
         for (Path path : classpathRoots) {
             if (path.toString().endsWith(".jar")) {
                 try (JarInputStream jar = jarInputStream(path.toUri().toURL())) {
@@ -1201,12 +1210,7 @@ public final class EsqlTestUtils {
                             for (var preparedPattern : preparedPatterns) {
                                 if (Objects.equals(preparedPattern.path(), resource.path())
                                     && Regex.simpleMatch(preparedPattern.name(), resource.name())) {
-                                    addClasspathResource(
-                                        matches,
-                                        normalizedResourcePath,
-                                        new URL("jar:" + path.toUri() + "!/" + normalizedResourcePath),
-                                        path.toAbsolutePath().normalize().toString()
-                                    );
+                                    assertTrue(matches.add("jar:" + path.toUri() + "!/" + normalizedResourcePath));
                                 }
                             }
                         }
@@ -1221,15 +1225,7 @@ public final class EsqlTestUtils {
                                 if (Files.isRegularFile(child)) {
                                     String fileName = child.getFileName().toString();
                                     if (Regex.simpleMatch(preparedPattern.name(), fileName)) {
-                                        String logicalPath = preparedPattern.path().isEmpty()
-                                            ? fileName
-                                            : preparedPattern.path() + "/" + fileName;
-                                        addClasspathResource(
-                                            matches,
-                                            logicalPath,
-                                            child.toUri().toURL(),
-                                            path.toAbsolutePath().normalize().toString()
-                                        );
+                                        assertTrue(matches.add(child.toString()));
                                     }
                                 }
                             }
@@ -1238,38 +1234,15 @@ public final class EsqlTestUtils {
                 }
             }
         }
-        long end = System.currentTimeMillis();
-        LOGGER.info("Detected {} matching resources in {} ms", matches.size(), end - start);
-        return matches.values().stream().map(ResourceMatch::url).toList();
-    }
-
-    private static Collection<PathAndName> preparePatterns(List<String> patterns) {
-        return patterns.stream().map(pattern -> {
-            int lastLeadingSlash = 0;
-            while (pattern.charAt(lastLeadingSlash) == '/') {
-                lastLeadingSlash++;
+        long end = System.nanoTime();
+        LOGGER.debug("Detected {} matching resources in {} ms", matches.size(), TimeUnit.SECONDS.toMillis(end - start));
+        return matches.stream().map(it -> {
+            try {
+                return URI.create(it).toURL();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
-            return pattern.substring(lastLeadingSlash);
-        }).map(EsqlTestUtils.PathAndName::from).toList();
-    }
-
-    private static void addClasspathResource(Map<String, ResourceMatch> matches, String logicalPath, URL url, String origin) {
-        ResourceMatch previous = matches.putIfAbsent(logicalPath, new ResourceMatch(url, origin));
-        if (previous != null) {
-            throw new IllegalStateException(
-                "Duplicate classpath resource ["
-                    + logicalPath
-                    + "] found in ["
-                    + previous.origin()
-                    + "] at ["
-                    + previous.url()
-                    + "] and in ["
-                    + origin
-                    + "] at ["
-                    + url
-                    + "]"
-            );
-        }
+        }).toList();
     }
 
     private static String normalizeResourcePath(String resourcePath) {
@@ -1278,8 +1251,6 @@ public final class EsqlTestUtils {
         }
         return resourcePath.replace('\\', '/');
     }
-
-    private record ResourceMatch(URL url, String origin) {}
 
     @SuppressForbidden(reason = "need to open jar")
     public static JarInputStream jarInputStream(URL resource) throws IOException {

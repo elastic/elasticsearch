@@ -56,6 +56,14 @@ public class EsqlTestUtilsTests extends ESTestCase {
             ),
             equalTo(List.of("nested-a.csv-spec", "nested-b.csv-spec"))
         );
+
+        expectThrows(
+            IllegalStateException.class,
+            containsString("Duplicate classpath resource [datasources/nested-a.csv-spec]"),
+            () -> resourceNames(
+                EsqlTestUtils.classpathResources(List.of("/datasources/*.csv-spec", "/datasources/nested-*"), List.of(root))
+            )
+        );
     }
 
     public void testClasspathResourcesFromJarAreSortedAndNonRecursive() throws Exception {

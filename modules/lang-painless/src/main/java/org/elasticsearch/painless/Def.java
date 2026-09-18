@@ -211,7 +211,8 @@ public final class Def {
 
     /**
      * Wraps {@code handle} (shape {@code (receiver, scriptThis, userArgs...)}) to charge {@code estimator}'s {@code @allocates}
-     * cost via {@link PainlessScript#$checkAllocBytes(long)} before the call. No-lambda shape only (see {@link #lookupMethod}).
+     * cost via {@link PainlessScript#$checkAllocBytes(long)} before the call. Applied before any lambda-argument filters are
+     * folded in, so the handle always has this plain shape here (see {@link #lookupMethod}).
      */
     private static MethodHandle chargeAllocationBeforeCall(
         MethodHandle handle,
@@ -394,13 +395,19 @@ public final class Def {
             handle = MethodHandles.insertArguments(handle, injectStart, injections);
         }
 
-        // Same script-first → receiver-first swap as the simple case; drop the extra slot when not @script_aware.
-        // Allocation is not charged on this (lambda-argument) path — no allocation-annotated target takes a lambda. v1 gap.
+        // Same script-first → receiver-first swap as the simple case; drop the extra slot when not @script_aware. Charge here,
+        // before the lambda filters are folded in below: at this point the handle still has the plain (receiver, scriptThis,
+        // userArgs...) shape the estimator mirrors, and folding the filters into the charged handle afterwards means the
+        // estimator is handed the materialized functional-interface argument rather than the recipe placeholders.
         if (scriptThisPushed) {
             if (methodTakesScriptThis) {
                 handle = swapFirstTwoArguments(handle);
             } else {
                 handle = MethodHandles.dropArguments(handle, 1, PainlessScript.class);
+            }
+            Method estimator = painlessLookup.lookupRuntimeAllocationEstimator(receiverClass, name, arity);
+            if (estimator != null) {
+                handle = chargeAllocationBeforeCall(handle, estimator, injections, methodTakesScriptThis);
             }
         }
 

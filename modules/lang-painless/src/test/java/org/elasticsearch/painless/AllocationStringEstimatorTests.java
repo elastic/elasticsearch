@@ -11,8 +11,10 @@ package org.elasticsearch.painless;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * End-to-end tests for the {@code String} {@code @allocates} estimators (concat, substring, toCharArray, case mapping,
@@ -132,5 +134,32 @@ public class AllocationStringEstimatorTests extends AllocationTestCase {
 
     public void testToCharArrayTripsLimit() {
         assertTripsLimit("String s = \"hello\"; s.toCharArray(); return \"x\";");
+    }
+
+    // ---- Pattern.split, an @inject_constant augmentation ----
+
+    public void testPatternSplitCharged() {
+        assertEquals(
+            AllocationEstimators.patternSplitBytes(Pattern.compile(","), 0, "a,b"),
+            allocatedBytes("/,/.split('a,b'); return \"x\";")
+        );
+    }
+
+    public void testPatternSplitWithLimitCapsPieces() {
+        long capped = AllocationEstimators.patternSplitBytes(Pattern.compile(","), 0, "a,b,c", 2);
+        assertEquals(capped, allocatedBytes("/,/.split('a,b,c', 2); return \"x\";"));
+        assertThat(capped, lessThan(AllocationEstimators.patternSplitBytes(Pattern.compile(","), 0, "a,b,c")));
+    }
+
+    public void testPatternSplitChargedThroughDef() {
+        // First @allocates on an @inject_constant augmentation: the def path must feed the injected limit to the estimator too.
+        assertEquals(
+            AllocationEstimators.patternSplitBytes(Pattern.compile(","), 0, "a,b"),
+            allocatedBytes("def p = /,/; p.split('a,b'); return \"x\";")
+        );
+    }
+
+    public void testPatternSplitTripsLimit() {
+        assertTripsLimit("/,/.split('a,b'); return \"x\";");
     }
 }

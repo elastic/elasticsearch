@@ -27,6 +27,10 @@ import java.util.NavigableSet;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 /**
  * Built-in {@code @allocates} estimators: {@code public static long} methods matching the annotated target's full Java
@@ -130,6 +134,118 @@ public final class AllocationEstimators {
     public static long linkedListCopyBytes(Collection<?> source) {
         long size = source == null ? 0 : source.size();
         return 32 + AllocSizes.mulSat(size, 40);
+    }
+
+    // ---- java.util collections whose cost scales with an argument: sized and copying constructors, and the list-building
+    // ---- augmentations. Growth garbage from repeated add() is not modeled anywhere, so the final capacity is charged, never
+    // ---- the intermediate copies.
+
+    /** {@code BitSet} object without its word array; {@link #bitSetShellBytes()} adds the default single word. */
+    private static final long BIT_SET_OBJECT_BYTES = 32;
+    /** {@code ArrayDeque} object without its element array; {@link #arrayDequeShellBytes()} adds the default 16 slots. */
+    private static final long ARRAY_DEQUE_OBJECT_BYTES = 32;
+    /** {@code Hashtable} object without its table; {@link #hashtableShellBytes()} adds the default 11 slots. */
+    private static final long HASHTABLE_OBJECT_BYTES = 40;
+    /** One {@code Hashtable.Entry}: header, hash, and the key, value and next references. */
+    private static final long HASHTABLE_ENTRY_BYTES = 40;
+    /** {@code IdentityHashMap} object without its table; {@link #identityHashMapShellBytes()} adds the default 64 slots. */
+    private static final long IDENTITY_HASH_MAP_OBJECT_BYTES = 32;
+    /** A {@code List.subList} view: references to the root and parent lists plus offset, size and modCount. */
+    private static final long SUB_LIST_VIEW_BYTES = 40;
+    /** Default {@code ArrayList} capacity, the floor on what a list built by repeated {@code add} ends up holding. */
+    private static final long ARRAY_LIST_DEFAULT_CAPACITY = 10;
+
+    /**
+     * Cost of {@code new BitSet(nbits)}: the object plus a {@code long[]} holding {@code nbits} bits. A negative count, which
+     * the real constructor rejects, costs just the object.
+     */
+    public static long bitSetBytes(int nbits) {
+        long words = nbits <= 0 ? 0 : ((long) nbits + 63) / 64;
+        return AllocSizes.addSat(BIT_SET_OBJECT_BYTES, AllocSizes.arrayBytes(words, Long.BYTES));
+    }
+
+    /** Cost of {@code new ArrayDeque(collection)}: the object plus an element array one slot larger than the source. */
+    public static long arrayDequeCollectionBytes(Collection<?> collection) {
+        long size = collection == null ? 0 : collection.size();
+        return AllocSizes.addSat(ARRAY_DEQUE_OBJECT_BYTES, AllocSizes.arrayBytes(AllocSizes.addSat(size, 1), AllocSizes.REFERENCE_SIZE));
+    }
+
+    /**
+     * Cost of {@code new Hashtable(map)}: the object, a table of twice the source size (at least 11 slots), and one entry per
+     * mapping.
+     */
+    public static long hashtableCopyBytes(Map<?, ?> source) {
+        long size = source == null ? 0 : source.size();
+        long slots = Math.max(11, AllocSizes.mulSat(size, 2));
+        long table = AllocSizes.arrayBytes(slots, AllocSizes.REFERENCE_SIZE);
+        return AllocSizes.addSat(AllocSizes.addSat(HASHTABLE_OBJECT_BYTES, table), AllocSizes.mulSat(size, HASHTABLE_ENTRY_BYTES));
+    }
+
+    /**
+     * Cost of {@code new IdentityHashMap(map)}: the object plus its open-addressed table. The JDK expects 1.1 times the source
+     * size plus one, rounds that to a power-of-two capacity between 1.5 and 3 times the expectation, and stores two references
+     * per slot. This charges the top of that range, so the rounding never under-counts.
+     */
+    public static long identityHashMapCopyBytes(Map<?, ?> source) {
+        long size = source == null ? 0 : source.size();
+        long expected = AllocSizes.addSat(size, size / 10 + 2); // at least 1.1 * (size + 1)
+        return AllocSizes.addSat(
+            IDENTITY_HASH_MAP_OBJECT_BYTES,
+            AllocSizes.arrayBytes(AllocSizes.mulSat(expected, 6), AllocSizes.REFERENCE_SIZE)
+        );
+    }
+
+    /** Cost of {@code List.subList(from, to)}: a fixed-size view object; the elements stay with the receiver. */
+    public static long subListBytes(List<?> receiver, int from, int to) {
+        return SUB_LIST_VIEW_BYTES;
+    }
+
+    /**
+     * Cost of the {@code Collection.collect(Function)} augmentation: a new {@code ArrayList} with one result per source element.
+     * The results themselves are charged wherever the function allocates them. The leading script parameter mirrors the
+     * {@code @script_aware} augmentation's signature and is unused.
+     */
+    public static long collectBytes(PainlessScript script, Collection<?> receiver, Function<?, ?> function) {
+        return listBuiltByAddBytes(receiver == null ? 0 : receiver.size());
+    }
+
+    /** Cost of the {@code Map.collect(BiFunction)} augmentation: a new {@code ArrayList} with one result per mapping. */
+    public static long collectBytes(PainlessScript script, Map<?, ?> receiver, BiFunction<?, ?, ?> function) {
+        return listBuiltByAddBytes(receiver == null ? 0 : receiver.size());
+    }
+
+    /**
+     * Cost of the {@code Collection.split(Predicate)} augmentation: a two-element outer list plus two lists that between them
+     * hold every source element. Either could end up with all of them, so both are charged at the source size.
+     */
+    public static long splitBytes(PainlessScript script, Collection<?> receiver, Predicate<?> predicate) {
+        long size = receiver == null ? 0 : receiver.size();
+        long outer = AllocSizes.addSat(ARRAY_LIST_SHELL_BYTES, AllocSizes.arrayBytes(2, AllocSizes.REFERENCE_SIZE));
+        return AllocSizes.addSat(outer, AllocSizes.mulSat(listBuiltByAddBytes(size), 2));
+    }
+
+    /** An {@code ArrayList} filled by adding {@code count} elements: the shell plus a backing array of at least the default capacity. */
+    private static long listBuiltByAddBytes(long count) {
+        long capacity = Math.max(ARRAY_LIST_DEFAULT_CAPACITY, count);
+        return AllocSizes.addSat(ARRAY_LIST_SHELL_BYTES, AllocSizes.arrayBytes(capacity, AllocSizes.REFERENCE_SIZE));
+    }
+
+    /**
+     * Cost of the {@code Pattern.split(CharSequence)} augmentation, as a bound: every character could start a new piece, so
+     * {@code length + 1} strings holding {@code length} characters between them, plus the array that holds the pieces.
+     * {@code limitFactor} is the compiler-injected regex limit and does not affect the size. A {@code null} input, which the
+     * real call rejects, costs one empty piece.
+     */
+    public static long patternSplitBytes(Pattern receiver, int limitFactor, CharSequence input) {
+        return patternSplitBytes(receiver, limitFactor, input, 0);
+    }
+
+    /** Cost of {@code Pattern.split(CharSequence, limit)}: as above, capped at {@code limit} pieces when it is positive. */
+    public static long patternSplitBytes(Pattern receiver, int limitFactor, CharSequence input, int limit) {
+        long chars = input == null ? 0 : input.length();
+        long pieces = limit > 0 ? Math.min(limit, chars + 1) : chars + 1;
+        long strings = AllocSizes.addSat(AllocSizes.mulSat(pieces, AllocSizes.STRING_CONCAT_RESULT_OVERHEAD), AllocSizes.mulSat(chars, 2));
+        return AllocSizes.addSat(AllocSizes.arrayBytes(pieces, AllocSizes.REFERENCE_SIZE), strings);
     }
 
     // ---- java.math.BigInteger: results are an object plus an int[] magnitude sized by the result's bit length. ----

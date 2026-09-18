@@ -1802,6 +1802,17 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeDebugInfo(irDefInterfaceReferenceNode.getLocation());
 
+        List<String> captureNames = irDefInterfaceReferenceNode.getDecorationValue(IRDCaptureNames.class);
+        boolean captureBox = irDefInterfaceReferenceNode.hasCondition(IRCCaptureBox.class);
+
+        // The functional interface is resolved at runtime, but its capture object is allocated all the same: one slot per
+        // captured value, counting the implicit script capture and the synthetic #scriptThis capture when injected. Charge it
+        // exactly as the typed path does; the pre-check has a net-zero stack effect.
+        int captureCount = (irDefInterfaceReferenceNode.hasCondition(IRCInstanceCapture.class) ? 1 : 0) + (captureNames == null
+            ? 0
+            : captureNames.size());
+        writeAllocationCheck(writeScope, AllocSizes.captureSize(captureCount));
+
         // place holder for functional interface receiver
         // which is resolved and replace at runtime
         methodWriter.push((String) null);
@@ -1809,9 +1820,6 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         if (irDefInterfaceReferenceNode.hasCondition(IRCInstanceCapture.class)) {
             writeInstanceScriptCapture(writeScope, methodWriter);
         }
-
-        List<String> captureNames = irDefInterfaceReferenceNode.getDecorationValue(IRDCaptureNames.class);
-        boolean captureBox = irDefInterfaceReferenceNode.hasCondition(IRCCaptureBox.class);
 
         if (captureNames != null) {
             for (String captureName : captureNames) {

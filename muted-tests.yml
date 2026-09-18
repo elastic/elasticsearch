@@ -505,9 +505,6 @@ tests:
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=search.vectors/131_knn_query_nested_inner_hits_score/nested kNN inner_hits are scored like the query phase on a quantized field}
   issue: https://github.com/elastic/elasticsearch/issues/156753
-- class: org.elasticsearch.xpack.esql.qa.parquet.ChangePointInlineStatsExternalDatasetIT
-  method: testChangePointStatsInlineStatsWithExternalDataset
-  issue: https://github.com/elastic/elasticsearch/issues/159358
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecChangePointIT
   method: test {csv-spec:change_point.null keys}
   issue: https://github.com/elastic/elasticsearch/issues/156856
@@ -754,3 +751,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
   issue: https://github.com/elastic/elasticsearch/issues/159710
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test {feature:PARQUET_DATASET}
+  issue: https://github.com/elastic/elasticsearch/issues/156789

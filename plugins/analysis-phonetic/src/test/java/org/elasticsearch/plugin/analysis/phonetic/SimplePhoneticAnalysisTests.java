@@ -207,6 +207,28 @@ public class SimplePhoneticAnalysisTests extends ESTestCase {
         assertThat(parts.size(), lessThanOrEqualTo(16));
     }
 
+    // Regression test: String.split(regex, limit) with a positive limit, unlike the unlimited single-argument
+    // split() it replaced, does not drop trailing empty strings. A token ending in a separator therefore
+    // produced a spurious trailing empty part, and the "skip the final full-string concatenation" numbering
+    // shifted to treat the real segment as non-final, duplicating it as its own part too. Trailing separators
+    // must have no effect on the segments generateParts() produces.
+    public void testKoelnerPhonetikGeneratePartsIgnoresTrailingSeparators() {
+        KoelnerPhonetik encoder = new KoelnerPhonetik();
+        assertEquals(List.of("BRAUN"), encoder.generateParts("BRAUN-"));
+        // A run of several trailing separators must not produce multiple empty parts either.
+        assertEquals(List.of("BRAUN"), encoder.generateParts("BRAUN---"));
+    }
+
+    // Same regression, observed through the public encode() path: trailing punctuation must not change a
+    // token's phonetic codes at all, since it carries no letters of its own.
+    public void testPhoneticTokenFilterKoelnerPhonetikTrailingPunctuation() throws IOException {
+        TokenFilterFactory filterFactory = analysis.tokenFilter.get("koelnerphonetikfilter");
+        Tokenizer tokenizer = new WhitespaceTokenizer();
+        tokenizer.setReader(new StringReader("BRAUN-"));
+        String[] expected = new String[] { "176_1736" };
+        BaseTokenStreamTestCase.assertTokenStreamContents(filterFactory.create(tokenizer), expected);
+    }
+
     public void testPhoneticTokenFilterKoelnerPhonetikBoundsPartialBudgetOvershoot() throws IOException {
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("koelnerphonetikfilter");
         Tokenizer tokenizer = new WhitespaceTokenizer();

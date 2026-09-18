@@ -163,8 +163,15 @@ public class KoelnerPhonetik implements StringEncoder {
             // documented limit behavior, that slot may itself hold more than one unsplit trailing segment,
             // but either way its mere presence means our kept batch isn't the token's complete segment list.
             String[] rawParts = str.split("[\\p{Z}\\p{C}\\p{P}]", MAX_VARIATIONS + 1);
-            boolean moreSegmentsExist = rawParts.length > MAX_VARIATIONS;
-            int keptCount = moreSegmentsExist ? MAX_VARIATIONS : rawParts.length;
+            // A positive split() limit, unlike the unlimited split() it replaces, does not drop trailing
+            // empty strings, so a token ending in a separator would otherwise gain a spurious empty segment.
+            // Trim them so trailing separators have no effect, matching the original unlimited behavior.
+            int effectiveLength = rawParts.length;
+            while (effectiveLength > 0 && rawParts[effectiveLength - 1].isEmpty()) {
+                effectiveLength--;
+            }
+            boolean moreSegmentsExist = effectiveLength > MAX_VARIATIONS;
+            int keptCount = moreSegmentsExist ? MAX_VARIATIONS : effectiveLength;
             List<String> tmpParts = new ArrayList<>(Arrays.asList(rawParts).subList(0, keptCount));
             // If more segments exist beyond what we kept, use a numberOfParts the loop below can never reach,
             // since the "skip the final full-string concatenation" check it's used for only applies to the

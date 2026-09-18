@@ -210,8 +210,8 @@ public class ColumnarStringTermQueryTests extends ESTestCase {
             // Few terms and nothing escaping, so every segment has a dictionary and their union covers it.
             new Shape("dictionary union", ROOMY, d -> TERMS[d % TERMS.length]),
             // A long tail beside them, so a segment lets values escape and the union cannot stand for it.
-            new Shape("combined summaries", ROOMY, d -> d % 9 == 4 ? "tail-" + d : TERMS[d % TERMS.length]),
-            // No dictionary to take or sum, so the merged values are surveyed as a flush surveys them.
+            new Shape("partial dictionaries", ROOMY, d -> d % 9 == 4 ? "tail-" + d : TERMS[d % TERMS.length]),
+            // No dictionary to take, so the merged values are surveyed as a flush surveys them.
             new Shape("survey", DictionaryPolicy.NONE, d -> TERMS[d % TERMS.length])
         );
         for (Shape shape : shapes) {

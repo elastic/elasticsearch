@@ -112,16 +112,6 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         return escapeCount;
     }
 
-    @Override
-    protected ValueStream.Reader summarisedTerms() {
-        return dictionary;
-    }
-
-    @Override
-    protected int summarisedTermCount() {
-        return dictionarySize;
-    }
-
     /** Whether the slot is null, which the ordinal already read to resolve the value settles outright. */
     @Override
     public boolean isNullSlot(long valueAddress) throws IOException {

@@ -1162,6 +1162,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         when(searchExecutionContext.getForField(ft, fdt)).thenAnswer(inv -> fieldDataLookup(mapperService).apply(ft, () -> {
             throw new UnsupportedOperationException();
         }, fdt));
+        when(searchExecutionContext.isFieldVisible(field)).thenReturn(true);
         ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
         ParsedDocument doc = mapperService.documentMapper().parse(source);
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {

@@ -1439,6 +1439,45 @@ public class EsqlSecurityIT extends ESRestTestCase {
         );
     }
 
+    public void testFieldLevelSecurityWithRuntimeMappingTargetingConstantKeyword() throws Exception {
+        Request putMapping = new Request("PUT", "/index/_mapping");
+        putMapping.setJsonEntity("""
+            {
+              "runtime": {
+                "constant_values_count": {
+                  "type": "long",
+                  "script": "emit(doc['test_constant'].size())"
+                }
+              },
+              "properties": {
+                "test_constant": {
+                  "type": "constant_keyword",
+                  "value": "hidden_value"
+                }
+              }
+            }
+            """);
+        assertOK(client().performRequest(putMapping));
+
+        var visibleResponse = runESQLCommand("test-admin", "FROM index | KEEP constant_values_count");
+        assertOK(visibleResponse);
+        assertMap(
+            entityAsMap(visibleResponse),
+            matchesMap().extraOk()
+                .entry("columns", List.of(matchesMap().entry("name", "constant_values_count").entry("type", "long")))
+                .entry("values", List.of(List.of(1), List.of(1)))
+        );
+
+        var hiddenResponse = runESQLCommand("fls_user", "FROM index | KEEP constant_values_count");
+        assertOK(hiddenResponse);
+        assertMap(
+            entityAsMap(hiddenResponse),
+            matchesMap().extraOk()
+                .entry("columns", List.of(matchesMap().entry("name", "constant_values_count").entry("type", "long")))
+                .entry("values", List.of(List.of(0), List.of(0)))
+        );
+    }
+
     private void putConstantKeywordMapping(String index, String value) throws IOException {
         Request putMapping = new Request("PUT", "/" + index + "/_mapping");
         putMapping.setJsonEntity("""

@@ -15,12 +15,15 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -72,6 +75,7 @@ public class MappingLookupTests extends ESTestCase {
         assertEquals(0, mappingLookup.objectMappers().size());
         assertNull(mappingLookup.getMapper("test"));
         assertThat(mappingLookup.fieldTypesLookup().get("test"), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
+        assertTrue(mappingLookup.isRuntimeField("test"));
     }
 
     public void testFirstFieldNotReconstructableFromDocValues() {
@@ -104,6 +108,7 @@ public class MappingLookupTests extends ESTestCase {
         assertEquals(1, size(mappingLookup.fieldMappers()));
         assertEquals(0, mappingLookup.objectMappers().size());
         assertThat(mappingLookup.fieldTypesLookup().get("test"), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
+        assertTrue(mappingLookup.isRuntimeField("test"));
     }
 
     public void testSubfieldOverride() {
@@ -126,6 +131,7 @@ public class MappingLookupTests extends ESTestCase {
         assertEquals(1, size(mappingLookup.fieldMappers()));
         assertEquals(1, mappingLookup.objectMappers().size());
         assertThat(mappingLookup.fieldTypesLookup().get("object.subfield"), instanceOf(TestRuntimeField.TestRuntimeFieldType.class));
+        assertTrue(mappingLookup.isRuntimeField("object.subfield"));
     }
 
     public void testAnalyzers() throws IOException {
@@ -241,6 +247,55 @@ public class MappingLookupTests extends ESTestCase {
                     : "Field [metric] attempted to shadow a time_series_metric"
             )
         );
+    }
+
+    public void testMappedFieldIsNotRuntimeFieldWhenRuntimeFieldsExist() {
+        MockFieldMapper mapped = new MockFieldMapper("mapped");
+        MappingLookup mappingLookup = createMappingLookup(
+            List.of(mapped),
+            emptyList(),
+            List.of(new TestRuntimeField("runtime", "type"))
+        );
+
+        assertFalse(mappingLookup.isRuntimeField("mapped"));
+        assertTrue(mappingLookup.isRuntimeField("runtime"));
+        assertFalse(mappingLookup.isRuntimeField("missing"));
+    }
+
+    public void testDynamicMappedFieldIsNotRuntimeField() {
+        FlattenedFieldMapper flattened = new FlattenedFieldMapper.Builder(
+            "flattened",
+            IndexSettingsModule.newIndexSettings("index", Settings.EMPTY)
+        ).build(MapperBuilderContext.root(false, false));
+
+        MappingLookup mappingLookup = createMappingLookup(
+            List.of(flattened),
+            emptyList(),
+            emptyList(),
+            IndexMode.STANDARD
+        );
+
+        assertThat(
+            mappingLookup.getFieldType("flattened.key"),
+            instanceOf(FlattenedFieldMapper.KeyedFlattenedFieldType.class)
+        );
+        assertFalse(mappingLookup.isRuntimeField("flattened"));
+        assertFalse(mappingLookup.isRuntimeField("flattened.key"));
+    }
+
+    public void testCompositeRuntimeSubfieldsAreRuntimeFields() {
+        TestRuntimeField runtimeField = new TestRuntimeField(
+            "runtime",
+            List.of(
+                new TestRuntimeField.TestRuntimeFieldType("runtime.first", "type"),
+                new TestRuntimeField.TestRuntimeFieldType("runtime.second", "type")
+            )
+        );
+
+        MappingLookup mappingLookup = createMappingLookup(emptyList(), emptyList(), List.of(runtimeField));
+
+        assertTrue(mappingLookup.isRuntimeField("runtime.first"));
+        assertTrue(mappingLookup.isRuntimeField("runtime.second"));
     }
 
     private void assertAnalyzes(Analyzer analyzer, String field, String output) throws IOException {

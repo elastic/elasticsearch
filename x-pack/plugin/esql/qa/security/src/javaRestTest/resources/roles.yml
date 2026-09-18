@@ -129,7 +129,7 @@ fls_user:
     - names: [ 'index' ]
       privileges: [ 'read' ]
       field_security:
-        grant: [ value, partial ]
+        grant: [ value, partial, constant_values_count ]
     - names: [ 'indexpartial' ]
       privileges: [ 'read' ]
       field_security:

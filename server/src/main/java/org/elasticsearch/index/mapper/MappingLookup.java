@@ -739,6 +739,14 @@ public final class MappingLookup {
     }
 
     /**
+     * Returns whether {@code field} is provided by a runtime field declared in the index mapping.
+     * Request-level runtime mappings are not part of this lookup.
+     */
+    public boolean isRuntimeField(String field) {
+        return fieldTypeLookup.getFullNameToFieldType().get(field) != indexTimeLookup.getFullNameToFieldType().get(field);
+    }
+
+    /**
      * Build something to load source {@code _source}.
      */
     public SourceLoader newSourceLoader(

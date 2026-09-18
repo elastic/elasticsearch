@@ -689,7 +689,10 @@ public class QueryRewriteContext {
     }
 
     public boolean isFieldVisible(String field) {
-        return (mapperService != null && mapperService.isMetadataField(field)) || fieldVisibilityPredicate.test(field);
+        return runtimeMappings.containsKey(field)
+            || mappingLookup.isRuntimeField(field)
+            || (mapperService != null && mapperService.isMetadataField(field))
+            || fieldVisibilityPredicate.test(field);
     }
 
     public ResolvedIndices getResolvedIndices() {

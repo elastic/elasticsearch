@@ -19,6 +19,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
+import org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -219,6 +221,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         private AliasFilter aliasFilter;
         private ProjectMetadata datasetMetadata;
         private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
+        private QueryBuilder requestFilter;
         private Map<String, String> views = Map.of();
         private EsqlFlags flags = EsqlFlags.withRemoteFetchTopN(false);
 
@@ -369,6 +372,16 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         public ExternalSourceResolution externalSourceResolution() {
             return externalSourceResolution;
+        }
+
+        /**
+         * An out-of-band Query DSL filter, applied to the analyzed plan by {@link RequestFilterRewriter} exactly as
+         * {@code EsqlSession} applies a request's {@code filter}. It rewrites only dataset leaves, so pair it with
+         * {@link #datasetMetadata}.
+         */
+        public TestBuilder requestFilter(QueryBuilder requestFilter) {
+            this.requestFilter = requestFilter;
+            return this;
         }
 
         public TestBuilder views(Map<String, String> views) {
@@ -578,6 +591,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                 aliasFilter,
                 datasetMetadata,
                 externalSourceResolution,
+                requestFilter,
                 views,
                 flags
             );
@@ -726,6 +740,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         AliasFilter aliasFilter,
         ProjectMetadata datasetMetadata,
         ExternalSourceResolution externalSourceResolution,
+        QueryBuilder requestFilter,
         Map<String, String> views,
         EsqlFlags flags
     ) {
@@ -773,14 +788,18 @@ public abstract class GoldenTestCase extends ESTestCase {
             );
             Analyzer analyzer = testAnalyzer.buildAnalyzer();
             List<Tuple<Stage, TestResult>> result = new ArrayList<>();
+            var configuration = EsqlTestUtils.configuration(QueryPragmas.EMPTY, esqlQuery, statement);
             var analyzed = analyzer.analyze(parsedPlan);
+            if (requestFilter != null) {
+                // Mirror EsqlSession: the request filter is installed on the analyzed plan, before optimization.
+                analyzed = RequestFilterRewriter.rewrite(analyzed, requestFilter, configuration, transportVersion, true);
+            }
             if (stages.contains(Stage.ANALYSIS)) {
                 result.add(Tuple.tuple(Stage.ANALYSIS, verifyOrWrite(analyzed, Stage.ANALYSIS)));
             }
             if (stages.equals(EnumSet.of(Stage.ANALYSIS))) {
                 return result;
             }
-            var configuration = EsqlTestUtils.configuration(QueryPragmas.EMPTY, esqlQuery, statement);
             var optimizerContext = new LogicalOptimizerContext(configuration, FoldContext.small(), transportVersion);
             var optimizer = optimizerFactory != null
                 ? optimizerFactory.apply(optimizerContext)

@@ -63,14 +63,19 @@ final class S3EndpointCheck {
     static final String STS_SERVICE = "sts";
 
     /**
-     * The leading label of a regional S3 object endpoint, plain or FIPS. Beside these there is one form
-     * whose tail is generated rather than fixed, handled by pattern in {@link #isServiceLabel}: the
-     * historical {@code s3-<region>} spelling, which carries its region in the service label itself.
+     * The leading label of a regional S3 object endpoint. Beside it there is one form whose tail is
+     * generated rather than fixed, handled by pattern in {@link #isServiceLabel}: the historical
+     * {@code s3-<region>} spelling, which carries its region in the service label itself.
      *
      * <p>Every other S3 endpoint family AWS serves is deliberately absent, and each is reachable only by an
      * operator naming its host in {@code esql.external.allowed_endpoint_hosts}:
      *
      * <ul>
+     *   <li>{@code s3-fips} — the regional endpoint over FIPS 140-validated cryptography. Absent because the
+     *       SDK does not treat an endpoint override as a way to ask for FIPS: setting its FIPS client option
+     *       alongside a custom endpoint fails with {@code A custom endpoint cannot be combined with FIPS},
+     *       and this data source exposes no such option. Permitting the hostname would imply a capability
+     *       nothing here delivers.</li>
      *   <li>{@code s3-accesspoint}, {@code s3-accesspoint-fips} — an access point, which fronts one bucket
      *       under its own policy.</li>
      *   <li>{@code s3-accelerate} — transfer acceleration, which routes through an edge location.</li>
@@ -85,10 +90,10 @@ final class S3EndpointCheck {
      *       name in {@link S3ResourceCheck} as well, because the bucket name alone moves the destination.</li>
      * </ul>
      */
-    private static final Set<String> S3_SERVICE_LABELS = Set.of("s3", "s3-fips");
+    private static final Set<String> S3_SERVICE_LABELS = Set.of("s3");
 
-    /** The leading label of a regional STS endpoint: the token service, plain or FIPS. */
-    private static final Set<String> STS_SERVICE_LABELS = Set.of("sts", "sts-fips");
+    /** The leading label of a regional STS endpoint. {@code sts-fips} is absent for the reason S3's is. */
+    private static final Set<String> STS_SERVICE_LABELS = Set.of("sts");
 
     /**
      * Enumerated over {@link Region#regions()} — a fixed built-in list {@link Region#of} does not extend —

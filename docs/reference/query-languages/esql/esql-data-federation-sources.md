@@ -216,7 +216,7 @@ The following settings are available for `s3` data sources:
 | Setting | Required | Description |
 |---|---|---|
 | `endpoint` | No | Optional Amazon S3 endpoint override. Must be an absolute `https` URL naming a **regional** AWS S3 endpoint, for example `https://s3.us-east-1.amazonaws.com`. Omit to resolve the endpoint from the region. See [S3 endpoint requirements](#s3-endpoint-requirements). {applies_to}`stack: experimental 9.6+` |
-| `addressing_style` {applies_to}`stack: experimental 9.6+` | No | URL addressing style. `auto` (default) uses path-style when `endpoint` is set and SDK-default otherwise. `path` always uses path-style. `virtual_hosted` lets the SDK decide (bare-IP endpoints fall back to path-style). Use `virtual_hosted` for AWS FIPS, dual-stack, or VPC interface endpoints that require virtual-hosted addressing. |
+| `addressing_style` {applies_to}`stack: experimental 9.6+` | No | URL addressing style. `auto` (default) uses path-style when `endpoint` is set and SDK-default otherwise. `path` always uses path-style. `virtual_hosted` lets the SDK decide (bare-IP endpoints fall back to path-style). Use `virtual_hosted` for a dual-stack or VPC interface endpoint that requires virtual-hosted addressing. |
 
 $$$s3-endpoint-requirements$$$
 ::::{dropdown} S3 endpoint requirements
@@ -224,13 +224,13 @@ $$$s3-endpoint-requirements$$$
 Accepted endpoint forms, in every AWS partition:
 
 - Regional: `https://s3.us-east-1.amazonaws.com`
-- FIPS or dual-stack variants of a regional endpoint
+- The dual-stack variant of a regional endpoint: `https://s3.dualstack.us-east-1.amazonaws.com`
 - Historical: `https://s3-us-west-2.amazonaws.com`
 - VPC interface: `https://bucket.vpce-0a1b2c3d.s3.us-east-1.vpce.amazonaws.com`
 
 If reads through one of these fail with an addressing error, set `addressing_style: virtual_hosted`; the default resolves to path-style whenever `endpoint` is set.
 
-Every other AWS endpoint family is rejected, including the global `https://s3.amazonaws.com`, transfer acceleration, access points, object lambda, Outposts, the account-level control plane, the legacy `s3-external-1` alias, and S3 Express. So are plain `http`, a value without a scheme, and a host the URL syntax does not allow, such as an underscore or a non-numeric port.
+Every other AWS endpoint family is rejected, including the global `https://s3.amazonaws.com`, FIPS endpoints, transfer acceleration, access points, object lambda, Outposts, the account-level control plane, the legacy `s3-external-1` alias, and S3 Express. FIPS is rejected because an endpoint override is not how AWS accepts a request for FIPS: the SDK refuses its FIPS option when a custom endpoint is set, and this data source exposes no such option, so permitting the hostname would imply a capability it does not provide. So are plain `http`, a value without a scheme, and a host the URL syntax does not allow, such as an underscore or a non-numeric port.
 
 A node can permit additional hosts with the `esql.external.allowed_endpoint_hosts` node setting, a list of `host:port` patterns in `elasticsearch.yml` that defaults to empty. This is how a deployment that needs one of the rejected families reaches it. Because the setting is applied per node, managing data sources does not grant it. A host it names is also accepted over plain `http`.
 

@@ -67,7 +67,7 @@ public class S3EndpointCheckTests extends ESTestCase {
                         if (s3Host != null) {
                             // The resolver puts the bucket in the leading label; the setting names what remains.
                             String service = s3Host.substring("mybucket.".length());
-                            if (namesARegion(service, region)) {
+                            if (shouldBeAccepted(service, region)) {
                                 assertTrue("rejected " + service, S3EndpointCheck.isPermittedHost(service, S3_SERVICE));
                                 accepted++;
                             } else {
@@ -78,7 +78,7 @@ public class S3EndpointCheckTests extends ESTestCase {
                     }
                     String stsHost = resolveStsHost(region, fips, dualStack);
                     if (stsHost != null) {
-                        if (namesARegion(stsHost, region)) {
+                        if (shouldBeAccepted(stsHost, region)) {
                             assertTrue("rejected " + stsHost, S3EndpointCheck.isPermittedHost(stsHost, STS_SERVICE));
                             accepted++;
                         } else {
@@ -89,21 +89,26 @@ public class S3EndpointCheckTests extends ESTestCase {
                 }
             }
         }
-        assertEquals("the set of endpoints the resolver produces has changed", 68, accepted);
-        assertEquals("the set of region-less endpoints the resolver produces has changed", 18, refused);
+        assertEquals("the set of endpoints the resolver produces has changed", 36, accepted);
+        assertEquals("the set of region-less endpoints the resolver produces has changed", 50, refused);
     }
 
-    /** Whether the resolver put the region into the host, as a label of its own or inside the service label. */
-    private static boolean namesARegion(String host, String region) {
+    /**
+     * Whether the rule should accept this destination: the resolver put the region into the host, as a label
+     * of its own or inside the service label, and the host is not a FIPS endpoint. FIPS is refused even
+     * though it names a region — see {@code S3EndpointCheck.S3_SERVICE_LABELS} for why.
+     */
+    private static boolean shouldBeAccepted(String host, String region) {
+        if (host.startsWith("s3-fips.") || host.startsWith("sts-fips.")) {
+            return false;
+        }
         return host.contains("." + region + ".") || host.startsWith("s3-" + region + ".");
     }
 
     public void testAcceptsAwsEndpoints() {
         for (String host : List.of(
             "s3.us-east-1.amazonaws.com",
-            "s3-fips.us-east-1.amazonaws.com",
             "s3.dualstack.eu-west-1.amazonaws.com",
-            "s3-fips.dualstack.eu-west-1.amazonaws.com",
             "s3.cn-north-1.amazonaws.com.cn",
             // The historical spelling, which carries its region inside the service label.
             "s3-us-west-2.amazonaws.com",
@@ -116,11 +121,7 @@ public class S3EndpointCheckTests extends ESTestCase {
         )) {
             assertTrue(host, S3EndpointCheck.isPermittedHost(host, S3_SERVICE));
         }
-        for (String host : List.of(
-            "sts.us-east-1.amazonaws.com",
-            "sts-fips.us-east-1.amazonaws.com",
-            "vpce-0a1b2c3d.sts.us-east-1.vpce.amazonaws.com"
-        )) {
+        for (String host : List.of("sts.us-east-1.amazonaws.com", "vpce-0a1b2c3d.sts.us-east-1.vpce.amazonaws.com")) {
             assertTrue(host, S3EndpointCheck.isPermittedHost(host, STS_SERVICE));
         }
     }
@@ -151,9 +152,17 @@ public class S3EndpointCheckTests extends ESTestCase {
             "s3-outposts-fips.us-east-1.amazonaws.com",
             "s3-control.us-east-1.amazonaws.com",         // the account-level control plane
             "s3-control-fips.us-east-1.amazonaws.com",
-            "s3-external-1.amazonaws.com"                 // the legacy us-east-1 alias
+            "s3-external-1.amazonaws.com",                // the legacy us-east-1 alias
+            "s3-fips.us-east-1.amazonaws.com",            // FIPS, which an endpoint override cannot ask for
+            "s3-fips.dualstack.eu-west-1.amazonaws.com"
         );
-        assertAllRefused(STS_SERVICE, "sts.amazonaws.com", "sts.dualstack.amazonaws.com", "sts-fips.amazonaws.com");
+        assertAllRefused(
+            STS_SERVICE,
+            "sts.amazonaws.com",
+            "sts.dualstack.amazonaws.com",
+            "sts-fips.amazonaws.com",
+            "sts-fips.us-east-1.amazonaws.com"
+        );
     }
 
     /**

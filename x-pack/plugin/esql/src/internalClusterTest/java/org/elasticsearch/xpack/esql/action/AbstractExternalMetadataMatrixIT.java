@@ -42,8 +42,8 @@ import static org.hamcrest.Matchers.nullValue;
  *
  * <p>{@code _id}, {@code _version} and {@code _source} are in that set because a file holds no
  * document identity, no document version and no stored source; {@code _index} is in it because it
- * names an index and a dataset is not one; {@code _score} is in it because nothing ranks a dataset
- * row, so there is no relevance to report. The name that does answer for a dataset is {@code _name}.
+ * names an index and a dataset is not one; {@code _score} is in it because no scorer is wired over an
+ * external relation, so nothing populates it. The name that does answer for a dataset is {@code _name}.
  *
  * <p>This base owns the {@code @Test} bodies; each concrete subclass binds them to one format
  * by supplying {@link #format()}, {@link #formatPlugins()} and a {@link #writeFixture(Path)} that

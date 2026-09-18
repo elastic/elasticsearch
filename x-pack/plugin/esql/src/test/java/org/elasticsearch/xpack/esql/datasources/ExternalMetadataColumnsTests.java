@@ -66,17 +66,6 @@ public class ExternalMetadataColumnsTests extends ESTestCase {
     }
 
     /**
-     * Nothing ranks a dataset row: no scorer runs over an external relation, so {@code _score} has no relevance to
-     * report and answers SQL NULL like the rest of the set. Zero would be a different claim — it is what a scorer
-     * that ran and matched nothing returns on an index — and a reader could not tell the two apart.
-     */
-    public void testScoreAnswersNull() {
-        Map<String, Object> constants = ExternalMetadataColumns.extractPerFileConstants();
-        assertTrue(constants.containsKey(ExternalMetadataColumns.SCORE));
-        assertNull("_score must answer SQL NULL, not 0.0", constants.get(ExternalMetadataColumns.SCORE));
-    }
-
-    /**
      * Every per-file constant is null, with no exception. Pins the set as a whole so a name given a composed value
      * has to change this assertion rather than slip in beside the null arm.
      */

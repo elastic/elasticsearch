@@ -5159,8 +5159,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // _tier (DataTierFieldMapper.NAME) is snapshot-only in MetadataAttribute.ATTRIBUTES_MAP;
         // omit it so the query is valid in non-snapshot builds. Every other standard name has no
         // value on an external row and must render as a NULL column rather than being dropped or
-        // erroring — a file carries no document identity, version or stored source either, and
-        // nothing ranks a dataset row, so _score has no relevance to report.
+        // erroring — a file carries no document identity, version or stored source either, and no
+        // scorer is wired over an external relation, so nothing populates _score.
         String query = "FROM employees METADATA _index, _id, _version, _source, _ignored, _index_mode, _tsid, _size, _score "
             + "| SORT emp_no "
             + "| KEEP emp_no, _index, _id, _version, _source, _ignored, _index_mode, _tsid, _size, _score "

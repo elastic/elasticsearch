@@ -35,8 +35,8 @@ import java.util.Set;
  * <p>
  * Every standard name a dataset answers at the reader is a per-file constant; see
  * {@link #PER_FILE_CONSTANT_NAMES}, and every one of them holds a {@code null} value: a file has no
- * document identity, no document version and no stored source, nothing ranks its rows, and a dataset
- * is not an index, so the honest answer is SQL NULL rather than a value the engine invented.
+ * document identity, no document version and no stored source, and a dataset is not an index, so
+ * the honest answer is SQL NULL rather than a value the engine invented.
  * {@code _name} is the name that does answer for a dataset; it and {@code _class} are the two standard
  * names outside that set, answered on the relation by {@code MaterializeRelationClassAndName} and
  * never read from a file.
@@ -59,8 +59,8 @@ public final class ExternalMetadataColumns {
     /**
      * Names of standard metadata columns that are materialised by the producer-side
      * constant-block path. Every one of them is SQL {@code NULL}: a file carries no document
-     * identity, no document version and no stored source, no scorer runs over a dataset, and a
-     * dataset is not an index, so each column binds and every row is NULL.
+     * identity, no document version and no stored source, and a dataset is not an index, so each
+     * column binds and every row is NULL.
      */
     public static final Set<String> PER_FILE_CONSTANT_NAMES;
 
@@ -168,10 +168,9 @@ public final class ExternalMetadataColumns {
             // per-row _ignored list, index mode, tsid or stored size either. _index is on this arm for
             // the same reason: it names an index, and a dataset is not one. The name that does answer
             // for a dataset is _name, which MaterializeRelationClassAndName folds in the plan, so it
-            // never reaches a reader. _score is here because nothing ranks a dataset row: no scorer
-            // runs over this relation, so there is no relevance to report, and a computed-looking 0.0
-            // would be indistinguishable from a row a scorer really did give zero. Every one of these
-            // is SQL NULL rather than a value composed here.
+            // never reaches a reader. _score is on this arm because no scorer is wired over an external
+            // relation, so nothing populates it: the column binds and answers NULL. Every one of these is
+            // SQL NULL rather than a value composed here.
             case INDEX, ID, VERSION, SOURCE, SCORE, IGNORED, INDEX_MODE, TSID, SIZE, DataTierFieldMapper.NAME, SLICE -> null;
             default -> throw new AssertionError("Unhandled per-file constant name: " + name);
         };

@@ -717,6 +717,27 @@ public class IndexEngine extends InternalEngine {
         return super.refreshInternalSearcher(purpose, source, block);
     }
 
+    /**
+     * Restricts the version map unsafe check for write operations so that they do not serialise
+     * on {@code archive.isUnsafe()} being true.
+     * <p>
+     * {@link org.elasticsearch.index.engine.LiveVersionMapArchive#isUnsafe()} tracks whether
+     * search nodes have refreshed past a generation that included unsafe (untracked) writes. This
+     * is only relevant for realtime-get correctness ({@link OperationPurpose#GET_FROM_TRANSLOG}).
+     * For mutations, only {@code current} and {@code old} need to be safe. Without this override,
+     * a mutation-purpose refresh clears {@code current} and {@code old} but leaves
+     * {@code archive.isUnsafe()} true indefinitely (it can only be cleared by a flush that
+     * {@link #refreshInternalSearcher} intentionally does not trigger for mutations), causing every
+     * subsequent write to re-enter {@code synchronized(versionMap)} and trigger an unnecessary
+     * refresh in a tight loop.
+     */
+    @Override
+    protected boolean isVersionMapUnsafe(OperationPurpose purpose) {
+        return purpose == OperationPurpose.GET_FROM_TRANSLOG
+            ? super.isVersionMapUnsafe(purpose)
+            : isVersionMapCurrentUnsafe();
+    }
+
     // visible for testing
     public long getCurrentGeneration() {
         return getLastCommittedSegmentInfos().getGeneration();

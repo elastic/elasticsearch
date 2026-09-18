@@ -344,6 +344,15 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         return maps.current.isUnsafe() || maps.old.isUnsafe() || archive.isUnsafe();
     }
 
+    /**
+     * Returns true if the current or old version lookup maps are unsafe, ignoring the archive.
+     * The archive's unsafe state is only relevant for realtime-get correctness on search nodes
+     * and does not affect whether write operations can safely proceed.
+     */
+    boolean isCurrentUnsafe() {
+        return maps.current.isUnsafe() || maps.old.isUnsafe();
+    }
+
     void enforceSafeAccess() {
         maps.needsSafeAccess = true;
     }

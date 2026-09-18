@@ -1155,12 +1155,12 @@ public class InternalEngine extends Engine {
     }
 
     protected VersionValue getVersionFromMap(BytesRef id, OperationPurpose purpose) {
-        if (versionMap.isUnsafe()) {
+        if (isVersionMapUnsafe(purpose)) {
             synchronized (versionMap) {
                 // we are switching from an unsafe map to a safe map. This might happen concurrently
                 // but we only need to do this once since the last operation per ID is to add to the version
                 // map so once we pass this point we can safely lookup from the version map.
-                if (versionMap.isUnsafe()) {
+                if (isVersionMapUnsafe(purpose)) {
                     refreshInternalSearcher(purpose, UNSAFE_VERSION_MAP_REFRESH_SOURCE, true);
                     // After the refresh, the doc that triggered it must now be part of the last commit.
                     // In rare cases, there could be other flush cycles completed in between the above line
@@ -1173,9 +1173,26 @@ public class InternalEngine extends Engine {
                 }
                 versionMap.enforceSafeAccess();
             }
-            // The versionMap can still be unsafe at this point due to archive being unsafe
         }
         return versionMap.getUnderLock(id);
+    }
+
+    /**
+     * Returns whether the version map should be considered unsafe for the given operation purpose.
+     * Subclasses may override this to restrict the unsafe check — for example, to exclude the
+     * archive component when it is not relevant for the given purpose.
+     */
+    protected boolean isVersionMapUnsafe(OperationPurpose purpose) {
+        return versionMap.isUnsafe();
+    }
+
+    /**
+     * Returns whether the current or old version lookup maps are unsafe, ignoring the archive.
+     * Exposed for subclasses that need a narrower unsafe check without direct access to
+     * {@code versionMap}.
+     */
+    protected final boolean isVersionMapCurrentUnsafe() {
+        return versionMap.isCurrentUnsafe();
     }
 
     private boolean canOptimizeAddDocument(Index index) {

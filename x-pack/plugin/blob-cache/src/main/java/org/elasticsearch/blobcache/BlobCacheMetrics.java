@@ -80,7 +80,11 @@ public class BlobCacheMetrics {
         /**
          * When data is prefetched upon new commit notifications
          */
-        PreFetchingNewCommit
+        PreFetchingNewCommit,
+        /**
+         * When going through a BCC-chain walk during recovery and the data is not in the cache
+         */
+        BccChainWalk
     }
 
     /**

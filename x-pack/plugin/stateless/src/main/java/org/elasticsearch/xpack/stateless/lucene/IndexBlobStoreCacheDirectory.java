@@ -134,6 +134,33 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
         };
     }
 
+    public IndexBlobStoreCacheDirectory createBccChainWalkDirectory() {
+        return new IndexBlobStoreCacheDirectory(
+            cacheService,
+            shardId,
+            totalBytesReadFromObjectStore,
+            totalBytesWarmedFromObjectStore,
+            blobContainer.get()
+        ) {
+            @Override
+            protected CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
+                return createCacheBlobReader(
+                    fileName,
+                    getBlobContainer(blobFile.primaryTerm()),
+                    blobFile.blobName(),
+                    getCacheService().getShardReadThreadPoolExecutor(),
+                    totalBytesWarmedFromObjectStore,
+                    BlobCacheMetrics.CachePopulationReason.BccChainWalk
+                );
+            }
+
+            @Override
+            public IndexBlobStoreCacheDirectory createPerBccMetadataReadDirectory() {
+                return IndexBlobStoreCacheDirectory.this.createBccChainWalkDirectory();
+            }
+        };
+    }
+
     public static IndexBlobStoreCacheDirectory unwrapDirectory(final Directory directory) {
         Directory dir = directory;
         while (dir != null) {

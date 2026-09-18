@@ -582,7 +582,7 @@ public class FileSplitProvider implements SplitProvider {
 
             if (filterHints.isEmpty() == false) {
                 Map<String, Object> filterValues = overlayPerFileConstants
-                    ? discoveryFilterValues(partitionValues, context.datasetName(), metadataColumnNames)
+                    ? discoveryFilterValues(partitionValues, metadataColumnNames)
                     : partitionValues;
                 if (filterValues.isEmpty() == false && matchesPartitionFilters(filterValues, filterHints) == false) {
                     certifiedSkips++;
@@ -2859,19 +2859,15 @@ public class FileSplitProvider implements SplitProvider {
 
     /**
      * Hive partitions and {@code _file.*} listing values plus the engine-materialised per-file
-     * constants ({@code _index} and the all-null standard names). Used only for discovery filter
+     * constants ({@code _score} and the all-null standard names). Used only for discovery filter
      * evaluation; the {@link FileTask} carries hive + {@code _file.*} only.
      * Only names bound as metadata in the relation's output receive constants, matching the
      * reader. Data columns retain their physical values or missing-column null-fill.
      */
-    private static Map<String, Object> discoveryFilterValues(
-        Map<String, Object> partitionValues,
-        @Nullable String datasetName,
-        Set<String> metadataColumnNames
-    ) {
+    private static Map<String, Object> discoveryFilterValues(Map<String, Object> partitionValues, Set<String> metadataColumnNames) {
         Map<String, Object> filterValues = new HashMap<>(partitionValues.size() + ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.size());
         filterValues.putAll(partitionValues);
-        for (Map.Entry<String, Object> constant : ExternalMetadataColumns.extractPerFileConstants(datasetName).entrySet()) {
+        for (Map.Entry<String, Object> constant : ExternalMetadataColumns.extractPerFileConstants().entrySet()) {
             if (metadataColumnNames.contains(constant.getKey())) {
                 filterValues.put(constant.getKey(), constant.getValue());
             }

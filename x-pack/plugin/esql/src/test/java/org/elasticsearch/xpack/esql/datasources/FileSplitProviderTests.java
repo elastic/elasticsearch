@@ -245,8 +245,7 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(filter),
-            ExternalSchema.EMPTY,
-            null
+            ExternalSchema.EMPTY
         );
         SplitDiscoveryResult result = provider.discoverSplits(ctx);
 
@@ -1041,8 +1040,7 @@ public class FileSplitProviderTests extends ESTestCase {
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            DeclaredReadSpec.NONE,
-            null
+            DeclaredReadSpec.NONE
         );
         return splitter.discoverSplits(ctx).splits();
     }
@@ -1292,8 +1290,7 @@ public class FileSplitProviderTests extends ESTestCase {
                 cancelPolls.incrementAndGet();
                 return false;
             },
-            base.declaredReadSpec(),
-            base.datasetName()
+            base.declaredReadSpec()
         );
         PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
         provider.discoverSplitsAsync(ctx, EsExecutors.DIRECT_EXECUTOR_SERVICE, future);
@@ -2740,8 +2737,7 @@ public class FileSplitProviderTests extends ESTestCase {
             null,
             maxRecordBytes,
             isCancelled,
-            DeclaredReadSpec.NONE,
-            null
+            DeclaredReadSpec.NONE
         );
         if (async) {
             PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
@@ -2793,8 +2789,7 @@ public class FileSplitProviderTests extends ESTestCase {
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            DeclaredReadSpec.NONE,
-            null
+            DeclaredReadSpec.NONE
         );
         return provider.discoverSplits(ctx).splits();
     }
@@ -3974,8 +3969,7 @@ public class FileSplitProviderTests extends ESTestCase {
             schema,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            spec,
-            null
+            spec
         );
 
         List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
@@ -4026,8 +4020,7 @@ public class FileSplitProviderTests extends ESTestCase {
             unified,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            DeclaredReadSpec.NONE,
-            null
+            DeclaredReadSpec.NONE
         );
 
         List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
@@ -4123,8 +4116,7 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(),
-            new ExternalSchema(List.of(refAttr("id"))),
-            null
+            new ExternalSchema(List.of(refAttr("id")))
         );
 
         List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
@@ -4167,8 +4159,7 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(),
-            new ExternalSchema(List.of(refAttr("id"))),
-            null
+            new ExternalSchema(List.of(refAttr("id")))
         );
 
         List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
@@ -4202,8 +4193,7 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(),
-            new ExternalSchema(List.of(refAttr("id"))),
-            null
+            new ExternalSchema(List.of(refAttr("id")))
         );
 
         List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
@@ -4242,8 +4232,7 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(),
-            new ExternalSchema(List.of(refAttr("id"))),
-            null
+            new ExternalSchema(List.of(refAttr("id")))
         );
 
         List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
@@ -4273,8 +4262,7 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(),
-            new ExternalSchema(List.of(refAttr("id"))),
-            null
+            new ExternalSchema(List.of(refAttr("id")))
         );
 
         List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
@@ -4322,8 +4310,7 @@ public class FileSplitProviderTests extends ESTestCase {
             schema,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            spec,
-            null
+            spec
         );
 
         List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
@@ -4369,8 +4356,7 @@ public class FileSplitProviderTests extends ESTestCase {
             unified,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            DeclaredReadSpec.NONE,
-            null
+            DeclaredReadSpec.NONE
         );
 
         List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
@@ -4550,8 +4536,7 @@ public class FileSplitProviderTests extends ESTestCase {
             unified,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            DeclaredReadSpec.of(Map.of(), Map.of(), Set.of(), SchemaProvenance.DECLARED),
-            null
+            DeclaredReadSpec.of(Map.of(), Map.of(), Set.of(), SchemaProvenance.DECLARED)
         );
 
         List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
@@ -4577,8 +4562,7 @@ public class FileSplitProviderTests extends ESTestCase {
             overlaid,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            DeclaredReadSpec.of(Map.of("y", "x"), Map.of(), Set.of(), SchemaProvenance.INFERRED),
-            null
+            DeclaredReadSpec.of(Map.of("y", "x"), Map.of(), Set.of(), SchemaProvenance.INFERRED)
         );
 
         List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
@@ -4620,8 +4604,7 @@ public class FileSplitProviderTests extends ESTestCase {
             dataSchema,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            DeclaredReadSpec.of(Map.of("y", "x"), Map.of(), Set.of("y")),
-            null
+            DeclaredReadSpec.of(Map.of("y", "x"), Map.of(), Set.of("y"))
         );
 
         List<ExternalSplit> splits = splitterFor(mockReader).discoverSplits(ctx).splits();
@@ -4709,8 +4692,7 @@ public class FileSplitProviderTests extends ESTestCase {
             unified,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            DeclaredReadSpec.NONE,
-            null
+            DeclaredReadSpec.NONE
         );
     }
 
@@ -5342,8 +5324,7 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(),
-            new ExternalSchema(List.of(refAttr("id"), refAttr("name"))),
-            null
+            new ExternalSchema(List.of(refAttr("id"), refAttr("name")))
         );
         List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
 
@@ -5377,8 +5358,7 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(),
-            new ExternalSchema(List.of(refAttr("id"), refAttr("name"))),
-            null
+            new ExternalSchema(List.of(refAttr("id"), refAttr("name")))
         );
         List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
 
@@ -5405,8 +5385,7 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(),
-            ExternalSchema.EMPTY,
-            null
+            ExternalSchema.EMPTY
         );
         List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
 
@@ -5457,8 +5436,7 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             partitions,
             List.of(),
-            new ExternalSchema(List.of(refAttr("year"))),
-            null
+            new ExternalSchema(List.of(refAttr("year")))
         );
         List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
 
@@ -5486,8 +5464,7 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             PartitionMetadata.EMPTY,
             List.of(),
-            new ExternalSchema(List.of(refAttr("id"), refAttr("name"))),
-            null
+            new ExternalSchema(List.of(refAttr("id"), refAttr("name")))
         );
         List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
 
@@ -5530,8 +5507,7 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             partitions,
             List.of(yearFilter),
-            new ExternalSchema(List.of(refAttr("id"), refAttr("name"))),
-            null
+            new ExternalSchema(List.of(refAttr("id"), refAttr("name")))
         );
         List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
 
@@ -5630,8 +5606,7 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             partitions,
             List.of(yearFilter),
-            new ExternalSchema(List.of(refAttr("id"))),
-            null
+            new ExternalSchema(List.of(refAttr("id")))
         );
         List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
 
@@ -5652,18 +5627,17 @@ public class FileSplitProviderTests extends ESTestCase {
             PartitionMetadata.EMPTY,
             List.of(indexFilter),
             new ExternalSchema(List.of(refAttr("id"))),
-            null,
             ExternalMetadataColumns.metadataNames(indexFilter.references())
         );
         assertEquals("_index is engine-materialised, not missing from the file", 1, provider.discoverSplits(ctx).splits().size());
     }
 
-    public void testStandardMetadataColumnEliminatesOnDatasetName() {
+    public void testIndexIsNullConstantSoIsNotNullSkipsFile() {
         StoragePath pathA = StoragePath.of("s3://b/a.parquet");
         FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(pathA, 100, Instant.EPOCH)), "s3://b/*.parquet");
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = new HashMap<>();
         schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of(refAttr("id"))), null, null));
-        Expression indexFilter = new Equals(SRC, metadataAttr("_index"), new Literal(SRC, new BytesRef("other"), DataType.KEYWORD));
+        Expression indexFilter = new IsNotNull(SRC, metadataAttr(ExternalMetadataColumns.INDEX));
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(
             null,
             fileList,
@@ -5672,18 +5646,25 @@ public class FileSplitProviderTests extends ESTestCase {
             PartitionMetadata.EMPTY,
             List.of(indexFilter),
             new ExternalSchema(List.of(refAttr("id"))),
-            "ds",
             ExternalMetadataColumns.metadataNames(indexFilter.references())
         );
-        assertEquals("_index that cannot satisfy the dataset name eliminates the file", 0, provider.discoverSplits(ctx).splits().size());
+        assertEquals(
+            "_index is a null per-file constant, so IS NOT NULL eliminates the file",
+            0,
+            provider.discoverSplits(ctx).splits().size()
+        );
     }
 
-    public void testStandardMetadataColumnKeepsOnDatasetName() {
+    public void testIndexEqualityDoesNotCertifyASkip() {
         StoragePath pathA = StoragePath.of("s3://b/a.parquet");
         FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(pathA, 100, Instant.EPOCH)), "s3://b/*.parquet");
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo = new HashMap<>();
         schemaInfo.put(pathA, new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of(refAttr("id"))), null, null));
-        Expression indexFilter = new Equals(SRC, metadataAttr("_index"), new Literal(SRC, new BytesRef("ds"), DataType.KEYWORD));
+        Expression indexFilter = new Equals(
+            SRC,
+            metadataAttr(ExternalMetadataColumns.INDEX),
+            new Literal(SRC, new BytesRef("other"), DataType.KEYWORD)
+        );
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(
             null,
             fileList,
@@ -5692,10 +5673,13 @@ public class FileSplitProviderTests extends ESTestCase {
             PartitionMetadata.EMPTY,
             List.of(indexFilter),
             new ExternalSchema(List.of(refAttr("id"))),
-            "ds",
             ExternalMetadataColumns.metadataNames(indexFilter.references())
         );
-        assertEquals("_index equality to the dataset name keeps the file", 1, provider.discoverSplits(ctx).splits().size());
+        assertEquals(
+            "_index is a null per-file constant, so equality is UNKNOWN and cannot certify a skip",
+            1,
+            provider.discoverSplits(ctx).splits().size()
+        );
     }
 
     public void testPhysicalIndexEqualsDatasetNameSkipsFileWithoutColumn() {
@@ -5715,8 +5699,7 @@ public class FileSplitProviderTests extends ESTestCase {
             new ExternalSchema(List.of(refAttr("id"), refAttr("_index"))),
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            DeclaredReadSpec.NONE,
-            "ds"
+            DeclaredReadSpec.NONE
         );
         assertEquals("a missing data column is null, not the dataset name", 0, provider.discoverSplits(ctx).splits().size());
     }
@@ -5726,6 +5709,9 @@ public class FileSplitProviderTests extends ESTestCase {
         FileList files = GlobExpander.fileListOf(List.of(new StorageEntry(path, 100, Instant.EPOCH)), path.toString());
         Attribute index = metadataAttr("_index");
         ExternalSchema fileSchema = new ExternalSchema(List.of(refAttr("id"), refAttr("_index")));
+        // The file physically carries an _index column in the knownSchema arm and not in the other. Either way
+        // the binding is the relation-wide one — the engine's null constant — so IS NOT NULL certifies the skip
+        // in both, and the file's own column is never consulted.
         for (boolean knownSchema : List.of(false, true)) {
             SplitDiscoveryContext context = new SplitDiscoveryContext(
                 null,
@@ -5733,9 +5719,8 @@ public class FileSplitProviderTests extends ESTestCase {
                 knownSchema ? Map.of(path, new SchemaReconciliation.FileSchemaInfo(fileSchema, null, null)) : Map.of(),
                 Map.of(),
                 PartitionMetadata.EMPTY,
-                List.of(new IsNull(SRC, index)),
+                List.of(new IsNotNull(SRC, index)),
                 new ExternalSchema(List.of(refAttr("id"))),
-                "ds",
                 ExternalMetadataColumns.metadataNames(List.of(index))
             );
             assertTrue(provider.discoverSplits(context).exhaustivelyPruned());
@@ -5759,8 +5744,7 @@ public class FileSplitProviderTests extends ESTestCase {
             new ExternalSchema(List.of(refAttr("id"), refAttr("_index"))),
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            DeclaredReadSpec.NONE,
-            "ds"
+            DeclaredReadSpec.NONE
         );
         assertEquals("equality to a missing data column cannot match", 0, provider.discoverSplits(ctx).splits().size());
     }
@@ -5782,8 +5766,7 @@ public class FileSplitProviderTests extends ESTestCase {
             new ExternalSchema(List.of(refAttr("id"), refAttr("_index"))),
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            DeclaredReadSpec.NONE,
-            "ds"
+            DeclaredReadSpec.NONE
         );
         assertEquals("a missing physical _index is null", 0, provider.discoverSplits(ctx).splits().size());
     }
@@ -5806,8 +5789,7 @@ public class FileSplitProviderTests extends ESTestCase {
             new ExternalSchema(List.of(refAttr("id"), refAttr(ExternalMetadataColumns.VERSION))),
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            DeclaredReadSpec.NONE,
-            null
+            DeclaredReadSpec.NONE
         );
         assertEquals("a missing physical _version is null, not the file mtime", 0, provider.discoverSplits(ctx).splits().size());
     }
@@ -5837,8 +5819,7 @@ public class FileSplitProviderTests extends ESTestCase {
             new ExternalSchema(List.of(refAttr("id"), refAttr("_index"))),
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            DeclaredReadSpec.NONE,
-            "ds"
+            DeclaredReadSpec.NONE
         );
         List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
         assertEquals(1, splits.size());
@@ -5874,8 +5855,7 @@ public class FileSplitProviderTests extends ESTestCase {
                     unified,
                     SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
                     () -> false,
-                    DeclaredReadSpec.NONE,
-                    "ds"
+                    DeclaredReadSpec.NONE
                 );
                 List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
                 assertEquals(name, isNull ? 2 : 1, splits.size());
@@ -5910,7 +5890,6 @@ public class FileSplitProviderTests extends ESTestCase {
                     PartitionMetadata.EMPTY,
                     List.of(filter),
                     ExternalSchema.dataAttributesOf(output),
-                    "ds",
                     ExternalMetadataColumns.metadataNames(output)
                 );
                 assertEquals(name, 1, provider.discoverSplits(context).filesScanned());
@@ -5935,7 +5914,6 @@ public class FileSplitProviderTests extends ESTestCase {
             PartitionMetadata.EMPTY,
             List.of(recordRefFilter),
             new ExternalSchema(List.of(refAttr("id"))),
-            null,
             ExternalMetadataColumns.metadataNames(recordRefFilter.references())
         );
         assertEquals("_file.record_ref is composed per record, not missing from the file", 1, provider.discoverSplits(ctx).splits().size());
@@ -5955,7 +5933,6 @@ public class FileSplitProviderTests extends ESTestCase {
             PartitionMetadata.EMPTY,
             List.of(idFilter),
             new ExternalSchema(List.of(refAttr("id"))),
-            null,
             ExternalMetadataColumns.metadataNames(idFilter.references())
         );
         assertEquals(
@@ -5979,7 +5956,6 @@ public class FileSplitProviderTests extends ESTestCase {
             PartitionMetadata.EMPTY,
             List.of(sourceFilter),
             new ExternalSchema(List.of(refAttr("id"))),
-            null,
             ExternalMetadataColumns.metadataNames(sourceFilter.references())
         );
         assertEquals(
@@ -6007,7 +5983,6 @@ public class FileSplitProviderTests extends ESTestCase {
             PartitionMetadata.EMPTY,
             List.of(idEquals),
             new ExternalSchema(List.of(refAttr("id"))),
-            null,
             ExternalMetadataColumns.metadataNames(idEquals.references())
         );
         assertEquals(
@@ -6043,7 +6018,6 @@ public class FileSplitProviderTests extends ESTestCase {
             PartitionMetadata.EMPTY,
             List.of(versionEquals),
             schema,
-            null,
             ExternalMetadataColumns.metadataNames(versionEquals.references())
         );
         assertEquals(
@@ -6068,7 +6042,6 @@ public class FileSplitProviderTests extends ESTestCase {
             PartitionMetadata.EMPTY,
             List.of(versionEquals),
             new ExternalSchema(List.of(refAttr("id"))),
-            null,
             ExternalMetadataColumns.metadataNames(versionEquals.references())
         );
         assertEquals("_version is null, so equality is UNKNOWN and cannot certify a skip", 1, provider.discoverSplits(ctx).splits().size());
@@ -6138,8 +6111,7 @@ public class FileSplitProviderTests extends ESTestCase {
             Map.of(),
             partitions,
             filters,
-            new ExternalSchema(List.of(refAttr("id"), refAttr("price"))),
-            null
+            new ExternalSchema(List.of(refAttr("id"), refAttr("price")))
         );
         List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
 
@@ -6457,8 +6429,7 @@ public class FileSplitProviderTests extends ESTestCase {
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             cancel,
-            DeclaredReadSpec.NONE,
-            null
+            DeclaredReadSpec.NONE
         );
 
         expectThrows(TaskCancelledException.class, () -> provider.discoverSplits(ctx));
@@ -6484,8 +6455,7 @@ public class FileSplitProviderTests extends ESTestCase {
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            DeclaredReadSpec.NONE,
-            null
+            DeclaredReadSpec.NONE
         );
 
         assertEquals(3, provider.discoverSplits(ctx).splits().size());

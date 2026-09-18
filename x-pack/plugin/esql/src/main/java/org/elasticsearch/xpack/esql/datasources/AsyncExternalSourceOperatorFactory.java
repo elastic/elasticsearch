@@ -190,7 +190,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * SQL {@code NULL}.
      */
     @Nullable
-    private final String datasetName;
     // Declared logical->physical column renames (source). Applied to reader-facing names (projection + read schema)
     // at the last mile via PhysicalNames, so readers stay rename-agnostic. Empty when the dataset declares no rename.
     private final Map<String, String> renames;
@@ -340,7 +339,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
         Set<String> partitionColumnNames,
         Map<String, Object> partitionValues,
-        @Nullable String datasetName,
         Map<String, String> renames,
         Function<List<Attribute>, String> readConfigFingerprinter,
         @Nullable List<Attribute> unifiedReadSchema,
@@ -432,7 +430,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // ExternalSchema#dataAttributesOf(List, Set).
         this.queryDataSchema = ExternalSchema.dataAttributesOf(attributes, this.partitionColumnNames);
         this.partitionValues = partitionValues != null ? partitionValues : Map.of();
-        this.datasetName = datasetName;
         this.renames = renames == null ? Map.of() : renames;
         this.readConfigFingerprinter = readConfigFingerprinter == null ? schema -> "" : readConfigFingerprinter;
         this.unifiedReadSchema = unifiedReadSchema;
@@ -509,7 +506,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private Set<String> partitionColumnNames;
         private Map<String, Object> partitionValues;
         @Nullable
-        private String datasetName;
         private Map<String, String> renames = Map.of();
         /** Turns one file's read schema into its read-configuration identity; see the factory field. */
         private Function<List<Attribute>, String> readConfigFingerprinter = schema -> "";
@@ -598,10 +594,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
          * as SQL {@code NULL}. Only consulted when the bound attributes include an
          * {@code ExternalMetadataAttribute} named {@code _index}.
          */
-        public Builder datasetName(@Nullable String datasetName) {
-            this.datasetName = datasetName;
-            return this;
-        }
 
         /** Declared logical-&gt;physical column renames; applied to reader-facing names at the last mile. */
         public Builder renames(Map<String, String> renames) {
@@ -775,7 +767,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 schemaMap,
                 partitionColumnNames,
                 partitionValues,
-                datasetName,
                 renames,
                 readConfigFingerprinter,
                 unifiedReadSchema,
@@ -1103,7 +1094,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (standardMetadataPerFileNames.isEmpty()) {
             return basePartitionValues;
         }
-        Map<String, Object> stdConstants = ExternalMetadataColumns.extractPerFileConstants(datasetName);
+        Map<String, Object> stdConstants = ExternalMetadataColumns.extractPerFileConstants();
         Map<String, Object> merged = basePartitionValues != null ? new HashMap<>(basePartitionValues) : new HashMap<>();
         merged.putAll(stdConstants);
         return merged;
@@ -2263,7 +2254,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (partitionColumnNames.isEmpty() == false) {
             perFileValues = new HashMap<>(partitionValues);
             if (standardMetadataPerFileNames.isEmpty() == false) {
-                perFileValues.putAll(ExternalMetadataColumns.extractPerFileConstants(datasetName));
+                perFileValues.putAll(ExternalMetadataColumns.extractPerFileConstants());
             }
             perFileValues.putAll(FileMetadataColumns.extractValues(files, fileIndex));
         }

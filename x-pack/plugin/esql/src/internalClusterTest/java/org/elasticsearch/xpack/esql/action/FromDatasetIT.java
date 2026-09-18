@@ -5058,31 +5058,36 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testFromDatasetIndexMetadataReturnsDatasetName() throws Exception {
-        // Standard metadata fields are accepted on datasets. For the FROM <dataset> path, _index
-        // resolves to the user-facing dataset name (not the underlying resource path) for every
-        // row, matching the "_index is the dataset name" contract.
+    public void testFromDatasetNameMetadataReturnsDatasetNameAndIndexIsNull() throws Exception {
+        // Standard metadata fields are accepted on datasets. _index names an index and a dataset is not
+        // one, so it binds and answers SQL NULL; _name is the column that resolves to the user-facing
+        // dataset name (not the underlying resource path) for every row.
         registerDataSource("local_ds", Map.of());
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
-        // METADATA surfaces _index with no KEEP; it resolves to the dataset name.
-        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _index | SORT emp_no | LIMIT 10"), TIMEOUT)) {
+        // METADATA surfaces both with no KEEP.
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _index, _name | SORT emp_no | LIMIT 10"), TIMEOUT)) {
             List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
             assertThat("_index must surface without KEEP; got " + names, names, hasItem("_index"));
-            int idx = names.indexOf("_index");
+            assertThat("_name must surface without KEEP; got " + names, names, hasItem("_name"));
+            int indexIdx = names.indexOf("_index");
+            int nameIdx = names.indexOf("_name");
 
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
             for (List<Object> row : rows) {
-                assertThat(row.get(idx).toString(), equalTo("employees"));
+                assertThat("_index is null on a dataset", row.get(indexIdx), nullValue());
+                assertThat(row.get(nameIdx).toString(), equalTo("employees"));
             }
         }
     }
 
     public void testHivePartitionClaimingReservedNameIsRenamedAndSpecWins() throws Exception {
         // Standard metadata names are dedicated: a Hive layout claiming /_index=.../ cannot
-        // redefine METADATA _index. End-to-end pin for the rename: _index carries the dataset
-        // name for every row, while the layout's value stays queryable under _partition._index.
+        // redefine METADATA _index. End-to-end pin for the rename: _index keeps the engine's own
+        // answer for every row — SQL NULL on a dataset — while the layout's value stays queryable
+        // under _partition._index. NULL winning is the point: not even the only value on offer can
+        // claim a reserved name.
         Path root = createTempDir();
         Path alpha = Files.createDirectories(root.resolve("_index=alpha"));
         Files.writeString(alpha.resolve("part1.csv"), "emp_no:integer,first_name:keyword\n1,Alice\n2,Bob\n");
@@ -5105,7 +5110,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows, hasSize(3));
             String[] expectedPartition = { "alpha", "alpha", "beta" };
             for (int i = 0; i < rows.size(); i++) {
-                assertThat("spec-defined _index must carry the dataset name", rows.get(i).get(indexIdx).toString(), equalTo("events_hive"));
+                assertThat("the engine's _index must win over the layout's", rows.get(i).get(indexIdx), nullValue());
                 assertThat(
                     "layout value stays queryable under the rename",
                     rows.get(i).get(partitionIdx).toString(),
@@ -5146,7 +5151,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
     public void testFromDatasetStandardMetadataNeverFails() throws Exception {
         // Standing contract: every metadata name a dataset can answer returns a value or SQL NULL, never an
-        // error. _index carries the dataset name; the rest come back as NULL columns. Pinned per format in
+        // error. _score is zero; the rest come back as NULL columns. Pinned per format in
         // AbstractExternalMetadataMatrixIT#testAllStandardMetadataColumnsPinned.
         registerDataSource("local_ds", Map.of());
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
@@ -5171,7 +5176,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
             for (List<Object> row : rows) {
-                assertThat("_index is the dataset name", row.get(1).toString(), equalTo("employees"));
+                assertThat("_index is null on external rows", row.get(1), nullValue());
                 assertThat("_id is null on external rows", row.get(2), nullValue());
                 assertThat("_version is null on external rows", row.get(3), nullValue());
                 assertThat("_source is null on external rows", row.get(4), nullValue());
@@ -5684,8 +5689,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // strip in Analyzer.planWithoutSyntheticAttributes fires only on the legacy EXTERNAL command's nameless leaf
         // (an ExternalRelation whose datasetName() == null — the gate added in #149796); a FROM <dataset> leaf always
         // carries a dataset name and the index leaf is a regular relation, so neither half matches the gate. This
-        // asserts the dataset's _index survives the union (resolving to the dataset name) alongside the index's own, and
-        // that _id binds on both halves — the index's own value on one, SQL NULL on the other.
+        // asserts that _index and _id both bind on both halves — the index's own value on one, SQL NULL on the other,
+        // since a dataset is neither an index nor a document store.
         assertAcked(
             client().admin().indices().prepareCreate("metadata_idx").setMapping("emp_no", "type=integer", "first_name", "type=keyword")
         );
@@ -5716,16 +5721,16 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(4));
             // Dataset rows (emp_no 1,2,3) sort ahead of the index row (100). The dataset half is not stripped: its rows
-            // carry _index = the dataset name; the index row carries its own _index. emp_no is asserted per row so the
-            // ordering this relies on stays self-evident if the fixtures ever change.
+            // carry a null _index, the index row carries its own. emp_no is asserted per row so the ordering this
+            // relies on stays self-evident if the fixtures ever change.
             assertThat(((Number) rows.get(0).get(empNoCol)).intValue(), equalTo(1));
-            assertThat(rows.get(0).get(indexCol).toString(), equalTo("employees"));
+            assertThat("dataset row is not an index", rows.get(0).get(indexCol), nullValue());
             assertThat("dataset row carries no document identity", rows.get(0).get(idCol), nullValue());
             assertThat(((Number) rows.get(1).get(empNoCol)).intValue(), equalTo(2));
-            assertThat(rows.get(1).get(indexCol).toString(), equalTo("employees"));
+            assertThat("dataset row is not an index", rows.get(1).get(indexCol), nullValue());
             assertThat("dataset row carries no document identity", rows.get(1).get(idCol), nullValue());
             assertThat(((Number) rows.get(2).get(empNoCol)).intValue(), equalTo(3));
-            assertThat(rows.get(2).get(indexCol).toString(), equalTo("employees"));
+            assertThat("dataset row is not an index", rows.get(2).get(indexCol), nullValue());
             assertThat("dataset row carries no document identity", rows.get(2).get(idCol), nullValue());
             assertThat(((Number) rows.get(3).get(empNoCol)).intValue(), equalTo(100));
             assertThat(rows.get(3).get(indexCol).toString(), equalTo("metadata_idx"));

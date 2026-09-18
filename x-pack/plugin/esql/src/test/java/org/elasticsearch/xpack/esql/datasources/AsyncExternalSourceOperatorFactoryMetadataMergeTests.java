@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
@@ -19,6 +18,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 
 import java.io.InputStream;
@@ -64,23 +65,28 @@ public class AsyncExternalSourceOperatorFactoryMetadataMergeTests extends ESTest
     /**
      * Standard metadata names are dedicated: when a reserved key like {@code _index} reaches the
      * per-file merge (only possible from a non-Hive path — {@code HivePartitionDetector} renames
-     * colliding partition columns to {@code _partition.*} upstream), the spec-defined constant
-     * (dataset name) must win over the smuggled value. The spec promises {@code _index} = dataset
-     * name; a layout cannot redefine it.
+     * colliding partition columns to {@code _partition.*} upstream), the engine constant must win
+     * over the smuggled value. On a dataset that constant is SQL NULL, and NULL winning is the
+     * point: a layout cannot redefine a reserved name, not even by supplying the only value on
+     * offer.
      */
     public void testSynthesizedIndexWinsOverSmuggledPartitionKeyInMultiFilePath() throws Exception {
         BytesRef hiveIndex = new BytesRef("smuggled-index-loses");
         Page page = runMultiFilePathWithIndex(hiveIndex);
         try {
             int indexBlockChannel = 1; // attributes order: value(data), _index(partition)
-            BytesRefBlock indexBlock = page.getBlock(indexBlockChannel);
-            BytesRef out = indexBlock.getBytesRef(indexBlock.getFirstValueIndex(0), new BytesRef());
-            assertEquals("spec-defined _index (dataset name) must win on reserved-key collision", new BytesRef("dataset-wins"), out);
+            assertTrue("the engine's null _index must win on reserved-key collision", page.getBlock(indexBlockChannel).isNull(0));
         } finally {
             page.releaseBlocks();
         }
     }
 
+    /**
+     * {@code _index} answers null on a dataset whichever way it binds: as engine metadata it is a null
+     * per-file constant, and as a data column absent from the file it is null-filled. What this pins is
+     * that discovery and the reader agree about that — a filter that discovery keeps must be one the
+     * reader's rows can satisfy, and one it certifies away must be one they cannot.
+     */
     public void testIndexBindingAgreesBetweenDiscoveryAndReader() throws Exception {
         StoragePath path = StoragePath.of("s3://bucket/data/file.parquet");
         FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(path, 100, Instant.EPOCH)), path.toString());
@@ -108,18 +114,12 @@ public class AsyncExternalSourceOperatorFactoryMetadataMergeTests extends ESTest
                     null
                 )
             );
-            SplitDiscoveryContext context = new SplitDiscoveryContext(
-                null,
-                fileList,
-                schemas,
-                Map.of(),
-                PartitionMetadata.EMPTY,
-                List.of(new IsNull(Source.EMPTY, index)),
-                querySchema,
-                "ds",
-                ExternalMetadataColumns.metadataNames(output)
-            );
-            int survivingFiles = new FileSplitProvider().discoverSplits(context).filesScanned();
+            int keptByIsNull = new FileSplitProvider().discoverSplits(
+                discoveryContext(fileList, schemas, querySchema, output, new IsNull(Source.EMPTY, index))
+            ).filesScanned();
+            int keptByIsNotNull = new FileSplitProvider().discoverSplits(
+                discoveryContext(fileList, schemas, querySchema, output, new IsNotNull(Source.EMPTY, index))
+            ).filesScanned();
 
             AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
                 new StubStorageProvider(),
@@ -129,20 +129,36 @@ public class AsyncExternalSourceOperatorFactoryMetadataMergeTests extends ESTest
                 100,
                 10,
                 Runnable::run
-            ).fileList(fileList).schemaMap(schemas).datasetName("ds").producerBlockFactory(TEST_BLOCK_FACTORY).build();
+            ).fileList(fileList).schemaMap(schemas).producerBlockFactory(TEST_BLOCK_FACTORY).build();
             Page page = drainSinglePage(factory, newDriverContext());
             try {
                 assertEquals(1, page.getPositionCount());
-                assertEquals(metadata == false, page.getBlock(1).isNull(0));
-                assertEquals(page.getBlock(1).isNull(0) ? 1 : 0, survivingFiles);
-                if (metadata) {
-                    BytesRefBlock block = page.getBlock(1);
-                    assertEquals(new BytesRef("ds"), block.getBytesRef(block.getFirstValueIndex(0), new BytesRef()));
-                }
+                assertTrue("_index is null on a dataset under either binding", page.getBlock(1).isNull(0));
+                assertEquals("discovery must keep the file IS NULL can match", 1, keptByIsNull);
+                assertEquals("discovery must certify away the file IS NOT NULL cannot match", 0, keptByIsNotNull);
             } finally {
                 page.releaseBlocks();
             }
         }
+    }
+
+    private static SplitDiscoveryContext discoveryContext(
+        FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemas,
+        ExternalSchema querySchema,
+        List<Attribute> output,
+        Expression filter
+    ) {
+        return new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemas,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(filter),
+            querySchema,
+            ExternalMetadataColumns.metadataNames(output)
+        );
     }
 
     private Page runMultiFilePathWithIndex(BytesRef hivePartitionValue) throws Exception {
@@ -181,7 +197,6 @@ public class AsyncExternalSourceOperatorFactoryMetadataMergeTests extends ESTest
             .fileList(fileList)
             .partitionColumnNames(Set.of("_index"))
             .partitionValues(Map.of("_index", hivePartitionValue))
-            .datasetName("dataset-wins")
             .producerBlockFactory(TEST_BLOCK_FACTORY)
             .build();
 

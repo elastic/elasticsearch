@@ -610,11 +610,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .pushdownSupport(pushdownSupport)
                     .onClose(onClose)
                     .deferredExtraction(deferredExtraction)
-                    // datasetName drives the per-file _index synthesizer in
-                    // {@link ExternalMetadataColumns#extractPerFileConstants}; null when the query
-                    // came from a direct-file query (no dataset name), populated when it came from
-                    // FROM <dataset>.
-                    .datasetName(context.datasetName())
                     // Declared `path` renames, applied to reader-facing names (projection + read schema) at the last mile.
                     .renames(context.declaredReadSpec().renames())
                     // How a file's bytes get interpreted, bound to this query's declaration and applied per file by

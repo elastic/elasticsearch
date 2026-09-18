@@ -69,12 +69,14 @@ If your dataset exceeds these limits, narrow the resource path or adjust the set
 Datasets share the same namespace as indices, data streams, aliases, and [{{esql}} views](esql-views.md), so `FROM` resolves each name independently.
 
 ```esql
-FROM speedtest_data, network_incidents METADATA _index
-| KEEP _index, category, severity, avg_d_kbps, avg_lat_ms
+FROM speedtest_data, network_incidents METADATA _class, _name
+| KEEP _class, _name, category, severity, avg_d_kbps, avg_lat_ms
 | LIMIT 10
 ```
 
-When sources have different schemas, columns that do not exist in a given source return `null` for rows from that source. Use `METADATA _index` to see which source each row came from. The `_index` column returns the dataset name for dataset rows and the index name for index rows.
+When sources have different schemas, columns that do not exist in a given source return `null` for rows from that source. Use `METADATA _name` to see which source each row came from: it returns the dataset name for dataset rows and the index name for index rows. `METADATA _class` returns what kind of source a row came from — `index` or `dataset` — so a query can tell the two apart without knowing the names in advance.
+
+`_index` does not answer this question on a dataset. It names an index, and a dataset is not one, so it returns `null` for dataset rows. {applies_to}`stack: experimental 9.6+` In earlier versions it returned the dataset name.
 
 ## Use metadata columns
 
@@ -82,18 +84,25 @@ When sources have different schemas, columns that do not exist in a given source
 
 | Column | Returned for a dataset |
 |---|---|
-| `_index` | The dataset name. |
+| `_class` {applies_to}`stack: experimental 9.6+` | `dataset` |
+| `_name` {applies_to}`stack: experimental 9.6+` | The dataset name. |
 | `_file.path`, `_file.name`, `_file.directory`, `_file.size`, `_file.modified` | The object each row was read from. |
-| `_score` | null |
+| `_score` | `0` |
 | `_ignored` | null |
 | `_index_mode`, `_tsid`, `_size` | null |
+| `_index` {applies_to}`stack: experimental 9.6+` | null |
 | `_id`, `_version`, `_source` {applies_to}`stack: experimental 9.6+` | null |
 
-`_id`, `_version` and `_source` return `null` on a dataset. A file carries no document identity, no
-document version and no stored source, so the columns bind and every row is `null` rather than carrying
-a value composed while reading. In earlier versions, `_id` returned a stable per-row identifier,
-`_version` returned the source file's modification time as a `long` in epoch milliseconds, and
-`_source` returned the row as a JSON object.
+`_index`, `_id`, `_version` and `_source` return `null` on a dataset. A file carries no document
+identity, no document version and no stored source, and a dataset is not an index, so the columns bind
+and every row is `null` rather than carrying a value composed while reading. In earlier versions,
+`_index` returned the dataset name, `_id` returned a stable per-row identifier, `_version` returned the
+source file's modification time as a `long` in epoch milliseconds, and `_source` returned the row as a
+JSON object.
+
+`_class` and `_name` answer the same two questions on every source. On an index they return `index` and
+the concrete index name; on a dataset, `dataset` and the dataset name. A `FROM` that names both kinds
+can separate the rows without knowing in advance which names resolve to which.
 
 For example, this query returns file-level metadata for each matching row:
 
@@ -145,7 +154,7 @@ The limitations below include operations that require structures available only 
 If a query against a dataset returns unexpected results or errors, check the following common causes.
 
 Unexpected nulls in query results
-:   If you query a dataset and an index together with `FROM`, columns that do not exist in one source return null for rows from that source. Use `METADATA _index` to check which source each row came from. Separately, complex Parquet types MAP and nested LIST return null because they are not currently supported.
+:   If you query a dataset and an index together with `FROM`, columns that do not exist in one source return null for rows from that source. Use `METADATA _name` to check which source each row came from. Separately, complex Parquet types MAP and nested LIST return null because they are not currently supported.
 
 Slow queries
 :   Add [`KEEP`](/reference/query-languages/esql/commands/keep.md) to select only the columns you need, add a [`WHERE`](/reference/query-languages/esql/commands/where.md) filter, and add a [`LIMIT`](/reference/query-languages/esql/commands/limit.md). For Parquet datasets, these push down to the reader and can significantly reduce the amount of data read from storage. Check the number of files your dataset's resource path resolves to. Large file counts increase query planning time.

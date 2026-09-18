@@ -592,7 +592,7 @@ curl -X POST "${ELASTICSEARCH_URL}/_bulk" \
 
 ::::
 
-Now query both sources together. `FROM` resolves each name independently, whether it is an index, data stream, alias, [{{esql}} view](esql-views.md), or dataset. Use `METADATA _index` to see where each row came from:
+Now query both sources together. `FROM` resolves each name independently, whether it is an index, data stream, alias, [{{esql}} view](esql-views.md), or dataset. Use `METADATA _name` to see where each row came from:
 
 ::::{tab-set}
 :group: surface
@@ -603,9 +603,9 @@ Now query both sources together. `FROM` resolves each name independently, whethe
 POST /_query
 {
   "query": """
-    FROM speedtest_fixed, network_incidents METADATA _index
-    | KEEP _index, category, severity, duration_min, avg_d_kbps, avg_lat_ms
-    | SORT _index ASC, duration_min DESC NULLS LAST
+    FROM speedtest_fixed, network_incidents METADATA _name
+    | KEEP _name, category, severity, duration_min, avg_d_kbps, avg_lat_ms
+    | SORT _name ASC, duration_min DESC NULLS LAST
     | LIMIT 5
   """
 }
@@ -619,7 +619,7 @@ curl -X POST "${ELASTICSEARCH_URL}/_query" \
   -H "Authorization: ApiKey ${API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
-  "query": "FROM speedtest_fixed, network_incidents METADATA _index | KEEP _index, category, severity, duration_min, avg_d_kbps, avg_lat_ms | SORT _index ASC, duration_min DESC NULLS LAST | LIMIT 5"
+  "query": "FROM speedtest_fixed, network_incidents METADATA _name | KEEP _name, category, severity, duration_min, avg_d_kbps, avg_lat_ms | SORT _name ASC, duration_min DESC NULLS LAST | LIMIT 5"
 }'
 ```
 :::
@@ -627,21 +627,21 @@ curl -X POST "${ELASTICSEARCH_URL}/_query" \
 :::{tab-item} {{esql}}
 :sync: esql
 ```esql
-FROM speedtest_fixed, network_incidents METADATA _index
-| KEEP _index, category, severity, duration_min, avg_d_kbps, avg_lat_ms
-| SORT _index ASC, duration_min DESC NULLS LAST
+FROM speedtest_fixed, network_incidents METADATA _name
+| KEEP _name, category, severity, duration_min, avg_d_kbps, avg_lat_ms
+| SORT _name ASC, duration_min DESC NULLS LAST
 | LIMIT 5
 ```
 :::
 
 ::::
 
-The `_index` column shows where each row came from. Columns that do not exist in a given source return `null`. The speedtest values in your results will differ. Execution metadata is omitted here:
+The `_name` column shows where each row came from. Columns that do not exist in a given source return `null`. The speedtest values in your results will differ. Execution metadata is omitted here:
 
 ```json
 {
   "columns": [
-    { "name": "_index", "type": "keyword" },
+    { "name": "_name", "type": "keyword" },
     { "name": "category", "type": "keyword" },
     { "name": "severity", "type": "keyword" },
     { "name": "duration_min", "type": "integer" },

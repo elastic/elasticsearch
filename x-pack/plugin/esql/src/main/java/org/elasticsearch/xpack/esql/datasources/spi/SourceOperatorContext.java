@@ -65,7 +65,6 @@ public record SourceOperatorContext(
     int maxConcurrentOpenSegments,
     int maxRecordBytes,
     int parallelism,
-    @Nullable String datasetName,
     boolean deferredExtraction,
     DeclaredReadSpec declaredReadSpec
 ) {
@@ -145,7 +144,6 @@ public record SourceOperatorContext(
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1,
-            null,
             false,
             DeclaredReadSpec.NONE
         );
@@ -188,7 +186,6 @@ public record SourceOperatorContext(
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1,
-            null,
             false,
             DeclaredReadSpec.NONE
         );
@@ -230,7 +227,6 @@ public record SourceOperatorContext(
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1,
-            null,
             false,
             DeclaredReadSpec.NONE
         );
@@ -270,7 +266,6 @@ public record SourceOperatorContext(
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1,
-            null,
             false,
             DeclaredReadSpec.NONE
         );
@@ -308,8 +303,6 @@ public record SourceOperatorContext(
         // overrides it from the external_max_record_size query pragma.
         private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
         private int parallelism = 1;
-        @Nullable
-        private String datasetName;
         private boolean deferredExtraction;
         private DeclaredReadSpec declaredReadSpec = DeclaredReadSpec.NONE;
 
@@ -435,16 +428,6 @@ public record SourceOperatorContext(
         }
 
         /**
-         * Registered dataset identifier (from {@code FROM <dataset>}), or {@code null} for inline
-         * {@code EXTERNAL}. Consumed by the operator factory's per-file {@code _index} synthesizer
-         * so the column carries the user-facing dataset name rather than the resource path.
-         */
-        public Builder datasetName(@Nullable String datasetName) {
-            this.datasetName = datasetName;
-            return this;
-        }
-
-        /**
          * Whether the plan pairs this source with an {@code ExternalFieldExtractExec} consuming
          * deferred-encoded columns. The operator factory keys deferred extraction off this flag,
          * not off {@code _rowPosition} presence in the projection — the latter is also produced
@@ -500,7 +483,6 @@ public record SourceOperatorContext(
                 maxConcurrentOpenSegments,
                 maxRecordBytes,
                 parallelism,
-                datasetName,
                 deferredExtraction,
                 declaredReadSpec
             );

@@ -34,15 +34,16 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Per-format matrix for the standard metadata columns surfaced on {@code FROM <external-dataset>}.
  *
- * <p>The wiring that surfaces {@code _index}, the constant {@code _score}, and the always-null set
- * {@code _id / _version / _source / _ignored / _index_mode / _tsid / _size}, plus the
+ * <p>The wiring that surfaces the constant {@code _score} and the always-null set
+ * {@code _index / _id / _version / _source / _ignored / _index_mode / _tsid / _size}, plus the
  * {@code _file.*} family, reaches into the per-format <em>reader</em>, so a format-specific
  * regression in any of those paths would otherwise pass with only the CSV coverage in
  * {@link FromDatasetIT}.
  *
  * <p>{@code _id}, {@code _version} and {@code _source} are in that null set because a file holds no
- * document identity, no document version and no stored source. {@code _score} is not: no query ranks
- * a dataset row, so every row scores zero.
+ * document identity, no document version and no stored source; {@code _index} is in it because it
+ * names an index and a dataset is not one. {@code _score} is not in it: no query ranks a dataset row,
+ * so every row scores zero. The name that does answer for a dataset is {@code _name}.
  *
  * <p>This base owns the {@code @Test} bodies; each concrete subclass binds them to one format
  * by supplying {@link #format()}, {@link #formatPlugins()} and a {@link #writeFixture(Path)} that
@@ -97,14 +98,17 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
         return idx;
     }
 
-    public void testIndexIsDatasetName() throws Exception {
-        // METADATA surfaces _index with no KEEP; it resolves to the dataset name.
-        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _index | SORT emp_no | LIMIT 10"), TIMEOUT)) {
-            int idx = columnIndex(response.columns(), "_index");
+    public void testIndexIsNullAndNameIsTheDatasetName() throws Exception {
+        // METADATA surfaces both with no KEEP. _index names an index and a dataset is not one, so it
+        // answers SQL NULL; _name is the column that answers which relation a row came from.
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _index, _name | SORT emp_no | LIMIT 10"), TIMEOUT)) {
+            int indexI = columnIndex(response.columns(), "_index");
+            int nameI = columnIndex(response.columns(), "_name");
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
             for (List<Object> row : rows) {
-                assertThat(row.get(idx).toString(), equalTo("employees"));
+                assertThat("_index is null on a dataset", row.get(indexI), nullValue());
+                assertThat("_name is the dataset name", row.get(nameI).toString(), equalTo("employees"));
             }
         }
     }
@@ -146,8 +150,8 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
     public void testAllStandardMetadataColumnsPinned() throws Exception {
         // Standing contract: every standard metadata name a dataset answers is accepted in one query,
         // returns a value or SQL NULL (never an error), and the value/null disposition is pinned.
-        // _index carries the dataset name and _score is zero on every row; the remaining seven have no
-        // external semantic and come back as NULL columns. _tier is snapshot-only — see
+        // _score is zero on every row; the remaining eight have no external semantic and come back as
+        // NULL columns. _tier is snapshot-only — see
         // testTierIsNullOnExternalRowsSnapshotOnly.
         String query = "FROM employees METADATA _index, _id, _version, _source, _ignored, _index_mode, _tsid, _size, _score "
             + "| SORT emp_no | LIMIT 10";
@@ -167,7 +171,8 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
             for (List<Object> row : rows) {
-                assertThat("_index is the dataset name", row.get(indexI).toString(), equalTo("employees"));
+                // _index names an index and a dataset is not one; _name answers that question instead.
+                assertThat("_index is null on external rows", row.get(indexI), nullValue());
                 // A file holds no document identity, no document version and no stored source.
                 assertThat("_id is null on external rows", row.get(idI), nullValue());
                 assertThat("_version is null on external rows", row.get(versionI), nullValue());
@@ -187,7 +192,7 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
             int countIdx = columnIndex(response.columns(), "c");
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
-            assertThat(rows.get(0).get(idx).toString(), equalTo("employees"));
+            assertThat("every row shares the one null _index group", rows.get(0).get(idx), nullValue());
             assertThat(((Number) rows.get(0).get(countIdx)).longValue(), equalTo(3L));
         }
 
@@ -242,7 +247,7 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
             for (List<Object> row : rows) {
-                assertThat(row.get(idx).toString(), equalTo("employees"));
+                assertThat(row.get(idx), nullValue());
                 assertThat(((Number) row.get(countIdx)).longValue(), equalTo(3L));
             }
         }
@@ -254,7 +259,7 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
             int countIdx = columnIndex(response.columns(), "c");
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
-            assertThat(rows.get(0).get(idx).toString(), equalTo("employees"));
+            assertThat(rows.get(0).get(idx), nullValue());
             assertThat(((Number) rows.get(0).get(countIdx)).longValue(), equalTo(3L));
         }
     }
@@ -281,26 +286,22 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
     }
 
     public void testMetadataFilterSelectsRowsAndCountsThem() throws Exception {
-        try (
-            var response = run(
-                syncEsqlQueryRequest("FROM employees METADATA _index | WHERE _index == \"employees\" | SORT emp_no"),
-                TIMEOUT
-            )
-        ) {
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _index | WHERE _index IS NULL | SORT emp_no"), TIMEOUT)) {
             assertThat(getValuesList(response), hasSize(3));
         }
         try (
             var response = run(
+                // Equality against a NULL column is UNKNOWN, so it selects nothing even for the dataset's own name.
                 syncEsqlQueryRequest("FROM employees METADATA _index | WHERE _index == \"employees\" | STATS c = COUNT(*)"),
                 TIMEOUT
             )
         ) {
-            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(0L));
         }
         try (
             var response = run(syncEsqlQueryRequest("FROM employees METADATA _index | WHERE _index IS NULL | STATS c = COUNT(*)"), TIMEOUT)
         ) {
-            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(0L));
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
         }
         try (
             var response = run(
@@ -357,7 +358,7 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
         }
         try (
             var response = run(
-                syncEsqlQueryRequest("FROM employees METADATA _index | WHERE _index == \"nosuchdataset\" | SORT emp_no"),
+                syncEsqlQueryRequest("FROM employees METADATA _name | WHERE _name == \"nosuchdataset\" | SORT emp_no"),
                 TIMEOUT
             )
         ) {
@@ -369,7 +370,7 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
                 TIMEOUT
             )
         ) {
-            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(0L));
         }
         try (
             var response = run(
@@ -377,7 +378,7 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
                 TIMEOUT
             )
         ) {
-            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(0L));
         }
         try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _id | WHERE _id IS NULL | STATS c = COUNT(*)"), TIMEOUT)) {
             assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
@@ -414,7 +415,7 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
                 TIMEOUT
             )
         ) {
-            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(0L));
         }
     }
 
@@ -427,12 +428,15 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractExternalD
                 TIMEOUT
             )
         ) {
-            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(0L));
+            assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(3L));
         }
     }
 
     public void testComputedMetadataShadowingIndexFiltersRowsAndCounts() throws Exception {
-        String source = "FROM employees METADATA _index | EVAL _index = CONCAT(_index, \"mytext\")";
+        // _index is NULL on a dataset, so the computed value is built from _name — the column that does
+        // carry the relation's name. What is pinned is the shadowing: a user column named _index wins
+        // over the metadata one for every downstream reference.
+        String source = "FROM employees METADATA _index, _name | EVAL _index = CONCAT(_name, \"mytext\")";
         for (var testCase : List.of(
             Map.entry("_index == \"employeesmytext\"", 3L),
             Map.entry("_index == \"employees\"", 0L),

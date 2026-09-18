@@ -192,7 +192,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     /**
      * Public 15-arg ctor used by {@link #info()} (via constructor reference) and by tree tests: the 13-arg shape above
      * plus {@code datasetName} and {@code declaredReadSpec}, so node-reflection reconstruction preserves both. Losing
-     * {@code datasetName} on a generic rewrite would silently null {@code _index}; losing {@code declaredReadSpec} would
+     * {@code datasetName} on a generic rewrite would drop it from the wire, and a 9.5 data node reads that slot to
+     * compose {@code _index}; losing {@code declaredReadSpec} would
      * silently drop the declared renames (the same reflection safety they had while riding the
      * reflected {@code config} map). This is the longest public ctor — {@code EsqlNodeSubclassTests} keys the required
      * {@link #info()} arity off it. Passes {@code null} for {@code pushedTopN} / {@code unifiedSchema}; those are
@@ -923,9 +924,12 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         // unifiedSchema: also excluded — the optimizer's attribute-rewriting rules walk every arg
         // in info() and would prune the Unified schema along with `attributes`, defeating its
         // whole purpose. Preserved through with* methods which carry it explicitly.
-        // datasetName: INCLUDED — it is a plain String (attribute rewriting cannot prune it) and
-        // it feeds the per-row _index value; excluding it would silently null _index whenever a
-        // generic rule reconstructs this node via node reflection. Mirrors ExternalRelation#info.
+        // datasetName: INCLUDED — it is a plain String (attribute rewriting cannot prune it) and it
+        // is what a 9.5 data node reads to compose _index during a rolling upgrade; excluding it
+        // would drop the slot whenever a generic rule reconstructs this node via node reflection.
+        // No node on this version reads it: _name is folded on the logical relation by
+        // MaterializeRelationClassAndName, and _index is a null constant here.
+        // Mirrors ExternalRelation#info.
         // declaredReadSpec: INCLUDED for the same reason — it carries no Attributes (attribute
         // rewriting cannot prune it) and holds the declared renames; the renames used
         // to ride the reflected `config` map, so dropping them on a generic reflection rebuild

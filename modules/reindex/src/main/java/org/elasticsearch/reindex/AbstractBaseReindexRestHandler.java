@@ -65,17 +65,22 @@ public abstract class AbstractBaseReindexRestHandler<
 
                     @Override
                     public void accept(RestChannel channel) throws Exception {
-                        dispatched = true;
-                        client.execute(
-                            action,
-                            internal,
-                            source != null
-                                ? ActionListener.runAfter(
-                                    new BulkIndexByPaginatedSearchResponseContentListener(channel, params),
-                                    source::close
-                                )
-                                : new BulkIndexByPaginatedSearchResponseContentListener(channel, params)
-                        );
+                        try {
+                            dispatched = true;
+                            client.execute(
+                                action,
+                                internal,
+                                source != null
+                                    ? ActionListener.runAfter(
+                                        new BulkIndexByPaginatedSearchResponseContentListener(channel, params),
+                                        source::close
+                                    )
+                                    : new BulkIndexByPaginatedSearchResponseContentListener(channel, params)
+                            );
+                        } catch (Exception e) {
+                            if (source != null) source.close();
+                            throw e;
+                        }
                     }
 
                     @Override

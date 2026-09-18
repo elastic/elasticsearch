@@ -259,6 +259,7 @@ public final class LongBytesRefBlockHash extends BlockHash {
                 if (ords.isNull(p)) {
                     builder.appendNull();
                 } else {
+                    assert ords.getValueCount(p) == 1 : "expected single-valued ords; got " + ords;
                     final int ord = ords.getInt(ords.getFirstValueIndex(p));
                     builder.appendBytesRef(bytesHash.get(ord, scratch));
                 }

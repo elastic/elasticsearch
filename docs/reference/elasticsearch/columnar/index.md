@@ -219,7 +219,7 @@ Both modes return the same content. `columnar_stored` changes only *when* the co
 
 ### What columnar `_source` preserves [columnar-source-fidelity]
 
-Columnar `_source` is reconstructed from the values of mapped fields, over an [auto-flattened](#auto-flattening) mapping. It reflects how your data is stored rather than the exact JSON you sent, so `_source` differs from the document you indexed in the following ways:
+Columnar `_source` is reconstructed from the values of mapped fields, over an [auto-flattened](#auto-flattening) mapping. It reflects how your data is stored rather than the exact content you sent at index time, so `_source` differs from the indexed document in the following ways:
 
 **Field paths are flat**
 :   Objects are returned as dotted leaf paths, so a document indexed as `{"host": {"name": "host-1"}}` is returned as `{"host.name": "host-1"}`. Use the dotted paths in `_source` include and exclude filters as well.
@@ -237,7 +237,7 @@ Columnar `_source` is reconstructed from the values of mapped fields, over an [a
 :   Anything in a document that doesn't reach a mapped field is lost: fields skipped because of `dynamic: false`, subtrees under `enabled: false`, and dynamic fields skipped because a field limit was reached. Values that a mapped field accepts but can't index normally are still returned in `_source`.
 
 ::::{note}
-There's no way to opt a single field or object into keeping its original JSON. The `synthetic_source_keep` mapping parameter, the `index.mapping.synthetic_source_keep` index setting, and `store: true` are all rejected in columnar modes.
+There's no way to opt a single field or object into keeping its original source. The `synthetic_source_keep` mapping parameter, the `index.mapping.synthetic_source_keep` index setting, and `store: true` are all rejected in columnar modes.
 ::::
 
 For example, take this document:
@@ -297,5 +297,5 @@ The following features are not supported in columnar index modes:
 - **Turning off `_source`**: Setting `"_source": {"enabled": false}` is not allowed.
 - **Stored source mode**: The traditional `stored` source mode is not supported; only synthetic columnar and columnar stored modes are available. See [Columnar `_source`](#columnar-source).
 - **`dynamic: false` and `enabled: false`** are lossy: Setting `dynamic: false` on an object prevents unmapped sub-fields from being stored; their data is permanently lost. Setting `enabled: false` ignores the entire object subtree; its data is permanently lost.
-- **Per-field source retention**: The `synthetic_source_keep` mapping parameter, the `index.mapping.synthetic_source_keep` index setting, and `store: true` are rejected. A field or object can't opt into keeping its original JSON, so the flattening described in [What columnar `_source` preserves](#columnar-source-fidelity) can't be avoided for individual fields.
+- **Per-field source retention**: The `synthetic_source_keep` mapping parameter, the `index.mapping.synthetic_source_keep` index setting, and `store: true` are rejected. A field or object can't opt into keeping its original source, so the flattening described in [What columnar `_source` preserves](#columnar-source-fidelity) can't be avoided for individual fields.
 - **Default query fields**: The `index.query.default_field` index setting in columnar mode will by default only include fields that are indexed (by default text based fields are indexed).

@@ -1,8 +1,5 @@
 pr: 158988
-summary: "On a dataset the standard metadata columns answer what they name: `_index`,\
-  \ `_id`, `_version` and `_source` bind and return null and `_score` is zero, while\
-  \ `mappings._id` is refused on PUT; `_class` and `_name` are added and answer\
-  \ uniformly on indices and datasets"
+summary: "ESQL:DS: Dataset metadata columns return null instead of synthetic values; _class and _name identify a row's source"
 area: ES|QL
 type: enhancement
 issues: []

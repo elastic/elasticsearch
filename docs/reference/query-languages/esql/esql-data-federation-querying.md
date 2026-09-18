@@ -77,7 +77,7 @@ FROM speedtest_data, network_incidents METADATA _class, _name
 
 When sources have different schemas, columns that do not exist in a given source return `null` for rows from that source. Use `METADATA _name` to see which source each row came from: it returns the dataset name for dataset rows and the index name for index rows. `METADATA _class` returns what kind of source a row came from — `index` or `dataset` — so a query can tell the two apart without knowing the names in advance.
 
-`_index` does not answer this question on a dataset. It names an index, and a dataset is not one, so it returns `null` for dataset rows. {applies_to}`stack: experimental 9.6+` In earlier versions it returned the dataset name.
+{applies_to}`stack: experimental 9.6+` `_index` does not answer this question on a dataset. It names an index, and a dataset is not one, so it returns `null` for dataset rows. In earlier versions it returned the dataset name.
 
 ## Use metadata columns
 
@@ -94,12 +94,9 @@ When sources have different schemas, columns that do not exist in a given source
 | `_index` {applies_to}`stack: experimental 9.6+` | null |
 | `_id`, `_version`, `_source` {applies_to}`stack: experimental 9.6+` | null |
 
-`_index`, `_id`, `_version` and `_source` return `null` on a dataset. A file carries no document
-identity, no document version and no stored source, and a dataset is not an index, so the columns bind
-and every row is `null` rather than carrying a value composed while reading. In earlier versions,
-`_index` returned the dataset name, `_id` returned a stable per-row identifier, `_version` returned the
-source file's modification time as a `long` in epoch milliseconds, and `_source` returned the row as a
-JSON object.
+`_index`, `_id`, `_version` and `_source` return `null` on a dataset. A dataset is not an index, and
+files carry no document identity, version, or stored source. In 9.5, these fields returned synthetic
+values (dataset name, row ID, file modification time, row-as-JSON) instead of null.
 
 `_class` and `_name` answer the same two questions on every source. On an index they return `index` and
 the concrete index name; on a dataset, `dataset` and the dataset name. A `FROM` that names both kinds

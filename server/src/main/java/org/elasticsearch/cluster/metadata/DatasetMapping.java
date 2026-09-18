@@ -99,8 +99,13 @@ public final class DatasetMapping implements Writeable {
 
     private static final String DYNAMIC = "dynamic";
     private static final String PROPERTIES = "properties";
-    /** Not a field this version has; {@link #parseStoredMappings} skips it in state a 9.5 node persisted. */
-    // TODO: remove this and the tolerant entry point once no supported upgrade starts from a node that writes it.
+    /**
+     * The {@code _id} block in a {@code mappings} object a 9.5 node persisted to cluster state, which
+     * {@link #parseStoredMappings} skips. This is the XContent on disk, not the wire slot above: that slot
+     * is read and written unconditionally by every peer from 9.5 on and is not on a removal path.
+     */
+    // TODO: remove this and the tolerant entry point once no supported upgrade starts from a version that
+    // persisted the block, since state written before then is what the parse has to tolerate.
     private static final String UNSUPPORTED_ID_FIELD = "_id";
 
     @Nullable

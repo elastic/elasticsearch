@@ -33,6 +33,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 /**
  * What {@code PUT /_query/dataset} refuses, and what it says when it does.
@@ -116,13 +117,17 @@ public class DatasetRegistrationContractIT extends ESRestTestCase {
 
     public void testTheRegistrationIsRefusedWithItsDeclaredMessage() throws IOException {
         assumeTrue("this case is about the query, not the registration", contractCase.outcome() == RegistrationContract.Outcome.REFUSED);
+        assumeFalse(
+            "blocked on " + contractCase.blockedBy() + " -- this case asserts behaviour the product does not have yet",
+            contractCase.blocked()
+        );
         String dataset = "contract_" + contractCase.name();
         // toUri(), not toString(): the endpoint requires a file:// URI, and a bare path is refused for
         // THAT rather than for the setting -- a 400 either way, which is what makes the message the
         // assertion. It also decides the case: the format is resolved from the resource's extension, and
         // an unresolved format leaves the format-scoped keys out of the accepted set, so the setting under
         // test comes back as an unknown key instead of an out-of-range one.
-        String resource = FIXTURE_DIR.resolve(contractCase.resource()).toUri().toString();
+        String resource = resourceFor(contractCase);
 
         ResponseException refused = expectThrows(
             ResponseException.class,
@@ -137,6 +142,13 @@ public class DatasetRegistrationContractIT extends ESRestTestCase {
             refused.getResponse().getStatusLine().getStatusCode(),
             equalTo(400)
         );
+        if (contractCase.absent() != null) {
+            assertThat(
+                "the refusal carries [" + contractCase.absent() + "], which this case exists to say it must not",
+                refused.getMessage(),
+                not(containsString(contractCase.absent()))
+            );
+        }
         assertThat(
             "refused, but not for the declared reason -- a status-only check would have passed here. "
                 + "The message is emitted by ["
@@ -161,8 +173,12 @@ public class DatasetRegistrationContractIT extends ESRestTestCase {
             "this case is about the registration, not the query",
             contractCase.outcome() == RegistrationContract.Outcome.QUERY_FAILS
         );
+        assumeFalse(
+            "blocked on " + contractCase.blockedBy() + " -- this case asserts behaviour the product does not have yet",
+            contractCase.blocked()
+        );
         String dataset = "contract_" + contractCase.name();
-        String resource = FIXTURE_DIR.resolve(contractCase.resource()).toUri().toString();
+        String resource = resourceFor(contractCase);
 
         DatasetRegistry.putDataset(client(), dataset, SHARED_DS_NAME, resource, Map.copyOf(contractCase.settings()));
 
@@ -183,6 +199,19 @@ public class DatasetRegistrationContractIT extends ESRestTestCase {
             failed.getMessage(),
             containsString(contractCase.message())
         );
+    }
+
+    /**
+     * The resource as the case wants it written.
+     *
+     * <p>A URI by default, because that is what a correct request carries. A case may ask for the bare
+     * filesystem path instead, which is what a user writes by mistake -- and the mistake is the subject
+     * of the case rather than a setup detail, so the declaration says which form it wants rather than
+     * the suite guessing from the string.
+     */
+    private static String resourceFor(RegistrationContract.Case declared) {
+        java.nio.file.Path file = FIXTURE_DIR.resolve(declared.resource());
+        return declared.rawPath() ? file.toString() : file.toUri().toString();
     }
 
     /**

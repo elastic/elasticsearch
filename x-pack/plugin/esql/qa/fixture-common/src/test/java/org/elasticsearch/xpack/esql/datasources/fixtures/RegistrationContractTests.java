@@ -18,6 +18,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RegistrationContractTests extends ESTestCase {
 
@@ -47,10 +48,14 @@ public class RegistrationContractTests extends ESTestCase {
      */
     public void testEveryMessageNamesSomethingTheCasePinned() {
         for (RegistrationContract.Case declared : RegistrationContract.get().cases()) {
+            // A case may name the setting in its NEGATIVE assertion instead: the refusal it asserts is
+            // about another input, and what it pins about this setting is that the response stops
+            // mentioning it. That is still naming what the case pinned.
+            String asserted = declared.message() + (declared.absent() == null ? "" : " " + declared.absent());
             boolean named = switch (declared.outcome()) {
-                case REFUSED -> declared.settings().keySet().stream().anyMatch(declared.message()::contains);
+                case REFUSED -> declared.settings().keySet().stream().anyMatch(asserted::contains);
                 case QUERY_FAILS -> {
-                    String message = declared.message().toLowerCase(Locale.ROOT);
+                    String message = asserted.toLowerCase(Locale.ROOT);
                     yield declared.settings().values().stream().anyMatch(v -> message.contains(v.toLowerCase(Locale.ROOT)));
                 }
             };
@@ -182,5 +187,57 @@ public class RegistrationContractTests extends ESTestCase {
             "no declared case registers more than one setting",
             RegistrationContract.get().cases().stream().anyMatch(c -> c.settings().size() > 1)
         );
+    }
+
+    /**
+     * A blocked case asserts behaviour the product does not have. Without the issue nothing closes the
+     * exclusion when the defect is fixed, so the case sits skipped long after the reason is gone --
+     * which loses exactly the coverage it was written to add.
+     */
+    public void testABlockedCaseMustCiteTheIssueThatWillUnblockIt() {
+        Properties props = wellFormed();
+        props.setProperty("case.sample_negative.blocked_by", "it is broken");
+        Exception e = expectThrows(IllegalStateException.class, () -> RegistrationContract.parse(props));
+        assertThat(e.getMessage(), containsString("cites no issue"));
+
+        props.setProperty("case.sample_negative.blocked_by", "elastic/esql-planning#1999");
+        assertThat(RegistrationContract.parse(props).cases().get(0).blocked(), equalTo(true));
+    }
+
+    /** Every blocked case in the real contract carries its issue, so none of them can be forgotten. */
+    public void testEveryBlockedCaseInTheContractCitesAnIssue() {
+        for (RegistrationContract.Case declared : RegistrationContract.get().cases()) {
+            if (declared.blocked()) {
+                assertTrue(
+                    "case [" + declared.name() + "] is blocked on [" + declared.blockedBy() + "], which names no filed issue",
+                    RegistrationContract.ISSUE_REFERENCE.matcher(declared.blockedBy()).find()
+                );
+            }
+        }
+    }
+
+    /**
+     * The negative assertion is the whole point of some cases: the failure happens either way, and what
+     * must change is that a second, misleading error stops coming with it.
+     */
+    public void testACaseMayAssertASubstringIsAbsent() {
+        Properties props = wellFormed();
+        props.setProperty("case.sample_negative.absent", "unknown setting");
+        assertThat(RegistrationContract.parse(props).cases().get(0).absent(), equalTo("unknown setting"));
+        assertThat("absent is optional", RegistrationContract.parse(wellFormed()).cases().get(0).absent(), nullValue());
+    }
+
+    /**
+     * A resource is registered as a URI unless the case says otherwise. Writing a bare path is the user
+     * mistake some cases are about, so the form is declared rather than guessed from the string.
+     */
+    public void testTheResourceFormIsDeclaredAndValidated() {
+        Properties props = wellFormed();
+        assertThat("uri by default", RegistrationContract.parse(props).cases().get(0).rawPath(), equalTo(false));
+        props.setProperty("case.sample_negative.resource_form", "path");
+        assertThat(RegistrationContract.parse(props).cases().get(0).rawPath(), equalTo(true));
+        props.setProperty("case.sample_negative.resource_form", "sideways");
+        Exception e = expectThrows(IllegalStateException.class, () -> RegistrationContract.parse(props));
+        assertThat(e.getMessage(), containsString("expected [uri] or [path]"));
     }
 }

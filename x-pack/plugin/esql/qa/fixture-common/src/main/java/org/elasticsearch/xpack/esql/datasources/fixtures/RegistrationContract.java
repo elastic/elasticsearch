@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.regex.Pattern;
 
 /**
  * What the dataset registration endpoint must refuse, read from {@code registration-contract.properties}.
@@ -46,7 +47,20 @@ public final class RegistrationContract {
     private static final String SETTINGS_PREFIX = "settings.";
 
     /** Every key shape the declaration recognises. A key matching none of these fails the load. */
-    private static final Set<String> ATTRIBUTES = Set.of("message", "emitter", "format", "outcome", "query", "resource");
+    private static final Set<String> ATTRIBUTES = Set.of(
+        "message",
+        "absent",
+        "emitter",
+        "format",
+        "outcome",
+        "query",
+        "resource",
+        "resource_form",
+        "blocked_by"
+    );
+
+    /** What counts as citing a defect: a filed issue a reader can open, not a bare number. */
+    static final Pattern ISSUE_REFERENCE = Pattern.compile("elastic/[a-z0-9-]+#\\d+");
 
     /**
      * Where the registration is expected to fail.
@@ -81,6 +95,9 @@ public final class RegistrationContract {
      * @param outcome   whether the PUT is refused, or accepted with the query failing after it
      * @param query     the query to run for a {@code QUERY_FAILS} case, with {@code %s} for the dataset
      * @param resource  the fixture file to register, relative to the suite's fixture directory
+     * @param rawPath   whether to register the resource as a bare filesystem path rather than a URI
+     * @param absent    a substring the failure must NOT contain, or null
+     * @param blockedBy the filed issue that stops this case passing today, or null when it passes
      */
     public record Case(
         String name,
@@ -90,10 +107,18 @@ public final class RegistrationContract {
         String format,
         Outcome outcome,
         String query,
-        String resource
+        String resource,
+        boolean rawPath,
+        String absent,
+        String blockedBy
     ) {
         public Case {
             settings = Map.copyOf(settings);
+        }
+
+        /** Whether this case asserts behaviour the product does not have yet. */
+        public boolean blocked() {
+            return blockedBy != null;
         }
     }
 
@@ -194,7 +219,33 @@ public final class RegistrationContract {
             // The default fixture is a well-formed file of the declared format. A query-failure case is
             // usually about bytes that do NOT match what the settings announce, so it names its own.
             String resource = props.getProperty("case." + name + ".resource", "simple." + format).trim();
-            parsed.add(new Case(name, settings, message, emitter, format, outcome, query, resource));
+            String resourceForm = props.getProperty("case." + name + ".resource_form", "uri").trim();
+            if (resourceForm.equals("uri") == false && resourceForm.equals("path") == false) {
+                throw new IllegalStateException(
+                    "case [" + name + "] declares resource_form [" + resourceForm + "]; expected [uri] or [path]"
+                );
+            }
+            String absent = props.getProperty("case." + name + ".absent");
+            absent = absent == null || absent.isBlank() ? null : absent.trim();
+            // A case asserting behaviour the product does not have yet names the issue that will make it
+            // pass. Without the citation nothing closes the exclusion when the defect is fixed, and the
+            // case sits excluded long after the reason for it is gone -- which is a silent loss of the
+            // coverage it was written to add.
+            String blockedBy = props.getProperty("case." + name + ".blocked_by");
+            if (blockedBy != null) {
+                blockedBy = blockedBy.trim();
+                if (ISSUE_REFERENCE.matcher(blockedBy).find() == false) {
+                    throw new IllegalStateException(
+                        "case ["
+                            + name
+                            + "] is blocked but cites no issue; write elastic/<repo>#<n> so the case can be "
+                            + "un-blocked when the defect is fixed"
+                    );
+                }
+            }
+            parsed.add(
+                new Case(name, settings, message, emitter, format, outcome, query, resource, resourceForm.equals("path"), absent, blockedBy)
+            );
         }
         if (parsed.isEmpty()) {
             throw new IllegalStateException("[" + RESOURCE + "] declares no cases; an empty contract asserts nothing and passes");

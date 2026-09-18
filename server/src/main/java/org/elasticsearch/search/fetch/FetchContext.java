@@ -42,7 +42,10 @@ public class FetchContext {
     private final SourceLoader sourceLoader;
     private final FetchSourceContext fetchSourceContext;
     private final StoredFieldsContext storedFieldsContext;
-    private LongConsumer scriptFieldsByteChecker = bytes -> {};
+    private LongConsumer documentFieldsByteChecker = bytes -> {
+        assert false : "document field bytes charged before the checker was wired";
+        // Tripwire rather than a silent no-op: charges before FetchPhase wires the real checker would be dropped.
+    };
 
     /**
      * Create a FetchContext based on a SearchContext
@@ -287,18 +290,19 @@ public class FetchContext {
         }
     }
 
-    public void setScriptFieldsByteChecker(LongConsumer scriptFieldsByteChecker) {
-        this.scriptFieldsByteChecker = scriptFieldsByteChecker;
+    public void setDocumentFieldsByteChecker(LongConsumer documentFieldsByteChecker) {
+        this.documentFieldsByteChecker = documentFieldsByteChecker;
     }
 
     /**
-     * Charges {@code bytes} for a scripted {@link org.elasticsearch.common.document.DocumentField}
-     * against the configured checker.
+     * Charges {@code bytes} of {@link org.elasticsearch.common.document.DocumentField} heap retained on a hit.
+     * {@link FetchPhase} charges a hit's own fields once per hit; sub-phases call this only for hits they fetch
+     * themselves, as {@code InnerHitsPhase} does.
      */
-    public void chargeScriptFieldsBytes(long bytes) {
+    public void chargeDocumentFieldsBytes(long bytes) {
         if (bytes <= 0L) {
             return;
         }
-        scriptFieldsByteChecker.accept(bytes);
+        documentFieldsByteChecker.accept(bytes);
     }
 }

@@ -51,6 +51,14 @@ public final class SearchHitRamUsageEstimator {
         return size;
     }
 
+    /**
+     * Upper bound on the heap retained by the document and metadata {@link DocumentField}s on {@code hit}. Excludes
+     * {@code _source} and inner hits, which the fetch phase charges separately.
+     */
+    public static long estimateDocumentFields(SearchHit hit) {
+        return estimateFields(hit.getDocumentFields()) + estimateFields(hit.getMetadataFields());
+    }
+
     private static long estimateFields(Map<String, DocumentField> fields) {
         if (fields == null || fields.isEmpty()) {
             return 0L;

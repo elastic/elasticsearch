@@ -121,7 +121,7 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
             Locale.ROOT,
             expected,
             hnswGraphThreshold,
-            "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)"
+            "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s, useDirectIO=false, onDiskMerge=false)"
         );
         expected = format(Locale.ROOT, expected, "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=%s)");
         expected = format(Locale.ROOT, expected, "ES93GenericFlatVectorScorer(delegate=%s)");

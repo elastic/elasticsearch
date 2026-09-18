@@ -181,7 +181,7 @@ public class ES93BinaryQuantizedBFloat16VectorsFormatTests extends BaseQuantized
         expected = format(
             Locale.ROOT,
             expected,
-            "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)",
+            "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s, useDirectIO=false, onDiskMerge=false)",
             "ES818BinaryFlatVectorsScorer(nonQuantizedDelegate=ES93GenericFlatVectorScorer(delegate={}))"
         );
         expected = format(

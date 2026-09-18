@@ -67,6 +67,11 @@ public class ES93FlatVectorFormat extends KnnVectorsFormat {
         return MAX_DIMS_COUNT;
     }
 
+    @Override
+    public String toString() {
+        return getName() + "(name=" + getName() + ", innerFormat=" + format + ")";
+    }
+
     static class ES93FlatVectorReader extends KnnVectorsReader {
 
         private final FlatVectorsReader reader;

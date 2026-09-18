@@ -70,7 +70,11 @@ public class ES93HnswBinaryQuantizedBFloat16VectorsFormatTests extends BaseQuant
             "ES93BinaryQuantizedVectorsFormat(name=ES93BinaryQuantizedVectorsFormat, rawVectorFormat=%s,"
                 + " scorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate=ES93GenericFlatVectorScorer(delegate={})))"
         );
-        expected = format(Locale.ROOT, expected, "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)");
+        expected = format(
+            Locale.ROOT,
+            expected,
+            "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s, useDirectIO=false, onDiskMerge=false)"
+        );
         expected = format(
             Locale.ROOT,
             expected,
@@ -82,7 +86,15 @@ public class ES93HnswBinaryQuantizedBFloat16VectorsFormatTests extends BaseQuant
         String memSegScorer = expected.replaceAll("\\{}", "ESDefaultFlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())");
         String nativeScorer = expected.replaceAll("\\{}", "PanamaFlatVectorScorer()");
 
-        KnnVectorsFormat format = createFormat(10, 20, 1, null);
+        // useDirectIO is part of the toString, so this format takes a fixed flag rather than createFormat's random one
+        KnnVectorsFormat format = new ES93HnswBinaryQuantizedVectorsFormat(
+            10,
+            20,
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            false,
+            1,
+            null
+        );
         assertThat(format, hasToString(oneOf(defaultScorer, memSegScorer, nativeScorer)));
     }
 

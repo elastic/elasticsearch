@@ -122,7 +122,7 @@ public class ES93HnswBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsF
             Locale.ROOT,
             expected,
             hnswGraphThreshold,
-            "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)"
+            "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s, useDirectIO=false, onDiskMerge=false)"
         );
         expected = format(
             Locale.ROOT,

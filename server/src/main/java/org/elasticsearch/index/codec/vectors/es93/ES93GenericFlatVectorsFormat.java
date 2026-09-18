@@ -147,6 +147,15 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
 
     @Override
     public String toString() {
-        return getName() + "(name=" + getName() + ", format=" + writeFormat + ")";
+        return getName()
+            + "(name="
+            + getName()
+            + ", format="
+            + writeFormat
+            + ", useDirectIO="
+            + useDirectIO
+            + ", onDiskMerge="
+            + onDiskMerge
+            + ")";
     }
 }

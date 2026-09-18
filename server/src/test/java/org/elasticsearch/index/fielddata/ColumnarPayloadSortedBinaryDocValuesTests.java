@@ -70,6 +70,39 @@ public class ColumnarPayloadSortedBinaryDocValuesTests extends ESTestCase {
         });
     }
 
+    /** What an aggregation that only counts does: advance, take the count, never read a value. */
+    public void testCountingReadsNoValue() throws IOException {
+        final String[][] docs = { { "a" }, { "b", "c" }, { null }, { "d", null, "e" }, null, { "f", "g", "h" } };
+        withColumn(docs, values -> {
+            assertTrue(values.advanceExact(0));
+            assertEquals(1, values.docValueCount());
+            assertTrue(values.advanceExact(1));
+            assertEquals(2, values.docValueCount());
+            assertFalse("a document of one null slot holds no value", values.advanceExact(2));
+            assertEquals(0, values.docValueCount());
+            assertTrue(values.advanceExact(3));
+            assertEquals("the null slot does not count", 2, values.docValueCount());
+            assertFalse("the field is absent", values.advanceExact(4));
+            assertTrue(values.advanceExact(5));
+            assertEquals(3, values.docValueCount());
+        });
+    }
+
+    /** The values are still there once something asks for them, sorted, after a count that did not. */
+    public void testValuesSurviveACountThatDidNotReadThem() throws IOException {
+        withColumn(new String[][] { { "b", "a" }, { "d", null, "c" } }, values -> {
+            assertTrue(values.advanceExact(0));
+            assertEquals(2, values.docValueCount());
+            assertTrue(values.advanceExact(1));
+            assertEquals(2, values.docValueCount());
+            assertEquals(new BytesRef("c"), values.nextValue());
+            assertEquals(new BytesRef("d"), values.nextValue());
+            assertTrue(values.advanceExact(0));
+            assertEquals(new BytesRef("a"), values.nextValue());
+            assertEquals(new BytesRef("b"), values.nextValue());
+        });
+    }
+
     private interface Check {
         void check(SortedBinaryDocValues values) throws IOException;
     }

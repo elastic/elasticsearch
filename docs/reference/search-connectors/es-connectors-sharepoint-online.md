@@ -268,7 +268,7 @@ Use the following configuration fields to set up the connector:
         ::::
 
 `expand_site_group_members`
-:   Available when document level security is enabled. When enabled, SharePoint site group members are written individually onto each document’s access control list. For large site groups, turn this off to store compact `site_group:` tokens on documents instead. Membership is resolved during access control syncs. Default value is `True`. Changing this setting requires a full content sync and access control sync. Introduced in 9.4.7, 9.5.4, and 9.6.
+:   Available when document-level security is enabled. When enabled, SharePoint site group members are written individually onto each document’s access control list. For large site groups, turn this off to store compact `site_group:` tokens on documents instead. Membership is resolved during access control syncs. Default value is `True`. Changing this setting requires a full content sync and access control sync. Introduced in 9.4.7, 9.5.4, and 9.6.
 
 
 ### Deployment using Docker [es-connectors-sharepoint-online-client-docker]

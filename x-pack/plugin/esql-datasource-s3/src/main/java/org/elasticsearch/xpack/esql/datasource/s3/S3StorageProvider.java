@@ -889,6 +889,12 @@ public class S3StorageProvider implements StorageProvider {
      * Called from the factory's {@code testConnection} on a GENERIC thread — blocking I/O is expected.
      */
     public void testConnection() {
+        if (config != null && config.isAnonymous()) {
+            throw new TestConnectionNotSupportedException(
+                "S3 anonymous access cannot be verified at the data source level",
+                "Anonymous access targets public buckets; create a dataset to validate read access."
+            );
+        }
         try {
             s3Client.listBuckets();
         } catch (S3Exception e) {

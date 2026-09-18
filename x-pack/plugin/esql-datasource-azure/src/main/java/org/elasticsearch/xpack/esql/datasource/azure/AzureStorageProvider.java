@@ -214,6 +214,12 @@ public final class AzureStorageProvider implements StorageProvider {
      * Reporting failure in that case would be a false negative.
      */
     public void testConnection() {
+        if (config != null && config.isAnonymous()) {
+            throw new TestConnectionNotSupportedException(
+                "Azure anonymous access cannot be verified at the data source level",
+                "Anonymous access targets public containers; create a dataset to validate read access."
+            );
+        }
         try {
             clients(null).sync().getAccountInfo();
         } catch (BlobStorageException e) {

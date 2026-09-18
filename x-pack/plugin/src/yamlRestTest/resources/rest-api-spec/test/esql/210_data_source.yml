@@ -150,6 +150,43 @@ teardown:
           settings: {}
 
 ---
+"test-connection-bad-settings":
+  # Malformed endpoint URL fails the S3 validator before the probe runs — expect 400.
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query/data_source/_test
+          capabilities: [data_source_test_connection]
+      test_runner_features: capabilities
+      reason: "ES|QL data source test-connection API — bad settings → 400"
+  - do:
+      catch: bad_request
+      esql.test_data_source_connection:
+        body:
+          type: "s3"
+          settings:
+            endpoint: "not-a-url"
+
+---
+"test-connection-anonymous-untestable":
+  # Anonymous S3 access has no account-level probe to run — expect untestable.
+  # This also exercises Response.toXContent for the untestable status without a message.
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query/data_source/_test
+          capabilities: [data_source_test_connection]
+      test_runner_features: capabilities
+      reason: "ES|QL data source test-connection API — anonymous auth → untestable"
+  - do:
+      esql.test_data_source_connection:
+        body:
+          type: "s3"
+          settings:
+            auth: "anonymous"
+  - match: { status: "untestable" }
+
+---
 "test-connection-local-untestable":
   # The "local" type has no connectivity probe — it uses the local filesystem, which is either
   # permitted or denied by esql.external.local_allowed_paths at query time, not via a network probe.

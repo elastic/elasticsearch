@@ -158,6 +158,12 @@ public class GcsStorageProvider implements StorageProvider {
      * Called from the factory's {@code testConnection} on a GENERIC thread — blocking I/O is expected.
      */
     public void testConnection() {
+        if (config != null && config.isAnonymous()) {
+            throw new TestConnectionNotSupportedException(
+                "GCS anonymous access cannot be verified at the data source level",
+                "Anonymous access targets public buckets; create a dataset to validate read access."
+            );
+        }
         try {
             storage().list(Storage.BucketListOption.pageSize(1));
         } catch (StorageException e) {

@@ -16,6 +16,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -29,7 +31,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.plugin.NodeEligibilityStrategy;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -65,6 +70,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class TransportTestDataSourceConnectionAction extends HandledTransportAction<
     TestDataSourceConnectionAction.Request,
     TestDataSourceConnectionAction.Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportTestDataSourceConnectionAction.class);
 
     /** Per-node probe deadline. Not configurable — a settings-driven timeout adds complexity with little benefit. */
     static final TimeValue PROBE_TIMEOUT = TimeValue.timeValueSeconds(30);
@@ -117,17 +124,30 @@ public class TransportTestDataSourceConnectionAction extends HandledTransportAct
 
         // --- Step 3: select eligible nodes and fan out ---
         DiscoveryNodes allNodes = clusterService.state().nodes();
-        List<DiscoveryNode> eligibleNodes = NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(allNodes);
-        if (eligibleNodes.isEmpty()) {
-            // No eligible remote nodes — run the probe on the local (coordinator) node.
-            eligibleNodes = List.of(allNodes.getLocalNode());
+        List<DiscoveryNode> dataNodes = NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(allNodes);
+        // Always include the coordinating node: schema resolution and dataset listing run there, so
+        // egress blocked on the coordinator causes query failures even when all data nodes report success.
+        DiscoveryNode localNode = allNodes.getLocalNode();
+        List<DiscoveryNode> eligibleNodes;
+        if (dataNodes.contains(localNode)) {
+            eligibleNodes = dataNodes;
+        } else {
+            eligibleNodes = new ArrayList<>(dataNodes.size() + 1);
+            eligibleNodes.addAll(dataNodes);
+            eligibleNodes.add(localNode);
         }
 
         final int total = eligibleNodes.size();
         final AtomicArray<TestConnectionResult> results = new AtomicArray<>(total);
         final AtomicInteger remaining = new AtomicInteger(total);
 
-        TestDataSourceNodeAction.NodeRequest nodeRequest = new TestDataSourceNodeAction.NodeRequest(request.type(), request.rawSettings());
+        // Strip datasource-level region before probing. Queries drop it via DatasetRewriter (region
+        // is a dataset-level setting); the probe must behave consistently to avoid signing with a
+        // region that queries never use.
+        Map<String, Object> probeSettings = new HashMap<>(request.rawSettings());
+        probeSettings.remove("region");
+
+        TestDataSourceNodeAction.NodeRequest nodeRequest = new TestDataSourceNodeAction.NodeRequest(request.type(), probeSettings);
         TransportRequestOptions options = TransportRequestOptions.timeout(PROBE_TIMEOUT);
 
         for (int i = 0; i < eligibleNodes.size(); i++) {
@@ -166,6 +186,7 @@ public class TransportTestDataSourceConnectionAction extends HandledTransportAct
                         // internal strings (action names, node addresses, registry IAE text) that
                         // must not be surfaced in a public response. The untestable message field
                         // is for user-visible guidance (e.g. "create a dataset"), not debug info.
+                        logger.debug("test-connection probe on node [{}] did not complete: {}", node, exp.getMessage());
                         results.set(idx, new TestConnectionResult.Untestable(null));
                         if (remaining.decrementAndGet() == 0) {
                             listener.onResponse(aggregate(results));

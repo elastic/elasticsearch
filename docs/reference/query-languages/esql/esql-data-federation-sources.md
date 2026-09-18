@@ -229,7 +229,6 @@ POST /_query/data_source/_test
 {
   "type": "s3",
   "settings": {
-    "region": "us-east-1",
     "auth": "static_credentials",
     "access_key": "<AWS_ACCESS_KEY_ID>",
     "secret_key": "<AWS_SECRET_ACCESS_KEY>"
@@ -247,7 +246,6 @@ curl -X POST "${ELASTICSEARCH_URL}/_query/data_source/_test" \
   -d '{
   "type": "s3",
   "settings": {
-    "region": "us-east-1",
     "auth": "static_credentials",
     "access_key": "<AWS_ACCESS_KEY_ID>",
     "secret_key": "<AWS_SECRET_ACCESS_KEY>"

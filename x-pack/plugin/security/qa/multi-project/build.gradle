@@ -9,7 +9,7 @@ dependencies {
 }
 
 tasks.named('javaRestTest') {
-  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
+  buildParams.withSnapshotBuildOnly(it)
 }
 
 tasks.withType(Test).configureEach {

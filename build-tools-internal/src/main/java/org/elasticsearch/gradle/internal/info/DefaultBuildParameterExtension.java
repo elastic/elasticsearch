@@ -115,7 +115,19 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
 
     @Override
     public void withFipsEnabledOnly(Task task) {
-        task.onlyIf("FIPS mode disabled", task1 -> getInFipsJvm() == false);
+        // Resolve the primitive here so the onlyIf spec captures only a boolean. Capturing this extension (e.g. via
+        // getInFipsJvm()) would drag the whole build parameter graph, including an unserializable runtime Java version
+        // provider, into the configuration cache entry for the task.
+        boolean inFipsJvm = getInFipsJvm();
+        task.onlyIf("FIPS mode disabled", task1 -> inFipsJvm == false);
+    }
+
+    @Override
+    public void withSnapshotBuildOnly(Task task) {
+        // Resolve the primitive here so the onlyIf spec captures only a boolean rather than this extension; see
+        // withFipsEnabledOnly for why capturing the extension breaks the configuration cache.
+        boolean snapshotBuild = getSnapshotBuild();
+        task.onlyIf("snapshot build", task1 -> snapshotBuild);
     }
 
     @Override

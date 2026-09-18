@@ -85,6 +85,7 @@ import static org.elasticsearch.compute.data.ElementType.BOOLEAN;
 import static org.elasticsearch.compute.data.ElementType.BYTES_REF;
 import static org.elasticsearch.compute.data.ElementType.COMPOSITE;
 import static org.elasticsearch.compute.data.ElementType.DOUBLE;
+import static org.elasticsearch.compute.data.ElementType.DOUBLE_RANGE;
 import static org.elasticsearch.compute.data.ElementType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.compute.data.ElementType.FLOAT;
 import static org.elasticsearch.compute.data.ElementType.INT;
@@ -272,7 +273,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 sortOrders,
                 IntStream.of(groupKeys).boxed().toList(),
                 maxPageSize,
-                jumboPageBytes
+                jumboPageBytes,
+                GroupedTopNOperator.OutputOrdering.SORTED
             );
         }
         return new TopNOperator.TopNOperatorFactory(
@@ -470,7 +472,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]"
                 + ", groupKeys="
                 + Arrays.toString(groupKeys())
-                + "]";
+                + ", outputOrdering=SORTED]";
             try (Operator operator = topN.get(driverContext())) {
                 assertThat(operator.toString(), equalTo(expectedDescription));
             }
@@ -1103,12 +1105,7 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomFrom(ElementType.values());
-            if (e == ElementType.UNKNOWN
-                || e == COMPOSITE
-                || e == AGGREGATE_METRIC_DOUBLE
-                || e == EXPONENTIAL_HISTOGRAM
-                || e == TDIGEST
-                || e == LONG_RANGE) {
+            if (e == ElementType.UNKNOWN || e == COMPOSITE || e == AGGREGATE_METRIC_DOUBLE || e == EXPONENTIAL_HISTOGRAM || e == TDIGEST) {
                 continue;
             }
             elementTypes.add(e);
@@ -1288,7 +1285,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 + sorts
                 + "], groupKeys="
                 + Arrays.toString(groupKeys())
-                + "]";
+                + ", outputOrdering=SORTED]";
             assertThat(factory.describe(), equalTo("GroupedTopNOperator[count=10" + tail));
             try (Operator operator = factory.get(driverContext())) {
                 assertThat(operator.toString(), equalTo("GroupedTopNOperator[count=0/0/10" + tail));
@@ -1567,11 +1564,12 @@ public class TopNOperatorTests extends OperatorTestCase {
                     || t == AGGREGATE_METRIC_DOUBLE
                     || t == EXPONENTIAL_HISTOGRAM
                     || t == TDIGEST
-                    || t == LONG_RANGE,
+                    || t == LONG_RANGE
+                    || t == DOUBLE_RANGE,
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);
-            validSortKeys[type] = true;
+            validSortKeys[type] = e != LONG_RANGE && e != DOUBLE_RANGE;
             Supplier<Object> randomValueSupplier = () -> randomValue(e);
             if (e == BYTES_REF) {
                 if (rarely()) {
@@ -1732,6 +1730,143 @@ public class TopNOperatorTests extends OperatorTestCase {
                 )
             )
             .toList();
+    }
+
+    /**
+     * A single keyword/text sort key feeds its competitive bound to {@link SharedMinCompetitive} so
+     * external format readers can prune row groups. As more competitive (smaller, for ASC) pages are
+     * consumed the published bound must tighten monotonically.
+     */
+    public void testBytesRefMinCompetitiveTightensAsPagesConsumed() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        List<ElementType> elementTypes = List.of(BYTES_REF);
+        List<TopNEncoder> encoders = List.of(UTF8);
+        List<TopNOperator.SortOrder> sortOrders = List.of(new TopNOperator.SortOrder(0, true, false)); // ASC NULLS LAST
+        SharedMinCompetitive.Supplier supplier = new SharedMinCompetitive.Supplier(
+            blockFactory.breaker(),
+            keyConfigs(elementTypes, encoders, sortOrders)
+        );
+        try (
+            SharedMinCompetitive channel = supplier.get();
+            TopNOperator operator = new TopNOperator(
+                blockFactory,
+                nonBreakingBigArrays().breakerService().getBreaker("request"),
+                3,
+                elementTypes,
+                encoders,
+                sortOrders,
+                pageSize,
+                Long.MAX_VALUE,
+                InputOrdering.NOT_SORTED,
+                supplier
+            )
+        ) {
+            // Heap not full yet (2 < K=3): nothing published.
+            operator.addInput(bytesRefPage(blockFactory, "d", "e"));
+            assertThat(channel.minCompetitiveValue(), nullValue());
+            // Heap saturates at K=3; the bound is the worst (largest, for ASC) of the kept top-3.
+            operator.addInput(bytesRefPage(blockFactory, "f"));
+            assertThat(channel.minCompetitiveValue(), equalTo(new BytesRef("f")));
+            // A repeated read with no new offer returns an equal-but-independent view (generation cache).
+            BytesRef first = channel.minCompetitiveValue();
+            BytesRef second = channel.minCompetitiveValue();
+            assertThat(second, equalTo(first));
+            assertNotSame(first, second);
+            // Smaller values evict the largest kept row and tighten the bound.
+            operator.addInput(bytesRefPage(blockFactory, "a"));
+            assertThat(channel.minCompetitiveValue(), equalTo(new BytesRef("e")));
+            operator.addInput(bytesRefPage(blockFactory, "b"));
+            assertThat(channel.minCompetitiveValue(), equalTo(new BytesRef("d")));
+            // A non-competitive page leaves the bound unchanged.
+            operator.addInput(bytesRefPage(blockFactory, "z"));
+            assertThat(channel.minCompetitiveValue(), equalTo(new BytesRef("d")));
+            assertFalse(channel.noFurtherCandidates());
+        }
+    }
+
+    /**
+     * Under {@code NULLS FIRST} nulls are the most competitive rows. Once the top-K is saturated with
+     * nulls no later non-null row can compete, so the operator signals readers to stop entirely.
+     */
+    public void testBytesRefNullsFirstMarksNoFurtherCandidates() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        List<ElementType> elementTypes = List.of(BYTES_REF);
+        List<TopNEncoder> encoders = List.of(UTF8);
+        List<TopNOperator.SortOrder> sortOrders = List.of(new TopNOperator.SortOrder(0, true, true)); // ASC NULLS FIRST
+        SharedMinCompetitive.Supplier supplier = new SharedMinCompetitive.Supplier(
+            blockFactory.breaker(),
+            keyConfigs(elementTypes, encoders, sortOrders)
+        );
+        try (
+            SharedMinCompetitive channel = supplier.get();
+            TopNOperator operator = new TopNOperator(
+                blockFactory,
+                nonBreakingBigArrays().breakerService().getBreaker("request"),
+                3,
+                elementTypes,
+                encoders,
+                sortOrders,
+                pageSize,
+                Long.MAX_VALUE,
+                InputOrdering.NOT_SORTED,
+                supplier
+            )
+        ) {
+            // Two nulls: heap not yet full of nulls, no early termination.
+            operator.addInput(bytesRefPage(blockFactory, null, null));
+            assertFalse(channel.noFurtherCandidates());
+            // A third null saturates the K=3 heap with nulls; the trailing non-null cannot compete.
+            operator.addInput(bytesRefPage(blockFactory, null, "x"));
+            assertTrue(channel.noFurtherCandidates());
+        }
+    }
+
+    /**
+     * Under {@code NULLS LAST} nulls are the least competitive rows, so a null-saturated or
+     * null-containing input must never trigger early termination: a later non-null row can still win.
+     */
+    public void testBytesRefNullsLastDoesNotMarkNoFurtherCandidates() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        List<ElementType> elementTypes = List.of(BYTES_REF);
+        List<TopNEncoder> encoders = List.of(UTF8);
+        List<TopNOperator.SortOrder> sortOrders = List.of(new TopNOperator.SortOrder(0, true, false)); // ASC NULLS LAST
+        SharedMinCompetitive.Supplier supplier = new SharedMinCompetitive.Supplier(
+            blockFactory.breaker(),
+            keyConfigs(elementTypes, encoders, sortOrders)
+        );
+        try (
+            SharedMinCompetitive channel = supplier.get();
+            TopNOperator operator = new TopNOperator(
+                blockFactory,
+                nonBreakingBigArrays().breakerService().getBreaker("request"),
+                3,
+                elementTypes,
+                encoders,
+                sortOrders,
+                pageSize,
+                Long.MAX_VALUE,
+                InputOrdering.NOT_SORTED,
+                supplier
+            )
+        ) {
+            operator.addInput(bytesRefPage(blockFactory, "a", "b", "c"));
+            operator.addInput(bytesRefPage(blockFactory, null, null, null));
+            assertFalse(channel.noFurtherCandidates());
+            assertThat(channel.minCompetitiveValue(), equalTo(new BytesRef("c")));
+        }
+    }
+
+    private static Page bytesRefPage(BlockFactory blockFactory, String... values) {
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(values.length)) {
+            for (String value : values) {
+                if (value == null) {
+                    builder.appendNull();
+                } else {
+                    builder.appendBytesRef(new BytesRef(value));
+                }
+            }
+            return new Page(builder.build());
+        }
     }
 
     public void testIPSortingSingleValue() throws UnknownHostException {
@@ -2138,7 +2273,10 @@ public class TopNOperatorTests extends OperatorTestCase {
 
     public void testSplitOnSize() {
         int topCount = 50;
-        long jumboPageBytes = randomJumboPageBytes();
+        // When building blocks, we over-allocate to minimize resizing and copying. With
+        // paged structures like BytesRefBlock, this can result in multiple pages. To avoid
+        // over-emitting in this test, require the jumbo page to be at least two pages.
+        long jumboPageBytes = Math.max(randomJumboPageBytes(), PageCacheRecycler.PAGE_SIZE_IN_BYTES * 2);
         int byteLength = Math.max(10, Math.toIntExact(jumboPageBytes / 10));
         logger.info("byteLength {}", byteLength);
         int inputPageRows = 10;
@@ -2163,6 +2301,15 @@ public class TopNOperatorTests extends OperatorTestCase {
             maxPageSize += PageCacheRecycler.PAGE_SIZE_IN_BYTES;
         }
         int[] gk = groupKeys();
+        if (gk.length > 0) {
+            /*
+             * Grouped TopN initializes builders sized to total rows remaining,
+             * not maxPageSize. That inflates estimatedBytes() above jumboPageBytes
+             * before any data is written, so the first row always triggers an
+             * early break. A single-row page holds at minimum byteLength bytes.
+             */
+            minPageSize = Math.min(minPageSize, byteLength);
+        }
         int expectedTotal = gk.length > 0 ? inputPageRows * inputPageCount : topCount;
         try (
             Operator op = createTopNOperatorFactory(
@@ -2191,10 +2338,13 @@ public class TopNOperatorTests extends OperatorTestCase {
                 try (Page out = op.getOutput()) {
                     totalPositions += out.getPositionCount();
                     if (totalPositions < expectedTotal) {
-                        assertThat(out.ramBytesUsedByBlocks(), both(greaterThanOrEqualTo(minPageSize)).and(lessThanOrEqualTo(maxPageSize)));
-                    } else {
-                        assertThat(out.ramBytesUsedByBlocks(), lessThanOrEqualTo(maxPageSize));
+                        // We can over-allocate to one page for BytesRefArray that requires less than one page.
+                        // So don't check the min page size if jumboPageBytes is less than a page.
+                        if (minPageSize >= PageCacheRecycler.PAGE_SIZE_IN_BYTES) {
+                            assertThat(out.ramBytesUsedByBlocks(), greaterThanOrEqualTo(minPageSize));
+                        }
                     }
+                    assertThat(out.ramBytesUsedByBlocks(), lessThanOrEqualTo(maxPageSize));
                 }
             }
             assertThat(totalPositions, equalTo(expectedTotal));
@@ -2315,12 +2465,11 @@ public class TopNOperatorTests extends OperatorTestCase {
                     || t == COMPOSITE
                     || t == AGGREGATE_METRIC_DOUBLE
                     || t == EXPONENTIAL_HISTOGRAM
-                    || t == TDIGEST
-                    || t == LONG_RANGE,
+                    || t == TDIGEST,
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);
-            validSortKeys[type] = true;
+            validSortKeys[type] = e != LONG_RANGE && e != DOUBLE_RANGE;
             try (Block.Builder builder = e.newBlockBuilder(rows, driverContext.blockFactory())) {
                 List<Object> previousValue = null;
                 Function<ElementType, Object> randomValueSupplier = (blockType) -> randomValue(blockType);
@@ -2446,12 +2595,11 @@ public class TopNOperatorTests extends OperatorTestCase {
                     || t == COMPOSITE
                     || t == AGGREGATE_METRIC_DOUBLE
                     || t == EXPONENTIAL_HISTOGRAM
-                    || t == TDIGEST
-                    || t == LONG_RANGE,
+                    || t == TDIGEST,
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);
-            validSortKeys[type] = true;
+            validSortKeys[type] = e != LONG_RANGE && e != DOUBLE_RANGE;
             try (Block.Builder builder = e.newBlockBuilder(rows, driverContext.blockFactory())) {
                 Function<ElementType, Object> randomValueSupplier = (blockType) -> randomValue(blockType);
                 if (e == BYTES_REF) {
@@ -2652,11 +2800,12 @@ public class TopNOperatorTests extends OperatorTestCase {
                     || t == ElementType.AGGREGATE_METRIC_DOUBLE
                     || t == ElementType.EXPONENTIAL_HISTOGRAM
                     || t == ElementType.TDIGEST
-                    || t == ElementType.LONG_RANGE,
+                    || t == ElementType.LONG_RANGE
+                    || t == ElementType.DOUBLE_RANGE,
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);
-            validSortKeys[type] = true;
+            validSortKeys[type] = e != LONG_RANGE && e != DOUBLE_RANGE;
             Supplier<Object> randomValueSupplier = () -> randomValue(e);
             if (e == ElementType.BYTES_REF) {
                 if (rarely()) {
@@ -2829,6 +2978,145 @@ public class TopNOperatorTests extends OperatorTestCase {
             assertThat(topNStatus.rowsReceived(), equalTo(10L));
             assertThat(topNStatus.rowsEmitted(), equalTo(0L));
         }
+    }
+
+    /**
+     * Two drivers share a {@link SharedGlobalTopK}. The global competitive bound must be published
+     * once the combined row count across both drivers reaches LIMIT — earlier than either driver
+     * alone would reach it.
+     *
+     * <p>Scenario: LIMIT=3, DESC NULLS LAST sort (keep 3 largest longs). Driver 1 contributes
+     * 2 rows; driver 2 contributes 1 row. After driver 1 alone the global heap holds 2 &lt; 3
+     * rows and no bound is published. After driver 2 adds its single row the global heap is
+     * full and the bound is published.
+     */
+    public void testGlobalTopKMergePublishesWhenCombinedRowsReachLimit() {
+        int limit = 3;
+        List<ElementType> elementTypes = List.of(LONG);
+        List<TopNEncoder> encoders = List.of(DEFAULT_SORTABLE);
+        List<TopNOperator.SortOrder> sortOrders = List.of(new TopNOperator.SortOrder(0, false, false)); // DESC NULLS LAST
+
+        CircuitBreaker breaker = nonBreakingBigArrays().breakerService().getBreaker("request");
+        BlockFactory blockFactory = blockFactory();
+
+        SharedMinCompetitive.Supplier minCompSupplier = new SharedMinCompetitive.Supplier(
+            breaker,
+            keyConfigs(elementTypes, encoders, sortOrders)
+        );
+        SharedGlobalTopK.Supplier globalTopKSupplier = new SharedGlobalTopK.Supplier(breaker, limit, minCompSupplier);
+        // batchPages=1: flush at every page boundary. maxPendingKeys=1000: no mid-page cap.
+        TopNOperator.GlobalTopKMergeConfig mergeConfig = new TopNOperator.GlobalTopKMergeConfig(globalTopKSupplier, 1, 1000);
+        TopNOperator.TopNOperatorFactory factory = new TopNOperator.TopNOperatorFactory(
+            limit,
+            elementTypes,
+            encoders,
+            sortOrders,
+            pageSize,
+            Long.MAX_VALUE,
+            InputOrdering.NOT_SORTED,
+            minCompSupplier,
+            mergeConfig,
+            null
+        );
+
+        // Both drivers must be open simultaneously so they share the same SharedGlobalTopK instance.
+        // When the last reference to SharedGlobalTopK is closed the heap is destroyed, so sequential
+        // lifetime (driver1 closed before driver2 opens) would give driver2 an empty heap.
+        try (
+            SharedMinCompetitive minComp = minCompSupplier.get();
+            TopNOperator driver1 = factory.get(driverContext());
+            TopNOperator driver2 = factory.get(driverContext())
+        ) {
+            // Driver 1 feeds 2 rows — combined count is 2 < 3 = LIMIT, no bound yet.
+            driver1.addInput(longPage(blockFactory, 100L, 200L));
+            assertNull("global heap below LIMIT; no bound published yet", minComp.rawBound());
+
+            // Driver 2 feeds 1 row — combined = 3 = LIMIT, bound must now be published.
+            driver2.addInput(longPage(blockFactory, 300L));
+            assertNotNull("global heap reached LIMIT after combined rows; bound must be published", minComp.rawBound());
+        }
+    }
+
+    /**
+     * When {@code maxPendingKeys=1} the driver flushes its pending sort-key list to the global
+     * heap after every single row that enters the local queue, without waiting for the next
+     * {@code batchPages} boundary.
+     *
+     * <p>Scenario: LIMIT=3, DESC NULLS LAST sort, {@code batchPages=10000} (never fires for this
+     * test), {@code maxPendingKeys=1}. A single page carries rows [400, 300, 200, 100]. The first
+     * three each trigger an immediate mid-page flush; the global heap reaches capacity after the
+     * third row and publishes the bound. The fourth row (100) is dominated by the current local
+     * worst (200) and does not enter the local queue. After the operator finishes, the output must
+     * be [400, 300, 200] in descending order.
+     */
+    public void testGlobalTopKMergeMidPageFlush() {
+        int limit = 3;
+        List<ElementType> elementTypes = List.of(LONG);
+        List<TopNEncoder> encoders = List.of(DEFAULT_SORTABLE);
+        List<TopNOperator.SortOrder> sortOrders = List.of(new TopNOperator.SortOrder(0, false, false)); // DESC NULLS LAST
+
+        CircuitBreaker breaker = nonBreakingBigArrays().breakerService().getBreaker("request");
+        BlockFactory blockFactory = blockFactory();
+
+        SharedMinCompetitive.Supplier minCompSupplier = new SharedMinCompetitive.Supplier(
+            breaker,
+            keyConfigs(elementTypes, encoders, sortOrders)
+        );
+        SharedGlobalTopK.Supplier globalTopKSupplier = new SharedGlobalTopK.Supplier(breaker, limit, minCompSupplier);
+        // batchPages=10000: page-boundary flush won't fire. maxPendingKeys=1: mid-page flush on every row.
+        TopNOperator.GlobalTopKMergeConfig mergeConfig = new TopNOperator.GlobalTopKMergeConfig(globalTopKSupplier, 10000, 1);
+
+        try (SharedMinCompetitive minComp = minCompSupplier.get()) {
+            List<Long> results;
+            try (
+                TopNOperator driver = new TopNOperator.TopNOperatorFactory(
+                    limit,
+                    elementTypes,
+                    encoders,
+                    sortOrders,
+                    pageSize,
+                    Long.MAX_VALUE,
+                    InputOrdering.NOT_SORTED,
+                    minCompSupplier,
+                    mergeConfig,
+                    null
+                ).get(driverContext())
+            ) {
+                // A single page: rows 400, 300, 200 each trigger an immediate mid-page flush.
+                // After row 200 (the 3rd) the global heap is full and the bound is published.
+                // Row 100 is below the local worst-kept (200) so it never enters the queue.
+                driver.addInput(longPage(blockFactory, 400L, 300L, 200L, 100L));
+                assertNotNull("bound published mid-page by maxPendingKeys=1 flush", minComp.rawBound());
+
+                driver.finish();
+                results = collectLongResults(driver);
+            }
+            assertThat(results, equalTo(List.of(400L, 300L, 200L)));
+        }
+    }
+
+    /** Creates a single-block {@link Page} containing the given {@code long} values. */
+    private static Page longPage(BlockFactory blockFactory, long... values) {
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(values.length)) {
+            for (long value : values) {
+                builder.appendLong(value);
+            }
+            return new Page(builder.build());
+        }
+    }
+
+    /** Drains a finished {@link TopNOperator}'s output into a flat list of {@code long} values. */
+    private static List<Long> collectLongResults(TopNOperator op) {
+        List<Long> result = new ArrayList<>();
+        Page p;
+        while ((p = op.getOutput()) != null) {
+            LongBlock block = p.getBlock(0);
+            for (int i = 0; i < p.getPositionCount(); i++) {
+                result.add(block.getLong(i));
+            }
+            p.releaseBlocks();
+        }
+        return result;
     }
 
     private long randomJumboPageBytes() {

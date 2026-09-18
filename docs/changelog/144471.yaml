@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 144471
-summary: Add anonymous S3 access via auth=none
-type: enhancement

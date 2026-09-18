@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `SAMPLE` function [esql-sample]
 
-:::{include} ../../_snippets/functions/layout/sample.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/sample.md
 :::

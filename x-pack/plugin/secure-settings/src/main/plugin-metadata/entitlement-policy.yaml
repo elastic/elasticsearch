@@ -1,0 +1,6 @@
+org.elasticsearch.settings.secure:
+  - files:
+    - relative_path: "secrets/secret.json"
+      relative_to: config
+      mode: read_write
+      exclusive: true

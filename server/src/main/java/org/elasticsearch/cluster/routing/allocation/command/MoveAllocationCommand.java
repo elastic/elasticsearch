@@ -215,13 +215,17 @@ public class MoveAllocationCommand implements AllocationCommand {
             if (decision.type() == Decision.Type.THROTTLE) {
                 // its being throttled, maybe have a flag to take it into account and fail? for now, just do it since the "user" wants it...
             }
+            // When executing an explicit move command from an operator, we use the same recovery as if we had a canRemain = NO decision
+            // (which is the highest of the relocation priorities).
+            ShardRouting.RecoveryPriority recoveryPriority = ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO;
             allocation.routingNodes()
                 .relocateShard(
                     shardRouting,
                     toRoutingNode.nodeId(),
                     allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
                     "move command",
-                    allocation.changes()
+                    allocation.changes(),
+                    recoveryPriority
                 );
         }
 

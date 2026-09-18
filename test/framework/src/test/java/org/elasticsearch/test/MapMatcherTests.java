@@ -83,18 +83,18 @@ public class MapMatcherTests extends ESTestCase {
             baz: <unexpected> but was <2>"""));
     }
 
-    void testExtraOk() {
+    public void testExtraOk() {
         assertMap(Map.of("foo", 1), matchesMap().extraOk());
     }
 
-    void testExtraOkMismatchSimple() {
+    public void testExtraOkMismatchSimple() {
         assertMismatch(Map.of("foo", 1), matchesMap().entry("bar", 1).extraOk(), equalTo("""
             a map containing
             bar: expected <1> but was <missing>
             foo: <1> unexpected but ok"""));
     }
 
-    void testExtraOkMismatchExtraMap() {
+    public void testExtraOkMismatchExtraMap() {
         assertMismatch(Map.of("foo", Map.of("i", 1)), matchesMap().entry("bar", 1).extraOk(), equalTo("""
             a map containing
             bar: expected <1> but was <missing>
@@ -437,6 +437,19 @@ public class MapMatcherTests extends ESTestCase {
             a map containing
             foo: expected "foo" but error describing <java.lang.IllegalStateException: intentional failure""")).and(containsString("""
             bar: <2>""")));
+    }
+
+    public void testOptionalEntry() {
+        // optional entry absent
+        assertMap(Map.of("foo", 1), matchesMap().entry("foo", 1).optionalEntry("bar", 2));
+        // optional entry present
+        assertMap(Map.of("foo", 1, "bar", 2), matchesMap().entry("foo", 1).optionalEntry("bar", 2));
+        // optional entry different
+        assertMismatch(Map.of("foo", 1, "bar", 3), matchesMap().entry("foo", 1).optionalEntry("bar", 2), equalTo("""
+            a map containing
+            foo: <1>
+            bar: expected <2> but was <3>
+            """.strip()));
     }
 
     static <T> void assertMismatch(T v, Matcher<? super T> matcher, Matcher<String> mismatchDescriptionMatcher) {

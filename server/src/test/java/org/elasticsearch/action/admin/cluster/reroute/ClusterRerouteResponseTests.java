@@ -319,7 +319,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
             : 4 + ClusterStateTests.expectedChunkCount(params, response.getState());
 
         AbstractChunkedSerializingTestCase.assertChunkCount(response, params, o -> expectedChunks);
-        assertCriticalWarnings(criticalDeprecationWarnings);
+        assertWarnings(criticalDeprecationWarnings);
     }
 
     private static ClusterRerouteResponse createClusterRerouteResponse(ClusterState clusterState) {

@@ -10,6 +10,9 @@ package org.elasticsearch.compute.data;
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+$if(BytesRef)$
+import org.elasticsearch.common.bytes.PagedBytesCursor;
+$endif$
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -29,7 +32,7 @@ $if(BytesRef)$
 $endif$
  * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
-final class $Type$ArrayVector extends AbstractVector implements $Type$Vector {
+public final class $Type$ArrayVector extends AbstractVector implements $Type$Vector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayVector.class)
         // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
@@ -129,12 +132,31 @@ $if(BytesRef)$
         return values.get(position, dest);
     }
 
+    @Override
+    public PagedBytesCursor get(int position, PagedBytesCursor scratch) {
+        return values.get(position, scratch);
+    }
+
 $else$
     @Override
     public $type$ get$Type$(int position) {
         return values[position];
     }
+
+    @Override
+    public void copyTo(int srcPosition, $type$[] dst, int dstPosition, int length) {
+        System.arraycopy(values, srcPosition, dst, dstPosition, length);
+    }
 $endif$
+
+    @Override
+    public int valueMaxByteSize() {
+$if(BytesRef)$
+        return values.valueMaxByteSize();
+$else$
+        return $BYTES$;
+$endif$
+    }
 
     @Override
     public ElementType elementType() {
@@ -147,12 +169,13 @@ $endif$
     }
 
     @Override
-    public $Type$Vector filter(boolean mayContainDuplicates, int... positions) {
+    public $Type$Vector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
     $if(BytesRef)$
         final var scratch = new BytesRef();
     $endif$
-        try ($Type$Vector.Builder builder = blockFactory().new$Type$VectorBuilder(positions.length)) {
-            for (int pos : positions) {
+        try ($Type$Vector.Builder builder = blockFactory().new$Type$VectorBuilder(length)) {
+            for (int i = offset, end = offset + length; i < end; i++) {
+                int pos = positions[i];
             $if(BytesRef)$
                 builder.append$Type$(values.get(pos, scratch));
             $else$

@@ -452,7 +452,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
         var exception = new NotEntitledException(message);
         // Don't emit a log for suppressed packages, e.g. packages containing self tests
         if (suppressFailureLogPackages.contains(requestingClass.getPackage()) == false) {
-            entitlements.logger(requestingClass).warn("Not entitled: {}", message, exception);
+            entitlements.logger(requestingClass).debug("Not entitled: {}", message, exception);
         }
         throw exception;
     }
@@ -491,6 +491,8 @@ public class PolicyCheckerImpl implements PolicyChecker {
             checkURLFileRead(callerClass, urlConnection.getURL());
         } else if (urlConnection instanceof JarURLConnection jarURLConnection) {
             checkJarURLAccess(callerClass, jarURLConnection);
+        } else if (isJrtUrl(urlConnection.getURL())) {
+            checkEntitlementPresent(callerClass, ReadJdkImageEntitlement.class);
         } else {
             checkUnsupportedURLProtocolConnection(callerClass, urlConnection.getURL().getProtocol());
         }
@@ -525,8 +527,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
         return false;
     }
 
-    @Override
-    public void checkJarURLAccess(Class<?> callerClass, JarURLConnection connection) {
+    private void checkJarURLAccess(Class<?> callerClass, JarURLConnection connection) {
         var jarFileUrl = connection.getJarFileURL();
         if (handleNetworkOrFileUrlCheck(callerClass, jarFileUrl)) {
             return;

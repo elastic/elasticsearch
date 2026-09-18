@@ -1,0 +1,362 @@
+setup:
+  - requires:
+      cluster_features: "search.vectors.dense_vector_query"
+      test_runner_features: "close_to"
+      reason: 'dense_vector query introduced in 9.5'
+
+  - do:
+      indices.create:
+        index: dv_flat
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: flat
+
+  - do:
+      indices.create:
+        index: dv_hnsw
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: hnsw
+
+  # Non-indexed (index:false) fields store vectors as binary doc values and have no configured similarity,
+  # so the query must supply [similarity_function]. dv_unindexed mirrors dv_flat's vectors so l2_norm scoring
+  # can be compared against the indexed equivalent.
+  - do:
+      indices.create:
+        index: dv_unindexed
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 5
+                index: false
+
+  - do:
+      index:
+        index: dv_flat
+        id: "1"
+        body: { name: cow.jpg,    vector: [230.0, 300.33, -34.8988, 15.555, -200.0] }
+  - do:
+      index:
+        index: dv_flat
+        id: "2"
+        body: { name: moose.jpg,  vector: [-0.5, 100.0, -13, 14.8, -156.0] }
+  - do:
+      index:
+        index: dv_flat
+        id: "3"
+        body: { name: rabbit.jpg, vector: [0.5, 111.3, -13.0, 14.8, -156.0] }
+
+  # dv_hnsw mirrors dv_flat exactly so we can compare quantized=true vs default (must be a no-op).
+  - do:
+      index:
+        index: dv_hnsw
+        id: "1"
+        body: { name: cow.jpg,    vector: [230.0, 300.33, -34.8988, 15.555, -200.0] }
+  - do:
+      index:
+        index: dv_hnsw
+        id: "2"
+        body: { name: moose.jpg,  vector: [-0.5, 100.0, -13, 14.8, -156.0] }
+  - do:
+      index:
+        index: dv_hnsw
+        id: "3"
+        body: { name: rabbit.jpg, vector: [0.5, 111.3, -13.0, 14.8, -156.0] }
+
+  # dv_unindexed mirrors dv_flat exactly so l2_norm scoring can be compared against the indexed equivalent.
+  - do:
+      index:
+        index: dv_unindexed
+        id: "1"
+        body: { name: cow.jpg,    vector: [230.0, 300.33, -34.8988, 15.555, -200.0] }
+  - do:
+      index:
+        index: dv_unindexed
+        id: "2"
+        body: { name: moose.jpg,  vector: [-0.5, 100.0, -13, 14.8, -156.0] }
+  - do:
+      index:
+        index: dv_unindexed
+        id: "3"
+        body: { name: rabbit.jpg, vector: [0.5, 111.3, -13.0, 14.8, -156.0] }
+
+  - do:
+      indices.refresh: {}
+
+---
+"quantized: true is a no-op on FLAT (non-quantized) indexes":
+  # The codec has no quantized representation to fall back to, so default and quantized must match exactly.
+  - do:
+      search:
+        index: dv_flat
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+  - set: { hits.hits.0._score: flat_score_0 }
+  - set: { hits.hits.1._score: flat_score_1 }
+  - set: { hits.hits.2._score: flat_score_2 }
+
+  - do:
+      search:
+        index: dv_flat
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+              quantized: true
+  - close_to: {hits.hits.0._score: {value: $flat_score_0, error: 0.000001}}
+  - close_to: {hits.hits.1._score: {value: $flat_score_1, error: 0.000001}}
+  - close_to: {hits.hits.2._score: {value: $flat_score_2, error: 0.000001}}
+
+---
+"quantized: true is a no-op on HNSW (non-quantized) indexes":
+  - do:
+      search:
+        index: dv_hnsw
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+  - set: { hits.hits.0._score: hnsw_score_0 }
+  - set: { hits.hits.1._score: hnsw_score_1 }
+  - set: { hits.hits.2._score: hnsw_score_2 }
+
+  - do:
+      search:
+        index: dv_hnsw
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+              quantized: true
+  - close_to: {hits.hits.0._score: {value: $hnsw_score_0, error: 0.000001}}
+  - close_to: {hits.hits.1._score: {value: $hnsw_score_1, error: 0.000001}}
+  - close_to: {hits.hits.2._score: {value: $hnsw_score_2, error: 0.000001}}
+
+---
+"similarity_function and quantized: true are mutually exclusive":
+  - do:
+      catch: bad_request
+      search:
+        index: dv_flat
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+              similarity_function: l2_norm
+              quantized: true
+
+---
+"dense_vector raw scoring on a non-indexed field matches the indexed equivalent":
+  # A non-indexed field stores vectors as binary doc values and has no configured similarity, so the query
+  # supplies l2_norm. The raw scores must match the indexed flat field (same vectors, same metric).
+  - do:
+      search:
+        index: dv_flat
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+  - match: { hits.total.value: 3 }
+  - set: { hits.hits.0._id: top_id }
+  - set: { hits.hits.0._score: indexed_score_0 }
+  - set: { hits.hits.1._score: indexed_score_1 }
+  - set: { hits.hits.2._score: indexed_score_2 }
+
+  - do:
+      search:
+        index: dv_unindexed
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+              similarity_function: l2_norm
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: $top_id }
+  - close_to: {hits.hits.0._score: {value: $indexed_score_0, error: 0.000001}}
+  - close_to: {hits.hits.1._score: {value: $indexed_score_1, error: 0.000001}}
+  - close_to: {hits.hits.2._score: {value: $indexed_score_2, error: 0.000001}}
+
+---
+"dense_vector on a non-indexed field defaults to cosine when no similarity_function is given":
+  # A non-indexed field has no mapped similarity, so scoring defaults to cosine.
+  - do:
+      search:
+        index: dv_unindexed
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+  - match: { hits.total.value: 3 }
+  # Query equals doc 3 (rabbit) verbatim ⇒ cosine ≈ 1.0 ⇒ Lucene score (1 + cosine) / 2 ≈ 1.0.
+  - match: { hits.hits.0._id: "3" }
+  - close_to: {hits.hits.0._score: {value: 1.0, error: 0.001}}
+
+---
+"dense_vector on a non-indexed field supports a cosine similarity_function":
+  - do:
+      search:
+        index: dv_unindexed
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+              similarity_function: cosine
+  - match: { hits.total.value: 3 }
+  # Query equals doc 3 (rabbit) verbatim ⇒ cosine ≈ 1.0 ⇒ Lucene score (1 + cosine) / 2 ≈ 1.0.
+  - match: { hits.hits.0._id: "3" }
+  - close_to: {hits.hits.0._score: {value: 1.0, error: 0.001}}
+
+---
+"dense_vector as a bool must clause is restricted by a sibling filter":
+  # dense_vector's custom bulk scorer is normally driven standalone as the top-level query; nesting
+  # it as a bool must clause forces Lucene to conjoin it with the filter via the regular per-doc
+  # Scorer/TwoPhaseIterator path instead. moose.jpg (id 2) is the closest vector overall, so
+  # restricting to rabbit.jpg (id 3) via filter must exclude the closer moose.jpg match entirely,
+  # not just re-rank it, and the surviving hit's score must be unaffected by the filter.
+  - do:
+      search:
+        index: dv_unindexed
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+  - match: { hits.hits.1._id: "3" }
+  - set: { hits.hits.1._score: rabbit_score }
+
+  - do:
+      search:
+        index: dv_unindexed
+        body:
+          query:
+            bool:
+              must:
+                - dense_vector:
+                    field: vector
+                    query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+              filter:
+                - term:
+                    name: rabbit.jpg
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "3" }
+  - close_to: {hits.hits.0._score: {value: $rabbit_score, error: 0.000001}}
+
+---
+"dense_vector used only as a bool filter clause matches without scoring":
+  # No must/should clause, so this exercises the ScoreMode.COMPLETE_NO_SCORES path: dense_vector
+  # unconditionally matches every doc with the field regardless of query vector, so the filter alone
+  # matches all docs.
+  - do:
+      search:
+        index: dv_unindexed
+        body:
+          query:
+            bool:
+              filter:
+                - dense_vector:
+                    field: vector
+                    query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+  - match: { hits.total.value: 3 }
+
+---
+"dense_vector combined with a second dense_vector clause in a bool must":
+  # Confirms two simultaneous vector-scored clauses required together conjoin without error, not
+  # just a single dense_vector clause paired with an ordinary term filter as above.
+  - do:
+      search:
+        index: dv_unindexed
+        body:
+          query:
+            bool:
+              must:
+                - dense_vector:
+                    field: vector
+                    query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+                - dense_vector:
+                    field: vector
+                    query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.2._id: "1" }
+
+---
+"dense_vector combined with a bool should clause does not error":
+  - do:
+      search:
+        index: dv_unindexed
+        body:
+          query:
+            bool:
+              should:
+                - dense_vector:
+                    field: vector
+                    query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+                - term:
+                    name: rabbit.jpg
+  - match: { hits.total.value: 3 }
+
+---
+"dense_vector as a bool must_not clause excludes all matching docs":
+  # dense_vector unconditionally matches every doc with the field, so must_not excludes them all.
+  - do:
+      search:
+        index: dv_unindexed
+        body:
+          query:
+            bool:
+              must:
+                - match_all: {}
+              must_not:
+                - dense_vector:
+                    field: vector
+                    query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+  - match: { hits.total.value: 0 }
+
+---
+"dense_vector wrapped in constant_score matches without scoring":
+  - do:
+      search:
+        index: dv_unindexed
+        body:
+          query:
+            constant_score:
+              filter:
+                dense_vector:
+                  field: vector
+                  query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._score: 1.0 }

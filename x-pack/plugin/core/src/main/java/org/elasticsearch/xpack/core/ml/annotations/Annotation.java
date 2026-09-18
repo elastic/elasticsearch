@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.annotations;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,6 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 
 import java.io.IOException;
 import java.util.Date;
@@ -24,6 +26,10 @@ import java.util.Locale;
 import java.util.Objects;
 
 public class Annotation implements ToXContentObject, Writeable {
+
+    private static final TransportVersion SEARCH_SCOPE_CHANGED_EVENT = TransportVersion.fromName(
+        "ml_annotation_search_scope_changed_event"
+    );
 
     public enum Type {
         ANNOTATION,
@@ -44,10 +50,15 @@ public class Annotation implements ToXContentObject, Writeable {
         DELAYED_DATA,
         MODEL_SNAPSHOT_STORED,
         MODEL_CHANGE,
-        CATEGORIZATION_STATUS_CHANGE;
+        CATEGORIZATION_STATUS_CHANGE,
+        SEARCH_SCOPE_CHANGED;
 
         public static Event fromString(String value) {
-            return valueOf(value.toUpperCase(Locale.ROOT));
+            try {
+                return valueOf(value.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
         }
 
         @Override
@@ -245,9 +256,13 @@ public class Annotation implements ToXContentObject, Writeable {
         }
         out.writeOptionalString(modifiedUsername);
         out.writeString(type.toString());
-        if (event != null) {
+        Event eventToWrite = event;
+        if (eventToWrite == Event.SEARCH_SCOPE_CHANGED && out.getTransportVersion().supports(SEARCH_SCOPE_CHANGED_EVENT) == false) {
+            eventToWrite = null;
+        }
+        if (eventToWrite != null) {
             out.writeBoolean(true);
-            out.writeEnum(event);
+            out.writeEnum(eventToWrite);
         } else {
             out.writeBoolean(false);
         }
@@ -445,6 +460,20 @@ public class Annotation implements ToXContentObject, Writeable {
 
     public String toString() {
         return Strings.toString(this);
+    }
+
+    public static Annotation searchScopeChanged(String jobId, String message, Date eventTime, Date now) {
+        return new Builder().setAnnotation(message)
+            .setCreateTime(now)
+            .setCreateUsername(InternalUsers.XPACK_USER.principal())
+            .setTimestamp(eventTime)
+            .setEndTimestamp(eventTime)
+            .setJobId(jobId)
+            .setModifiedTime(now)
+            .setModifiedUsername(InternalUsers.XPACK_USER.principal())
+            .setType(Type.ANNOTATION)
+            .setEvent(Event.SEARCH_SCOPE_CHANGED)
+            .build();
     }
 
     public static class Builder {

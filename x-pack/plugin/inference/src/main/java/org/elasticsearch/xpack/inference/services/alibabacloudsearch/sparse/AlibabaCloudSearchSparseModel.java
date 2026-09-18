@@ -46,7 +46,7 @@ public class AlibabaCloudSearchSparseModel extends AlibabaCloudSearchModel {
             AlibabaCloudSearchSparseServiceSettings.fromMap(serviceSettings, context),
             AlibabaCloudSearchSparseTaskSettings.fromMap(taskSettings),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 
@@ -70,7 +70,8 @@ public class AlibabaCloudSearchSparseModel extends AlibabaCloudSearchModel {
         super(
             modelConfigurations,
             modelSecrets,
-            ((AlibabaCloudSearchSparseServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings()
+            ((AlibabaCloudSearchSparseServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings(),
+            null
         );
     }
 

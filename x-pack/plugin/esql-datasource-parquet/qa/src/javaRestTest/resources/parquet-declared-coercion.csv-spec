@@ -1,0 +1,66 @@
+// Declared-type COERCION on a columnar format: the file carries authoritative types in its footer, and the
+// declaration overrides them, so the reader must convert at decode time via DeclaredTypeCoercions.
+//
+// This is the arm a declaration that AGREES with the file can never reach: identity coercion short-circuits, so
+// a declaration restating the footer exercises no conversion at all. Only a declaration that DISAGREES does.
+//
+// employees_no_mv.parquet is generated from the typed-header CSV, so the footer types are the header's:
+// emp_no INT32, salary INT32, avg_worked_seconds INT64, height DOUBLE, salary_change.keyword a UTF8 string.
+
+// A UTF8 string column read as a double, crossed with the error policy. The physical column holds text; the
+// declared type makes the reader parse it, and inference reports this column as a keyword, so the declared type
+// is what produces a number at all. 21 of the 100 rows hold an empty string, which is not a double -- under the
+// default policy that fails the read with a message naming the column and the remedy, so the declaration only
+// works here alongside error_mode: null_field, which reads the unparseable values as null. Declared coercion and
+// the error policy are therefore not independent, and this pins the pair.
+strictDeclaredStringReadsAsDoubleOnParquetUnderNullFieldPolicy
+required_capability: dataset_in_from_command
+dataset: employees_declared_parse: "{{employees_no_mv}}" WITH {"error_mode": "null_field", "mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "change": {"type": "double", "path": "salary_change.keyword"}}}}
+
+FROM employees_declared_parse
+| SORT id
+| LIMIT 3;
+warningRegex:Column \[salary_change.keyword\]: cannot coerce value from \[keyword\] to declared type \[double\]: empty String; returning null
+warningRegex:.* has values that could not be coerced to the declared column type; they are returned as null
+warningRegex:\.\.\. further warnings suppressed .*
+
+id:long | change:double
+10001   | 1.19
+10002   | -7.23
+10003   | 14.68
+;
+
+// Casting TO string — the widest row in the coercion matrix: `supports` admits string, any numeric, boolean and
+// ip as sources for a declared keyword. An undeclared read reports salary as an integer and still_hired as a
+// boolean, so the declared type is what produces text here.
+strictDeclaredNumericAndBooleanReadAsKeywordOnParquet
+required_capability: dataset_in_from_command
+dataset: employees_declared_tostring: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "pay_text": {"type": "keyword", "path": "salary"}, "hired_text": {"type": "keyword", "path": "still_hired"}}}}
+
+FROM employees_declared_tostring
+| SORT id
+| LIMIT 3;
+
+id:long | pay_text:keyword | hired_text:keyword
+10001   | "57305"          | "true"
+10002   | "56371"          | "true"
+10003   | "61805"          | "false"
+;
+
+// Declaring is REINTERPRETATION, not just supplying what is missing -- which is where a declaration earns its
+// keep on a format that already carries authoritative types. parquet stores avg_worked_seconds as a 64-bit
+// integer; declaring it `date` makes the reader read those same bits as epoch milliseconds through the
+// licensed long->datetime coercion. Inference cannot produce this column at all: it reports a long.
+strictDeclaredLongReadsAsDatetimeOnParquet
+required_capability: dataset_in_from_command
+dataset: employees_declared_epoch: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "worked": {"type": "date", "path": "avg_worked_seconds"}}}}
+
+FROM employees_declared_epoch
+| SORT id
+| LIMIT 3;
+
+id:long | worked:date
+10001   | 1970-01-04T02:38:48.049Z
+10002   | 1970-01-04T19:22:02.887Z
+10003   | 1970-01-03T07:38:16.405Z
+;

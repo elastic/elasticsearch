@@ -100,10 +100,10 @@ final class All$v1_Type$$v2_Type$State implements AggregatorState {
         blocks[offset + 0] = driverContext.blockFactory().newConstantBooleanBlockWith(observed, 1);
         blocks[offset + 1] = driverContext.blockFactory().newConstantBooleanBlockWith(v1Seen, 1);
         blocks[offset + 2] = driverContext.blockFactory().newConstant$v1_Type$BlockWith(v1, 1);
-        blocks[offset + 3] = intermediateValuesBlockBuilder(driverContext);
+        blocks[offset + 3] = valuesBlock(driverContext);
     }
 
-    public Block intermediateValuesBlockBuilder(DriverContext driverContext) {
+    public Block valuesBlock(DriverContext driverContext) {
         if (v2 == null) {
             return driverContext.blockFactory().newConstantNullBlock(1);
         }

@@ -1,0 +1,5 @@
+from all_types
+| sort date
+| eval x = round_to(date, "2023-10-20", "2023-10-21", "2023-10-22", "2023-10-23")
+| keep alias_integer, date, x
+| limit 5

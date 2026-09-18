@@ -12,24 +12,26 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 
+import static org.elasticsearch.test.AbstractXContentTestCase.NUMBER_OF_TEST_RUNS;
+import static org.elasticsearch.test.AbstractXContentTestCase.chunkedXContentTester;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<MultiSearchTemplateResponse> {
+public class MultiSearchTemplateResponseTests extends ESTestCase {
 
-    @Override
     protected MultiSearchTemplateResponse createTestInstance() {
         int numItems = randomIntBetween(0, 128);
         long overallTookInMillis = randomNonNegativeLong();
@@ -96,7 +98,6 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
         return new MultiSearchTemplateResponse(items, overallTookInMillis);
     }
 
-    @Override
     protected MultiSearchTemplateResponse doParseInstance(XContentParser parser) {
         // The MultiSearchTemplateResponse is identical to the multi search response so we reuse the parsing logic in multi search response
         MultiSearchResponse mSearchResponse = SearchResponseUtils.parseMultiSearchResponse(parser);
@@ -119,16 +120,10 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
         }
     }
 
-    @Override
-    protected boolean supportsUnknownFields() {
-        return true;
-    }
-
     protected Predicate<String> getRandomFieldsExcludeFilterWhenResultHasErrors() {
         return field -> field.startsWith("responses");
     }
 
-    @Override
     protected void assertEqualInstances(MultiSearchTemplateResponse expectedInstance, MultiSearchTemplateResponse newInstance) {
         assertThat(newInstance.getTook(), equalTo(expectedInstance.getTook()));
         assertThat(newInstance.getResponses().length, equalTo(expectedInstance.getResponses().length));
@@ -145,35 +140,109 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
         }
     }
 
+    public final void testFromXContent() throws IOException {
+        chunkedXContentTester(this::createParser, t -> createTestInstance(), ToXContent.EMPTY_PARAMS, this::doParseInstance)
+            .numberOfTestRuns(20)
+            .supportsUnknownFields(true)
+            .assertEqualsConsumer(this::assertEqualInstances)
+            .dispose(MultiSearchTemplateResponse::decRef)
+            .test();
+    }
+
     /**
      * Test parsing {@link MultiSearchTemplateResponse} with inner failures as they don't support asserting on xcontent equivalence, given
      * exceptions are not parsed back as the same original class. We run the usual {@link AbstractXContentTestCase#testFromXContent()}
      * without failures, and this other test with failures where we disable asserting on xcontent equivalence at the end.
      */
     public void testFromXContentWithFailures() throws IOException {
-        Supplier<MultiSearchTemplateResponse> instanceSupplier = MultiSearchTemplateResponseTests::createTestInstanceWithFailures;
-        // with random fields insertion in the inner exceptions, some random stuff may be parsed back as metadata,
-        // but that does not bother our assertions, as we only want to test that we don't break.
-        boolean supportsUnknownFields = true;
-        // exceptions are not of the same type whenever parsed back
-        boolean assertToXContentEquivalence = false;
-        AbstractXContentTestCase.testFromXContent(
-            NUMBER_OF_TEST_RUNS,
-            instanceSupplier,
-            supportsUnknownFields,
-            Strings.EMPTY_ARRAY,
-            getRandomFieldsExcludeFilterWhenResultHasErrors(),
-            this::createParser,
-            this::doParseInstance,
-            this::assertEqualInstances,
-            assertToXContentEquivalence,
-            ToXContent.EMPTY_PARAMS,
-            RefCounted::decRef
-        );
+        chunkedXContentTester(this::createParser, t -> createTestInstanceWithFailures(), ToXContent.EMPTY_PARAMS, this::doParseInstance)
+            .numberOfTestRuns(NUMBER_OF_TEST_RUNS)
+            .randomFieldsExcludeFilter(getRandomFieldsExcludeFilterWhenResultHasErrors())
+            // with random fields insertion in the inner exceptions, some random stuff may be parsed back as metadata,
+            // but that does not bother our assertions, as we only want to test that we don't break.
+            .supportsUnknownFields(true)
+            // exceptions are not of the same type whenever parsed back
+            .assertToXContentEquivalence(false)
+            .assertEqualsConsumer(this::assertEqualInstances)
+            .dispose(MultiSearchTemplateResponse::decRef)
+            .test();
     }
 
-    @Override
-    protected void dispose(MultiSearchTemplateResponse instance) {
-        instance.decRef();
+    /**
+     * With no items (or all items are failures), {@code mergeDirectoryMetrics()} must return
+     * {@link DirectoryMetrics#EMPTY} — never null, and without throwing.
+     */
+    public void testMergeDirectoryMetricsEmpty() {
+        // Zero items
+        MultiSearchTemplateResponse empty = new MultiSearchTemplateResponse(new MultiSearchTemplateResponse.Item[0], 0L);
+        assertThat(empty.mergeDirectoryMetrics().isEmpty(), is(true));
+        empty.decRef();
+
+        // All failures — no search response contributes
+        MultiSearchTemplateResponse.Item[] items = new MultiSearchTemplateResponse.Item[] {
+            new MultiSearchTemplateResponse.Item(null, new ElasticsearchException("fail1")),
+            new MultiSearchTemplateResponse.Item(null, new ElasticsearchException("fail2")), };
+        MultiSearchTemplateResponse allFailed = new MultiSearchTemplateResponse(items, 0L);
+        assertThat(allFailed.mergeDirectoryMetrics().isEmpty(), is(true));
+        allFailed.decRef();
+    }
+
+    /**
+     * Successful items have their {@link DirectoryMetrics} merged; the per-item bytes are summed
+     * via {@link DirectoryMetrics#merge}.
+     */
+    public void testMergeDirectoryMetricsCorrectSum() {
+        DirectoryMetrics.Builder b1 = new DirectoryMetrics.Builder();
+        b1.add(StoreMetrics.NAME, new StoreMetrics(100L));
+        DirectoryMetrics m1 = b1.build();
+
+        DirectoryMetrics.Builder b2 = new DirectoryMetrics.Builder();
+        b2.add(StoreMetrics.NAME, new StoreMetrics(200L));
+        DirectoryMetrics m2 = b2.build();
+
+        SearchTemplateResponse str1 = new SearchTemplateResponse();
+        SearchResponse sr1 = SearchResponseUtils.response().build();
+        sr1.setDirectoryMetrics(m1);
+        str1.setResponse(sr1);
+
+        SearchTemplateResponse str2 = new SearchTemplateResponse();
+        SearchResponse sr2 = SearchResponseUtils.response().build();
+        sr2.setDirectoryMetrics(m2);
+        str2.setResponse(sr2);
+
+        MultiSearchTemplateResponse.Item[] items = new MultiSearchTemplateResponse.Item[] {
+            new MultiSearchTemplateResponse.Item(str1, null),
+            new MultiSearchTemplateResponse.Item(str2, null), };
+        MultiSearchTemplateResponse response = new MultiSearchTemplateResponse(items, 0L);
+        DirectoryMetrics merged = response.mergeDirectoryMetrics();
+        assertThat(merged.isEmpty(), is(false));
+        StoreMetrics mergedStore = (StoreMetrics) merged.metrics(StoreMetrics.NAME);
+        assertThat("directory metrics must sum across successful items", mergedStore.getBytesRead(), equalTo(300L));
+        response.decRef();
+    }
+
+    /**
+     * Failed items are skipped; only the successful items' {@link DirectoryMetrics} contribute to the merge.
+     */
+    public void testMergeDirectoryMetricsMixedBatch() {
+        DirectoryMetrics.Builder b = new DirectoryMetrics.Builder();
+        b.add(StoreMetrics.NAME, new StoreMetrics(50L));
+        DirectoryMetrics m = b.build();
+
+        SearchTemplateResponse strSuccess = new SearchTemplateResponse();
+        SearchResponse srSuccess = SearchResponseUtils.response().build();
+        srSuccess.setDirectoryMetrics(m);
+        strSuccess.setResponse(srSuccess);
+
+        MultiSearchTemplateResponse.Item[] items = new MultiSearchTemplateResponse.Item[] {
+            new MultiSearchTemplateResponse.Item(null, new ElasticsearchException("failure")),
+            new MultiSearchTemplateResponse.Item(strSuccess, null),
+            new MultiSearchTemplateResponse.Item(null, new ElasticsearchException("another failure")), };
+        MultiSearchTemplateResponse response = new MultiSearchTemplateResponse(items, 0L);
+        DirectoryMetrics merged = response.mergeDirectoryMetrics();
+        assertThat(merged.isEmpty(), is(false));
+        StoreMetrics mergedStore = (StoreMetrics) merged.metrics(StoreMetrics.NAME);
+        assertThat("only successful items must contribute to merged directory metrics", mergedStore.getBytesRead(), equalTo(50L));
+        response.decRef();
     }
 }

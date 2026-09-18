@@ -12,7 +12,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.index.IndexSettings;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -33,14 +32,12 @@ public class SeqNoFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeQueryDisabled() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         MappedFieldType ft = SeqNoFieldMapper.UNSEARCHABLE.fieldType();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> seqNoRangeQuery(ft, 0, 10));
         assertThat(e.getMessage(), containsString("_seq_no cannot be queried when [index.disable_sequence_numbers] is [true]"));
     }
 
     public void testTermQueryDisabled() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         MappedFieldType ft = SeqNoFieldMapper.UNSEARCHABLE.fieldType();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ft.termQuery(1, MOCK_CONTEXT));
         assertThat(e.getMessage(), containsString("_seq_no cannot be queried when [index.disable_sequence_numbers] is [true]"));

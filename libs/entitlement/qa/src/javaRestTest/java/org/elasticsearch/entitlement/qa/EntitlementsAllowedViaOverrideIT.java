@@ -35,7 +35,7 @@ public class EntitlementsAllowedViaOverrideIT extends AbstractEntitlementsIT {
                     - path: %s
                       mode: read
             """, ENTITLEMENT_QA_TEST_MODULE_NAME, tempDir.resolve("read_dir"));
-        var encodedPolicyOverride = new String(Base64.getEncoder().encode(policyOverride.getBytes(StandardCharsets.UTF_8)));
+        var encodedPolicyOverride = Base64.getEncoder().encodeToString(policyOverride.getBytes(StandardCharsets.UTF_8));
         return Map.of("es.entitlements.policy." + ENTITLEMENT_TEST_PLUGIN_NAME, encodedPolicyOverride);
     }
 

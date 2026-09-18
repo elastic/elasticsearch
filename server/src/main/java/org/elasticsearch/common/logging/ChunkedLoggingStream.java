@@ -12,6 +12,7 @@ package org.elasticsearch.common.logging;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 
 import java.io.IOException;
@@ -87,7 +88,7 @@ public class ChunkedLoggingStream extends OutputStream {
         if (closed && chunk == 1) {
             logger.log(level, "{} (gzip compressed and base64-encoded; for details see {}): {}", prefix, referenceDocs, chunkString);
         } else {
-            logger.log(level, "{} [part {}]: {}", prefix, chunk, chunkString);
+            logger.log(level, "{} [part {}]: {}", prefix, Strings.format("%03d", chunk), chunkString);
         }
     }
 

@@ -46,7 +46,7 @@ public class GroqChatCompletionTaskSettingsTests extends AbstractWireSerializing
 
     public void testUpdatedTaskSettingsOverridesValues() {
         var original = new GroqChatCompletionTaskSettings("user-1", Map.of("X-Test", "value"));
-        var updated = original.updatedTaskSettings(Map.of(OpenAiServiceFields.USER, "user-2"));
+        var updated = original.updatedTaskSettings(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user-2")));
         assertThat(updated.user(), equalTo("user-2"));
         assertThat(updated.headers(), equalTo(Map.of("X-Test", "value")));
     }

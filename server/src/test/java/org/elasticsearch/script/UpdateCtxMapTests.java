@@ -24,10 +24,8 @@ public class UpdateCtxMapTests extends ESTestCase {
 
     private final long TS = 704289600000L;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initUpdateCtxMap() throws Exception {
         map = new UpdateCtxMap("myIndex", "myId", 5, "myRoute", "myType", "index", TS, Map.of("foo", "bar"));
         meta = map.getMetadata();
     }

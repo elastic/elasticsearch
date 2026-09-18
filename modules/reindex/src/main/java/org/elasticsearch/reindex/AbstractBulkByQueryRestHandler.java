@@ -15,8 +15,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -33,8 +33,8 @@ import java.util.function.Predicate;
  * Rest handler for reindex actions that accepts a search request like Update-By-Query or Delete-By-Query
  */
 public abstract class AbstractBulkByQueryRestHandler<
-    Request extends AbstractBulkByScrollRequest<Request>,
-    A extends ActionType<BulkByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, A> {
+    Request extends AbstractBulkByPaginatedSearchRequest<Request>,
+    A extends ActionType<BulkByPaginatedSearchResponse>> extends AbstractBaseReindexRestHandler<Request, A> {
 
     protected AbstractBulkByQueryRestHandler(A action) {
         super(action);

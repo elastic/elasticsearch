@@ -11,7 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 
 public class BulkDynamicMappingChallengeRestIT extends BulkChallengeRestIT {
     public BulkDynamicMappingChallengeRestIT() {
-        super(new DataGenerationHelper(builder -> builder.withFullyDynamicMapping(true)));
+        super(new DataGenerationHelper(builder -> builder.withFullyDynamicMapping(true).withMaxFieldCountPerLevel(30)));
     }
 
     @Override

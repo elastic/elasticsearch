@@ -280,9 +280,14 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
 
     public static class SearchShardBlockingPlugin extends Plugin {
         private final AtomicReference<Consumer<SearchContext>> runOnPreQueryPhase = new AtomicReference<>();
+        private final AtomicReference<Consumer<SearchContext>> runOnPreFetchPhase = new AtomicReference<>();
 
         public void setRunOnPreQueryPhase(Consumer<SearchContext> consumer) {
             runOnPreQueryPhase.set(consumer);
+        }
+
+        public void setRunOnPreFetchPhase(Consumer<SearchContext> consumer) {
+            runOnPreFetchPhase.set(consumer);
         }
 
         @Override
@@ -293,6 +298,13 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
                 public void onPreQueryPhase(SearchContext c) {
                     if (runOnPreQueryPhase.get() != null) {
                         runOnPreQueryPhase.get().accept(c);
+                    }
+                }
+
+                @Override
+                public void onPreFetchPhase(SearchContext c) {
+                    if (runOnPreFetchPhase.get() != null) {
+                        runOnPreFetchPhase.get().accept(c);
                     }
                 }
             });

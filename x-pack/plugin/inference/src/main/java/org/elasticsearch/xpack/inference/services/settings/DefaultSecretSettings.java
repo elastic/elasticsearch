@@ -13,12 +13,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -26,7 +27,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SECRET_SETTINGS;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 /**
  * Contains secret settings that are common to all services.
@@ -38,17 +42,16 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
 
     public static final String API_KEY = "api_key";
 
-    public static DefaultSecretSettings fromMap(@Nullable Map<String, Object> map) {
+    public static DefaultSecretSettings fromMap(@Nullable Map<String, Object> map, ConfigurationParseContext parseContext) {
         if (map == null) {
             return null;
         }
 
         ValidationException validationException = new ValidationException();
-        SecureString secureApiToken = extractRequiredSecureString(map, API_KEY, ModelSecrets.SECRET_SETTINGS, validationException);
+        var scope = parseContext == ConfigurationParseContext.REQUEST ? SERVICE_SETTINGS : SECRET_SETTINGS;
+        SecureString secureApiToken = extractRequiredSecureString(map, API_KEY, scope, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new DefaultSecretSettings(secureApiToken);
     }
@@ -57,12 +60,20 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
         String description,
         EnumSet<TaskType> supportedTaskTypes
     ) {
+        return toSettingsConfigurationWithDescription(description, supportedTaskTypes, true);
+    }
+
+    public static Map<String, SettingsConfiguration> toSettingsConfigurationWithDescription(
+        String description,
+        EnumSet<TaskType> supportedTaskTypes,
+        boolean required
+    ) {
         var configurationMap = new HashMap<String, SettingsConfiguration>();
         configurationMap.put(
             API_KEY,
             new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(description)
                 .setLabel("API Key")
-                .setRequired(true)
+                .setRequired(required)
                 .setSensitive(true)
                 .setUpdatable(true)
                 .setType(SettingsConfigurationFieldType.STRING)
@@ -109,8 +120,23 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
         out.writeSecureString(apiKey);
     }
 
+    public static SecureString extractOptionalApiKey(
+        Map<String, Object> map,
+        SettingsScope scope,
+        ValidationException validationException
+    ) {
+        return extractOptionalSecureString(map, API_KEY, scope, validationException);
+    }
+
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-        return fromMap(new HashMap<>(newSecrets));
+        var validationException = new ValidationException();
+        var extractedApiKey = extractOptionalApiKey(newSecrets, SERVICE_SETTINGS, validationException);
+        validationException.throwIfValidationErrorsExist();
+
+        if (extractedApiKey == null || extractedApiKey.equals(apiKey)) {
+            return this;
+        }
+        return new DefaultSecretSettings(extractedApiKey);
     }
 }

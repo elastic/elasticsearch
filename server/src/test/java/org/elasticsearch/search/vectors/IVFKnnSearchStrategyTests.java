@@ -18,20 +18,26 @@ public class IVFKnnSearchStrategyTests extends ESTestCase {
 
     public void testMaxScorePropagation() {
         LongAccumulator accumulator = new LongAccumulator(Long::max, AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE);
-        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(0.5f, accumulator);
+        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(0.5f, 100, 10, accumulator);
         MaxScoreTopKnnCollector collector = new MaxScoreTopKnnCollector(2, 1000, strategy);
         strategy.setCollector(collector);
 
         collector.collect(1, 0.9f);
-        long competitiveScore = NeighborQueue.encodeRaw(1, 0.9f);
+
+        // queue is not saturated, it should not be updated
+        strategy.nextVectorsBlock();
+        assertEquals(AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE, accumulator.get());
+        assertEquals(AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE, collector.getMinCompetitiveDocScore());
 
         // accumulator should now be updated
+        collector.collect(2, 0.9f);
+        long competitiveScore = NeighborQueue.encodeRaw(2, 0.9f);
         strategy.nextVectorsBlock();
         assertEquals(competitiveScore, accumulator.get());
         assertEquals(competitiveScore, collector.getMinCompetitiveDocScore());
 
         // updated accumulator directly with more competitive score
-        competitiveScore = NeighborQueue.encodeRaw(2, 1.5f);
+        competitiveScore = NeighborQueue.encodeRaw(3, 1.5f);
         accumulator.accumulate(competitiveScore);
         assertEquals(competitiveScore, accumulator.get());
         strategy.nextVectorsBlock();

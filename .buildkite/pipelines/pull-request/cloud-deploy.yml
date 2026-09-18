@@ -1,4 +1,5 @@
 config:
+  auto-retry: false
   allow-labels: cloud-deploy
 steps:
   - label: cloud-deploy
@@ -9,5 +10,6 @@ steps:
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
-      machineType: custom-32-98304
+      machineType: n4-custom-32-98304
+      diskType: hyperdisk-balanced
       buildDirectory: /dev/shm/bk

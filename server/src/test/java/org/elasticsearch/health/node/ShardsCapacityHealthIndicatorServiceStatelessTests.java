@@ -57,14 +57,12 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
     private ClusterService clusterService;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void startClusterService() throws Exception {
         clusterService = ClusterServiceUtils.createClusterService(threadPool, Settings.builder().put("stateless.enabled", true).build());
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void stopClusterService() throws Exception {
         clusterService.close();
     }
 

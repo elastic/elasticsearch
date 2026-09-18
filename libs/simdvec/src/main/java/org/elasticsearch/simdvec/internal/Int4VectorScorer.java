@@ -1,0 +1,265 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.simdvec.internal;
+
+import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.store.FilterIndexInput;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.hnsw.RandomVectorScorer;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.lucene.store.MemorySegmentAccessInputAccess;
+import org.elasticsearch.simdvec.SimdVecLibrary;
+import org.elasticsearch.simdvec.VectorSimilarityType;
+import org.elasticsearch.simdvec.internal.vectorization.ScoreCorrections;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
+import java.util.Optional;
+
+/**
+ * Int4 packed-nibble query-time scorer. The float query is quantized externally
+ * and passed in as unpacked bytes (one byte per dimension, 0-15 range) along
+ * with corrective terms. Each stored vector is {@code dims/2} packed bytes
+ * followed by corrective terms (3 floats + 1 int).
+ */
+public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
+
+    private static final SimdVecLibrary DISTANCE_FUNCS = SimdVecLibrary.instance().orElseThrow(AssertionError::new);
+
+    // Size of the corrections trailer that follows each packed vector in the codec's per-vector
+    // record: 3 floats (lowerInterval, upperInterval, additionalCorrection) + 1 int (quantizedComponentSum).
+    static final int CORRECTIONS_BYTES = 3 * Float.BYTES + Integer.BYTES;
+
+    private final ScorerImpl scorerImpl;
+    private final QueryContext query;
+
+    /**
+     * Creates an int4 query-time scorer if the input supports efficient access.
+     *
+     * @param sim                   the similarity function
+     * @param values                the quantized vector values
+     * @param unpackedQuery         the quantized query (dims bytes, one per dimension, 0-15)
+     * @param lowerInterval         query corrective term
+     * @param upperInterval         query corrective term
+     * @param additionalCorrection  query corrective term
+     * @param quantizedComponentSum query corrective term
+     * @return an optional scorer or empty if the input doesn't support native access
+     */
+    public static Optional<RandomVectorScorer> create(
+        VectorSimilarityFunction sim,
+        QuantizedByteVectorValues values,
+        byte[] unpackedQuery,
+        float lowerInterval,
+        float upperInterval,
+        float additionalCorrection,
+        int quantizedComponentSum
+    ) {
+        IndexInput input = values.getSlice();
+        if (input == null) {
+            return Optional.empty();
+        }
+        input = FilterIndexInput.unwrapOnlyTest(input);
+        input = MemorySegmentAccessInputAccess.unwrap(input);
+        return Optional.of(
+            new Int4VectorScorer(
+                input,
+                values,
+                VectorSimilarityType.of(sim),
+                unpackedQuery,
+                lowerInterval,
+                upperInterval,
+                additionalCorrection,
+                quantizedComponentSum
+            )
+        );
+    }
+
+    Int4VectorScorer(
+        IndexInput input,
+        QuantizedByteVectorValues values,
+        VectorSimilarityType similarityType,
+        byte[] unpackedQuery,
+        float lowerInterval,
+        float upperInterval,
+        float additionalCorrection,
+        int quantizedComponentSum
+    ) {
+        super(values);
+        IndexInputUtils.checkInputType(input);
+        int dims = values.dimension();
+        int packedDims = dims / 2;
+        int vectorPitch = packedDims + CORRECTIONS_BYTES;
+        float centroidDP;
+        try {
+            centroidDP = values.getCentroidDP();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
+        this.scorerImpl = new ScorerImpl(
+            input,
+            values,
+            dims,
+            packedDims,
+            vectorPitch,
+            similarityType.function(),
+            centroidDP,
+            Int4Corrections.singleCorrectionFor(similarityType)
+        );
+        this.query = new QueryContext(
+            lowerInterval,
+            upperInterval,
+            additionalCorrection,
+            quantizedComponentSum,
+            MemorySegment.ofArray(unpackedQuery)
+        );
+    }
+
+    @Override
+    public float score(int node) throws IOException {
+        return scorerImpl.scoreWithQuery(query, node);
+    }
+
+    @Override
+    public float bulkScore(int[] ordinals, float[] scores, int numNodes) throws IOException {
+        return scorerImpl.bulkScoreWithQuery(query, ordinals, scores, numNodes);
+    }
+
+    /**
+     * Shared scoring implementation used by both {@link Int4VectorScorer} (query-time) and
+     * {@link Int4VectorScorerSupplier} (graph-build / reranking).
+     * Not thread-safe under all conditions (due to mutable state (scratch) used by IndexInput):
+     * each supplier/scorer should own its own instance.
+     */
+    static class ScorerImpl {
+        private final IndexInput input;
+        private final QuantizedByteVectorValues values;
+        private final int dims;
+        private final int packedDims;
+        private final int vectorPitch;
+        private final VectorSimilarityFunction similarityFunction;
+        private final float centroidDP;
+        private final Int4Corrections.SingleCorrection correction;
+        private final FixedSizeScratch scratch;
+        private final AddressesScratch addrsScratch = new AddressesScratch();
+        private final OffsetsScratch offsetsScratch = new OffsetsScratch();
+
+        ScorerImpl(
+            IndexInput input,
+            QuantizedByteVectorValues values,
+            int dims,
+            int packedDims,
+            int vectorPitch,
+            VectorSimilarityFunction similarityFunction,
+            float centroidDP,
+            Int4Corrections.SingleCorrection correction
+        ) {
+            this.input = input;
+            this.values = values;
+            this.dims = dims;
+            this.packedDims = packedDims;
+            this.vectorPitch = vectorPitch;
+            this.similarityFunction = similarityFunction;
+            this.centroidDP = centroidDP;
+            this.correction = correction;
+            this.scratch = new FixedSizeScratch(vectorPitch);
+        }
+
+        void checkOrdinal(int ord) {
+            if (ord < 0 || ord >= values.size()) {
+                throw new IllegalArgumentException("illegal ordinal: " + ord);
+            }
+        }
+
+        private float applyCorrections(float rawScore, MemorySegment correctionsSlice, QueryContext query) {
+            float docLower = correctionsSlice.get(ValueLayout.JAVA_FLOAT_UNALIGNED, 0);
+            float docUpper = correctionsSlice.get(ValueLayout.JAVA_FLOAT_UNALIGNED, Float.BYTES);
+            float docAdditional = correctionsSlice.get(ValueLayout.JAVA_FLOAT_UNALIGNED, 2L * Float.BYTES);
+            int docComponentSum = correctionsSlice.get(ValueLayout.JAVA_INT_UNALIGNED, 3L * Float.BYTES);
+            return correction.apply(
+                dims,
+                rawScore,
+                docLower,
+                docUpper,
+                docAdditional,
+                docComponentSum,
+                centroidDP,
+                query.lowerInterval(),
+                query.upperInterval(),
+                query.additionalCorrection(),
+                query.quantizedComponentSum()
+            );
+        }
+
+        private float applyCorrectionsBulk(MemorySegment scores, MemorySegment addrs, int numNodes, QueryContext query) {
+            return ScoreCorrections.nativeBbqApplyCorrectionsBulk(
+                similarityFunction,
+                addrs,
+                numNodes,
+                packedDims,
+                vectorPitch,
+                dims,
+                query.lowerInterval(),
+                query.upperInterval(),
+                query.quantizedComponentSum(),
+                query.additionalCorrection(),
+                Int4Corrections.LIMIT_SCALE,
+                Int4Corrections.LIMIT_SCALE,
+                centroidDP,
+                true,
+                scores
+            );
+        }
+
+        float scoreWithQuery(QueryContext query, int node) throws IOException {
+            checkOrdinal(node);
+            long nodeOffset = (long) node * vectorPitch;
+            input.seek(nodeOffset);
+            return IndexInputUtils.withFloatSlice(input, vectorPitch, scratch, seg -> {
+                int rawScore = DISTANCE_FUNCS.dotProductI4(query.unpackedQuery(), seg, packedDims);
+                return applyCorrections(rawScore, seg.asSlice(packedDims, CORRECTIONS_BYTES), query);
+            });
+        }
+
+        float bulkScoreWithQuery(QueryContext query, int[] ordinals, float[] scores, int numNodes) throws IOException {
+            if (numNodes == 0) {
+                return Float.NEGATIVE_INFINITY;
+            }
+            long[] offsets = offsetsScratch.get(numNodes);
+            for (int i = 0; i < numNodes; i++) {
+                offsets[i] = (long) ordinals[i] * vectorPitch;
+            }
+            float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
+            MemorySegment scoresSeg = MemorySegment.ofArray(scores);
+            boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, vectorPitch, numNodes, addrsScratch, addrs -> {
+                DISTANCE_FUNCS.dotProductI4BulkSparse(addrs, query.unpackedQuery(), packedDims, numNodes, scoresSeg);
+                maxScore[0] = applyCorrectionsBulk(scoresSeg, addrs, numNodes, query);
+            });
+            if (resolved == false) {
+                for (int i = 0; i < numNodes; i++) {
+                    scores[i] = scoreWithQuery(query, ordinals[i]);
+                    maxScore[0] = Math.max(maxScore[0], scores[i]);
+                }
+            }
+            return maxScore[0];
+        }
+    }
+
+    record QueryContext(
+        float lowerInterval,
+        float upperInterval,
+        float additionalCorrection,
+        int quantizedComponentSum,
+        MemorySegment unpackedQuery
+    ) {}
+}

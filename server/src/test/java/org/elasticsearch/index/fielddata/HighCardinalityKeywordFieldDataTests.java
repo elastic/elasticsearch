@@ -56,7 +56,7 @@ public class HighCardinalityKeywordFieldDataTests extends AbstractStringFieldDat
             fields.get(name).add(new BytesRef(value));
             countsField.setLongValue(field.count());
         } else {
-            field = new MultiValuedBinaryDocValuesField.SeparateCount(name, false);
+            field = new MultiValuedBinaryDocValuesField.SeparateCount(name, MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE);
             field.add(new BytesRef(value));
             countsField = NumericDocValuesField.indexedField(name + COUNT_FIELD_SUFFIX, 1);
             fields.put(name, field);

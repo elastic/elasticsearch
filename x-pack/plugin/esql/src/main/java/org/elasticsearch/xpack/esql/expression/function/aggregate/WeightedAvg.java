@@ -17,6 +17,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -39,13 +42,18 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
         "WeightedAvg",
         WeightedAvg::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(WeightedAvg.class)
+        .binary(WeightedAvg::new)
+        .name("weighted_avg");
 
     private final Expression weight;
 
     private static final String invalidWeightError = "{} argument of [{}] cannot be null or 0, received [{}]";
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "double",
+        briefSummary = "Returns the weighted average of a numeric expression.",
         description = "The weighted average of a numeric expression.",
         type = FunctionType.AGGREGATE,
         examples = @Example(file = "stats", tag = "weighted-avg")

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
@@ -24,6 +26,7 @@ public class ChangePointExec extends UnaryExec {
     private final Attribute key;
     private final Attribute targetType;
     private final Attribute targetPvalue;
+    private final List<Expression> groupings;
 
     private List<Attribute> output;
 
@@ -33,13 +36,15 @@ public class ChangePointExec extends UnaryExec {
         Attribute value,
         Attribute key,
         Attribute targetType,
-        Attribute targetPvalue
+        Attribute targetPvalue,
+        List<Expression> groupings
     ) {
         super(source, child);
         this.value = value;
         this.key = key;
         this.targetType = targetType;
         this.targetPvalue = targetPvalue;
+        this.groupings = groupings;
     }
 
     @Override
@@ -54,17 +59,17 @@ public class ChangePointExec extends UnaryExec {
 
     @Override
     protected NodeInfo<? extends ChangePointExec> info() {
-        return NodeInfo.create(this, ChangePointExec::new, child(), value, key, targetType, targetPvalue);
+        return NodeInfo.create(this, ChangePointExec::new, child(), value, key, targetType, targetPvalue, groupings);
     }
 
     @Override
     public ChangePointExec replaceChild(PhysicalPlan newChild) {
-        return new ChangePointExec(source(), newChild, value, key, targetType, targetPvalue);
+        return new ChangePointExec(source(), newChild, value, key, targetType, targetPvalue, groupings);
     }
 
     @Override
     protected AttributeSet computeReferences() {
-        return key.references().combine(value.references());
+        return key.references().combine(value.references()).combine(Expressions.references(groupings));
     }
 
     @Override
@@ -91,9 +96,13 @@ public class ChangePointExec extends UnaryExec {
         return targetPvalue;
     }
 
+    public List<Expression> groupings() {
+        return groupings;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), value, key, targetType, targetPvalue);
+        return Objects.hash(super.hashCode(), value, key, targetType, targetPvalue, groupings);
     }
 
     @Override
@@ -102,6 +111,7 @@ public class ChangePointExec extends UnaryExec {
             && Objects.equals(value, ((ChangePointExec) other).value)
             && Objects.equals(key, ((ChangePointExec) other).key)
             && Objects.equals(targetType, ((ChangePointExec) other).targetType)
-            && Objects.equals(targetPvalue, ((ChangePointExec) other).targetPvalue);
+            && Objects.equals(targetPvalue, ((ChangePointExec) other).targetPvalue)
+            && Objects.equals(groupings, ((ChangePointExec) other).groupings);
     }
 }

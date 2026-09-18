@@ -1,0 +1,178 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.datasources.cache;
+
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapEstimates;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Cache entry for schema inference results. Stores raw schema data (names, types,
+ * nullabilities) instead of Attribute objects to avoid NameId sharing across queries.
+ * Each call to {@link #toAttributes()} reconstructs fresh ReferenceAttribute instances
+ * with fresh NameIds, ensuring safe concurrent use.
+ */
+public record SchemaCacheEntry(
+    String[] columnNames,
+    DataType[] columnTypes,
+    Nullability[] columnNullabilities,
+    boolean[] columnSynthetics,
+    String sourceType,
+    String location,
+    Map<String, Object> safeMetadata,
+    Map<String, Object> connectorConfig,
+    long cachedAtMillis,
+    List<String> warnings
+) {
+    public SchemaCacheEntry {
+        if (columnNames.length != columnTypes.length
+            || columnNames.length != columnNullabilities.length
+            || columnNames.length != columnSynthetics.length) {
+            throw new IllegalArgumentException("All column arrays must have the same length");
+        }
+        safeMetadata = safeMetadata != null ? Map.copyOf(safeMetadata) : Map.of();
+        connectorConfig = connectorConfig != null ? Map.copyOf(connectorConfig) : Map.of();
+        warnings = warnings != null ? List.copyOf(warnings) : List.of();
+    }
+
+    /**
+     * An identical entry whose {@code safeMetadata} is replaced with {@code metadata} — the schema-cache
+     * enrichment helper: entries are immutable, so a stats commit copies the metadata, mutates the copy,
+     * and swaps the whole entry.
+     */
+    public SchemaCacheEntry withSafeMetadata(Map<String, Object> metadata) {
+        return new SchemaCacheEntry(
+            columnNames,
+            columnTypes,
+            columnNullabilities,
+            columnSynthetics,
+            sourceType,
+            location,
+            metadata,
+            connectorConfig,
+            cachedAtMillis,
+            warnings
+        );
+    }
+
+    public static SchemaCacheEntry from(
+        List<Attribute> schema,
+        String sourceType,
+        String location,
+        Map<String, Object> metadata,
+        Map<String, Object> connectorConfig
+    ) {
+        return from(schema, sourceType, location, metadata, connectorConfig, List.of());
+    }
+
+    /** @param warnings see {@link SourceMetadata#warnings()}; cached so a warm resolve replays them like a cold one. */
+    public static SchemaCacheEntry from(
+        List<Attribute> schema,
+        String sourceType,
+        String location,
+        Map<String, Object> metadata,
+        Map<String, Object> connectorConfig,
+        List<String> warnings
+    ) {
+        int size = schema.size();
+        String[] names = new String[size];
+        DataType[] types = new DataType[size];
+        Nullability[] nullabilities = new Nullability[size];
+        boolean[] synthetics = new boolean[size];
+        for (int i = 0; i < size; i++) {
+            Attribute attr = schema.get(i);
+            names[i] = attr.name();
+            types[i] = attr.dataType();
+            nullabilities[i] = attr.nullable();
+            synthetics[i] = attr.synthetic();
+        }
+        return new SchemaCacheEntry(
+            names,
+            types,
+            nullabilities,
+            synthetics,
+            sourceType,
+            location,
+            metadata,
+            connectorConfig,
+            System.currentTimeMillis(),
+            warnings
+        );
+    }
+
+    /** Reconstructs fresh Attributes with fresh NameIds -- safe for concurrent queries */
+    public List<Attribute> toAttributes() {
+        List<Attribute> result = new ArrayList<>(columnNames.length);
+        for (int i = 0; i < columnNames.length; i++) {
+            result.add(
+                new ReferenceAttribute(
+                    Source.EMPTY,
+                    null,
+                    columnNames[i],
+                    columnTypes[i],
+                    columnNullabilities[i],
+                    null,
+                    columnSynthetics[i]
+                )
+            );
+        }
+        return result;
+    }
+
+    /** Flattens a {@link SourceMetadata}'s stats into its metadata map. Replaces the
+     *  inlined flatten-and-build at the cache-loader call sites. */
+    public static SchemaCacheEntry from(SourceMetadata meta) {
+        Map<String, Object> enrichedMeta = meta.statistics()
+            .map(stats -> SourceStatisticsSerializer.embedStatistics(meta.sourceMetadata(), stats))
+            .orElse(meta.sourceMetadata());
+        return from(meta.schema(), meta.sourceType(), meta.location(), enrichedMeta, meta.config(), meta.warnings());
+    }
+
+    public long estimatedBytes() {
+        // object header + reference fields
+        long bytes = 64;
+        for (String name : columnNames) {
+            bytes += estimatedStringBytes(name);
+        }
+        // enum references stored as pointers
+        bytes += columnTypes.length * (long) Long.BYTES;
+        bytes += columnNullabilities.length * (long) Long.BYTES;
+        bytes += columnSynthetics.length;
+        bytes += sourceType != null ? sourceType.length() * (long) Character.BYTES : 0;
+        bytes += location != null ? location.length() * (long) Character.BYTES : 0;
+        for (String warning : warnings) {
+            bytes += estimatedStringBytes(warning);
+        }
+        // rough estimate: ~100B per metadata entry (key String + value Object); nested map values
+        // (per-stripe stats under _stats.stripe.<k>) weigh their inner entries the same way so a
+        // many-striped file doesn't under-count against the cache budget
+        for (Object value : safeMetadata.values()) {
+            bytes += 100L;
+            if (value instanceof Map<?, ?> nested) {
+                bytes += nested.size() * 100L;
+            }
+        }
+        bytes += connectorConfig.size() * 100L;
+        return bytes;
+    }
+
+    static long estimatedStringBytes(@Nullable String s) {
+        return HeapEstimates.stringBytes(s);
+    }
+
+}

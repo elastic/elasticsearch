@@ -1,0 +1,83 @@
+// CSV nullability tests: verifies that IS NULL / IS NOT NULL predicates work
+// correctly against CSV files with empty cells.
+//
+// apps.csv has a typed header (id:integer,version:version,name:keyword,_id:keyword)
+// and two rows with empty version cells (id=11 and id=13).
+//
+// Authored as FROM <dataset>: each test declares its source via a `dataset:` directive. The harness registers
+// the dataset on every storage backend and runs the FROM query verbatim. The bare name `apps` would collide
+// with the ES|QL apps index twin, so the dataset is named `apps_ds`.
+
+filterVersionIsNull
+required_capability: dataset_in_from_command
+required_capability: external_csv_header_row_option
+required_capability: datasource_file_readers_no_text_type
+dataset: apps_ds: "{{apps}}"
+
+FROM apps_ds
+| WHERE version IS NULL
+| KEEP id, name
+| SORT id
+;
+
+id:integer | name:keyword
+11         | kkkkk
+13         | lllll
+;
+
+filterVersionIsNotNull
+required_capability: dataset_in_from_command
+required_capability: external_csv_header_row_option
+required_capability: datasource_file_readers_no_text_type
+dataset: apps_ds: "{{apps}}"
+
+FROM apps_ds
+| WHERE version IS NOT NULL
+| KEEP id, name
+| SORT id
+;
+
+id:integer | name:keyword
+1          | aaaaa
+2          | bbbbb
+3          | ccccc
+4          | ddddd
+5          | eeeee
+6          | fffff
+7          | ggggg
+8          | hhhhh
+9          | iiiii
+10         | jjjjj
+12         | aaaaa
+14         | mmmmm
+;
+
+// The string half of the same rule. employees_no_mv is registered WITHOUT mappings, so every column is
+// inferred -- and a blank cell is then null whatever the column's other rows made it, `gender` (keyword)
+// included. Before, a blank read as the empty string on a column that happened to sample as a string, so
+// IS NULL returned nothing here while the identical blank in a non-string column (the version cases above)
+// matched: the same absence answered two different ways depending on the neighbouring rows.
+// The 10 rows are emp_no 10010..10019, the only ones whose gender cell is blank.
+filterInferredBlankKeywordIsNull
+required_capability: dataset_in_from_command
+required_capability: external_csv_blank_cell_null_unless_declared
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv
+| WHERE gender IS NULL
+| KEEP emp_no
+| SORT emp_no
+;
+
+emp_no:integer
+10010
+10011
+10012
+10013
+10014
+10015
+10016
+10017
+10018
+10019
+;

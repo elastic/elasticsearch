@@ -49,12 +49,12 @@ import org.elasticsearch.xpack.wildcard.Wildcard;
 import java.io.IOException;
 import java.lang.Thread.State;
 import java.lang.management.LockInfo;
-import java.lang.management.ManagementFactory;
 import java.lang.management.MonitorInfo;
 import java.lang.management.ThreadInfo;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -81,6 +81,16 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MonitoringIT extends ESSingleNodeTestCase {
+
+    @Override
+    protected List<String> filteredWarnings() {
+        var warnings = new ArrayList<>(super.filteredWarnings());
+        warnings.add("[xpack.monitoring.collection.interval] setting was deprecated");
+        warnings.add("[xpack.monitoring.exporters._local.type] setting was deprecated");
+        warnings.add("[xpack.monitoring.exporters._local.enabled] setting was deprecated");
+        warnings.add("[xpack.monitoring.exporters._local.cluster_alerts.management.enabled] setting was deprecated");
+        return warnings;
+    }
 
     @Override
     protected Settings nodeSettings() {
@@ -292,20 +302,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
      */
     private void whenExportersAreReady(final CheckedRunnable<Exception> runnable) throws Exception {
         try {
-            try {
-                enableMonitoring();
-            } catch (AssertionError e) {
-                // Added to debug https://github.com/elastic/elasticsearch/issues/29880
-                // Remove when fixed
-                StringBuilder b = new StringBuilder();
-                b.append("\n==== jstack at monitoring enablement failure time ====\n");
-                for (ThreadInfo ti : ManagementFactory.getThreadMXBean().dumpAllThreads(true, true)) {
-                    append(b, ti);
-                }
-                b.append("^^==============================================\n");
-                logger.info(b.toString());
-                throw e;
-            }
+            enableMonitoring();
             runnable.run();
         } finally {
             disableMonitoring();

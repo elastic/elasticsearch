@@ -19,7 +19,7 @@ public class MPNetTokenizationUpdateTests extends AbstractBWCWireSerializationTe
         Integer span = randomBoolean() ? null : randomIntBetween(8, 128);
         Tokenization.Truncate truncate = randomBoolean() ? null : randomFrom(Tokenization.Truncate.values());
 
-        if (truncate != Tokenization.Truncate.NONE) {
+        if (truncate != null && truncate != Tokenization.Truncate.NONE) {
             span = null;
         }
         return new MPNetTokenizationUpdate(truncate, span);
@@ -48,6 +48,15 @@ public class MPNetTokenizationUpdateTests extends AbstractBWCWireSerializationTe
 
         var unmodified = new MPNetTokenization(true, true, 512, Tokenization.Truncate.NONE, null);
         assertThat(new MPNetTokenizationUpdate(null, null).apply(unmodified), sameInstance(unmodified));
+    }
+
+    /**
+     * {@link Tokenization.Truncate#NONE} with a span plus an update to span-incompatible {@code truncate} and omitted
+     * {@code span} merges the old span and fails {@link Tokenization#validateSpanAndTruncate}.
+     */
+    public void testApplyIncompatibleTruncateWithInheritedSpanThrows() {
+        var windowing = new MPNetTokenization(false, false, 512, Tokenization.Truncate.NONE, 50);
+        expectThrows(IllegalArgumentException.class, () -> new MPNetTokenizationUpdate(Tokenization.Truncate.FIRST, null).apply(windowing));
     }
 
     @Override

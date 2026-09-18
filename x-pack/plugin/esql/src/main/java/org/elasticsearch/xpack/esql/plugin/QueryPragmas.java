@@ -23,11 +23,15 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 /**
  * Holds the pragmas for an ESQL query. Just a wrapper of settings for now.
@@ -72,6 +76,8 @@ public final class QueryPragmas implements Writeable {
 
     public static final Setting<Boolean> NODE_LEVEL_REDUCTION = Setting.boolSetting("node_level_reduction", true);
 
+    public static final Setting<Boolean> SINGLE_NODE_OPTIMIZATIONS = Setting.boolSetting("single_node_optimizations", true);
+
     public static final Setting<ByteSizeValue> FOLD_LIMIT = Setting.memorySizeSetting("fold_limit", "5%");
 
     public static final Setting<MappedFieldType.FieldExtractPreference> FIELD_EXTRACT_PREFERENCE = Setting.enumSetting(
@@ -108,16 +114,64 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<String> EXTERNAL_DISTRIBUTION = Setting.simpleString("external_distribution", "adaptive");
 
-    public static final Setting<Boolean> FORK_IMPLICIT_LIMIT = Setting.boolSetting("fork_implicit_limit", true);
+    /**
+     * Query-level override for the IN subquery hash join threshold.
+     * Defaults to {@code -1}, meaning the cluster-level setting {@link PlannerSettings#IN_SUBQUERY_HASH_JOIN_THRESHOLD} is used.
+     * When set to a value {@code >= 0}, it overrides the cluster-level threshold for this query only.
+     */
+    public static final Setting<Integer> IN_SUBQUERY_HASH_JOIN_THRESHOLD = Setting.intSetting("in_subquery_hash_join_threshold", -1, -1);
+
+    /**
+     * The number of branches to execute in parallel. This is a safeguard to avoid overloading the cluster with too many parallel branches.
+     * This applies to forks and subqueries.
+     */
+    public static final Setting<Integer> BRANCH_PARALLEL_DEGREE = Setting.intSetting("branch_parallel_degree", 2, 1);
 
     /**
      * Number of parallel parser threads for intra-file text format parsing (CSV, NDJSON).
      * Defaults to allocated processors. Set to 1 to disable parallel parsing.
      */
     public static final Setting<Integer> PARSING_PARALLELISM = Setting.intSetting(
-        "parsing_parallelism",
+        "external_parsing_parallelism",
         EsExecutors.allocatedProcessors(Settings.EMPTY),
         1
+    );
+
+    /**
+     * Per-file cap on the number of intra-file byte-range segments whose object-store read streams are
+     * open at once during parallel text parsing. Each open segment holds a storage read stream (one S3
+     * {@code GetObject}) plus, for buffering readers like NDJSON, a per-segment {@code byte[]}; the
+     * consumer emits a segment's pages as soon as that segment finishes parsing (completion order, not
+     * strict segment order), so this is a shallow read-ahead width, not a parallelism. It is deliberately
+     * not {@code external_parsing_parallelism}: a file is already split into about
+     * {@code external_parsing_parallelism} segments and many files read concurrently, so aligning this with the
+     * thread count would fan a wide multi-file glob into far too many concurrent object-store reads.
+     * A small default bounds that fan-out independent of file count/length. Safeguard in the spirit of
+     * {@link #BRANCH_PARALLEL_DEGREE}.
+     * <p>
+     * This is a <b>per-file</b> cap. The node-wide bound on concurrently-open segment streams is roughly
+     * {@code (data-node driver instances) × external_max_concurrent_open_segments × (files open per driver)} — tune
+     * with that product in mind, not this value alone. The default is sourced from
+     * {@link SourceOperatorContext#DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS}.
+     */
+    public static final Setting<Integer> MAX_CONCURRENT_OPEN_SEGMENTS = Setting.intSetting(
+        "external_max_concurrent_open_segments",
+        SourceOperatorContext.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+        1
+    );
+
+    /**
+     * Bytes the streaming external-source parser may buffer for a single record before failing the query
+     * — guards against a scanner that never finds a boundary reading the input without bound. Defaults to
+     * {@link SegmentableFormatReader#DEFAULT_MAX_RECORD_BYTES}. Bounded to {@code [1, Integer.MAX_VALUE]}
+     * bytes: the cap is held as an {@code int} downstream, so an out-of-range value is rejected at parse
+     * time rather than overflowing later.
+     */
+    public static final Setting<ByteSizeValue> MAX_RECORD_SIZE = Setting.byteSizeSetting(
+        "external_max_record_size",
+        ByteSizeValue.ofBytes(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES),
+        ByteSizeValue.ofBytes(1),
+        ByteSizeValue.ofBytes(Integer.MAX_VALUE)
     );
 
     /**
@@ -127,7 +181,52 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<Boolean> FORCE_DOC_SEQUENCE = Setting.boolSetting("force_doc_sequence", false);
 
+    /**
+     * Query-level override for the minimum number of docs per Lucene slice (see
+     * {@link LuceneSliceQueue#MIN_DOCS_PER_SLICE}). Defaults to {@code -1}, meaning the compute-engine
+     * default floor is used. When set to a value {@code > 0}, it overrides that floor for this query only.
+     *
+     * <p>Primarily a testing lever: the default floor collapses small indices to a single slice, which
+     * disables {@code DOC}/{@code SEGMENT} parallelism in tests that index only a few documents. Lowering
+     * it lets such tests exercise the multi-slice partitioning paths.
+     */
+    public static final Setting<Integer> MIN_DOCS_PER_SLICE = Setting.intSetting("min_docs_per_slice", -1, -1);
+
+    /**
+     *  When {@code true}, it allows KNN function to be used on runtime expressions and fields.
+     */
+    public static final Setting<Boolean> KNN_RUNTIME_FIELD = Setting.boolSetting("knn_runtime_field", false);
+
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
+
+    public static final List<String> VALID_PRAGMA_NAMES = Stream.of(
+        EXCHANGE_BUFFER_SIZE,
+        ENRICH_MAX_WORKERS,
+        TASK_CONCURRENCY,
+        DATA_PARTITIONING,
+        PAGE_SIZE,
+        STATUS_INTERVAL,
+        MAX_CONCURRENT_NODES_PER_CLUSTER,
+        MAX_CONCURRENT_SHARDS_PER_NODE,
+        UNAVAILABLE_SHARD_RESOLUTION_ATTEMPTS,
+        NODE_LEVEL_REDUCTION,
+        FOLD_LIMIT,
+        FIELD_EXTRACT_PREFERENCE,
+        ROUNDTO_PUSHDOWN_THRESHOLD,
+        MAX_KEYWORD_SORT_FIELDS,
+        EXTERNAL_DISTRIBUTION,
+        IN_SUBQUERY_HASH_JOIN_THRESHOLD,
+        BRANCH_PARALLEL_DEGREE,
+        PARSING_PARALLELISM,
+        MAX_CONCURRENT_OPEN_SEGMENTS,
+        MAX_RECORD_SIZE,
+        FORCE_DOC_SEQUENCE,
+        PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
+        PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD,
+        KNN_RUNTIME_FIELD,
+        SINGLE_NODE_OPTIMIZATIONS
+
+    ).map(Setting::getKey).toList();
 
     private final Settings settings;
 
@@ -231,6 +330,13 @@ public final class QueryPragmas implements Writeable {
     }
 
     /**
+     * Disable or enable the single node optimizations in case the query executes against a single node
+     */
+    public boolean singleNodeOptimizations() {
+        return SINGLE_NODE_OPTIMIZATIONS.get(settings);
+    }
+
+    /**
      * The maximum amount of memory we can use for {@link Expression#fold} during planing. This
      * defaults to 5% of memory available on the current node. If this method is called on the
      * coordinating node, this is 5% of the coordinating node's memory. If it's called on a data
@@ -255,13 +361,6 @@ public final class QueryPragmas implements Writeable {
         return ROUNDTO_PUSHDOWN_THRESHOLD.get(settings);
     }
 
-    /**
-     * Returns true if we should add the implicit LIMIT to FORK branches
-     */
-    public boolean forkImplicitLimit() {
-        return FORK_IMPLICIT_LIMIT.get(settings);
-    }
-
     public int maxKeywordSortFields() {
         return MAX_KEYWORD_SORT_FIELDS.get(settings);
     }
@@ -272,6 +371,18 @@ public final class QueryPragmas implements Writeable {
 
     public int parsingParallelism() {
         return PARSING_PARALLELISM.get(settings);
+    }
+
+    public int maxConcurrentOpenSegments() {
+        return MAX_CONCURRENT_OPEN_SEGMENTS.get(settings);
+    }
+
+    public ByteSizeValue maxRecordSize() {
+        return MAX_RECORD_SIZE.get(settings);
+    }
+
+    public int branchParallelDegree() {
+        return BRANCH_PARALLEL_DEGREE.get(settings);
     }
 
     /**
@@ -300,11 +411,47 @@ public final class QueryPragmas implements Writeable {
         return defaultThreshold;
     }
 
+    public int aggregationPartitioningCountThreshold(int defaultThreshold) {
+        if (settings.hasValue(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey())) {
+            final String v = settings.get(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey());
+            try {
+                // allow smaller value for the threshold in tests than the min setting in the production
+                return Integer.parseInt(v);
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("invalid aggregation partitioning threshold [" + v + "]", e);
+            }
+        }
+        return defaultThreshold;
+    }
+
+    public int timeSeriesTargetChunkRows(int defaultChunkRows) {
+        if (settings.hasValue(PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS.getKey())) {
+            return PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS.get(settings);
+        }
+        return defaultChunkRows;
+    }
+
     public int docsThresholdForAutoPartitioning(int defaultThreshold) {
         if (settings.hasValue(PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.getKey())) {
             return PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.get(settings);
         }
         return defaultThreshold;
+    }
+
+    /**
+     * Returns the effective minimum number of docs per Lucene slice. When {@link #MIN_DOCS_PER_SLICE} is set
+     * to a positive value it overrides {@code defaultMinDocsPerSlice}; otherwise the default floor is used.
+     */
+    public int minDocsPerSlice(int defaultMinDocsPerSlice) {
+        int override = MIN_DOCS_PER_SLICE.get(settings);
+        return override > 0 ? override : defaultMinDocsPerSlice;
+    }
+
+    /**
+     * When {@code true}, it allows KNN function to be used with expressions that are not indexed fields.
+     */
+    public boolean knnRuntimeField() {
+        return KNN_RUNTIME_FIELD.get(settings);
     }
 
     public boolean isEmpty() {

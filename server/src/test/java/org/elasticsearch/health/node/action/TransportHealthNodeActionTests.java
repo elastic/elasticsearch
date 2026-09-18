@@ -41,7 +41,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -72,9 +71,7 @@ public class TransportHealthNodeActionTests extends ESTestCase {
     }
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void startServices() throws Exception {
         taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
@@ -98,8 +95,7 @@ public class TransportHealthNodeActionTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void stopServices() throws Exception {
         clusterService.close();
         transportService.close();
     }
@@ -169,16 +165,7 @@ public class TransportHealthNodeActionTests extends ESTestCase {
             ThreadPool threadPool,
             Executor executor
         ) {
-            super(
-                actionName,
-                transportService,
-                clusterService,
-                threadPool,
-                new ActionFilters(new HashSet<>()),
-                Request::new,
-                Response::new,
-                executor
-            );
+            super(actionName, transportService, clusterService, threadPool, ActionFilters.EMPTY, Request::new, Response::new, executor);
         }
 
         @Override

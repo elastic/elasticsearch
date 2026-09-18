@@ -12,26 +12,35 @@ package org.elasticsearch.index.codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
+import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
-import org.elasticsearch.cluster.routing.TsidBuilder;
+import org.elasticsearch.columnar.ColumnarFieldType;
+import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
+import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatSelector;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
-import org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatFactory;
+import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
+import org.elasticsearch.index.codec.tsdb.pipeline.MetricRole;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -62,6 +71,7 @@ public class PerFieldFormatSupplier {
         includeMetaField.add(TimeSeriesRoutingHashFieldMapper.NAME);
         includeMetaField.add(SeqNoFieldMapper.NAME);
         includeMetaField.add(IgnoredSourceFieldMapper.NAME);
+        includeMetaField.add(IdFieldMapper.NAME);
         // Don't the include _recovery_source_size and _recovery_source fields, since their values can be trimmed away in
         // RecoverySourcePruneMergePolicy, which leads to inconsistencies between merge stats and actual values.
         INCLUDE_META_FIELDS = Collections.unmodifiableSet(includeMetaField);
@@ -74,13 +84,18 @@ public class PerFieldFormatSupplier {
     private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion104");
 
     private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
+    static final PostingsFormat DEFAULT_POSTINGS_FORMAT = new Lucene104PostingsFormat();
+
     private final MapperService mapperService;
     private final ThreadPool threadPool;
 
     private final PostingsFormat defaultPostingsFormat;
     private final TSDBSyntheticIdPostingsFormat syntheticIdPostingsFormat;
     private final ES94BloomFilterDocValuesFormat idBloomFilterDocValuesFormat;
+    private final DocValuesFormat tsdbDocValuesFormat;
+    private final DocValuesFormat stringColumnarDocValuesFormat;
 
+    @SuppressWarnings("this-escape")
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
@@ -88,7 +103,31 @@ public class PerFieldFormatSupplier {
         this.defaultPostingsFormat = getDefaultPostingsFormat(mapperService);
         this.knnVectorsFormat = getDefaultKnnVectorsFormat(mapperService, threadPool);
         this.syntheticIdPostingsFormat = new TSDBSyntheticIdPostingsFormat();
-        this.idBloomFilterDocValuesFormat = new ES94BloomFilterDocValuesFormat(bigArrays, IdFieldMapper.NAME);
+        // NOTE: built once per supplier and reused across every getDocValuesFormatForField
+        // call; the resolver closes over per-index mapperService state, so the format
+        // cannot be globally cached.
+        this.tsdbDocValuesFormat = mapperService == null
+            ? null
+            : TSDBDocValuesFormatSelector.select(mapperService.getIndexSettings(), this::resolveFieldContext);
+        // Built per supplier for the same reason the TSDB format is: the options it writes a string column
+        // with are resolved against this index's mapping, so the format cannot be shared between indices.
+        this.stringColumnarDocValuesFormat = mapperService == null
+            ? null
+            : ColumnarDocValuesFormatSelector.select(mapperService.getIndexSettings(), this::resolveStringColumnOptions);
+        var bloomFilterSettings = mapperService == null ? null : mapperService.getIndexSettings().syntheticIdBloomFilterSettings();
+        this.idBloomFilterDocValuesFormat = bloomFilterSettings == null
+            ? new ES94BloomFilterDocValuesFormat(bigArrays, IdFieldMapper.NAME) // fallback to the defaults if no settings are present
+            : new ES94BloomFilterDocValuesFormat(
+                bigArrays,
+                IdFieldMapper.NAME,
+                bloomFilterSettings.optimizedMerge(),
+                bloomFilterSettings.numHashFunctions(),
+                bloomFilterSettings.smallSegmentMaxDocs(),
+                bloomFilterSettings.largeSegmentMinDocs(),
+                bloomFilterSettings.highBitsPerDoc(),
+                bloomFilterSettings.lowBitsPerDoc(),
+                bloomFilterSettings.maxSize()
+            );
     }
 
     private static PostingsFormat getDefaultPostingsFormat(final MapperService mapperService) {
@@ -98,7 +137,7 @@ public class PerFieldFormatSupplier {
             if (IndexSettings.USE_ES_812_POSTINGS_FORMAT.get(mapperService.getIndexSettings().getSettings())) {
                 return es812PostingsFormat;
             } else {
-                return Elasticsearch93Lucene104Codec.DEFAULT_POSTINGS_FORMAT;
+                return DEFAULT_POSTINGS_FORMAT;
             }
         } else {
             // our own posting format using PFOR, used for logsdb and tsdb indices by default
@@ -148,7 +187,9 @@ public class PerFieldFormatSupplier {
                 return completionPostingsFormat;
             }
             if (mapper instanceof IdFieldMapper
-                && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.ID_FIELD_USE_ES812_POSTINGS_FORMAT)) {
+                && mapperService.getIndexSettings()
+                    .getIndexVersionCreated()
+                    .between(IndexVersions.ID_FIELD_USE_ES812_POSTINGS_FORMAT, IndexVersions.ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT)) {
                 // The default posting format doesn't handle randomly generated IDs well during merging. Several cases have been reported
                 // where a single merge thread uses disproportionate jvm heap memory just for Lucene103BlockTreeTermsWriter.TermsWriter.
                 return es812PostingsFormat;
@@ -168,7 +209,7 @@ public class PerFieldFormatSupplier {
             // but based on dimension fields and timestamp field, so during indexing
             // version/seq_no/term needs to be looked up and having a bloom filter
             // can speed this up significantly.
-            return indexSettings.getMode() == IndexMode.TIME_SERIES
+            return indexSettings.getMode().isTsdb()
                 && IdFieldMapper.NAME.equals(field)
                 && IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(indexSettings.getSettings());
         } else {
@@ -198,23 +239,69 @@ public class PerFieldFormatSupplier {
             return idBloomFilterDocValuesFormat;
         }
 
+        if (stringColumnarDocValuesFormat != null && columnarStringOptionsOf(field) != null) {
+            return stringColumnarDocValuesFormat;
+        }
+
         if (useTSDBDocValuesFormat(field)) {
-            IndexSettings indexSettings = mapperService.getIndexSettings();
-            var indexCreatedVersion = indexSettings.getIndexVersionCreated();
-            boolean useLargeNumericBlockSize = mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeNumericBlockSize();
-            boolean useLargeBinaryBlockSize = mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBinaryBlockSize();
-            boolean writePartitions = indexSettings.getMode() == IndexMode.TIME_SERIES
-                && TsidBuilder.useSingleBytePrefixLayout(indexCreatedVersion)
-                && indexCreatedVersion.onOrAfter(IndexVersions.WRITE_TSID_PREFIX_PARTITION);
-            return TSDBDocValuesFormatFactory.createDocValuesFormat(
-                indexCreatedVersion,
-                useLargeNumericBlockSize,
-                useLargeBinaryBlockSize,
-                writePartitions
-            );
+            return tsdbDocValuesFormat;
         }
 
         return docValuesFormat;
+    }
+
+    /**
+     * What the named field asked to be written with, or {@code null} when it is not stored as a ColumNAR
+     * string column. The field answers both, so routing it to the codec and writing it the way it asked
+     * cannot come apart.
+     */
+    @Nullable
+    StringColumnOptions columnarStringOptionsOf(final String field) {
+        return mapperService.mappingLookup().getMapper(field) instanceof FieldMapper mapper ? mapper.columnarStringOptions() : null;
+    }
+
+    /**
+     * How a string column is written, asked once per field by the codec. A field that is not stored as one is
+     * never asked, so the defaults here are only ever a fallback for a mapping that changed underneath.
+     */
+    private StringColumnOptions resolveStringColumnOptions(final String field, final ColumnarFieldType type) {
+        final StringColumnOptions options = columnarStringOptionsOf(field);
+        return options != null ? options : StringColumnOptions.DEFAULT;
+    }
+
+    FieldContext resolveFieldContext(final String fieldName, final int blockSize) {
+        final Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
+        if (mapper instanceof NumberFieldMapper numberFieldMapper) {
+            final PipelineDescriptor.DataType dataType = toPipelineDataType(numberFieldMapper.type());
+            final MetricRole metricRole = toMetricRole(numberFieldMapper.fieldType().getMetricType());
+            return new FieldContext(blockSize, fieldName, dataType, metricRole);
+        }
+        if (mapper instanceof DateFieldMapper) {
+            return new FieldContext(blockSize, fieldName, PipelineDescriptor.DataType.LONG, null);
+        }
+        return new FieldContext(blockSize, fieldName, null, null);
+    }
+
+    private static PipelineDescriptor.DataType toPipelineDataType(final NumberFieldMapper.NumberType type) {
+        return switch (type) {
+            // NOTE: integer-domain numerics share long-backed doc values storage, so
+            // they collapse to LONG for pipeline selection purposes.
+            case LONG, INTEGER, SHORT, BYTE -> PipelineDescriptor.DataType.LONG;
+            case DOUBLE -> PipelineDescriptor.DataType.DOUBLE;
+            case FLOAT, HALF_FLOAT -> PipelineDescriptor.DataType.FLOAT;
+        };
+    }
+
+    private static MetricRole toMetricRole(final TimeSeriesParams.MetricType metricType) {
+        if (metricType == null) {
+            return null;
+        }
+        return switch (metricType) {
+            case GAUGE -> MetricRole.GAUGE;
+            case COUNTER -> MetricRole.COUNTER;
+            case HISTOGRAM -> MetricRole.HISTOGRAM;
+            case POSITION -> MetricRole.POSITION;
+        };
     }
 
     boolean useTSDBDocValuesFormat(final String field) {

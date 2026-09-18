@@ -51,12 +51,12 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -70,7 +70,6 @@ public class EvalMapperTests extends ESTestCase {
     private static final FieldAttribute DATE = field("date", DataType.DATETIME);
 
     private static final Configuration TEST_CONFIG = new Configuration(
-        ZoneOffset.UTC,
         Instant.now(),
         Locale.US,
         "test",
@@ -85,8 +84,7 @@ public class EvalMapperTests extends ESTestCase {
         false,
         10000000,
         100000,
-        null,
-        null,
+        ResolvedSettings.EMPTY,
         Map.of()
     );
 

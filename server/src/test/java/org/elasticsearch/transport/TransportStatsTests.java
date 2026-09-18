@@ -34,7 +34,7 @@ public class TransportStatsTests extends ESTestCase {
         final var exampleActionStats = new TransportActionStats(7, 8, requestSizeHistogram, 11, 12, responseSizeHistogram);
 
         assertEquals(
-            Strings.toString(
+            Strings.toTruncatedString(
                 new TransportStats(
                     1,
                     2,

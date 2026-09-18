@@ -15,8 +15,11 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.activity.QueryLoggerContext;
 import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
@@ -25,6 +28,7 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.VerificationException;
 import org.elasticsearch.xpack.sql.logging.SqlLogContext;
 import org.elasticsearch.xpack.sql.plugin.SqlAsyncGetResultsAction;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.proto.SqlVersions;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -35,12 +39,16 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.logging.activity.QueryLogging.ES_QUERY_FIELDS_PREFIX;
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_FILTER;
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_PARAMS;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_RESULT_COUNT;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
 import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
+import static org.elasticsearch.test.ActivityLoggingUtils.getMessageField;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -94,6 +102,49 @@ public class SqlLoggingIT extends AbstractSqlBlockingIntegTestCase {
         var sqlMessage = getMessageData(appender.events.get(1));
         assertMessageSuccess(sqlMessage, SqlLogContext.TYPE, query);
         assertThat(sqlMessage.get(QUERY_FIELD_RESULT_COUNT), equalTo("2"));
+    }
+
+    public void testSqlLoggingFilter() {
+        prepareIndex();
+        QueryBuilder filter = new TermQueryBuilder("host", "192.168.0.1");
+        String query = "SELECT host FROM test LIMIT 100";
+        SqlQueryResponse response = new SqlQueryRequestBuilder(client()).query(query)
+            .filter(filter)
+            .mode(Mode.JDBC)
+            .version(SqlVersions.SERVER_COMPAT_VERSION.toString())
+            .get();
+        assertThat(response.size(), equalTo(2L));
+        assertThat(appender.events.size(), equalTo(2));
+
+        var sqlMessage = getMessageData(appender.events.get(1));
+        assertMessageSuccess(sqlMessage, SqlLogContext.TYPE, query);
+        assertThat(sqlMessage.get(QUERY_FIELD_RESULT_COUNT), equalTo("2"));
+        assertThat(sqlMessage.get(QUERY_FIELD_FILTER), equalTo(QueryLoggerContext.filterToLogString(filter).get()));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testSqlLoggingParams() {
+        prepareIndex();
+        String query = "SELECT data, count FROM test WHERE host = ? AND count < ? ORDER BY count";
+        SqlQueryRequest request = new SqlQueryRequestBuilder(client()).query(query)
+            .mode(Mode.JDBC)
+            .version(SqlVersions.SERVER_COMPAT_VERSION.toString())
+            .request();
+        request.params(List.of(new SqlTypedParamValue("keyword", "192.168.0.1"), new SqlTypedParamValue("integer", 100)));
+        SqlQueryResponse response = client().execute(SqlQueryAction.INSTANCE, request).actionGet();
+        assertThat(response.size(), equalTo(2L));
+        assertThat(appender.events.size(), equalTo(2));
+
+        var sqlMessage = getMessageData(appender.events.get(1));
+        assertMessageSuccess(sqlMessage, SqlLogContext.TYPE, query);
+        assertThat(sqlMessage.get(QUERY_FIELD_RESULT_COUNT), equalTo("2"));
+        var params = (Map<String, Object>) getMessageField(appender.events.get(1), QUERY_FIELD_PARAMS);
+        assertNotNull(params);
+        assertThat(params, hasKey(QueryLogging.QUERY_FIELD_PARAM_POSITIONAL));
+        var posParams = (List<Object>) params.get(QueryLogging.QUERY_FIELD_PARAM_POSITIONAL);
+        assertThat(posParams, hasSize(2));
+        assertThat(posParams.get(0), equalTo("192.168.0.1"));
+        assertThat(posParams.get(1), equalTo("100"));
     }
 
     public void testSqlFailureLogging() {
@@ -151,10 +202,10 @@ public class SqlLoggingIT extends AbstractSqlBlockingIntegTestCase {
     }
 
     private void prepareIndex() {
-        assertAcked(indicesAdmin().prepareCreate("test").get());
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping("host", "type=keyword").get());
         client().prepareBulk()
-            .add(new IndexRequest("test").id("1").source("data", "bar", "count", 42))
-            .add(new IndexRequest("test").id("2").source("data", "baz", "count", 43))
+            .add(new IndexRequest("test").id("1").source("data", "bar", "count", 42, "host", "192.168.0.1"))
+            .add(new IndexRequest("test").id("2").source("data", "baz", "count", 43, "host", "192.168.0.1"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         ensureYellow("test");

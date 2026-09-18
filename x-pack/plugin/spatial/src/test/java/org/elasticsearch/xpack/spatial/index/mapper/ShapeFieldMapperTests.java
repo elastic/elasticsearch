@@ -29,6 +29,7 @@ import org.junit.AssumptionViolatedException;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.hamcrest.Matchers.containsString;
@@ -43,6 +44,12 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
     @Override
     protected String getFieldName() {
         return "shape";
+    }
+
+    @Override
+    protected Object getSampleObjectForDocument() {
+        // shape parses GeoJSON objects, so the sample object must be a valid GeoJSON geometry.
+        return Map.of("type", "Point", "coordinates", List.of(14.0, 15.0));
     }
 
     @Override

@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/discovery-azure-classic-usage.html
 ---
 
-# Azure Virtual Machine discovery [discovery-azure-classic-usage]
+# Azure virtual machine discovery [discovery-azure-classic-usage]
 
 Azure VM discovery allows to use the Azure APIs to perform automatic discovery. Here is a simple sample configuration:
 
@@ -34,7 +34,7 @@ You can use [core network host settings](/reference/elasticsearch/configuration-
 ::::
 
 
-## How to start (short story) [discovery-azure-classic-short]
+## How to start [discovery-azure-classic-short]
 
 * Create Azure instances
 * Install Elasticsearch

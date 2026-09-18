@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `STDDEV_OVER_TIME` function [esql-stddev_over_time]
 
-:::{include} ../../_snippets/functions/layout/stddev_over_time.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/stddev_over_time.md
 :::

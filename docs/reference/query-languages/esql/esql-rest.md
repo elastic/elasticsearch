@@ -41,6 +41,14 @@ James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00.000Z
 % TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
 % TESTRESPONSE[non_json]
 
+## Prerequisites [esql-rest-prerequisites]
+
+To run an {{esql}} query with [`POST /_query`]({{es-apis}}operation/operation-esql-query) or [`POST /_query/async`]({{es-apis}}operation/operation-esql-async-query), you need the [`read`](/reference/elasticsearch/security-privileges.md#privileges-list-indices) index privilege on the indices, data streams, aliases, or views you query.
+
+The [`monitor_esql`](/reference/elasticsearch/security-privileges.md#privileges-list-cluster) cluster privilege is only for inspecting queries that are currently running.
+It doesn't grant the ability to run queries or to retrieve async results.
+
+
 ## Run the {{esql}} query API in Console [esql-kibana-console]
 
 We recommend using [Console](docs-content://explore-analyze/query-filter/tools/console.md) to run the {{esql}} query API, because of its rich autocomplete features.
@@ -101,9 +109,14 @@ Query results only, without metadata. Useful for quick and manual data previews.
 | `csv` | `text/csv` | [Comma-separated values](https://en.wikipedia.org/wiki/Comma-separated_values) |
 | `tsv` | `text/tab-separated-values` | [Tab-separated values](https://en.wikipedia.org/wiki/Tab-separated_values) |
 | `txt` | `text/plain` | CLI-like representation |
+| `md` | `text/markdown` | Markdown/GitHub-flavored pipe table |
 
 ::::{tip}
 The `csv` format accepts a formatting URL query attribute, `delimiter`, which indicates which character should be used to separate the CSV values. It defaults to comma (`,`) and cannot take any of the following values: double quote (`"`), carriage-return (`\r`) and new-line (`\n`). The tab (`\t`) can also not be used. Use the `tsv` format instead.
+::::
+
+::::{tip}
+The `md` format always includes a header row. Requesting `header=absent` (for example, via `Accept: text/markdown; header=absent`) returns a `400` error, unlike `csv`, `tsv`, and `txt`, which support both `header=present` and `header=absent`.
 ::::
 
 ### Binary formats
@@ -213,6 +226,8 @@ Which returns:
 {
   "took": 28,
   "is_partial": false,
+  "documents_found": 5,
+  "values_loaded": 20,
   "columns": [
     {"name": "author", "type": "text"},
     {"name": "name", "type": "text"},
@@ -265,6 +280,8 @@ Will return:
 {
   "took": 28,
   "is_partial": false,
+  "documents_found": 2,
+  "values_loaded": 2,
   "columns": [
     {"name": "date_string", "type": "keyword"},
     {"name": "date", "type": "date"},
@@ -299,6 +316,100 @@ POST /_query
 % TEST[setup:library]
 % TEST[skip:This can output a warning, and asciidoc doesn't support allowed_warnings]
 
+### Enabling query approximation [esql-approximation-param]
+
+```{applies_to}
+stack: preview 9.4, ga 9.5
+serverless: ga
+```
+
+Use the `approximation` parameter to enable [fast approximation for `STATS` queries](esql-query-approximation.md).
+If not specified, defaults to `false`.
+
+For example:
+```console
+POST /_query
+{
+  "approximation": true,
+  "query": """
+    FROM web_traffic
+    | STATS total_hits = COUNT(), avg_load_time = AVG(page_load_ms)
+  """
+}
+```
+
+For more advanced settings, use a [query approximation settings](directives/set.md#esql-approximation) object.
+
+## Column metadata [esql-rest-column-metadata]
+
+For structured [response formats](#esql-rest-format), the `columns` array describes the columns in the response.
+Each column object includes the column `name` and {{esql}} `type`.
+Depending on the query and the source mappings, a column object can also include additional metadata:
+
+| Field | Description |
+| --- | --- |
+| `name` | The column name. |
+| `type` | The resolved {{esql}} type for the column. |
+| `original_types` | The original {{es}} mapping types for a column. This is returned when the column has an unsupported type or conflicting types across the queried indices. {applies_to}`stack: ga 9.1` {applies_to}`serverless: ga` |
+| `suggested_cast` | A type that {{esql}} can use to resolve the values from `original_types` to a supported type. This is returned only when {{esql}} can suggest a cast for the original types. {applies_to}`stack: ga 9.1` {applies_to}`serverless: ga` |
+| `_meta` | Additional column metadata produced by {{esql}}. |
+
+For example, a column with conflicting mapping types can include `original_types` and `suggested_cast`:
+
+```json
+{
+  "name": "client_ip",
+  "type": "unsupported",
+  "original_types": ["ip", "keyword"],
+  "suggested_cast": "keyword"
+}
+```
+
+{applies_to}`stack: preview 9.5` {applies_to}`serverless: preview` Columns created with `BUCKET` can include bucket interval metadata:
+
+```json
+{
+  "name": "bucket",
+  "type": "date",
+  "_meta": {
+    "bucket": {
+      "interval": 1,
+      "unit": "day"
+    }
+  }
+}
+```
+
+{applies_to}`stack: preview 9.5` {applies_to}`serverless: preview` Numeric bucket columns include only the `interval` value:
+
+```json
+{
+  "name": "bucket",
+  "type": "double",
+  "_meta": {
+    "bucket": {
+      "interval": 100.0
+    }
+  }
+}
+```
+
+{applies_to}`stack: preview 9.4, ga 9.5+` {applies_to}`serverless: ga` Approximation helper columns can include approximation metadata.
+The `approximation.type` value is `confidence_interval` or `certified`, and `approximation.column` identifies the source column:
+
+```json
+{
+  "name": "_approximation_confidence_interval(count)",
+  "type": "long",
+  "_meta": {
+    "approximation": {
+      "type": "confidence_interval",
+      "column": "count"
+    }
+  }
+}
+```
+
 ## Pass parameters to a query [esql-rest-params]
 
 Instead of embedding values directly in a query string, you can use parameters to separate the query logic from its data. This approach prevents injection attacks when queries include user input and makes queries reusable with different values.
@@ -315,12 +426,12 @@ These parameters can be named, positional, or anonymous:
 - **Anonymous** (`?`, `??`) are matched to params in the order they appear in the query.
 
 ::::{important}
-Don't mix parameter styles in the same query. For example, you cannot use named `?name` with positional `??1`. Choose one style and use it consistently across both value and identifier parameters.
+Don't mix parameter styles in the same query. For example, you cannot use named parameter `?name` with positional parameter `??1`. Choose one style and use it consistently across both value and identifier parameters.
 ::::
 
 ### Value parameters (`?`) [esql-rest-value-params]
 
-::::{tip} 
+::::{tip}
 :applies_to: stack: ga 9.1.0
 We recommend using the [`??`](#esql-rest-identifier-params) syntax instead in 9.1 and above.
 ::::
@@ -334,6 +445,8 @@ We recommend using the [`??`](#esql-rest-identifier-params) syntax instead in 9.
 | Anonymous | `?` | `[value1, value2, ...]` (consumed in order) |
 
 #### Example
+
+##### Named parameters
 
 ```console
 POST /_query
@@ -349,8 +462,10 @@ POST /_query
 ```
 % TEST[setup:library]
 
-1. Named placeholders `?min_pages` and `?author` mark where values are substituted
+1. Named parameters `?min_pages` and `?author` mark where values are substituted
 2. Each object in `params` maps a name to its value
+
+##### Positional parameters
 
 You can also reference params by position:
 
@@ -368,8 +483,29 @@ POST /_query
 ```
 % TEST[setup:library]
 
-1. `?1` refers to the first param, `?2` to the second
+1. `?1` refers to the first param, `?2` to the second param
 2. Values are provided as a simple array, matched by position
+
+##### Anonymous parameters
+
+With anonymous parameters, each `?` consumes the next param in order:
+
+```console
+POST /_query
+{
+  "query": """
+    FROM library
+    | WHERE page_count > ? AND author == ? <1>
+    | KEEP author, name, page_count
+    | SORT page_count DESC
+  """,
+  "params": [300, "Frank Herbert"] <2>
+}
+```
+% TEST[setup:library]
+
+1. Each `?` is replaced by the next param in the array
+2. Values are provided as a simple array
 
 ### Identifier parameters (`??`) [esql-rest-identifier-params]
 
@@ -391,6 +527,8 @@ We recommend using this syntax instead of the original `?` syntax.
 
 #### Example
 
+##### Named parameters
+
 This query uses named identifier parameters for the aggregation function, field, and grouping:
 
 ```console
@@ -409,6 +547,8 @@ POST /_query?format=txt
 1. `??agg_fn` is inserted as the function name, `??field` and `??group_by` as field names
 2. Parameter values are substituted as identifiers, not quoted strings
 
+##### Positional parameters
+
 With positional parameters, placeholders reference params by their position in the array:
 
 ```console
@@ -426,6 +566,8 @@ POST /_query?format=txt
 
 1. `??1` is the first param (function name), `??2` second (field), `??3` third (group by field)
 2. Simple array of identifier names
+
+##### Anonymous parameters
 
 With anonymous parameters, each `??` consumes the next param in order:
 
@@ -567,6 +709,18 @@ The query will be stopped and the response will contain the results computed so 
 This API can be used to retrieve results even if the query has already completed, as long as it's within the `keep_alive` window.
 The `is_partial` field indicates result completeness. A value of `true` means the results are potentially incomplete.
 
+<!--
+### Stopping or cancelling queries against external sources [esql-rest-async-external-stop-cancel]
+
+When a query reads from an external source (for example, a query that begins with the `EXTERNAL` command, or any query routed to a {{esql}} data source you registered), the three ways to end the read have distinct semantics:
+
+* **Async stop** (`POST /_query/async/{id}/stop`) signals the running query to wind down without discarding what it has already produced. Rows already accepted into the response pipeline at the moment stop arrives are returned with `is_partial: true`; rows that the source is still in the middle of delivering are dropped. If async stop races with the natural completion of a fast query, the response is returned as-is with `is_partial: false`.
+* **Async delete** (`DELETE /_query/async/{id}`) cancels the underlying task before deleting the saved entry. The running query fails with a task-cancelled error; no partial body is returned.
+* **Task cancel or client disconnect** (cancellation via the [task management API](esql-task-management.md), or simply closing the HTTP connection that submitted a synchronous query) hard-fails the query with a task-cancelled error and returns no rows.
+
+In other words, only async stop is a partial-result path for external queries — task cancel, client disconnect, and async delete all fall on the hard-fail side. This matches the behaviour for queries against {{es}} indices, with one nuance specific to external sources: a query that touches no {{es}} index has no per-cluster status to flip, so the `is_partial` flag is set directly on the response when async stop fires.
+-->
+
 Use the [{{esql}} async query delete API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-async-query-delete) to delete an async query before the `keep_alive` period ends. If the query is still running, {{es}} cancels it.
 
 ```console
@@ -578,3 +732,29 @@ DELETE /_query/async/FmdMX2pIang3UWhLRU5QS0lqdlppYncaMUpYQ05oSkpTc3kwZ21EdC1tbFJ
 You will also receive the async ID and running status in the `X-Elasticsearch-Async-Id` and `X-Elasticsearch-Async-Is-Running` HTTP headers of the response, respectively.
 Useful if you use a tabular text format like `txt`, `csv` or `tsv`, as you won't receive those fields in the body there.
 ::::
+
+## `documents_found` and `values_loaded` [esql-rest-documents-found]
+
+```{applies_to}
+stack: ga 9.1
+```
+
+In addition to {{es}}'s traditional `took` time, {{esql}} returns `documents_found` and `values_loaded` which you can think
+of as rough proxies for how much effort Elasticsearch had to expend to run the query. Generally, bigger numbers mean the
+query took more effort.
+
+`documents_found` are the number of documents that we had to find to run the query. If this is low, Elasticsearch was able
+to effectively use its search index to return results. A few queries, like `FROM idx | STATS COUNT(*)` can run without
+looking at documents at all. They cheekily report one "found" document per count.
+
+`values_loaded` are the number of values loaded to run the query. If Elasticsearch must load one value per
+document, like it would for `FROM idx | STATS BY DATE_TRUNC(1 hour, @timestamp)`, this will be the same as `documents_found`.
+If Elasticsearch had to load many fields for each document, it will be many times `documents_found`. Again, bigger numbers
+*generally* mean the query took more effort.
+
+Plenty of queries will still be fast even though `documents_found` and `values_loaded` are high. Some queries will be slow
+even with a low `documents_found` and `values_loaded` for various reasons:
+* The query was super fast or slow.
+* Some values load very fast, like `@timestamp`, and other values load much more slowly, like `text` fields.
+* Some functions are quite fast, like `+`, `DATE_TRUNC`, `BUCKET`, etc.
+* Some commands are quite heavy, like `GROK`.

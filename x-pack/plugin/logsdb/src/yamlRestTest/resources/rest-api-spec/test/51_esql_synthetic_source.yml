@@ -1,61 +1,80 @@
 ---
 setup:
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
+
   - do:
-      indices.create:
-        index: my-index
+      indices.put_index_template:
+        name: logs-esql-synth-template
         body:
-          settings:
-            index:
-              mode: logsdb
-          mappings:
-            properties:
-              "@timestamp":
-                type: date
-              host.name:
-                type: keyword
-              agent_id:
-                type: keyword
-              process_id:
-                type: integer
-              http_method:
-                type: keyword
-              is_https:
-                type: boolean
-              location:
-                type: geo_point
-              message:
-                type: text
+          index_patterns: [ "logs-esql-synth-*" ]
+          priority: 1000
+          data_stream: {}
+          template:
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                host.name:
+                  type: keyword
+                agent_id:
+                  type: keyword
+                process_id:
+                  type: integer
+                http_method:
+                  type: keyword
+                is_https:
+                  type: boolean
+                location:
+                  type: geo_point
+                message:
+                  type: text
+      allowed_warnings:
+        - "index template [logs-esql-synth-template] has index patterns [logs-esql-synth-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-esql-synth-template] will take precedence during new index creation"
+
+  - do:
+      indices.create_data_stream:
+        name: logs-esql-synth-test
 
   - do:
       bulk:
-        index: my-index
+        index: logs-esql-synth-test
         refresh: true
         body:
-          - { "index": { } }
+          - { "create": { } }
           - { "@timestamp": "2024-02-12T10:30:00Z", "host.name": "foo", "agent_id": "darth-vader", "process_id": 101, "http_method": "GET", "is_https": false, "location": {"lat" : 40.7128, "lon" : -74.0060}, "message": "No, I am your father." }
-          - { "index": { } }
+          - { "create": { } }
           - { "@timestamp": "2024-02-12T10:31:00Z", "host.name": "bar", "agent_id": "yoda", "process_id": 102, "http_method": "PUT", "is_https": false, "location": {"lat" : 40.7128, "lon" : -74.0060}, "message": "Do. Or do not. There is no try." }
-          - { "index": { } }
+          - { "create": { } }
           - { "@timestamp": "2024-02-12T10:32:00Z", "host.name": "foo", "agent_id": "obi-wan", "process_id": 103, "http_method": "GET", "is_https": false, "location": {"lat" : 40.7128, "lon" : -74.0060}, "message": "May the force be with you." }
-          - { "index": { } }
+          - { "create": { } }
           - { "@timestamp": "2024-02-12T10:33:00Z", "host.name": "baz", "agent_id": "darth-vader", "process_id": 102, "http_method": "POST", "is_https": true, "location": {"lat" : 40.7128, "lon" : -74.0060}, "message": "I find your lack of faith disturbing." }
-          - { "index": { } }
+          - { "create": { } }
           - { "@timestamp": "2024-02-12T10:34:00Z", "host.name": "baz", "agent_id": "yoda", "process_id": 104, "http_method": "POST", "is_https": false, "location": {"lat" : 40.7128, "lon" : -74.0060}, "message": "Wars not make one great." }
-          - { "index": { } }
+          - { "create": { } }
           - { "@timestamp": "2024-02-12T10:35:00Z", "host.name": "foo", "agent_id": "obi-wan", "process_id": 105, "http_method": "GET", "is_https": false, "location": {"lat" : 40.7128, "lon" : -74.0060}, "message": "That's no moon. It's a space station." }
 
 ---
 teardown:
   - do:
-      indices.delete:
-        index: my-index
+      indices.delete_data_stream:
+        name: logs-esql-synth-*
+        ignore: 404
+  - do:
+      indices.delete_index_template:
+        name: logs-esql-synth-template
+        ignore: 404
+  - do:
+      indices.delete_index_template:
+        name: logs-esql-synth-2-template
+        ignore: 404
 
 ---
 "Simple from":
   - do:
       esql.query:
         body:
-          query: 'FROM my-index | SORT host.name, @timestamp | LIMIT 1'
+          query: 'FROM logs-esql-synth-test | SORT host.name, @timestamp | LIMIT 1'
 
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
@@ -88,7 +107,7 @@ teardown:
   - do:
       esql.query:
         body:
-          query: 'FROM my-index | SORT host.name, @timestamp | KEEP location | LIMIT 10'
+          query: 'FROM logs-esql-synth-test | SORT host.name, @timestamp | KEEP location | LIMIT 10'
 
   - match: {columns.0.name: "location"}
   - match: {columns.0.type: "geo_point"}
@@ -105,7 +124,7 @@ teardown:
   - do:
       esql.query:
         body:
-          query: 'FROM my-index | SORT host.name, @timestamp | KEEP process_id | LIMIT 10'
+          query: 'FROM logs-esql-synth-test | SORT host.name, @timestamp | KEEP process_id | LIMIT 10'
 
   - match: {columns.0.name: "process_id"}
   - match: {columns.0.type: "integer"}
@@ -122,7 +141,7 @@ teardown:
   - do:
       esql.query:
         body:
-          query: 'FROM my-index | SORT host.name, @timestamp | KEEP agent_id, http_method | LIMIT 10'
+          query: 'FROM logs-esql-synth-test | SORT host.name, @timestamp | KEEP agent_id, http_method | LIMIT 10'
 
   - match: {columns.0.name: "agent_id"}
   - match: {columns.0.type: "keyword"}
@@ -147,7 +166,7 @@ teardown:
   - do:
       esql.query:
         body:
-          query: 'FROM my-index | SORT host.name, @timestamp | KEEP is_https | LIMIT 10'
+          query: 'FROM logs-esql-synth-test | SORT host.name, @timestamp | KEEP is_https | LIMIT 10'
 
   - match: {columns.0.name: "is_https"}
   - match: {columns.0.type: "boolean"}
@@ -164,7 +183,7 @@ teardown:
   - do:
       esql.query:
         body:
-          query: 'FROM my-index | SORT host.name, @timestamp | KEEP message | LIMIT 10'
+          query: 'FROM logs-esql-synth-test | SORT host.name, @timestamp | KEEP message | LIMIT 10'
 
   - match: {columns.0.name: "message"}
   - match: {columns.0.type: "text"}
@@ -179,49 +198,59 @@ teardown:
 ---
 "message field with stored keyword multi-field with ignore_above":
   - do:
-      indices.create:
-        index: my-index2
+      indices.put_index_template:
+        name: logs-esql-synth-2-template
         body:
-          settings:
-            index:
-              mode: logsdb
-          mappings:
-            properties:
-              "@timestamp":
-                type: date
-              host.name:
-                type: keyword
-                store: false
-              message:
-                type: text
-                store: false
-                fields:
-                  raw:
-                    type: keyword
-                    store: true
+          index_patterns: [ "logs-esql-synth-2-*" ]
+          priority: 1001
+          data_stream: {}
+          template:
+            settings:
+              index:
+                mode: logsdb
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                host.name:
+                  type: keyword
+                  store: false
+                message:
+                  type: text
+                  store: false
+                  fields:
+                    raw:
+                      type: keyword
+                      store: true
+      allowed_warnings:
+        - "index template [logs-esql-synth-2-template] has index patterns [logs-esql-synth-2-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-esql-synth-2-template] will take precedence during new index creation"
+
+  - do:
+      indices.create_data_stream:
+        name: logs-esql-synth-2-test
 
   - do:
       bulk:
-        index: my-index2
+        index: logs-esql-synth-2-test
         refresh: true
         body:
-          - { "index": { } }
+          - { "create": { } }
           - { "@timestamp": "2024-02-12T10:30:00Z", "host.name": "foo", "message": "No, I am your father." }
-          - { "index": { } }
+          - { "create": { } }
           - { "@timestamp": "2024-02-12T10:31:00Z", "host.name": "bar", "message": "Do. Or do not. There is no try." }
-          - { "index": { } }
+          - { "create": { } }
           - { "@timestamp": "2024-02-12T10:32:00Z", "host.name": "foo", "message": "May the force be with you." }
-          - { "index": { } }
+          - { "create": { } }
           - { "@timestamp": "2024-02-12T10:33:00Z", "host.name": "baz", "message": "I find your lack of faith disturbing." }
-          - { "index": { } }
+          - { "create": { } }
           - { "@timestamp": "2024-02-12T10:34:00Z", "host.name": "baz", "message": "Wars not make one great." }
-          - { "index": { } }
+          - { "create": { } }
           - { "@timestamp": "2024-02-12T10:35:00Z", "host.name": "foo", "message": "That's no moon. It's a space station." }
 
   - do:
       esql.query:
         body:
-          query: 'FROM my-index2 | SORT host.name, @timestamp | LIMIT 1'
+          query: 'FROM logs-esql-synth-2-test | SORT host.name, @timestamp | LIMIT 1'
 
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
@@ -240,7 +269,7 @@ teardown:
   - do:
       esql.query:
         body:
-          query: 'FROM my-index2 | SORT host.name, @timestamp | KEEP message | LIMIT 10'
+          query: 'FROM logs-esql-synth-2-test | SORT host.name, @timestamp | KEEP message | LIMIT 10'
 
   - match: {columns.0.name: "message"}
   - match: {columns.0.type: "text"}
@@ -251,4 +280,3 @@ teardown:
   - match: {values.3.0: "No, I am your father."}
   - match: {values.4.0: "May the force be with you."}
   - match: {values.5.0: "That's no moon. It's a space station."}
-

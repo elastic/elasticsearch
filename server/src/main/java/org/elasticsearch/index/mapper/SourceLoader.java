@@ -12,20 +12,22 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -43,7 +45,7 @@ public interface SourceLoader {
     /**
      * Build the loader for some segment.
      */
-    Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException;
+    Leaf leaf(LeafReaderContext ctx, int[] docIdsInLeaf) throws IOException;
 
     /**
      * Stream containing all non-{@code _source} stored fields required
@@ -89,7 +91,7 @@ public interface SourceLoader {
         }
 
         @Override
-        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) {
+        public Leaf leaf(LeafReaderContext ctx, int[] docIdsInLeaf) {
             return new Leaf() {
                 @Override
                 public Source source(LeafStoredFieldLoader storedFields, int docId) throws IOException {
@@ -154,12 +156,20 @@ public interface SourceLoader {
         }
 
         @Override
-        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+        public Leaf leaf(LeafReaderContext ctx, int[] docIdsInLeaf) throws IOException {
             SyntheticFieldLoader loader = syntheticFieldLoaderLeafSupplier.get();
-            return new LeafWithMetrics(
-                new SyntheticLeaf(filter, loader, loader.docValuesLoader(reader, docIdsInLeaf), ignoredSourceFormat, reader),
-                metrics
+            var leaf = new SyntheticLeaf(
+                filter,
+                loader,
+                loader.docValuesLoader(ctx.reader(), docIdsInLeaf),
+                ignoredSourceFormat,
+                ctx.reader()
             );
+            if (metrics == SourceFieldMetrics.NOOP) {
+                return leaf;
+            } else {
+                return new LeafWithMetrics(leaf, metrics);
+            }
         }
 
         private record LeafWithMetrics(Leaf leaf, SourceFieldMetrics metrics) implements Leaf {
@@ -193,7 +203,7 @@ public interface SourceLoader {
             private final SyntheticFieldLoader.DocValuesLoader docValuesLoader;
             private final Map<String, SyntheticFieldLoader.StoredFieldLoader> storedFieldLoaders;
             private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
-            private final LeafReader leafReader;
+            private final MultiValuedSortedBinaryDocValues ignoredSourcedocValues;
 
             private SyntheticLeaf(
                 SourceFilter filter,
@@ -201,7 +211,7 @@ public interface SourceLoader {
                 SyntheticFieldLoader.DocValuesLoader docValuesLoader,
                 IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
                 LeafReader leafReader
-            ) {
+            ) throws IOException {
                 this.filter = filter;
                 this.loader = loader;
                 this.docValuesLoader = docValuesLoader;
@@ -209,12 +219,18 @@ public interface SourceLoader {
                     loader.storedFieldLoaders().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
                 );
                 this.ignoredSourceFormat = ignoredSourceFormat;
-                this.leafReader = leafReader;
+                if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE) {
+                    this.ignoredSourcedocValues = Objects.requireNonNull(
+                        MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, IgnoredSourceFieldMapper.NAME)
+                    );
+                } else {
+                    this.ignoredSourcedocValues = null;
+                }
             }
 
             @Override
             public Source source(LeafStoredFieldLoader storedFieldLoader, int docId) throws IOException {
-                try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
+                try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new BytesStreamOutput())) {
                     write(storedFieldLoader, docId, b);
                     return Source.fromBytes(BytesReference.bytes(b), b.contentType());
                 }
@@ -234,7 +250,7 @@ public interface SourceLoader {
                     filter,
                     storedFieldLoader.storedFields(),
                     docId,
-                    leafReader
+                    ignoredSourcedocValues
                 );
 
                 if (objectsWithIgnoredFields.isEmpty() == false) {
@@ -422,13 +438,21 @@ public interface SourceLoader {
         final SyntheticVectorsLoader patchLoader;
 
         SyntheticVectors(@Nullable SourceFilter sourceFilter, SyntheticVectorsLoader patchLoader) {
-            this.sourceLoader = sourceFilter == null ? FROM_STORED_SOURCE : new Stored(sourceFilter);
+            this(sourceFilter == null ? FROM_STORED_SOURCE : new Stored(sourceFilter), patchLoader);
+        }
+
+        /**
+         * Patches vectors into the {@code _source} produced by {@code sourceLoader}. Used by {@code columnar_stored}, whose
+         * blob is read back by a {@link Synthetic} loader rather than from a stored field.
+         */
+        SyntheticVectors(SourceLoader sourceLoader, SyntheticVectorsLoader patchLoader) {
+            this.sourceLoader = sourceLoader;
             this.patchLoader = patchLoader;
         }
 
         @Override
         public boolean reordersFieldValues() {
-            return false;
+            return sourceLoader.reordersFieldValues();
         }
 
         @Override
@@ -437,9 +461,9 @@ public interface SourceLoader {
         }
 
         @Override
-        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            var sourceLeaf = sourceLoader.leaf(reader, docIdsInLeaf);
-            var patchLeaf = patchLoader.leaf(reader.getContext());
+        public Leaf leaf(LeafReaderContext ctx, int[] docIdsInLeaf) throws IOException {
+            var sourceLeaf = sourceLoader.leaf(ctx, docIdsInLeaf);
+            var patchLeaf = patchLoader.leaf(ctx);
             return new Leaf() {
                 @Override
                 public Source source(LeafStoredFieldLoader storedFields, int docId) throws IOException {

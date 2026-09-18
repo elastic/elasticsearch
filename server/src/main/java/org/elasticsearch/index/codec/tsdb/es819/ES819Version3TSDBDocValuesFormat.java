@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.tsdb.es819;
 
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
+import org.elasticsearch.index.codec.tsdb.DocOffsetsCodec;
 
 /**
  * Version 3 of {@link org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat} and has the following change:
@@ -25,8 +26,8 @@ import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 public class ES819Version3TSDBDocValuesFormat extends ES819TSDBDocValuesFormat {
 
     static final String CODEC_NAME = "ES8193TSDB";
-    static final int BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT = 1024 * 1024;
-    static final int BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT = 32768;
+    static final int BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT = 512 * 1024;
+    static final int BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT = 8096;
 
     public ES819Version3TSDBDocValuesFormat() {
         this(false, false, false);

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.transforms.latest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -119,6 +120,7 @@ public class Latest extends AbstractCompositeAggFunction {
         Map<String, String> headers,
         String transformId,
         SourceConfig sourceConfig,
+        IndicesOptions indicesOptions,
         ActionListener<Map<String, String>> listener
     ) {
         listener.onResponse(emptyMap());

@@ -18,6 +18,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -31,6 +32,8 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
+import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
+import org.elasticsearch.index.codec.vectors.cluster.ClusteringVectorValues;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 
@@ -46,17 +49,67 @@ import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILA
 /**
  * Reader for IVF vectors. This reader is used to read the IVF vectors from the index.
  */
-public abstract class IVFVectorsReader extends KnnVectorsReader {
+public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> extends KnnVectorsReader {
+
+    /**
+     * Sealed query target for IVF search dispatch. Allows the search path to handle
+     * both float and byte queries through pattern matching.
+     */
+    public sealed interface QueryTarget {
+        int dimension();
+
+        /** A byte vector query target. */
+        record ByteQuery(byte[] vector) implements QueryTarget {
+            public int dimension() {
+                return vector.length;
+            }
+        }
+
+        /** A float vector query target. */
+        record FloatQuery(float[] vector) implements QueryTarget {
+            public int dimension() {
+                return vector.length;
+            }
+        }
+    }
+
+    // Two-Signal Model constants for dynamic visit ratio computation.
+    // Computes a visit ratio from the num_candidates/k ratio signal.
+    private static final double V_MIN = 0.003;
+    private static final double V_MAX = 0.04;
+    private static final double LOG1P_R_MAX = Math.log1p(10.0);
+    private static final double LOG1P_K_MAX = Math.log1p(10_000.0);
+    private static final double RATIO_WEIGHT = 0.85;
+    private static final double K_WEIGHT = 0.15;
+
+    // Segment-size cap constants.
+    // Empirical power-law curve calibrated on GIST-1M, Wiki-Cohere-1M, and MSMarco-130M datasets.
+    // Caps the visit ratio for large segments where fewer clusters need visiting to achieve the target recall.
+    // Produces ~10% cap for small segments (100K), ~4.5% at 1M, and ~2-3% for large segments (5-10M).
+    private static final double CAP_COEFFICIENT = 0.045;
+    private static final int CAP_REF_SIZE = 1_000_000;
+    private static final double CAP_EXPONENT = 0.35;
+    static final float DEFAULT_TARGET_RECALL = 0.9f;
+
+    // Small-segment boost constants.
+    // Amplifies the dynamic visit ratio for segments below BOOST_REF_SIZE where IVF clusters are less
+    // well-formed and the base formula under-provisions. Calibrated on cross-validation across
+    // Wiki-Cohere, GIST-1M, and Quora-E5 datasets; validated on held-out GloVe-200.
+    private static final int BOOST_REF_SIZE = 500_000;
+    private static final double BOOST_EXPONENT = 0.30;
+    private static final int BOOST_K_REF = 10;
+    private static final double BOOST_K_EXPONENT = 0.10;
 
     protected final IndexInput ivfCentroids, ivfClusters;
     private final SegmentReadState state;
-    private final FieldInfos fieldInfos;
-    protected final IntObjectHashMap<FieldEntry> fields;
+    protected final FieldInfos fieldInfos;
+    protected final IntObjectHashMap<E> fields;
     private final GenericFlatVectorReaders genericReaders;
     private final String centroidExtension;
     private final String clusterExtension;
     private final int versionDirectIo;
     private final float dynamicVisitRatio;
+    protected int versionMeta = -1;
 
     @SuppressWarnings("this-escape")
     protected IVFVectorsReader(
@@ -93,6 +146,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                     state.segmentInfo.getId(),
                     state.segmentSuffix
                 );
+                this.versionMeta = versionMeta;
                 readFields(ivfMeta, versionMeta, genericReaders, loadReader);
             } catch (Throwable exception) {
                 priorE = exception;
@@ -107,17 +161,42 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
     }
 
+    /**
+     * Copy constructor used to build a merge instance: shares everything with {@code other} but uses
+     * the provided flat vector readers.
+     */
+    protected IVFVectorsReader(IVFVectorsReader<E> other, GenericFlatVectorReaders genericReaders) {
+        this.state = other.state;
+        this.fieldInfos = other.fieldInfos;
+        this.fields = other.fields;
+        this.genericReaders = genericReaders;
+        this.centroidExtension = other.centroidExtension;
+        this.clusterExtension = other.clusterExtension;
+        this.versionDirectIo = other.versionDirectIo;
+        this.dynamicVisitRatio = other.dynamicVisitRatio;
+        this.versionMeta = other.versionMeta;
+        this.ivfCentroids = other.ivfCentroids;
+        this.ivfClusters = other.ivfClusters;
+    }
+
     public abstract CentroidIterator getCentroidIterator(
         FieldInfo fieldInfo,
         int numCentroids,
         IndexInput centroids,
-        float[] target,
+        QueryTarget queryTarget,
         IndexInput postingListSlice,
         AcceptDocs acceptDocs,
         float approximateCost,
-        FloatVectorValues values,
+        KnnVectorValues values,
         float visitRatio
     ) throws IOException;
+
+    /** Get the number of vectors to search, which is typically the total number of vectors in the segment or the
+     *  number of vectors in a slice if the segment is sliced.*/
+    protected int getNumberOfVectors(E entry, KnnVectorValues values, IndexInput centroidSlice, ESAcceptDocs esAcceptDocs)
+        throws IOException {
+        return values.size();
+    }
 
     protected static IndexInput openDataInput(
         SegmentReadState state,
@@ -165,14 +244,14 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 throw new CorruptIndexException("Invalid field number: " + fieldNumber, meta);
             }
 
-            FieldEntry fieldEntry = readField(meta, info, versionMeta);
+            E fieldEntry = readField(meta, info, versionMeta);
             genericFields.loadField(fieldNumber, fieldEntry, loadReader);
 
             fields.put(info.number, fieldEntry);
         }
     }
 
-    private FieldEntry readField(IndexInput input, FieldInfo info, int versionMeta) throws IOException {
+    private E readField(IndexInput input, FieldInfo info, int versionMeta) throws IOException {
         final String rawVectorFormat = input.readString();
         final boolean useDirectIOReads = versionMeta >= versionDirectIo && input.readByte() == 1;
         final VectorEncoding vectorEncoding = readVectorEncoding(input);
@@ -192,7 +271,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         final long centroidLength = input.readLong();
         final float[] globalCentroid = new float[info.getVectorDimension()];
         long postingListOffset = -1;
-        long postingListLength = -1;
+        long postingListLength = 0;
         float globalCentroidDp = 0;
         if (centroidLength > 0) {
             postingListOffset = input.readLong();
@@ -216,7 +295,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         );
     }
 
-    protected abstract FieldEntry doReadField(
+    protected abstract E doReadField(
         IndexInput input,
         String rawVectorFormat,
         boolean useDirectIOReads,
@@ -256,6 +335,21 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         CodecUtil.checksumEntireFile(ivfClusters);
     }
 
+    @Override
+    public final KnnVectorsReader getMergeInstance() throws IOException {
+        return mergeInstance(genericReaders.getMergeInstance());
+    }
+
+    /** Builds a merge instance of this reader backed by the given flat vector merge readers. */
+    protected abstract IVFVectorsReader<E> mergeInstance(GenericFlatVectorReaders genericReaders);
+
+    @Override
+    public final void finishMerge() throws IOException {
+        for (var reader : genericReaders.allReaders()) {
+            reader.finishMerge();
+        }
+    }
+
     protected FlatVectorsReader getReaderForField(String field) {
         FieldInfo info = fieldInfos.fieldInfo(field);
         if (info == null) throw new IllegalArgumentException("Could not find field [" + field + "]");
@@ -272,16 +366,61 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         return getReaderForField(field).getByteVectorValues(field);
     }
 
+    /**
+     * Returns true if this field has an IVF structure (centroids), false if it should fall back to the raw delegate.
+     */
+    private boolean hasIvfStructure(String field) {
+        final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
+        if (fieldInfo == null || fieldInfo.getVectorDimension() == 0) {
+            return false;
+        }
+        FieldEntry entry = fields.get(fieldInfo.number);
+        return entry != null && entry.numCentroids > 0;
+    }
+
     @Override
     public final void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
-        final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
-        if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32) == false) {
+        if (hasIvfStructure(field)) {
+            doSearch(field, new QueryTarget.FloatQuery(target), knnCollector, acceptDocs);
+        } else {
             getReaderForField(field).search(field, target, knnCollector, acceptDocs);
+        }
+    }
+
+    @Override
+    public final void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
+        if (hasIvfStructure(field)) {
+            doSearch(field, new QueryTarget.ByteQuery(target), knnCollector, acceptDocs);
+        } else {
+            // No IVF structure — byte fields on legacy codecs (which skip byte IVF indexing) fall
+            // through here. Inline brute-force matches main's behavior and is required for CheckIndex
+            // compatibility (delegating to getReaderForField().search() fails CheckIndex validation).
+            final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
+            final ByteVectorValues values = getReaderForField(field).getByteVectorValues(field);
+            for (int i = 0; i < values.size(); i++) {
+                final float score = fieldInfo.getVectorSimilarityFunction().compare(target, values.vectorValue(i));
+                knnCollector.collect(values.ordToDoc(i), score);
+                if (knnCollector.earlyTerminated()) {
+                    return;
+                }
+            }
+        }
+    }
+
+    /**
+     * Shared IVF search implementation. Uses the sealed {@link QueryTarget} to dispatch between
+     * native byte[] quantization and float[] quantization paths.
+     */
+    private void doSearch(String field, QueryTarget queryTarget, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
+        final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
+        final E entry = fields.get(fieldInfo.number);
+        if (hasNoVectors(fieldInfo, entry)) {
             return;
         }
-        if (fieldInfo.getVectorDimension() != target.length) {
+        final int queryDimension = queryTarget.dimension();
+        if (fieldInfo.getVectorDimension() != queryDimension) {
             throw new IllegalArgumentException(
-                "vector query dimension: " + target.length + " differs from field dimension: " + fieldInfo.getVectorDimension()
+                "vector query dimension: " + queryDimension + " differs from field dimension: " + fieldInfo.getVectorDimension()
             );
         }
 
@@ -292,38 +431,50 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             esAcceptDocs = null;
         }
 
-        FloatVectorValues values = getReaderForField(field).getFloatVectorValues(field);
-        int numVectors = values.size();
-        // TODO returning cost 0 in ESAcceptDocs.ESAcceptDocsAll feels wrong? cost is related to the number of matching documents?
-        float approximateCost = (float) (esAcceptDocs == null ? acceptDocs.cost()
-            : esAcceptDocs instanceof ESAcceptDocs.ESAcceptDocsAll ? numVectors
-            : esAcceptDocs.approximateCost());
-        float percentFiltered = Math.max(0f, Math.min(1f, approximateCost / numVectors));
+        final KnnVectorValues values;
+        if (fieldInfo.getVectorEncoding().equals(VectorEncoding.BYTE)) {
+            values = getByteVectorValues(field);
+        } else {
+            values = getFloatVectorValues(field);
+        }
+        if (values == null) {
+            return;
+        }
+        final IndexInput centroids = entry.centroidSlice(ivfCentroids);
+        final int numVectors = getNumberOfVectors(entry, values, centroids, esAcceptDocs);
+        if (numVectors == 0) {
+            return; // nothing more to do if there are no vectors in this segment / slice
+        }
+        final float approximateCost;
+        if (esAcceptDocs instanceof ESAcceptDocs.ESAcceptDocsAll) {
+            approximateCost = numVectors;
+        } else {
+            approximateCost = esAcceptDocs == null ? acceptDocs.cost() : esAcceptDocs.approximateCost();
+        }
+        float percentFiltered = Math.clamp(approximateCost / numVectors, 0f, 1f);
+        int k = knnCollector.k();
+        int numCands = k;
         float visitRatio = dynamicVisitRatio;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
         if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
             visitRatio = ivfSearchStrategy.getVisitRatio();
+            numCands = ivfSearchStrategy.getNumCands();
+            k = ivfSearchStrategy.getK();
         }
 
-        FieldEntry entry = fields.get(fieldInfo.number);
         if (visitRatio == dynamicVisitRatio) {
-            // empirically based, and a good dynamic to get decent recall while scaling a la "efSearch"
-            // scaling by the number of vectors vs. the nearest neighbors requested
-            // not perfect, but a comparative heuristic.
-            // TODO: we might want to consider the density of the centroids as experiments shows that for fewer vectors per centroid,
-            // the least vectors we need to score to get a good recall.
-            float estimated = Math.round(Math.log10(numVectors) * Math.log10(numVectors) * (knnCollector.k()));
-            // clip so we visit at least one vector
-            visitRatio = estimated / numVectors;
+            visitRatio = Math.min(
+                computeDynamicVisitRatio(numCands, k) * computeSmallSegmentBoost(k, numVectors),
+                computeSegmentSizeCap(numVectors)
+            );
         }
-        // we account for soar vectors here. We can potentially visit a vector twice so we multiply by 2 here.
-        long maxVectorVisited = (long) (2.0 * visitRatio * numVectors);
+        long maxVectorVisited = maxVectorsToVisit(entry, visitRatio, numVectors);
         IndexInput postListSlice = entry.postingListSlice(ivfClusters);
         CentroidIterator centroidPrefetchingIterator = getCentroidIterator(
             fieldInfo,
             entry.numCentroids,
-            entry.centroidSlice(ivfCentroids),
-            target,
+            centroids,
+            queryTarget,
             postListSlice,
             acceptDocs,
             approximateCost,
@@ -331,7 +482,15 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             visitRatio
         );
         Bits acceptDocsBits = acceptDocs.bits();
-        PostingVisitor scorer = getPostingVisitor(fieldInfo, postListSlice, target, acceptDocsBits, entry.centroidSlice(ivfCentroids));
+        PostingVisitor scorer = getPostingVisitor(
+            fieldInfo,
+            values,
+            postListSlice,
+            queryTarget,
+            acceptDocsBits,
+            entry.centroidSlice(ivfCentroids),
+            esAcceptDocs
+        );
         long expectedDocs = 0;
         long actualDocs = 0;
         // initially we visit only the "centroids to search"
@@ -363,17 +522,79 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
     }
 
-    @Override
-    public final void search(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
-        final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
-        final ByteVectorValues values = getReaderForField(field).getByteVectorValues(field);
-        for (int i = 0; i < values.size(); i++) {
-            final float score = fieldInfo.getVectorSimilarityFunction().compare(target, values.vectorValue(i));
-            knnCollector.collect(values.ordToDoc(i), score);
-            if (knnCollector.earlyTerminated()) {
-                return;
-            }
+    /**
+     * The cap on the number of (posting-member) vectors the search loop may visit. The default accounts for
+     * SOAR overspill, which can place a vector in up to two postings, by allowing 2x the visit-ratio budget.
+     * Subclasses may override to use a different budgeting model (e.g. an experiment-only posting/head-count
+     * budget where the centroid iterator's own bound governs how many postings are drained).
+     */
+    protected long maxVectorsToVisit(E entry, float visitRatio, int numVectors) {
+        return (long) (2.0 * visitRatio * numVectors);
+    }
+
+    private static boolean hasNoVectors(FieldInfo fieldInfo, FieldEntry fieldEntry) {
+        return fieldInfo.getVectorDimension() == 0
+            || fieldEntry == null
+            || (fieldEntry.numCentroids() == 0 && fieldEntry.postingListLength == 0L && fieldEntry.centroidLength == 0L);
+    }
+
+    /**
+     * Computes the dynamic visit ratio using the Two-Signal model.
+     * The formula blends the num_candidates/k ratio signal with the k magnitude signal.
+     */
+    static float computeDynamicVisitRatio(int numCands, int k) {
+        double r = (double) numCands / Math.max(k, 1);
+        double z = RATIO_WEIGHT * logScale(r - 1.0, LOG1P_R_MAX) + K_WEIGHT * logScale(k, LOG1P_K_MAX);
+        return (float) (V_MIN + (V_MAX - V_MIN) * z);
+    }
+
+    private static double logScale(double value, double log1pMax) {
+        return Math.clamp(Math.log1p(value) / log1pMax, 0.0, 1.0);
+    }
+
+    /**
+     * Computes a small-segment boost multiplier for the dynamic visit ratio.
+     * Segments below {@link #BOOST_REF_SIZE} vectors have less well-formed IVF clusters, so the base
+     * dynamic formula under-provisions. This multiplier compensates with a power-law that decays to 1.0
+     * at the reference size. A mild k-scaling factor accounts for higher k needing slightly more budget.
+     * <p>
+     * Formula: boost = max(1.0, (BOOST_REF_SIZE / N)^0.3 * (k / 10)^0.1 * recallFactor)
+     *
+     * @param k the number of nearest neighbors requested
+     * @param numVectors number of vectors in the segment
+     * @return the boost multiplier (>= 1.0)
+     */
+    static float computeSmallSegmentBoost(int k, int numVectors) {
+        // numVectors <= 0 is already guarded at the call site (search returns early on an empty
+        // segment); handle it defensively here too, mirroring computeSegmentSizeCap, so the
+        // division below can never see a zero divisor. Returning 1.0f means "no boost".
+        if (numVectors <= 0 || numVectors >= BOOST_REF_SIZE) {
+            return 1.0f;
         }
+        double sizeScale = Math.pow((double) BOOST_REF_SIZE / numVectors, BOOST_EXPONENT);
+        double kScale = Math.pow((double) Math.max(k, 1) / BOOST_K_REF, BOOST_K_EXPONENT);
+        double recallScale = 0.1 / (1.0 - DEFAULT_TARGET_RECALL);
+        return (float) Math.max(1.0, sizeScale * kScale * recallScale);
+    }
+
+    /**
+     * Computes a segment-size-aware cap on the visit ratio.
+     * Larger segments have better-formed IVF clusters and need a lower visit ratio to achieve the target recall.
+     * The power-law curve is calibrated on multi-dataset experiments (GIST-1M, Wiki-Cohere, MSMarco-130M).
+     * <p>
+     * Formula: cap = {@link #CAP_COEFFICIENT} * ({@link #CAP_REF_SIZE} / numVectors)^{@link #CAP_EXPONENT}
+     *              * (0.1 / (1 - targetRecall))
+     *
+     * @param numVectors number of vectors in the segment
+     * @return the upper-bound visit ratio for this segment size
+     */
+    static float computeSegmentSizeCap(int numVectors) {
+        if (numVectors <= 0) {
+            return (float) V_MAX;
+        }
+        double sizeScale = Math.pow((double) CAP_REF_SIZE / numVectors, CAP_EXPONENT);
+        double recallScale = 0.1 / (1.0 - DEFAULT_TARGET_RECALL);
+        return (float) Math.min(1.0, CAP_COEFFICIENT * sizeScale * recallScale);
     }
 
     @Override
@@ -381,7 +602,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         var raw = getReaderForField(fieldInfo.name).getOffHeapByteSize(fieldInfo);
         FieldEntry fe = fields.get(fieldInfo.number);
         if (fe == null) {
-            assert fieldInfo.getVectorEncoding() == VectorEncoding.BYTE;
             return raw;
         }
 
@@ -475,14 +695,80 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         public int getBulkSize() {
             return bulkSize;
         }
+
+        public int numSlices() {
+            return -1;
+        }
+    }
+
+    /**
+     * Read the raw centroids and cluster sizes for the given field from this segment.
+     * Used by the adaptive merge strategy to bootstrap K-means with prior segment centroids.
+     * Implementations may return {@code null} if the format does not support reading centroid data
+     * (e.g. because the layout differs from the writer that consumes this data).
+     *
+     * @param fieldName the vector field to read centroids for
+     * @return centroid data, or {@code null} if unavailable
+     */
+    public abstract CentroidData<?> readCentroidData(String fieldName) throws IOException;
+
+    /**
+     * Container for centroid data read from an existing segment. The centroid vectors are
+     * exposed as a streaming {@link ClusteringFloatVectorValues}
+     * so the merge path can iterate them without materializing the full {@code float[N][dim]}
+     * on the heap. The optional {@code backing} {@link IndexInput} owns any sliced resources
+     * required by the streaming view; {@link #close()} releases it.
+     */
+    public static final class CentroidData<V> implements Closeable {
+        private final int numCentroids;
+        private final ClusteringVectorValues<V> centroids;
+        private final int[] clusterSizes;
+        private final float[] globalCentroid;
+        private final IndexInput backing;
+
+        // Note: ESNextDiskBBQVectorsReader.readCentroidData() handles type dispatch (float vs byte) correctly.
+        // Other reader implementations (ES940, ES920) should follow the same pattern if they add byte support.
+        public CentroidData(ClusteringVectorValues<V> centroids, int[] clusterSizes, float[] globalCentroid, IndexInput backing) {
+            assert centroids.size() == clusterSizes.length;
+            this.numCentroids = centroids.size();
+            this.centroids = centroids;
+            this.clusterSizes = clusterSizes;
+            this.globalCentroid = globalCentroid;
+            this.backing = backing;
+        }
+
+        public int numCentroids() {
+            return numCentroids;
+        }
+
+        public ClusteringVectorValues<V> centroids() {
+            return centroids;
+        }
+
+        public int[] clusterSizes() {
+            return clusterSizes;
+        }
+
+        public float[] globalCentroid() {
+            return globalCentroid;
+        }
+
+        @Override
+        public void close() throws IOException {
+            if (backing != null) {
+                backing.close();
+            }
+        }
     }
 
     public abstract PostingVisitor getPostingVisitor(
         FieldInfo fieldInfo,
+        KnnVectorValues values,
         IndexInput postingsLists,
-        float[] target,
+        QueryTarget queryTarget,
         Bits needsScoring,
-        IndexInput centroidSlice
+        IndexInput centroidSlice,
+        ESAcceptDocs acceptDocs
     ) throws IOException;
 
     public interface PostingVisitor {
@@ -492,4 +778,5 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         /** returns the number of scored documents */
         int visit(KnnCollector collector) throws IOException;
     }
+
 }

@@ -81,7 +81,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
         assertBusy(() -> {
             // assertBusy since the shard starts out unassigned with reason CLUSTER_RECOVERED, then it's assigned, and then it fails.
             final var allocationExplainResponse = getClusterAllocationExplanation(client(), "test", 0, true);
-            final var description = Strings.toString(allocationExplainResponse);
+            final var description = Strings.toTruncatedString(allocationExplainResponse);
             final var unassignedInfo = allocationExplainResponse.getUnassignedInfo();
             assertThat(description, unassignedInfo, not(nullValue()));
             assertThat(description, unassignedInfo.reason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));

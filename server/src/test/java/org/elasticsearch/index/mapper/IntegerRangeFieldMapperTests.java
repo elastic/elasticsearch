@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
@@ -55,6 +56,38 @@ public class IntegerRangeFieldMapperTests extends RangeFieldMapperTests {
     @Override
     protected RangeType rangeType() {
         return RangeType.INTEGER;
+    }
+
+    /**
+     * Test that block loader returns constant nulls when doc_values is disabled for a non-DATE range type.
+     * This is the behavior after reordering the checks in {@code blockLoader}: doc_values is checked before
+     * range type, so a non-DATE range with doc_values disabled returns null rather than throwing.
+     */
+    public void testNoDocValuesBlockLoader() throws IOException {
+        MapperService mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field");
+            b.field("type", "integer_range");
+            b.field("doc_values", false);
+            b.endObject();
+        }));
+        BlockLoader loader = mapper.fieldType("field").blockLoader(new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapper));
+        assertSame(ConstantNull.INSTANCE, loader);
+    }
+
+    /**
+     * Test that a non-DATE range type with doc_values enabled still throws UnsupportedOperationException,
+     * since only date_range supports block loading via doc values.
+     */
+    public void testBlockLoaderWithDocValues() throws IOException {
+        MapperService mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field");
+            b.field("type", "integer_range");
+            b.endObject();
+        }));
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> mapper.fieldType("field").blockLoader(new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapper))
+        );
     }
 
     @Override

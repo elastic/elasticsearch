@@ -29,6 +29,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.parser.CaseChangingCharStream;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.time.ZoneId;
@@ -49,33 +50,35 @@ public class SqlParser {
 
     private static final Logger log = LogManager.getLogger(SqlParser.class);
 
-    private final boolean DEBUG = false;
+    private static final boolean DEBUG = false;
+
+    /**
+     * Maximum depth for nested expressions.
+     */
+    public static final int MAX_EXPRESSION_DEPTH = 250;
+
+    static final String DEPTH_EXCEEDED_FRAGMENT = "exceeded the maximum expression depth";
+    private static final String DEPTH_EXCEEDED_MSG = "SQL statement " + DEPTH_EXCEEDED_FRAGMENT + " allowed ({})";
 
     /**
      * Used only in tests
      */
     public LogicalPlan createStatement(String sql) {
-        return createStatement(sql, Collections.emptyList(), UTC);
-    }
-
-    /**
-     * Used only in tests
-     */
-    public LogicalPlan createStatement(String sql, ZoneId zoneId) {
-        return createStatement(sql, Collections.emptyList(), zoneId);
+        return createStatement(sql, Collections.emptyList(), UTC, SqlPlugin.DEFAULT_MAX_QUERY_LENGTH);
     }
 
     /**
      * Parses an SQL statement into execution plan
      * @param sql - the SQL statement
      * @param params - a list of parameters for the statement if the statement is parametrized
+     * @param maxLength - maximum allowed query length in characters
      * @return logical plan
      */
-    public LogicalPlan createStatement(String sql, List<SqlTypedParamValue> params, ZoneId zoneId) {
+    public LogicalPlan createStatement(String sql, List<SqlTypedParamValue> params, ZoneId zoneId, int maxLength) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", sql);
         }
-        return invokeParser(sql, params, zoneId, SqlBaseParser::singleStatement, AstBuilder::plan);
+        return invokeParser(sql, params, zoneId, SqlBaseParser::singleStatement, AstBuilder::plan, maxLength);
     }
 
     /**
@@ -93,7 +96,31 @@ public class SqlParser {
             log.debug("Parsing as expression: {}", expression);
         }
 
-        return invokeParser(expression, params, UTC, SqlBaseParser::singleExpression, AstBuilder::expression);
+        return invokeParser(
+            expression,
+            params,
+            UTC,
+            SqlBaseParser::singleExpression,
+            AstBuilder::expression,
+            SqlPlugin.DEFAULT_MAX_QUERY_LENGTH
+        );
+    }
+
+    private record ParserPipeline(CommonTokenStream tokenStream, SqlBaseParser parser, Map<Token, SqlTypedParamValue> paramTokens) {}
+
+    private ParserPipeline createParserPipeline(String sql, List<SqlTypedParamValue> params) {
+        SqlBaseLexer lexer = new SqlBaseLexer(new CaseChangingCharStream(CharStreams.fromString(sql), true));
+        lexer.removeErrorListeners();
+        lexer.addErrorListener(ERROR_LISTENER);
+        Map<Token, SqlTypedParamValue> paramTokens = new HashMap<>();
+        TokenSource tokenSource = new ParametrizedTokenSource(lexer, paramTokens, params);
+        CommonTokenStream tokenStream = new CommonTokenStream(tokenSource);
+        SqlBaseParser parser = new SqlBaseParser(tokenStream);
+        parser.addParseListener(new PostProcessor(Arrays.asList(parser.getRuleNames())));
+        parser.removeErrorListeners();
+        parser.addErrorListener(ERROR_LISTENER);
+        parser.getInterpreter().setPredictionMode(PredictionMode.SLL);
+        return new ParserPipeline(tokenStream, parser, paramTokens);
     }
 
     private <T> T invokeParser(
@@ -101,45 +128,60 @@ public class SqlParser {
         List<SqlTypedParamValue> params,
         ZoneId zoneId,
         Function<SqlBaseParser, ParserRuleContext> parseFunction,
-        BiFunction<AstBuilder, ParserRuleContext, T> visitor
+        BiFunction<AstBuilder, ParserRuleContext, T> visitor,
+        int maxLength
     ) {
+        if (sql.length() > maxLength) {
+            throw new ParsingException(
+                "SQL statement is too large [{} characters > {}], adjust [xpack.sql.max_query_length] to increase the limit",
+                sql.length(),
+                maxLength
+            );
+        }
         try {
-            SqlBaseLexer lexer = new SqlBaseLexer(new CaseChangingCharStream(CharStreams.fromString(sql), true));
+            ParserPipeline pipeline = createParserPipeline(sql, params);
 
-            lexer.removeErrorListeners();
-            lexer.addErrorListener(ERROR_LISTENER);
-
-            Map<Token, SqlTypedParamValue> paramTokens = new HashMap<>();
-            TokenSource tokenSource = new ParametrizedTokenSource(lexer, paramTokens, params);
-
-            CommonTokenStream tokenStream = new CommonTokenStream(tokenSource);
-            SqlBaseParser parser = new SqlBaseParser(tokenStream);
-
-            parser.addParseListener(new PostProcessor(Arrays.asList(parser.getRuleNames())));
-
-            parser.removeErrorListeners();
-            parser.addErrorListener(ERROR_LISTENER);
-
-            parser.getInterpreter().setPredictionMode(PredictionMode.SLL);
+            try {
+                pipeline.tokenStream().fill();
+                int depth = 0;
+                int prefixChain = 0;
+                for (Token token : pipeline.tokenStream().getTokens()) {
+                    switch (token.getType()) {
+                        case SqlBaseLexer.LP -> depth++;
+                        case SqlBaseLexer.RP -> depth--;
+                        case SqlBaseLexer.NOT, SqlBaseLexer.MINUS, SqlBaseLexer.PLUS -> prefixChain++;
+                        default -> {
+                            if (token.getChannel() == Token.DEFAULT_CHANNEL) prefixChain = 0;
+                        }
+                    }
+                    if (depth + prefixChain > MAX_EXPRESSION_DEPTH) {
+                        throw new ParsingException(DEPTH_EXCEEDED_MSG, MAX_EXPRESSION_DEPTH);
+                    }
+                }
+            } catch (ParsingException pe) {
+                if (pe.getMessage() != null && pe.getMessage().contains(DEPTH_EXCEEDED_FRAGMENT)) {
+                    throw pe;
+                }
+                pipeline = createParserPipeline(sql, params);
+            }
 
             if (DEBUG) {
-                debug(parser);
-                tokenStream.fill();
-
-                for (Token t : tokenStream.getTokens()) {
+                debug(pipeline.parser());
+                pipeline.tokenStream().fill();
+                for (Token t : pipeline.tokenStream().getTokens()) {
                     String symbolicName = SqlBaseLexer.VOCABULARY.getSymbolicName(t.getType());
                     String literalName = SqlBaseLexer.VOCABULARY.getLiteralName(t.getType());
                     log.info(format(Locale.ROOT, "  %-15s '%s'", symbolicName == null ? literalName : symbolicName, t.getText()));
                 }
             }
 
-            ParserRuleContext tree = parseFunction.apply(parser);
+            ParserRuleContext tree = parseFunction.apply(pipeline.parser());
 
             if (DEBUG) {
                 log.info("Parse tree {} " + tree.toStringTree());
             }
 
-            return visitor.apply(new AstBuilder(paramTokens, zoneId), tree);
+            return visitor.apply(new AstBuilder(pipeline.paramTokens(), zoneId), tree);
         } catch (StackOverflowError e) {
             throw new ParsingException(
                 "SQL statement is too large, " + "causing stack overflow when generating the parsing tree: [{}]",

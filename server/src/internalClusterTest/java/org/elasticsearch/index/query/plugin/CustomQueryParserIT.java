@@ -27,10 +27,8 @@ public class CustomQueryParserIT extends ESIntegTestCase {
         return Arrays.asList(DummyQueryParserPlugin.class);
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createTestIndex() throws Exception {
         createIndex("test");
         ensureGreen();
         prepareIndex("index").setId("1").setSource("field", "value").get();

@@ -8,13 +8,20 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 // begin generated imports
+$if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+$endif$
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.$Type$Block;
+$if(!Range)$
 import org.elasticsearch.compute.data.$Type$Vector;
 import org.elasticsearch.compute.data.BooleanVector;
+$endif$
+$if(Range)$
+import org.elasticsearch.compute.data.$Type$BlockBuilder;
+$endif$
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -59,6 +66,7 @@ public class In$Name$Evaluator implements ExpressionEvaluator {
                 for (int i = 0; i < rhsBlocks.length; i++) {
                     rhsBlocks[i] = ($Type$Block) rhs[i].eval(page);
                 }
+$if(!Range)$
                 $Type$Vector lhsVector = lhsBlock.asVector();
                 if (lhsVector == null) {
                     return eval(page.getPositionCount(), lhsBlock, rhsBlocks);
@@ -71,6 +79,9 @@ public class In$Name$Evaluator implements ExpressionEvaluator {
                     }
                 }
                 return eval(page.getPositionCount(), lhsVector, rhsVectors);
+$else$
+                return eval(page.getPositionCount(), lhsBlock, rhsBlocks);
+$endif$
             }
         }
     }
@@ -92,6 +103,12 @@ $elseif(BytesRef)$
             BytesRef[] rhsScratch = new BytesRef[rhs.length];
             for (int i = 0; i < rhs.length; i++) {
                 rhsScratch[i] = new BytesRef();
+            }
+$elseif(Range)$
+            $Type$BlockBuilder.$Type$ lhsScratch = new $Type$BlockBuilder.$Type$();
+            $Type$BlockBuilder.$Type$[] rhsScratch = new $Type$BlockBuilder.$Type$[rhs.length];
+            for (int i = 0; i < rhs.length; i++) {
+                rhsScratch[i] = new $Type$BlockBuilder.$Type$();
             }
 $endif$
             BitSet nulls = new BitSet(rhs.length);
@@ -140,6 +157,8 @@ $elseif(boolean)$
                     } else {
                         hasFalse = true;
                     }
+$elseif(Range)$
+                    rhsScratch[i] = rhsBlocks[i].get$Type$(o, rhsScratch[i]);
 $else$
                     rhsValues[i] = rhsBlocks[i].get$Type$(o);
 $endif$
@@ -155,6 +174,14 @@ $elseif(BytesRef)$
 $elseif(NanosMillis)$
                 // Even though these are longs, they're in different units and need special handling
                 foundMatch = In.processNanosMilils(nulls, mvs, lhsBlock.get$Type$(lhsBlock.getFirstValueIndex(p)), rhsValues);
+$elseif(Range)$
+                foundMatch = In.process$Type$(
+                    //
+                    nulls,
+                    mvs,
+                    lhsBlock.get$Type$(lhsBlock.getFirstValueIndex(p), lhsScratch),
+                    rhsScratch
+                );
 $else$
                 foundMatch = In.process(nulls, mvs, lhsBlock.get$Type$(lhsBlock.getFirstValueIndex(p)), rhsValues);
 $endif$
@@ -172,6 +199,7 @@ $endif$
         }
     }
 
+$if(!Range)$
     private BooleanBlock eval(int positionCount, $Type$Vector lhsVector, $Type$Vector[] rhsVectors) {
         try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
 $if(int)$
@@ -230,6 +258,7 @@ $endif$
             return result.build();
         }
     }
+$endif$
 
     @Override
     public String toString() {
@@ -253,7 +282,7 @@ $endif$
 
     private Warnings warnings() {
         if (warnings == null) {
-            this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+            this.warnings = driverContext.createWarnings(source);
         }
         return warnings;
     }

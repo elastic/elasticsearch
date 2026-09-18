@@ -85,15 +85,13 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     }
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void enableMonitoring() throws Exception {
         startMonitoringService();
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void disableMonitoring() throws Exception {
         stopMonitoringService();
-        super.tearDown();
     }
 
     protected void startMonitoringService() {

@@ -45,6 +45,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -117,10 +118,8 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         return plugins;
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createFieldCapsIndices() throws Exception {
 
         XContentBuilder oldIndexMapping = XContentFactory.jsonBuilder()
             .startObject()
@@ -397,6 +396,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     }
 
     public void testMetadataFields() {
+        assumeNoColumnarId("test relies on not loading id by setting stored field spect to _none_", "old_index", "new_index");
         for (int i = 0; i < 2; i++) {
             String[] fields = i == 0 ? new String[] { "*" } : new String[] { "_id", "_test" };
             FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields(fields).get();
@@ -852,6 +852,14 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             }, 30, TimeUnit.SECONDS);
             BlockingOnRewriteQueryBuilder.unblockOnRewrite();
             expectThrows(CancellationException.class, future::actionGet);
+            logger.info("--> waiting for cancelled field-caps tasks to be removed");
+            assertBusy(() -> {
+                List<TaskInfo> tasks = clusterAdmin().prepareListTasks()
+                    .setActions("indices:data/read/field_caps", "indices:data/read/field_caps[n]")
+                    .get()
+                    .getTasks();
+                assertThat(tasks, empty());
+            }, 30, TimeUnit.SECONDS);
         }
     }
 
@@ -902,6 +910,54 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                 indexModes.put("test_logs_" + i, IndexMode.LOGSDB);
                 indexModes.put("test_old_logs_" + i, IndexMode.STANDARD);
             }
+        }
+        // columnar
+        final String columnarMapping = """
+             {
+                 "properties": {
+                   "@timestamp": { "type": "date" },
+                   "hostname": { "type": "keyword"},
+                   "request_count" : { "type" : "long"},
+                   "cluster": {"type": "keyword"}
+                 }
+             }
+            """;
+        // Explicitly set DOC_VALUES_ONLY to override the random index template, which may set POINTS_AND_DOC_VALUES
+        // — incompatible with the disable_sequence_numbers default that columnar mode enables.
+        Settings columnarSettings = Settings.builder()
+            .put("mode", "columnar")
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        int numColumnarIndices = between(1, 5);
+        for (int i = 0; i < numColumnarIndices; i++) {
+            assertAcked(indicesAdmin().prepareCreate("test_columnar_" + i).setSettings(columnarSettings).setMapping(columnarMapping));
+            indexModes.put("test_columnar_" + i, IndexMode.COLUMNAR);
+        }
+        // logsdb_columnar
+        final String columnarLogsdbMapping = """
+             {
+                 "properties": {
+                   "@timestamp": { "type": "date" },
+                   "hostname": { "type": "keyword"},
+                   "request_count" : { "type" : "long"},
+                   "cluster": {"type": "keyword"}
+                 }
+             }
+            """;
+        // Explicitly set DOC_VALUES_ONLY to override the random index template, which may set POINTS_AND_DOC_VALUES
+        // — incompatible with the disable_sequence_numbers default that logsdb_columnar mode enables.
+        Settings logsdbColumnarSettings = Settings.builder()
+            .put("mode", "logsdb_columnar")
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        int numLogsdbColumnarIndices = between(1, 5);
+        for (int i = 0; i < numLogsdbColumnarIndices; i++) {
+            assertAcked(
+                indicesAdmin().prepareCreate("test_logsdb_columnar_" + i)
+                    .setSettings(logsdbColumnarSettings)
+                    .setMapping(columnarLogsdbMapping)
+            );
+            indexModes.put("test_logsdb_columnar_" + i, IndexMode.LOGSDB_COLUMNAR);
         }
         FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
         request.setMergeResults(false);

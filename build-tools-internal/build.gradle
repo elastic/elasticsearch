@@ -9,13 +9,13 @@
 
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo
+import org.gradle.process.CommandLineArgumentProvider
 
 plugins {
   id 'java-gradle-plugin'
   id 'groovy-gradle-plugin'
   id 'groovy'
   id 'elasticsearch.build-tools'
-  id 'elasticsearch.eclipse'
   id 'elasticsearch.versions'
   id 'elasticsearch.formatting'
 }
@@ -32,6 +32,10 @@ gradlePlugin {
   // with the java-gradle-plugin
   automatedPublishing = false
   plugins {
+    base {
+      id = 'elasticsearch.base'
+      implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchBasePlugin'
+    }
     build {
       id = 'elasticsearch.build'
       implementationClass = 'org.elasticsearch.gradle.internal.BuildPlugin'
@@ -116,6 +120,14 @@ gradlePlugin {
       id = 'elasticsearch.internal-test-rerun'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rerun.InternalTestRerunPlugin'
     }
+    nativeLibraryBuild {
+      id = 'elasticsearch.native-library-build'
+      implementationClass = 'org.elasticsearch.gradle.internal.nativelibs.NativeLibraryBuildPlugin'
+    }
+    nativeLibraries {
+      id = 'elasticsearch.native-libraries'
+      implementationClass = 'org.elasticsearch.gradle.internal.nativelibs.NativeLibrariesPlugin'
+    }
     javaToolChainPlugin {
       id = 'elasticsearch.java-toolchain'
       implementationClass = 'org.elasticsearch.gradle.internal.toolchain.JavaToolChainResolverPlugin'
@@ -131,10 +143,6 @@ gradlePlugin {
     java {
       id = 'elasticsearch.java'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin'
-    }
-    legacyInternalJavaRestTest {
-      id = 'elasticsearch.legacy-java-rest-test'
-      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.LegacyJavaRestTestPlugin'
     }
     internalJavaRestTest {
       id = 'elasticsearch.internal-java-rest-test'
@@ -152,9 +160,33 @@ gradlePlugin {
       id = 'elasticsearch.mrjar'
       implementationClass = 'org.elasticsearch.gradle.internal.MrjarPlugin'
     }
+    benchmark {
+      id = 'elasticsearch.benchmark'
+      implementationClass = 'org.elasticsearch.gradle.internal.BenchmarkPlugin'
+    }
+    foreignLibrary {
+      id = 'elasticsearch.foreign-library'
+      implementationClass = 'org.elasticsearch.gradle.internal.foreign.ForeignLibraryPlugin'
+    }
+    foreignApi {
+      id = 'elasticsearch.foreign-api'
+      implementationClass = 'org.elasticsearch.gradle.internal.ForeignApiPlugin'
+    }
     embeddedProvider {
       id = 'elasticsearch.embedded-providers'
       implementationClass = 'org.elasticsearch.gradle.internal.EmbeddedProviderPlugin'
+    }
+    esqlFunction {
+      id = 'elasticsearch.esql-function'
+      implementationClass = 'org.elasticsearch.gradle.internal.esql.EsqlFunctionPlugin'
+    }
+    esqlCsvSpecTests {
+      id = 'elasticsearch.esql-csv-spec-tests'
+      implementationClass = 'org.elasticsearch.gradle.internal.esql.EsqlCsvSpecTestsPlugin'
+    }
+    esqlDataSourceBwc {
+      id = 'elasticsearch.esql-datasource-bwc'
+      implementationClass = 'org.elasticsearch.gradle.internal.esql.EsqlDataSourceBwcPlugin'
     }
     releaseTools {
       id = 'elasticsearch.release-tools'
@@ -168,10 +200,6 @@ gradlePlugin {
       id = 'elasticsearch.rest-resources'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.RestResourcesPlugin'
     }
-    standaloneRestTest {
-      id = 'elasticsearch.standalone-rest-test'
-      implementationClass = 'org.elasticsearch.gradle.internal.test.StandaloneRestTestPlugin'
-    }
     standaloneTest {
       id = 'elasticsearch.standalone-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.StandaloneTestPlugin'
@@ -179,10 +207,6 @@ gradlePlugin {
     stringTemplate {
        id = 'elasticsearch.string-templates'
        implementationClass = 'org.elasticsearch.gradle.internal.StringTemplatePlugin'
-    }
-    testFixtures {
-      id = 'elasticsearch.test.fixtures'
-      implementationClass = 'org.elasticsearch.gradle.internal.testfixtures.TestFixturesPlugin'
     }
     deployTestFixtures {
       id = 'elasticsearch.deploy-test-fixtures'
@@ -196,25 +220,13 @@ gradlePlugin {
       id = 'elasticsearch.test-with-dependencies'
       implementationClass = 'org.elasticsearch.gradle.internal.test.TestWithDependenciesPlugin'
     }
-    testWithSsl {
-      id = 'elasticsearch.test-with-ssl'
-      implementationClass = 'org.elasticsearch.gradle.internal.test.TestWithSslPlugin'
-    }
     validateRestSpec {
       id = 'elasticsearch.validate-rest-spec'
       implementationClass = 'org.elasticsearch.gradle.internal.precommit.ValidateRestSpecPlugin'
     }
-    legacyYamlRestCompatTest {
-      id = 'elasticsearch.legacy-yaml-rest-compat-test'
-      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.compat.compat.LegacyYamlRestCompatTestPlugin'
-    }
     yamlRestCompatTest {
       id = 'elasticsearch.yaml-rest-compat-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.compat.compat.YamlRestCompatTestPlugin'
-    }
-    legacyYamlRestTest {
-      id = 'elasticsearch.legacy-yaml-rest-test'
-      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin'
     }
     cacheTestFixtures {
         id = 'elasticsearch.cache-test-fixtures'
@@ -254,6 +266,10 @@ sourceSets {
     compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
     runtimeClasspath += output + compileClasspath
   }
+  archunit {
+    compileClasspath += sourceSets["main"].output + sourceSets["test"].output + sourceSets["integTest"].output + configurations["testRuntimeClasspath"] + configurations["integTestRuntimeClasspath"]
+    runtimeClasspath += output + compileClasspath
+  }
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -276,6 +292,8 @@ repositories {
 
 configurations {
   integTestRuntimeOnly.extendsFrom(testRuntimeOnly)
+  archunitImplementation.extendsFrom(testImplementation, integTestImplementation)
+  archunitRuntimeOnly.extendsFrom(testRuntimeOnly, integTestRuntimeOnly)
 }
 
 dependencies {
@@ -284,6 +302,7 @@ dependencies {
     // ensuring brought asm version brought in by spock is up-to-date
     testImplementation buildLibs.asm
     integTestImplementation buildLibs.asm
+    archunitImplementation buildLibs.asm
     api(buildLibs.snakeyaml)
     api("org.slf4j:slf4j-api:2.0.6") {
       because("Align with what we use in production")
@@ -331,21 +350,21 @@ dependencies {
   testImplementation buildLibs.hamcrest
   testImplementation testFixtures("org.elasticsearch.gradle:build-tools:$version")
 
-  testImplementation(platform(buildLibs.junit5.platform))
-  testImplementation(buildLibs.junit5.jupiter) {
+  testImplementation(platform(buildLibs.junit.platform))
+  testImplementation(buildLibs.junit.jupiter) {
     because 'allows to write and run Jupiter tests'
   }
-  integTestImplementation(platform(buildLibs.junit5.platform))
-  integTestImplementation(buildLibs.junit5.jupiter) {
+  integTestImplementation(platform(buildLibs.junit.platform))
+  integTestImplementation(buildLibs.junit.jupiter) {
     because 'allows to write and run Jupiter tests'
   }
   integTestImplementation(buildLibs.bytebuddy) {
     because 'Generating dynamic mocks of internal libraries like JdkJarHell'
   }
-  testRuntimeOnly(buildLibs.junit5.vintage) {
+  testRuntimeOnly(buildLibs.junit.vintage) {
     because 'allows JUnit 3 and JUnit 4 tests to run'
   }
-  testRuntimeOnly(buildLibs.junit5.platform.launcher) {
+  testRuntimeOnly(buildLibs.junit.platform.launcher) {
     because 'allows tests to run from IDEs that bundle older version of launcher'
   }
 
@@ -364,10 +383,19 @@ dependencies {
   testImplementation buildLibs.spock.junit4
   testImplementation buildLibs.json.assert
   integTestImplementation buildLibs.xmlunit.core
+  testImplementation(buildLibs.archunit) {
+    because 'architecture rules enforcing Gradle best practices on build logic'
+  }
 
 }
 
 tasks.named('test').configure {
+  useJUnitPlatform()
+}
+tasks.register("archunitTest", Test) {
+  dependsOn("testClasses", "integTestClasses")
+  testClassesDirs = sourceSets.archunit.output.classesDirs
+  classpath = sourceSets.archunit.runtimeClasspath
   useJUnitPlatform()
 }
 tasks.register("integTest", Test) {
@@ -375,9 +403,20 @@ tasks.register("integTest", Test) {
   testClassesDirs = sourceSets.integTest.output.classesDirs
   classpath = sourceSets.integTest.runtimeClasspath
   useJUnitPlatform()
+  // ElasticsearchTestBasePlugin cannot apply itself, so java.io.tmpdir must be set manually here.
+  // Without it, JUnit/Spock create temp dirs under /tmp (root fs) instead of the build dir (/dev/shm in CI).
+  // The nested Gradle TestKit runners require an absolute path, so a relative value is not an option here.
+  // A CommandLineArgumentProvider keeps that absolute path out of the task inputs so it stays cache relocatable.
+  def tempDir = temporaryDir
+  // Pin the TestKit Gradle user home instead of letting TestKit derive it from java.io.tmpdir, so that
+  // AbstractGradleFuncTest knows exactly where to seed its cache-cleanup init script.
+  def testKitDir = new File(temporaryDir, ".gradle-test-kit")
+  jvmArgumentProviders.add({
+    ["-Djava.io.tmpdir=${tempDir}", "-Dorg.gradle.testkit.dir=${testKitDir}"] as List<String>
+  } as CommandLineArgumentProvider)
 }
 
-tasks.named("check").configure { dependsOn("integTest") }
+tasks.named("check").configure { dependsOn("integTest", "archunitTest") }
 
 tasks.register("bootstrapPerformanceTests", Copy) {
   from('performance')

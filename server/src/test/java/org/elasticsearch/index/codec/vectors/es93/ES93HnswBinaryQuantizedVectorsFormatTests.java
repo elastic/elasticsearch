@@ -24,7 +24,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
-import org.elasticsearch.index.codec.vectors.BaseHnswVectorsFormatTestCase;
+import org.elasticsearch.index.codec.vectors.BaseQuantizedHnswVectorsFormatTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 
-public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
+public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseQuantizedHnswVectorsFormatTestCase {
 
     @Override
     protected KnnVectorsFormat createFormat() {
@@ -97,7 +97,7 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsFo
         assertThat(format, hasToString(containsString("ES93BinaryQuantizedVectorsFormat")));
         assertThat(format, hasToString(containsString("ES93GenericFlatVectorsFormat")));
         assertThat(format, hasToString(containsString("Lucene99FlatVectorsFormat")));
-        assertThat(format, hasToString(containsString("ES93FlatVectorScorer")));
+        assertThat(format, hasToString(containsString("ES93GenericFlatVectorScorer")));
     }
 
     public void testDefaultHnswGraphThreshold() {

@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.evaluator.command;
 
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.compute.test.TestWarningsSource;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -26,30 +28,21 @@ import static org.elasticsearch.web.UriParts.QUERY;
 import static org.elasticsearch.web.UriParts.SCHEME;
 import static org.elasticsearch.web.UriParts.USERNAME;
 import static org.elasticsearch.web.UriParts.USER_INFO;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class UriPartsFunctionBridgeTests extends AbstractCompoundOutputEvaluatorTests {
 
-    private final Warnings WARNINGS = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new WarningSourceLocation() {
-        @Override
-        public int lineNumber() {
-            return 1;
-        }
+    private final DriverContext warningsContext = new DriverContext(
+        BigArrays.NON_RECYCLING_INSTANCE,
+        TestBlockFactory.getNonBreakingInstance(),
+        null
+    );
+    private final Warnings WARNINGS = warningsContext.createWarnings(new TestWarningsSource("invalid_input"));
 
-        @Override
-        public int columnNumber() {
-            return 2;
-        }
-
-        @Override
-        public String viewName() {
-            return null;
-        }
-
-        @Override
-        public String text() {
-            return "invalid_input";
-        }
-    });
+    private void assertCollectedWarnings(String... expected) {
+        warningsContext.finish();
+        assertThat(warningsContext.warnings(), containsInAnyOrder(expected));
+    }
 
     @Override
     protected CompoundOutputEvaluator.OutputFieldsCollector createOutputFieldsCollector(List<String> requestedFields) {
@@ -93,9 +86,9 @@ public class UriPartsFunctionBridgeTests extends AbstractCompoundOutputEvaluator
         );
         List<Object[]> expected = Collections.nCopies(requestedFields.size(), new Object[] { null });
         evaluateAndCompare(input, requestedFields, expected, WARNINGS);
-        assertCriticalWarnings(
-            "Line 1:2: evaluation of [invalid_input] failed, treating result as null. Only first 20 failures recorded.",
-            "Line 1:2: java.lang.IllegalArgumentException: This command doesn't support multi-value input"
+        assertCollectedWarnings(
+            "Line 1:1: evaluation of [invalid_input] failed, treating result as null. Only first 20 failures recorded.",
+            "Line 1:1: java.lang.IllegalArgumentException: This command doesn't support multi-value input"
         );
     }
 
@@ -132,9 +125,9 @@ public class UriPartsFunctionBridgeTests extends AbstractCompoundOutputEvaluator
         List<String> input = List.of("not a valid url");
         List<?> expected = Arrays.asList(null, null);
         evaluateAndCompare(input, requestedFields, expected, WARNINGS);
-        assertCriticalWarnings(
-            "Line 1:2: evaluation of [invalid_input] failed, treating result as null. Only first 20 failures recorded.",
-            "Line 1:2: java.lang.IllegalArgumentException: unable to parse URI [not a valid url]"
+        assertCollectedWarnings(
+            "Line 1:1: evaluation of [invalid_input] failed, treating result as null. Only first 20 failures recorded.",
+            "Line 1:1: java.lang.IllegalArgumentException: unable to parse URI [not a valid url]"
         );
     }
 

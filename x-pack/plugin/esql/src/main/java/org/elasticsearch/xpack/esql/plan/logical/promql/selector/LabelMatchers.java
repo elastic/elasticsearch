@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.xpack.esql.core.tree.Node;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringRenderable;
 
 import java.util.List;
 import java.util.Map;
@@ -19,7 +22,7 @@ import static java.util.Collections.emptyMap;
 /**
  * Immutable collection of label matchers for a PromQL selector.
  */
-public class LabelMatchers {
+public class LabelMatchers implements NodeStringRenderable {
     /**
      * Empty label matchers for literal selectors and other cases with no label constraints.
      */
@@ -74,5 +77,24 @@ public class LabelMatchers {
     @Override
     public String toString() {
         return labelMatchers.toString();
+    }
+
+    /**
+     * Renders the matcher list shape ({@code [m1, m2]}, matching {@code List.toString()}) with each
+     * matcher routed through the mapper, so label names + match values tokenize under anonymization
+     * while identity rendering stays byte-identical.
+     */
+    @Override
+    public void nodeString(StringBuilder sb, Node.NodeStringFormat format, NodeStringMapper mapper) {
+        sb.append('[');
+        boolean first = true;
+        for (LabelMatcher m : labelMatchers) {
+            if (first == false) {
+                sb.append(", ");
+            }
+            first = false;
+            m.nodeString(sb, format, mapper);
+        }
+        sb.append(']');
     }
 }

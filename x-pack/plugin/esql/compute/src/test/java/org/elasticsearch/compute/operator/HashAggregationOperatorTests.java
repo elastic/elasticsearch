@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunction;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
@@ -22,6 +23,8 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.PartitionedAggregationBlock;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.hamcrest.Matcher;
@@ -36,7 +39,9 @@ import java.util.stream.LongStream;
 
 import static java.util.stream.IntStream.range;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
     public static HashAggregationOperator.Builder randomBuilder() {
@@ -73,7 +78,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
             .groups(List.of(new BlockHash.GroupSpec(0, ElementType.LONG)))
             .aggregators(
                 List.of(
-                    new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, sumChannels),
+                    new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(mode, sumChannels),
                     new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, maxChannels)
                 )
             )
@@ -137,12 +142,22 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
         try (
             var operator = randomBuilder().groups(
-                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, false, 3)))
+                List.of(
+                    new BlockHash.GroupSpec(
+                        groupChannel,
+                        ElementType.LONG,
+                        null,
+                        new BlockHash.TopNDef(List.of(new BlockHash.SortKey(0, ascOrder, false)), 3)
+                    )
+                )
             )
                 .mode(mode)
                 .aggregators(
                     List.of(
-                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels),
+                        new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
+                            mode,
+                            aggregatorChannels
+                        ),
                         new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels)
                     )
                 )
@@ -200,12 +215,22 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
         try (
             var operator = randomBuilder().groups(
-                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, true, 3)))
+                List.of(
+                    new BlockHash.GroupSpec(
+                        groupChannel,
+                        ElementType.LONG,
+                        null,
+                        new BlockHash.TopNDef(List.of(new BlockHash.SortKey(0, ascOrder, true)), 3)
+                    )
+                )
             )
                 .mode(mode)
                 .aggregators(
                     List.of(
-                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels),
+                        new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
+                            mode,
+                            aggregatorChannels
+                        ),
                         new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels)
                     )
                 )
@@ -268,16 +293,26 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
         // Supplier of operators to ensure that they're identical, simulating a datanode/coordinator connection
         Function<AggregatorMode, Operator> makeAggWithMode = (mode) -> {
-            var sumAggregatorChannels = mode.isInputPartial() ? List.of(1, 2) : List.of(1);
-            var maxAggregatorChannels = mode.isInputPartial() ? List.of(3, 4) : List.of(1);
+            var sumAggregatorChannels = mode.isInputPartial() ? List.of(1, 2, 3) : List.of(1);
+            var maxAggregatorChannels = mode.isInputPartial() ? List.of(4, 5) : List.of(1);
 
             return randomBuilder().groups(
-                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, false, 3)))
+                List.of(
+                    new BlockHash.GroupSpec(
+                        groupChannel,
+                        ElementType.LONG,
+                        null,
+                        new BlockHash.TopNDef(List.of(new BlockHash.SortKey(0, ascOrder, false)), 3)
+                    )
+                )
             )
                 .mode(mode)
                 .aggregators(
                     List.of(
-                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, sumAggregatorChannels),
+                        new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
+                            mode,
+                            sumAggregatorChannels
+                        ),
                         new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, maxAggregatorChannels)
                     )
                 )
@@ -368,5 +403,34 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
         assertThat(seenGroups, expectedGroups);
         assertThat(seenSums, expectedSums);
         assertThat(seenMaxes, expectedMaxes);
+    }
+
+    public void testDisablePartitioning() {
+        var config = new HashAggregationOperator.ParallelConfig(EsExecutors.DIRECT_EXECUTOR_SERVICE, 1, 1, between(800, Integer.MAX_VALUE));
+        DriverContext driverContext = driverContext();
+        var groupSpecs = List.of(new BlockHash.GroupSpec(0, ElementType.LONG));
+        try (
+            var operator = new HashAggregationOperator(
+                AggregatorMode.INITIAL,
+                List.of(),
+                dc -> BlockHash.buildPackedValuesBlockHash(groupSpecs, dc.blockFactory(), 128),
+                between(10, 500),
+                1.0,
+                128,
+                null,
+                null,
+                driverContext,
+                config,
+                true
+            )
+        ) {
+            List<Object> values = LongStream.range(0, 100L).mapToObj(n -> (Object) n).toList();
+            operator.addInput(new Page(BlockUtils.fromListRow(blockFactory(), values)));
+            operator.finish();
+            try (Page output = operator.getOutput()) {
+                assertThat(output.getBlockCount(), equalTo(1));
+                assertThat(output.getBlock(0), not(instanceOf(PartitionedAggregationBlock.class)));
+            }
+        }
     }
 }

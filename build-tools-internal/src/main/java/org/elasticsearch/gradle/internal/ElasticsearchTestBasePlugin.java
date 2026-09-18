@@ -20,7 +20,6 @@ import org.elasticsearch.gradle.internal.test.rerun.InternalTestRerunPlugin;
 import org.elasticsearch.gradle.test.GradleTestPolicySetupPlugin;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.gradle.api.Action;
-import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -29,6 +28,8 @@ import org.gradle.api.configuration.BuildFeatures;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.tasks.ClasspathNormalizer;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.testing.Test;
@@ -74,9 +75,11 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
 
         // none of this stuff is applicable to the `:buildSrc` project tests
         File heapdumpDir = new File(project.getBuildDir(), "heapdump");
+        final boolean isCi = buildParams.get().getCi();
 
         project.getTasks().withType(Test.class).configureEach(test -> {
             File testOutputDir = new File(test.getReports().getJunitXml().getOutputLocation().getAsFile().get(), "output");
+            test.getReports().getHtml().getRequired().set(isCi == false);
 
             ErrorReportingTestListener listener = new ErrorReportingTestListener(test, testOutputDir);
             test.getExtensions().getExtraProperties().set(DUMP_OUTPUT_ON_FAILURE_PROP_NAME, true);
@@ -126,24 +129,22 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 // TODO: only open these for mockito when it is modularized
                 "--add-opens=java.base/java.security.cert=ALL-UNNAMED",
                 "--add-opens=java.base/java.nio.channels=ALL-UNNAMED",
+                // org.apache.arrow.memory.core needs access java.nio internals
+                "--add-opens=java.base/java.nio=ALL-UNNAMED",
                 "--add-opens=java.base/java.net=ALL-UNNAMED",
                 "--add-opens=java.base/javax.net.ssl=ALL-UNNAMED",
                 "--add-opens=java.base/java.nio.file=ALL-UNNAMED",
                 "--add-opens=java.base/java.time=ALL-UNNAMED",
                 "--add-opens=java.management/java.lang.management=ALL-UNNAMED",
+                // Needed by UninitializedArrays to reflectively access jdk.internal.misc.Unsafe
+                "--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED",
                 "--enable-native-access=ALL-UNNAMED",
                 "--add-modules=jdk.incubator.vector",
-                "-XX:+HeapDumpOnOutOfMemoryError"
+                "-XX:+HeapDumpOnOutOfMemoryError",
+                "-XX:-UseGCOverheadLimit"
             );
 
             test.getJvmArgumentProviders().add(new SimpleCommandLineArgumentProvider("-XX:HeapDumpPath=" + heapdumpDir));
-            test.getJvmArgumentProviders().add(() -> {
-                if (test.getJavaVersion().compareTo(JavaVersion.VERSION_23) <= 0) {
-                    return List.of("-Djava.security.manager=allow");
-                } else {
-                    return List.of();
-                }
-            });
             test.getJvmArgumentProviders()
                 .add(() -> List.of("-Dorg.apache.lucene.vectorization.upperJavaFeatureVersion=" + test.getJavaVersion().getMajorVersion()));
 
@@ -161,16 +162,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 System.out.println("disable assertions");
                 test.setEnableAssertions(false);
             }
-            Map<String, String> sysprops = Map.of(
-                "java.awt.headless",
-                "true",
-                "tests.artifact",
-                project.getName(),
-                "tests.security.manager",
-                "true",
-                "jna.nosys",
-                "true"
-            );
+            Map<String, String> sysprops = Map.of("java.awt.headless", "true", "tests.artifact", project.getName(), "jna.nosys", "true");
             test.systemProperties(sysprops);
 
             // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability
@@ -223,6 +215,15 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
             test.systemProperty("es.transport.cname_in_publish_address", "true");
 
+            // Disable queryable built-in roles by default in test JVMs. In-process integ tests
+            // (ESIntegTestCase / ESSingleNodeTestCase and subclasses) inherit this; tests that
+            // exercise the feature opt back in explicitly. REST/upgrade clusters run in separate
+            // JVMs and are unaffected.
+            test.systemProperty("es.queryable_built_in_roles_enabled", "false");
+
+            // Logging is shut down explicitly, so disable Log4j's own shutdown hook as we do in jvm.options
+            test.systemProperty("log4j.shutdownHookEnabled", "false");
+
             // Set netty system properties to the properties we configure in jvm.options
             test.systemProperty("io.netty.noUnsafe", "true");
             test.systemProperty("io.netty.noKeySetOptimization", "true");
@@ -268,13 +269,23 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             // patch immutable collections only for "test" task
             FileCollection patchedImmutableCollections = test.getName().equals("test") ? patchedImmutableCollections(project) : null;
             if (patchedImmutableCollections != null) {
-                test.getInputs().files(patchedImmutableCollections);
+                // NAME_ONLY: only the patch content matters, the location is passed via a non-input argument provider.
+                // An absolute-path-sensitive input here would key the cache entry to the checkout location.
+                test.getInputs()
+                    .files(patchedImmutableCollections)
+                    .withPropertyName("patchedImmutableCollections")
+                    .withPathSensitivity(PathSensitivity.NAME_ONLY);
                 test.systemProperty("tests.hackImmutableCollections", "true");
             }
 
             FileCollection entitlementBridge = TEST_TASKS_WITH_ENTITLEMENTS.contains(test.getName()) ? entitlementBridge(project) : null;
             if (entitlementBridge != null) {
-                test.getInputs().files(entitlementBridge);
+                // Classpath normalization so the JAR manifest (which embeds a build timestamp) is ignored,
+                // via the rules in ElasticsearchJavaBasePlugin#configureInputNormalization.
+                test.getInputs()
+                    .files(entitlementBridge)
+                    .withPropertyName("entitlementBridgeJavaBasePatch")
+                    .withNormalizer(ClasspathNormalizer.class);
             }
 
             test.getJvmArgumentProviders().add(() -> {
@@ -334,7 +345,6 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 deps -> { deps.add(project.getDependencies().project(Map.of("path", ":libs:entitlement:bridge"))); }
             );
         }
-        FileCollection bridgeFiles = bridgeConfig;
 
         project.getTasks()
             .withType(Test.class)
@@ -345,35 +355,25 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                     .getByType(SystemPropertyCommandLineArgumentProvider.class);
 
                 // Agent
-                test.getInputs().files(agentFiles).optional(true);
+                test.getInputs()
+                    .files(agentFiles)
+                    .optional(true)
+                    .withPropertyName("entitlementAgent")
+                    .withNormalizer(ClasspathNormalizer.class);
                 nonInputSystemProperties.systemProperty("es.entitlement.agentJar", agentFiles::getAsPath);
                 nonInputSystemProperties.systemProperty("jdk.attach.allowAttachSelf", () -> agentFiles.isEmpty() ? "false" : "true");
 
                 // Bridge
-                String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
-                test.getInputs().files(bridgeFiles).optional(true);
+                // The bridge jar is already declared as a task input in configureJavaBaseModuleOptions (property
+                // "entitlementBridgeJavaBasePatch"), where it is patched into java.base. Registering the same
+                // configuration as an input again here would only fingerprint identical content under a second
+                // property name, so we don't.
+                String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net,jdk.zipfs";
                 // Tests may not be modular, but the JDK still is
                 test.jvmArgs(
                     "--add-exports=java.base/org.elasticsearch.entitlement.bridge=ALL-UNNAMED,"
                         + modulesContainingEntitlementInstrumentation
                 );
-
-                // Export internal JDK packages that are required (temporarily) to declare instrumentation
-                test.jvmArgs("--add-exports=jdk.jlink/jdk.tools.jlink.internal=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=jdk.internal.vm.ci/jdk.vm.ci.services=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=java.base/sun.net.www=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=java.base/sun.net.www.protocol.ftp=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=java.base/sun.net.www.protocol.file=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=java.base/sun.net.www.protocol.jar=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=java.base/sun.net.www.protocol.http=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=java.base/sun.net.www.protocol.https=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=java.base/sun.net.www.protocol.mailto=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=java.base/sun.nio.ch=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=java.base/jdk.internal.foreign=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=java.base/jdk.internal.foreign.abi=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=java.base/jdk.internal.foreign.layout=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=java.net.http/jdk.internal.net.http=ALL-UNNAMED");
-                test.jvmArgs("--add-exports=jdk.jdi/com.sun.tools.jdi=ALL-UNNAMED");
             });
     }
 

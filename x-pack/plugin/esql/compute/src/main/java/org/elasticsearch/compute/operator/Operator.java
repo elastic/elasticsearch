@@ -8,13 +8,18 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 /**
  * Operator is low-level building block that consumes, transforms and produces data.
@@ -110,6 +115,10 @@ public interface Operator extends Releasable {
 
     IsBlockedResult NOT_BLOCKED = new IsBlockedResult(SubscribableListener.nullSuccess(), "not blocked");
 
+    default Operator tryPromote(DriverContext driverContext) {
+        return this;
+    }
+
     /**
      * A factory for creating intermediate operators.
      */
@@ -136,6 +145,33 @@ public interface Operator extends Releasable {
          */
         default long valuesLoaded() {
             return 0;
+        }
+
+        /** Rows emitted; source operators populate, summed for driver / response-root rollup. */
+        default long rowsEmitted() {
+            return 0;
+        }
+
+        /** Pre-decompression bytes from storage; external-source operators only. */
+        default long bytesRead() {
+            return 0;
+        }
+
+        /** Format-reader wall time on the producer thread; external-source operators only. */
+        default long readNanos() {
+            return 0;
+        }
+
+        /** Format-reader CPU time on the producer thread (no IO wait); external-source operators only. */
+        default long readCpuNanos() {
+            return 0;
+        }
+
+        /**
+         * Additional stats attached by {@link Operator.Status}
+         */
+        abstract class ExtraStatus implements NamedWriteable {
+            protected abstract void toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException;
         }
     }
 }

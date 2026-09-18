@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 
 /**
  * Unified interface for storage object access.
@@ -40,18 +42,91 @@ public interface StorageObject {
 
     // === SYNC API (required) ===
 
-    /** Opens an input stream for sequential reading from the beginning. */
-    InputStream newStream() throws IOException;
+    /**
+     * Sentinel {@code length} for {@link #newStream(long, long)} meaning "read from {@code position} to the end
+     * of the object" — the open-ended form. It exists because the total length is not always knowable up front
+     * (e.g. a compressed object has no addressable length), so the open-ended read must signal "to the end" with
+     * this marker rather than by computing {@code length() - position}.
+     */
+    long READ_TO_END = -1L;
 
     /**
-     * Opens an input stream for reading a specific byte range.
-     * Critical for columnar formats like Parquet that read specific column chunks.
-     * For reading object footers (e.g., Parquet), use: {@code newStream(length() - footerSize, footerSize)}
+     * Opens an input stream for sequential reading of the whole object, from the beginning to the end.
+     * <p>
+     * The default is {@code newStream(0, READ_TO_END)}, so the whole-object read shares the open-ended code path
+     * (and, through the decorator chain, its resilience). A provider may override this for a plain whole-object GET.
+     */
+    default InputStream newStream() throws IOException {
+        return newStream(0, READ_TO_END);
+    }
+
+    /**
+     * Opens an input stream for reading a byte range. A {@code length} of {@link #READ_TO_END} reads from
+     * {@code position} to the end of the object (the open-ended form) — essential for streams whose total length
+     * is not available. Providers MUST translate {@code READ_TO_END} into a native open-ended read (e.g. HTTP
+     * {@code Range: bytes=position-}) and MUST NOT require {@link #length()} to serve it; an empty object (or
+     * {@code position} at/after the end) yields an empty stream.
+     * <p>
+     * Critical for columnar formats like Parquet that read specific column chunks. For reading object footers,
+     * use a bounded length: {@code newStream(length() - footerSize, footerSize)}.
      */
     InputStream newStream(long position, long length) throws IOException;
 
     /** Returns the object size in bytes. */
     long length() throws IOException;
+
+    /**
+     * Object size in bytes if already known without performing I/O (a listing hint, a prior GET's
+     * {@code Content-Length} / {@code Content-Range} total, or a constructor-supplied size).
+     * Returns {@link #READ_TO_END} when the size is not known. Implementations must not issue a
+     * HEAD or GET to serve this; use {@link #length()} when a definitive size is required.
+     * <p>
+     * A successful GET should refresh this to the size of the generation that was actually opened,
+     * so a listing size that has gone stale after a rewrite is not treated as the expected byte count.
+     */
+    default long knownLength() {
+        return READ_TO_END;
+    }
+
+    /**
+     * Opaque identifier of the object generation this instance's reads are <em>pinned</em> to
+     * (S3/HTTP/Azure ETag, GCS generation number, ...). Implementations normally send this as
+     * {@code If-Match} / {@code generationMatch}; a compatibility store that does not implement the
+     * conditional header must instead validate the generation returned by every successful response.
+     * {@code null} when no pin has been acquired: before the first read, or when the store cannot
+     * supply one (metadata access denied, weak ETag only).
+     * <p>
+     * This is deliberately <em>not</em> "the last generation seen anywhere". A metadata-only request
+     * (HEAD, {@code getProperties}, {@code objects.get}) may well see a newer generation than the one
+     * the open readers are pinned to, and reporting that here would make a perfectly valid resume
+     * look like a mid-read rewrite. Implementations must therefore acquire the pin only from a
+     * request that transfers object bytes (or, for GCS, the metadata GET issued specifically to
+     * acquire the pin), never from a metadata-only request, and must not move it once set. Pin
+     * acquisition must be atomic: concurrent first reads from different generations cannot both succeed.
+     */
+    default String contentGeneration() {
+        return null;
+    }
+
+    /**
+     * File length for {@link org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache} and
+     * {@link org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache} keys. Range views
+     * ({@code offset}/{@code length} splits) must return the underlying object's full size, not
+     * the view span, so split discovery and execution share one {@code (path, fileLength)} entry.
+     */
+    default long lengthForFooterCacheKey() throws IOException {
+        return length();
+    }
+
+    /**
+     * Maps a read position in this object's coordinate space to an offset in the object identified
+     * by {@link #lengthForFooterCacheKey()}. Identity by default. Range views add their start so a
+     * {@code FooterByteCache} suffix check uses file-absolute coordinates, matching
+     * {@link #startReadBytesAsync} which also translates before the backend GET.
+     */
+    default long offsetForFooterCache(long position) {
+        return position;
+    }
 
     /** Returns the last modification time, or null if not available. */
     Instant lastModified() throws IOException;
@@ -62,31 +137,149 @@ public interface StorageObject {
     /** Returns the path of this object. */
     StoragePath path();
 
+    /**
+     * Closes a stream opened by this object, discarding any unread bytes without blocking.
+     * <p>
+     * The default implementation calls {@link InputStream#close()}, which is correct for local
+     * files and most providers (they simply close the connection). Override this for providers
+     * whose {@code close()} drains remaining bytes to reuse the connection pool — where closing
+     * a partially-read stream would block for the full remaining object transfer time.
+     * <p>
+     * Use this instead of closing directly when the caller intentionally reads only a prefix of
+     * the stream (e.g., schema detection), and connection reuse is not required.
+     * <p>
+     * <b>Contract:</b> {@code stream} must be the exact {@link InputStream} instance returned by
+     * {@link #newStream()} or {@link #newStream(long, long)} on this object — not a wrapper
+     * around it. Passing a wrapped stream (e.g. a {@link java.io.BufferedInputStream} layered on
+     * top) causes provider-specific overrides (e.g. the S3 {@code Abortable} cast) to fall back
+     * to a draining {@code close()}, silently defeating the abort.
+     */
+    default void abortStream(InputStream stream) throws IOException {
+        stream.close();
+    }
+
     // === ASYNC API (optional - default wraps sync) ===
 
     /**
      * Async byte read with ActionListener callback.
      * <p>
-     * Default implementation wraps the sync {@link #newStream(long, long)} method in an executor.
+     * Default implementation wraps the sync {@link #readBytes(long, ByteBuffer)} method in an executor.
      * Override this method for native async I/O (e.g., HTTP sendAsync, S3AsyncClient).
      * <p>
      * Columnar formats (Parquet) can use this for parallel chunk reads when
      * {@link #supportsNativeAsync()} returns true.
+     * <p>
+     * <b>Returned buffer contract:</b> the {@link DirectReadBuffer#buffer()} delivered to the
+     * listener has {@code remaining()} equal to the number of bytes actually read, and
+     * {@code capacity()} of at least {@code length}. Callers must not assume exact capacity —
+     * consumers must use {@code remaining()} (or {@code limit() - position()}) to size their
+     * work. Implementations call {@link DirectBufferFactory#allocateWritableWindow(int)} so an
+     * over-sized factory buffer cannot be filled past the request. The buffer is not required
+     * to be direct; production factories return a heap {@code byte[]} view.
+     * <p>
+     * On end-of-content at {@code position} the buffer is delivered with {@code remaining() == 0}.
+     *
+     * <p>
+     * <b>Buffer ownership:</b> the storage object obtains exactly one {@link DirectReadBuffer} of
+     * {@code length} bytes from {@code factory}. The caller must invoke {@link DirectReadBuffer#close()}
+     * once the bytes have been consumed; closing releases the buffer (breaker charge for heap,
+     * native memory for Arrow-backed factories). See {@link DirectReadBuffer} for the contract.
+     *
+     * <p>
+     * <b>Implementation contract:</b> if the read fails, implementations must close the
+     * {@link DirectReadBuffer} before calling {@code listener.onFailure()}. Callers that fan out
+     * reads across multiple merged ranges rely on this invariant to avoid double-releasing buffers
+     * from the successfully-completed sibling ranges on the failure path.
      *
      * @param position the starting byte position
      * @param length the number of bytes to read
+     * @param factory produces the {@link DirectReadBuffer} the bytes are read into; the storage
+     *            object allocates from it exactly once, through
+     *            {@link DirectBufferFactory#allocateWritableWindow(int)} with {@code length}
      * @param executor executor for running the async operation
      * @param listener callback for the result or failure
      */
-    default void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
-        executor.execute(() -> {
-            try (InputStream stream = newStream(position, length)) {
-                byte[] bytes = stream.readAllBytes();
-                listener.onResponse(ByteBuffer.wrap(bytes));
-            } catch (Exception e) {
-                listener.onFailure(e);
+    default void readBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
+        if (length < 0) {
+            listener.onFailure(new IllegalArgumentException("length must be non-negative, got: " + length));
+            return;
+        }
+        if (length > Integer.MAX_VALUE) {
+            listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
+            return;
+        }
+        // Allocate on the calling thread so a breaker trip or OOM surfaces synchronously via
+        // the listener instead of escaping the executor's Runnable as an Error and leaving the
+        // listener permanently uncompleted.
+        final DirectReadBuffer drb;
+        boolean submitted = false;
+        try {
+            drb = factory.allocateWritableWindow((int) length);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        try {
+            executor.execute(() -> {
+                try {
+                    int read = Math.max(0, readBytes(position, drb.buffer()));
+                    drb.buffer().position(0).limit(read);
+                } catch (Exception e) {
+                    drb.close();
+                    listener.onFailure(e);
+                    return;
+                }
+                // Deliver outside the I/O catch so a throw from onResponse does not
+                // double-close drb or invoke listener.onFailure after listener.onResponse.
+                try {
+                    listener.onResponse(drb);
+                } catch (Exception e) {
+                    try {
+                        drb.close();
+                    } catch (Exception closeEx) {
+                        e.addSuppressed(closeEx);
+                    }
+                    throw e;
+                }
+            });
+            submitted = true;
+        } finally {
+            if (submitted == false) {
+                // Executor rejected (saturated queue, shutdown) — release the buffer eagerly so it
+                // does not stay charged against the breaker for the lifetime of the JVM.
+                drb.close();
             }
-        });
+        }
+    }
+
+    /**
+     * Starts {@link #readBytesAsync} and returns a handle that cancels the in-flight GET if still
+     * running. The default handle is a no-op; providers whose native client exposes a cancellable
+     * future (S3 SDK {@code getObject}) must override this so prefetch cancel aborts the HTTP
+     * request instead of leaving it running.
+     * <p>
+     * A leaf may override {@link #readBytesAsync} <em>or</em> this method with mutual delegation,
+     * not both. If {@code readBytesAsync} forwards here, a missing-native-client fallback must
+     * call {@code super.readBytesAsync} (the default I/O implementation) and return a no-op handle.
+     * {@code super.startReadBytesAsync} re-enters the virtual {@code readBytesAsync} and overflows
+     * the stack. {@code StorageObject.super.readBytesAsync} is only legal on a class that implements
+     * this interface directly.
+     */
+    default Releasable startReadBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
+        readBytesAsync(position, length, factory, executor, listener);
+        return () -> {};
     }
 
     /**
@@ -105,30 +298,34 @@ public interface StorageObject {
      * @param listener callback with the number of bytes read, or failure
      */
     default void readBytesAsync(long position, ByteBuffer target, Executor executor, ActionListener<Integer> listener) {
-        executor.execute(() -> {
-            int toRead = target.remaining();
-            try (InputStream stream = newStream(position, toRead)) {
-                if (target.hasArray()) {
-                    int totalRead = 0;
-                    int off = target.arrayOffset() + target.position();
-                    while (totalRead < toRead) {
-                        int n = stream.read(target.array(), off + totalRead, toRead - totalRead);
-                        if (n < 0) {
-                            break;
+        try {
+            executor.execute(() -> {
+                int toRead = target.remaining();
+                try (InputStream stream = newStream(position, toRead)) {
+                    if (target.hasArray()) {
+                        int totalRead = 0;
+                        int off = target.arrayOffset() + target.position();
+                        while (totalRead < toRead) {
+                            int n = stream.read(target.array(), off + totalRead, toRead - totalRead);
+                            if (n < 0) {
+                                break;
+                            }
+                            totalRead += n;
                         }
-                        totalRead += n;
+                        target.position(target.position() + totalRead);
+                        listener.onResponse(totalRead);
+                    } else {
+                        byte[] bytes = stream.readAllBytes();
+                        target.put(bytes);
+                        listener.onResponse(bytes.length);
                     }
-                    target.position(target.position() + totalRead);
-                    listener.onResponse(totalRead);
-                } else {
-                    byte[] bytes = stream.readAllBytes();
-                    target.put(bytes);
-                    listener.onResponse(bytes.length);
+                } catch (Exception e) {
+                    listener.onFailure(e);
                 }
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        });
+            });
+        } catch (RejectedExecutionException e) {
+            listener.onFailure(e);
+        }
     }
 
     // === POSITIONAL BYTE-BUFFER API (optional - enables zero-copy for columnar formats) ===
@@ -204,4 +401,38 @@ public interface StorageObject {
     default boolean supportsNativeAsync() {
         return false;
     }
+
+    /**
+     * Whether {@link #readBytesAsync} returns the {@code executor} thread before the GET completes.
+     * The default implementation submits blocking I/O on {@code executor} and returns {@code false}.
+     * Native clients that complete on their own I/O pool (S3, Azure, HTTP) return {@code true}.
+     * GCS overrides {@code readBytesAsync} but still blocks {@code executor}, so it returns
+     * {@code false} even though {@link #supportsNativeAsync()} is {@code true} for read-path
+     * parallel chunks.
+     */
+    default boolean readBytesAsyncReleasesExecutor() {
+        return false;
+    }
+
+    // === METRICS API (optional - default returns the zero-valued snapshot) ===
+
+    /**
+     * Returns cumulative I/O counters for reads against this object.
+     * <p>
+     * Implementations that don't track I/O return {@link StorageObjectMetrics#ZERO}.
+     * Decorator wrappers must delegate to the wrapped object so counters are
+     * attributed to the underlying store, not the wrapper layer.
+     */
+    default StorageObjectMetrics metrics() {
+        return StorageObjectMetrics.ZERO;
+    }
+
+    /**
+     * Attaches the node telemetry sink and the storage {@code scheme} dimension so that this object's
+     * read/retry events are published to {@link ExternalSourceMetrics} (in addition to the profile
+     * counters surfaced by {@link #metrics()}). Called once by the operator wiring when it opens the
+     * object. The default is a no-op for objects that don't track I/O; decorator wrappers must forward
+     * to the wrapped object so the metrics attach to the underlying store, not the wrapper layer.
+     */
+    default void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 }

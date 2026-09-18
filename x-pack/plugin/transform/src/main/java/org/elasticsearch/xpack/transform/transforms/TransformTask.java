@@ -14,8 +14,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Predicates;
@@ -220,7 +220,11 @@ public class TransformTask extends AllocatedPersistentTask
             );
             return;
         }
-        transformsCheckpointService.getCheckpointProvider(parentTaskClient, transformIndexer.getConfig())
+        transformsCheckpointService.getCheckpointProvider(
+            parentTaskClient,
+            transformIndexer.getConfig(),
+            () -> getContext().getPersistedCloudCredential()
+        )
             .getCheckpointingInfo(
                 transformIndexer.getLastCheckpoint(),
                 transformIndexer.getNextCheckpoint(),
@@ -510,7 +514,9 @@ public class TransformTask extends AllocatedPersistentTask
     @Override
     public void shutdown() {
         logger.debug("[{}] shutdown of transform requested", transform.getId());
+        context.close();
         transformScheduler.deregisterTransform(getTransformId());
+        transformNode.deregisterTransform(getTransformId());
         markAsCompleted();
     }
 
@@ -554,10 +560,20 @@ public class TransformTask extends AllocatedPersistentTask
                 listener.onResponse(null);
                 return;
             }
+            // If we are aborting, this means a cancellation request (e.g. the node the task is on is going away) is already
+            // tearing the indexer down towards a clean completion. A failure racing that teardown (e.g. an in-flight search
+            // failing because of the same disconnect that triggered the cancellation) must not override it with FAILED,
+            // since FAILED is sticky and blocks the reassigned task from auto-starting on the new node.
+            if (getIndexer() != null && getIndexer().getState() == IndexerState.ABORTING) {
+                logger.info("[{}] encountered a failure but indexer is ABORTING; reason [{}].", getTransformId(), reason);
+                listener.onResponse(null);
+                return;
+            }
 
             // We should not keep retrying. Either the task will be stopped, or started
             // If it is started again, it is registered again.
             transformScheduler.deregisterTransform(getTransformId());
+            transformNode.deregisterTransform(getTransformId());
 
             if (transformNode.isShuttingDown().orElse(false)) {
                 logger.atDebug()
@@ -568,6 +584,7 @@ public class TransformTask extends AllocatedPersistentTask
                         transformNode.nodeId(),
                         reason
                     );
+                context.close();
                 markAsLocallyAborted("Node is shutting down.");
                 listener.onResponse(null);
                 return;
@@ -638,8 +655,8 @@ public class TransformTask extends AllocatedPersistentTask
         return threadPool;
     }
 
-    public static PersistentTask<?> getTransformTask(String transformId, ClusterState clusterState) {
-        Collection<PersistentTask<?>> transformTasks = findTransformTasks(t -> t.getId().equals(transformId), clusterState);
+    public static PersistentTask<?> getTransformTask(String transformId, ProjectMetadata project) {
+        Collection<PersistentTask<?>> transformTasks = findTransformTasks(t -> t.getId().equals(transformId), project);
         if (transformTasks.isEmpty()) {
             return null;
         }
@@ -656,21 +673,21 @@ public class TransformTask extends AllocatedPersistentTask
         );
     }
 
-    public static Collection<PersistentTask<?>> findAllTransformTasks(ClusterState clusterState) {
-        return findTransformTasks(Predicates.always(), clusterState);
+    public static Collection<PersistentTask<?>> findAllTransformTasks(ProjectMetadata project) {
+        return findTransformTasks(Predicates.always(), project);
     }
 
-    public static Collection<PersistentTask<?>> findTransformTasks(Set<String> transformIds, ClusterState clusterState) {
-        return findTransformTasks(task -> transformIds.contains(task.getId()), clusterState);
+    public static Collection<PersistentTask<?>> findTransformTasks(Set<String> transformIds, ProjectMetadata project) {
+        return findTransformTasks(task -> transformIds.contains(task.getId()), project);
     }
 
-    public static Collection<PersistentTask<?>> findTransformTasks(String transformIdPattern, ClusterState clusterState) {
+    public static Collection<PersistentTask<?>> findTransformTasks(String transformIdPattern, ProjectMetadata project) {
         Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> taskMatcher = transformIdPattern == null
             || Strings.isAllOrWildcard(transformIdPattern) ? Predicates.always() : t -> {
                 TransformTaskParams transformParams = (TransformTaskParams) t.getParams();
                 return Regex.simpleMatch(transformIdPattern, transformParams.getId());
             };
-        return findTransformTasks(taskMatcher, clusterState);
+        return findTransformTasks(taskMatcher, project);
     }
 
     // used for {@link TransformHealthChecker}
@@ -678,8 +695,7 @@ public class TransformTask extends AllocatedPersistentTask
         return context;
     }
 
-    private static Collection<PersistentTask<?>> findTransformTasks(Predicate<PersistentTask<?>> predicate, ClusterState clusterState) {
-        final var project = clusterState.metadata().getDefaultProject();
+    private static Collection<PersistentTask<?>> findTransformTasks(Predicate<PersistentTask<?>> predicate, ProjectMetadata project) {
         PersistentTasksCustomMetadata pTasksMeta = PersistentTasksCustomMetadata.get(project);
         if (pTasksMeta == null) {
             return Collections.emptyList();

@@ -25,6 +25,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -51,12 +54,16 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
         "MvPSeriesWeightedSum",
         MvPSeriesWeightedSum::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvPSeriesWeightedSum.class)
+        .binary(MvPSeriesWeightedSum::new)
+        .name("mv_pseries_weighted_sum");
 
     private final Expression field, p;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "double" },
-
+        briefSummary = "Calculates the P-series weighted sum of a multi-value field.",
         description = "Converts a multivalued expression into a single-valued column by multiplying every "
             + "element on the input list by its corresponding term in P-Series and computing the sum.",
         examples = @Example(file = "mv_pseries_weighted_sum", tag = "example")
@@ -71,6 +78,7 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
         @Param(
             name = "p",
             type = { "double" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "It is a constant number that represents the *p* parameter in the P-Series. "
                 + "It impacts every element’s contribution to the weighted sum."
         ) Expression p

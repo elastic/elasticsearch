@@ -282,6 +282,17 @@ public class GeometryNormalizerTests extends ESTestCase {
         }
     }
 
+    /**
+     * Reproduces the infinite-loop OOM described in github issue #152066: a LineString whose second
+     * coordinate has an astronomically large longitude value (e.g. -4.14e19) drove
+     * GeoLineDecomposer.decompose into an effectively-infinite loop that exhausted the heap.
+     */
+    public void testExtremeLongitudeCausesTooManyCrossingsError() {
+        Line line = new Line(new double[] { 116.5037459137329, -4.142431633325595e19 }, new double[] { 39.793895444619, 71.0 });
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> GeometryNormalizer.apply(Orientation.CCW, line));
+        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("out of valid range"));
+    }
+
     public void testMultiLine() {
         Line line = new Line(new double[] { 3, 4 }, new double[] { 1, 2 });
         MultiLine multiLine = new MultiLine(Collections.singletonList(line));

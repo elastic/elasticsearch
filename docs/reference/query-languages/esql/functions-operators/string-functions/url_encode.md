@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `URL_ENCODE` function [esql-url_encode]
 
-:::{include} ../../_snippets/functions/layout/url_encode.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/url_encode.md
 :::

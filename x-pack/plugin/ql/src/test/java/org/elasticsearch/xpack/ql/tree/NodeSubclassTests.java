@@ -680,9 +680,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             int rootLength = root.toString().length() + 1;
 
             // load classes from jar files
-            // NIO FileSystem API is not used since it trips the SecurityManager
-            // https://bugs.openjdk.java.net/browse/JDK-8160798
-            // so iterate the jar "by hand"
+            // iterate the jar "by hand"
             if (path.endsWith(".jar") && path.contains("x-pack-ql")) {
                 try (JarInputStream jar = jarStream(root)) {
                     JarEntry je = null;

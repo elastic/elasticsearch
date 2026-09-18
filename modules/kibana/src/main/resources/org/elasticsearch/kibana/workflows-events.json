@@ -1,0 +1,51 @@
+{
+  "index_patterns": [
+    ".workflows-events*"
+  ],
+  "data_stream": {
+    "allow_custom_routing": false
+  },
+  "template": {
+    "lifecycle": {
+      "data_retention": "90d"
+    },
+    "settings": {
+      "index.auto_expand_replicas": "0-1",
+      "index.hidden": true
+    },
+    "mappings": {
+      "_meta": {
+        "version": "${kibana.workflows.version}",
+        "managed_index_mappings_version": ${kibana.workflows.events.managed.index.version}
+      },
+      "dynamic": false,
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "eventId": {
+          "type": "keyword"
+        },
+        "triggerId": {
+          "type": "keyword"
+        },
+        "spaceId": {
+          "type": "keyword"
+        },
+        "subscriptions": {
+          "type": "keyword"
+        },
+        "sourceExecutionId": {
+          "type": "keyword"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    }
+  },
+  "composed_of": [],
+  "priority": 200,
+  "version": 3
+}

@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `SPLIT` function [esql-split]
 
-:::{include} ../../_snippets/functions/layout/split.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/split.md
 :::

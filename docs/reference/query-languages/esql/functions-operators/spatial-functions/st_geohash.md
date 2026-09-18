@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ST_GEOHASH` function [esql-st_geohash]
 
-:::{include} ../../_snippets/functions/layout/st_geohash.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/st_geohash.md
 :::

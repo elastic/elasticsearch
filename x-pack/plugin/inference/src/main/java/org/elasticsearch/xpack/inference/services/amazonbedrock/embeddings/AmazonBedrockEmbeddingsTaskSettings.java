@@ -12,16 +12,15 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.common.model.Truncation;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.TRUNCATE_FIELD;
 
 public record AmazonBedrockEmbeddingsTaskSettings(@Nullable Truncation truncation) implements TaskSettings {
@@ -39,15 +38,13 @@ public record AmazonBedrockEmbeddingsTaskSettings(@Nullable Truncation truncatio
         var extractedTruncation = extractOptionalEnum(
             map,
             TRUNCATE_FIELD,
-            ModelConfigurations.TASK_SETTINGS,
+            TASK_SETTINGS,
             Truncation::fromString,
             Truncation.ALL,
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AmazonBedrockEmbeddingsTaskSettings(extractedTruncation);
     }
@@ -63,7 +60,7 @@ public record AmazonBedrockEmbeddingsTaskSettings(@Nullable Truncation truncatio
 
     @Override
     public AmazonBedrockEmbeddingsTaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        var newTaskSettings = fromMap(new HashMap<>(newSettings));
+        var newTaskSettings = fromMap(newSettings);
 
         return new AmazonBedrockEmbeddingsTaskSettings(firstNonNullOrNull(newTaskSettings.truncation(), truncation()));
     }

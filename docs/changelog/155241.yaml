@@ -1,0 +1,6 @@
+area: Snapshot/Restore
+issues:
+ - 155212
+pr: 155241
+summary: Report finalizing snapshots' status as incomplete
+type: bug

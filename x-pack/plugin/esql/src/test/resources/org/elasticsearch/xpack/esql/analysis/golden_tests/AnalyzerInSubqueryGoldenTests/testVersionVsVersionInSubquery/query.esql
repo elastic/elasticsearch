@@ -1,0 +1,2 @@
+FROM all_types
+| WHERE version IN (FROM all_types | KEEP version)

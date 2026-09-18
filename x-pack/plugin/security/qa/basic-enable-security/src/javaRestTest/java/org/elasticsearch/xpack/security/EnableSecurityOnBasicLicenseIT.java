@@ -217,11 +217,13 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("unauthorized for user [security_test_user]"));
     }
 
-    private void checkIndexCount(String indexName, int expectedCount) throws IOException {
-        final Request request = new Request("POST", "/" + indexName + "/_refresh");
-        adminClient().performRequest(request);
+    private void checkIndexCount(String indexName, int expectedCount) throws Exception {
+        assertBusy(() -> {
+            final Request request = new Request("POST", "/" + indexName + "/_refresh");
+            adminClient().performRequest(request);
 
-        final Map<String, Object> result = getAsMap("/" + indexName + "/_count");
-        assertThat(ObjectPath.evaluate(result, "count"), equalTo(expectedCount));
+            final Map<String, Object> result = getAsMap("/" + indexName + "/_count");
+            assertThat(ObjectPath.evaluate(result, "count"), equalTo(expectedCount));
+        }, 30, TimeUnit.SECONDS);
     }
 }

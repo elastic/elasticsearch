@@ -13,7 +13,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -43,7 +42,7 @@ public class AlibabaCloudSearchCompletionTaskSettingsTests extends AbstractWireS
             newSettingsMap.put(PARAMETERS, newSettings.getParameters());
         }
         AlibabaCloudSearchCompletionTaskSettings updatedSettings = (AlibabaCloudSearchCompletionTaskSettings) initialSettings
-            .updatedTaskSettings(Collections.unmodifiableMap(newSettingsMap));
+            .updatedTaskSettings(newSettingsMap);
         if (newSettings.getParameters() == null) {
             assertEquals(initialSettings.getParameters(), updatedSettings.getParameters());
         } else {

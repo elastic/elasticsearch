@@ -6,6 +6,7 @@ setup:
 
   - skip:
       cluster_features: "index.time_series_synthetic_id"
+      all_nodes: true
       reason: when cluster has synthetic_id feature use 26_id_generation_synthetic_id_false instead
 
   - do:

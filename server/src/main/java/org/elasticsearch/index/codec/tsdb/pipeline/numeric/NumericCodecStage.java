@@ -17,4 +17,4 @@ package org.elasticsearch.index.codec.tsdb.pipeline.numeric;
  * deltas, removing offsets, or factoring out a GCD) so that the terminal payload
  * stage can pack them into fewer bits.
  */
-public interface NumericCodecStage extends NumericEncoder, NumericDecoder {}
+public interface NumericCodecStage extends TransformEncoder, TransformDecoder {}

@@ -1,0 +1,2 @@
+FROM (FROM sample_data), (ROW client_ip = 1)
+| keep client_ip

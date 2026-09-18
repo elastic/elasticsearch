@@ -27,6 +27,7 @@ import java.util.function.LongSupplier;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class JavaDateMathParserTests extends ESTestCase {
 
@@ -183,6 +184,54 @@ public class JavaDateMathParserTests extends ESTestCase {
         // and timezone in the date has priority
         assertDateMathEquals("2014-05-30T20:21+03:00", "2014-05-30T17:21:00.000", 0, false, ZoneId.of("-08:00"));
         assertDateMathEquals("2014-05-30T20:21Z", "2014-05-30T20:21:00.000", 0, false, ZoneId.of("-08:00"));
+    }
+
+    /**
+     * Epoch values are absolute instants in UTC by definition, so the {@code time_zone} parameter
+     * must not shift them. Regression test for SDH-9946: when Discover/KQL injected the browser's
+     * non-UTC zone into a query whose value happened to be an epoch number, the parsed instant
+     * was shifted by the offset.
+     */
+    public void testEpochIgnoresTimeZone() {
+        DateMathParser millisParser = DateFormatter.forPattern("epoch_millis").toDateMathParser();
+        long epochMillis = 1776338120239L; // 2026-04-16T11:15:20.239Z
+        Instant expected = Instant.ofEpochMilli(epochMillis);
+        assertThat(millisParser.parse("1776338120239", () -> 0L, false, ZoneOffset.UTC), equalTo(expected));
+        assertThat(millisParser.parse("1776338120239", () -> 0L, false, ZoneOffset.ofHours(2)), equalTo(expected));
+        assertThat(millisParser.parse("1776338120239", () -> 0L, false, ZoneOffset.ofHours(-5)), equalTo(expected));
+        assertThat(millisParser.parse("1776338120239", () -> 0L, false, ZoneId.of("Europe/Prague")), equalTo(expected));
+        assertThat(millisParser.parse("1776338120239", () -> 0L, false, (ZoneId) null), equalTo(expected));
+
+        DateMathParser secondsParser = DateFormatter.forPattern("epoch_second").toDateMathParser();
+        Instant expectedSeconds = Instant.ofEpochSecond(1776338120L);
+        assertThat(secondsParser.parse("1776338120", () -> 0L, false, ZoneOffset.UTC), equalTo(expectedSeconds));
+        assertThat(secondsParser.parse("1776338120", () -> 0L, false, ZoneOffset.ofHours(2)), equalTo(expectedSeconds));
+    }
+
+    /**
+     * Round-up parsing must also not shift epoch inputs in a non-UTC time zone.
+     */
+    public void testEpochRoundUpIgnoresTimeZone() {
+        DateMathParser millisParser = DateFormatter.forPattern("epoch_millis").toDateMathParser();
+        Instant noZone = millisParser.parse("1776338120239", () -> 0L, true, (ZoneId) null);
+        Instant zoned = millisParser.parse("1776338120239", () -> 0L, true, ZoneOffset.ofHours(2));
+        // The round-up parser pads with end-of-second nanos, so we only assert that the
+        // zoned and zone-free results agree -- not the exact instant value.
+        assertThat(zoned, equalTo(noZone));
+        assertThat(zoned.truncatedTo(ChronoUnit.MILLIS), equalTo(Instant.ofEpochMilli(1776338120239L)));
+    }
+
+    /**
+     * Regression guard: date math with {@code now} must continue to honor the time zone
+     * parameter (per the documented contract for date math rounding).
+     */
+    public void testNowDateMathStillRespectsTimeZone() {
+        long fixedNow = 1776338120239L; // 2026-04-16T11:15:20.239Z
+        Instant utc = parser.parse("now/d", () -> fixedNow, false, ZoneOffset.UTC);
+        Instant plus2 = parser.parse("now/d", () -> fixedNow, false, ZoneOffset.ofHours(2));
+        // now/d rounded down to start-of-day differs between UTC and +02:00 because the local
+        // calendar day boundary is shifted; the time_zone parameter must still affect this.
+        assertThat(plus2, is(not(equalTo(utc))));
     }
 
     public void testBasicMath() {

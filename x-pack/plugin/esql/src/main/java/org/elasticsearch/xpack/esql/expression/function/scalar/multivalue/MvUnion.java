@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -47,6 +48,10 @@ import java.util.Set;
  */
 public class MvUnion extends MvSetOperationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvUnion", MvUnion::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvUnion.class)
+        .binary(MvUnion::new)
+        .capabilities("flattened")
+        .name("mv_union");
 
     @FunctionInfo(
         returnType = {
@@ -56,6 +61,7 @@ public class MvUnion extends MvSetOperationFunction {
             "date",
             "date_nanos",
             "double",
+            "flattened",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -67,6 +73,7 @@ public class MvUnion extends MvSetOperationFunction {
             "long",
             "unsigned_long",
             "version" },
+        briefSummary = "Returns all unique values from the combined multi-value fields.",
         description = "Returns all unique values from the combined input fields (set union). "
             + "Null values are treated as empty sets; returns `null` only if both fields are null.",
         preview = true,
@@ -89,6 +96,7 @@ public class MvUnion extends MvSetOperationFunction {
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -112,6 +120,7 @@ public class MvUnion extends MvSetOperationFunction {
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",

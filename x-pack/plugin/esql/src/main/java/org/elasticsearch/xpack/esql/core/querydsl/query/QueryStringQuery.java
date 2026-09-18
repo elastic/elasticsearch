@@ -113,7 +113,7 @@ public class QueryStringQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(query, fields);
+        return Objects.hash(query, fields, options);
     }
 
     @Override

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
@@ -17,7 +18,11 @@ import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -25,6 +30,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -34,15 +40,19 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
-import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
+import org.elasticsearch.xpack.esql.optimizer.ExternalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceFieldWithConstantOrNull;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -59,11 +69,15 @@ import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
@@ -72,6 +86,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -80,8 +95,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
-import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS;
-import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_CENTROID;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
@@ -92,6 +105,45 @@ public class PlannerUtils {
     private static final Logger LOGGER = LogManager.getLogger(PlannerUtils.class);
 
     /**
+     * Resolves a named analyzer from the node-level {@link AnalysisRegistry}. Shared by the {@code analyzer} option of
+     * {@code HIGHLIGHT} ({@link org.elasticsearch.xpack.esql.plan.logical.Highlight}, {@link HighlightQueryBuilders}) and
+     * {@code TOP_SNIPPETS} ({@link org.elasticsearch.xpack.esql.evaluator.EvalMapper}).
+     *
+     * @return the resolved analyzer as a {@link NamedAnalyzer} carrying the position increment gap the analyzer would
+     *         have on a mapped text field, or {@code null} when {@code analyzerName} is {@code null} (no override
+     *         requested)
+     * @throws InvalidArgumentException if the registry is unavailable, the analyzer fails to load, or no analyzer is
+     *                                  registered under {@code analyzerName}
+     */
+    // TODO: Move analyzer verification into a shared helper that HIGHLIGHT, TOP_SNIPPETS, MATCH, and MATCH_PHRASE can use.
+    // FullTextFunction may be the right place for it.
+    @Nullable
+    public static Analyzer resolveAnalyzer(@Nullable String analyzerName, @Nullable AnalysisRegistry analysisRegistry) {
+        if (analyzerName == null) {
+            return null;
+        }
+        if (analysisRegistry == null) {
+            throw new InvalidArgumentException("analyzer [{}] cannot be resolved without an analysis registry", analyzerName);
+        }
+        Analyzer analyzer;
+        try {
+            analyzer = analysisRegistry.getAnalyzer(analyzerName);
+        } catch (IOException e) {
+            throw new InvalidArgumentException(e, "failed to load analyzer [{}]: {}", analyzerName, e.getMessage());
+        }
+        if (analyzer == null) {
+            throw new InvalidArgumentException("[{}] is not a registered analyzer", analyzerName);
+        }
+        if (analyzer instanceof NamedAnalyzer == false) {
+            // Node-level plugin analyzers (AnalysisPlugin#getAnalyzers) resolve to bare Lucene analyzers: the registry
+            // bakes the text-field position increment gap only into prebuilt analyzers. Wrap them the way index
+            // mappings do, so multi-value analysis keeps the gap the same analyzer would have on a mapped field.
+            analyzer = new NamedAnalyzer(analyzerName, AnalyzerScope.GLOBAL, analyzer, TextFieldMapper.Defaults.POSITION_INCREMENT_GAP);
+        }
+        return analyzer;
+    }
+
+    /**
      * When the plan contains children like {@code MergeExec} resulted from the planning of commands such as FORK,
      * we need to break the plan into sub plans and a main coordinator plan.
      * The result pages from each sub plan will be funneled to the main coordinator plan.
@@ -99,9 +151,15 @@ public class PlannerUtils {
      * to the main coordinator plan.
      * There is an additional split of each sub plan into a data node plan and coordinator plan.
      * This split is not done here, but as part of {@code PlannerUtils#breakPlanBetweenCoordinatorAndDataNode}.
+     * <p>
+     * {@link SubPlansAndMainPlan#kind()} is the kind of the {@link MergeExec} whose children became the
+     * subplans, so placement does not need a second walk to recover it. Nested merges still collapse to
+     * the outermost node: {@code transformUp} overwrites {@code subplans} as it walks out, and that
+     * same node supplies the kind.
      */
-    public static Tuple<List<PhysicalPlan>, PhysicalPlan> breakPlanIntoSubPlansAndMainPlan(PhysicalPlan plan) {
+    public static SubPlansAndMainPlan breakPlanIntoSubPlansAndMainPlan(PhysicalPlan plan) {
         var subplans = new Holder<List<PhysicalPlan>>();
+        var kind = new Holder<MergeExec.Kind>();
         PhysicalPlan mainPlan = plan.transformUp(MergeExec.class, me -> {
             subplans.set(
                 me.children()
@@ -109,11 +167,18 @@ public class PlannerUtils {
                     .map(child -> (PhysicalPlan) new ExchangeSinkExec(child.source(), child.output(), false, child))
                     .toList()
             );
+            kind.set(me.kind());
             return new ExchangeSourceExec(me.source(), me.output(), false);
         });
 
-        return new Tuple<>(subplans.get(), mainPlan);
+        return new SubPlansAndMainPlan(subplans.get(), mainPlan, kind.get());
     }
+
+    /**
+     * Result of splitting a {@link MergeExec} into per-child subplans plus the coordinator plan that
+     * gathers them. {@code subplans} and {@code kind} are null when the plan has no merge.
+     */
+    public record SubPlansAndMainPlan(List<PhysicalPlan> subplans, PhysicalPlan mainPlan, MergeExec.Kind kind) {}
 
     public static Tuple<PhysicalPlan, PhysicalPlan> breakPlanBetweenCoordinatorAndDataNode(PhysicalPlan plan, Configuration config) {
         var dataNodePlan = new Holder<PhysicalPlan>();
@@ -140,6 +205,17 @@ public class PlannerUtils {
         return new Tuple<>(coordinatorPlan, dataNodePlan.get());
     }
 
+    /**
+     * Builds the minimally planned local physical shape used to establish a data-driver/reduction-driver schema contract.
+     * This deliberately skips general local optimization while retaining the passes that make field extraction explicit.
+     */
+    public static PhysicalPlan toPhysicalPlanForReductionSchema(LogicalPlan plan, LocalPhysicalOptimizerContext context) {
+        var logicalContext = new LocalLogicalOptimizerContext(context.configuration(), context.foldCtx(), context.searchStats());
+        // Replace NULL-typed fields from UNMAPPED_FIELDS="NULLIFY" before field extraction tries to load them from an index.
+        LogicalPlan optimized = new ReplaceFieldWithConstantOrNull().apply(plan, logicalContext);
+        return new InsertFieldExtraction().apply(new ReplaceSourceAttributes().apply(LocalMapper.INSTANCE.map(optimized)), context);
+    }
+
     public sealed interface PlanReduction {}
 
     public enum SimplePlanReduction implements PlanReduction {
@@ -148,6 +224,12 @@ public class PlannerUtils {
 
     /** The plan here is used as a fallback if the reduce driver cannot be planned in a way that avoids field extraction after TopN. */
     public record TopNReduction(PhysicalPlan plan) implements PlanReduction {}
+
+    /** The plan here is used as a fallback if the reduce driver cannot be planned in a way that avoids field extraction after TopNBy. */
+    public record TopNByReduction(PhysicalPlan plan) implements PlanReduction {}
+
+    /** The plan here is used as a fallback if the reduce driver cannot be planned in a way that avoids field extraction after LimitBy. */
+    public record LimitByReduction(PhysicalPlan plan) implements PlanReduction {}
 
     public record ReducedPlan(PhysicalPlan plan) implements PlanReduction {}
 
@@ -169,6 +251,8 @@ public class PlannerUtils {
         int estimatedRowSize = fragment.estimatedRowSize();
         return switch (LocalMapper.INSTANCE.map(pipelineBreaker)) {
             case TopNExec topN -> new TopNReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, topN));
+            case TopNByExec topNBy -> new TopNByReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, topNBy));
+            case LimitByExec limitBy -> new LimitByReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, limitBy));
             case AggregateExec aggExec -> getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
             case MetricsInfoExec metricsInfoExec -> getPhysicalPlanReduction(
                 estimatedRowSize,
@@ -209,7 +293,7 @@ public class PlannerUtils {
     /**
      * Result of local plan optimization containing both physical and logical plans.
      */
-    public record LocalPlanResult(PhysicalPlan physicalPlan, String logicalPlanString) {}
+    public record LocalPlanResult(PhysicalPlan physicalPlan, String logicalPlanString, boolean approximationApplied) {}
 
     public static LocalPlanResult localPlanWithLogical(
         PlannerSettings plannerSettings,
@@ -258,7 +342,7 @@ public class PlannerUtils {
         PhysicalPlan resultPlan = localPlan(plan, logicalOptimizer, physicalOptimizer, planTimeProfile, optimizedFragment -> {
             logicalPlanString.set(optimizedFragment.toString());
         });
-        return new LocalPlanResult(resultPlan, logicalPlanString.get());
+        return new LocalPlanResult(resultPlan, logicalPlanString.get(), physicalOptimizer.approximationApplied());
     }
 
     public static PhysicalPlan localPlan(
@@ -297,12 +381,27 @@ public class PlannerUtils {
         FoldContext foldCtx,
         PhysicalPlan plan,
         SearchStats searchStats,
-        FilterPushdownRegistry filterPushdownRegistry,
+        FormatReaderRegistry formatReaderRegistry,
         PlanTimeProfile planTimeProfile
     ) {
-        return localPlan(plannerSettings, flags, configuration, foldCtx, plan, searchStats, filterPushdownRegistry, null, planTimeProfile);
+        return localPlan(
+            plannerSettings,
+            flags,
+            configuration,
+            foldCtx,
+            plan,
+            searchStats,
+            formatReaderRegistry,
+            List.of(),
+            planTimeProfile
+        );
     }
 
+    /**
+     * Runs local logical/physical optimization with external splits injected before the physical optimizer.
+     * Splits are attached to any empty {@link ExternalSourceExec} nodes so that rules like
+     * {@code PushStatsToExternalSource} can see per-split statistics.
+     */
     public static PhysicalPlan localPlan(
         PlannerSettings plannerSettings,
         EsqlFlags flags,
@@ -310,8 +409,8 @@ public class PlannerUtils {
         FoldContext foldCtx,
         PhysicalPlan plan,
         SearchStats searchStats,
-        FilterPushdownRegistry filterPushdownRegistry,
         FormatReaderRegistry formatReaderRegistry,
+        List<? extends ExternalSplit> externalSplits,
         PlanTimeProfile planTimeProfile
     ) {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
@@ -322,16 +421,18 @@ public class PlannerUtils {
                 configuration,
                 foldCtx,
                 searchStats,
-                filterPushdownRegistry,
-                formatReaderRegistry
+                new ExternalOptimizerContext(formatReaderRegistry)
             )
         );
 
-        return localPlan(plan, logicalOptimizer, physicalOptimizer, planTimeProfile);
+        return localPlan(plan, logicalOptimizer, physicalOptimizer, externalSplits, planTimeProfile);
     }
 
     public static PhysicalPlan integrateEsFilterIntoFragment(PhysicalPlan plan, @Nullable QueryBuilder esFilter) {
-        return esFilter == null ? plan : plan.transformUp(FragmentExec.class, f -> {
+        if (esFilter == null) {
+            return plan;
+        }
+        return plan.transformUp(FragmentExec.class, f -> {
             var fragmentFilter = f.esFilter();
             // TODO: have an ESFilter and push down to EsQueryExec / EsSource
             // This is an ugly hack to push the filter parameter to Lucene
@@ -348,7 +449,17 @@ public class PlannerUtils {
         LocalPhysicalPlanOptimizer physicalOptimizer,
         PlanTimeProfile planTimeProfile
     ) {
-        return localPlan(plan, logicalOptimizer, physicalOptimizer, planTimeProfile, null);
+        return localPlan(plan, logicalOptimizer, physicalOptimizer, List.of(), planTimeProfile, null);
+    }
+
+    public static PhysicalPlan localPlan(
+        PhysicalPlan plan,
+        LocalLogicalPlanOptimizer logicalOptimizer,
+        LocalPhysicalPlanOptimizer physicalOptimizer,
+        List<? extends ExternalSplit> externalSplits,
+        PlanTimeProfile planTimeProfile
+    ) {
+        return localPlan(plan, logicalOptimizer, physicalOptimizer, externalSplits, planTimeProfile, null);
     }
 
     public static PhysicalPlan localPlan(
@@ -358,17 +469,33 @@ public class PlannerUtils {
         PlanTimeProfile planTimeProfile,
         @Nullable Consumer<LogicalPlan> onLogicalPlanOptimized
     ) {
+        return localPlan(plan, logicalOptimizer, physicalOptimizer, List.of(), planTimeProfile, onLogicalPlanOptimized);
+    }
+
+    public static PhysicalPlan localPlan(
+        PhysicalPlan plan,
+        LocalLogicalPlanOptimizer logicalOptimizer,
+        LocalPhysicalPlanOptimizer physicalOptimizer,
+        List<? extends ExternalSplit> externalSplits,
+        PlanTimeProfile planTimeProfile,
+        @Nullable Consumer<LogicalPlan> onLogicalPlanOptimized
+    ) {
         var isCoordPlan = new Holder<>(Boolean.TRUE);
+        // Possible future improvement: both are BinaryExec nodes excluded for the same reason, so one collect
+        // over a shared predicate could build a single set. Kept separate for now to preserve the history of each case.
         Set<PhysicalPlan> lookupJoinExecRightChildren = plan.collect(LookupJoinExec.class::isInstance)
             .stream()
             .map(x -> ((LookupJoinExec) x).right())
             .collect(Collectors.toSet());
+        Set<PhysicalPlan> remoteFetchExecRightChildren = plan.collect(RemoteFetchExec.class::isInstance)
+            .stream()
+            .map(x -> ((RemoteFetchExec) x).right())
+            .collect(Collectors.toSet());
 
         PhysicalPlan localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
-            if (lookupJoinExecRightChildren.contains(f)) {
-                // Do not optimize the right child of a lookup join exec
-                // The data node does not have the right stats to perform the optimization because the stats are on the lookup node
-                // Also we only ship logical plans across the network, so the plan needs to remain logical
+            if (lookupJoinExecRightChildren.contains(f) || remoteFetchExecRightChildren.contains(f)) {
+                // These fragments are shipped as logical plans and planned on the target node, where the right stats and
+                // execution context are available.
                 return f;
             }
             isCoordPlan.set(Boolean.FALSE);
@@ -389,6 +516,15 @@ public class PlannerUtils {
                 physicalFragment = physicalFragment.transformUp(
                     EsSourceExec.class,
                     query -> new EsSourceExec(Source.EMPTY, query.indexPattern(), query.indexMode(), query.output(), filter)
+                );
+            }
+
+            if (externalSplits.isEmpty() == false) {
+                @SuppressWarnings("unchecked")
+                List<ExternalSplit> typedSplits = (List<ExternalSplit>) externalSplits;
+                physicalFragment = physicalFragment.transformUp(
+                    ExternalSourceExec.class,
+                    exec -> exec.splits().isEmpty() ? exec.withSplits(typedSplits) : exec
                 );
             }
 
@@ -503,7 +639,7 @@ public class PlannerUtils {
             case INTEGER, COUNTER_INTEGER -> ElementType.INT;
             case DOUBLE, COUNTER_DOUBLE -> ElementType.DOUBLE;
             // unsupported fields are passed through as a BytesRef
-            case KEYWORD, TEXT, IP, SOURCE, VERSION, HISTOGRAM, UNSUPPORTED -> ElementType.BYTES_REF;
+            case KEYWORD, TEXT, IP, SOURCE, VERSION, HISTOGRAM, UNSUPPORTED, FLATTENED -> ElementType.BYTES_REF;
             case NULL -> ElementType.NULL;
             case BOOLEAN -> ElementType.BOOLEAN;
             case DOC_DATA_TYPE -> ElementType.DOC;
@@ -514,11 +650,13 @@ public class PlannerUtils {
                 case EXTRACT_SPATIAL_CENTROID, EXTRACT_SPATIAL_BOUNDS_AND_CENTROID -> ElementType.DOUBLE;
                 default -> ElementType.BYTES_REF;
             };
+            case PARTIAL_AGG -> ElementType.COMPOSITE;
             case AGGREGATE_METRIC_DOUBLE -> ElementType.AGGREGATE_METRIC_DOUBLE;
             case EXPONENTIAL_HISTOGRAM -> ElementType.EXPONENTIAL_HISTOGRAM;
             case TDIGEST -> ElementType.TDIGEST;
             case DENSE_VECTOR -> ElementType.FLOAT;
             case DATE_RANGE -> ElementType.LONG_RANGE;
+            case DOUBLE_RANGE -> ElementType.DOUBLE_RANGE;
             case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT -> throw EsqlIllegalArgumentException
                 .illegalDataType(dataType);
         };
@@ -539,7 +677,7 @@ public class PlannerUtils {
 
     /**
      * Checks that the input rows of the plan have been reduced by LIMIT.
-     * In the case where non-unary plans are used, such as {@code Fork} or {@code UnionAll},
+     * In the case where non-unary plans are used, such as {@link org.elasticsearch.xpack.esql.plan.logical.MergePlan},
      * we check that the rows from each branch are reduced by LIMIT.
      */
     public static boolean hasLimitedInput(LogicalPlan plan) {

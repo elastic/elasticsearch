@@ -52,7 +52,10 @@ public record EsqlResolvedIndexExpression(Set<String> expression, Set<String> re
 
     private static EsqlResolvedIndexExpression stripClusterAliasForOriginProject(String origin, ResolvedIndexExpression e) {
         return Objects.equals(origin, LOCAL_CLUSTER_GROUP_KEY) && RemoteClusterAware.isRemoteIndexName(e.original())
-            ? new EsqlResolvedIndexExpression(Set.of(RemoteClusterAware.parseLocalIndexName(e.original())), e.localExpressions().indices())
+            ? new EsqlResolvedIndexExpression(
+                Set.of(RemoteClusterAware.splitIndexName(e.original()).indexExpression()),
+                e.localExpressions().indices()
+            )
             : new EsqlResolvedIndexExpression(Set.of(e.original()), e.localExpressions().indices());
     }
 }

@@ -1,5 +1,0 @@
-area: Aggregations
-issues: []
-pr: 144679
-summary: Bump heap usage limits for INLINE STATS
-type: enhancement

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.application.rules.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,7 +33,7 @@ public class DeleteQueryRuleAction {
 
     private DeleteQueryRuleAction() {/* no instances */}
 
-    public static class Request extends LegacyActionRequest implements ToXContentObject {
+    public static class Request extends UntypedActionRequest implements ToXContentObject {
         private final String rulesetId;
         private final String ruleId;
 

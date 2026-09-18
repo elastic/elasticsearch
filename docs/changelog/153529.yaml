@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 153529
+summary: Improve Unicode support in `VersionFieldWildcardQuery`
+type: bug

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.response.streaming;
 
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -14,57 +15,98 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * https://html.spec.whatwg.org/multipage/server-sent-events.html#event-stream-interpretation
- * Lines are separated by LF, CR, or CRLF.
- * If the line is empty, we do not dispatch the event since we do that automatically. Instead, we discard this event.
- * If the line starts with a colon, we discard this event.
- * If the line contains a colon, we process it into {@link ServerSentEvent} with a non-empty value.
- * If the line does not contain a colon, we process it into {@link ServerSentEvent}with an empty string value.
- * If the line's field is not one of (data, event), we discard this event. `id` and `retry` are not implemented, because we do not use them
- * and have no plans to use them.
+ * Parses a server-sent event stream according to the WHATWG SSE specification:
+ * <a href="https://html.spec.whatwg.org/multipage/server-sent-events.html#event-stream-interpretation">WHATWG SSE spec</a>
+ *
+ * <h2>Implemented behaviors</h2>
+ * <ul>
+ *   <li>Lines are separated by LF ({@code \n}), CR ({@code \r}), or CRLF ({@code \r\n}).</li>
+ *   <li>A leading U+FEFF BYTE ORDER MARK on the very first processed line is stripped (once only).</li>
+ *   <li>Lines starting with {@code :} are comments and are discarded.</li>
+ *   <li>Lines containing {@code :} are split into field name and value; exactly one leading space
+ *       in the value is removed if present.</li>
+ *   <li>Multiple {@code data:} lines in one event are concatenated with a LF between them.</li>
+ *   <li>An empty line dispatches the accumulated event if at least one {@code data} field was seen
+ *       (even if that field had an empty value).</li>
+ * </ul>
+ *
+ * <h2>Retained deviations from the WHATWG spec (knowingly kept)</h2>
+ * <ul>
+ *   <li><b>Case-insensitive field names</b> — field names are lower-cased before matching;
+ *       the spec matches them case-sensitively, so {@code DATA:} should be an unknown field.</li>
+ *   <li><b>No-colon lines only honored for {@code data}</b> — a bare {@code data} line
+ *       (no colon) is treated as {@code data} with an empty value; any other bare field name is
+ *       ignored. The spec treats any no-colon line as that field with an empty value.</li>
+ *   <li><b>{@code id} and {@code retry} are not implemented</b> — intentionally omitted;
+ *       we do not use reconnect state.</li>
+ * </ul>
  */
 public class ServerSentEventParser {
     private static final String BOM = "\uFEFF";
     private static final String TYPE_FIELD = "event";
     private static final String DATA_FIELD = "data";
     private final EventBuffer eventBuffer = new EventBuffer();
-    private volatile String previousTokens = "";
+    private final ByteArrayOutputStream pendingLine = new ByteArrayOutputStream();
+    private boolean previousByteWasCarriageReturn;
+    private boolean firstLine = true;
 
-    public Deque<ServerSentEvent> parse(byte[] bytes) {
+    /**
+     * Parses the given bytes and returns any complete SSE events found so far.
+     * Incomplete lines (no terminator yet) are retained internally and completed on the next call.
+     * An incomplete trailing line present when the stream ends is discarded per the SSE spec.
+     * <p>
+     * Successive calls for a single stream are serial but may execute on different threads.
+     * {@code synchronized} provides cross-thread visibility of the carry-over state
+     * ({@link #pendingLine}, {@link #previousByteWasCarriageReturn}, and the {@link EventBuffer})
+     * without requiring {@code volatile} on each field, and additionally guards against
+     * accidental concurrent access if the calling infrastructure ever changes.
+     */
+    public synchronized Deque<ServerSentEvent> parse(byte[] bytes) {
         if (bytes == null || bytes.length == 0) {
             return new ArrayDeque<>(0);
         }
 
-        var body = previousTokens + new String(bytes, StandardCharsets.UTF_8);
-        var lines = body.lines();
-
         var collector = new ArrayDeque<ServerSentEvent>();
-        lines.reduce((previousLine, nextLine) -> {
-            var line = previousLine.replace(BOM, "");
-
-            if (line.isEmpty()) {
-                eventBuffer.dispatch().ifPresent(collector::offer);
-            } else if (line.startsWith(":") == false) {
-                if (line.contains(":")) {
-                    fieldValueEvent(line);
-                } else if (DATA_FIELD.equals(line.toLowerCase(Locale.ROOT))) {
-                    eventBuffer.data("");
+        for (byte b : bytes) {
+            if (previousByteWasCarriageReturn) {
+                previousByteWasCarriageReturn = false;
+                if (b == '\n') {
+                    // CRLF: the CR already flushed the line; swallow the LF
+                    continue;
                 }
             }
-            return nextLine;
-        }).ifPresent(lastLine -> {
-            if (lastLine.isEmpty()) {
-                // if the last line is an empty line, then we dispatch the event and clear the previousToken cache
-                eventBuffer.dispatch().ifPresent(collector::offer);
-                previousTokens = "";
+            if (b == '\r') {
+                processPendingLine(collector);
+                previousByteWasCarriageReturn = true;
+            } else if (b == '\n') {
+                processPendingLine(collector);
             } else {
-                // we can sometimes get bytes for incomplete messages, so we save them for the next onNext invocation
-                // if we get an onComplete before we clear this cache, we follow the spec to treat it as an incomplete event and discard it
-                // since it was not followed by a blank line
-                previousTokens = lastLine;
+                pendingLine.write(b);
             }
-        });
+        }
         return collector;
+    }
+
+    private void processPendingLine(Deque<ServerSentEvent> collector) {
+        var line = pendingLine.toString(StandardCharsets.UTF_8);
+        pendingLine.reset();
+        // Spec: "one leading U+FEFF BYTE ORDER MARK character must be ignored if any are present" — once, at stream start.
+        if (firstLine) {
+            firstLine = false;
+            if (line.startsWith(BOM)) {
+                line = line.substring(BOM.length());
+            }
+        }
+
+        if (line.isEmpty()) {
+            eventBuffer.dispatch().ifPresent(collector::offer);
+        } else if (line.startsWith(":") == false) {
+            if (line.contains(":")) {
+                fieldValueEvent(line);
+            } else if (DATA_FIELD.equals(line.toLowerCase(Locale.ROOT))) {
+                eventBuffer.data("");
+            }
+        }
     }
 
     private void fieldValueEvent(String lineWithColon) {
@@ -87,29 +129,30 @@ public class ServerSentEventParser {
         private static final String MESSAGE = "message";
         private StringBuilder type = new StringBuilder();
         private StringBuilder data = new StringBuilder();
-        private boolean appendLineFeed = false;
+        // True once at least one data field has been seen; used by dispatch() to distinguish
+        // "no data field" (drop event) from "data field with empty value" (dispatch empty event).
+        private boolean dataFieldSeen = false;
 
         private void type(String type) {
             this.type.append(type);
         }
 
         private void data(String data) {
-            // "Append the field value to the data buffer, then append a single U+000A LINE FEED (LF) character to the data buffer."
-            // But then we're told "If the data buffer's last character is a U+000A LINE FEED (LF) character,
-            // then remove the last character from the data buffer."
-            // Rather than add + remove for single-line data fields, we only append a LINE FEED on subsequent data lines.
-            if (appendLineFeed) {
+            // Spec: append value then a LF for every data field; we join lazily (LF before 2nd+ value),
+            // which yields the identical buffer after the trailing-LF strip in dispatch().
+            if (dataFieldSeen) {
                 this.data.append(LINE_FEED);
-            } else {
-                appendLineFeed = true;
             }
+            dataFieldSeen = true;
             this.data.append(data);
         }
 
         private Optional<ServerSentEvent> dispatch() {
-            // "If the data buffer is an empty string, set the data buffer and the event type buffer to the empty string and return."
-            // We don't process empty events anywhere, so we just drop the events.
-            if (data.isEmpty()) {
+            // Spec dispatch step 2: "If the data buffer is an empty string, return." runs before step 3's
+            // trailing-LF strip. A lone empty data field appends "" then LF → buffer "\n" → not empty →
+            // dispatches with data "". We emulate this correctly by checking dataFieldSeen: if no data
+            // field was ever seen the buffer is also "" but we must NOT dispatch.
+            if (dataFieldSeen == false) {
                 reset();
                 return Optional.empty();
             }
@@ -129,7 +172,7 @@ public class ServerSentEventParser {
         private void reset() {
             type = new StringBuilder();
             data = new StringBuilder();
-            appendLineFeed = false;
+            dataFieldSeen = false;
         }
     }
 

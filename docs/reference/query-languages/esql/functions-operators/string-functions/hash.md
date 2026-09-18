@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `HASH` function [esql-hash]
 
-:::{include} ../../_snippets/functions/layout/hash.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/hash.md
 :::

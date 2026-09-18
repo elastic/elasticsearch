@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper.blockloader;
 
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.index.mapper.NumberFieldBlockLoaderTestCase;
 
@@ -22,5 +23,37 @@ public class LongFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<Lo
     @Override
     protected Long convert(Number value, Map<String, Object> fieldMapping) {
         return value.longValue();
+    }
+
+    /**
+     * Overrides the default {@link Double#parseDouble}-based implementation to match the long
+     * mapper's actual indexing behavior.
+     *
+     * <p>During indexing, {@code AbstractXContentParser.toLong} tries {@link Long#parseLong} first,
+     * which accepts Unicode digits. This is broader than what {@link Double#parseDouble} accepts.
+     */
+    @Override
+    protected Number tryParseString(String s) {
+        try {
+            return Numbers.toLong(s, true);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Overrides the default {@link #tryParseString(String)}-based implementation because the
+     * stored-source re-parsing path goes through {@code objectToLong -> objectToDouble
+     * -> Double.parseDouble}, which rejects some Unicode digits that are accepted by
+     * {@link Numbers#toLong}. This asymmetry between indexing and stored-source re-parsing
+     * is a known inconsistency in the production code.
+     */
+    @Override
+    protected Number tryParseStringFromSource(String s) {
+        try {
+            return Double.parseDouble(s);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }

@@ -103,6 +103,10 @@ public record DriverProfile(
             }
             b.field("documents_found", operators.stream().mapToLong(OperatorStatus::documentsFound).sum());
             b.field("values_loaded", operators.stream().mapToLong(OperatorStatus::valuesLoaded).sum());
+            b.field("rows_emitted", operators.stream().mapToLong(OperatorStatus::rowsEmitted).sum());
+            b.field("bytes_read", operators.stream().mapToLong(OperatorStatus::bytesRead).sum());
+            b.field("read_nanos", operators.stream().mapToLong(OperatorStatus::readNanos).sum());
+            b.field("read_cpu_nanos", operators.stream().mapToLong(OperatorStatus::readCpuNanos).sum());
             b.field("iterations", iterations);
             return b;
         }),
@@ -114,6 +118,6 @@ public record DriverProfile(
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 }

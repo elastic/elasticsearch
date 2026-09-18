@@ -108,7 +108,7 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
     }
 
     @Override
-    public final void writeTo(StreamOutput out) throws IOException {
+    public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(field);
         out.writeNamedWriteable(filter);
@@ -124,6 +124,23 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
 
     public List<? extends Expression> parameters() {
         return parameters;
+    }
+
+    /**
+     * All fields processed by the aggregate function.
+     * <p>
+     * Defaults to just [field], because most aggregates only process a single field.
+     * However, some (e.g. WEIGHTED_AVG and TOP(..., outputField) process multiple fields.
+     * <p>
+     * Configuration constants folded into the
+     * {@link org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier}
+     * (e.g. TOP's limit and order) are not fields.
+     * <p>
+     * TODO: internally, fields beyond the first one are part of the parameters list,
+     * but that needs some refactoring.
+     */
+    public List<? extends Expression> fields() {
+        return List.of(field);
     }
 
     public boolean hasFilter() {
@@ -228,6 +245,16 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
             return this;
         }
         return (AggregateFunction) replaceChildren(CollectionUtils.combine(asList(newField, filter, window), parameters));
+    }
+
+    public AggregateFunction withFields(List<? extends Expression> newFields) {
+        // Most aggregate functions only have a single field, hence this default implementation.
+        // Aggregate functions that have multiple fields (e.g. TOP(..., outputField)) should override this method.
+        assert newFields.size() == 1;
+        if (newFields.getFirst() == this.field) {
+            return this;
+        }
+        return (AggregateFunction) replaceChildren(CollectionUtils.combine(asList(newFields.getFirst(), filter, window), parameters));
     }
 
     public AggregateFunction withWindow(Expression newWindow) {

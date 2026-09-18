@@ -19,7 +19,11 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+/** Test plugin that registers a REST action to deliberately crash the JVM. */
 public class JvmCrashPlugin extends Plugin implements ActionPlugin {
+    /** Creates a new JvmCrashPlugin. */
+    public JvmCrashPlugin() {}
+
     @Override
     public List<RestHandler> getRestHandlers(
         RestHandlersServices restHandlersServices,

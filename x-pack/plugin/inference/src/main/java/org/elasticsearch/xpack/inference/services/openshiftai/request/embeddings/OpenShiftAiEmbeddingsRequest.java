@@ -12,10 +12,12 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundDenseEmbeddingRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.openshiftai.embeddings.OpenShiftAiEmbeddingsModel;
 
 import java.net.URI;
@@ -28,7 +30,7 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
  * This class is responsible for creating a request to the OpenShift AI embeddings endpoint.
  * It constructs an HTTP POST request with the necessary headers and body content.
  */
-public class OpenShiftAiEmbeddingsRequest implements Request {
+public class OpenShiftAiEmbeddingsRequest implements OutboundDenseEmbeddingRequest {
     private final OpenShiftAiEmbeddingsModel model;
     private final Truncator.TruncationResult truncationResult;
     private final Truncator truncator;
@@ -74,7 +76,7 @@ public class OpenShiftAiEmbeddingsRequest implements Request {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         var truncatedInput = truncator.truncate(truncationResult.input());
         return new OpenShiftAiEmbeddingsRequest(truncator, truncatedInput, model);
     }
@@ -87,5 +89,10 @@ public class OpenShiftAiEmbeddingsRequest implements Request {
     @Override
     public String getInferenceEntityId() {
         return model.getInferenceEntityId();
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return model.getTaskType();
     }
 }

@@ -159,13 +159,50 @@ public class ExchangeServiceTests extends ESTestCase {
         assertBusy(() -> assertTrue(sink2.waitForWriting().listener().isDone()));
         sink2.finish();
         assertTrue(sink2.isFinished());
-        assertTrue(source.isFinished());
+        assertBusy(() -> assertTrue(source.isFinished()));
         source.finish();
         ESTestCase.terminate(threadPool);
         for (Page page : pages) {
             page.releaseBlocks();
         }
         safeGet(remoteSinkFuture);
+    }
+
+    public void testLocalExchangeBasic() {
+        BlockFactory blockFactory = blockFactory();
+        Page[] pages = new Page[] {
+            new Page(blockFactory.newConstantIntBlockWith(0, 1)),
+            new Page(blockFactory.newConstantIntBlockWith(1, 1)),
+            new Page(blockFactory.newConstantIntBlockWith(2, 1)) };
+        LocalExchange exchange = new LocalExchange(2);
+        ExchangeSource source = exchange.exchangeSource();
+        AtomicInteger pagesAdded = new AtomicInteger();
+        ExchangeSink sink1 = exchange.exchangeSink(pagesAdded::incrementAndGet);
+        ExchangeSink sink2 = exchange.exchangeSink(pagesAdded::incrementAndGet);
+
+        assertFalse(source.waitForReading().listener().isDone());
+        sink1.addPage(pages[0]);
+        sink2.addPage(pages[1]);
+        assertThat(pagesAdded.get(), equalTo(2));
+        assertFalse(sink1.waitForWriting().listener().isDone());
+
+        assertSame(pages[0], source.pollPage());
+        assertTrue(sink1.waitForWriting().listener().isDone());
+        sink1.finish();
+        assertTrue(sink1.isFinished());
+        assertFalse(source.isFinished());
+
+        sink2.addPage(pages[2]);
+        sink2.finish();
+        assertSame(pages[1], source.pollPage());
+        assertSame(pages[2], source.pollPage());
+        assertNull(source.pollPage());
+        assertTrue(source.isFinished());
+        source.finish();
+
+        for (Page page : pages) {
+            page.releaseBlocks();
+        }
     }
 
     /**
@@ -413,7 +450,9 @@ public class ExchangeServiceTests extends ESTestCase {
                 AtomicBoolean sinkFailed = new AtomicBoolean();
                 ActionListener<Void> oneSinkListener = refs.acquire();
                 exchangeSourceHandler.addRemoteSink((allSourcesFinished, listener) -> {
-                    if (fetched.incrementAndGet() > failAfter) {
+                    // Don't simulate failure when allSourcesFinished - the exchange source might have
+                    // already completed, and the failure can be ignored in the completion listener
+                    if (fetched.incrementAndGet() > failAfter && allSourcesFinished == false) {
                         sinkHandler.fetchPageAsync(true, listener.delegateFailure((l, r) -> {
                             failedRequests.incrementAndGet();
                             sinkFailed.set(true);
@@ -677,6 +716,21 @@ public class ExchangeServiceTests extends ESTestCase {
             // ensure no cyclic exception
             ElasticsearchException.writeException(err, output);
         }
+    }
+
+    public void testLocalExchangeConcurrentRuns() {
+        LocalExchange localExchange = new LocalExchange(between(1, 100));
+        final int maxInputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
+        final int maxOutputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
+        Set<Integer> actualSeqNos = runConcurrentTest(
+            maxInputSeqNo,
+            maxOutputSeqNo,
+            localExchange::exchangeSource,
+            () -> localExchange.exchangeSink(() -> {})
+        );
+        var expectedSeqNos = IntStream.range(0, Math.min(maxInputSeqNo, maxOutputSeqNo)).boxed().collect(Collectors.toSet());
+        assertThat(actualSeqNos, hasSize(expectedSeqNos.size()));
+        assertThat(actualSeqNos, equalTo(expectedSeqNos));
     }
 
     private MockTransportService newTransportService() {

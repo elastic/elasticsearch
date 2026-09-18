@@ -43,6 +43,13 @@ public class TextFieldBlockLoaderTests extends BinaryDVBlockLoaderTestCase {
         TestContext testContext,
         boolean useBinaryDocValues
     ) {
+        // In strict-columnar mode either path yields the raw values in source order: a text field that keeps its own doc values reads them
+        // back via the offsets sidecar, and one that skips them in favour of a plain keyword delegate loads that delegate's columnar doc
+        // values, which also preserve arrival order. The delegate is only skipped when it is a byte-identical copy, so they never diverge.
+        if (params.indexMode().isStrictColumnar()) {
+            return valuesInSourceOrder(value);
+        }
+
         if (fieldMapping.getOrDefault("store", false).equals(true)) {
             return valuesInSourceOrder(value);
         }
@@ -70,7 +77,9 @@ public class TextFieldBlockLoaderTests extends BinaryDVBlockLoaderTestCase {
             // TODO ideally this logic should be in some kind of KeywordFieldSyntheticSourceTest that uses same infra as
             // KeywordFieldBlockLoaderTest
             // It is here since KeywordFieldBlockLoaderTest does not really need it
-            if (params.syntheticSource() && testContext.forceFallbackSyntheticSource() == false && usingSyntheticSourceDelegate) {
+            if ((params.syntheticSource() || params.isColumnarStored())
+                && testContext.forceFallbackSyntheticSource() == false
+                && usingSyntheticSourceDelegate) {
                 var nullValue = (String) keywordMultiFieldMapping.get("null_value");
 
                 if (value == null) {
@@ -115,7 +124,7 @@ public class TextFieldBlockLoaderTests extends BinaryDVBlockLoaderTestCase {
         }
 
         // Loading from binary doc values
-        if (params.syntheticSource() && useBinaryDocValues) {
+        if ((params.syntheticSource() || params.isColumnarStored()) && useBinaryDocValues) {
             return valuesInSortedOrder(value);
         }
 

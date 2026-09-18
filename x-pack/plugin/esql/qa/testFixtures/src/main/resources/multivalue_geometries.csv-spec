@@ -382,3 +382,77 @@ FROM multivalue_geometries
 c:l
 12
 ;
+
+spatialGeometryCollectionGeometryTypeDimensionIsEmpty
+required_capability: fn_st_geometrytype
+required_capability: fn_st_dimension
+required_capability: fn_st_isempty
+
+FROM multivalue_geometries
+| EVAL type = ST_GEOMETRYTYPE(shape), dim = ST_DIMENSION(shape), empty = ST_ISEMPTY(shape)
+| KEEP id, type, dim, empty
+| SORT id
+;
+
+id:l | type:keyword            | dim:integer | empty:boolean
+0    | ST_GeometryCollection   | 2           | false
+1    | ST_MultiPolygon         | 2           | false
+2    | ST_Polygon              | 2           | false
+3    | ST_GeometryCollection   | 2           | false
+4    | ST_GeometryCollection   | 2           | false
+5    | ST_Polygon              | 2           | false
+6    | ST_GeometryCollection   | 2           | false
+7    | ST_GeometryCollection   | 2           | false
+8    | ST_Polygon              | 2           | false
+9    | ST_GeometryCollection   | 2           | false
+10   | ST_GeometryCollection   | 2           | false
+11   | ST_GeometryCollection   | 2           | false
+;
+
+stUnionMultiValueGeoShapes
+required_capability: fn_st_union
+
+FROM multivalue_geometries
+| EVAL result = ST_UNION(shape, smaller)
+| KEEP id, result
+| SORT id
+;
+
+id:l | result:geo_shape
+0    | MULTIPOLYGON (((0.0 0.0, 0.0 -10.0, -10.0 -10.0, -10.0 0.0, 0.0 0.0)),((0.0 0.0, 0.0 10.0, 10.0 10.0, 10.0 0.0, 0.0 0.0)))
+1    | MULTIPOLYGON (((0.0 0.0, 0.0 -10.0, -10.0 -10.0, -10.0 0.0, 0.0 0.0)),((0.0 0.0, 0.0 10.0, 10.0 10.0, 10.0 0.0, 0.0 0.0)))
+2    | POLYGON ((-15.0 -15.0, -15.0 15.0, 15.0 15.0, 15.0 -15.0, -15.0 -15.0))
+3    | MULTIPOLYGON (((15.0 15.0, 15.0 -15.0, -15.0 -15.0, -15.0 15.0, 15.0 15.0)),((15.0 15.0, 15.0 25.0, 25.0 25.0, 25.0 15.0, 15.0 15.0)))
+4    | MULTIPOLYGON (((0.0 0.0, 0.0 -10.0, -10.0 -10.0, -10.0 0.0, 0.0 0.0)),((0.0 0.0, 0.0 10.0, 10.0 10.0, 10.0 0.0, 0.0 0.0)))
+5    | POLYGON ((-5.0 -5.0, -5.0 5.0, 5.0 5.0, 5.0 -5.0, -5.0 -5.0))
+6    | MULTIPOLYGON (((-5.0 -5.0, -5.0 5.0, 5.0 5.0, 5.0 -5.0, -5.0 -5.0)),((15.0 15.0, 15.0 25.0, 25.0 25.0, 25.0 15.0, 15.0 15.0)))
+7    | MULTIPOLYGON (((-9.0 -9.0, -9.0 -1.0, -1.0 -1.0, -1.0 -9.0, -9.0 -9.0)),((1.0 1.0, 1.0 9.0, 9.0 9.0, 9.0 1.0, 1.0 1.0)))
+8    | POLYGON ((15.0 15.0, 15.0 25.0, 25.0 25.0, 25.0 15.0, 15.0 15.0))
+9    | MULTIPOLYGON (((-25.0 -25.0, -25.0 -15.0, -15.0 -15.0, -15.0 -25.0, -25.0 -25.0)),((15.0 15.0, 15.0 25.0, 25.0 25.0, 25.0 15.0, 15.0 15.0)))
+10   | POLYGON ((15.0 5.0, 15.0 -15.0, -15.0 -15.0, -15.0 15.0, 5.0 15.0, 15.0 15.0, 15.0 5.0))
+11   | POLYGON ((1.0 -1.0, 1.0 -11.0, -11.0 -11.0, -11.0 1.0, -1.0 1.0, -1.0 11.0, 11.0 11.0, 11.0 -1.0, 1.0 -1.0))
+;
+
+stUnionMultiValueGeoShapesWithItself
+required_capability: fn_st_union
+
+FROM multivalue_geometries
+| EVAL result = ST_UNION(shape, shape)
+| KEEP id, result
+| SORT id
+;
+
+id:l | result:geo_shape
+0    | MULTIPOLYGON (((0.0 0.0, 0.0 -10.0, -10.0 -10.0, -10.0 0.0, 0.0 0.0)),((0.0 0.0, 0.0 10.0, 10.0 10.0, 10.0 0.0, 0.0 0.0)))
+1    | MULTIPOLYGON (((0.0 -10.0, -10.0 -10.0, -10.0 0.0, 0.0 0.0, 0.0 -10.0)),((10.0 0.0, 0.0 0.0, 0.0 10.0, 10.0 10.0, 10.0 0.0)))
+2    | POLYGON ((15.0 -15.0, -15.0 -15.0, -15.0 15.0, 15.0 15.0, 15.0 -15.0))
+3    | MULTIPOLYGON (((15.0 15.0, 15.0 -15.0, -15.0 -15.0, -15.0 15.0, 15.0 15.0)),((15.0 15.0, 15.0 25.0, 25.0 25.0, 25.0 15.0, 15.0 15.0)))
+4    | MULTIPOLYGON (((0.0 0.0, 0.0 -10.0, -10.0 -10.0, -10.0 0.0, 0.0 0.0)),((0.0 0.0, 0.0 10.0, 10.0 10.0, 10.0 0.0, 0.0 0.0)))
+5    | POLYGON ((5.0 -5.0, -5.0 -5.0, -5.0 5.0, 5.0 5.0, 5.0 -5.0))
+6    | MULTIPOLYGON (((-5.0 -5.0, -5.0 5.0, 5.0 5.0, 5.0 -5.0, -5.0 -5.0)),((15.0 15.0, 15.0 25.0, 25.0 25.0, 25.0 15.0, 15.0 15.0)))
+7    | MULTIPOLYGON (((-9.0 -9.0, -9.0 -1.0, -1.0 -1.0, -1.0 -9.0, -9.0 -9.0)),((1.0 1.0, 1.0 9.0, 9.0 9.0, 9.0 1.0, 1.0 1.0)))
+8    | POLYGON ((25.0 15.0, 15.0 15.0, 15.0 25.0, 25.0 25.0, 25.0 15.0))
+9    | MULTIPOLYGON (((-25.0 -25.0, -25.0 -15.0, -15.0 -15.0, -15.0 -25.0, -25.0 -25.0)),((15.0 15.0, 15.0 25.0, 25.0 25.0, 25.0 15.0, 15.0 15.0)))
+10   | POLYGON ((15.0 5.0, 15.0 -15.0, -15.0 -15.0, -15.0 15.0, 5.0 15.0, 15.0 15.0, 15.0 5.0))
+11   | POLYGON ((1.0 -1.0, 1.0 -11.0, -11.0 -11.0, -11.0 1.0, -1.0 1.0, -1.0 11.0, 11.0 11.0, 11.0 -1.0, 1.0 -1.0))
+;

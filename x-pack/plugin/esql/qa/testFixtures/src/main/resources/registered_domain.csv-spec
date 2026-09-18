@@ -195,3 +195,20 @@ FROM employees
 n:null | rd.domain:keyword | rd.registered_domain:keyword | rd.top_level_domain:keyword | rd.subdomain:keyword
   null |              null |                         null |                        null | null
 ;
+
+
+sortBeforeRegisteredDomainAndStats
+required_capability: registered_domain_command
+required_capability: fix_compound_output_eval_sort_agnostic
+
+ROW a = 1, name_str = "a b"
+| RENAME a AS id_int
+| SORT id_int
+| MV_EXPAND name_str
+| REGISTERED_DOMAIN g = "www.example.com"
+| STATS c = count(*) BY g.domain
+;
+
+c:long | g.domain:keyword
+1      | www.example.com
+;

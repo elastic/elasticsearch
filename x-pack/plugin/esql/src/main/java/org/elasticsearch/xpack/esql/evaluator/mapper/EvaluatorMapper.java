@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.evaluator.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -39,6 +41,15 @@ public interface EvaluatorMapper {
 
         default IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts() {
             throw new UnsupportedOperationException("Shard contexts should only be needed for evaluation operations");
+        }
+
+        /**
+         * Returns the {@link Analyzer} registered (prebuilt or plugin-contributed) under the given name.
+         * Implementations that have access to an analysis registry resolve the name; the default
+         * throws because no registry is available (e.g. during folding or in tests).
+         */
+        default Analyzer getAnalyzer(String name) {
+            throw new UnsupportedOperationException("Analyzer lookup is not available in this evaluator context");
         }
     }
 
@@ -161,6 +172,17 @@ public interface EvaluatorMapper {
         Block block = toEvaluator(foldChildren).get(driverCtx).eval(new Page(1));
         if (block.getPositionCount() != 1) {
             throw new IllegalStateException("generated odd block from fold [" + block + "]");
+        }
+        /*
+         * Constant folding runs synchronously on the coordinator's planning thread,
+         * outside any Driver that would ship a DriverCompletionInfo back to the
+         * response. We don't have a fancy place to stick the warnings, so we use
+         * the thread context for now. But one day we'll plumb a warnings accumulator
+         * in here too and can get rid of the spooky thread local.
+         */
+        driverCtx.finish();
+        for (String warning : driverCtx.warnings()) {
+            HeaderWarning.addWarning(warning);
         }
         return toJavaObject(block, 0);
     }

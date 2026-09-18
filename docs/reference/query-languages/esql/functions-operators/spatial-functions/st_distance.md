@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ST_DISTANCE` function [esql-st_distance]
 
-:::{include} ../../_snippets/functions/layout/st_distance.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/st_distance.md
 :::

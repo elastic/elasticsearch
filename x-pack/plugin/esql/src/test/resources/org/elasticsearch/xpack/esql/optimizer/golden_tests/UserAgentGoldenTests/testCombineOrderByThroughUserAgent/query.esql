@@ -1,0 +1,4 @@
+FROM employees
+| sort emp_no
+| user_agent ua = first_name WITH { "extract_device_type": true }
+| sort ua.name

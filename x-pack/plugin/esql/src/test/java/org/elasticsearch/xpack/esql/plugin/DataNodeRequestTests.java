@@ -49,6 +49,8 @@ public class DataNodeRequestTests extends ESTestCase {
             generateRandomStringArray(10, 10, false, false),
             IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()),
             randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
             randomBoolean()
         );
 

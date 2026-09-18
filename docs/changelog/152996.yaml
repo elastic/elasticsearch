@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 149396
+pr: 152996
+summary: Improve error messages for unsupported nested view and subqueries
+type: bug

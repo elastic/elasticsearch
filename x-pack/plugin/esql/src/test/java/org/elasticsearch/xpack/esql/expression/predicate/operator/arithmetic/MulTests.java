@@ -181,7 +181,8 @@ public class MulTests extends AbstractScalarFunctionTestCase {
             denseVectorScalarCases(
                 "Mul",
                 (v, s) -> v.stream().map(f -> f * (Float) DataTypeConverter.convert(s, FLOAT)).toList(),
-                (s, v) -> v.stream().map(f -> (Float) DataTypeConverter.convert(s, FLOAT) * f).toList()
+                (s, v) -> v.stream().map(f -> (Float) DataTypeConverter.convert(s, FLOAT) * f).toList(),
+                List.of()
             )
         );
 

@@ -19,12 +19,14 @@ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
+import static org.elasticsearch.compute.aggregation.GroupingAggregatorFunction.PartitionSplitter;
+
 /**
  * Aggregator for `Max`, that works with BytesRef values.
  * Gets the biggest BytesRef value, based on its bytes natural order (Delegated to {@link BytesRef#compareTo}).
  */
 @Aggregator({ @IntermediateState(name = "max", type = "BYTES_REF"), @IntermediateState(name = "seen", type = "BOOLEAN") })
-@GroupingAggregator
+@GroupingAggregator(supportsPartitioning = true)
 class MaxBytesRefAggregator {
     private static boolean isBetter(BytesRef value, BytesRef otherValue) {
         return value.compareTo(otherValue) > 0;
@@ -79,13 +81,32 @@ class MaxBytesRefAggregator {
             }
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             internalState.toIntermediate(blocks, offset, selected, driverContext);
         }
 
         Block toBlock(IntVector selected, DriverContext driverContext) {
             return internalState.toValuesBlock(selected, driverContext);
+        }
+
+        void ensureCapacity(int size) {
+            internalState.ensureCapacity(size);
+        }
+
+        PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
+            return internalState.createPartitioningSplitter(breaker);
+        }
+
+        BytesRefSequence partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {
+            return internalState.partitionValues(source, partition);
+        }
+
+        boolean[] partitionSeen(GroupingAggregatorFunction.PartitionedState source, int partition) {
+            return internalState.partitionSeen(source, partition);
+        }
+
+        void appendPartition(BytesRefSequence src, int firstId, int length) {
+            internalState.appendPartition(src, firstId, length);
         }
 
         @Override

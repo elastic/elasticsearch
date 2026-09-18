@@ -124,7 +124,7 @@ public class ComponentTemplateMetadata implements Metadata.ProjectCustom {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 
     static class ComponentTemplateMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {

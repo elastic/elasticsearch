@@ -95,7 +95,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             numericCollectorsUsed++;
             if (source.isFloatingPoint()) {
                 SortedNumericDoubleValues values = source.doubleValues(ctx);
-                DoubleValues singleton = FieldData.unwrapSingleton(values);
+                DoubleValues singleton = SortedNumericDoubleValues.unwrapSingleton(values);
                 if (singleton != null) {
                     return new DirectSingleValuesCollector(counts, MurmurHash3SingleValues.hash(singleton));
                 } else {

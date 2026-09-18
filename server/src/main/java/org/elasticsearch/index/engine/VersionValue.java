@@ -67,10 +67,12 @@ public abstract class VersionValue implements Accountable {
     }
 
     /**
-     * Returns the translog location for this version value or null. This is optional and might not be tracked all the time.
+     * Returns the operation location (translog location + optional batch row index) for this version
+     * value, or null. Optional and might not be tracked all the time. Consumed only by the realtime
+     * GET path.
      */
     @Nullable
-    public Translog.Location getLocation() {
+    public Translog.OperationLocation getOperationLocation() {
         return null;
     }
 }

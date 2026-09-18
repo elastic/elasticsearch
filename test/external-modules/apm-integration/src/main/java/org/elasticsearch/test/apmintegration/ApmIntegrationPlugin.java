@@ -16,13 +16,13 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class ApmIntegrationPlugin extends Plugin implements ActionPlugin {
     private final TestApmIntegrationRestHandler testApmIntegrationRestHandler = new TestApmIntegrationRestHandler();
+    private final FlushTelemetryRestHandler flushTelemetryRestHandler = new FlushTelemetryRestHandler();
 
     @Override
     public List<RestHandler> getRestHandlers(
@@ -30,13 +30,15 @@ public class ApmIntegrationPlugin extends Plugin implements ActionPlugin {
         final Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return Collections.singletonList(testApmIntegrationRestHandler);
+        return List.of(testApmIntegrationRestHandler, flushTelemetryRestHandler);
     }
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        TestMeterUsages testMeterUsages = new TestMeterUsages(services.telemetryProvider().getMeterRegistry());
+        var telemetryProvider = services.telemetryProvider();
+        TestMeterUsages testMeterUsages = new TestMeterUsages(telemetryProvider.getMeterRegistry());
         testApmIntegrationRestHandler.setTestMeterUsages(testMeterUsages);
+        flushTelemetryRestHandler.setTelemetryProvider(telemetryProvider);
         return super.createComponents(services);
     }
 }

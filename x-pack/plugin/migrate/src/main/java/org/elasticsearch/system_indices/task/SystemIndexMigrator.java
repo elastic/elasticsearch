@@ -41,7 +41,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.indices.SystemIndices;
@@ -220,8 +220,8 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         clearResults(ActionListener.wrap(state -> startFeatureMigration(stateFeatureName), this::markAsFailed));
     }
 
-    private void finishIndexAndLoop(SystemIndexMigrationInfo migrationInfo, BulkByScrollResponse bulkResponse) {
-        // The BulkByScroll response is validated in #migrateSingleIndex, it's just here to satisfy the ActionListener type
+    private void finishIndexAndLoop(SystemIndexMigrationInfo migrationInfo, BulkByPaginatedSearchResponse bulkResponse) {
+        // The BulkByPaginatedSearch response is validated in #migrateSingleIndex, it's just here to satisfy the ActionListener type
         assert bulkResponse.isTimedOut() == false
             && (bulkResponse.getBulkFailures() == null || bulkResponse.getBulkFailures().isEmpty())
             && (bulkResponse.getSearchFailures() == null || bulkResponse.getSearchFailures().isEmpty())
@@ -360,7 +360,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
     private void migrateSingleIndex(
         SystemIndexMigrationInfo migrationInfo,
         ProjectMetadata projectMetadata,
-        BiConsumer<SystemIndexMigrationInfo, BulkByScrollResponse> listener
+        BiConsumer<SystemIndexMigrationInfo, BulkByPaginatedSearchResponse> listener
     ) {
         String oldIndexName = migrationInfo.getCurrentIndexName();
         final IndexMetadata imd = projectMetadata.index(oldIndexName);
@@ -417,7 +417,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         }
 
         logger.info("migrating index [{}] from feature [{}] to new index [{}]", oldIndexName, migrationInfo.getFeatureName(), newIndexName);
-        ActionListener<BulkByScrollResponse> innerListener = ActionListener.wrap(
+        ActionListener<BulkByPaginatedSearchResponse> innerListener = ActionListener.wrap(
             response -> listener.accept(migrationInfo, response),
             this::markAsFailed
         );
@@ -432,20 +432,20 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                     oldIndex,
                     true,
                     delegate.delegateFailureAndWrap(
-                        (delegate2, setReadOnlyResponse) -> reindex(migrationInfo, ActionListener.wrap(bulkByScrollResponse -> {
+                        (delegate2, setReadOnlyResponse) -> reindex(migrationInfo, ActionListener.wrap(bulkByPaginatedSearchResponse -> {
                             logger.debug(
                                 "while migrating [{}], got reindex response: [{}]",
                                 oldIndexName,
-                                Strings.toString(bulkByScrollResponse)
+                                Strings.toString(bulkByPaginatedSearchResponse)
                             );
-                            if ((bulkByScrollResponse.getBulkFailures() != null
-                                && bulkByScrollResponse.getBulkFailures().isEmpty() == false)
-                                || (bulkByScrollResponse.getSearchFailures() != null
-                                    && bulkByScrollResponse.getSearchFailures().isEmpty() == false)) {
+                            if ((bulkByPaginatedSearchResponse.getBulkFailures() != null
+                                && bulkByPaginatedSearchResponse.getBulkFailures().isEmpty() == false)
+                                || (bulkByPaginatedSearchResponse.getSearchFailures() != null
+                                    && bulkByPaginatedSearchResponse.getSearchFailures().isEmpty() == false)) {
                                 removeReadOnlyBlockOnReindexFailure(
                                     oldIndex,
                                     delegate2,
-                                    logAndThrowExceptionForFailures(bulkByScrollResponse)
+                                    logAndThrowExceptionForFailures(bulkByPaginatedSearchResponse)
                                 );
                             } else {
                                 // Successful completion of reindexing. Now we need to set the alias and remove the old index.
@@ -463,7 +463,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                                         migrationInfo.getNextIndexName(),
                                         migrationInfo.getFeatureName()
                                     );
-                                    delegate2.onResponse(bulkByScrollResponse);
+                                    delegate2.onResponse(bulkByPaginatedSearchResponse);
                                 }, e -> {
                                     logger.error(
                                         () -> format(
@@ -615,7 +615,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         }
     }
 
-    private void reindex(SystemIndexMigrationInfo migrationInfo, ActionListener<BulkByScrollResponse> listener) {
+    private void reindex(SystemIndexMigrationInfo migrationInfo, ActionListener<BulkByPaginatedSearchResponse> listener) {
         ReindexRequest reindexRequest = new ReindexRequest();
         reindexRequest.setSourceIndices(migrationInfo.getCurrentIndexName());
         reindexRequest.setDestIndex(migrationInfo.getNextIndexName());
@@ -747,7 +747,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
     }
 
     // Failure handlers
-    private void removeReadOnlyBlockOnReindexFailure(Index index, ActionListener<BulkByScrollResponse> listener, Exception ex) {
+    private void removeReadOnlyBlockOnReindexFailure(Index index, ActionListener<BulkByPaginatedSearchResponse> listener, Exception ex) {
         logger.info("removing read only block on [{}] because reindex failed [{}]", index, ex);
         setWriteBlock(index, false, ActionListener.wrap(unsetReadOnlyResponse -> listener.onFailure(ex), e1 -> listener.onFailure(ex)));
     }
@@ -812,12 +812,12 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         }
     }
 
-    private static ElasticsearchException logAndThrowExceptionForFailures(BulkByScrollResponse bulkByScrollResponse) {
-        String bulkFailures = (bulkByScrollResponse.getBulkFailures() != null)
-            ? Strings.collectionToCommaDelimitedString(bulkByScrollResponse.getBulkFailures())
+    private static ElasticsearchException logAndThrowExceptionForFailures(BulkByPaginatedSearchResponse bulkByPaginatedSearchResponse) {
+        String bulkFailures = (bulkByPaginatedSearchResponse.getBulkFailures() != null)
+            ? Strings.collectionToCommaDelimitedString(bulkByPaginatedSearchResponse.getBulkFailures())
             : "";
-        String searchFailures = (bulkByScrollResponse.getSearchFailures() != null)
-            ? Strings.collectionToCommaDelimitedString(bulkByScrollResponse.getSearchFailures())
+        String searchFailures = (bulkByPaginatedSearchResponse.getSearchFailures() != null)
+            ? Strings.collectionToCommaDelimitedString(bulkByPaginatedSearchResponse.getSearchFailures())
             : "";
         logger.error("error occurred while reindexing, bulk failures [{}], search failures [{}]", bulkFailures, searchFailures);
         return new ElasticsearchException(

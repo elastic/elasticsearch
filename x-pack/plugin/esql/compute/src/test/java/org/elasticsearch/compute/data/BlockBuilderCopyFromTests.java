@@ -115,6 +115,7 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
                     i
                 );
                 case LONG_RANGE -> ((LongRangeBlockBuilder) builder).copyFrom((LongRangeBlock) block, i);
+                case DOUBLE_RANGE -> ((DoubleRangeBlockBuilder) builder).copyFrom((DoubleRangeBlock) block, i);
                 default -> throw new IllegalArgumentException("unsupported type: " + elementType);
             }
 

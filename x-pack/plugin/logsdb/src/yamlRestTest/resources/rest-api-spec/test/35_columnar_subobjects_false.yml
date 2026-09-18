@@ -1,0 +1,188 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.columnar.accepts_subobjects_false" ]
+      reason: "columnar index modes must accept subobjects: false as a no-op"
+
+---
+"logsdb_columnar standalone index accepts subobjects: false at root":
+  - do:
+      indices.create:
+        index: test_logsdb_columnar_subobjects_false_root
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            subobjects: false
+            properties:
+              "@timestamp":
+                type: date
+              log.level:
+                type: keyword
+
+  - do:
+      indices.get_mapping:
+        index: test_logsdb_columnar_subobjects_false_root
+  - match: { test_logsdb_columnar_subobjects_false_root.mappings.properties.log\.level.type: keyword }
+
+---
+"logsdb_columnar standalone index accepts subobjects: false on object field":
+  - do:
+      indices.create:
+        index: test_logsdb_columnar_subobjects_false_object
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: object
+                subobjects: false
+                properties:
+                  name:
+                    type: keyword
+
+  - do:
+      indices.get_mapping:
+        index: test_logsdb_columnar_subobjects_false_object
+  - match: { test_logsdb_columnar_subobjects_false_object.mappings.properties.host\.name.type: keyword }
+  - is_false: test_logsdb_columnar_subobjects_false_object.mappings.properties.host.properties
+
+---
+"logsdb_columnar data stream accepts subobjects: false at root via index template":
+  - do:
+      indices.put_index_template:
+        name: cl-subobjects-root-template
+        body:
+          index_patterns: [ logs-cl-subobjects-root-* ]
+          data_stream: {}
+          priority: 1000
+          template:
+            settings:
+              index.mode: logsdb_columnar
+            mappings:
+              subobjects: false
+              properties:
+                "@timestamp":
+                  type: date
+                log.level:
+                  type: keyword
+      allowed_warnings:
+        - "index template [cl-subobjects-root-template] has index patterns [logs-cl-subobjects-root-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-subobjects-root-template] will take precedence during new index creation"
+
+  - do:
+      indices.create_data_stream:
+        name: logs-cl-subobjects-root-dev
+  - is_true: acknowledged
+
+---
+"logsdb_columnar data stream accepts subobjects: false on object field via component template":
+  - do:
+      cluster.put_component_template:
+        name: cl-subobjects-object-component
+        body:
+          template:
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                host:
+                  type: object
+                  subobjects: false
+                  properties:
+                    name:
+                      type: keyword
+
+  - do:
+      indices.put_index_template:
+        name: cl-subobjects-object-template
+        body:
+          index_patterns: [ logs-cl-subobjects-object-* ]
+          data_stream: {}
+          priority: 1000
+          composed_of: [ cl-subobjects-object-component ]
+          template:
+            settings:
+              index.mode: logsdb_columnar
+      allowed_warnings:
+        - "index template [cl-subobjects-object-template] has index patterns [logs-cl-subobjects-object-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [cl-subobjects-object-template] will take precedence during new index creation"
+
+  - do:
+      indices.create_data_stream:
+        name: logs-cl-subobjects-object-dev
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: logs-cl-subobjects-object-dev
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+
+  - do:
+      indices.get_mapping:
+        index: $backing_index
+  - match: { .$backing_index.mappings.properties.host\.name.type: keyword }
+  - is_false: .$backing_index.mappings.properties.host.properties
+
+---
+"logsdb_columnar index still rejects subobjects: true":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_logsdb_columnar_subobjects_true
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            subobjects: true
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: subobjects [true] is not supported in columnar mode" }
+
+---
+"logsdb_columnar index accepts PUT mapping with subobjects: false":
+  - do:
+      indices.create:
+        index: test_logsdb_columnar_put_mapping
+        body:
+          settings:
+            index.mode: logsdb_columnar
+
+  - do:
+      indices.put_mapping:
+        index: test_logsdb_columnar_put_mapping
+        body:
+          subobjects: false
+          properties:
+            log.level:
+              type: keyword
+
+  - do:
+      indices.get_mapping:
+        index: test_logsdb_columnar_put_mapping
+  - match: { test_logsdb_columnar_put_mapping.mappings.properties.log\.level.type: keyword }
+
+---
+"logsdb_columnar index still rejects PUT mapping with subobjects: true":
+  - do:
+      indices.create:
+        index: test_logsdb_columnar_put_mapping_true
+        body:
+          settings:
+            index.mode: logsdb_columnar
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test_logsdb_columnar_put_mapping_true
+        body:
+          subobjects: true
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: subobjects [true] is not supported in columnar mode" }

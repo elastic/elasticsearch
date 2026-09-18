@@ -207,3 +207,16 @@ ROW a = [1, 2, 3, 4]
 finalValue:null
 null
 ;
+
+testMvUnionKeywordFields
+required_capability: fn_mv_union
+
+FROM employees
+| WHERE emp_no == 10001
+| EVAL finalValue = MV_SORT(MV_UNION(job_positions, last_name))
+| KEEP emp_no, finalValue
+;
+
+emp_no:integer | finalValue:keyword
+10001          | [Accountant, Facello, Senior Python Developer]
+;

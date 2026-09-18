@@ -80,6 +80,24 @@ public class TimeseriesLifecycleType implements LifecycleType {
     );
     public static final List<String> ORDERED_VALID_FROZEN_ACTIONS = List.of(UnfollowAction.NAME, SearchableSnapshotAction.NAME);
     public static final List<String> ORDERED_VALID_DELETE_ACTIONS = List.of(WaitForSnapshotAction.NAME, DeleteAction.NAME);
+    /**
+     * We define the following actions as read-only, because either they explicitly
+     * set an index to be read-only (read-only, downsample, searchable snapshot, shrink)
+     * or adding data during their operation could be tricky, like force-merge. Finally,
+     * delete is also considered a read-only operation because any data that would be added
+     * would be removed asap.
+     * These actions are used to determine if we will create a new past backing index in a
+     * TSDB to cover documents with older timestamps than the time frame covered by
+     * existing indices.
+     */
+    public static final Set<String> READ_ONLY_ACTIONS = Set.of(
+        ReadOnlyAction.NAME,
+        DownsampleAction.NAME,
+        ShrinkAction.NAME,
+        ForceMergeAction.NAME,
+        SearchableSnapshotAction.NAME,
+        DeleteAction.NAME
+    );
 
     static final Set<String> VALID_HOT_ACTIONS = Sets.newHashSet(ORDERED_VALID_HOT_ACTIONS);
     static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(ORDERED_VALID_WARM_ACTIONS);

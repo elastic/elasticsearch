@@ -13,6 +13,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
+import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
@@ -22,9 +23,8 @@ public abstract class InternalRangeTestCase<T extends InternalAggregation & Rang
 
     private boolean keyed;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeKeyed() throws Exception {
         keyed = randomBoolean();
     }
 

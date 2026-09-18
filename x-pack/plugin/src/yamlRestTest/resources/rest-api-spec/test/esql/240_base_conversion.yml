@@ -192,7 +192,7 @@ no index, to_long with 3 args:
 
   - match: { status: 400 }
   - match: { error.type: parsing_exception }
-  - contains: { error.reason: "expects one or two arguments but it received 3" }
+  - contains: { error.reason: "expects one or two arguments" }
 
 ---
 no index, to_integer with 3 args:
@@ -204,7 +204,7 @@ no index, to_integer with 3 args:
 
   - match: { status: 400 }
   - match: { error.type: parsing_exception }
-  - contains: { error.reason: "expects one or two arguments but it received 3" }
+  - contains: { error.reason: "expects one or two arguments" }
 
 ---
 no index, to_long with no args:
@@ -216,7 +216,7 @@ no index, to_long with no args:
 
   - match: { status: 400 }
   - match: { error.type: parsing_exception }
-  - contains: { error.reason: "expects one or two arguments but it received 0" }
+  - contains: { error.reason: "expects one or two arguments" }
 
 ---
 no index, to_integer with no args:
@@ -228,7 +228,7 @@ no index, to_integer with no args:
 
   - match: { status: 400 }
   - match: { error.type: parsing_exception }
-  - contains: { error.reason: "expects one or two arguments but it received 0" }
+  - contains: { error.reason: "expects one or two arguments" }
 
 ---
 no index, to_long literal second argument is not an integer:

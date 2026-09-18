@@ -11,13 +11,20 @@ package org.elasticsearch.search.aggregations.support;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.script.AggregationScript;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptDoubleValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptLongValues;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
@@ -25,7 +32,11 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -145,6 +156,83 @@ public class ScriptValuesTests extends ESTestCase {
                 for (int j = 0; j < values[i].length; ++j) {
                     assertEquals(values[i][j], scriptValues.nextValue());
                 }
+            }
+        }
+    }
+
+    public void testCancellationCheckWiredForAggregationScript() throws IOException {
+        AtomicReference<AggregationScript> capturedScript = new AtomicReference<>();
+        AggregationScript.LeafFactory capturingLeafFactory = new AggregationScript.LeafFactory() {
+            @Override
+            public AggregationScript newInstance(LeafReaderContext ctx) throws IOException {
+                AggregationScript script = new AggregationScript() {
+                    @Override
+                    public Object execute() {
+                        return null;
+                    }
+                };
+                capturedScript.set(script);
+                return script;
+            }
+
+            @Override
+            public boolean needs_score() {
+                return false;
+            }
+        };
+        AggregationScript.Factory capturingFactory = (params, lookup) -> capturingLeafFactory;
+
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+                w.addDocument(new Document());
+                w.commit();
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                ContextIndexSearcher contextSearcher = new ContextIndexSearcher(
+                    reader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true
+                );
+                AggregationContext mockContext = mock(AggregationContext.class);
+                doReturn(capturingFactory).when(mockContext).compile(any(Script.class), same(AggregationScript.CONTEXT));
+                when(mockContext.lookup()).thenReturn(new SearchLookup(null, null, (ctx, doc) -> null));
+                when(mockContext.searcher()).thenReturn(contextSearcher);
+                when(mockContext.nowInMillis()).thenReturn(0L);
+
+                ValuesSourceConfig config = ValuesSourceConfig.resolveUnregistered(
+                    mockContext,
+                    ValueType.NUMERIC,
+                    null,
+                    new Script("test"),
+                    null,
+                    null,
+                    null,
+                    CoreValuesSourceType.NUMERIC
+                );
+                config.script().newInstance(null);
+                assertNotNull(capturedScript.get()._getCancellationCheck());
+
+                capturedScript.set(null);
+                AggregationContext plainMockContext = mock(AggregationContext.class);
+                doReturn(capturingFactory).when(plainMockContext).compile(any(Script.class), same(AggregationScript.CONTEXT));
+                when(plainMockContext.lookup()).thenReturn(new SearchLookup(null, null, (ctx, doc) -> null));
+                when(plainMockContext.searcher()).thenReturn(newSearcher(reader));
+                when(plainMockContext.nowInMillis()).thenReturn(0L);
+
+                ValuesSourceConfig plainConfig = ValuesSourceConfig.resolveUnregistered(
+                    plainMockContext,
+                    ValueType.NUMERIC,
+                    null,
+                    new Script("test"),
+                    null,
+                    null,
+                    null,
+                    CoreValuesSourceType.NUMERIC
+                );
+                plainConfig.script().newInstance(null);
+                assertNull(capturedScript.get()._getCancellationCheck());
             }
         }
     }

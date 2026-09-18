@@ -69,4 +69,17 @@ public class DeltaCodecStageTests extends AbstractTransformStageTestCase {
         }
         assertMultiBlockTransformRoundTrip(DeltaCodecStage.INSTANCE, blocks);
     }
+
+    public void testRoundTripDeltaOverflowAtExtremes() throws IOException {
+        // NOTE: strictly ascending, so delta applies, but the first step (MAX-4) - MIN overflows; the
+        // modular prefix-sum inverse must recover the originals.
+        final long[] values = {
+            Long.MIN_VALUE,
+            Long.MAX_VALUE - 4,
+            Long.MAX_VALUE - 3,
+            Long.MAX_VALUE - 2,
+            Long.MAX_VALUE - 1,
+            Long.MAX_VALUE };
+        assertTransformRoundTrip(DeltaCodecStage.INSTANCE, values);
+    }
 }

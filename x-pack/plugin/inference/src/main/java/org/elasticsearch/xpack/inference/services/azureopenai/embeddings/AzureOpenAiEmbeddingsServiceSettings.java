@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -30,12 +29,14 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings.WAIT_FOR_UPGRADE_TO_COMPLETE_ERROR_MESSAGE;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiOAuth2Settings.AZURE_OPENAI_OAUTH_SETTINGS;
 
 /**
@@ -68,31 +69,27 @@ public class AzureOpenAiEmbeddingsServiceSettings extends AzureOpenAiServiceSett
     private final SimilarityMeasure similarity;
 
     public static AzureOpenAiEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
-        var commonFields = parseCommonFields(map, validationException, context, DEFAULT_RATE_LIMIT_SETTINGS);
-        Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer maxTokens = extractOptionalPositiveInteger(
-            map,
-            MAX_INPUT_TOKENS,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
-        SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var validationException = new ValidationException();
+
+        var commonSettings = parseCommonSettings(map, validationException, context, DEFAULT_RATE_LIMIT_SETTINGS);
+        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, SERVICE_SETTINGS, validationException);
+        var maxInputTokens = extractOptionalPositiveInteger(map, MAX_INPUT_TOKENS, SERVICE_SETTINGS, validationException);
+        var similarity = extractSimilarity(map, SERVICE_SETTINGS, validationException);
         var dimensionsSetByUser = extractOptionalBoolean(map, ServiceFields.DIMENSIONS_SET_BY_USER, validationException);
 
         switch (context) {
             case REQUEST -> {
                 if (dimensionsSetByUser != null) {
                     validationException.addValidationError(
-                        ServiceUtils.invalidSettingError(ServiceFields.DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                        ServiceUtils.invalidSettingError(ServiceFields.DIMENSIONS_SET_BY_USER, SERVICE_SETTINGS)
                     );
                 }
-                dimensionsSetByUser = dims != null;
+                dimensionsSetByUser = dimensions != null;
             }
             case PERSISTENT -> {
                 if (dimensionsSetByUser == null) {
                     validationException.addValidationError(
-                        InferenceUtils.missingSettingErrorMsg(ServiceFields.DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                        InferenceUtils.missingSettingErrorMsg(ServiceFields.DIMENSIONS_SET_BY_USER, SERVICE_SETTINGS.toString())
                     );
                 }
             }
@@ -101,10 +98,10 @@ public class AzureOpenAiEmbeddingsServiceSettings extends AzureOpenAiServiceSett
         validationException.throwIfValidationErrorsExist();
 
         return new AzureOpenAiEmbeddingsServiceSettings(
-            commonFields,
-            dims,
+            commonSettings,
+            dimensions,
             Boolean.TRUE.equals(dimensionsSetByUser),
-            maxTokens,
+            maxInputTokens,
             similarity
         );
     }
@@ -147,22 +144,22 @@ public class AzureOpenAiEmbeddingsServiceSettings extends AzureOpenAiServiceSett
     }
 
     private AzureOpenAiEmbeddingsServiceSettings(
-        CommonFields commonFields,
+        CommonSettings commonSettings,
         @Nullable Integer dimensions,
         boolean dimensionsSetByUser,
         @Nullable Integer maxInputTokens,
         @Nullable SimilarityMeasure similarity
     ) {
         this(
-            commonFields.resourceName(),
-            commonFields.deploymentId(),
-            commonFields.apiVersion(),
+            commonSettings.resourceName(),
+            commonSettings.deploymentId(),
+            commonSettings.apiVersion(),
             dimensions,
             dimensionsSetByUser,
             maxInputTokens,
             similarity,
-            commonFields.rateLimitSettings(),
-            commonFields.oAuth2Settings()
+            commonSettings.rateLimitSettings(),
+            commonSettings.oAuth2Settings()
         );
     }
 
@@ -215,6 +212,29 @@ public class AzureOpenAiEmbeddingsServiceSettings extends AzureOpenAiServiceSett
     }
 
     @Override
+    public AzureOpenAiEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var updatedCommonSettings = updateCommonSettings(serviceSettings, validationException);
+        var extractedMaxInputTokens = extractOptionalPositiveInteger(
+            serviceSettings,
+            MAX_INPUT_TOKENS,
+            SERVICE_SETTINGS,
+            validationException
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new AzureOpenAiEmbeddingsServiceSettings(
+            updatedCommonSettings,
+            this.dimensions,
+            this.dimensionsSetByUser,
+            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
+            this.similarity
+        );
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         toXContentFragmentOfExposedFields(builder, params);
@@ -239,21 +259,6 @@ public class AzureOpenAiEmbeddingsServiceSettings extends AzureOpenAiServiceSett
     }
 
     @Override
-    protected AzureOpenAiEmbeddingsServiceSettings createInstance(@Nullable AzureOpenAiOAuth2Settings newOAuth2Settings) {
-        return new AzureOpenAiEmbeddingsServiceSettings(
-            resourceName,
-            deploymentId,
-            apiVersion,
-            dimensions,
-            dimensionsSetByUser,
-            maxInputTokens,
-            similarity,
-            rateLimitSettings,
-            newOAuth2Settings
-        );
-    }
-
-    @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.minimumCompatible();
     }
@@ -271,10 +276,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends AzureOpenAiServiceSett
         if (out.getTransportVersion().supports(AZURE_OPENAI_OAUTH_SETTINGS)) {
             out.writeOptionalWriteable(oAuth2Settings);
         } else if (oAuth2Settings != null) {
-            throw new ElasticsearchStatusException(
-                "Cannot send OAuth2 settings to an older node. Please wait until all nodes are upgraded before using OAuth2.",
-                RestStatus.BAD_REQUEST
-            );
+            throw new ElasticsearchStatusException(WAIT_FOR_UPGRADE_TO_COMPLETE_ERROR_MESSAGE, RestStatus.BAD_REQUEST);
         }
     }
 

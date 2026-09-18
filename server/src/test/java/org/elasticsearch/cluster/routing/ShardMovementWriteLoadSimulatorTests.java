@@ -15,16 +15,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -80,7 +78,14 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
         final var randomShard = randomFrom(StreamSupport.stream(allocation.routingNodes().node("node_0").spliterator(), false).toList());
         final var expectedShardSize = randomNonNegativeLong();
         final var moveShardTuple = allocation.routingNodes()
-            .relocateShard(randomShard, "node_1", expectedShardSize, "testing", RoutingChangesObserver.NOOP);
+            .relocateShard(
+                randomShard,
+                "node_1",
+                expectedShardSize,
+                "testing",
+                RoutingChangesObserver.NOOP,
+                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            );
         shardMovementWriteLoadSimulator.simulateShardStarted(moveShardTuple.v2());
         final ShardRouting movedAndStartedShard = allocation.routingNodes()
             .startShard(moveShardTuple.v2(), RoutingChangesObserver.NOOP, expectedShardSize);
@@ -130,7 +135,14 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
 
         // Then move it back
         final var moveBackTuple = allocation.routingNodes()
-            .relocateShard(movedAndStartedShard, "node_0", expectedShardSize, "testing", RoutingChangesObserver.NOOP);
+            .relocateShard(
+                movedAndStartedShard,
+                "node_0",
+                expectedShardSize,
+                "testing",
+                RoutingChangesObserver.NOOP,
+                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            );
         shardMovementWriteLoadSimulator.simulateShardStarted(moveBackTuple.v2());
 
         // The utilization numbers should return to their original values
@@ -168,7 +180,14 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
         final var expectedShardSize = randomNonNegativeLong();
         final var randomShard = randomFrom(StreamSupport.stream(allocation.routingNodes().node("node_0").spliterator(), false).toList());
         final var moveShardTuple = allocation.routingNodes()
-            .relocateShard(randomShard, "node_1", expectedShardSize, "testing", RoutingChangesObserver.NOOP);
+            .relocateShard(
+                randomShard,
+                "node_1",
+                expectedShardSize,
+                "testing",
+                RoutingChangesObserver.NOOP,
+                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            );
         shardMovementWriteLoadSimulator.simulateShardStarted(moveShardTuple.v2());
         allocation.routingNodes().startShard(moveShardTuple.v2(), RoutingChangesObserver.NOOP, expectedShardSize);
 
@@ -190,7 +209,14 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
         // Relocate a random shard from node_0 to node_1
         final var randomShard = randomFrom(StreamSupport.stream(allocation.routingNodes().node("node_0").spliterator(), false).toList());
         final var moveShardTuple = allocation.routingNodes()
-            .relocateShard(randomShard, "node_1", 0, "testing", RoutingChangesObserver.NOOP);
+            .relocateShard(
+                randomShard,
+                "node_1",
+                0,
+                "testing",
+                RoutingChangesObserver.NOOP,
+                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            );
         shardMovementWriteLoadSimulator.simulateShardStarted(moveShardTuple.v2());
 
         final var simulated = shardMovementWriteLoadSimulator.simulatedNodeUsageStatsForThreadPools();
@@ -277,13 +303,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
             .shardWriteLoads(shardWriteLoads)
             .build();
 
-        return new RoutingAllocation(
-            new AllocationDeciders(List.of()),
-            clusterState,
-            clusterInfo,
-            SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
-        ).mutableCloneForSimulation();
+        return TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).build().mutableCloneForSimulation();
     }
 
     private ClusterState createClusterState() {

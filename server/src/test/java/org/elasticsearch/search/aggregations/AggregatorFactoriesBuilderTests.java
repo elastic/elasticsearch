@@ -36,9 +36,7 @@ public class AggregatorFactoriesBuilderTests extends AbstractXContentSerializing
     private NamedXContentRegistry namedXContentRegistry;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
-
+    public void initNamedWriteableRegistry() throws Exception {
         // register aggregations as NamedWriteable
         SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());

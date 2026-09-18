@@ -1,5 +1,0 @@
-pr: 143440
-summary: Fix BoundedBreakIteratorScanner IllegalStateException when used with SplittingBreakIterator during highlighting
-area: Highlighting
-type: bug
-issues: []

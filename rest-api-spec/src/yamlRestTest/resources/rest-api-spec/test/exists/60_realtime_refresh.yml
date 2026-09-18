@@ -5,6 +5,7 @@
  - do:
      indices.create:
        index:    test_1
+       wait_for_active_shards: all
        body:
          settings:
            index:

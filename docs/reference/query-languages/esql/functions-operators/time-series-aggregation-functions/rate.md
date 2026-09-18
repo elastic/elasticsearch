@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `RATE` function [esql-rate]
 
-:::{include} ../../_snippets/functions/layout/rate.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/rate.md
 :::

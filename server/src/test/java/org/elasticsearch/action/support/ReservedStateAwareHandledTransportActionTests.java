@@ -12,7 +12,7 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -124,7 +124,7 @@ public class ReservedStateAwareHandledTransportActionTests extends ESTestCase {
         }
     }
 
-    static class DummyRequest extends LegacyActionRequest {
+    static class DummyRequest extends UntypedActionRequest {
         @Override
         public ActionRequestValidationException validate() {
             return null;

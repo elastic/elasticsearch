@@ -7,171 +7,65 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
-import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
-
 /**
- * A Fork is a n-ary {@code Plan} where each child is a sub plan, e.g.
+ * The {@code FORK} command: an n-ary {@link MergePlan} where each child is a sub plan, e.g.
  * {@code FORK [WHERE content:"fox" ] [WHERE content:"dog"] }
  */
-public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAware, TelemetryAware, ExecutesOn.Coordinator {
+public final class Fork extends MergePlan implements TelemetryAware {
 
     public static final String FORK_FIELD = "_fork";
-    public static final int MAX_BRANCHES = 8;
-    private final List<Attribute> output;
 
     public Fork(Source source, List<LogicalPlan> children, List<Attribute> output) {
-        super(source, children);
-        if (children.size() > MAX_BRANCHES) {
-            throw new IllegalArgumentException("FORK supports up to " + MAX_BRANCHES + " branches, got: " + children.size());
-        }
-
-        this.output = output;
+        super(source, children, output);
     }
 
     @Override
-    public LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
-        return new Fork(source(), newChildren, output);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("not serialized");
-    }
-
-    @Override
-    public String getWriteableName() {
-        throw new UnsupportedOperationException("not serialized");
-    }
-
-    @Override
-    public boolean expressionsResolved() {
-        if (children().stream().allMatch(LogicalPlan::resolved) == false) {
-            return false;
-        }
-
-        if (children().stream()
-            .anyMatch(p -> p.outputSet().names().contains(Analyzer.NO_FIELDS_NAME) || output.size() != p.output().size())) {
-            return false;
-        }
-
-        // Here we check if all sub plans output the same column names.
-        // If they don't then FORK was not resolved.
-        List<String> firstOutputNames = children().getFirst().output().stream().map(Attribute::name).toList();
-        Holder<Boolean> resolved = new Holder<>(true);
-        children().stream().skip(1).forEach(subPlan -> {
-            List<String> names = subPlan.output().stream().map(Attribute::name).toList();
-            if (names.equals(firstOutputNames) == false) {
-                resolved.set(false);
-            }
-        });
-
-        return resolved.get();
+    public Fork replaceChildren(List<LogicalPlan> newChildren) {
+        return new Fork(source(), newChildren, output());
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Fork::new, children(), output);
+        return NodeInfo.create(this, Fork::new, children(), output());
     }
 
+    @Override
     public Fork replaceSubPlans(List<LogicalPlan> subPlans) {
-        return new Fork(source(), subPlans, output);
+        return new Fork(source(), subPlans, output());
     }
 
+    @Override
     public Fork replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output) {
         return new Fork(source(), subPlans, output);
     }
 
+    @Override
     public Fork refreshOutput() {
         return new Fork(source(), children(), refreshedOutput());
     }
 
-    protected List<Attribute> refreshedOutput() {
-        return toReferenceAttributesPreservingIds(outputUnion(children()), this.output());
-    }
-
-    @Override
-    public List<Attribute> output() {
-        return output;
-    }
-
-    public static List<Attribute> outputUnion(List<LogicalPlan> subplans) {
-        List<Attribute> output = new ArrayList<>();
-        Set<String> names = new HashSet<>();
-        // these are attribute names we know should have an UNSUPPORTED data type in the FORK output
-        Set<String> unsupportedAttributesNames = outputUnsupportedAttributeNames(subplans);
-
-        for (var subPlan : subplans) {
-            for (var attr : subPlan.output()) {
-                // When we have multiple attributes with the same name, the ones that have a supported data type take priority.
-                // We only add an attribute with an unsupported data type if we know that in the output of the rest of the FORK branches
-                // there exists no attribute with the same name and with a supported data type.
-                if (attr.dataType() == DataType.UNSUPPORTED && unsupportedAttributesNames.contains(attr.name()) == false) {
-                    continue;
-                }
-
-                if (names.contains(attr.name()) == false && attr != NO_FIELDS.getFirst()) {
-                    names.add(attr.name());
-                    output.add(attr);
-                }
-            }
-        }
-        return output;
-    }
-
-    /**
-     * Returns a list of attribute names that will need to have the @{code UNSUPPORTED} data type in FORK output.
-     * These are attributes that are either {@code UNSUPPORTED} or missing in each FORK branch.
-     * If two branches have the same attribute name, but only in one of them the data type is {@code UNSUPPORTED}, this constitutes
-     * data type conflict, and so this attribute name will not be returned by this function.
-     * Data type conflicts are later on checked in {@code postAnalysisPlanVerification}.
-     */
-    public static Set<String> outputUnsupportedAttributeNames(List<LogicalPlan> subplans) {
-        Set<String> unsupportedAttributes = new HashSet<>();
-        Set<String> names = new HashSet<>();
-
-        for (var subPlan : subplans) {
-            for (var attr : subPlan.output()) {
-                var attrName = attr.name();
-                if (unsupportedAttributes.contains(attrName) == false
-                    && attr.dataType() == DataType.UNSUPPORTED
-                    && names.contains(attrName) == false) {
-                    unsupportedAttributes.add(attrName);
-                } else if (unsupportedAttributes.contains(attrName) && attr.dataType() != DataType.UNSUPPORTED) {
-                    unsupportedAttributes.remove(attrName);
-                }
-                names.add(attrName);
-            }
-        }
-
-        return unsupportedAttributes;
-    }
-
     @Override
     public int hashCode() {
-        return Objects.hash(Fork.class, output, children());
+        return Objects.hash(Fork.class, output(), children());
     }
 
     @Override
@@ -184,7 +78,7 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
         }
         Fork other = (Fork) o;
 
-        return Objects.equals(output, other.output) && Objects.equals(children(), other.children());
+        return Objects.equals(output(), other.output()) && Objects.equals(children(), other.children());
     }
 
     @Override
@@ -193,52 +87,117 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
     }
 
     private static void checkFork(LogicalPlan plan, Failures failures) {
-        if (plan instanceof Fork == false || plan instanceof UnionAll) {
+        checkBranchCount(plan, failures);
+        if (plan instanceof Fork == false) {
             return;
         }
         Fork fork = (Fork) plan;
 
-        fork.forEachDown(Fork.class, otherFork -> {
-            if (fork == otherFork) {
+        forEachMergePlanSkippingSubqueries(fork, other -> {
+            if (other == fork) {
                 return;
             }
 
             failures.add(
                 Failure.fail(
-                    otherFork,
-                    otherFork instanceof UnionAll
+                    other,
+                    other instanceof UnionAll
                         ? "FORK after subquery is not supported"
                         : "Only a single FORK command is supported, but found multiple"
                 )
             );
         });
 
-        Map<String, DataType> outputTypes = fork.output().stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));
+        Map<String, Attribute> mergedOutput = fork.output().stream().collect(Collectors.toMap(Attribute::name, attr -> attr));
 
         fork.children().forEach(subPlan -> {
             for (Attribute attr : subPlan.output()) {
-                var expected = outputTypes.get(attr.name());
+                var merged = mergedOutput.get(attr.name());
 
                 // If the FORK output has an UNSUPPORTED data type, we know there is no conflict.
                 // We only assign an UNSUPPORTED attribute in the FORK output when there exists no attribute with the
                 // same name and supported data type in any of the FORK branches.
-                if (expected == DataType.UNSUPPORTED) {
+                //
+                // Likewise, a branch that does not produce the column at all had it filled with nulls to line the branches up.
+                // Those rows carry no values, so there is nothing for a sibling's declarations to disagree with.
+                if (merged == null || merged.dataType() == DataType.UNSUPPORTED || producesOnlyNull(subPlan, attr)) {
                     continue;
                 }
 
-                var actual = attr.dataType();
-                if (actual != expected) {
+                var conflict = checkForMergeConflict(attr, merged);
+                if (conflict != null) {
                     failures.add(
                         Failure.fail(
                             attr,
-                            "Column [{}] has conflicting data types in FORK branches: [{}] and [{}]",
+                            "Column [{}] has conflicting {} in FORK branches: [{}] and [{}]",
                             attr.name(),
-                            actual,
-                            expected
+                            conflict.property(),
+                            conflict.branchValue(),
+                            conflict.mergedValue()
                         )
                     );
                 }
             }
         });
+    }
+
+    /**
+     * A property that two same-named attributes disagree on, and so cannot be merged into one output column.
+     *
+     * @param property plural name of the property, for a user-facing message
+     * @param branchValue the value on the attribute being merged in
+     * @param mergedValue the value the merged output carries
+     */
+    record MergeConflict(String property, String branchValue, String mergedValue) {}
+
+    /**
+     * Why {@code branch} cannot be merged into {@code merged}, or {@code null} when it can.
+     * <p>
+     * {@link Expressions#toReferenceAttributesPreservingIds} keeps one attribute per column name, so a branch
+     * disagreeing on any property that changes how the column's values are read would have its rows read as if it
+     * had declared the merged one. {@link #checkFork} reports the conflict; this decides what counts as one, so
+     * that adding a text-column property does not scatter the comparison through the check itself.
+     */
+    @Nullable
+    static MergeConflict checkForMergeConflict(Attribute branch, Attribute merged) {
+        if (branch.dataType() != merged.dataType()) {
+            return new MergeConflict("data types", String.valueOf(branch.dataType()), String.valueOf(merged.dataType()));
+        }
+        // Declaring nothing is declaring the standard analyzer, so it still disagrees with a sibling that names a
+        // different one: the merged column can carry only one, and the other branch's values would be analyzed with
+        // an analyzer they never declared. A column with no values to analyze - one branch alignment filled with
+        // nulls - is skipped by the caller rather than weakening the comparison here.
+        String branchAnalyzer = analyzerOrStandard(branch);
+        String mergedAnalyzer = analyzerOrStandard(merged);
+        if (branchAnalyzer.equals(mergedAnalyzer) == false) {
+            return new MergeConflict("values analyzers", branchAnalyzer, mergedAnalyzer);
+        }
+        return null;
+    }
+
+    private static String analyzerOrStandard(Attribute attr) {
+        String declared = AnalyzedTextExpression.valuesAnalyzerOf(attr);
+        return declared == null ? AnalyzedTextExpression.STANDARD_ANALYZER : declared;
+    }
+
+    /**
+     * Whether {@code attr}, a column of {@code branch}'s output, holds nothing but nulls. Branch alignment fills a
+     * column a branch lacks this way, so that every branch outputs the same names; a column written as an explicit
+     * {@code EVAL x = null} is indistinguishable and equally empty, so both are treated alike.
+     * <p>
+     * Matched on the attribute's id rather than its name: a branch may assign the name more than once, and only the
+     * assignment this attribute came from decides what the branch outputs. Matching by name would let an assignment
+     * a later one shadows answer for the column.
+     */
+    private static boolean producesOnlyNull(LogicalPlan branch, Attribute attr) {
+        Holder<Boolean> onlyNull = new Holder<>(false);
+        branch.forEachDown(Eval.class, eval -> {
+            for (Alias field : eval.fields()) {
+                if (field.id().equals(attr.id())) {
+                    onlyNull.set(Expressions.isGuaranteedNull(field.child()));
+                }
+            }
+        });
+        return onlyNull.get();
     }
 }

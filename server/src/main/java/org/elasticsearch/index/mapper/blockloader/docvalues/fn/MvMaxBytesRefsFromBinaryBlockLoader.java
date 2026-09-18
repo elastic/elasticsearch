@@ -10,12 +10,17 @@
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractBytesRefsFromBinaryReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueArrayOrderInlineNullBinaryDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueColumnarPayloadBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BinaryAndCounts;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
@@ -23,17 +28,40 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNum
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.BiFunction;
 
 public class MvMaxBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
 
     private final String fieldName;
+    private final BinaryDocValuesFormat binaryFormat;
 
-    public MvMaxBytesRefsFromBinaryBlockLoader(String fieldName) {
+    public MvMaxBytesRefsFromBinaryBlockLoader(String fieldName, BinaryDocValuesFormat binaryFormat) {
         this.fieldName = fieldName;
+        this.binaryFormat = binaryFormat;
     }
 
     @Override
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        return switch (binaryFormat) {
+            case COLUMNAR_PAYLOAD -> {
+                // The count travels in the blob, so there is no companion column to load or advance on.
+                TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
+                yield binary == null ? ConstantNull.COLUMN_READER : new MvMaxBytesRefsFromColumnarPayload(binary);
+            }
+            case ARRAY_ORDER_INLINE_NULL -> withCounts(breaker, context, MvMaxBytesRefsFromArrayOrderInlineNull::new);
+            case SEPARATE_COUNT -> withCounts(breaker, context, MvMaxBytesRefsFromBinarySeparateCount::new);
+        };
+    }
+
+    /**
+     * Resolves the binary column and its {@code .counts} companion, which both companion-carrying framings need, and
+     * hands them to {@code reader}. A field with no counts column is single-valued, so its maximum is the value itself.
+     */
+    private ColumnAtATimeReader withCounts(
+        CircuitBreaker breaker,
+        LeafReaderContext context,
+        BiFunction<TrackingBinaryDocValues, TrackingNumericDocValues, ColumnAtATimeReader> reader
+    ) throws IOException {
         BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);
         if (bc == null) {
             return ConstantNull.COLUMN_READER;
@@ -41,7 +69,7 @@ public class MvMaxBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
         if (bc.counts() == null) {
             return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(bc.binary());
         }
-        return new MvMaxBytesRefsFromBinarySeparateCount(bc.binary(), bc.counts());
+        return reader.apply(bc.binary(), bc.counts());
     }
 
     @Override
@@ -49,7 +77,48 @@ public class MvMaxBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
         return factory.bytesRefs(expectedCount);
     }
 
-    private static class MvMaxBytesRefsFromBinarySeparateCount extends BytesRefsFromCustomBinaryBlockLoader.AbstractBytesRefsFromBinary {
+    /** Reader for the columnar codec's payload, which carries its own slot count and needs no companion column. */
+    private static class MvMaxBytesRefsFromColumnarPayload extends AbstractBytesRefsFromBinaryReader {
+        private final MultiValueColumnarPayloadBinaryDocValuesReader reader = new MultiValueColumnarPayloadBinaryDocValuesReader();
+
+        private final BytesRef scratch = new BytesRef();
+
+        MvMaxBytesRefsFromColumnarPayload(TrackingBinaryDocValues values) {
+            super(values);
+        }
+
+        /**
+         * The extreme value of the document, taken from the column where there is one.
+         *
+         * <p>A dictionary column decides it over ordinals: the dictionary is in term order, so the extreme ordinal a
+         * document holds names its extreme value, and only that one is resolved to a term. Otherwise the payload is
+         * decoded and its values compared, as it is for a segment arriving as an overlay rather than as a column.
+         */
+        @Override
+        public void read(int doc, BytesRefBuilder builder) throws IOException {
+            if (false == docValues.docValues().advanceExact(doc)) {
+                builder.appendNull();
+                return;
+            }
+            if (docValues.docValues() instanceof StringColumnSource columnar) {
+                final BytesRef extreme = columnar.extreme(true, scratch);
+                if (extreme == null) {
+                    builder.appendNull();
+                } else {
+                    builder.appendBytesRef(extreme);
+                }
+                return;
+            }
+            reader.readMax(docValues.docValues().binaryValue(), builder);
+        }
+
+        @Override
+        public String toString() {
+            return "MvMaxBytesRefsFromColumnarPayload";
+        }
+    }
+
+    private static class MvMaxBytesRefsFromBinarySeparateCount extends AbstractBytesRefsFromBinaryReader {
         private final TrackingNumericDocValues counts;
         private final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
 
@@ -80,6 +149,50 @@ public class MvMaxBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
         @Override
         public String toString() {
             return "MvMaxBytesRefsFromBinary.SeparateCount";
+        }
+    }
+
+    private static class MvMaxBytesRefsFromArrayOrderInlineNull extends AbstractBytesRefsFromBinaryReader {
+        private final TrackingNumericDocValues counts;
+        private final MultiValueArrayOrderInlineNullBinaryDocValuesReader reader =
+            new MultiValueArrayOrderInlineNullBinaryDocValuesReader();
+
+        MvMaxBytesRefsFromArrayOrderInlineNull(TrackingBinaryDocValues values, TrackingNumericDocValues counts) {
+            super(values);
+            this.counts = Objects.requireNonNull(counts);
+        }
+
+        @Override
+        public int docId() {
+            return counts.docValues().docID();
+        }
+
+        @Override
+        public void read(int doc, BytesRefBuilder builder) throws IOException {
+            // Counts are always written, so a lack of value here indicates there is no value to record
+            if (false == counts.docValues().advanceExact(doc)) {
+                builder.appendNull();
+                return;
+            }
+
+            // all-null array / lone null / empty array: a count is present but no binary blob is written
+            if (false == docValues.docValues().advanceExact(doc)) {
+                builder.appendNull();
+                return;
+            }
+
+            int count = (int) counts.docValues().longValue();
+            reader.readMax(docValues.docValues().binaryValue(), count, builder);
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(super::close, counts);
+        }
+
+        @Override
+        public String toString() {
+            return "MvMaxBytesRefsFromBinary.ArrayOrderInlineNull";
         }
     }
 }

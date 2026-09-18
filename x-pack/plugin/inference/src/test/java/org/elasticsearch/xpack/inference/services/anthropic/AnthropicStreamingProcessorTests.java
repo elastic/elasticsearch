@@ -130,6 +130,20 @@ public class AnthropicStreamingProcessorTests extends ESTestCase {
         verify(downstream, times(0)).onNext(any());
     }
 
+    public void testMultipleJsonObjectsInSingleEventAreParsed() {
+        var firstDelta = """
+            {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "Hello"}}\
+            """;
+        var secondDelta = """
+            {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": ", World"}}\
+            """;
+        var item = events(firstDelta + "\n" + secondDelta);
+
+        var response = onNext(new AnthropicStreamingProcessor(), item);
+        assertThat(response.results().size(), equalTo(2));
+        assertThat(response.results(), containsResults("Hello", ", World"));
+    }
+
     private static ElasticsearchStatusException onError(Deque<ServerSentEvent> item) {
         var processor = new AnthropicStreamingProcessor();
         var response = new AtomicReference<Throwable>();

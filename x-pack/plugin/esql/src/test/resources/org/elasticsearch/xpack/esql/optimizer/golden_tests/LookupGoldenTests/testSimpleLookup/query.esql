@@ -1,0 +1,1 @@
+FROM employees | LOOKUP JOIN test_lookup ON emp_no

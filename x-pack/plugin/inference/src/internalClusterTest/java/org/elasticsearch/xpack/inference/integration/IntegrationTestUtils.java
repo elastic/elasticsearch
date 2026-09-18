@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.integration;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -16,6 +17,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
+import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
@@ -35,7 +37,7 @@ public class IntegrationTestUtils {
     public static void createInferenceEndpoint(Client client, TaskType taskType, String inferenceId, Map<String, Object> serviceSettings)
         throws IOException {
         final String service = switch (taskType) {
-            case TEXT_EMBEDDING -> TestDenseInferenceServiceExtension.TestInferenceService.NAME;
+            case TEXT_EMBEDDING, EMBEDDING -> TestDenseInferenceServiceExtension.TestInferenceService.NAME;
             case SPARSE_EMBEDDING -> TestSparseInferenceServiceExtension.TestInferenceService.NAME;
             default -> throw new IllegalArgumentException("Unhandled task type [" + taskType + "]");
         };
@@ -62,14 +64,16 @@ public class IntegrationTestUtils {
     }
 
     public static void deleteInferenceEndpoint(Client client, TaskType taskType, String inferenceId) {
-        assertAcked(
-            safeGet(
+        try {
+            assertAcked(
                 client.execute(
                     DeleteInferenceEndpointAction.INSTANCE,
                     new DeleteInferenceEndpointAction.Request(inferenceId, taskType, true, false)
-                )
-            )
-        );
+                ).actionGet(TEST_REQUEST_TIMEOUT)
+            );
+        } catch (ResourceNotFoundException e) {
+            // The inference endpoint does not exist; nothing to delete.
+        }
     }
 
     public static void deleteIndex(Client client, String indexName) {
@@ -88,14 +92,36 @@ public class IntegrationTestUtils {
 
     public static XContentBuilder generateSemanticTextMapping(Map<String, String> semanticTextFields) throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties");
-        for (var entry : semanticTextFields.entrySet()) {
-            mapping.startObject(entry.getKey());
-            mapping.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
-            mapping.field("inference_id", entry.getValue());
-            mapping.endObject();
-        }
+        addSemanticTextFieldsToMapping(mapping, semanticTextFields);
         mapping.endObject().endObject();
 
         return mapping;
+    }
+
+    public static XContentBuilder generateSemanticMapping(Map<String, String> semanticFields) throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties");
+        addSemanticFieldsToMapping(mapping, semanticFields);
+        mapping.endObject().endObject();
+
+        return mapping;
+    }
+
+    public static void addSemanticTextFieldsToMapping(XContentBuilder mappingBuilder, Map<String, String> semanticTextFields)
+        throws IOException {
+        for (var entry : semanticTextFields.entrySet()) {
+            mappingBuilder.startObject(entry.getKey());
+            mappingBuilder.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
+            mappingBuilder.field("inference_id", entry.getValue());
+            mappingBuilder.endObject();
+        }
+    }
+
+    public static void addSemanticFieldsToMapping(XContentBuilder mappingBuilder, Map<String, String> semanticFields) throws IOException {
+        for (var entry : semanticFields.entrySet()) {
+            mappingBuilder.startObject(entry.getKey());
+            mappingBuilder.field("type", SemanticFieldMapper.CONTENT_TYPE);
+            mappingBuilder.field("inference_id", entry.getValue());
+            mappingBuilder.endObject();
+        }
     }
 }

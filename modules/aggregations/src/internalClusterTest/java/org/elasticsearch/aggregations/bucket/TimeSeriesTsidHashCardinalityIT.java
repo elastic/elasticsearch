@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.Before;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -64,9 +65,8 @@ public class TimeSeriesTsidHashCardinalityIT extends ESSingleNodeTestCase {
         return false;
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void setupTimeSeriesData() throws Exception {
         beforeIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         afterIndex = randomAlphaOfLength(12).toLowerCase(Locale.ROOT);
         startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(START_TIME);

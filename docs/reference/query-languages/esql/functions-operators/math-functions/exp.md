@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `EXP` function [esql-exp]
 
-:::{include} ../../_snippets/functions/layout/exp.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/exp.md
 :::

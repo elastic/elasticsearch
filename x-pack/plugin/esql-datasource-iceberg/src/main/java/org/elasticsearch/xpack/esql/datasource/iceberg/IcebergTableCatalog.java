@@ -15,6 +15,7 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.io.CloseableIterable;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.TableCatalog;
 
@@ -23,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Iceberg table catalog implementation.
@@ -42,6 +44,14 @@ public class IcebergTableCatalog implements TableCatalog {
         // Check if the path looks like an S3 path and could be an Iceberg table
         // A more robust implementation would check for the presence of metadata directory
         return path != null && (path.startsWith("s3://") || path.startsWith("s3a://") || path.startsWith("s3n://"));
+    }
+
+    @Override
+    public void validateConfig(String location, Map<String, Object> config) {
+        // Iceberg claims no per-query configuration keys today, except "region" which is a
+        // dataset-level key accepted by S3 datasets (including those resolved via Iceberg).
+        // Claim it here so dataset-level region values are not rejected as "unknown option".
+        ConfigKeyValidator.check(config, List.of(Set.of("region")));
     }
 
     @Override
@@ -98,19 +108,27 @@ public class IcebergTableCatalog implements TableCatalog {
     }
 
     /**
-     * Extract S3 configuration from the config map.
+     * Extract S3 configuration from the config map. Secret values may arrive as
+     * {@link org.elasticsearch.common.settings.SecureString} (dataset path) or {@link String}
+     * (inline {@code EXTERNAL}); {@link Object#toString()} via {@link #stringOrNull} handles both.
+     * The plaintext {@link String} the SDK consumes lives on the heap until GC — bounding that
+     * lifetime is out of scope here.
      */
     private S3Configuration extractS3Config(Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
             return null;
         }
 
-        String accessKey = (String) config.get("access_key");
-        String secretKey = (String) config.get("secret_key");
-        String endpoint = (String) config.get("endpoint");
-        String region = (String) config.get("region");
+        String accessKey = stringOrNull(config.get("access_key"));
+        String secretKey = stringOrNull(config.get("secret_key"));
+        String endpoint = stringOrNull(config.get("endpoint"));
+        String region = stringOrNull(config.get("region"));
 
         return S3Configuration.fromFields(accessKey, secretKey, endpoint, region);
+    }
+
+    private static String stringOrNull(Object value) {
+        return value == null ? null : value.toString();
     }
 
     /**

@@ -1,0 +1,987 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.stateless.memory;
+
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.EstimatedHeapUsageStats;
+import org.elasticsearch.cluster.NodeHeapEstimates;
+import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingChangesObserver;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.stateless.MetricQuality;
+import org.junit.Before;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
+
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
+import static org.elasticsearch.xpack.stateless.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
+import static org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsServiceTestUtils.computeShardHeapEstimate;
+import static org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsServiceTestUtils.getLastMaxTotalPostingsInMemoryBytes;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
+
+/**
+ * Tests for {@link StatelessMemoryMetricsService}, focusing on {@code getPerNodeMemoryMetrics} and {@code getShardHeapUsages}.
+ */
+public class StatelessMemoryMetricsServiceTests extends ESTestCase {
+
+    private ClusterSettings clusterSettings;
+    private StatelessMemoryMetricsService service;
+
+    private static Set<Setting<?>> allSettings;
+
+    @Before
+    public void init() {
+        allSettings = Stream.concat(
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
+            Stream.of(
+                StatelessMemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING,
+                StatelessMemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING,
+                StatelessMemoryMetricsService.INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_ENABLED_SETTING,
+                StatelessMemoryMetricsService.MERGE_MEMORY_ESTIMATE_ENABLED_SETTING,
+                StatelessMemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING,
+                StatelessMemoryMetricsService.SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING,
+                StatelessMemoryMetricsService.ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING,
+                SETTING_CLUSTER_MAX_SHARDS_PER_NODE
+            )
+        ).collect(Collectors.toSet());
+
+        clusterSettings = new ClusterSettings(Settings.EMPTY, allSettings);
+        service = new StatelessMemoryMetricsService(System::nanoTime, clusterSettings);
+    }
+
+    public void testGetShardHeapUsageEstimates() {
+        // Set up shard memory metrics
+        var shardMemoryMetrics1 = new StatelessMemoryMetricsService.ShardMemoryMetrics(
+            // Limit the range of values for the metrics, so that adding and multiplying doesn't cause type overflow results.
+            randomLongBetween(100, 10_000),
+            randomIntBetween(100, 10_000),
+            randomIntBetween(100, 10_000),
+            randomLongBetween(100, 10_000),
+            randomLongBetween(100, 10_000),
+            randomLongBetween(100, 10_000),
+            randomLongBetween(1, Long.MAX_VALUE),
+            randomLongBetween(100, 10_000),
+            MetricQuality.EXACT,
+            "node-0",
+            System.nanoTime()
+        );
+        var shardMemoryMetrics2 = new StatelessMemoryMetricsService.ShardMemoryMetrics(
+            // Limit the range of values for the metrics, so that adding and multiplying doesn't cause type overflow results.
+            randomLongBetween(100, 10_000),
+            randomIntBetween(100, 10_000),
+            randomIntBetween(100, 10_000),
+            randomLongBetween(100, 10_000),
+            randomLongBetween(100, 10_000),
+            randomLongBetween(100, 10_000),
+            randomLongBetween(1, Long.MAX_VALUE),
+            randomLongBetween(100, 10_000),
+            MetricQuality.EXACT,
+            "node-0",
+            System.nanoTime()
+        );
+        var shardId1 = new ShardId(new Index(randomIdentifier(), randomUUID()), between(0, 2));
+        var shardId2 = new ShardId(new Index(randomIdentifier(), randomUUID()), between(0, 2));
+
+        // Add the shard memory metrics to the memory service.
+        service.getShardMemoryMetrics().put(shardId1, shardMemoryMetrics1);
+        service.getShardMemoryMetrics().put(shardId2, shardMemoryMetrics2);
+
+        // Verify that the memory service correctly returns all the per shard memory metrics.
+        var shardHeapUsages = service.getShardHeapUsageEstimates().perShard();
+        {
+            final var estimate = computeShardHeapEstimate(service, shardMemoryMetrics1);
+            assertThat(shardHeapUsages.get(shardId1).shardHeapUsageBytes(), equalTo(estimate.shardHeapUsageBytes()));
+            assertThat(shardHeapUsages.get(shardId1).indexHeapUsageBytes(), equalTo(estimate.indexHeapUsageBytes()));
+        }
+        {
+            final var estimate = computeShardHeapEstimate(service, shardMemoryMetrics2);
+            assertThat(shardHeapUsages.get(shardId2).shardHeapUsageBytes(), equalTo(estimate.shardHeapUsageBytes()));
+            assertThat(shardHeapUsages.get(shardId2).indexHeapUsageBytes(), equalTo(estimate.indexHeapUsageBytes()));
+        }
+    }
+
+    public void testShardHeapUsageIncludesPointsMemory() {
+        // these settings force us to use the adaptive memory calculation which will count the points memory in the heap usage
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(StatelessMemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING.getKey(), "-1b")
+                .put(StatelessMemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING.getKey(), "0%")
+                .build()
+        );
+        final ClusterState clusterState = randomInitialTwoNodeClusterState(4);
+        final DiscoveryNode node0 = clusterState.nodes().get("node_0");
+        service.clusterChanged(new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE));
+
+        final Map<ShardId, ShardMappingSize> metricsWithoutPoints = createShardMappingMetricsWithPointsInMemory(
+            randomMemoryMetrics(node0, clusterState),
+            0L
+        );
+        service.updateShardsMappingSize(new HeapMemoryUsage(1, metricsWithoutPoints));
+        final NodeHeapEstimates node0EstimateWithoutPoints = service.getPerNodeMemoryMetrics(clusterState).get(node0.getId());
+
+        final long pointsInMemoryBytes = randomLongBetween(1, 100);
+        final Map<ShardId, ShardMappingSize> metricsWithPoints = createShardMappingMetricsWithPointsInMemory(
+            metricsWithoutPoints,
+            pointsInMemoryBytes
+        );
+        service.updateShardsMappingSize(new HeapMemoryUsage(2, metricsWithPoints));
+        final NodeHeapEstimates node0EstimateWithPoints = service.getPerNodeMemoryMetrics(clusterState).get(node0.getId());
+
+        final long expectedDelta = pointsInMemoryBytes * metricsWithPoints.size();
+        assertThat(node0EstimateWithPoints.totalHeapUsage() - node0EstimateWithoutPoints.totalHeapUsage(), equalTo(expectedDelta));
+        // Points memory is attributed entirely to the hosted shards, nothing else changed between the two updates
+        assertThat(
+            node0EstimateWithPoints.hostedShardsHeapUsage() - node0EstimateWithoutPoints.hostedShardsHeapUsage(),
+            equalTo(expectedDelta)
+        );
+    }
+
+    public void testEstimatedHeapUsageStatsUsesSingleShardMemoryMetricsSnapshot() {
+        final ClusterState clusterState = randomInitialSingleNodeClusterState(1, 1);
+        final DiscoveryNode node0 = clusterState.nodes().get("node_0");
+        final ShardId shardId = clusterState.getRoutingNodes().node(node0.getId()).iterator().next().shardId();
+        service.clusterChanged(new ClusterChangedEvent("init", clusterState, ClusterState.EMPTY_STATE));
+
+        final ShardMappingSize initialMappingSize = new ShardMappingSize(
+            10_000L,
+            1,
+            1,
+            100L,
+            100L,
+            100L,
+            UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
+            node0.getId()
+        );
+        final ShardMappingSize updatedMappingSize = new ShardMappingSize(
+            100_000L,
+            10,
+            10,
+            10_000L,
+            1_000L,
+            1_000L,
+            UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
+            node0.getId()
+        );
+        final var updatingMetric = new UpdatingOnSnapshotShardMemoryMetrics(initialMappingSize, updatedMappingSize);
+        service.getShardMemoryMetrics().put(shardId, updatingMetric);
+
+        // getEstimatedHeapUsageStats will invoke snapshot() on the updatingMetric set in the service's shardMemoryMetrics map.
+        // updatingMetric will return some initial values to that snapshot and then update the shard's metrics in the live map to new
+        // values. Both node-level and shard-level estimates must keep reading from the old captured snapshot; without that snapshot, one
+        // side of the combined response could observe the live updated values.
+        final EstimatedHeapUsageStats estimatedHeapUsageStats = service.getEstimatedHeapUsageStats(clusterState);
+
+        assertThat(updatingMetric.updatedDuringSnapshot(), equalTo(true));
+
+        // Capture the initial snapshot values from the metrics service.
+        final NodeHeapEstimates nodeEstimate = estimatedHeapUsageStats.nodeHeapEstimates().get(node0.getId());
+        final ShardAndIndexHeapUsage shardEstimate = estimatedHeapUsageStats.shardHeapUsageEstimates().perShard().get(shardId);
+
+        // Verify internal consistency: hostedShardsHeapUsage is shardHeapUsageBytes + indexHeapUsageBytes for a single shard.
+        // This only holds if both sides of EstimatedHeapUsageStats were derived from the same snapshot — a mismatch means
+        // one side observed different (e.g. post-update) metric values than the other.
+        assertThat(
+            nodeEstimate.hostedShardsHeapUsage(),
+            equalTo(shardEstimate.shardHeapUsageBytes() + shardEstimate.indexHeapUsageBytes())
+        );
+
+        // Subsequent direct service reads use the live metric map, so they should observe the update made after the snapshot was copied.
+        assertThat(service.getPerNodeMemoryMetrics(clusterState).get(node0.getId()), not(equalTo(nodeEstimate)));
+        assertThat(service.getShardHeapUsageEstimates().perShard().get(shardId), not(equalTo(shardEstimate)));
+    }
+
+    /**
+     * Metric override that will supply the {@code initialMappingSize} for the first snapshot() call and then {@code updatedMappingSize}
+     * for any subsequent calls. Helpful to prove subsequent updates do not alter snapshots of the shard metrics.
+     */
+    private static class UpdatingOnSnapshotShardMemoryMetrics extends StatelessMemoryMetricsService.ShardMemoryMetrics {
+
+        private final ShardMappingSize updatedMappingSize;
+        private boolean updatedDuringSnapshot;
+
+        UpdatingOnSnapshotShardMemoryMetrics(ShardMappingSize initialMappingSize, ShardMappingSize updatedMappingSize) {
+            super(
+                initialMappingSize.mappingSizeInBytes(),
+                initialMappingSize.numSegments(),
+                initialMappingSize.totalFields(),
+                initialMappingSize.postingsInMemoryBytes(),
+                initialMappingSize.liveDocsBytes(),
+                initialMappingSize.pointsInMemoryBytes(),
+                initialMappingSize.shardMemoryOverheadBytes(),
+                1L,
+                MetricQuality.EXACT,
+                initialMappingSize.nodeId(),
+                1L
+            );
+            this.updatedMappingSize = updatedMappingSize;
+        }
+
+        @Override
+        synchronized ShardAndIndexHeapUsage snapshot(ShardHeapEstimator estimator) {
+            final ShardAndIndexHeapUsage snapshot = super.snapshot(estimator);
+            if (updatedDuringSnapshot == false) {
+                update(
+                    updatedMappingSize.mappingSizeInBytes(),
+                    updatedMappingSize.numSegments(),
+                    updatedMappingSize.totalFields(),
+                    updatedMappingSize.postingsInMemoryBytes(),
+                    updatedMappingSize.liveDocsBytes(),
+                    updatedMappingSize.pointsInMemoryBytes(),
+                    updatedMappingSize.shardMemoryOverheadBytes(),
+                    2L,
+                    updatedMappingSize.nodeId(),
+                    2L
+                );
+                updatedDuringSnapshot = true;
+            }
+            return snapshot;
+        }
+
+        synchronized boolean updatedDuringSnapshot() {
+            return updatedDuringSnapshot;
+        }
+    }
+
+    /**
+     * Verifies that {@link ShardHeapEstimator#computeShardHeapUsage(StatelessMemoryMetricsService.ShardMemoryMetrics)} does
+     * not diverge from what is used internally in the
+     * {@link StatelessMemoryMetricsService}'s node-level heap usage calculations (routing placement, same rules as
+     * {@link StatelessMemoryMetricsService#getPerNodeMemoryMetrics(ClusterState)}).
+     */
+    private void compareAgainstSumOfIndividualShards(StatelessMemoryMetricsService service, ClusterState clusterState) {
+        final Map<String, NodeHeapEstimates> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(clusterState);
+        final Map<String, Long> perNodeOnlyIndexAndShardMemoryUsage = new HashMap<>(perNodeMemoryMetrics.size());
+        final Map<String, Long> perNodeHostedShardsHeapUsage = new HashMap<>(perNodeMemoryMetrics.size());
+        final Map<String, Set<String>> perNodeSeenIndices = new HashMap<>(perNodeMemoryMetrics.size());
+
+        final long nowNanos = 0L;
+
+        for (RoutingNode routingNode : clusterState.getRoutingNodes()) {
+            final String nodeId = routingNode.nodeId();
+            final DiscoveryNode discoveryNode = clusterState.nodes().get(nodeId);
+            if (discoveryNode == null || discoveryNode.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) == false) {
+                continue;
+            }
+
+            for (ShardRouting shard : routingNode) {
+                if (shard.primary() == false) {
+                    continue;
+                }
+                if (shard.active() == false && shard.initializing() == false) {
+                    continue;
+                }
+                final ShardId shardId = shard.shardId();
+                StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics = service.getShardMemoryMetrics().get(shardId);
+                if (shardMemoryMetrics == null) {
+                    shardMemoryMetrics = service.newUninitialisedShardMemoryMetrics(nowNanos);
+                }
+                final var estimate = computeShardHeapEstimate(service, shardMemoryMetrics);
+                final var seenIndices = perNodeSeenIndices.computeIfAbsent(nodeId, key -> new HashSet<>());
+
+                long indexHeap = 0L;
+                if (seenIndices.add(shardId.getIndexName())) {
+                    indexHeap = estimate.indexHeapUsageBytes();
+                }
+
+                var perShardUsages = service.getShardHeapUsageEstimates().perShard();
+                if (perShardUsages.containsKey(shardId)) {
+                    assertThat(perShardUsages.get(shardId).shardHeapUsageBytes(), equalTo(estimate.shardHeapUsageBytes()));
+                    assertThat(perShardUsages.get(shardId).indexHeapUsageBytes(), equalTo(estimate.indexHeapUsageBytes()));
+                }
+
+                perNodeOnlyIndexAndShardMemoryUsage.merge(nodeId, estimate.shardHeapUsageBytes() + indexHeap, Long::sum);
+                perNodeHostedShardsHeapUsage.merge(nodeId, estimate.shardHeapUsageBytes() + indexHeap, Long::sum);
+            }
+        }
+
+        for (var nodeMetrics : perNodeMemoryMetrics.entrySet()) {
+            final long mergeMemoryEstimate = service.mergeMemoryEstimation();
+            final long minimumRequiredHeapForHandlingLargeIndexingOps = service.minimumRequiredHeapForAcceptingLargeIndexingOps();
+            final long indicesAndWorkloadOverheads = service.getNodeBaseHeapEstimateInBytes();
+            final long miscNodeUsage = mergeMemoryEstimate + minimumRequiredHeapForHandlingLargeIndexingOps + indicesAndWorkloadOverheads;
+            final long indexAndShardOnly = perNodeOnlyIndexAndShardMemoryUsage.getOrDefault(nodeMetrics.getKey(), 0L);
+            final long hostedShardsOnly = perNodeHostedShardsHeapUsage.getOrDefault(nodeMetrics.getKey(), 0L);
+            assertThat(
+                "Heap usage for node "
+                    + nodeMetrics.getKey()
+                    + " is "
+                    + nodeMetrics.getValue()
+                    + "; misc heap usage for the node is "
+                    + miscNodeUsage
+                    + "; summed index and shard heap usage for the node is: "
+                    + indexAndShardOnly
+                    + "; postings overhead per node is: "
+                    + getLastMaxTotalPostingsInMemoryBytes(service),
+                nodeMetrics.getValue().totalHeapUsage(),
+                allOf(
+                    greaterThanOrEqualTo(indexAndShardOnly + miscNodeUsage),
+                    // The reported total postings per node is actually the max across all nodes, so there is no way to account for that
+                    // in the sum of shards+indices per node heap calculation. Therefore, here we ensure the two calculated values are
+                    // within a difference of the max total postings per node.
+                    lessThanOrEqualTo(indexAndShardOnly + miscNodeUsage + getLastMaxTotalPostingsInMemoryBytes(service))
+                )
+            );
+            // The hosted-shards-only estimate excludes the node-base/merge/indexing-ops overheads,
+            // see EstimatedHeapUsageBuilder#getHeapEstimate.
+            assertThat(
+                "Hosted shards heap usage for node "
+                    + nodeMetrics.getKey()
+                    + " is "
+                    + nodeMetrics.getValue().hostedShardsHeapUsage()
+                    + "; summed hosted-shards-only heap usage for the node is: "
+                    + hostedShardsOnly
+                    + "; postings overhead per node is: "
+                    + getLastMaxTotalPostingsInMemoryBytes(service),
+                nodeMetrics.getValue().hostedShardsHeapUsage(),
+                // The reported total postings per node is actually the max across all nodes, so there is no way to account for that
+                // in the sum of shards+indices per node heap calculation. Therefore, here we ensure the two calculated values are
+                // within a difference of the max total postings per node.
+                allOf(
+                    greaterThanOrEqualTo(hostedShardsOnly),
+                    lessThanOrEqualTo(hostedShardsOnly + getLastMaxTotalPostingsInMemoryBytes(service))
+                )
+            );
+        }
+    }
+
+    /**
+     * Per-node heap follows primary routing, not {@link StatelessMemoryMetricsService.ShardMemoryMetrics#getMetricShardNodeId()}.
+     */
+    public void testPerNodeMemoryMetricsUsesPrimaryRoutingNotMetricReporterNode() {
+        final String indexName = randomIdentifier();
+
+        ClusterState clusterState = ClusterStateCreationUtils.state(indexName, 2, 1);
+        final ShardRouting onlyShard = clusterState.globalRoutingTable()
+            .routingTable(ProjectId.DEFAULT)
+            .index(indexName)
+            .shard(0)
+            .primaryShard();
+
+        final DiscoveryNode nodeWithoutShard = clusterState.nodes()
+            .stream()
+            .filter(n -> n.getId().equals(onlyShard.currentNodeId()) == false)
+            .findFirst()
+            .orElseThrow();
+
+        service.clusterChanged(new ClusterChangedEvent("init", clusterState, ClusterState.EMPTY_STATE));
+        final StatelessMemoryMetricsService.ShardMemoryMetrics metricsWithWrongReporter = randomShardMemoryMetrics(
+            nodeWithoutShard.getId()
+        );
+        service.getShardMemoryMetrics().put(onlyShard.shardId(), metricsWithWrongReporter);
+
+        final Map<String, NodeHeapEstimates> perNode = service.getPerNodeMemoryMetrics(clusterState);
+        final var estimates = computeShardHeapEstimate(service, metricsWithWrongReporter);
+        // total memory difference between nodes should be shard estimate and index estimate, less the postings estimate that they share
+        final long totalDeltaForShard = estimates.shardHeapUsageBytes() + estimates.indexHeapUsageBytes() - metricsWithWrongReporter
+            .getPostingsInMemoryBytes();
+        assertThat(
+            perNode.get(onlyShard.currentNodeId()).totalHeapUsage() - perNode.get(nodeWithoutShard.getId()).totalHeapUsage(),
+            equalTo(totalDeltaForShard)
+        );
+        // hosted-shards difference between nodes should be shard estimate and index estimate
+        final long hostedDeltaForShard = estimates.shardHeapUsageBytes() + estimates.indexHeapUsageBytes();
+        assertThat(
+            perNode.get(onlyShard.currentNodeId()).hostedShardsHeapUsage() - perNode.get(nodeWithoutShard.getId()).hostedShardsHeapUsage(),
+            equalTo(hostedDeltaForShard)
+        );
+    }
+
+    /**
+     * While a primary is relocating, {@link StatelessMemoryMetricsService#getPerNodeMemoryMetrics(ClusterState)} only counts the heap usage
+     * on the source node. The simulator will simulate the successful completion of the relocation which will deduct
+     * from the source and add to the target.
+     */
+    public void testPerNodeMemoryMetricsCountsRelocatingPrimaryOnlyOnSource() {
+        final String indexName = randomIdentifier();
+        final ClusterState state0 = ClusterStateCreationUtils.state(indexName, 2, 1);
+        // ensure that the local node is master so we don't clear the shardMemoryMetrics on cluster state updates
+        final ClusterState startedState = ClusterState.builder(state0)
+            .nodes(DiscoveryNodes.builder(state0.nodes()).masterNodeId(state0.nodes().getLocalNodeId()).build())
+            .build();
+        final ShardRouting onlyShard = startedState.globalRoutingTable()
+            .routingTable(ProjectId.DEFAULT)
+            .index(indexName)
+            .shard(0)
+            .primaryShard();
+        assert onlyShard.started() : "Expect shard to be started";
+        final String originalNodeId = onlyShard.currentNodeId();
+        final DiscoveryNode otherNode = startedState.nodes()
+            .stream()
+            .filter(n -> n.getId().equals(originalNodeId) == false)
+            .findFirst()
+            .orElseThrow();
+
+        service.clusterChanged(new ClusterChangedEvent("init", startedState, ClusterState.EMPTY_STATE));
+        final StatelessMemoryMetricsService.ShardMemoryMetrics metrics = randomShardMemoryMetrics(randomIdentifier()); // metricShardNodeId
+        // doesn't
+        // matter
+        service.getShardMemoryMetrics().put(onlyShard.shardId(), metrics);
+
+        final Map<String, NodeHeapEstimates> perNodeStarted = service.getPerNodeMemoryMetrics(startedState);
+
+        // Relocate the shard
+        final RoutingNodes routingNodes = startedState.getRoutingNodes().mutableCopy();
+        routingNodes.relocateShard(
+            onlyShard,
+            otherNode.getId(),
+            randomNegativeLong(),
+            "relocate",
+            RoutingChangesObserver.NOOP,
+            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+        );
+        final GlobalRoutingTable globalRoutingTable = startedState.globalRoutingTable().rebuild(routingNodes, startedState.metadata());
+        final ClusterState relocatingState = ClusterState.builder(startedState).routingTable(globalRoutingTable).incrementVersion().build();
+
+        service.clusterChanged(new ClusterChangedEvent("relocate", relocatingState, startedState));
+        final Map<String, NodeHeapEstimates> perNodeRelocating = service.getPerNodeMemoryMetrics(relocatingState);
+
+        // The heap usage of the target node should remain the same, the original node should be unchanged
+        assertThat(perNodeRelocating.get(otherNode.getId()), equalTo(perNodeStarted.get(otherNode.getId())));
+        assertThat(perNodeRelocating.get(originalNodeId), equalTo(perNodeStarted.get(originalNodeId)));
+    }
+
+    private static StatelessMemoryMetricsService.ShardMemoryMetrics randomShardMemoryMetrics(String metricShardNodeId) {
+        return new StatelessMemoryMetricsService.ShardMemoryMetrics(
+            randomLongBetween(80_000, 120_000),
+            randomIntBetween(2, 6),
+            randomIntBetween(8, 20),
+            randomLongBetween(5_000, 15_000),
+            randomLongBetween(100, 500),
+            randomLongBetween(5_000, 15_000),
+            UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
+            randomNonNegativeLong(),
+            randomFrom(MetricQuality.values()),
+            metricShardNodeId,
+            System.nanoTime()
+        );
+    }
+
+    /**
+     * Indexing nodes with no assigned active/initializing primaries still receive a per-node estimate (base, merge, indexing-ops buffer,
+     * and global max postings), matching {@link StatelessMemoryMetricsService#getPerNodeMemoryMetrics(ClusterState)}.
+     */
+    public void testPerNodeMemoryMetricsIncludesIndexingNodesWithNoAssignedPrimaries() {
+        final String indexName = randomIdentifier();
+        final ClusterState clusterState = ClusterStateCreationUtils.state(indexName, 3, 1);
+        final ShardRouting onlyShard = clusterState.globalRoutingTable()
+            .routingTable(ProjectId.DEFAULT)
+            .index(indexName)
+            .shard(0)
+            .primaryShard();
+        final Set<String> nodesWithNoShards = clusterState.nodes()
+            .stream()
+            .filter(n -> n.getId().equals(onlyShard.currentNodeId()) == false)
+            .map(DiscoveryNode::getId)
+            .collect(Collectors.toSet());
+
+        service.clusterChanged(new ClusterChangedEvent("init", clusterState, ClusterState.EMPTY_STATE));
+        final Map<String, NodeHeapEstimates> perNode = service.getPerNodeMemoryMetrics(clusterState);
+
+        assertThat(perNode.size(), equalTo(3));
+        assertThat(nodesWithNoShards, hasSize(2));
+        // All nodes have an estimate, empty nodes have a smaller estimate than the host node
+        for (String emptyNodeId : nodesWithNoShards) {
+            assertThat(perNode.get(onlyShard.currentNodeId()).totalHeapUsage(), greaterThan(perNode.get(emptyNodeId).totalHeapUsage()));
+            // Empty nodes host no shards, so their hosted-shards-only estimate is zero, unlike the host node's
+            assertThat(perNode.get(emptyNodeId).hostedShardsHeapUsage(), equalTo(0L));
+            assertThat(perNode.get(onlyShard.currentNodeId()).hostedShardsHeapUsage(), greaterThan(0L));
+        }
+    }
+
+    public void testEstimatedHeapMemoryCalculations() {
+        ClusterState clusterState1 = randomInitialTwoNodeClusterState(4);
+        var discoveryNodes = clusterState1.getNodes();
+        var node0 = discoveryNodes.get("node_0");
+        var node1 = discoveryNodes.get("node_1");
+        service.clusterChanged(new ClusterChangedEvent("test", clusterState1, ClusterState.EMPTY_STATE));
+
+        final long node0EstimateBeforeUpdate;
+        final long node1EstimateBeforeUpdate;
+        final long node0HostedShardsBeforeUpdate;
+        final long node1HostedShardsBeforeUpdate;
+        // Record the baseline heap usage for node 0 and 1, before any additional information is received
+        {
+            Map<String, NodeHeapEstimates> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(clusterState1);
+            compareAgainstSumOfIndividualShards(service, clusterState1);
+            assertThat(perNodeMemoryMetrics.size(), equalTo(2));
+            node0EstimateBeforeUpdate = perNodeMemoryMetrics.get(node0.getId()).totalHeapUsage();
+            node1EstimateBeforeUpdate = perNodeMemoryMetrics.get(node1.getId()).totalHeapUsage();
+            node0HostedShardsBeforeUpdate = perNodeMemoryMetrics.get(node0.getId()).hostedShardsHeapUsage();
+            node1HostedShardsBeforeUpdate = perNodeMemoryMetrics.get(node1.getId()).hostedShardsHeapUsage();
+        }
+
+        // We receive a shard mappings update from node 0
+        final var node0MetricsUpdate = randomMemoryMetrics(node0, clusterState1);
+        final var node0PostingsSize = node0MetricsUpdate.values().stream().mapToLong(ShardMappingSize::postingsInMemoryBytes).sum();
+        service.updateShardsMappingSize(new HeapMemoryUsage(2, node0MetricsUpdate));
+
+        // Node 0 heap estimate should have increased
+        // Note that hollow shards can reduce the initial estimate, but we don't test this here
+        long node0EstimateAfterUpdate, node0HostedShardsAfterUpdate;
+        {
+            final Map<String, NodeHeapEstimates> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(clusterState1);
+            compareAgainstSumOfIndividualShards(service, clusterState1);
+            assertThat(perNodeMemoryMetrics.size(), equalTo(2));
+            node0EstimateAfterUpdate = perNodeMemoryMetrics.get(node0.getId()).totalHeapUsage();
+            node0HostedShardsAfterUpdate = perNodeMemoryMetrics.get(node0.getId()).hostedShardsHeapUsage();
+            assertThat(node0EstimateAfterUpdate, greaterThan(node0EstimateBeforeUpdate));
+            assertThat(node0HostedShardsAfterUpdate, greaterThan(node0HostedShardsBeforeUpdate));
+            // PostingsMemorySize is the max across all nodes, so node1's estimate should have increased by that amount
+            assertThat(perNodeMemoryMetrics.get(node1.getId()).totalHeapUsage(), equalTo(node1EstimateBeforeUpdate + node0PostingsSize));
+            // hosted shards estimate doesn't take the maximized postings value, it should be unchanged on node 1
+            assertThat(perNodeMemoryMetrics.get(node1.getId()).hostedShardsHeapUsage(), equalTo(node1HostedShardsBeforeUpdate));
+        }
+
+        // We receive a shard mappings update from node 1
+        final var node1MetricsUpdate = randomMemoryMetrics(node1, clusterState1);
+        final var node1PostingsSize = node1MetricsUpdate.values().stream().mapToLong(ShardMappingSize::postingsInMemoryBytes).sum();
+        service.updateShardsMappingSize(new HeapMemoryUsage(1, node1MetricsUpdate));
+
+        // Node 1 heap estimate should have increased
+        final long node1EstimateAfterUpdate;
+        final long node0HostedShardsAfterBothUpdates;
+        final long node1HostedShardsAfterBothUpdates;
+        {
+            final Map<String, NodeHeapEstimates> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(clusterState1);
+            compareAgainstSumOfIndividualShards(service, clusterState1);
+            assertThat(perNodeMemoryMetrics.size(), equalTo(2));
+            // PostingsMemorySize is the max across all nodes so that node0's estimate can increase if node1 has larger postings size
+            if (node0PostingsSize < node1PostingsSize) {
+                node0EstimateAfterUpdate += node1PostingsSize - node0PostingsSize;
+            }
+            assertThat(perNodeMemoryMetrics.get(node0.getId()).totalHeapUsage(), equalTo(node0EstimateAfterUpdate));
+            node1EstimateAfterUpdate = perNodeMemoryMetrics.get(node1.getId()).totalHeapUsage();
+            assertThat(node1EstimateAfterUpdate, greaterThan(node1EstimateBeforeUpdate));
+            node0HostedShardsAfterBothUpdates = perNodeMemoryMetrics.get(node0.getId()).hostedShardsHeapUsage();
+            node1HostedShardsAfterBothUpdates = perNodeMemoryMetrics.get(node1.getId()).hostedShardsHeapUsage();
+            assertThat(node0HostedShardsAfterBothUpdates, greaterThan(node0HostedShardsBeforeUpdate));
+            assertThat(node1HostedShardsAfterBothUpdates, greaterThan(node1HostedShardsBeforeUpdate));
+        }
+
+        // we receive a merge estimate from node 0
+        final long node0MergeEstimate = randomLongBetween(10_000, 100_000);
+        service.updateMergeMemoryEstimate(
+            new StatelessMemoryMetricsService.ShardMergeMemoryEstimatePublication(
+                randomLongBetween(100, 1000),
+                node0.getEphemeralId(),
+                new StatelessMemoryMetricsService.ShardMergeMemoryEstimate(randomIdentifier(), node0MergeEstimate)
+            )
+        );
+
+        // All heap estimates should have increased, but hostedShardsHeapUsage is unaffected: merge memory is not a hosted-shard component
+        final long node0EstimateAfterMergeEstimate, node1EstimateAfterMergeEstimate;
+        {
+            final Map<String, NodeHeapEstimates> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(clusterState1);
+            compareAgainstSumOfIndividualShards(service, clusterState1);
+            assertThat(perNodeMemoryMetrics.size(), equalTo(2));
+
+            node0EstimateAfterMergeEstimate = perNodeMemoryMetrics.get(node0.getId()).totalHeapUsage();
+            assertThat(node0EstimateAfterMergeEstimate - node0EstimateAfterUpdate, equalTo(node0MergeEstimate));
+
+            node1EstimateAfterMergeEstimate = perNodeMemoryMetrics.get(node1.getId()).totalHeapUsage();
+            assertThat(node1EstimateAfterMergeEstimate - node1EstimateAfterUpdate, equalTo(node0MergeEstimate));
+
+            assertThat(perNodeMemoryMetrics.get(node0.getId()).hostedShardsHeapUsage(), equalTo(node0HostedShardsAfterBothUpdates));
+            assertThat(perNodeMemoryMetrics.get(node1.getId()).hostedShardsHeapUsage(), equalTo(node1HostedShardsAfterBothUpdates));
+        }
+
+        // update indexing operations heap memory requirement
+        final long indexingOperationsHeapMemoryRequirements = randomLongBetween(1_000, 100_000);
+        service.updateIndexingOperationsHeapMemoryRequirements(indexingOperationsHeapMemoryRequirements);
+
+        // All nodes' heap estimate should have increased, but hostedShardsHeapUsage is unaffected: indexing-ops overhead is not a
+        // hosted-shard component
+        {
+            final Map<String, NodeHeapEstimates> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(clusterState1);
+            compareAgainstSumOfIndividualShards(service, clusterState1);
+            assertThat(perNodeMemoryMetrics.size(), equalTo(2));
+            assertThat(
+                perNodeMemoryMetrics.get(node0.getId()).totalHeapUsage() - node0EstimateAfterMergeEstimate,
+                equalTo(indexingOperationsHeapMemoryRequirements)
+            );
+            assertThat(
+                perNodeMemoryMetrics.get(node1.getId()).totalHeapUsage() - node1EstimateAfterMergeEstimate,
+                equalTo(indexingOperationsHeapMemoryRequirements)
+            );
+            assertThat(perNodeMemoryMetrics.get(node0.getId()).hostedShardsHeapUsage(), equalTo(node0HostedShardsAfterBothUpdates));
+            assertThat(perNodeMemoryMetrics.get(node1.getId()).hostedShardsHeapUsage(), equalTo(node1HostedShardsAfterBothUpdates));
+        }
+    }
+
+    /**
+     * Parity guard for {@link StatelessMemoryMetricsService#estimateNodeHeapUsage}, which the recovery gate uses for a node's
+     * self-estimate. For a single index node with no master-only publications, the master's per-node estimate reduces to the same
+     * terms (the cross-node max postings equals the node's own postings), so the two must agree to the byte
+     */
+    public void testEstimateNodeHeapUsageMatchesMasterPerNodeEstimate() {
+        runEstimateNodeHeapUsageMatchesMasterPerNodeEstimate(false);
+    }
+
+    /**
+     * Same parity with the adaptive per-shard estimate (segments, fields, live docs, points), which is what serverless configures
+     * instead of the fixed default.
+     */
+    public void testEstimateNodeHeapUsageMatchesMasterPerNodeEstimateAdaptiveOverhead() {
+        runEstimateNodeHeapUsageMatchesMasterPerNodeEstimate(true);
+    }
+
+    private void runEstimateNodeHeapUsageMatchesMasterPerNodeEstimate(boolean adaptiveShardOverhead) {
+        if (adaptiveShardOverhead) {
+            clusterSettings.applySettings(
+                Settings.builder()
+                    .put(StatelessMemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING.getKey(), "-1b")
+                    .put(
+                        StatelessMemoryMetricsService.ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING.getKey(),
+                        randomBoolean()
+                    )
+                    .build()
+            );
+        }
+
+        final ClusterState clusterState = randomInitialSingleNodeClusterState(between(1, 4));
+        final DiscoveryNode node0 = clusterState.nodes().get("node_0");
+        service.clusterChanged(new ClusterChangedEvent("init", clusterState, ClusterState.EMPTY_STATE));
+        final Map<ShardId, ShardMappingSize> shardMappingSizes = randomMemoryMetrics(node0, clusterState);
+        service.updateShardsMappingSize(new HeapMemoryUsage(1, shardMappingSizes));
+
+        final NodeHeapEstimates masterEstimate = service.getPerNodeMemoryMetrics(clusterState).get(node0.getId());
+        final int totalIndices = clusterState.metadata().getTotalNumberOfIndices();
+        final NodeHeapEstimates localEstimate = service.estimateNodeHeapUsage(node0, totalIndices, 0L, 0L, shardMappingSizes);
+        assertThat(localEstimate, equalTo(masterEstimate));
+
+        // The node-level signals are additive on the total only and do not leak into the hosted-shards estimate
+        final long largeIndexingOpsHeap = randomLongBetween(1, 1_000_000);
+        final long mergeMemoryEstimate = randomLongBetween(1, 1_000_000);
+        final NodeHeapEstimates withNodeSignals = service.estimateNodeHeapUsage(
+            node0,
+            totalIndices,
+            largeIndexingOpsHeap,
+            mergeMemoryEstimate,
+            shardMappingSizes
+        );
+        assertThat(withNodeSignals.totalHeapUsage(), equalTo(localEstimate.totalHeapUsage() + largeIndexingOpsHeap + mergeMemoryEstimate));
+        assertThat(withNodeSignals.hostedShardsHeapUsage(), equalTo(localEstimate.hostedShardsHeapUsage()));
+    }
+
+    private ClusterState randomInitialSingleNodeClusterState(int numberOfIndices) {
+        return randomInitialSingleNodeClusterState(numberOfIndices, between(1, 3));
+    }
+
+    private ClusterState randomInitialSingleNodeClusterState(int numberOfIndices, int numberOfShards) {
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.create("node_0"))
+            .localNodeId("node_0")
+            .masterNodeId("node_0")
+            .build();
+        String[] indices = IntStream.range(0, numberOfIndices).mapToObj(i -> randomIdentifier()).toArray(String[]::new);
+        Tuple<ProjectMetadata.Builder, RoutingTable.Builder> projectAndRt = ClusterStateCreationUtils
+            .projectWithAssignedPrimariesAndReplicas(ProjectId.DEFAULT, indices, numberOfShards, 0, discoveryNodes);
+        return ClusterState.builder(new ClusterName("test"))
+            .nodes(discoveryNodes)
+            .routingTable(GlobalRoutingTable.builder().put(ProjectId.DEFAULT, projectAndRt.v2()).build())
+            .metadata(Metadata.builder().put(projectAndRt.v1()))
+            .build();
+    }
+
+    public void testGetIndexMetadataEstimatedHeapBytesZeroWithNoIndices() {
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.create("node_0"))
+            .localNodeId("node_0")
+            .masterNodeId("node_0")
+            .build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
+        service.clusterChanged(new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE));
+        assertThat(service.getIndexMetadataEstimatedHeapBytes(), equalTo(0L));
+        assertThat(service.getIndexMemoryOverhead(), equalTo(0L));
+    }
+
+    public void testGetIndexMetadataEstimatedHeapBytesDedupesSharedMappings() throws IOException {
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.create("node_0"))
+            .localNodeId("node_0")
+            .masterNodeId("node_0")
+            .build();
+
+        MappingMetadata mapping = new MappingMetadata(CompressedXContent.fromJSON("""
+            { "_doc": { "properties": { "field": { "type": "keyword" } } } }
+            """));
+        Settings settingsA = indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_INDEX_UUID, "uuid-a")
+            .build();
+        Settings settingsB = indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_INDEX_UUID, "uuid-b")
+            .build();
+        ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT)
+            .put(IndexMetadata.builder("index-a").settings(settingsA).putMapping(mapping))
+            .put(IndexMetadata.builder("index-b").settings(settingsB).putMapping(mapping))
+            .build();
+
+        IndexMetadata indexA = project.index("index-a");
+        IndexMetadata indexB = project.index("index-b");
+        assertSame(indexA.mapping(), indexB.mapping());
+        assertThat(project.indices().size(), equalTo(2));
+
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        DiscoveryNode node = discoveryNodes.get("node_0");
+        for (IndexMetadata indexMetadata : new IndexMetadata[] { indexA, indexB }) {
+            IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
+            for (int shard = 0; shard < indexMetadata.getNumberOfShards(); shard++) {
+                ShardId shardId = new ShardId(indexMetadata.getIndex(), shard);
+                IndexShardRoutingTable.Builder shardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
+                shardRoutingBuilder.addShard(
+                    TestShardRouting.newShardRouting(shardId, node.getId(), null, true, ShardRoutingState.STARTED)
+                );
+                indexRoutingTableBuilder.addIndexShard(shardRoutingBuilder);
+            }
+            routingTableBuilder.add(indexRoutingTableBuilder);
+        }
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .nodes(discoveryNodes)
+            .routingTable(GlobalRoutingTable.builder().put(ProjectId.DEFAULT, routingTableBuilder.build()).build())
+            .metadata(Metadata.builder().put(project))
+            .build();
+
+        ClusterState emptyMaster = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
+        service.clusterChanged(new ClusterChangedEvent("test", emptyMaster, ClusterState.EMPTY_STATE));
+
+        long perIndexTotal = indexA.ramBytesUsed() + indexB.ramBytesUsed();
+        long sharedMappingBytes = indexA.mapping().ramBytesUsed();
+
+        service.clusterChanged(new ClusterChangedEvent("test", clusterState, emptyMaster));
+        assertThat(service.getIndexMetadataEstimatedHeapBytes(), lessThan(perIndexTotal));
+        assertThat(service.getIndexMetadataEstimatedHeapBytes(), equalTo(perIndexTotal - sharedMappingBytes));
+        assertThat(service.getIndexMetadataEstimatedHeapBytes(), lessThan(StatelessMemoryMetricsService.INDEX_MEMORY_OVERHEAD * 2));
+    }
+
+    public void testGetIndexMetadataEstimatedHeapBytesUpdatesWithClusterChange() {
+        ClusterState oneIndexClusterState = randomInitialTwoNodeClusterState(1);
+        service.clusterChanged(new ClusterChangedEvent("test", oneIndexClusterState, ClusterState.EMPTY_STATE));
+        long oneIndexHeapBytes = service.getIndexMetadataEstimatedHeapBytes();
+        assertThat(oneIndexHeapBytes, greaterThan(0L));
+        // Object-size estimate is expected below the fixed per-index constant used by getIndexMemoryOverhead().
+        assertThat(oneIndexHeapBytes, lessThan(StatelessMemoryMetricsService.INDEX_MEMORY_OVERHEAD));
+
+        final int manyIndices = 10;
+        ClusterState manyIndicesClusterState = randomInitialTwoNodeClusterState(manyIndices);
+        service.clusterChanged(new ClusterChangedEvent("test", manyIndicesClusterState, ClusterState.EMPTY_STATE));
+        long manyIndicesHeapBytes = service.getIndexMetadataEstimatedHeapBytes();
+
+        assertThat(manyIndicesHeapBytes, greaterThan(oneIndexHeapBytes));
+        // None of these indices share a mapping instance, so the estimate should be an exact sum of the per-index
+        // values (the dedup path is covered separately by testGetIndexMetadataEstimatedHeapBytesDedupesSharedMappings).
+        long expectedTotal = 0;
+        for (IndexMetadata indexMetadata : manyIndicesClusterState.metadata().indicesAllProjects()) {
+            expectedTotal += indexMetadata.ramBytesUsed();
+        }
+        assertThat(service.getIndexMetadataEstimatedHeapBytes(), equalTo(expectedTotal));
+        assertThat(manyIndicesHeapBytes, lessThan(StatelessMemoryMetricsService.INDEX_MEMORY_OVERHEAD * manyIndices));
+        assertThat(manyIndicesHeapBytes, lessThan(service.getIndexMemoryOverhead()));
+    }
+
+    private ClusterState randomInitialTwoNodeClusterState(int numberOfIndices) {
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.create("node_0"))
+            .add(DiscoveryNodeUtils.create("node_1"))
+            .localNodeId("node_0")
+            .masterNodeId("node_0")
+            .build();
+        String[] indices = IntStream.range(0, numberOfIndices).mapToObj(i -> randomIdentifier()).toArray(String[]::new);
+        Tuple<ProjectMetadata.Builder, RoutingTable.Builder> projectAndRt = ClusterStateCreationUtils
+            .projectWithAssignedPrimariesAndReplicas(ProjectId.DEFAULT, indices, 2, 0, discoveryNodes);
+        return ClusterState.builder(new ClusterName("test"))
+            .nodes(discoveryNodes)
+            .routingTable(GlobalRoutingTable.builder().put(ProjectId.DEFAULT, projectAndRt.v2()).build())
+            .metadata(Metadata.builder().put(projectAndRt.v1()))
+            .build();
+    }
+
+    private Map<ShardId, ShardMappingSize> randomMemoryMetrics(DiscoveryNode node, ClusterState clusterState) {
+        Map<ShardId, ShardMappingSize> result = new HashMap<>();
+        Map<Index, Long> indexMappingSizes = new HashMap<>();
+        clusterState.getRoutingNodes().node(node.getId()).forEach(r -> {
+            long mappingSize = indexMappingSizes.computeIfAbsent(
+                r.shardId().getIndex(),
+                i -> ByteSizeValue.ofKb(randomLongBetween(1, 200)).getBytes()
+            );
+            result.put(
+                r.shardId(),
+                new ShardMappingSize(
+                    mappingSize,
+                    randomIntBetween(1, 1_000),
+                    randomIntBetween(1, 100),
+                    randomLongBetween(1, 100),
+                    randomIntBetween(1, 100),
+                    randomIntBetween(1, 100),
+                    UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
+                    node.getId()
+                )
+            );
+        });
+        return result;
+    }
+
+    /**
+     * Search nodes must appear in {@link StatelessMemoryMetricsService#getPerNodeMemoryMetrics(ClusterState)} with:
+     * <ul>
+     *   <li>{@code totalHeapUsage == 0} — the total-heap estimate is not meaningful for search nodes</li>
+     *   <li>{@code hostedShardsHeapUsage > 0} — the hosted-shards estimate is populated from shard metrics</li>
+     * </ul>
+     * Search node postings must not influence the cross-node max used for indexing nodes' total heap estimate.
+     */
+    public void testSearchNodesGetHostedShardsEstimateWithZeroTotalHeap() {
+        final String indexName = randomIdentifier();
+
+        final ClusterState baseState = ClusterStateCreationUtils.buildServerlessRoleNodes(
+            indexName,
+            2,
+            2,
+            1,
+            0,
+            ClusterStateCreationUtils.ShardAllocationStrategy.RoundRobin
+        );
+        final DiscoveryNode searchNode = baseState.nodes()
+            .stream()
+            .filter(n -> n.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE))
+            .findFirst()
+            .orElseThrow();
+        final IndexRoutingTable indexRoutingTable = baseState.globalRoutingTable().routingTable(ProjectId.DEFAULT).index(indexName);
+        final IndexRoutingTable.Builder routingBuilder = IndexRoutingTable.builder(indexRoutingTable.getIndex());
+        final Map<ShardId, ShardMappingSize> shardSizes = new HashMap<>();
+        final long mappingBytes = ByteSizeValue.ofKb(100).getBytes();
+        // Each indexing node hosts one primary, while the search node hosts both replicas. Its postings total therefore
+        // exceeds either indexing node's total, so including search nodes in the max would fail the assertion below.
+        final long[] postingsBytes = { ByteSizeValue.ofMb(5).getBytes(), ByteSizeValue.ofMb(10).getBytes() };
+        for (int shard = 0; shard < postingsBytes.length; shard++) {
+            final ShardRouting primary = indexRoutingTable.shard(shard).primaryShard();
+            routingBuilder.addShard(primary);
+            routingBuilder.addShard(
+                shardRoutingBuilder(primary.shardId(), searchNode.getId(), false, ShardRoutingState.STARTED).withRole(
+                    ShardRouting.Role.SEARCH_ONLY
+                ).build()
+            );
+            shardSizes.put(
+                primary.shardId(),
+                new ShardMappingSize(
+                    mappingBytes,
+                    10,
+                    50,
+                    postingsBytes[shard],
+                    0L,
+                    0L,
+                    UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
+                    primary.currentNodeId()
+                )
+            );
+        }
+        final ClusterState clusterState = ClusterState.builder(baseState)
+            .routingTable(
+                GlobalRoutingTable.builder().put(ProjectId.DEFAULT, RoutingTable.builder().add(routingBuilder.build()).build()).build()
+            )
+            .build();
+
+        service.clusterChanged(new ClusterChangedEvent("init", clusterState, ClusterState.EMPTY_STATE));
+        service.updateShardsMappingSize(new HeapMemoryUsage(1, shardSizes));
+
+        final Map<String, NodeHeapEstimates> perNode = service.getPerNodeMemoryMetrics(clusterState);
+        final String indexNode1Id = indexRoutingTable.shard(0).primaryShard().currentNodeId();
+        final String indexNode2Id = indexRoutingTable.shard(1).primaryShard().currentNodeId();
+        assertThat(perNode.keySet(), equalTo(Set.of(indexNode1Id, indexNode2Id, searchNode.getId())));
+
+        final NodeHeapEstimates indexEstimates1 = perNode.get(indexNode1Id);
+        final NodeHeapEstimates indexEstimates2 = perNode.get(indexNode2Id);
+        for (NodeHeapEstimates indexEstimates : List.of(indexEstimates1, indexEstimates2)) {
+            assertThat("indexing node totalHeapUsage must include base overhead", indexEstimates.totalHeapUsage(), greaterThan(0L));
+            assertThat("indexing node hostedShardsHeapUsage must be > 0", indexEstimates.hostedShardsHeapUsage(), greaterThan(0L));
+        }
+
+        final NodeHeapEstimates searchEstimates = perNode.get(searchNode.getId());
+        assertThat("search node totalHeapUsage must be 0", searchEstimates.totalHeapUsage(), equalTo(0L));
+        assertThat("search node hostedShardsHeapUsage must be > 0", searchEstimates.hostedShardsHeapUsage(), greaterThan(0L));
+        // The search node hosts both shards but counts their shared index mapping only once.
+        assertThat(
+            searchEstimates.hostedShardsHeapUsage(),
+            equalTo(indexEstimates1.hostedShardsHeapUsage() + indexEstimates2.hostedShardsHeapUsage() - mappingBytes)
+        );
+        assertThat(
+            "maxTotalPostingsInMemoryBytes must exclude the search node's 15 MB of postings",
+            getLastMaxTotalPostingsInMemoryBytes(service),
+            equalTo(postingsBytes[1])
+        );
+    }
+
+    private static Map<ShardId, ShardMappingSize> createShardMappingMetricsWithPointsInMemory(
+        Map<ShardId, ShardMappingSize> metrics,
+        long pointsInMemoryBytes
+    ) {
+        final Map<ShardId, ShardMappingSize> result = new HashMap<>();
+        metrics.forEach(
+            (shardId, shardMappingSize) -> result.put(
+                shardId,
+                new ShardMappingSize(
+                    shardMappingSize.mappingSizeInBytes(),
+                    shardMappingSize.numSegments(),
+                    shardMappingSize.totalFields(),
+                    shardMappingSize.postingsInMemoryBytes(),
+                    shardMappingSize.liveDocsBytes(),
+                    pointsInMemoryBytes,
+                    shardMappingSize.shardMemoryOverheadBytes(),
+                    shardMappingSize.nodeId()
+                )
+            )
+        );
+        return result;
+    }
+
+}

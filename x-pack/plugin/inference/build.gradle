@@ -36,6 +36,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(':server')))
   testImplementation(project(':x-pack:plugin:inference:qa:test-service-plugin'))
+  testImplementation project(':x-pack:plugin:diskbbq')
   testImplementation project(':modules:reindex')
   testImplementation project(':modules:mapper-extras')
   testImplementation project(':x-pack:plugin:ml')
@@ -59,8 +60,8 @@ dependencies {
   implementation 'io.grpc:grpc-context:1.49.2'
   implementation 'io.opencensus:opencensus-api:0.31.1'
   implementation 'io.opencensus:opencensus-contrib-http-util:0.31.1'
-  implementation "org.apache.commons:commons-lang3:${versions.commons_lang3}"
-  implementation 'org.apache.commons:commons-text:1.4'
+  implementation 'org.apache.commons:commons-lang3:3.20.0'
+  implementation 'org.apache.commons:commons-text:1.15.0'
 
   /* AWS SDK v2 */
   implementation("software.amazon.awssdk:bedrockruntime:${versions.awsv2sdk}")
@@ -138,7 +139,7 @@ dependencies {
 
   // Jackson
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.jackson}"
   api "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
   api "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.jackson}"
@@ -153,12 +154,12 @@ dependencies {
   // Reactor
   api "io.projectreactor.netty:reactor-netty-core:${versions.azureReactorNetty}"
   api "io.projectreactor.netty:reactor-netty-http:${versions.azureReactorNetty}"
-  api "io.projectreactor:reactor-core:3.7.5"
+  api "io.projectreactor:reactor-core:3.7.19"
   api "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
 
   runtimeOnly "org.cryptomator:siv-mode:1.5.2"
   api "org.codehaus.woodstox:stax2-api:4.2.2"
-  api "org.ow2.asm:asm:9.9"
+  api "org.ow2.asm:asm:9.10.1"
   /* End packages for Azure */
 }
 
@@ -501,6 +502,47 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.handler.codec.haproxy.HAProxyMessage',
     'io.netty.handler.codec.haproxy.HAProxyMessageDecoder',
 
+    // from reactor-netty HTTP/3 support (optional QUIC/HTTP3 incubator, not bundled)
+    'io.netty.incubator.codec.http3.Http3',
+    'io.netty.incubator.codec.http3.Http3ClientConnectionHandler',
+    'io.netty.incubator.codec.http3.Http3DataFrame',
+    'io.netty.incubator.codec.http3.Http3Headers',
+    'io.netty.incubator.codec.http3.Http3HeadersFrame',
+    'io.netty.incubator.codec.quic.QuicChannel',
+    'io.netty.incubator.codec.quic.QuicChannelBootstrap',
+    'io.netty.incubator.codec.quic.QuicClientCodecBuilder',
+    'io.netty.incubator.codec.quic.QuicServerCodecBuilder',
+    'io.netty.incubator.codec.quic.QuicSslContext',
+    'io.netty.incubator.codec.quic.QuicSslContextBuilder',
+    'io.netty.incubator.codec.quic.QuicSslEngine',
+    'io.netty.incubator.codec.quic.QuicStreamChannel',
+    'io.netty.incubator.codec.quic.QuicStreamChannelBootstrap',
+    'io.netty.incubator.codec.quic.QuicTokenHandler',
+
+    // from reactor-netty Micrometer Observation support (optional, not bundled)
+    'io.micrometer.common.docs.KeyName',
+    'io.micrometer.common.KeyValue',
+    'io.micrometer.common.KeyValues',
+    'io.micrometer.core.instrument.docs.MeterDocumentation',
+    'io.micrometer.core.instrument.observation.MeterObservationHandler',
+    'io.micrometer.observation.Observation',
+    'io.micrometer.observation.Observation$Context',
+    'io.micrometer.observation.ObservationHandler',
+    'io.micrometer.observation.ObservationRegistry',
+    'io.micrometer.observation.ObservationRegistry$ObservationConfig',
+    'io.micrometer.observation.docs.ObservationDocumentation',
+    'io.micrometer.observation.transport.ReceiverContext',
+    'io.micrometer.observation.transport.RequestReplyReceiverContext',
+    'io.micrometer.observation.transport.RequestReplySenderContext',
+    'io.micrometer.observation.transport.SenderContext',
+    'io.micrometer.tracing.docs.SpanDocumentation',
+    'io.micrometer.tracing.handler.DefaultTracingObservationHandler',
+    'io.micrometer.tracing.handler.PropagatingReceiverTracingObservationHandler',
+    'io.micrometer.tracing.handler.PropagatingSenderTracingObservationHandler',
+    'io.micrometer.tracing.propagation.Propagator',
+    'io.micrometer.tracing.Span',
+    'io.micrometer.tracing.Tracer',
+
     // Optional dependency of tink
     'com.google.crypto.tink.subtle.Ed25519Sign',
     'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
@@ -569,6 +611,14 @@ tasks.named("thirdPartyAudit").configure {
 
 tasks.named('yamlRestTest') {
   usesDefaultDistribution("Uses the inference API")
+  if (buildParams.snapshotBuild == false) {
+    // The columnar index mode is not available in release builds.
+    def snapshotOnlyTests = [
+      'inference/173_semantic_field_columnar_source/*',
+      'inference/181_semantic_text_columnar_source/*'
+    ]
+    systemProperty 'tests.rest.blacklist', snapshotOnlyTests.join(',')
+  }
 }
 
 artifacts {

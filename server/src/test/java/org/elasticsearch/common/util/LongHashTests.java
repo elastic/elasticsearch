@@ -9,15 +9,22 @@
 
 package org.elasticsearch.common.util;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class LongHashTests extends ESTestCase {
     private BigArrays mockBigArrays() {
@@ -28,6 +35,38 @@ public class LongHashTests extends ESTestCase {
         // Test high load factors to make sure that collision resolution works fine
         float maxLoadFactor = 0.6f + randomFloat() * 0.39f;
         return new LongHash(randomIntBetween(0, 100), maxLoadFactor, mockBigArrays());
+    }
+
+    public void testAddDiscardsKeyRefusedByCircuitBreaker() {
+        // add() grows the table and the key array together. If the table grows first and resizing the keys is
+        // then refused, the table accepts ids the key array cannot hold and the next add() writes past its end.
+        CrankyCircuitBreakerService breakerService = new CrankyCircuitBreakerService();
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService, true);
+        // Only the adds that grow allocate, so a single pass can see no trip at all. A key array left short of
+        // maxSize is read out of bounds by the very next add, so a handful of passes is enough to land on it.
+        for (int attempt = 0; attempt < 20; attempt++) {
+            List<Long> expected = new ArrayList<>();
+            try (LongHash hash = new LongHash(1, bigArrays)) {
+                for (long key = 0; key < 2000; key++) {
+                    try {
+                        assertThat(hash.add(key), equalTo((long) expected.size()));
+                        expected.add(key);
+                    } catch (CircuitBreakingException e) {
+                        // the key must be rejected outright, leaving the hash exactly as it was
+                        assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+                    }
+                }
+                assertThat(hash.size(), equalTo((long) expected.size()));
+                for (int i = 0; i < expected.size(); i++) {
+                    assertThat(hash.get(i), equalTo(expected.get(i)));
+                    assertThat(hash.find(expected.get(i)), equalTo((long) i));
+                }
+            } catch (CircuitBreakingException e) {
+                // constructing the hash can trip too, which leaves nothing to verify on this pass
+                assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+            }
+        }
+        assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
     }
 
     public void testDuel() {

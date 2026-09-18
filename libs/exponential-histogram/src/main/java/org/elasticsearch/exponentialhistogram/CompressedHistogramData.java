@@ -85,12 +85,16 @@ final class CompressedHistogramData {
     private int scale;
 
     private byte[] encodedData;
+    private int dataOffset;
+    private int dataLength;
     private int negativeBucketsStart;
     private int negativeBucketsLength;
     private int positiveBucketsLength;
 
     void decode(BytesRef data) {
         this.encodedData = data.bytes;
+        this.dataOffset = data.offset;
+        this.dataLength = data.length;
         AccessibleByteArrayStreamInput input = new AccessibleByteArrayStreamInput(data.bytes, data.offset, data.length);
 
         int scaleWithFlags = input.read();
@@ -127,6 +131,18 @@ final class CompressedHistogramData {
 
     int scale() {
         return scale;
+    }
+
+    byte[] rawBytes() {
+        return encodedData;
+    }
+
+    int rawOffset() {
+        return dataOffset;
+    }
+
+    int rawLength() {
+        return dataLength;
     }
 
     BucketsDecoder negativeBucketsDecoder() {

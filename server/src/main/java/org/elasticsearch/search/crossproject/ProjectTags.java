@@ -21,6 +21,8 @@ public record ProjectTags(Map<String, String> tags) {
     public static final String PROJECT_ALIAS = "_alias";
     public static final String PROJECT_TYPE_TAG = "_type";
     public static final String ORGANIZATION_ID_TAG = "_organization";
+    public static final String CLOUD_PROVIDER_TAG = "_csp";
+    public static final String CLOUD_PROVIDER_REGION_TAG = "_region";
 
     public String projectId() {
         return tags.get(PROJECT_ID_TAG);
@@ -38,6 +40,14 @@ public record ProjectTags(Map<String, String> tags) {
         return tags.get(PROJECT_ALIAS);
     }
 
+    public String cloudProvider() {
+        return tags.get(CLOUD_PROVIDER_TAG);
+    }
+
+    public String cloudProviderRegion() {
+        return tags.get(CLOUD_PROVIDER_REGION_TAG);
+    }
+
     /**
      * Validate that all required tags are present.
      */
@@ -53,6 +63,12 @@ public record ProjectTags(Map<String, String> tags) {
         }
         if (false == tags.containsKey(PROJECT_ALIAS)) {
             throw missingTagException(projectId, PROJECT_ALIAS);
+        }
+        if (false == tags.containsKey(CLOUD_PROVIDER_TAG)) {
+            throw missingTagException(projectId, CLOUD_PROVIDER_TAG);
+        }
+        if (false == tags.containsKey(CLOUD_PROVIDER_REGION_TAG)) {
+            throw missingTagException(projectId, CLOUD_PROVIDER_REGION_TAG);
         }
     }
 

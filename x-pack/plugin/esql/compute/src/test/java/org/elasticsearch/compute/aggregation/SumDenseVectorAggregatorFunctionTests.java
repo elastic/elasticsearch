@@ -12,13 +12,14 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.operator.WarningsTests;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.compute.test.operator.blocksource.DenseVectorFloatBlockSourceOperator;
 import org.junit.Before;
 
 import java.util.List;
 import java.util.stream.LongStream;
 
+import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomVector;
 import static org.hamcrest.Matchers.closeTo;
 
 public class SumDenseVectorAggregatorFunctionTests extends AggregatorFunctionTestCase {
@@ -38,17 +39,9 @@ public class SumDenseVectorAggregatorFunctionTests extends AggregatorFunctionTes
         );
     }
 
-    private static float[] randomVector(int dimensions) {
-        float[] vector = new float[dimensions];
-        for (int i = 0; i < dimensions; i++) {
-            vector[i] = randomFloat();
-        }
-        return vector;
-    }
-
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new SumDenseVectorAggregatorFunctionSupplier(new WarningsTests.TestWarningsSource("source", null, 1, 1));
+        return new SumDenseVectorAggregatorFunctionSupplier(TestWarningsSource.INSTANCE);
     }
 
     @Override

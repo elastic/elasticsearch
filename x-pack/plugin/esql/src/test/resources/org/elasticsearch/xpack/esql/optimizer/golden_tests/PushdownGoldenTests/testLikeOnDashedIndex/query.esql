@@ -1,0 +1,3 @@
+FROM k8s-downsampled METADATA _index
+| WHERE _index LIKE "k8s-*"
+| KEEP cluster

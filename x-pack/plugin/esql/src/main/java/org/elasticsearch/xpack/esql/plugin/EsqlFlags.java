@@ -48,47 +48,97 @@ public class EsqlFlags {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Enables coordinator-driven remote fetch for deferred TopN fields after node-level reduction.
+     * Off by default; enable with {@code esql.query.remote_fetch_topn.enabled}. An explicit value
+     * wins over the default.
+     */
+    public static final Setting<Boolean> ESQL_REMOTE_FETCH_TOPN = Setting.boolSetting(
+        "esql.query.remote_fetch_topn.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     // this is only used for testing purposes right now
-    public static List<Setting<?>> ALL_ESQL_FLAGS_SETTINGS = List.of(ESQL_STRING_LIKE_ON_INDEX, ESQL_ROUNDTO_PUSHDOWN_THRESHOLD);
+    public static List<Setting<?>> ALL_ESQL_FLAGS_SETTINGS = List.of(
+        ESQL_STRING_LIKE_ON_INDEX,
+        ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
+        ESQL_REMOTE_FETCH_TOPN
+    );
 
     private final boolean stringLikeOnIndex;
 
     private final int roundToPushdownThreshold;
 
+    private final boolean remoteFetchTopN;
+
     /**
      * Constructor for tests.
      */
     public EsqlFlags(boolean stringLikeOnIndex) {
-        this.stringLikeOnIndex = stringLikeOnIndex;
-        this.roundToPushdownThreshold = ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY);
+        this(
+            stringLikeOnIndex,
+            ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY),
+            ESQL_REMOTE_FETCH_TOPN.getDefault(Settings.EMPTY)
+        );
     }
 
     /**
      * Constructor for tests.
      */
     public EsqlFlags(int roundToPushdownThreshold) {
-        this.stringLikeOnIndex = ESQL_STRING_LIKE_ON_INDEX.getDefault(Settings.EMPTY);
-        this.roundToPushdownThreshold = roundToPushdownThreshold;
+        this(
+            ESQL_STRING_LIKE_ON_INDEX.getDefault(Settings.EMPTY),
+            roundToPushdownThreshold,
+            ESQL_REMOTE_FETCH_TOPN.getDefault(Settings.EMPTY)
+        );
     }
 
     /**
      * Constructor for tests.
      */
     public EsqlFlags(boolean stringLikeOnIndex, int roundToPushdownThreshold) {
+        this(stringLikeOnIndex, roundToPushdownThreshold, ESQL_REMOTE_FETCH_TOPN.getDefault(Settings.EMPTY));
+    }
+
+    /**
+     * Constructor for tests.
+     */
+    public EsqlFlags(boolean stringLikeOnIndex, int roundToPushdownThreshold, boolean remoteFetchTopN) {
         this.stringLikeOnIndex = stringLikeOnIndex;
         this.roundToPushdownThreshold = roundToPushdownThreshold;
+        this.remoteFetchTopN = remoteFetchTopN;
     }
 
     public EsqlFlags(ClusterSettings settings) {
-        this.stringLikeOnIndex = settings.get(ESQL_STRING_LIKE_ON_INDEX);
-        this.roundToPushdownThreshold = settings.get(ESQL_ROUNDTO_PUSHDOWN_THRESHOLD);
+        this(settings.get(ESQL_STRING_LIKE_ON_INDEX), settings.get(ESQL_ROUNDTO_PUSHDOWN_THRESHOLD), settings.get(ESQL_REMOTE_FETCH_TOPN));
     }
 
+    /**
+     * Test helper that leaves the other flags at their defaults.
+     */
+    public static EsqlFlags withRemoteFetchTopN(boolean remoteFetchTopN) {
+        return new EsqlFlags(true, ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY), remoteFetchTopN);
+    }
+
+    /**
+     * Controls whether {@code WHERE _index LIKE pattern} is consistent with the compute engine
+     * when pushed down to Lucene or uses legacy behavior that was not consistent.
+     * See https://github.com/elastic/elasticsearch/issues/129511.
+     */
     public boolean stringLikeOnIndex() {
         return stringLikeOnIndex;
     }
 
     public int roundToPushdownThreshold() {
         return roundToPushdownThreshold;
+    }
+
+    /**
+     * Controls whether ES|QL may rewrite eligible TopN plans to fetch deferred fields after reduction.
+     */
+    public boolean remoteFetchTopN() {
+        return remoteFetchTopN;
     }
 }

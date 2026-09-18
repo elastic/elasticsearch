@@ -400,6 +400,37 @@ public class MapsTests extends ESTestCase {
         assertMapImmutability(map);
     }
 
+    public void testMergeDisjointKeys() {
+        Map<String, Integer> a = Map.of("x", 1, "y", 2);
+        Map<String, Integer> b = Map.of("z", 3);
+        assertThat(
+            Maps.merge(a, b, (l, r) -> { throw new AssertionError("merger should not run for disjoint keys"); }),
+            equalTo(Map.of("x", 1, "y", 2, "z", 3))
+        );
+    }
+
+    public void testMergeOverlappingKeysInvokesMerger() {
+        Map<String, Integer> a = Map.of("x", 1, "y", 2);
+        Map<String, Integer> b = Map.of("y", 20, "z", 3);
+        assertThat(Maps.merge(a, b, Integer::sum), equalTo(Map.of("x", 1, "y", 22, "z", 3)));
+    }
+
+    public void testMergeMergerThrowingPropagates() {
+        Map<String, Integer> a = Map.of("x", 1);
+        Map<String, Integer> b = Map.of("x", 2);
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> Maps.merge(a, b, (l, r) -> {
+            throw new IllegalStateException("collision on " + l + "/" + r);
+        }));
+        assertThat(ex.getMessage(), equalTo("collision on 1/2"));
+    }
+
+    public void testMergeWithEmptyMaps() {
+        Map<String, Integer> nonEmpty = Map.of("x", 1);
+        assertThat(Maps.merge(Map.of(), Map.of(), Integer::sum), equalTo(Map.of()));
+        assertThat(Maps.merge(nonEmpty, Map.of(), Integer::sum), equalTo(nonEmpty));
+        assertThat(Maps.merge(Map.of(), nonEmpty, Integer::sum), equalTo(nonEmpty));
+    }
+
     private static <K, V> Map<K, V> randomMap(int size, Supplier<K> keyGenerator, Supplier<V> valueGenerator) {
         final Map<K, V> map = new HashMap<>();
         IntStream.range(0, size).forEach(i -> map.put(keyGenerator.get(), valueGenerator.get()));

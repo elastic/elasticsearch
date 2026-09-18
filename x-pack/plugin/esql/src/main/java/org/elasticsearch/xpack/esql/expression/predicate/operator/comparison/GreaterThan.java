@@ -10,6 +10,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -22,7 +23,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Esq
 import java.time.ZoneId;
 import java.util.Map;
 
-public class GreaterThan extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
+public class GreaterThan extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison>, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "GreaterThan",
@@ -36,10 +37,10 @@ public class GreaterThan extends EsqlBinaryComparison implements Negatable<EsqlB
         Map.entry(DataType.UNSIGNED_LONG, GreaterThanLongsEvaluator.Factory::new),
         Map.entry(DataType.DATETIME, GreaterThanLongsEvaluator.Factory::new),
         Map.entry(DataType.DATE_NANOS, GreaterThanLongsEvaluator.Factory::new),
-        Map.entry(DataType.KEYWORD, GreaterThanKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.TEXT, GreaterThanKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.VERSION, GreaterThanKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.IP, GreaterThanKeywordsEvaluator.Factory::new)
+        Map.entry(DataType.KEYWORD, GreaterThanBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.TEXT, GreaterThanBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.VERSION, GreaterThanBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.IP, GreaterThanBytesRefEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -54,12 +55,34 @@ public class GreaterThan extends EsqlBinaryComparison implements Negatable<EsqlB
         Source source,
         @Param(
             name = "lhs",
-            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+            type = {
+                "aggregate_metric_double",
+                "boolean",
+                "date",
+                "double",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" },
             description = "An expression."
         ) Expression left,
         @Param(
             name = "rhs",
-            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+            type = {
+                "aggregate_metric_double",
+                "boolean",
+                "date",
+                "double",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" },
             description = "An expression."
         ) Expression right
     ) {
@@ -143,8 +166,8 @@ public class GreaterThan extends EsqlBinaryComparison implements Negatable<EsqlB
         return lhs > rhs;
     }
 
-    @Evaluator(extraName = "Keywords")
-    static boolean processKeywords(BytesRef lhs, BytesRef rhs) {
+    @Evaluator(extraName = "BytesRef")
+    static boolean processBytesRef(BytesRef lhs, BytesRef rhs) {
         return lhs.compareTo(rhs) > 0;
     }
 }

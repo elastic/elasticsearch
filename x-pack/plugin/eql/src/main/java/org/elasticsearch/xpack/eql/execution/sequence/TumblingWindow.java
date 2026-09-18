@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -161,7 +162,8 @@ public class TumblingWindow implements Executable {
         // clear the memory at the end of the algorithm
         tumbleWindow(matcher.firstPositiveStage, runAfter(listener, () -> {
             matcher.clear();
-            client.close(listener.delegateFailure((l, r) -> {}));
+            // The outer listener has already been invoked by runAfter; a close-PIT failure must not propagate to it.
+            client.close(ActionListener.wrap(r -> {}, e -> log.warn("Failed to close PIT after sequence query", e)));
         }));
     }
 
@@ -885,9 +887,16 @@ public class TumblingWindow implements Executable {
                         partial.add(null);
                     } else {
                         int keySize = originalKeys.length;
+                        // shallow size of one Object[keySize] — computed once, used per expansion step
+                        long sizePerKey = RamUsageEstimator.alignObjectSize(
+                            RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) keySize * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+                        );
+                        long estimatedExpansionBytes = 0;
                         partial.add(new Object[keySize]);
                         for (int i = 0; i < keySize; i++) {
                             if (originalKeys[i] instanceof List<?> possibleValues) {
+                                estimatedExpansionBytes += (long) possibleValues.size() * partial.size() * sizePerKey;
+                                matcher.checkMemory(estimatedExpansionBytes);
                                 List<Object[]> newPartial = new ArrayList<>(possibleValues.size() * partial.size());
                                 for (Object possibleValue : possibleValues) {
                                     for (Object[] partialKey : partial) {

@@ -1,0 +1,8 @@
+ExchangeSinkExec[[!alias_integer, boolean{f}#0, byte{f}#1, constant_keyword-foo{f}#2, date{f}#3, date_nanos{f}#4, dense_vector{f}#5, double{f}#6, float{f}#7, half_float{f}#8, integer{f}#9, ip{f}#10, keyword{r}#11, long{f}#12, scaled_float{f}#13, semantic_text{f}#14, short{f}#15, text{f}#16, unsigned_long{f}#17, version{f}#18, wildcard{f}#19, similarity{r}#20],false]
+\_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[!alias_integer, boolean{f}#0, byte{f}#1, constant_keyword-foo{f}#2, date{f}#3, date_nanos{f}#4, dense_vector{f}#5, double{f}#6, float{f}#7, half_float{f}#8, integer{f}#9, ip{f}#10, keyword{r}#11, long{f}#12, scaled_float{f}#13, semantic_text{f}#14, short{f}#15, text{f}#16, unsigned_long{f}#17, version{f}#18, wildcard{f}#19, similarity{r}#20]]
+\_TopN[[Order[similarity{r}#20,DESC,FIRST], Order[keyword{r}#11,ASC,LAST]],1[INTEGER],false]
+  \_Eval[[COSINESIMILARITY(dense_vector{f}#5,[0.78354394, 0.089722395, 0.88437265][DENSE_VECTOR]) AS similarity#20]]
+    \_MvExpand[keyword{f}#21,keyword{r}#11]
+      \_Project[[!alias_integer, boolean{f}#0, byte{f}#1, constant_keyword-foo{f}#2, date{f}#3, date_nanos{f}#4, dense_vector{f}#5, double{f}#6, float{f}#7, half_float{f}#8, integer{f}#9, ip{f}#10, keyword{f}#21, long{f}#12, scaled_float{f}#13, semantic_text{f}#14, short{f}#15, text{f}#16, unsigned_long{f}#17, version{f}#18, wildcard{f}#19]]
+        \_EsRelation[all_types][!alias_integer, boolean{f}#0, byte{f}#1, constant_keyword-foo{f}#2, date{f}#3, date_nanos{f}#4, dense_vector{f}#5, double{f}#6, float{f}#7, half_float{f}#8, integer{f}#9, ip{f}#10, keyword{f}#21, long{f}#12, scaled_float{f}#13, semantic_text{f}#14, short{f}#15, text{f}#16, unsigned_long{f}#17, version{f}#18, wildcard{f}#19]<>]]

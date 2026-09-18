@@ -26,7 +26,7 @@ import java.util.stream.IntStream;
  * Vector implementation that stores an array of int values.
  * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
-final class IntArrayVector extends AbstractVector implements IntVector {
+public final class IntArrayVector extends AbstractVector implements IntVector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntArrayVector.class)
         // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
@@ -88,6 +88,16 @@ final class IntArrayVector extends AbstractVector implements IntVector {
     }
 
     @Override
+    public void copyTo(int srcPosition, int[] dst, int dstPosition, int length) {
+        System.arraycopy(values, srcPosition, dst, dstPosition, length);
+    }
+
+    @Override
+    public int valueMaxByteSize() {
+        return Integer.BYTES;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.INT;
     }
@@ -98,9 +108,10 @@ final class IntArrayVector extends AbstractVector implements IntVector {
     }
 
     @Override
-    public IntVector filter(boolean mayContainDuplicates, int... positions) {
-        try (IntVector.Builder builder = blockFactory().newIntVectorBuilder(positions.length)) {
-            for (int pos : positions) {
+    public IntVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        try (IntVector.Builder builder = blockFactory().newIntVectorBuilder(length)) {
+            for (int i = offset, end = offset + length; i < end; i++) {
+                int pos = positions[i];
                 builder.appendInt(values[pos]);
             }
             return builder.build();

@@ -16,7 +16,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import java.io.IOException;
 import java.net.URI;
@@ -128,12 +128,12 @@ public class LlamaChatCompletionResponseHandlerTests extends ESTestCase {
         );
     }
 
-    private static Request mockRequest() throws URISyntaxException {
-        var request = mock(Request.class);
-        when(request.getInferenceEntityId()).thenReturn("id");
-        when(request.isStreaming()).thenReturn(true);
-        when(request.getURI()).thenReturn(new URI("https://api.llama.ai/v1/chat/completions"));
-        return request;
+    private static OutboundRequest mockRequest() throws URISyntaxException {
+        var outboundRequest = mock(OutboundRequest.class);
+        when(outboundRequest.getInferenceEntityId()).thenReturn("id");
+        when(outboundRequest.isStreaming()).thenReturn(true);
+        when(outboundRequest.getURI()).thenReturn(new URI("https://api.llama.ai/v1/chat/completions"));
+        return outboundRequest;
     }
 
     private static HttpResponse mockErrorResponse(int statusCode) {

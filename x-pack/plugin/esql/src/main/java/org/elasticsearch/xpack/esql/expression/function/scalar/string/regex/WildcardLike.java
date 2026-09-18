@@ -7,9 +7,14 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -18,9 +23,14 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
@@ -28,7 +38,7 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import java.io.IOException;
 import java.util.function.Predicate;
 
-public class WildcardLike extends RegexMatch<WildcardPattern> {
+public class WildcardLike extends RegexMatch<WildcardPattern> implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "WildcardLike",
@@ -37,12 +47,15 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
     public static final String NAME = "LIKE";
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "boolean",
+        briefSummary = "Filters data based on string patterns using wildcards.",
         description = """
             Use `LIKE` to filter data based on string patterns using wildcards. `LIKE`
             usually acts on a field placed on the left-hand side of the operator, but it can
             also act on a constant (literal) expression. The right-hand side of the operator
-            represents the pattern.
+            represents the pattern, which can be a string literal, a query parameter, or any
+            constant expression such as a call to `CONCAT` or `TO_LOWER`.
 
             The following wildcard characters are supported:
 
@@ -55,15 +68,24 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
             This means the pattern matching is case-sensitive and must match the exact string indexed.
             To perform full-text search, use the `MATCH` or `QSTR` functions.
 
-            Matching the exact characters `*` and `.` will require escaping.
-            The escape character is backslash `\\`. Since also backslash is a special character in string literals,
-            it will require further escaping.
+            Matching the exact characters `*` and `?` will require escaping.
+            The escape character is backslash `\\`. Since backslash is also special in string literals,
+            it will require further escaping. To match a literal backslash in the data, write `\\\\`
+            in the pattern (escape plus backslash). Windows-style paths such as `C:\\Windows\\System32`
+            are much easier with triple-quoted string literals (three consecutive `"` characters as delimiters):
+            the value can contain single backslashes as in `C:\\Windows\\...`, and a pattern that matches
+            `C:\\Windows` followed by anything uses `\\\\` before `Windows` inside that literal (see the example below).
+            When you send ES|QL inside a JSON request body (for example with cURL), JSON string escaping
+            adds another layer: each backslash in the ES|QL text is often written as `\\\\` in JSON, so a
+            single literal backslash in the pattern can require many backslashes by the time it reaches the parser.
 
             <<load-esql-example, file=string tag=likeEscapingSingleQuotes>>
 
             To reduce the overhead of escaping, we suggest using triple quotes strings `\"\"\"`
 
             <<load-esql-example, file=string tag=likeEscapingTripleQuotes>>
+
+            <<load-esql-example, file=string tag=likeEscapingBackslashWindowsPath>>
 
             ```{applies_to}
             stack: ga 9.1
@@ -85,6 +107,13 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
             ```{applies_to}
             stack: ga 9.3
             ```
+
+            ```{applies_to}
+            stack: ga 9.6
+            ```
+            The pattern can also be any constant expression, such as a call to `CONCAT` or `TO_LOWER`.
+
+            <<load-esql-example, file=where-like tag=likeConstExprConcat>>
             """,
         operator = NAME,
         examples = @Example(file = "docs", tag = "like")
@@ -92,7 +121,12 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
     public WildcardLike(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }, description = "A literal expression.") Expression left,
-        @Param(name = "pattern", type = { "keyword", "text" }, description = "Pattern.") WildcardPattern pattern
+        @Param(
+            name = "pattern",
+            type = { "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
+            description = "Pattern."
+        ) WildcardPattern pattern
     ) {
         this(source, left, pattern, false);
     }
@@ -136,6 +170,52 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
     @Override
     protected WildcardLike replaceChild(Expression newLeft) {
         return new WildcardLike(source(), newLeft, pattern(), caseInsensitive());
+    }
+
+    /**
+     * Fast path for prefix, suffix, and contains wildcard shapes (e.g.
+     * {@code LIKE "foo*"}, {@code LIKE "*foo"}, {@code LIKE "*foo*"}):
+     * dispatch to byte-comparison / byte-substring-search evaluators instead
+     * of building an {@link org.apache.lucene.util.automaton.Automaton} and
+     * running {@code RunAutomaton.step} per row. The general path (other
+     * patterns, case-insensitive matching) still goes through
+     * {@code AutomataMatch}. Prefix and suffix reuse the
+     * {@code STARTS_WITH}/{@code ENDS_WITH} evaluators; contains delegates to
+     * the SIMD-backed {@link #processContains} below.
+     */
+    @Override
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        if (caseInsensitive()) {
+            return super.toEvaluator(toEvaluator);
+        }
+        return switch (pattern().shape()) {
+            case WildcardPattern.Shape.Prefix(String prefix) -> new StartsWith(source(), field(), Literal.keyword(source(), prefix))
+                .toEvaluator(toEvaluator);
+            case WildcardPattern.Shape.Suffix(String suffix) -> new EndsWith(source(), field(), Literal.keyword(source(), suffix))
+                .toEvaluator(toEvaluator);
+            case WildcardPattern.Shape.Contains(String literal) -> new WildcardLikeContainsEvaluator.Factory(
+                source(),
+                toEvaluator.apply(field()),
+                new BytesRef(literal)
+            );
+            case WildcardPattern.Shape.General ignored -> super.toEvaluator(toEvaluator);
+        };
+    }
+
+    /**
+     * Byte-level substring search emulating {@code LIKE "*literal*"}. Delegates
+     * to {@link ByteMatchers#containsLiteral(BytesRef, BytesRef)}, which routes
+     * through the SIMD substring primitive shared with the datasource
+     * pushdown evaluators (Panama Vector API first+last-byte filter for values
+     * &ge; 24 bytes; tight scalar loop below that). Both this path and
+     * {@code AutomataMatch} walk UTF-8 input bytes directly (UTF-8 is
+     * self-synchronizing, so a byte-level substring search is correct), so the
+     * fast path's saving comes from replacing the per-byte
+     * {@code RunAutomaton.step} state-machine walk with a vectorized search.
+     */
+    @Evaluator(extraName = "Contains")
+    static boolean processContains(BytesRef str, @Fixed BytesRef pattern) {
+        return ByteMatchers.containsLiteral(str, pattern);
     }
 
     @Override

@@ -166,14 +166,11 @@ public final class ResponseCollectorService implements ClusterStateListener {
             double qBar = queueSize;
             double qHatS = 1 + concurrencyCompensation + qBar;
 
-            // EWMA of response time
-            double rS = responseTime / FACTOR;
             // EWMA of service time. We match the paper's notation, which
             // defines service time as the inverse of service rate (muBarS).
             double muBarSInverse = serviceTime / FACTOR;
 
-            // The final formula
-            return rS - muBarSInverse + Math.pow(qHatS, queueAdjustmentFactor) * muBarSInverse;
+            return Math.pow(qHatS, queueAdjustmentFactor) * muBarSInverse;
         }
 
         public double rank(long outstandingRequests) {

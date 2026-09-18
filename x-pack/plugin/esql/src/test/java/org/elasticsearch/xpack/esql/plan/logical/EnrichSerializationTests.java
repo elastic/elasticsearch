@@ -20,13 +20,14 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.esql.expression.function.FieldAttributeTestUtils.createFieldAttribute;
 
 public class EnrichSerializationTests extends AbstractLogicalPlanSerializationTests<Enrich> {
     @Override
@@ -35,7 +36,7 @@ public class EnrichSerializationTests extends AbstractLogicalPlanSerializationTe
         LogicalPlan child = randomChild(0);
         Enrich.Mode mode = randomFrom(Enrich.Mode.values());
         Expression policyName = randomPolicyName();
-        NamedExpression matchField = FieldAttributeTests.createFieldAttribute(1, false);
+        NamedExpression matchField = createFieldAttribute(1, false);
         EnrichPolicy policy = randomEnrichPolicy();
         Map<String, String> concreteIndices = randomConcreteIndices();
         List<NamedExpression> enrichFields = randomFieldAttributes(0, 10, false).stream().map(f -> (NamedExpression) f).toList();
@@ -92,7 +93,7 @@ public class EnrichSerializationTests extends AbstractLogicalPlanSerializationTe
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> mode = randomValueOtherThan(mode, () -> randomFrom(Enrich.Mode.values()));
             case 2 -> policyName = randomValueOtherThan(policyName, EnrichSerializationTests::randomPolicyName);
-            case 3 -> matchField = randomValueOtherThan(matchField, () -> FieldAttributeTests.createFieldAttribute(1, false));
+            case 3 -> matchField = randomValueOtherThan(matchField, () -> createFieldAttribute(1, false));
             case 4 -> policy = randomValueOtherThan(policy, EnrichSerializationTests::randomEnrichPolicy);
             case 5 -> concreteIndices = randomValueOtherThan(concreteIndices, EnrichSerializationTests::randomConcreteIndices);
             case 6 -> enrichFields = randomValueOtherThan(

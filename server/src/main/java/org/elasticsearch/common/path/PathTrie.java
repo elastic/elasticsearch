@@ -11,7 +11,6 @@ package org.elasticsearch.common.path;
 
 import org.elasticsearch.common.collect.Iterators;
 
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -19,7 +18,6 @@ import java.util.Map;
 import java.util.function.BinaryOperator;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
-import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -345,12 +343,12 @@ public class PathTrie<T> {
     }
 
     /**
-     * Returns a stream of the objects stored in the {@code PathTrie}, using
+     * Returns an iterator over the objects stored in the {@code PathTrie}, using
      * all possible {@code TrieMatchingMode} modes. The {@code paramSupplier}
      * is called for each mode to supply a new map of parameters.
      */
-    public Stream<T> retrieveAll(String path, Supplier<Map<String, String>> paramSupplier) {
-        return Arrays.stream(TrieMatchingMode.values()).map(m -> retrieve(path, paramSupplier.get(), m));
+    public Iterator<T> retrieveAll(String path, Supplier<Map<String, String>> paramSupplier) {
+        return Iterators.map(Iterators.forArray(TrieMatchingMode.values()), m -> retrieve(path, paramSupplier.get(), m));
     }
 
     public Iterator<T> allNodeValues() {

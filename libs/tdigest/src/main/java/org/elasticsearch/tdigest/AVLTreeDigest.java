@@ -260,28 +260,35 @@ public class AVLTreeDigest extends AbstractTDigest {
             // b is the look-ahead to the next centroid
             Centroid b = it.next();
 
-            // initially, we set left width equal to right width
-            double left = (b.mean() - a.mean()) / 2;
-            double right = left;
+            // The first centroid has the same interpolation width on both sides.
+            double leftWidth = (b.mean() - a.mean()) / 2;
+            if (x < a.mean()) {
+                double interpolationFactor = interpolate(x, a.mean() - leftWidth, a.mean() + leftWidth);
+                return Math.max(a.count() * interpolationFactor / count, 0.0);
+            }
 
-            // scan to next to last element
-            double r = 0;
-            while (it.hasNext()) {
-                if (x < a.mean() + right) {
-                    double value = (r + a.count() * interpolate(x, a.mean() - left, a.mean() + right)) / count;
-                    return Math.max(value, 0.0);
+            double weightSoFar = 0;
+            while (true) {
+                if (a.mean() <= x && x < b.mean()) {
+                    double halfLeftWeight = a.count() / 2.0;
+                    double halfRightWeight = b.count() / 2.0;
+                    double weightBetween = halfLeftWeight + halfRightWeight;
+                    double rank = weightSoFar + halfLeftWeight + weightBetween * interpolate(x, a.mean(), b.mean());
+                    return rank / count;
                 }
 
-                r += a.count();
+                weightSoFar += a.count();
+                if (it.hasNext() == false) {
+                    break;
+                }
                 a = b;
-                left = right;
                 b = it.next();
-                right = (b.mean() - a.mean()) / 2;
             }
 
             // for the last element, assume right width is same as left
-            if (x < a.mean() + right) {
-                return (r + a.count() * interpolate(x, a.mean() - right, a.mean() + right)) / count;
+            double right = (b.mean() - a.mean()) / 2;
+            if (x < b.mean() + right) {
+                return (weightSoFar + b.count() * interpolate(x, b.mean() - right, b.mean() + right)) / count;
             }
             return 1;
         }

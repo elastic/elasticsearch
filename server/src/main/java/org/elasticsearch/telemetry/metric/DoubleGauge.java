@@ -9,13 +9,28 @@
 
 package org.elasticsearch.telemetry.metric;
 
+import java.util.Map;
+
 /**
- * Record non-additive double values based on a callback. eg number of running threads, current load
+ * A gauge instrument that synchronously records non-additive double values.
  */
-public interface DoubleGauge extends Instrument, AutoCloseable {
+public interface DoubleGauge extends Instrument {
 
     /**
-     * Noop gauge for tests
+     * Set the gauge value.
+     * @param value current gauge value
+     */
+    void set(double value);
+
+    /**
+     * Set the gauge value.
+     * @param value current gauge value
+     * @param attributes key-value pairs to associate with this increment
+     */
+    void set(double value, Map<String, Object> attributes);
+
+    /**
+     * Noop counter for use in tests.
      */
     DoubleGauge NOOP = new DoubleGauge() {
         @Override
@@ -24,7 +39,12 @@ public interface DoubleGauge extends Instrument, AutoCloseable {
         }
 
         @Override
-        public void close() {
+        public void set(double value) {
+
+        }
+
+        @Override
+        public void set(double value, Map<String, Object> attributes) {
 
         }
     };

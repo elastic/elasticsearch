@@ -141,6 +141,10 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         return this;
     }
 
+    protected ThreadPoolMergeExecutorService getThreadPoolMergeExecutorService() {
+        return threadPoolMergeExecutorService;
+    }
+
     @Override
     public void refreshConfig() {
         // if maxMergeCount changed, maybe we need to toggle merge task throttling
@@ -299,7 +303,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         int activeMerges = (int) (submittedMergesCount - doneMergesCount);
         if (activeMerges > configuredMaxMergeCount
             // only throttle indexing if disk IO is un-throttled (if enabled), and we still can't keep up with the merge load
-            && (config.isAutoThrottle() == false || threadPoolMergeExecutorService.usingMaxTargetIORateBytesPerSec())
+            && (isAutoThrottle() == false || threadPoolMergeExecutorService.usingMaxTargetIORateBytesPerSec())
             && shouldThrottleIncomingMerges.get() == false) {
             // maybe enable merge task throttling
             synchronized (shouldThrottleIncomingMerges) {

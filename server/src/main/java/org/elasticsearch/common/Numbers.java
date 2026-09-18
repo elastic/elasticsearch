@@ -121,6 +121,25 @@ public final class Numbers {
     private static BigDecimal BIGDECIMAL_GREATER_THAN_LONG_MAX_VALUE = BigDecimal.valueOf(Long.MAX_VALUE).add(BigDecimal.ONE);
     private static BigDecimal BIGDECIMAL_LESS_THAN_LONG_MIN_VALUE = BigDecimal.valueOf(Long.MIN_VALUE).subtract(BigDecimal.ONE);
 
+    // Numeric strings longer than this are rejected before coercion, whose cost grows with the digit count;
+    // matches the unquoted JSON number-token limit. Mirrored by AbstractXContentParser#MAX_NUMERIC_STRING_LENGTH. Keep in sync.
+    public static final int MAX_NUMERIC_STRING_LENGTH = 1000;
+
+    /** Rejects numeric strings longer than {@link #MAX_NUMERIC_STRING_LENGTH}. */
+    public static void checkNumericStringLength(String value) {
+        if (value.length() > MAX_NUMERIC_STRING_LENGTH) {
+            throw new IllegalArgumentException(
+                "Numeric value length [" + value.length() + "] exceeds the maximum of [" + MAX_NUMERIC_STRING_LENGTH + "]"
+            );
+        }
+    }
+
+    /** Like {@code new BigDecimal(value)} but rejects strings longer than {@link #MAX_NUMERIC_STRING_LENGTH}. */
+    public static BigDecimal newBigDecimal(String value) {
+        checkNumericStringLength(value);
+        return new BigDecimal(value);
+    }
+
     /** Return the long that {@code stringValue} stores or throws an exception if the
      *  stored value cannot be converted to a long that stores the exact same
      *  value and {@code coerce} is false. */
@@ -133,7 +152,7 @@ public final class Numbers {
 
         final BigInteger bigIntegerValue;
         try {
-            BigDecimal bigDecimalValue = new BigDecimal(stringValue);
+            BigDecimal bigDecimalValue = newBigDecimal(stringValue);
             if (bigDecimalValue.compareTo(BIGDECIMAL_GREATER_THAN_LONG_MAX_VALUE) >= 0
                 || bigDecimalValue.compareTo(BIGDECIMAL_LESS_THAN_LONG_MIN_VALUE) <= 0) {
                 throw new IllegalArgumentException("Value [" + stringValue + "] is out of range for a long");

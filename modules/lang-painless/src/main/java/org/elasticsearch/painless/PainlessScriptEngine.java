@@ -9,9 +9,10 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.painless.Compiler.Loader;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
@@ -28,7 +29,6 @@ import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
-import java.security.Permissions;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.painless.WriterConstants.OBJECT_TYPE;
 
@@ -44,53 +45,87 @@ import static org.elasticsearch.painless.WriterConstants.OBJECT_TYPE;
  */
 public final class PainlessScriptEngine implements ScriptEngine {
 
+    private static final Logger logger = LogManager.getLogger(PainlessScriptEngine.class);
+
     /**
      * Standard name of the Painless language.
      */
     public static final String NAME = "painless";
 
-    /*
-     * Setup the allowed permissions.
-     */
-    static {
-        final Permissions none = new Permissions();
-        none.setReadOnly();
-    }
-
-    /**
-     * Default compiler settings to be used. Note that {@link CompilerSettings} is mutable but this instance shouldn't be mutated outside
-     * of {@link PainlessScriptEngine#PainlessScriptEngine(Settings, Map)}.
-     */
-    private final CompilerSettings defaultCompilerSettings = new CompilerSettings();
-
     private final Map<ScriptContext<?>, Compiler> contextsToCompilers;
     private final Map<ScriptContext<?>, PainlessLookup> contextsToLookups;
 
     /**
-     * Constructor.
-     * @param settings The settings to initialize the engine with.
+     * Per-context default {@link CompilerSettings} (node regex config plus that context's allocation limit), read once at
+     * construction since {@link CompilerSettings#MAX_ALLOCATION_BYTES} is {@code NodeScope}. Mirrors {@link #contextsToLookups}.
      */
-    public PainlessScriptEngine(Settings settings, Map<ScriptContext<?>, List<Whitelist>> contexts) {
-        defaultCompilerSettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(settings));
-        defaultCompilerSettings.setRegexLimitFactor(CompilerSettings.REGEX_LIMIT_FACTOR.get(settings));
+    private final Map<ScriptContext<?>, CompilerSettings> contextsToDefaultCompilerSettings;
+
+    /**
+     * Supplies the node's metrics, or {@code null} until there are any. A supplier because the engine is built during
+     * {@code getScriptEngine}, and nothing hands the plugin a {@code MeterRegistry} until {@code createComponents}; the
+     * instance is resolved per compile, by which time it normally exists.
+     */
+    private final Supplier<AllocationMetrics> allocationMetrics;
+
+    /** Whether generated classes carry the recording bytecode; the per-context settings carry a copy for codegen to read. */
+    private final boolean allocationMetricsEnabled;
+
+    /**
+     * Enablement is a separate argument from {@code allocationMetrics} because the two are known at different times: whether
+     * to record is settled before the engine exists, while what to record into is not. Passing it rather than reading
+     * {@code PainlessPlugin.ALLOCATION_METRICS_ENABLED_PROPERTY} keeps the engine free of global state, and lets a test turn
+     * recording on directly.
+     * @param settings The settings to initialize the engine with.
+     * @param allocationMetrics Supplies the metrics to record into. May return {@code null} before telemetry is available;
+     *                          compiles until then record into {@link AllocationMetrics#NOOP}.
+     * @param allocationMetricsEnabled Whether generated classes carry the recording bytecode at all.
+     */
+    public PainlessScriptEngine(
+        Settings settings,
+        Map<ScriptContext<?>, List<Whitelist>> contexts,
+        Supplier<AllocationMetrics> allocationMetrics,
+        boolean allocationMetricsEnabled
+    ) {
+        this.allocationMetrics = allocationMetrics;
+        this.allocationMetricsEnabled = allocationMetricsEnabled;
+        CompilerSettings.RegexEnabled regexEnabled = CompilerSettings.REGEX_ENABLED.get(settings);
+        int regexLimitFactor = CompilerSettings.REGEX_LIMIT_FACTOR.get(settings);
 
         Map<ScriptContext<?>, Compiler> mutableContextsToCompilers = new HashMap<>();
         Map<ScriptContext<?>, PainlessLookup> mutableContextsToLookups = new HashMap<>();
+        Map<ScriptContext<?>, CompilerSettings> mutableContextsToDefaultCompilerSettings = new HashMap<>();
 
         final Map<Object, Object> dedup = new HashMap<>();
         final Map<PainlessMethod, PainlessMethod> filteredMethodCache = new HashMap<>();
         for (Map.Entry<ScriptContext<?>, List<Whitelist>> entry : contexts.entrySet()) {
             ScriptContext<?> context = entry.getKey();
             PainlessLookup lookup = PainlessLookupBuilder.buildFromWhitelists(entry.getValue(), dedup, filteredMethodCache);
+
+            CompilerSettings contextDefaults = new CompilerSettings();
+            contextDefaults.setRegexesEnabled(regexEnabled);
+            contextDefaults.setRegexLimitFactor(regexLimitFactor);
+            contextDefaults.setMaxAllocationBytes(
+                CompilerSettings.MAX_ALLOCATION_BYTES.getConcreteSettingForNamespace(context.name).get(settings).getBytes()
+            );
+            contextDefaults.setAllocationMetricsEnabled(allocationMetricsEnabled);
+
             mutableContextsToCompilers.put(
                 context,
                 new Compiler(context.instanceClazz, context.factoryClazz, context.statefulFactoryClazz, lookup)
             );
             mutableContextsToLookups.put(context, lookup);
+            mutableContextsToDefaultCompilerSettings.put(context, contextDefaults);
         }
 
         this.contextsToCompilers = Collections.unmodifiableMap(mutableContextsToCompilers);
         this.contextsToLookups = Collections.unmodifiableMap(mutableContextsToLookups);
+        this.contextsToDefaultCompilerSettings = Collections.unmodifiableMap(mutableContextsToDefaultCompilerSettings);
+    }
+
+    /** The per-context default compiler settings read at construction; for tests. */
+    CompilerSettings getDefaultCompilerSettings(ScriptContext<?> context) {
+        return contextsToDefaultCompilerSettings.get(context);
     }
 
     public Map<ScriptContext<?>, PainlessLookup> getContextsToLookups() {
@@ -110,19 +145,58 @@ public final class PainlessScriptEngine implements ScriptEngine {
     public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
         Compiler compiler = contextsToCompilers.get(context);
 
-        // Check we ourselves are not being called by unprivileged code.
-        SpecialPermission.check();
-
-        // Create our loader (which loads compiled code with no permissions).
         final Loader loader = compiler.createLoader(getClass().getClassLoader());
 
-        ScriptScope scriptScope = compile(contextsToCompilers.get(context), loader, scriptName, scriptSource, params);
+        ScriptScope scriptScope = compile(
+            compiler,
+            contextsToDefaultCompilerSettings.get(context),
+            loader,
+            scriptName,
+            scriptSource,
+            params,
+            allocationRecorder(scriptName, scriptSource, context)
+        );
 
         if (context.statefulFactoryClazz != null) {
             return generateFactory(loader, context, generateStatefulFactory(loader, context, scriptScope), scriptScope);
         } else {
             return generateFactory(loader, context, WriterConstants.CLASS_TYPE, scriptScope);
         }
+    }
+
+    /**
+     * The recorder to inject into a script of this context, or {@code null} when recording is off.
+     * <p>
+     * A script compiled before telemetry exists falls back to {@link AllocationMetrics#NOOP}, because the generated class
+     * reads its recorder unconditionally once it carries the recording bytecode. That is not expected to happen: script
+     * engines are built during {@code getScriptEngine} and metrics are installed in {@code createComponents}, but nothing
+     * compiles in between — compiling is driven by a request or by cluster state, both of which come later. A plugin that
+     * compiled a script in its own {@code createComponents}, ahead of Painless in load order, would be the exception.
+     * <p>
+     * It warns rather than failing because the script itself is fine: it runs correctly and the allocation limit still
+     * applies. Only its executions go unrecorded, and they stay unrecorded until the script is evicted from the compilation
+     * cache and rebuilt, since the recorder is baked into the generated class. That is quiet enough to be worth a line in
+     * the log.
+     */
+    private AllocationMetrics.ContextRecorder allocationRecorder(String scriptName, String scriptSource, ScriptContext<?> context) {
+        if (allocationMetricsEnabled == false) {
+            return null;
+        }
+
+        AllocationMetrics metrics = allocationMetrics.get();
+
+        if (metrics == null) {
+            logger.warn(
+                "script [{}] of context [{}] compiled before allocation metrics were available; its executions are not "
+                    + "recorded until it is recompiled",
+                scriptName == null ? scriptSource : scriptName,
+                context.name
+            );
+
+            return AllocationMetrics.NOOP.forContext(context.name);
+        }
+
+        return metrics.forContext(context.name);
     }
 
     @Override
@@ -288,7 +362,6 @@ public final class PainlessScriptEngine implements ScriptEngine {
         constructor.endMethod();
 
         Method reflect = null;
-        Method docFieldsReflect = null;
 
         for (Method method : context.factoryClazz.getMethods()) {
             if ("newInstance".equals(method.getName())) {
@@ -379,32 +452,41 @@ public final class PainlessScriptEngine implements ScriptEngine {
         }
     }
 
-    ScriptScope compile(Compiler compiler, Loader loader, String scriptName, String source, Map<String, String> params) {
-        final CompilerSettings compilerSettings = buildCompilerSettings(params);
+    ScriptScope compile(
+        Compiler compiler,
+        CompilerSettings contextDefaults,
+        Loader loader,
+        String scriptName,
+        String source,
+        Map<String, String> params,
+        AllocationMetrics.ContextRecorder allocationRecorder
+    ) {
+        final CompilerSettings compilerSettings = buildCompilerSettings(contextDefaults, params);
 
         try {
             // Drop all permissions to actually compile the code itself.
             String name = scriptName == null ? source : scriptName;
-            return compiler.compile(loader, name, source, compilerSettings);
+            return compiler.compile(loader, name, source, compilerSettings, allocationRecorder);
             // Note that it is safe to catch any of the following errors since Painless is stateless.
         } catch (OutOfMemoryError | StackOverflowError | LinkageError | Exception e) {
             throw convertToScriptException(source, e);
         }
     }
 
-    private CompilerSettings buildCompilerSettings(Map<String, String> params) {
+    private CompilerSettings buildCompilerSettings(CompilerSettings contextDefaults, Map<String, String> params) {
         CompilerSettings compilerSettings;
         if (params.isEmpty()) {
             // Use the default settings.
-            compilerSettings = defaultCompilerSettings;
+            compilerSettings = contextDefaults;
         } else {
             // Use custom settings specified by params.
             compilerSettings = new CompilerSettings();
 
-            // Except regexes enabled - this is a node level setting and can't be changed in the request.
-            compilerSettings.setRegexesEnabled(defaultCompilerSettings.areRegexesEnabled());
-
-            compilerSettings.setRegexLimitFactor(defaultCompilerSettings.getAppliedRegexLimitFactor());
+            // Except node-level settings, which can't be changed in the request: regexes and allocation tracking.
+            compilerSettings.setRegexesEnabled(contextDefaults.areRegexesEnabled());
+            compilerSettings.setRegexLimitFactor(contextDefaults.getAppliedRegexLimitFactor());
+            compilerSettings.setMaxAllocationBytes(contextDefaults.getMaxAllocationBytes());
+            compilerSettings.setAllocationMetricsEnabled(contextDefaults.isAllocationMetricsEnabled());
 
             Map<String, String> copy = new HashMap<>(params);
 

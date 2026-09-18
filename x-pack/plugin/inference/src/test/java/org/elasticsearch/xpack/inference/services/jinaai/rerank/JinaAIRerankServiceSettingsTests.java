@@ -14,38 +14,61 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.jinaai.AbstractJinaAIServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
+import static org.hamcrest.Matchers.is;
 
-public class JinaAIRerankServiceSettingsTests extends AbstractBWCWireSerializationTestCase<JinaAIRerankServiceSettings> {
+public class JinaAIRerankServiceSettingsTests extends AbstractJinaAIServiceSettingsTests<JinaAIRerankServiceSettings> {
+
     public static JinaAIRerankServiceSettings createRandom() {
-        return new JinaAIRerankServiceSettings(new JinaAIServiceSettings(randomAlphaOfLength(10), RateLimitSettingsTests.createRandom()));
+        return new JinaAIRerankServiceSettings(randomAlphaOfLength(10), RateLimitSettingsTests.createRandom());
+    }
+
+    @Override
+    protected JinaAIRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+        return JinaAIRerankServiceSettings.fromMap(map, context);
+    }
+
+    @Override
+    protected Map<String, Object> buildCommonServiceSettingsMap(@Nullable String modelId, @Nullable Integer rateLimit) {
+        return buildServiceSettingsMap(modelId, rateLimit);
+    }
+
+    @Override
+    protected JinaAIRerankServiceSettings createServiceSettings(String modelId, RateLimitSettings rateLimitSettings) {
+        return new JinaAIRerankServiceSettings(modelId, rateLimitSettings);
+    }
+
+    public void testFromMap_AllFields_CreatesSettingsCorrectly() {
+        var settingsMap = buildServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT);
+
+        var serviceSettings = JinaAIRerankServiceSettings.fromMap(settingsMap, randomFrom(ConfigurationParseContext.values()));
+
+        assertThat(serviceSettings, is(new JinaAIRerankServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var model = "model";
-
-        var serviceSettings = new JinaAIRerankServiceSettings(new JinaAIServiceSettings(model, null));
+        var serviceSettings = new JinaAIRerankServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
+        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString(Strings.format("""
             {
-                "model_id":"model",
+                "model_id": "%s",
                 "rate_limit": {
-                    "requests_per_minute": 2000
+                    "requests_per_minute": %d
                 }
             }
-            """));
+            """, TEST_MODEL_ID, TEST_RATE_LIMIT)));
     }
 
     @Override
@@ -60,20 +83,18 @@ public class JinaAIRerankServiceSettingsTests extends AbstractBWCWireSerializati
 
     @Override
     protected JinaAIRerankServiceSettings mutateInstance(JinaAIRerankServiceSettings instance) throws IOException {
-        JinaAIServiceSettings commonSettings = randomValueOtherThan(instance.getCommonSettings(), JinaAIServiceSettingsTests::createRandom);
-        return new JinaAIRerankServiceSettings(commonSettings);
+        var modelId = instance.modelId();
+        var rateLimitSettings = instance.rateLimitSettings();
+        if (randomBoolean()) {
+            modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(10));
+        } else {
+            rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+        }
+        return new JinaAIRerankServiceSettings(modelId, rateLimitSettings);
     }
 
     @Override
     protected JinaAIRerankServiceSettings mutateInstanceForVersion(JinaAIRerankServiceSettings instance, TransportVersion version) {
         return instance;
-    }
-
-    public static Map<String, Object> getServiceSettingsMap(String model) {
-        return getServiceSettingsMap(model, null);
-    }
-
-    public static Map<String, Object> getServiceSettingsMap(String model, @Nullable Integer requestsPerMinute) {
-        return JinaAIServiceSettingsTests.getServiceSettingsMap(model, requestsPerMinute);
     }
 }

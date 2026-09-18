@@ -1,0 +1,4 @@
+Limit[1000[INTEGER],false,false]
+\_LimitBy[1[INTEGER],[x{r}#0],false]
+  \_MvExpand[x{r}#1,x{r}#0]
+    \_LocalRelation[[x{r}#1],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]}]

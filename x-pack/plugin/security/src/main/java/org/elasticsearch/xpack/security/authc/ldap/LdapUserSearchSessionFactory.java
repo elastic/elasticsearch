@@ -126,7 +126,7 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
     @Override
     void getSessionWithoutPool(String user, SecureString password, ActionListener<LdapSession> listener) {
         try {
-            final LDAPConnection connection = LdapUtils.privilegedConnect(serverSet::getConnection);
+            final LDAPConnection connection = serverSet.getConnection();
             final SimpleBindRequest bindCredentials = this.getBindRequest();
             LdapUtils.maybeForkThenBind(connection, bindCredentials, true, threadPool, new AbstractRunnable() {
                 @Override
@@ -222,7 +222,7 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
     @Override
     void getUnauthenticatedSessionWithoutPool(String user, ActionListener<LdapSession> listener) {
         try {
-            final LDAPConnection connection = LdapUtils.privilegedConnect(serverSet::getConnection);
+            final LDAPConnection connection = serverSet.getConnection();
             LdapUtils.maybeForkThenBind(connection, getBindRequest(), true, threadPool, new AbstractRunnable() {
                 @Override
                 protected void doRun() throws Exception {

@@ -607,6 +607,7 @@ public class IndicesPermissionTests extends ESTestCase {
                 null,
                 randomBoolean(),
                 RESTRICTED_INDICES,
+                false,
                 indices.toArray(Strings.EMPTY_ARRAY)
             )
         );
@@ -778,6 +779,58 @@ public class IndicesPermissionTests extends ESTestCase {
         }
     }
 
+    public void testBackingIndicesShareOneIndexAccessControlInstance() {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        String dataStreamName = randomAlphaOfLength(6);
+        int numBackingIndices = randomIntBetween(3, 10);
+        List<IndexMetadata> backingIndices = new ArrayList<>();
+        for (int backingIndexNumber = 1; backingIndexNumber <= numBackingIndices; backingIndexNumber++) {
+            backingIndices.add(createBackingIndexMetadata(DataStream.getDefaultBackingIndexName(dataStreamName, backingIndexNumber)));
+        }
+        builder.put(
+            DataStreamTestHelper.newInstance(
+                dataStreamName,
+                backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
+            )
+        );
+        for (IndexMetadata index : backingIndices) {
+            builder.put(index, false);
+        }
+        ProjectMetadata metadata = builder.build();
+
+        // Explicit DLS and FLS, matching the project that hit the OOM.
+        IndicesPermission permission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
+            IndexPrivilege.READ,
+            new FieldPermissions(fieldPermissionDef(new String[] { "_field" }, null)),
+            Collections.singleton(new BytesArray("{}")),
+            false,
+            dataStreamName
+        ).build();
+
+        IndicesAccessControl iac = permission.authorize(
+            TransportSearchAction.TYPE.name(),
+            Sets.newHashSet(dataStreamName),
+            metadata,
+            new FieldPermissionsCache(Settings.EMPTY)
+        );
+
+        assertThat(iac.isGranted(), is(true));
+        IndicesAccessControl.IndexAccessControl dataStreamAccess = iac.getIndexPermissions(dataStreamName);
+        assertThat(dataStreamAccess, is(notNullValue()));
+        assertThat(dataStreamAccess.getFieldPermissions().hasFieldLevelSecurity(), is(true));
+        assertThat(dataStreamAccess.getDocumentPermissions().hasDocumentLevelPermissions(), is(true));
+        assertThat("explicit DLS/FLS must not be marked implicit", dataStreamAccess.isDlsFlsImplicit(), is(false));
+
+        for (IndexMetadata im : backingIndices) {
+            String backingIndexName = im.getIndex().getName();
+            assertSame(
+                "backing index [" + backingIndexName + "] must share the data stream's IndexAccessControl instance",
+                dataStreamAccess,
+                iac.getIndexPermissions(backingIndexName)
+            );
+        }
+    }
+
     public void testAuthorizationForMappingUpdates() {
         final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final ProjectMetadata.Builder projBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
@@ -934,6 +987,119 @@ public class IndicesPermissionTests extends ESTestCase {
             "*"
         ).addGroup(IndexPrivilege.NONE, fieldPermissions, queries, randomBoolean(), "*").build();
         assertThat(indicesPermission3.hasFieldOrDocumentLevelSecurity(), is(false));
+    }
+
+    public void testExplicitDlsIsNotMarkedDlsFlsImplicit() {
+        final ProjectMetadata pmd = singleIndexProjectMetadata("_index");
+        final FieldPermissionsCache fpc = new FieldPermissionsCache(Settings.EMPTY);
+        final Set<BytesReference> query = Collections.singleton(new BytesArray("{}"));
+
+        final IndicesPermission permission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
+            IndexPrivilege.ALL,
+            FieldPermissions.DEFAULT,
+            query,
+            false,
+            false, // explicit DLS
+            "_index"
+        ).build();
+
+        final IndicesAccessControl iac = permission.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_index"), pmd, fpc);
+        final IndicesAccessControl.IndexAccessControl indexAccess = iac.getIndexPermissions("_index");
+        assertThat(indexAccess, notNullValue());
+        assertThat(indexAccess.getDocumentPermissions().hasDocumentLevelPermissions(), is(true));
+        assertThat("explicit DLS must not be marked implicit", indexAccess.isDlsFlsImplicit(), is(false));
+    }
+
+    public void testImplicitDlsIsMarkedDlsFlsImplicit() {
+        final ProjectMetadata pmd = singleIndexProjectMetadata("_index");
+        final FieldPermissionsCache fpc = new FieldPermissionsCache(Settings.EMPTY);
+        final Set<BytesReference> query = Collections.singleton(new BytesArray("{}"));
+
+        final IndicesPermission permission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
+            IndexPrivilege.ALL,
+            FieldPermissions.DEFAULT,
+            query,
+            false,
+            true, // implicit DLS
+            "_index"
+        ).build();
+
+        final IndicesAccessControl iac = permission.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_index"), pmd, fpc);
+        final IndicesAccessControl.IndexAccessControl indexAccess = iac.getIndexPermissions("_index");
+        assertThat(indexAccess, notNullValue());
+        assertThat(indexAccess.getDocumentPermissions().hasDocumentLevelPermissions(), is(true));
+        assertThat("implicit DLS must be marked implicit", indexAccess.isDlsFlsImplicit(), is(true));
+    }
+
+    public void testImplicitFlsIsMarkedDlsFlsImplicit() {
+        final ProjectMetadata pmd = singleIndexProjectMetadata("_index");
+        final FieldPermissionsCache fpc = new FieldPermissionsCache(Settings.EMPTY);
+        final FieldPermissions fls = new FieldPermissions(fieldPermissionDef(new String[] { "_field" }, null));
+
+        final IndicesPermission permission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
+            IndexPrivilege.ALL,
+            fls,
+            null,
+            false,
+            true, // implicit FLS
+            "_index"
+        ).build();
+
+        final IndicesAccessControl iac = permission.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_index"), pmd, fpc);
+        final IndicesAccessControl.IndexAccessControl indexAccess = iac.getIndexPermissions("_index");
+        assertThat(indexAccess, notNullValue());
+        assertThat(indexAccess.getFieldPermissions().hasFieldLevelSecurity(), is(true));
+        assertThat("implicit FLS must be marked implicit", indexAccess.isDlsFlsImplicit(), is(true));
+    }
+
+    public void testMixedExplicitAndImplicitDlsFlsIsNotMarkedDlsFlsImplicit() {
+        final ProjectMetadata pmd = singleIndexProjectMetadata("_index");
+        final FieldPermissionsCache fpc = new FieldPermissionsCache(Settings.EMPTY);
+        final Set<BytesReference> query = Collections.singleton(new BytesArray("{}"));
+        final FieldPermissions fls = new FieldPermissions(fieldPermissionDef(new String[] { "_field" }, null));
+
+        // Same index covered by both an explicit DLS group and an implicit FLS group: explicit wins,
+        // and the resulting IAC must report not-implicit so license enforcement still applies.
+        final IndicesPermission permission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
+            IndexPrivilege.ALL,
+            FieldPermissions.DEFAULT,
+            query,
+            false,
+            false, // explicit DLS contributor
+            "_index"
+        ).addGroup(IndexPrivilege.READ, fls, null, false, true, "_index").build();
+
+        final IndicesAccessControl iac = permission.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_index"), pmd, fpc);
+        final IndicesAccessControl.IndexAccessControl indexAccess = iac.getIndexPermissions("_index");
+        assertThat(indexAccess, notNullValue());
+        assertThat("any explicit DLS/FLS contributor must mark the IAC as not implicit", indexAccess.isDlsFlsImplicit(), is(false));
+    }
+
+    public void testIacWithoutDlsFlsIsNotMarkedDlsFlsImplicit() {
+        final ProjectMetadata pmd = singleIndexProjectMetadata("_index");
+        final FieldPermissionsCache fpc = new FieldPermissionsCache(Settings.EMPTY);
+
+        // No DLS, no FLS — flag should be false regardless of how the group was contributed.
+        final IndicesPermission permission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
+            IndexPrivilege.ALL,
+            FieldPermissions.DEFAULT,
+            null,
+            false,
+            randomBoolean(),
+            "_index"
+        ).build();
+
+        final IndicesAccessControl iac = permission.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_index"), pmd, fpc);
+        final IndicesAccessControl.IndexAccessControl indexAccess = iac.getIndexPermissions("_index");
+        assertThat(indexAccess, notNullValue());
+        assertThat(indexAccess.getDocumentPermissions().hasDocumentLevelPermissions(), is(false));
+        assertThat(indexAccess.getFieldPermissions().hasFieldLevelSecurity(), is(false));
+        assertThat(indexAccess.isDlsFlsImplicit(), is(false));
+    }
+
+    private static ProjectMetadata singleIndexProjectMetadata(String indexName) {
+        IndexMetadata.Builder imb = IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), 1, 1));
+        return ProjectMetadata.builder(randomProjectIdOrDefault()).put(imb.build(), true).build();
     }
 
     public void testResourceAuthorizedPredicateForDatastreams() {

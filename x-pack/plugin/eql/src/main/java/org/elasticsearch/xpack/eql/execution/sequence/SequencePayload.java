@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.eql.execution.sequence;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
 import org.elasticsearch.xpack.eql.execution.payload.AbstractPayload;
 
@@ -18,7 +19,7 @@ import java.util.List;
 
 class SequencePayload extends AbstractPayload {
 
-    private final List<org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence> values;
+    private final List<EqlSearchResponse.Sequence> values;
 
     SequencePayload(
         List<Sequence> sequences,
@@ -38,11 +39,16 @@ class SequencePayload extends AbstractPayload {
                 if (hit == null) {
                     events.add(Event.MISSING_EVENT);
                 } else {
-                    events.add(new Event(hit));
+                    try {
+                        // Event(SearchHit) retains _source; decRef only releases the hit wrapper.
+                        events.add(new Event(hit));
+                    } finally {
+                        hit.decRef();
+                    }
                 }
 
             }
-            values.add(new org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence(s.key().asList(), events));
+            values.add(new EqlSearchResponse.Sequence(s.key().asList(), events));
         }
     }
 
@@ -52,7 +58,7 @@ class SequencePayload extends AbstractPayload {
     }
 
     @Override
-    public List<org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence> values() {
+    public List<EqlSearchResponse.Sequence> values() {
         return values;
     }
 }

@@ -1,0 +1,94 @@
+# Tests that combined_fields and more_like_this queries work on annotated_text fields.
+#
+
+---
+"combined_fields query over annotated_text fields":
+  - do:
+      indices.create:
+        index: annotated
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+          mappings:
+            properties:
+              title:
+                type: annotated_text
+              body:
+                type: annotated_text
+
+  - do:
+      index:
+        index: annotated
+        id: "1"
+        body:
+          "title": "The [quick brown fox](entity_3789) is brown."
+          "body": "the lazy dog sleeps"
+        refresh: true
+
+  # matches on a plain word
+  - do:
+      search:
+        body:
+          query:
+            combined_fields:
+              query: quick
+              fields: [ title, body ]
+  - match: { hits.total.value: 1 }
+
+  # matches on the annotation alternative injected at index time
+  - do:
+      search:
+        body:
+          query:
+            combined_fields:
+              query: entity_3789
+              fields: [ title, body ]
+  - match: { hits.total.value: 1 }
+
+---
+"more_like_this query on an annotated_text field":
+  - do:
+      indices.create:
+        index: annotated
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+          mappings:
+            properties:
+              my_field:
+                type: annotated_text
+
+  - do:
+      index:
+        index: annotated
+        id: "1"
+        body:
+          "my_field": "[Apple](Apple+Inc) makes the iphone"
+  - do:
+      index:
+        index: annotated
+        id: "2"
+        body:
+          "my_field": "[Apple](Apple+Inc) makes the ipad"
+  - do:
+      index:
+        index: annotated
+        id: "3"
+        body:
+          "my_field": "google makes android phones"
+        refresh: true
+
+  - do:
+      search:
+        body:
+          query:
+            more_like_this:
+              fields: [ my_field ]
+              like: "Apple makes the iphone"
+              min_term_freq: 1
+              min_doc_freq: 1
+              minimum_should_match: "1"
+  - match: { _shards.failed: 0 }
+  - gte: { hits.total.value: 1 }

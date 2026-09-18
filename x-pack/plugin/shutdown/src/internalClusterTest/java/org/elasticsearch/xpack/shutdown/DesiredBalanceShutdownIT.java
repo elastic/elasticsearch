@@ -88,7 +88,7 @@ public class DesiredBalanceShutdownIT extends ESIntegTestCase {
                 new GetShutdownStatusAction.Request(TEST_REQUEST_TIMEOUT)
             ).actionGet(10, TimeUnit.SECONDS);
             assertTrue(
-                Strings.toString(getShutdownResponse, true, true),
+                Strings.toTruncatedString(getShutdownResponse, true, true),
                 getShutdownResponse.getShutdownStatuses()
                     .stream()
                     .allMatch(s -> s.overallStatus() == SingleNodeShutdownMetadata.Status.COMPLETE)

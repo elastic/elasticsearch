@@ -15,6 +15,8 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -220,11 +222,19 @@ public class AnnotationPersisterTests extends ESTestCase {
         );
     }
 
+    /**
+     * Recoverable bulk failure (SearchPhaseExecutionException) so the retry flow is exercised.
+     * Plain Exception would be irrecoverable per MlRecoverableErrorClassifier.
+     */
     private static BulkItemResponse bulkItemFailure(String docId) {
         return BulkItemResponse.failure(
             2,
             DocWriteRequest.OpType.INDEX,
-            new BulkItemResponse.Failure("my-index", docId, new Exception("boom"))
+            new BulkItemResponse.Failure(
+                "my-index",
+                docId,
+                new SearchPhaseExecutionException("query", "partial results", ShardSearchFailure.EMPTY_ARRAY)
+            )
         );
     }
 

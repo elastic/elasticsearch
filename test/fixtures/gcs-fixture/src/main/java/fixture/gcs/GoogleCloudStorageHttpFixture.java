@@ -11,10 +11,17 @@ package fixture.gcs;
 import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.TestEsExecutors;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.rules.ExternalResource;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class GoogleCloudStorageHttpFixture extends ExternalResource {
 
@@ -22,6 +29,7 @@ public class GoogleCloudStorageHttpFixture extends ExternalResource {
     private final String bucket;
     private final String token;
     private HttpServer server;
+    private ExecutorService executorService;
     private GoogleCloudStorageHttpHandler handler;
 
     public GoogleCloudStorageHttpFixture(boolean enabled, final String bucket, final String token) {
@@ -52,11 +60,23 @@ public class GoogleCloudStorageHttpFixture extends ExternalResource {
     @Override
     protected void before() throws Throwable {
         if (enabled) {
+            this.executorService = EsExecutors.newScaling(
+                "gcs-http-fixture",
+                1,
+                100,
+                30,
+                TimeUnit.SECONDS,
+                true,
+                TestEsExecutors.testOnlyDaemonThreadFactory("gcs-http-fixture"),
+                new ThreadContext(Settings.EMPTY)
+            );
+
             this.server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
             this.handler = new GoogleCloudStorageHttpHandler(bucket);
             server.createContext("/" + token, new FakeOAuth2HttpHandler());
             server.createContext("/computeMetadata/v1/project/project-id", new FakeProjectIdHttpHandler());
             server.createContext("/", handler);
+            server.setExecutor(executorService);
             server.start();
         }
     }
@@ -65,6 +85,7 @@ public class GoogleCloudStorageHttpFixture extends ExternalResource {
     protected void after() {
         if (enabled) {
             server.stop(0);
+            ThreadPool.terminate(executorService, 10, TimeUnit.SECONDS);
         }
     }
 }

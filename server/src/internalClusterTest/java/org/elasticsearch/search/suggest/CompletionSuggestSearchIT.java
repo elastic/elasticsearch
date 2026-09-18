@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.lucene.analysis.TokenStreamToAutomaton;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -22,6 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.FieldMemoryStats;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Strings;
@@ -84,6 +86,15 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(InternalSettingsPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put("indices.breaker.request.type", "memory")
+            .put("indices.breaker.request.limit", "100mb")
+            .build();
     }
 
     public void testTieBreak() throws Exception {
@@ -1552,5 +1563,49 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             this.contextMappings = mappings;
             return this;
         }
+    }
+
+    public void testBigSizeCircuitBreak() throws Exception {
+        final XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject(FIELD)
+            .field("type", "completion")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        assertAcked(prepareCreate(INDEX).setSettings(indexSettings(1, 0)).setMapping(mapping));
+        prepareIndex(INDEX).setId("1")
+            .setRefreshPolicy(IMMEDIATE)
+            .setSource(jsonBuilder().startObject().field(FIELD, new String[] { "Nevermind", "Nirvana" }).endObject())
+            .get();
+        ensureGreen(INDEX);
+
+        Exception exception = expectThrows(
+            Exception.class,
+            () -> prepareSearch(INDEX).setAllowPartialSearchResults(false)
+                .suggest(
+                    new SuggestBuilder().addSuggestion(
+                        "song-suggest",
+                        SuggestBuilders.completionSuggestion(FIELD).size(2_147_483_630).prefix("nir")
+                    )
+                )
+                .get()
+        );
+        assertThat(ExceptionsHelper.unwrap(exception, CircuitBreakingException.class), notNullValue());
+
+        exception = expectThrows(
+            Exception.class,
+            () -> prepareSearch(INDEX).setAllowPartialSearchResults(false)
+                .suggest(
+                    new SuggestBuilder().addSuggestion(
+                        "song-suggest",
+                        SuggestBuilders.completionSuggestion(FIELD).shardSize(2_147_483_630).prefix("nir")
+                    )
+                )
+                .get()
+        );
+        assertThat(ExceptionsHelper.unwrap(exception, CircuitBreakingException.class), notNullValue());
     }
 }

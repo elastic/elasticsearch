@@ -85,16 +85,17 @@ public class XShapeTestUtil {
     }
 
     private static XYRectangle nextBoxInternal() {
-        // prevent lines instead of boxes
+        // prevent lines instead of boxes; use <= to match sameValues() which counts diffs equal to MIN_DIFF as "same",
+        // otherwise a box whose diff lands exactly on MIN_DIFF (e.g. when a tiny subnormal vanishes in float subtraction)
+        // would later fail validatePolygon().
         float x0 = nextFloat() * CENTER_SCALE_FACTOR;
         float x1 = nextFloat() * CENTER_SCALE_FACTOR;
-        while (Math.abs(x1 - x0) < MIN_DIFF) {
+        while (Math.abs(x1 - x0) <= MIN_DIFF) {
             x1 = nextFloat() * CENTER_SCALE_FACTOR;
         }
-        // prevent lines instead of boxes
         float y0 = nextFloat() * CENTER_SCALE_FACTOR;
         float y1 = nextFloat() * CENTER_SCALE_FACTOR;
-        while (Math.abs(y1 - y0) < MIN_DIFF) {
+        while (Math.abs(y1 - y0) <= MIN_DIFF) {
             y1 = nextFloat() * CENTER_SCALE_FACTOR;
         }
 

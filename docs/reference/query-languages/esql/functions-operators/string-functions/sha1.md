@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `SHA1` function [esql-sha1]
 
-:::{include} ../../_snippets/functions/layout/sha1.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/sha1.md
 :::

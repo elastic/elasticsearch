@@ -13,6 +13,9 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
@@ -32,7 +35,7 @@ public final class AnomalyDetectorsIndex {
     private static final String RESULTS_MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
     private static final String RESOURCE_PATH = "/ml/anomalydetection/";
     private static final String WRITE_ALIAS_PREFIX = ".write-";
-    public static final int RESULTS_INDEX_MAPPINGS_VERSION = 1;
+    public static final int RESULTS_INDEX_MAPPINGS_VERSION = 2;
 
     private AnomalyDetectorsIndex() {}
 
@@ -89,11 +92,29 @@ public final class AnomalyDetectorsIndex {
     }
 
     /**
-     * The name pattern to capture all .ml-state prefixed indices
-     * @return The .ml-state index pattern
+     * Index patterns for ML state indices, including those created by major-version system-index
+     * reindex migration (for example {@code .reindexed-v8-ml-state-000001}).
+     * <p>
+     * Use this array with {@link IndexNameExpressionResolver#concreteIndexNames}. A single
+     * comma-separated string is not equivalent: the resolver treats it as one expression.
+     */
+    public static String[] jobStateIndexPatterns() {
+        return new String[] {
+            AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "*",
+            AnomalyDetectorsIndexFields.REINDEXED_V7_STATE_INDEX_PREFIX + "*",
+            AnomalyDetectorsIndexFields.REINDEXED_V8_STATE_INDEX_PREFIX + "*" };
+    }
+
+    /**
+     * Comma-separated index patterns for ML state indices for REST query strings that split on commas.
+     * <p>
+     * Do not pass this value as a single argument to Java client methods that accept one index expression
+     * (for example {@code prepareSearch(String)}); use {@link #jobStateIndexPatterns()} instead.
+     *
+     * @return index patterns for ML state indices
      */
     public static String jobStateIndexPattern() {
-        return AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "*";
+        return String.join(",", jobStateIndexPatterns());
     }
 
     /**
@@ -102,14 +123,14 @@ public final class AnomalyDetectorsIndex {
      */
     public static void createStateIndexAndAliasIfNecessary(
         Client client,
-        ClusterState state,
+        ProjectMetadata projectMetadata,
         IndexNameExpressionResolver resolver,
         TimeValue masterNodeTimeout,
         final ActionListener<Boolean> finalListener
     ) {
         MlIndexAndAlias.createIndexAndAliasIfNecessary(
             client,
-            state,
+            projectMetadata,
             resolver,
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
             AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
@@ -122,9 +143,30 @@ public final class AnomalyDetectorsIndex {
         );
     }
 
-    public static void createStateIndexAndAliasIfNecessaryAndWaitForYellow(
+    /** @deprecated Use {@link #createStateIndexAndAliasIfNecessary(
+     *      Client, ProjectMetadata, IndexNameExpressionResolver, TimeValue, ActionListener)}
+     */
+    @Deprecated(forRemoval = true)
+    @FixForMultiProject(description = "Migrate callers to the ProjectMetadata overload and remove this one.")
+    public static void createStateIndexAndAliasIfNecessary(
         Client client,
         ClusterState state,
+        IndexNameExpressionResolver resolver,
+        TimeValue masterNodeTimeout,
+        final ActionListener<Boolean> finalListener
+    ) {
+        createStateIndexAndAliasIfNecessary(
+            client,
+            state.getMetadata().getProject(ProjectId.DEFAULT),
+            resolver,
+            masterNodeTimeout,
+            finalListener
+        );
+    }
+
+    public static void createStateIndexAndAliasIfNecessaryAndWaitForYellow(
+        Client client,
+        ProjectMetadata projectMetadata,
         IndexNameExpressionResolver resolver,
         TimeValue masterNodeTimeout,
         final ActionListener<Boolean> finalListener
@@ -145,7 +187,7 @@ public final class AnomalyDetectorsIndex {
 
         MlIndexAndAlias.createIndexAndAliasIfNecessary(
             client,
-            state,
+            projectMetadata,
             resolver,
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
             AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
@@ -155,6 +197,27 @@ public final class AnomalyDetectorsIndex {
             // better option
             ActiveShardCount.DEFAULT,
             stateIndexAndAliasCreated
+        );
+    }
+
+    /** @deprecated Use {@link #createStateIndexAndAliasIfNecessaryAndWaitForYellow(
+     *      Client, ProjectMetadata, IndexNameExpressionResolver, TimeValue, ActionListener)}
+     */
+    @Deprecated(forRemoval = true)
+    @FixForMultiProject(description = "Migrate callers to the ProjectMetadata overload and remove this one.")
+    public static void createStateIndexAndAliasIfNecessaryAndWaitForYellow(
+        Client client,
+        ClusterState state,
+        IndexNameExpressionResolver resolver,
+        TimeValue masterNodeTimeout,
+        final ActionListener<Boolean> finalListener
+    ) {
+        createStateIndexAndAliasIfNecessaryAndWaitForYellow(
+            client,
+            state.getMetadata().getProject(ProjectId.DEFAULT),
+            resolver,
+            masterNodeTimeout,
+            finalListener
         );
     }
 

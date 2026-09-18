@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.transport.netty4;
 
 import io.netty.channel.ChannelHandlerContext;
 
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -22,6 +23,7 @@ import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -80,7 +82,9 @@ public class IpFilterRemoteAddressFilterTests extends ESTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, settingsSet);
         MockLicenseState licenseState = TestUtils.newMockLicenceState();
         when(licenseState.isAllowed(Security.IP_FILTERING_FEATURE)).thenReturn(true);
-        AuditTrailService auditTrailService = new AuditTrailService(null, licenseState);
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY, Set.of(XPackSettings.AUDIT_ENABLED)));
+        AuditTrailService auditTrailService = new AuditTrailService(null, licenseState, clusterService);
         ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
         if (isHttpEnabled) {

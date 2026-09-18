@@ -35,6 +35,6 @@ public class RestKnnSearchActionTests extends RestActionTestCase {
         ).withMethod(RestRequest.Method.GET).withPath("/some_index/_knn_search").build();
 
         dispatchRequest(request);
-        assertCriticalWarnings(RestKnnSearchAction.DEPRECATION_MESSAGE);
+        assertWarnings(RestKnnSearchAction.DEPRECATION_MESSAGE);
     }
 }

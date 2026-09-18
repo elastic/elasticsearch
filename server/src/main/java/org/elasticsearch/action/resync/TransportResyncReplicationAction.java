@@ -110,7 +110,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
     }
 
     @Override
-    protected void dispatchedShardOperationOnPrimary(
+    protected void shardOperationOnPrimary(
         ResyncReplicationRequest request,
         IndexShard primary,
         ActionListener<PrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse>> listener
@@ -148,11 +148,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
     }
 
     @Override
-    protected void dispatchedShardOperationOnReplica(
-        ResyncReplicationRequest request,
-        IndexShard replica,
-        ActionListener<ReplicaResult> listener
-    ) {
+    protected void shardOperationOnReplica(ResyncReplicationRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
         ActionListener.completeWith(listener, () -> {
             Translog.Location location = performOnReplica(request, replica);
             return new WriteReplicaResult<>(request, location, null, replica, logger);

@@ -70,16 +70,16 @@ class org.elasticsearch.xpack.eql.expression.function.scalar.whitelist.InternalE
 #
 # ASCII Functions
 #
-  String  between(String, String, String, Boolean, Boolean)
+  String  between(String, String, String, Boolean, Boolean) @allocates[class="org.elasticsearch.xpack.eql.expression.function.scalar.whitelist.EqlAllocationEstimators", method="betweenBytes"]
   Boolean cidrMatch(String, java.util.List)
-  String  concat(java.util.List)
+  String  concat(java.util.List) @allocates[class="org.elasticsearch.xpack.eql.expression.function.scalar.whitelist.EqlAllocationEstimators", method="listConcatBytes"]
   Boolean endsWith(String, String, Boolean)
   Integer indexOf(String, String, Number, Boolean)
   Integer length(String)
   Number  number(String, Number)
-  String  string(Object)
+  String  string(Object) @allocates[class="org.elasticsearch.xpack.eql.expression.function.scalar.whitelist.EqlAllocationEstimators", method="stringValueBytes"]
   Boolean stringContains(String, String, Boolean)
-  String  substring(String, Number, Number)
+  String  substring(String, Number, Number) @allocates[class="org.elasticsearch.xpack.eql.expression.function.scalar.whitelist.EqlAllocationEstimators", method="boundedStringBytes"]
 
 #
 # Comparison

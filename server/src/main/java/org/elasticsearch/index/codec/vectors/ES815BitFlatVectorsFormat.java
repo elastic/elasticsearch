@@ -19,11 +19,11 @@ import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 
@@ -75,7 +75,7 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
             assert vectorValues instanceof ByteVectorValues;
             assert vectorSimilarityFunction == VectorSimilarityFunction.EUCLIDEAN;
             if (vectorValues instanceof ByteVectorValues byteVectorValues) {
-                assert byteVectorValues instanceof QuantizedByteVectorValues == false;
+                assert byteVectorValues instanceof LegacyQuantizedByteVectorValues == false;
                 return switch (vectorSimilarityFunction) {
                     case DOT_PRODUCT, MAXIMUM_INNER_PRODUCT, COSINE, EUCLIDEAN -> new HammingScorerSupplier(byteVectorValues);
                 };
@@ -110,10 +110,6 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
         }
     }
 
-    static float hammingScore(byte[] a, byte[] b) {
-        return ((a.length * Byte.SIZE) - VectorUtil.xorBitCount(a, b)) / (float) (a.length * Byte.SIZE);
-    }
-
     static class HammingVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
         private final byte[] query;
         private final ByteVectorValues byteValues;
@@ -126,7 +122,7 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
 
         @Override
         public float score(int i) throws IOException {
-            return hammingScore(byteValues.vectorValue(i), query);
+            return ESVectorUtil.hammingScore(byteValues.vectorValue(i), query);
         }
     }
 
@@ -155,7 +151,7 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
 
                 @Override
                 public float score(int i) throws IOException {
-                    return hammingScore(targetValues.vectorValue(i), query);
+                    return ESVectorUtil.hammingScore(targetValues.vectorValue(i), query);
                 }
             };
         }

@@ -1,0 +1,6 @@
+message:keyword,message_type:keyword
+Connected to 10.1.0.1!,connection
+Connection error?,error
+42,numeric
+Connected to 10.1.0.2!,connection
+Connected to 10.1.0.3!,connection

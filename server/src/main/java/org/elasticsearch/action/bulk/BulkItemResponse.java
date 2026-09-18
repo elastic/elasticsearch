@@ -162,6 +162,18 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
             );
         }
 
+        public Failure(
+            String index,
+            String id,
+            Exception cause,
+            long seqNo,
+            long term,
+            boolean aborted,
+            IndexDocFailureStoreStatus failureStoreStatus
+        ) {
+            this(index, id, cause, ExceptionsHelper.status(cause), seqNo, term, aborted, failureStoreStatus);
+        }
+
         private Failure(
             String index,
             String id,

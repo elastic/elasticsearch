@@ -20,6 +20,10 @@ dependencies {
   clusterPlugins project(
     ':x-pack:plugin:inference:qa:test-service-plugin'
   )
+
+  // allow these mixed-cluster tests to import some helpers from the javaRestTest classes in
+  // x-pack:plugin:inference:qa:inference-service-tests (e.g. MockElasticInferenceServiceAuthorizationServer)
+  javaRestTestImplementation(testArtifact(project(":x-pack:plugin:inference:qa:inference-service-tests"), "javaRestTest"))
 }
 
 // inference is available in 8.11 or later

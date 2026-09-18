@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `LOCATE` function [esql-locate]
 
-:::{include} ../../_snippets/functions/layout/locate.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/locate.md
 :::

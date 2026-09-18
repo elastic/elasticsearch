@@ -19,12 +19,14 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -214,11 +216,11 @@ class PushDownUtils {
 
     private record AttributeReplacement(List<Expression> rewrittenExpressions, AttributeMap<Alias> replacedAttributes) {}
 
-    public static boolean shouldPushDownPipelineBreakerIntoForkBranch(LogicalPlan plan) {
+    public static boolean shouldPushDownPipelineBreakerIntoMergeBranch(LogicalPlan plan) {
         // We only push down a pipeline breaker when:
         // 1. There is an OrderBy that is not followed by a Limit.
         // 2. There is no PipelineBreaker, but we have an EsRelation. If no EsRelation is found.
-        // We should not push a pipeline breaker like LIMIT into the fork branch, since it will
+        // We should not push a pipeline breaker like LIMIT into the merge branch, since it will
         // be removed by other optimizations.
         Holder<Boolean> hasPipelineBreaker = new Holder<>(false);
         Holder<Boolean> hasEsRelation = new Holder<>(false);
@@ -229,7 +231,7 @@ class PushDownUtils {
             if (p instanceof PipelineBreaker && p instanceof OrderBy == false) {
                 hasPipelineBreaker.set(true);
             }
-            if (p instanceof EsRelation) {
+            if (p instanceof EsRelation || p instanceof ExternalRelation) {
                 hasEsRelation.set(true);
             }
 
@@ -247,5 +249,39 @@ class PushDownUtils {
         }
 
         return hasEsRelation.get() && hasPipelineBreaker.get() == false;
+    }
+
+    /**
+     * Returns {@code true} when every child of {@code unionAll} is a direct leaf source —
+     * either an {@link EsRelation} or an {@link ExternalRelation} — or a {@link Project}
+     * wrapping one of those leaves (the shape produced by the analyzer's {@code resolveMergePlan}
+     * for heterogeneous-FROM when the branches have matching schemas). Optimizer rules use
+     * this to distinguish the heterogeneous-FROM shape from the subquery-shape where each
+     * branch is {@code Project > Eval? > Subquery}.
+     */
+    static boolean isLeafUnionAll(UnionAll unionAll) {
+        return unionAll.children().stream().allMatch(c -> {
+            if (c instanceof EsRelation || c instanceof ExternalRelation) {
+                return true;
+            }
+            if (c instanceof Project p) {
+                LogicalPlan child = p.child();
+                return child instanceof EsRelation || child instanceof ExternalRelation;
+            }
+            return false;
+        });
+    }
+
+    public static Map<Expression, Expression> outputMap(LogicalPlan plan, LogicalPlan otherPlan) {
+        Map<Expression, Expression> outputMap = new HashMap<>();
+
+        for (Attribute attr : plan.output()) {
+            for (Attribute otherAttr : otherPlan.output()) {
+                if (attr.name().equals(otherAttr.name())) {
+                    outputMap.put(attr, otherAttr);
+                }
+            }
+        }
+        return outputMap;
     }
 }

@@ -19,8 +19,12 @@ import java.util.Locale;
  * Describes the type of data to perform inference on
  */
 public enum DataType {
+
     TEXT(DataFormat.TEXT, EnumSet.of(DataFormat.TEXT)),
-    IMAGE(DataFormat.BASE64, EnumSet.of(DataFormat.BASE64));
+    IMAGE(DataFormat.BASE64, EnumSet.of(DataFormat.BASE64, DataFormat.URL)),
+    AUDIO(DataFormat.BASE64, EnumSet.of(DataFormat.BASE64, DataFormat.URL)),
+    VIDEO(DataFormat.BASE64, EnumSet.of(DataFormat.BASE64, DataFormat.URL)),
+    PDF(DataFormat.BASE64, EnumSet.of(DataFormat.BASE64, DataFormat.URL));
 
     private final DataFormat defaultFormat;
     private final EnumSet<DataFormat> supportedFormats;

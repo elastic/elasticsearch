@@ -13,7 +13,7 @@ The `kstem` filter tends to stem less aggressively than other English stemmer fi
 
 The `kstem` filter is equivalent to the [`stemmer`](/reference/text-analysis/analysis-stemmer-tokenfilter.md) filter’s [`light_english`](/reference/text-analysis/analysis-stemmer-tokenfilter.md#analysis-stemmer-tokenfilter-language-parm) variant.
 
-This filter uses Lucene’s [KStemFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/en/KStemFilter.md).
+This filter uses Lucene’s [KStemFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/en/KStemFilter.html).
 
 ## Example [analysis-kstem-tokenfilter-analyze-ex]
 

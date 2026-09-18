@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasource.http;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -18,6 +22,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * StorageProvider implementation for HTTP/HTTPS using Java's built-in HttpClient.
@@ -33,6 +39,12 @@ import java.util.concurrent.ExecutorService;
 public final class HttpStorageProvider implements StorageProvider {
     private final HttpClient httpClient;
     private final HttpConfiguration config;
+    /**
+     * One daemon thread for body idle-timeout watchdogs. JDK {@code HttpClient} has no SO_TIMEOUT on
+     * streaming GETs; delayed close of the body stream is how we abort a silent connection. Cancelled
+     * via {@code FutureUtils.cancel} (no interrupt).
+     */
+    private final ScheduledThreadPoolExecutor idleScheduler;
 
     /**
      * Creates an HttpStorageProvider with configuration and executor.
@@ -54,29 +66,41 @@ public final class HttpStorageProvider implements StorageProvider {
             .followRedirects(config.followRedirects() ? HttpClient.Redirect.NORMAL : HttpClient.Redirect.NEVER)
             .executor(executor)
             .build();
+        ScheduledThreadPoolExecutor scheduler = new Scheduler.SafeScheduledThreadPoolExecutor(
+            1,
+            EsExecutors.daemonThreadFactory(Settings.EMPTY, "esql-http-idle")
+        );
+        scheduler.setRemoveOnCancelPolicy(true);
+        scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+        this.idleScheduler = scheduler;
     }
 
     @Override
     public StorageObject newObject(StoragePath path) {
         validateHttpScheme(path);
-        return new HttpStorageObject(httpClient, path, config);
+        return new HttpStorageObject(httpClient, path, config, idleScheduler);
     }
 
     @Override
     public StorageObject newObject(StoragePath path, long length) {
         validateHttpScheme(path);
-        return new HttpStorageObject(httpClient, path, config, length);
+        return new HttpStorageObject(httpClient, path, config, length, idleScheduler);
     }
 
     @Override
     public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
         validateHttpScheme(path);
-        return new HttpStorageObject(httpClient, path, config, length, lastModified);
+        return new HttpStorageObject(httpClient, path, config, length, lastModified, idleScheduler);
     }
 
     @Override
     public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
         throw new UnsupportedOperationException("HTTP does not support directory listing");
+    }
+
+    @Override
+    public StorageChildren listChildren(StoragePath prefix, int limit) {
+        return null; // HTTP has no directory listing at all — callers fall back to explicit paths
     }
 
     @Override
@@ -92,7 +116,13 @@ public final class HttpStorageProvider implements StorageProvider {
     }
 
     @Override
+    public boolean supportsStableMetadata() {
+        return false;
+    }
+
+    @Override
     public void close() {
+        Scheduler.terminate(idleScheduler, 5, TimeUnit.SECONDS);
         // HttpClient implements AutoCloseable in Java 21+
         // Closing it shuts down the internal selector thread and connection pool
         httpClient.close();

@@ -1,0 +1,5 @@
+id:keyword, data:json,                        key:keyword
+a,          {"color":"red"\,"size":"S"},      color
+b,          {"color":"blue"\,"size":"M"},     size
+c,          {"color":"green"\,"size":"L"},    color
+d,          {"color":"yellow"\,"size":"XL"},  size

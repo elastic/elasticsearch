@@ -7,60 +7,100 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.lucene.util.BytesRef;
-import org.apache.parquet.filter2.compat.FilterCompat;
-import org.apache.parquet.filter2.predicate.FilterApi;
-import org.apache.parquet.filter2.predicate.FilterPredicate;
-import org.apache.parquet.filter2.predicate.Operators;
-import org.apache.parquet.io.api.Binary;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.Range;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
+import java.util.function.Predicate;
+
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
 /**
- * Parquet-specific filter pushdown support that translates ESQL filter expressions
- * to parquet-java {@link FilterPredicate} objects.
+ * Parquet-specific filter pushdown support that validates ESQL filter expressions
+ * for pushdown eligibility and collects them into a {@link ParquetPushedExpressions}
+ * wrapper for deferred translation at read time.
+ * <p>
+ * Translation to Parquet {@link org.apache.parquet.filter2.predicate.FilterPredicate}
+ * is deferred because DATETIME columns can have different physical representations
+ * across files (INT32 DATE, INT64 TIMESTAMP_MILLIS/MICROS/NANOS, INT96). The actual
+ * file schema is needed for correct value conversion.
  * <p>
  * When set on {@link org.apache.parquet.ParquetReadOptions}, parquet-java automatically
- * applies three levels of row-group filtering:
+ * applies four levels of filtering:
  * <ol>
  *   <li>Statistics (min/max) — skips row groups where value is outside range</li>
  *   <li>Dictionary — skips row groups where dictionary-encoded column doesn't contain value</li>
  *   <li>Bloom filter — skips row groups where bloom filter says value definitely absent</li>
+ *   <li>Page index (ColumnIndex/OffsetIndex) — skips individual pages within row groups using
+ *       per-page min/max statistics (active by default via {@code useColumnIndexFilter=true}
+ *       since parquet-mr 1.12.0)</li>
  * </ol>
  * <p>
- * All pushed filters use {@link Pushability#RECHECK} semantics: the original filter remains
- * in FilterExec for per-row correctness since row-group skipping is an optimization.
+ * <b>Pushability semantics.</b> Most pushed filters use {@link Pushability#RECHECK}: the original
+ * filter remains in {@code FilterExec} for per-row correctness because the per-row evaluator
+ * (see {@link ParquetPushedExpressions#evaluateFilter}) is two-valued — nulls and unknowns map
+ * to bit {@code 0}, which is correct for the predicate itself but not for a wrapping {@code Not}.
+ * <p>
+ * {@link WildcardLike} (and {@code Not(WildcardLike)}, and conjunctions thereof) are exceptions:
+ * they push as {@link Pushability#YES} so {@code FilterExec} can be dropped entirely. The late-mat
+ * evaluator handles {@code NOT (col LIKE p)} with three-valued logic by AND-ing out nulls before
+ * negation (see {@link ParquetPushedExpressions#evaluateNot}'s {@code Not(WildcardLike)}
+ * special case), so removing the safety net does not change result semantics. The motivation: with
+ * {@code RECHECK}, every surviving row pays the LIKE cost twice — once in the reader's late-mat
+ * filter, once again in {@code FilterExec}. On large keyword scans (e.g. {@code URL LIKE
+ * "*google*"} on the public hits dataset) this duplicate evaluation is the dominant CPU cost.
  */
 public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
 
     private static final Logger logger = LogManager.getLogger(ParquetFilterPushdownSupport.class);
 
+    static final Predicate<DataType> TYPE_SUPPORTED = dt -> dt == DataType.INTEGER
+        || dt == DataType.LONG
+        || dt == DataType.UNSIGNED_LONG
+        || dt == DataType.DOUBLE
+        || dt == DataType.KEYWORD
+        || dt == DataType.BOOLEAN
+        || dt == DataType.DATETIME
+        || dt == DataType.DATE_NANOS;
+
     @Override
     public PushdownResult pushFilters(List<Expression> filters) {
-        List<FilterPredicate> pushed = new ArrayList<>();
-        // All filters are returned as remainder (RECHECK semantics)
-        List<Expression> remainder = new ArrayList<>(filters);
-
+        List<Expression> pushed = new ArrayList<>();
+        // Only RECHECK conjuncts need to remain in FilterExec; YES conjuncts are guaranteed
+        // TVL-correct by the late-mat evaluator and can be dropped from the plan entirely
+        // (see canPush for the per-expression rule and the class-level Javadoc for the
+        // motivation: avoiding double LIKE evaluation on every surviving row).
+        List<Expression> remainder = new ArrayList<>();
         for (Expression filter : filters) {
-            FilterPredicate predicate = translateExpression(filter);
-            if (predicate != null) {
-                pushed.add(predicate);
+            Pushability p = canPush(filter);
+            if (p == Pushability.YES) {
+                pushed.add(filter);
+            } else if (p == Pushability.RECHECK) {
+                pushed.add(filter);
+                remainder.add(filter);
+            } else {
+                remainder.add(filter);
             }
         }
 
@@ -68,215 +108,182 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
             return PushdownResult.none(filters);
         }
 
-        // Combine all pushed predicates with AND
-        FilterPredicate combined = pushed.get(0);
-        for (int i = 1; i < pushed.size(); i++) {
-            combined = FilterApi.and(combined, pushed.get(i));
-        }
-
-        logger.debug("Parquet filter pushdown: translated {} of {} expressions", pushed.size(), filters.size());
-        return new PushdownResult(FilterCompat.get(combined), remainder);
+        logger.debug(
+            "Parquet filter pushdown: pushed {} of {} expressions ({} need re-check in FilterExec)",
+            pushed.size(),
+            filters.size(),
+            remainder.size()
+        );
+        return new PushdownResult(new ParquetPushedExpressions(pushed), pushed, remainder);
     }
 
     @Override
     public Pushability canPush(Expression expr) {
-        if (translateExpression(expr) != null) {
+        if (canConvert(expr) == false) {
+            return Pushability.NO;
+        }
+        if (isFullyEvaluable(expr) == false) {
             return Pushability.RECHECK;
         }
-        return Pushability.NO;
+        // YES requires the late-mat evaluator to be exactly equivalent to FilterExec for this
+        // expression. If a WildcardLike inside the tree fails to determinize at runtime, the
+        // evaluator returns null ("all rows survive"), which without FilterExec means false
+        // positives. Probe every WildcardLike now so any TooComplexToDeterminize is caught at
+        // plan time and we can fall back to RECHECK before FilterExec is removed from the plan.
+        // The probe cost is negligible — it is a single per-pattern automaton build done once
+        // per query at plan time, and the result is cached for runtime via the evaluator's
+        // own per-instance cache (different cache, same cost class).
+        return canCompileAllPatterns(expr) ? Pushability.YES : Pushability.RECHECK;
+    }
+
+    private static boolean canCompileAllPatterns(Expression expr) {
+        if (expr instanceof WildcardLike wl) {
+            try {
+                wl.pattern().createAutomaton(wl.caseInsensitive());
+                return true;
+            } catch (IllegalArgumentException | TooComplexToDeterminizeException e) {
+                logger.debug(
+                    "WildcardLike pattern [{}] cannot be determinized at plan time; falling back to RECHECK",
+                    wl.pattern().pattern(),
+                    e
+                );
+                return false;
+            }
+        }
+        if (expr instanceof Not not) {
+            return canCompileAllPatterns(not.field());
+        }
+        if (expr instanceof And and) {
+            return canCompileAllPatterns(and.left()) && canCompileAllPatterns(and.right());
+        }
+        return true;
     }
 
     /**
-     * Translates an ESQL expression to a parquet-java FilterPredicate.
-     * Returns null if the expression cannot be translated.
+     * Returns {@code true} when the late-mat evaluator produces a survivor mask that is
+     * <em>SQL three-valued-logic correct</em> for {@code expr}, i.e. equivalent to what
+     * {@code FilterExec} would compute for the same expression. Such expressions can be
+     * dropped from {@code FilterExec} (pushed as {@link Pushability#YES}); others must be
+     * re-checked downstream ({@link Pushability#RECHECK}).
+     *
+     * <p>The two-valued bitmask path is TVL-correct by construction for predicates that map
+     * nulls to bit {@code 0}. The LIKE-family — {@link WildcardLike}, {@link StartsWith},
+     * {@code EndsWith}, {@code Contains} — satisfies this on the positive side and is also
+     * routed through a TVL-aware {@code Not} branch in
+     * {@link ParquetPushedExpressions#evaluateNot} that AND-s out the null mask before
+     * negating, so both bare and negated forms are YES.
+     *
+     * <p>{@code Not(EsqlBinaryComparison)}, {@code Not(In)}, and {@code Not(Range)} on a single
+     * column are now also TVL-correct: {@code valueColumnBlockForNot} extracts the column block
+     * so that {@code tvlNegate} can AND-out null/MV positions before negating, exactly as the
+     * LIKE-family does. These predicates could therefore be promoted to {@link Pushability#YES}
+     * (dropping the double-evaluation RECHECK cost), but that promotion is left as a follow-up.
+     * {@code IsNull}/{@code IsNotNull} and {@code Not(And(...))} stay {@link Pushability#RECHECK}:
+     * the null/MV gate can't be derived from a single column block for those forms, and
+     * {@code Not(And)} De Morgan-expands to an {@code Or} of Nots, inheriting OR's hazard that
+     * an unevaluable arm at runtime (e.g. {@code Range} over keyword) yields all-survive.
+     *
+     * <p>{@code AND} of YES-eligible predicates is YES (a {@code 0} on either side blocks the
+     * row regardless of provenance). {@code OR} is excluded: {@code evaluateExpression}'s
+     * {@code Or} branch returns {@code null} ("all rows survive") when an arm is unevaluable,
+     * which is fine under RECHECK but unsafe under YES. Do not promote {@code Not(And)} to YES
+     * because De Morgan is exact when both arms evaluate; the unevaluable-arm case is not.
      */
-    private FilterPredicate translateExpression(Expression expr) {
-        if (expr instanceof Equals eq) {
-            return translateEquals(eq);
-        } else if (expr instanceof In in) {
-            return translateIn(in);
-        } else if (expr instanceof GreaterThan gt) {
-            return translateComparison(gt.left(), gt.right(), CompOp.GT);
-        } else if (expr instanceof GreaterThanOrEqual gte) {
-            return translateComparison(gte.left(), gte.right(), CompOp.GTE);
-        } else if (expr instanceof LessThan lt) {
-            return translateComparison(lt.left(), lt.right(), CompOp.LT);
-        } else if (expr instanceof LessThanOrEqual lte) {
-            return translateComparison(lte.left(), lte.right(), CompOp.LTE);
+    static boolean isFullyEvaluable(Expression expr) {
+        if (isLikeFamily(expr)) {
+            return true;
         }
-        return null;
+        if (expr instanceof Not not) {
+            // LIKE-family is TVL-correct in evaluateNot. Comparisons use valueColumnBlockForNot
+            // + tvlNegate. Promoting those to YES is a follow-up TODO. Not(And) must stay
+            // RECHECK: De Morgan inherits Or's unevaluable-arm hazard (see method javadoc).
+            return isLikeFamily(not.field());
+        }
+        if (expr instanceof And and) {
+            return isFullyEvaluable(and.left()) && isFullyEvaluable(and.right());
+        }
+        return false;
     }
 
-    private FilterPredicate translateEquals(Equals eq) {
-        Expression left = eq.left();
-        Expression right = eq.right();
-
-        // Pattern: column = literal
-        if (left instanceof Attribute attr && right instanceof Literal lit) {
-            return buildEqualityPredicate(attr, lit);
-        }
-        // Pattern: literal = column (swapped)
-        if (right instanceof Attribute attr && left instanceof Literal lit) {
-            return buildEqualityPredicate(attr, lit);
-        }
-        return null;
-    }
-
-    @SuppressWarnings("unchecked")
-    private FilterPredicate translateIn(In in) {
-        if (in.value() instanceof Attribute == false) {
-            return null;
-        }
-        Attribute attr = (Attribute) in.value();
-        DataType dataType = attr.dataType();
-        String columnName = attr.name();
-
-        // Collect all literal values
-        List<Object> values = new ArrayList<>();
-        for (Expression child : in.list()) {
-            if (child instanceof Literal lit && lit.value() != null) {
-                values.add(lit.value());
-            } else {
-                // Non-literal in IN list — can't push
-                return null;
-            }
-        }
-
-        if (values.isEmpty()) {
-            return null;
-        }
-
-        if (dataType == DataType.INTEGER) {
-            Operators.IntColumn col = FilterApi.intColumn(columnName);
-            Set<Integer> intValues = new HashSet<>();
-            for (Object v : values) {
-                intValues.add(((Number) v).intValue());
-            }
-            return FilterApi.in(col, intValues);
-        } else if (dataType == DataType.LONG) {
-            Operators.LongColumn col = FilterApi.longColumn(columnName);
-            Set<Long> longValues = new HashSet<>();
-            for (Object v : values) {
-                longValues.add(((Number) v).longValue());
-            }
-            return FilterApi.in(col, longValues);
-        } else if (dataType == DataType.DOUBLE) {
-            Operators.DoubleColumn col = FilterApi.doubleColumn(columnName);
-            Set<Double> doubleValues = new HashSet<>();
-            for (Object v : values) {
-                doubleValues.add(((Number) v).doubleValue());
-            }
-            return FilterApi.in(col, doubleValues);
-        } else if (dataType == DataType.KEYWORD) {
-            Operators.BinaryColumn col = FilterApi.binaryColumn(columnName);
-            Set<Binary> binaryValues = new HashSet<>();
-            for (Object v : values) {
-                binaryValues.add(toBinary(v));
-            }
-            return FilterApi.in(col, binaryValues);
-        }
-        return null;
-    }
-
-    private enum CompOp {
-        GT,
-        GTE,
-        LT,
-        LTE
-    }
-
-    private FilterPredicate translateComparison(Expression left, Expression right, CompOp op) {
-        // Pattern: column op literal
-        if (left instanceof Attribute attr && right instanceof Literal lit) {
-            return buildComparisonPredicate(attr, lit, op);
-        }
-        // Pattern: literal op column (swap the operator direction)
-        if (right instanceof Attribute attr && left instanceof Literal lit) {
-            CompOp swapped = switch (op) {
-                case GT -> CompOp.LT;
-                case GTE -> CompOp.LTE;
-                case LT -> CompOp.GT;
-                case LTE -> CompOp.GTE;
-            };
-            return buildComparisonPredicate(attr, lit, swapped);
-        }
-        return null;
-    }
-
-    private FilterPredicate buildEqualityPredicate(Attribute attr, Literal lit) {
-        if (lit.value() == null) {
-            return null; // NULL comparisons can't use bloom filters
-        }
-
-        DataType dataType = attr.dataType();
-        String columnName = attr.name();
-
-        if (dataType == DataType.INTEGER) {
-            return FilterApi.eq(FilterApi.intColumn(columnName), ((Number) lit.value()).intValue());
-        } else if (dataType == DataType.LONG) {
-            return FilterApi.eq(FilterApi.longColumn(columnName), ((Number) lit.value()).longValue());
-        } else if (dataType == DataType.DOUBLE) {
-            return FilterApi.eq(FilterApi.doubleColumn(columnName), ((Number) lit.value()).doubleValue());
-        } else if (dataType == DataType.KEYWORD) {
-            return FilterApi.eq(FilterApi.binaryColumn(columnName), toBinary(lit.value()));
-        } else if (dataType == DataType.BOOLEAN) {
-            return FilterApi.eq(FilterApi.booleanColumn(columnName), (Boolean) lit.value());
-        }
-        return null;
-    }
-
-    private FilterPredicate buildComparisonPredicate(Attribute attr, Literal lit, CompOp op) {
-        if (lit.value() == null) {
-            return null;
-        }
-
-        DataType dataType = attr.dataType();
-        String columnName = attr.name();
-
-        if (dataType == DataType.INTEGER) {
-            int value = ((Number) lit.value()).intValue();
-            return switch (op) {
-                case GT -> FilterApi.gt(FilterApi.intColumn(columnName), value);
-                case GTE -> FilterApi.gtEq(FilterApi.intColumn(columnName), value);
-                case LT -> FilterApi.lt(FilterApi.intColumn(columnName), value);
-                case LTE -> FilterApi.ltEq(FilterApi.intColumn(columnName), value);
-            };
-        } else if (dataType == DataType.LONG) {
-            long value = ((Number) lit.value()).longValue();
-            return switch (op) {
-                case GT -> FilterApi.gt(FilterApi.longColumn(columnName), value);
-                case GTE -> FilterApi.gtEq(FilterApi.longColumn(columnName), value);
-                case LT -> FilterApi.lt(FilterApi.longColumn(columnName), value);
-                case LTE -> FilterApi.ltEq(FilterApi.longColumn(columnName), value);
-            };
-        } else if (dataType == DataType.DOUBLE) {
-            double value = ((Number) lit.value()).doubleValue();
-            return switch (op) {
-                case GT -> FilterApi.gt(FilterApi.doubleColumn(columnName), value);
-                case GTE -> FilterApi.gtEq(FilterApi.doubleColumn(columnName), value);
-                case LT -> FilterApi.lt(FilterApi.doubleColumn(columnName), value);
-                case LTE -> FilterApi.ltEq(FilterApi.doubleColumn(columnName), value);
-            };
-        } else if (dataType == DataType.KEYWORD) {
-            Binary value = toBinary(lit.value());
-            return switch (op) {
-                case GT -> FilterApi.gt(FilterApi.binaryColumn(columnName), value);
-                case GTE -> FilterApi.gtEq(FilterApi.binaryColumn(columnName), value);
-                case LT -> FilterApi.lt(FilterApi.binaryColumn(columnName), value);
-                case LTE -> FilterApi.ltEq(FilterApi.binaryColumn(columnName), value);
-            };
-        }
-        return null;
+    private static boolean isLikeFamily(Expression e) {
+        return e instanceof WildcardLike || e instanceof StartsWith || e instanceof Contains || e instanceof EndsWith;
     }
 
     /**
-     * Converts an ESQL literal value to a Parquet Binary.
-     * KEYWORD literals are stored as BytesRef in ESQL.
+     * Validates whether an expression can be converted to a Parquet FilterPredicate.
+     * For AND, partial pushdown is safe (at least one side convertible).
+     * For OR and NOT, all children must be convertible.
      */
-    private static Binary toBinary(Object value) {
-        if (value instanceof BytesRef bytesRef) {
-            return Binary.fromConstantByteArray(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+    static boolean canConvert(Expression expr) {
+        if (PushdownPredicates.allPushdownLiteralsAgree(expr) == false) {
+            return false;
         }
-        return Binary.fromString(value.toString());
+        if (expr instanceof EsqlBinaryComparison bc) {
+            if (PushdownPredicates.isComparison(bc, TYPE_SUPPORTED) == false) {
+                return false;
+            }
+            // SQL null comparisons are always UNKNOWN — only IsNull/IsNotNull handle nulls
+            if (bc.right().foldable() && literalValueOf(bc.right()) == null) {
+                return false;
+            }
+            // BooleanColumn doesn't implement SupportsLtGt — only eq/notEq are valid
+            if (bc.left() instanceof NamedExpression ne && ne.dataType() == DataType.BOOLEAN) {
+                return bc instanceof Equals || bc instanceof NotEquals;
+            }
+            return true;
+        }
+        if (expr instanceof In inExpr) {
+            return PushdownPredicates.isIn(inExpr, TYPE_SUPPORTED);
+        }
+        if (expr instanceof IsNull isNull) {
+            return PushdownPredicates.isIsNull(isNull, TYPE_SUPPORTED);
+        }
+        if (expr instanceof IsNotNull isNotNull) {
+            return PushdownPredicates.isIsNotNull(isNotNull, TYPE_SUPPORTED);
+        }
+        if (expr instanceof Range range) {
+            // BooleanColumn doesn't implement SupportsLtGt — Range requires ordered comparisons
+            if (range.value() instanceof NamedExpression ne && ne.dataType() == DataType.BOOLEAN) {
+                return false;
+            }
+            return PushdownPredicates.isRange(range, TYPE_SUPPORTED);
+        }
+        if (expr instanceof And and) {
+            return canConvert(and.left()) || canConvert(and.right());
+        }
+        if (expr instanceof Or or) {
+            return canConvert(or.left()) && canConvert(or.right());
+        }
+        if (expr instanceof Not not) {
+            return canConvert(not.field());
+        }
+        if (expr instanceof StartsWith sw) {
+            return PushdownPredicates.isStartsWith(sw, dt -> dt == DataType.KEYWORD) && literalValueOf(sw.prefix()) != null;
+        }
+        if (expr instanceof EndsWith ew) {
+            return PushdownPredicates.isEndsWith(ew, dt -> dt == DataType.KEYWORD) && literalValueOf(ew.suffix()) != null;
+        }
+        if (expr instanceof Contains c) {
+            return PushdownPredicates.isContains(c, dt -> dt == DataType.KEYWORD) && literalValueOf(c.substr()) != null;
+        }
+        if (expr instanceof WildcardLike wl) {
+            // Parquet has no native LIKE support; this pushdown evaluates the pattern during late
+            // materialization (see ParquetPushedExpressions#evaluateWildcardLike) so the reader can
+            // skip decoding projection columns for non-matching rows. Only KEYWORD-typed fields with
+            // a non-null pattern qualify; the dictionary short-circuit collapses the per-row automaton
+            // run to one run per dictionary entry. The wl.pattern() != null check is structurally
+            // unreachable today (WildcardLike's constructor takes a non-null WildcardPattern), but is
+            // kept as a cheap boundary guard so an upstream regression cannot turn into an NPE in the
+            // per-batch evaluator. Mirrors the prefix() != null guard on StartsWith above.
+            // Virtual columns (e.g. {@code _file.*}) live outside the parquet schema and the late-mat
+            // evaluator has no column block to walk for them, so accepting them as YES would drop
+            // the post-source FilterExec without ever actually evaluating the pattern - silently
+            // returning all rows (see github.com/elastic/elasticsearch/issues/149393).
+            return wl.field() instanceof NamedExpression ne
+                && PushdownPredicates.isVirtualColumn(ne) == false
+                && ne.dataType() == DataType.KEYWORD
+                && wl.pattern() != null;
+        }
+        return false;
     }
 }

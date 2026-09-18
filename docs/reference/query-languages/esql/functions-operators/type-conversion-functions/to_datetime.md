@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TO_DATETIME` function [esql-to_datetime]
 
-:::{include} ../../_snippets/functions/layout/to_datetime.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/to_datetime.md
 :::

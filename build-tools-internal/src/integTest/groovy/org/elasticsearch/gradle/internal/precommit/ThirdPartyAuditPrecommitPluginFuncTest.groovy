@@ -108,6 +108,11 @@ class ThirdPartyAuditPrecommitPluginFuncTest extends AbstractGradleInternalPlugi
               * org.acme.TestingIO""".stripIndent())
         assertOutputMissing(output, "Missing classes:");
         assertNoDeprecationWarning(result);
+
+        and: "problems report contains forbidden-apis violations"
+        assertProblemsReportContains("forbidden-apis")
+        assertProblemsReportContainsProblem("api-violation")
+        assertProblemsReportSeverity("api-violation", "ERROR")
     }
 
     def "reports missing classes for analysis"() {
@@ -144,6 +149,11 @@ class ThirdPartyAuditPrecommitPluginFuncTest extends AbstractGradleInternalPlugi
               * org.apache.logging.log4j.LogManager""".stripIndent())
         assertOutputMissing(output, "Classes with violations:");
         assertNoDeprecationWarning(result);
+
+        and: "problems report contains missing-classes problems"
+        assertProblemsReportContains("missing-classes")
+        assertProblemsReportContainsProblem("missing-class")
+        assertProblemsReportSeverity("missing-class", "ERROR")
     }
 
     def "reports jar hell with jdk"() {
@@ -178,13 +188,17 @@ class ThirdPartyAuditPrecommitPluginFuncTest extends AbstractGradleInternalPlugi
             """.stripIndent())
         assertOutputContains(output, """\
             * What went wrong:
-            Execution failed for task ':thirdPartyAudit'.
+            Execution failed for task ':thirdPartyAudit' (registered by plugin class 'org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditPrecommitPlugin').
             > Audit of third party dependencies failed:
                 Jar Hell with the JDK:
                 *
             """.stripIndent())
         assertOutputMissing(output, "Classes with violations:");
         assertNoDeprecationWarning(result);
+
+        and: "problems report contains jar-hell problems"
+        assertProblemsReportContains("jar-hell")
+        assertProblemsReportContainsProblem("jdk-jar-hell")
     }
 
     Object generateDummyJars(String groupId) {

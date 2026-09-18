@@ -19,6 +19,13 @@ public interface TokenizerFactory {
 
     Tokenizer create();
 
+    /**
+     * See {@link TokenFilterFactory#sharingKey()}.
+     */
+    default Object sharingKey() {
+        return this;
+    }
+
     static TokenizerFactory newFactory(String name, Supplier<Tokenizer> supplier) {
         return new TokenizerFactory() {
             @Override
@@ -29,6 +36,14 @@ public interface TokenizerFactory {
             @Override
             public Tokenizer create() {
                 return supplier.get();
+            }
+
+            // Anonymous-factory created from a supplier — every call to newFactory yields a fresh
+            // instance with a fresh supplier closure, so identity-equality (the supplier holds
+            // unique captured state) is the correct sharing semantics.
+            @Override
+            public Object sharingKey() {
+                return this;
             }
         };
     }

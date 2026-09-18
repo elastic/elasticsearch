@@ -31,7 +31,12 @@ This is in order to prevent that the temporary disk space, which is required whi
 The merge scheduler supports the following *dynamic* settings:
 
 `index.merge.scheduler.max_thread_count`
-:   The maximum number of threads on a **single** shard that may be merging at once. Defaults to `Math.max(1, Math.min(4, <<node.processors, node.processors>> / 2))` which works well for a good solid-state-disk (SSD). If your index is on spinning platter drives instead, decrease this to 1.
+:   The maximum number of threads on a **single** shard that may be merging at once. Defaults to half the number of processors the JVM sees on the node, with a minimum of 1, which works well for a good solid-state-disk (SSD). If your index is on spinning platter drives instead, decrease this to 1. This default is independent of [`node.processors`](/reference/elasticsearch/configuration-reference/thread-pool-settings.md#node.processors). With `include_defaults`, the reported default is the unclamped value computed on the responding node; it may differ from the value a data node actually uses after clamping to `max_merge_count`, and from data nodes with a different processor count.
+
+    If `max_thread_count` would exceed `index.merge.scheduler.max_merge_count`, Elasticsearch reduces it to `max_merge_count` when the index is opened or its settings change, and logs a warning. That can happen when `max_thread_count` is left unset and `max_merge_count` is set explicitly, especially across nodes with different processor counts, or when both are set with `max_thread_count` greater than `max_merge_count`.
+
+`index.merge.scheduler.max_merge_count`
+:   The maximum number of merges that may be running or waiting on a **single** shard at once. Defaults to `index.merge.scheduler.max_thread_count + 5`.
 
 `indices.merge.disk.check_interval`
 :   The time interval for checking the available disk space. Defaults to `5s`.
@@ -46,6 +51,13 @@ Any merge task scheduled *before* the limit is reached continues execution, even
 :   Controls the max headroom for the merge disk usage watermark, in case it is specified as percentage or ratio values.
 Defaults to `100GB` when `indices.merge.disk.watermark.high` is not explicitly set.
 This caps the amount of free disk space before merge scheduling is blocked.
+
+The merge scheduler also supports the following *static* node-level setting, which takes effect only on node restart:
+
+`indices.merge.thread_pool.max_size_factor` {applies_to}`stack: ga 9.6`
+:   A factor in the range `(0, 1]` that reduces the maximum size of the [`merge` thread pool](/reference/elasticsearch/configuration-reference/thread-pool-settings.md#merge-threadpool), which runs merges for **all** the shards on the node. The result is rounded to the nearest integer and never lower than `1`. Lowering the factor, for example, to `0.5`, reduces how many merges can run concurrently across **all** the shards on the node, which lowers peak merge memory usage at the cost of merge throughput. Defaults to `1`.
+
+    If `thread_pool.merge.max` is explicitly configured, that value is used regardless of this factor. When neither is set, the pool maximum is the number of [allocated processors](/reference/elasticsearch/configuration-reference/thread-pool-settings.md#node.processors).
 
 ## Merge multi-threading [merge-multithreading]
 

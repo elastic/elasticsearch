@@ -125,8 +125,8 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
             failureIndicesCounter,
             failuresLifecycleExplicitlyEnabledCounter,
             failuresLifecycleEffectivelyEnabledCounter,
-            DataStreamLifecycleFeatureSetUsage.RetentionStats.create(dataRetentionStats),
-            DataStreamLifecycleFeatureSetUsage.RetentionStats.create(effectiveRetentionStats),
+            DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.create(dataRetentionStats),
+            DataStreamLifecycleFeatureSetUsage.TimeThresholdStats.create(effectiveRetentionStats),
             DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats.getGlobalRetentionStats(
                 globalRetention,
                 affectedByDefaultRetentionCounter,

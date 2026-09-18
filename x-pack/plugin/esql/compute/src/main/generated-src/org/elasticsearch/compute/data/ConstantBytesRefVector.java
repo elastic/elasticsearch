@@ -9,18 +9,21 @@ package org.elasticsearch.compute.data;
 
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.ReleasableIterator;
+
+import java.util.Arrays;
 // end generated imports
 
 /**
  * Vector implementation that stores a constant BytesRef value.
  * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
-final class ConstantBytesRefVector extends AbstractVector implements BytesRefVector {
+public final class ConstantBytesRefVector extends AbstractVector implements BytesRefVector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBytesRefVector.class) + RamUsageEstimator
         .shallowSizeOfInstance(BytesRef.class);
@@ -40,6 +43,12 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
     }
 
     @Override
+    public PagedBytesCursor get(int position, PagedBytesCursor scratch) {
+        scratch.init(value.bytes, value.offset, value.length);
+        return scratch;
+    }
+
+    @Override
     public BytesRefBlock asBlock() {
         return new BytesRefVectorBlock(this);
     }
@@ -50,8 +59,13 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
     }
 
     @Override
-    public BytesRefVector filter(boolean mayContainDuplicates, int... positions) {
-        return blockFactory().newConstantBytesRefVector(value, positions.length);
+    public int valueMaxByteSize() {
+        return getPositionCount() == 0 ? 0 : value.length;
+    }
+
+    @Override
+    public BytesRefVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return blockFactory().newConstantBytesRefVector(value, length);
     }
 
     @Override

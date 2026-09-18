@@ -11,6 +11,7 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.core.Releasable;
 
 /**
@@ -36,8 +37,21 @@ public interface BytesRefHashTable extends Accountable, Releasable {
      */
     long add(BytesRef key);
 
+    /**
+     * Adds the given key to the table, copying the remaining bytes.
+     * Return its newly allocated id if it wasn't in the table yet, or {@code -1-id}
+     * if it was already present in the table. The cursor is drained (advanced to its end)
+     * when a new key is inserted.
+     */
+    long add(PagedBytesCursor key);
+
     /** Returns the size (number of key/value pairs) in the table.*/
     long size();
+
+    /**
+     * Removes all entries, keeping the allocated structures for reuse. The hash will be empty after this call returns.
+     */
+    void clear();
 
     /** Gets the backing bytes ref array. */
     BytesRefArray getBytesRefs();

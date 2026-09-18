@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -26,10 +25,12 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContent;
@@ -37,8 +38,12 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.DequeUtils;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionMessageResponse;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsageResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,7 +57,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Flow;
 
-import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResults.COMPLETION;
+import static org.elasticsearch.xpack.core.inference.results.CompletionResults.COMPLETION;
 
 public class TestStreamingCompletionServiceExtension implements InferenceServiceExtension {
     @Override
@@ -119,9 +124,6 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         @Override
         public void infer(
             Model model,
-            String query,
-            @Nullable Boolean returnDocuments,
-            @Nullable Integer topN,
             List<String> input,
             boolean stream,
             Map<String, Object> taskSettings,
@@ -170,7 +172,9 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                 return;
             }
             switch (model.getConfigurations().getTaskType()) {
-                case CHAT_COMPLETION -> listener.onResponse(makeUnifiedResults(request));
+                case CHAT_COMPLETION -> listener.onResponse(
+                    request.stream() ? makeUnifiedResults(request.body()) : makeNonStreamingUnifiedResults(request.body())
+                );
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
@@ -178,6 +182,11 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                     )
                 );
             }
+        }
+
+        @Override
+        public boolean supportsNonStreamingChatCompletion() {
+            return true;
         }
 
         @Override
@@ -195,9 +204,19 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             );
         }
 
-        private StreamingChatCompletionResults makeChatCompletionResults(List<String> input) {
+        @Override
+        public void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
+                    RestStatus.BAD_REQUEST
+                )
+            );
+        }
+
+        private StreamingCompletionResults makeChatCompletionResults(List<String> input) {
             var responseIter = input.stream().map(s -> s.toUpperCase(Locale.ROOT)).iterator();
-            return new StreamingChatCompletionResults(subscriber -> {
+            return new StreamingCompletionResults(subscriber -> {
                 subscriber.onSubscribe(new Flow.Subscription() {
                     @Override
                     public void request(long n) {
@@ -253,7 +272,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             };
         }
 
-        private StreamingUnifiedChatCompletionResults makeUnifiedResults(UnifiedCompletionRequest request) {
+        private StreamingUnifiedChatCompletionResults makeUnifiedResults(UnifiedCompletionRequestBody request) {
             var responseIter = request.messages().stream().map(message -> message.content().toString().toUpperCase(Locale.ROOT)).iterator();
             return new StreamingUnifiedChatCompletionResults(subscriber -> {
                 subscriber.onSubscribe(new Flow.Subscription() {
@@ -270,6 +289,17 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                     public void cancel() {}
                 });
             });
+        }
+
+        private ChatCompletionChunkResponse makeNonStreamingUnifiedResults(UnifiedCompletionRequestBody request) {
+            var content = request.messages().get(0).content().toString().toUpperCase(Locale.ROOT);
+            return new ChatCompletionChunkResponse(
+                "test-id",
+                List.of(new ChatCompletionChoiceResponse(new ChatCompletionMessageResponse(content, null, "assistant", null), "stop", 0)),
+                "test-model",
+                "chat.completion",
+                new ChatCompletionUsageResponse(1, 1, 2)
+            );
         }
 
         /*
@@ -291,15 +321,9 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         private StreamingUnifiedChatCompletionResults.Results unifiedCompletionChunk(String delta) {
             return new StreamingUnifiedChatCompletionResults.Results(
                 DequeUtils.of(
-                    new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(
+                    new ChatCompletionChunkResponse(
                         "id",
-                        List.of(
-                            new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(
-                                new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(delta, null, null, null),
-                                null,
-                                0
-                            )
-                        ),
+                        List.of(new ChatCompletionChoiceResponse(new ChatCompletionMessageResponse(delta, null, null, null), null, 0)),
                         "gpt-4o-2024-08-06",
                         "chat.completion.chunk",
                         null
@@ -311,7 +335,6 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         @Override
         public void chunkedInfer(
             Model model,
-            String query,
             List<ChunkInferenceInput> input,
             Map<String, Object> taskSettings,
             InputType inputType,

@@ -1,0 +1,13 @@
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+
+dependencies {
+  javaRestTestImplementation project(path: xpackModule('core'))
+
+  // Added this to have access to MockWebServer within the tests
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution("TBC")
+}

@@ -66,11 +66,35 @@ public final class SumDenseVectorAggregatorFunction implements AggregatorFunctio
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
     FloatBlock vectorBlock = page.getBlock(channels.get(0));
+    if (vectorBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
+      return;
+    }
     addRawBlock(vectorBlock, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
     FloatBlock vectorBlock = page.getBlock(channels.get(0));
+    if (vectorBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
+      return;
+    }
     addRawBlock(vectorBlock);
   }
 
@@ -107,12 +131,30 @@ public final class SumDenseVectorAggregatorFunction implements AggregatorFunctio
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block sumUncast = page.getBlock(channels.get(0));
     if (sumUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     FloatBlock sum = (FloatBlock) sumUncast;
     assert sum.getPositionCount() == 1;
     Block failedUncast = page.getBlock(channels.get(1));
     if (failedUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BooleanVector failed = ((BooleanBlock) failedUncast).asVector();

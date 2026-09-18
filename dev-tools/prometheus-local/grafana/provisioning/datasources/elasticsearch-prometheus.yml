@@ -1,0 +1,27 @@
+apiVersion: 1
+
+datasources:
+  - name: Elasticsearch (Prometheus API)
+    type: prometheus
+    uid: es-prometheus
+    access: proxy
+    url: http://host.docker.internal:9200/_prometheus
+    basicAuth: true
+    basicAuthUser: elastic
+    secureJsonData:
+      basicAuthPassword: password
+    jsonData:
+      httpMethod: GET
+      timeInterval: 5s
+    isDefault: true
+    editable: true
+
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    jsonData:
+      httpMethod: GET
+      timeInterval: 5s
+    editable: true

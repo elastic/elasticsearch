@@ -1,0 +1,3 @@
+FROM employees
+| EVAL x = emp_no + 5
+| LIMIT 1 BY x, salary * 2

@@ -1,0 +1,4 @@
+Limit[1000[INTEGER],false,false]
+\_Filter[ua.name{r}#0 == Chrome[KEYWORD]]
+  \_UserAgent[first_name{f}#1,[name, version, os.name, os.version, os.full, device.name, device.type],[ua.name{r}#0, ua.version{r}#2, ua.os.name{r}#3, ua.os.version{r}#4, ua.os.full{r}#5, ua.device.name{r}#6, ua.device.type{r}#7],true,_default_]
+    \_EsRelation[employees][avg_worked_seconds{f}#8, birth_date{f}#9, emp_no{f}#10, first_name{f}#1, gender{f}#11, height{f}#12, height.float{f}#13, height.half_float{f}#14, height.scaled_float{f}#15, hire_date{f}#16, is_rehired{f}#17, job_positions{f}#18, languages{f}#19, languages.byte{f}#20, languages.long{f}#21, languages.short{f}#22, last_name{f}#23, salary{f}#24, salary_change{f}#25, salary_change.int{f}#26, salary_change.keyword{f}#27, salary_change.long{f}#28, still_hired{f}#29]

@@ -7,18 +7,18 @@
 
 package org.elasticsearch.xpack.inference.services.custom;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.BaseRequestManager;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -69,15 +69,12 @@ public class CustomRequestManager extends BaseRequestManager {
         ActionListener<InferenceServiceResults> listener
     ) {
         RequestParameters requestParameters;
-        if (inferenceInputs instanceof QueryAndDocsInputs) {
-            requestParameters = RerankParameters.of(QueryAndDocsInputs.of(inferenceInputs));
-        } else if (inferenceInputs instanceof ChatCompletionInput chatInputs) {
+        if (inferenceInputs instanceof QueryAndDocsInputs queryAndDocsInputs) {
+            requestParameters = RerankParameters.of(queryAndDocsInputs);
+        } else if (inferenceInputs instanceof CompletionInput chatInputs) {
             requestParameters = CompletionParameters.of(chatInputs);
-        } else if (inferenceInputs instanceof EmbeddingsInput) {
-            requestParameters = EmbeddingParameters.of(
-                inferenceInputs.castTo(EmbeddingsInput.class),
-                model.getServiceSettings().getInputTypeTranslator()
-            );
+        } else if (inferenceInputs instanceof EmbeddingsInput embeddingsInput) {
+            requestParameters = EmbeddingParameters.of(embeddingsInput, model.getServiceSettings().getInputTypeTranslator());
         } else {
             listener.onFailure(
                 new ElasticsearchStatusException(

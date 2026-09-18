@@ -36,7 +36,7 @@ public class CustomElandEmbeddingModelCreator extends ElasticsearchInternalModel
             inferenceId,
             taskType,
             service,
-            CustomElandInternalTextEmbeddingServiceSettings.fromMap(serviceSettings, context),
+            ElasticsearchInternalTextEmbeddingServiceSettings.fromMap(serviceSettings, context),
             chunkingSettings
         );
     }

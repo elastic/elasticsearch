@@ -11,13 +11,19 @@ package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.lang.foreign.MemorySegment;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -193,5 +199,73 @@ public class StoreMetricsIndexInputTests extends ESTestCase {
         IndexInput mockRandomInput = mock(IndexInput.class, withSettings().extraInterfaces(RandomAccessInput.class));
         IndexInput decoratedRandom = StoreMetricsIndexInput.create("test", mockRandomInput, metricHolder);
         assertThat(decoratedRandom, Matchers.instanceOf(RandomAccessInput.class));
+    }
+
+    public void testCreateLeavesSelfAccountingInputsUnwrapped() {
+        PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
+        IndexInput selfAccounting = mock(IndexInput.class, withSettings().extraInterfaces(SelfAccountingIndexInput.class));
+
+        IndexInput created = StoreMetricsIndexInput.create("test", selfAccounting, metricHolder);
+
+        assertThat(created, Matchers.sameInstance(selfAccounting));
+        verify((SelfAccountingIndexInput) selfAccounting).accountBytesReadTo(metricHolder);
+    }
+
+    // Verifies that withMemorySegmentSlice delegates to the wrapped input when it implements DirectAccessInput.
+    @SuppressWarnings("unchecked")
+    public void testWithByteBufferSliceDelegatesToDAI() throws IOException {
+        PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
+        IndexInput mockInput = mock(IndexInput.class, withSettings().extraInterfaces(DirectAccessInput.class));
+        when(((DirectAccessInput) mockInput).withMemorySegmentSlice(anyLong(), anyLong(), any())).thenReturn(true);
+
+        IndexInput decorated = StoreMetricsIndexInput.create("test", mockInput, metricHolder);
+        assertThat(decorated, Matchers.instanceOf(DirectAccessInput.class));
+
+        CheckedConsumer<MemorySegment, IOException> action = ms -> {};
+        assertTrue(((DirectAccessInput) decorated).withMemorySegmentSlice(42L, 128L, action));
+        verify((DirectAccessInput) mockInput).withMemorySegmentSlice(eq(42L), eq(128L), eq(action));
+    }
+
+    // Verifies that withMemorySegmentSlice returns false when the wrapped input does not implement DirectAccessInput.
+    public void testWithByteBufferSliceReturnsFalseWhenInnerIsNotDAI() throws IOException {
+        PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
+        IndexInput mockInput = mock(IndexInput.class);
+        IndexInput decorated = StoreMetricsIndexInput.create("test", mockInput, metricHolder);
+
+        assertThat(decorated, Matchers.instanceOf(DirectAccessInput.class));
+        assertFalse(((DirectAccessInput) decorated).withMemorySegmentSlice(0L, 10L, ms -> fail("action should not be called")));
+    }
+
+    // Verifies that the bulk withSliceAddresses delegates to the wrapped input when it implements DirectAccessInput.
+    @SuppressWarnings("unchecked")
+    public void testWithSliceAddressesDelegatesToDAI() throws IOException {
+        PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
+        IndexInput mockInput = mock(IndexInput.class, withSettings().extraInterfaces(DirectAccessInput.class));
+        when(((DirectAccessInput) mockInput).withSliceAddresses(any(), anyInt(), anyInt(), any(), any())).thenReturn(true);
+
+        IndexInput decorated = StoreMetricsIndexInput.create("test", mockInput, metricHolder);
+        CheckedConsumer<MemorySegment, IOException> action = addrs -> {};
+        long[] offsets = { 0L, 100L, 200L };
+        MemorySegment addrsOut = MemorySegment.ofArray(new long[3]);
+        assertTrue(((DirectAccessInput) decorated).withSliceAddresses(offsets, 64, 3, addrsOut, action));
+        verify((DirectAccessInput) mockInput).withSliceAddresses(eq(offsets), eq(64), eq(3), eq(addrsOut), eq(action));
+    }
+
+    // Verifies that the bulk withSliceAddresses returns false when the wrapped input does not implement DirectAccessInput.
+    public void testWithSliceAddressesReturnsFalseWhenInnerIsNotDAI() throws IOException {
+        PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
+        IndexInput mockInput = mock(IndexInput.class);
+        IndexInput decorated = StoreMetricsIndexInput.create("test", mockInput, metricHolder);
+
+        MemorySegment addrsOut = MemorySegment.ofArray(new long[1]);
+        assertFalse(
+            ((DirectAccessInput) decorated).withSliceAddresses(
+                new long[] { 0L },
+                10,
+                1,
+                addrsOut,
+                addrs -> fail("action should not be called")
+            )
+        );
     }
 }

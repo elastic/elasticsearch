@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `PRESENT` function [esql-present]
 
-:::{include} ../../_snippets/functions/layout/present.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/present.md
 :::

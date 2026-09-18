@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -32,6 +33,7 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -43,6 +45,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Request;
@@ -53,6 +56,7 @@ import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.transform.TransformExtensionHolder;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
@@ -64,6 +68,7 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -81,7 +86,10 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
     private final TransportService transportService;
     private final Settings nodeSettings;
     private final SourceDestValidator sourceDestValidator;
+    private final CrossProjectModeDecider crossProjectModeDecider;
     private final Settings destIndexSettings;
+    private final BooleanSupplier hasLinkedProjects;
+    private final TransformCloudCredentialManager cloudCredentialManager;
 
     @Inject
     public TransportPreviewTransformAction(
@@ -93,7 +101,9 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         ClusterService clusterService,
         Settings settings,
         IngestService ingestService,
-        TransformExtensionHolder transformExtensionHolder
+        TransformExtensionHolder transformExtensionHolder,
+        TransformServices transformServices,
+        ProjectResolver projectResolver
     ) {
         super(PreviewTransformAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
@@ -117,13 +127,32 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             License.OperationMode.BASIC.description()
         );
         this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
+        this.crossProjectModeDecider = transformServices.crossProjectModeDecider();
+        this.hasLinkedProjects = () -> transformServices.hasLinkedProjects().apply(projectResolver.getProjectId());
+        this.cloudCredentialManager = transformServices.cloudCredentialManager();
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         final ClusterState clusterState = clusterService.state();
-        TransformNodes.throwIfNoTransformNodes(clusterState);
+
+        if (TransformNodes.hasNoTransformNodes(clusterState)) {
+            TransformNodes.completeWithNoTransformNodeException(listener);
+            return;
+        }
+
+        // Extract on the coordinating node, before the request is (possibly) redirected to a
+        // transform node — the AUTHENTICATING_CLOUD_TOKEN_THREAD_CONTEXT transient does not survive
+        // that transport hop. Carried on the request so the executing node can read it back below
+        // regardless of whether this request was redirected. Wrap the listener so the request (and
+        // the SecureString it may carry) is closed exactly once, on every terminal path including the
+        // redirect hop — Request.close() is null-safe when the caller is non-UIAM.
+        CloudCredential callerCredential = cloudCredentialManager.currentCallerCredential();
+        if (callerCredential != null) {
+            request.setCloudCredential(callerCredential);
+        }
+        final ActionListener<Response> releasingListener = ActionListener.releaseAfter(listener, request);
 
         boolean requiresRemote = request.getConfig().getSource().requiresRemoteCluster();
         if (TransformNodes.redirectToAnotherNodeIfNeeded(
@@ -134,7 +163,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             actionName,
             request,
             Response::new,
-            listener
+            releasingListener
         )) {
             return;
         }
@@ -155,15 +184,16 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                 config.getSyncConfig(),
                 config.getSettings(),
                 request.previewAsIndexRequest(),
-                listener
+                request.getCloudCredential(),
+                releasingListener
             ),
-            listener::onFailure
+            releasingListener::onFailure
         );
 
         // <3> Validate transform function config
         ActionListener<Boolean> validateSourceDestListener = ActionListener.wrap(
             validateSourceDestResponse -> function.validateConfig(validateConfigListener),
-            listener::onFailure
+            releasingListener::onFailure
         );
 
         // <2> Validate source and destination indices
@@ -173,10 +203,10 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                 config.getSource().getIndex(),
                 config.getDestination().getIndex(),
                 config.getDestination().getPipeline(),
-                SourceDestValidations.getValidationsForPreview(config.getAdditionalSourceDestValidations()),
+                SourceDestValidations.getValidationsForPreview(crossProjectModeDecider, config.getAdditionalSourceDestValidations()),
                 validateSourceDestListener
             ),
-            listener::onFailure
+            releasingListener::onFailure
         );
 
         // <1> Early check to verify that the user can create the destination index and can read from the source
@@ -192,6 +222,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                 // We don't want to check privileges for a dummy (placeholder) index and the placeholder is inserted as config.dest.index
                 // early in the REST action so the only possibility we have here is string comparison.
                 DUMMY_DEST_INDEX_FOR_PREVIEW.equals(config.getDestination().getIndex()) == false,
+                hasLinkedProjects.getAsBoolean(),
                 checkPrivilegesListener
             );
         } else { // No security enabled, just move on
@@ -211,9 +242,17 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         SyncConfig syncConfig,
         SettingsConfig settingsConfig,
         boolean previewAsIndexRequest,
+        CloudCredential callerCredential,
         ActionListener<Response> listener
     ) {
-        var parentTaskClient = new ParentTaskAssigningClient(client, parentTaskId);
+        var rawClient = new ParentTaskAssigningClient(client, parentTaskId);
+        // callerCredential is carried on the request (see doExecute) so it survives a redirect to
+        // another transform node. Its SecureString is released once by the releasingListener that
+        // wraps the request in doExecute; no further releaseAfter needed here.
+        var parentTaskClient = cloudCredentialManager.wrapWithUiamIfPresent(rawClient, callerCredential);
+        // Preview runs under the caller's live credential (not stored config headers). Scope
+        // cross-project resolution to whether that credential can actually fan out.
+        var sourceIndicesOptions = source.indicesOptions(callerCredential != null);
 
         final var mappings = new SetOnce<Map<String, String>>();
 
@@ -258,6 +297,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                 timeout,
                 filteredHeaders,
                 source,
+                sourceIndicesOptions,
                 // Use deduced mappings for generating preview even if "settings.deduce_mappings" is set to false
                 deducedMappings,
                 NUMBER_OF_PREVIEW_BUCKETS,
@@ -265,7 +305,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             );
         });
 
-        function.deduceMappings(parentTaskClient, filteredHeaders, transformId, source, deduceMappingsListener);
+        function.deduceMappings(parentTaskClient, filteredHeaders, transformId, source, sourceIndicesOptions, deduceMappingsListener);
     }
 
     @SuppressWarnings("unchecked")

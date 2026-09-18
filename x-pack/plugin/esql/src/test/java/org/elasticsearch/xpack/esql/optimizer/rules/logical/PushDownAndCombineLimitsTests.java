@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -43,7 +45,6 @@ import java.util.function.BiFunction;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -54,6 +55,10 @@ import static org.hamcrest.Matchers.instanceOf;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerTests {
+
+    public PushDownAndCombineLimitsTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     private static class PushDownLimitTestCase<PlanType extends LogicalPlan> {
         private final Class<PlanType> clazz;
@@ -229,7 +234,13 @@ public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerT
         }),
         new PushDownLimitTestCase<>(
             Join.class,
-            (plan, attr) -> new Join(EMPTY, plan, plan, new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), attr)),
+            (plan, attr) -> new Join(
+                Source.EMPTY,
+                plan,
+                plan,
+                new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), attr),
+                ExecuteLocation.ANY
+            ),
             (basePlan, optimizedPlan) -> {
                 assertEquals(basePlan.source(), optimizedPlan.source());
                 var limit = as(optimizedPlan.left(), Limit.class);
@@ -260,11 +271,11 @@ public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerT
     }
 
     private LogicalPlan optimizePlan(LogicalPlan plan) {
-        return new PushDownAndCombineLimits().apply(plan, unboundLogicalOptimizerContext());
+        return new PushDownAndCombineLimits().apply(plan, logicalOptimizerCtx);
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * Limit[10[INTEGER],false,false]
      * \_Fork[[_meta_field{r}#30, emp_no{r}#31, first_name{r}#32, gender{r}#33, hire_date{r}#34, job{r}#35, job.raw{r}#36, l
      * anguages{r}#37, last_name{r}#38, long_noidx{r}#39, salary{r}#40, _fork{r}#41]]
@@ -280,7 +291,7 @@ public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerT
      *       \_Eval[[fork2[KEYWORD] AS _fork#5]]
      *         \_Filter[emp_no{f}#19 < 10[INTEGER]]
      *           \_EsRelation[employees][_meta_field{f}#25, emp_no{f}#19, first_name{f}#20, ..]
-     * }</pre>
+     * }
      */
     public void testPushDownLimitIntoForkWithUnboundedOrderBy() {
         var query = """
@@ -289,7 +300,7 @@ public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerT
                     (where emp_no < 10 | SORT emp_no)
              | LIMIT 10
             """;
-        var plan = planWithoutForkImplicitLimit(query);
+        var plan = plan(query);
         var limit = as(plan, Limit.class);
         assertThat(((Literal) limit.limit()).value(), equalTo(10));
 
@@ -307,7 +318,7 @@ public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerT
     }
 
     /**
-     * <pre>{@code
+     * {@snippet lang="text":
      * Limit[10[INTEGER],false,false]
      * \_Fork[[a{r}#18, b{r}#19, _fork{r}#20]]
      *   |_Project[[a{r}#14, b{r}#15, _fork{r}#12]]
@@ -322,7 +333,7 @@ public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerT
      *         \_MvExpand[b{r}#6,b{r}#17]
      *           \_MvExpand[a{r}#4,a{r}#16]
      *             \_LocalRelation[[a{r}#4, b{r}#6],Page{...}]
-     * }</pre>
+     * }
      */
     public void testPushDownLimitIntoForkWithRowAndUnboundedOrderBy() {
         var query = """
@@ -333,7 +344,7 @@ public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerT
                    (SORT b)
             | LIMIT 10
             """;
-        var plan = planWithoutForkImplicitLimit(query);
+        var plan = plan(query);
 
         var limit = as(plan, Limit.class);
         assertThat(((Literal) limit.limit()).value(), equalTo(10));

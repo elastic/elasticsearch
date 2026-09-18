@@ -51,7 +51,7 @@ public class DlsFlsRequestCacheDifferentiator implements CheckedBiConsumer<Shard
         if (indexAccessControl != null
             && (indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()
                 || indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions())
-            && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState)) {
+            && (indexAccessControl.isDlsFlsImplicit() || DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState))) {
             logger.debug(
                 "index [{}] with field level access controls [{}] "
                     + "document level access controls [{}]. Differentiating request cache key",

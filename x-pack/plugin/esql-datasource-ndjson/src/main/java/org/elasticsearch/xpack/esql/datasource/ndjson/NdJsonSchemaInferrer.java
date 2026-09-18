@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.core.exc.StreamConstraintsException;
 
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.logging.LogManager;
@@ -19,10 +20,12 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.TemporalInference;
+import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.format.DateTimeParseException;
+import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.EnumSet;
@@ -36,7 +39,13 @@ import java.util.Map;
  * - Detects arrays as multi-value fields
  * - Marks fields as nullable when null or missing values are encountered
  *
- * Types: KEYWORD, INTEGER, LONG, DOUBLE, BOOLEAN, DATETIME.
+ * Types: KEYWORD, INTEGER, LONG, DOUBLE, BOOLEAN, DATETIME, DATE_NANOS.
+ *
+ * <p>A timestamp is inferred DATE_NANOS only when it carries a non-zero sub-millisecond component,
+ * which DATETIME would silently drop; see {@link TemporalInference}.
+ *
+ * <p>Column names are always flat dotted names, whichever way the file spells them: the two spellings of a dotted
+ * column are one path through the field tree ({@link #childFor}), so mixing them across records infers one column.
  */
 public class NdJsonSchemaInferrer {
 
@@ -51,38 +60,54 @@ public class NdJsonSchemaInferrer {
     // The default format for date fields in ES is "strict_date_optional_time||epoch_millis".
     // Use the string part of this default for schema inference (we cannot assume that a number
     // is a date)
-    public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
+    public static final DateFormatter STRICT_DATE_OPTIONAL_TIME = DateFormatter.forPattern("strict_date_optional_time");
 
     private static final Logger logger = LogManager.getLogger(NdJsonSchemaInferrer.class);
-
-    private static final EnumSet<DataType> NUMBER_TYPES = EnumSet.of(DataType.DOUBLE, DataType.LONG, DataType.INTEGER);
 
     // Fields that we've actually seen in the current json document
     private final BitSet fieldsSeen = new BitSet();
     private final List<FieldInfo> fields = new ArrayList<>();
     private int lineCount = 0;
 
-    private NdJsonSchemaInferrer() {}
+    private final DateFormatter dateFormatter;
+
+    private NdJsonSchemaInferrer(DateFormatter dateFormatter) {
+        this.dateFormatter = dateFormatter != null ? dateFormatter : STRICT_DATE_OPTIONAL_TIME;
+    }
 
     /**
      * Infers schema from an NDJSON input stream, reading up to maxLines.
+     * When {@code datetimeFormatter} is null, falls back to {@link #STRICT_DATE_OPTIONAL_TIME}.
      */
-    public static List<Attribute> inferSchema(InputStream inputStream, int maxLines) throws IOException {
-        return new NdJsonSchemaInferrer().doInferSchema(inputStream, maxLines);
+    public static List<Attribute> inferSchema(InputStream inputStream, int maxLines, DateFormatter datetimeFormatter) throws IOException {
+        return new NdJsonSchemaInferrer(datetimeFormatter).doInferSchema(inputStream, maxLines);
     }
 
     private List<Attribute> doInferSchema(InputStream inputStream, int maxLines) throws IOException {
         FieldInfo root = new FieldInfo(null);
-        JsonParser parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
+        NdJsonUtils.LineTerminatorTrackingStream tracking = new NdJsonUtils.LineTerminatorTrackingStream(inputStream);
+        JsonParser parser = NdJsonUtils.JSON_FACTORY.createParser(tracking);
         try {
             while (lineCount < maxLines) {
                 try {
                     if (parser.nextToken() == null) {
                         break; // End of stream
                     }
-                } catch (JsonParseException e) {
+                } catch (JsonParseException | StreamConstraintsException e) {
+                    // Schema inference is a best-effort sampling pass: malformed lines here are
+                    // safe to skip because every such line will be re-encountered during the
+                    // actual slice read (see NdJsonPageIterator), where the configured
+                    // ErrorPolicy decides whether to log/fail. Logging at debug avoids noisy
+                    // duplicate reports of the same issue. A StreamConstraintsException (an
+                    // over-long number or field name, nesting past the depth cap) is the same
+                    // scanner-level whole-line failure and defers to the slice read identically;
+                    // failing inference on it would deny the read's error_mode a say. A record that
+                    // names one field twice (NdJsonUtils.JSON_FACTORY enables Jackson's duplicate
+                    // detection) arrives here as a JsonParseException and defers for the same reason:
+                    // it contributes no columns to the sample, and the slice read is where it either
+                    // fails the query or drops with a warning.
                     logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
-                    inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
+                    inputStream = NdJsonUtils.moveToNextLine(parser, tracking);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
                     continue;
                 }
@@ -90,9 +115,10 @@ public class NdJsonSchemaInferrer {
                 try {
                     inferObjectSchema(parser, root);
                     lineCount++;
-                } catch (JsonParseException e) {
+                } catch (JsonParseException | StreamConstraintsException e) {
+                    // See comment above: deferred to the slice read for policy-driven handling.
                     logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
-                    inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
+                    inputStream = NdJsonUtils.moveToNextLine(parser, tracking);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
                 }
 
@@ -115,7 +141,7 @@ public class NdJsonSchemaInferrer {
         return attributes;
     }
 
-    private static void inferObjectSchema(JsonParser parser, FieldInfo object) throws IOException {
+    private void inferObjectSchema(JsonParser parser, FieldInfo object) throws IOException {
         JsonToken token = parser.currentToken();
         if (token != JsonToken.START_OBJECT) {
             throw new NdJsonParseException(parser, "Expected JSON object");
@@ -124,13 +150,32 @@ public class NdJsonSchemaInferrer {
             if (token != JsonToken.FIELD_NAME) {
                 throw new NdJsonParseException(parser, "Expected field name in object");
             }
-            var child = object.getChild(parser.getCurrentName());
+            var child = childFor(object, parser.getCurrentName());
             parser.nextToken();
             inferValueSchema(parser, child);
         }
     }
 
-    private static void inferValueSchema(JsonParser parser, FieldInfo field) throws IOException {
+    /**
+     * The node a field name addresses within {@code object}. A dotted name is a path, so both spellings of a dotted
+     * column ({@code {"a.b":1}} and {@code {"a":{"b":1}}}) land on one node and a file that mixes them infers one
+     * column rather than two attributes with the same name.
+     */
+    private static FieldInfo childFor(FieldInfo object, String fieldName) {
+        if (NdJsonUtils.isFieldPath(fieldName) == false) {
+            return object.getChild(fieldName);
+        }
+        FieldInfo node = object;
+        int start = 0;
+        int dot;
+        while ((dot = fieldName.indexOf('.', start)) >= 0) {
+            node = node.getChild(fieldName.substring(start, dot));
+            start = dot + 1;
+        }
+        return node.getChild(fieldName.substring(start));
+    }
+
+    private void inferValueSchema(JsonParser parser, FieldInfo field) throws IOException {
         switch (parser.currentToken()) {
             case START_ARRAY -> {
                 field.isArray = true;
@@ -138,16 +183,8 @@ public class NdJsonSchemaInferrer {
                     inferValueSchema(parser, field);
                 }
             }
-            // Keep in sync with NdJsonPageIterator.Decoder
             case START_OBJECT -> inferObjectSchema(parser, field);
-            case VALUE_STRING -> {
-                try {
-                    DATE_FORMATTER.parse(parser.getText());
-                    field.addType(DataType.DATETIME);
-                } catch (DateTimeParseException | IllegalArgumentException e) {
-                    field.addType(DataType.KEYWORD);
-                }
-            }
+            case VALUE_STRING -> inferStringType(field, parser.getText());
             case VALUE_NUMBER_INT -> {
                 switch (parser.getNumberType()) {
                     case INT:
@@ -177,8 +214,13 @@ public class NdJsonSchemaInferrer {
 
     /** Build the list of Attribute by recursively traversing the FieldInfo tree */
     private static void buildSchema(FieldInfo field, String parentName, List<Attribute> attributes) {
+        if (field.children == null) {
+            // No children were ever observed. Happens for the root when every sampled line was
+            // malformed (so {@link FieldInfo#getChild} was never called), or legitimately for
+            // leaf fields during recursion. Nothing to contribute to the schema either way.
+            return;
+        }
         for (Map.Entry<String, FieldInfo> entry : field.children.entrySet()) {
-            // TODO: disallow dots in names (or replace them) as it may cause issues when decoding
             var name = entry.getKey();
             var info = entry.getValue();
             if (parentName != null) {
@@ -236,45 +278,80 @@ public class NdJsonSchemaInferrer {
         }
 
         DataType resolveType() {
-            if (types.isEmpty()) {
-                // Can happen with parent and always-empty array
-                return DataType.UNSUPPORTED;
-            }
-
-            // Note: DATETIME and BOOLEAN will only be selected if they're the only type
-            if (types.size() == 1) {
-                return types.iterator().next();
-            }
-
-            // Multiple types - use the widest type
-            // Nullability is handled separately and not part of type resolution
-            if (types.contains(DataType.KEYWORD)) {
-                return DataType.KEYWORD;
-            }
-
-            if (hasOnly(types, NUMBER_TYPES)) {
-                if (types.contains(DataType.DOUBLE)) {
-                    return DataType.DOUBLE;
-                }
-                if (types.contains(DataType.LONG)) {
-                    return DataType.LONG;
-                }
-                if (types.contains(DataType.INTEGER)) {
-                    return DataType.INTEGER;
-                }
-            }
-
-            // Widest type
-            return DataType.KEYWORD;
+            return resolveObservedTypes(types);
         }
     }
 
-    private static <E extends Enum<E>> boolean hasOnly(EnumSet<E> values, EnumSet<E> from) {
-        if (values.isEmpty()) {
-            return false;
+    /**
+     * The single type that represents everything observed for one field.
+     * <p>
+     * The rule is {@link TypeWidening}'s, folded over the observed set: this rail decides which types
+     * it saw, not what they combine to, and the combining is the same question reconciliation answers
+     * when two files disagree. Folding in any order is safe because the lattice is a join-semilattice,
+     * which matters here — a JSON field's types arrive in whatever order the file happens to list them.
+     * <p>
+     * An empty set means the field was only ever an object or an always-empty array, which is not a
+     * scalar column at all; that is this method's answer to give because the lattice has no bottom
+     * element to represent "nothing observed".
+     */
+    static DataType resolveObservedTypes(EnumSet<DataType> observed) {
+        if (observed.isEmpty()) {
+            // Can happen with parent and always-empty array
+            return DataType.UNSUPPORTED;
         }
-        var copy = EnumSet.copyOf(values);
-        copy.removeAll(from);
-        return copy.isEmpty();
+        DataType resolved = null;
+        for (DataType type : observed) {
+            resolved = resolved == null ? type : TypeWidening.join(resolved, type);
+        }
+        return resolved;
+    }
+
+    /**
+     * Types one string value.
+     * <p>
+     * Kept out of {@link #inferValueSchema} deliberately. That method carries the per-value token
+     * switch for every field of every sampled line, and it is small enough for the JIT to inline;
+     * growing it with this body measurably slowed the whole switch, including the string field that
+     * never reaches the date parse at all.
+     * <p>
+     * The KEYWORD short-circuit is what keeps a string field cheap: once a field is known to hold
+     * strings, no later value pays a date parse. Without it every sampled value of a keyword column
+     * would be parsed as a date and the result thrown away.
+     */
+    private void inferStringType(FieldInfo field, String text) {
+        if (field.types.contains(DataType.KEYWORD)) {
+            field.addType(DataType.KEYWORD);
+            return;
+        }
+        TemporalAccessor parsed = tryParseDateTime(text);
+        field.addType(parsed == null ? DataType.KEYWORD : forcesDateNanos(parsed) ? DataType.DATE_NANOS : DataType.DATETIME);
+    }
+
+    /**
+     * Parses a string as a datetime, returning the parse result so the caller can tell millisecond
+     * timestamps from nanosecond ones without paying a second parse. Returns null when the string is
+     * not a datetime at all. We filter out 4-digit years accepted by strict_date_optional_time
+     * and other Iso8601 parsers where {@code MONTH_OF_YEAR} is optional. These are the only 4-digit values they
+     * accept, and we don't want to treat an all-4-digit column as DATETIME.
+     */
+    private TemporalAccessor tryParseDateTime(String text) {
+        if (dateFormatter == STRICT_DATE_OPTIONAL_TIME) {
+            if (text.length() == 4 && text.chars().allMatch(Character::isDigit)) {
+                return null;
+            }
+        }
+        return dateFormatter.tryParse(text);
+    }
+
+    /**
+     * Whether a parsed timestamp must be read as {@code date_nanos} to survive intact.
+     * <p>
+     * Only asked on the default ISO rail, mirroring the 4-digit-year filter above: when the file
+     * declares its own {@code datetime_format} the user has expressed intent about how their
+     * timestamps are written, and declaring the schema is the way to ask for nanoseconds. It also
+     * keeps us from flipping a column onto a decode rail that the custom pattern may not parse.
+     */
+    private boolean forcesDateNanos(TemporalAccessor parsed) {
+        return dateFormatter == STRICT_DATE_OPTIONAL_TIME && TemporalInference.forcesDateNanos(parsed);
     }
 }

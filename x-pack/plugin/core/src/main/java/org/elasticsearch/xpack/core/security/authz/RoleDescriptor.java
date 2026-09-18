@@ -1334,6 +1334,20 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         private IndicesPrivileges() {}
 
+        /**
+         * Copy constructor used by subclasses that wrap an existing instance with response-only
+         * decorations (see {@link ImplicitlyGranted}). All identity-defining state is shallow-copied;
+         * subclasses must not introduce new state that affects equality, ordering, or wire format.
+         */
+        protected IndicesPrivileges(IndicesPrivileges other) {
+            this.indices = other.indices;
+            this.privileges = other.privileges;
+            this.grantedFields = other.grantedFields;
+            this.deniedFields = other.deniedFields;
+            this.query = other.query;
+            this.allowRestrictedIndices = other.allowRestrictedIndices;
+        }
+
         public IndicesPrivileges(StreamInput in) throws IOException {
             this.indices = in.readStringArray();
             this.grantedFields = in.readOptionalStringArray();
@@ -1593,6 +1607,32 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     throw new IllegalArgumentException("indices privileges must define at least one privilege");
                 }
                 return indicesPrivileges;
+            }
+        }
+
+        /**
+         * In-memory marker subclass used only when rendering the get-roles API response. It carries
+         * no extra state and inherits {@link #hashCode}, {@link #compareTo}, and {@link #writeTo}
+         * unchanged from its parent. The implicit-grant marker is therefore <b>not</b> serialized
+         * over the wire and <b>not</b> persisted to the {@code .security} index.
+         *
+         * <p>The marker is surfaced exclusively via {@link #toXContent}, which appends an
+         * {@code "implicitly_granted": true} field to the rendered indices privilege entry. There is
+         * no parser support for this field; PUT requests that include it will be rejected as an
+         * unknown field by {@link RoleDescriptor#parseIndex}.
+         */
+        public static final class ImplicitlyGranted extends IndicesPrivileges {
+
+            public ImplicitlyGranted(IndicesPrivileges base) {
+                super(base);
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.startObject();
+                innerToXContent(builder, params.paramAsBoolean("_with_privileges", true));
+                builder.field("implicitly_granted", true);
+                return builder.endObject();
             }
         }
     }

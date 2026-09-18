@@ -67,6 +67,7 @@ public class EntitlementBootstrap {
     public static void bootstrap(
         Policy serverPolicyPatch,
         Map<String, Policy> pluginPolicies,
+        Map<String, String> pluginSyntheticModuleNames,
         Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
         Function<String, Stream<String>> settingResolver,
         Path[] dataDirs,
@@ -101,7 +102,14 @@ public class EntitlementBootstrap {
             pidFile,
             settingResolver
         );
-        PolicyManager policyManager = createPolicyManager(pluginPolicies, pathLookup, serverPolicyPatch, scopeResolver, pluginSourcePaths);
+        PolicyManager policyManager = createPolicyManager(
+            pluginPolicies,
+            pluginSyntheticModuleNames,
+            pathLookup,
+            serverPolicyPatch,
+            scopeResolver,
+            pluginSourcePaths
+        );
         PolicyChecker policyChecker = createPolicyChecker(suppressFailureLogPackages, policyManager, pathLookup);
         InternalInstrumentationRegistry instrumentationRegistry = new InstrumentationRegistryImpl(policyChecker);
         EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(
@@ -129,15 +137,25 @@ public class EntitlementBootstrap {
 
     @SuppressForbidden(reason = "The VirtualMachine API is the only way to attach a java agent dynamically")
     static void loadAgent(String agentPath, String entitlementInitializationClassName) {
+        long startMillis = System.currentTimeMillis();
         try {
             VirtualMachine vm = VirtualMachine.attach(Long.toString(ProcessHandle.current().pid()));
+            long attachedMillis = System.currentTimeMillis();
             try {
                 vm.loadAgent(agentPath, entitlementInitializationClassName);
             } finally {
                 vm.detach();
             }
+            long doneMillis = System.currentTimeMillis();
+            logger.info(
+                "Entitlement agent attached in [{}ms] (attach=[{}ms], loadAgent+detach=[{}ms])",
+                doneMillis - startMillis,
+                attachedMillis - startMillis,
+                doneMillis - attachedMillis
+            );
         } catch (AttachNotSupportedException | IOException | AgentLoadException | AgentInitializationException e) {
-            throw new IllegalStateException("Unable to attach entitlement agent [" + agentPath + "]", e);
+            long elapsedMillis = System.currentTimeMillis() - startMillis;
+            throw new IllegalStateException("Unable to attach entitlement agent [" + agentPath + "] after [" + elapsedMillis + "ms]", e);
         }
     }
 
@@ -173,6 +191,7 @@ public class EntitlementBootstrap {
 
     private static PolicyManager createPolicyManager(
         Map<String, Policy> pluginPolicies,
+        Map<String, String> pluginSyntheticModuleNames,
         PathLookup pathLookup,
         Policy serverPolicyPatch,
         Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
@@ -184,6 +203,7 @@ public class EntitlementBootstrap {
             HardcodedEntitlements.serverPolicy(pathLookup.pidFile(), serverPolicyPatch),
             HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
+            pluginSyntheticModuleNames,
             scopeResolver,
             pluginSourcePathsResolver::get,
             pathLookup
@@ -200,6 +220,7 @@ public class EntitlementBootstrap {
 
     private static void registerEntitlementRules(InternalInstrumentationRegistry instrumentationRegistry) {
         new MainInstrumentationProvider().init(instrumentationRegistry);
+        instrumentationRegistry.validate();
     }
 
     private static final Logger logger = LogManager.getLogger(EntitlementBootstrap.class);

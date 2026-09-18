@@ -34,9 +34,6 @@ import java.nio.file.WatchKey;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -133,8 +130,7 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
     private Environment env;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initWatchingService() throws Exception {
         threadpool = new TestThreadPool("file_settings_service_tests");
 
         clusterService = mock(ClusterService.class);
@@ -156,9 +152,8 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeWatchingService() throws Exception {
         fileWatchingService.close();
-        super.tearDown();
         threadpool.shutdownNow();
     }
 
@@ -181,8 +176,8 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
         assertFalse(fileWatchingService.fileChanged(tmpFile));
 
         // we modify the timestamp of the file, it should trigger a change
-        Instant now = LocalDateTime.now(ZoneId.systemDefault()).toInstant(ZoneOffset.ofHours(0));
-        Files.setLastModifiedTime(tmpFile, FileTime.from(now));
+        // Use +2s to guarantee we land in a different millisecond regardless of filesystem timestamp rounding or NTP shenanigans.
+        Files.setLastModifiedTime(tmpFile, FileTime.from(Instant.now().plusSeconds(2)));
 
         assertTrue(fileWatchingService.fileChanged(tmpFile));
         assertFalse(fileWatchingService.fileChanged(tmpFile));

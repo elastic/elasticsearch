@@ -208,7 +208,6 @@ class SumDoubleAggregator {
             deltas = bigArrays.grow(deltas, groupId + 1);
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             SumDoubleAggregator.evaluateIntermediate(this, blocks, offset, selected, driverContext);
         }

@@ -289,6 +289,10 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(predicate.test("indices:admin/seq_no/renew_retention_lease[s]"), is(true));
         assertThat(predicate.test("indices:admin/settings/update"), is(true));
         assertThat(predicate.test("indices:admin/settings/foo"), is(false));
+        assertThat(predicate.test("indices:admin/flush"), is(true));
+        assertThat(predicate.test("indices:admin/flush[s]"), is(true));
+        assertThat(predicate.test("indices:admin/flush[s][p]"), is(true));
+        assertThat(predicate.test("indices:admin/flush[s][r]"), is(true));
     }
 
     public void testManageAutoscalingPrivilege() {
@@ -570,5 +574,23 @@ public class PrivilegeTests extends ESTestCase {
         verifyClusterActionAllowed(ClusterPrivilegeResolver.CANCEL_TASK, TransportCancelTasksAction.NAME);
         verifyClusterActionAllowed(ClusterPrivilegeResolver.CANCEL_TASK, TransportCancelTasksAction.NAME + "[n]");
         verifyClusterActionDenied(ClusterPrivilegeResolver.CANCEL_TASK, "cluster:admin/whatever");
+    }
+
+    public void testMonitorReindexPrivilege() {
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MONITOR_REINDEX, "cluster:monitor/reindex/get");
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MONITOR_REINDEX, "cluster:monitor/reindex/list");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.MONITOR_REINDEX, "cluster:admin/reindex/cancel");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.MONITOR_REINDEX, "cluster:admin/reindex/rethrottle");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.MONITOR_REINDEX, "cluster:monitor/something/else");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.MONITOR_REINDEX, "cluster:admin/something/else");
+    }
+
+    public void testManageReindexPrivilege() {
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:monitor/reindex/get");
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:monitor/reindex/list");
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:admin/reindex/cancel");
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:admin/reindex/rethrottle");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:monitor/something/else");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:admin/something/else");
     }
 }

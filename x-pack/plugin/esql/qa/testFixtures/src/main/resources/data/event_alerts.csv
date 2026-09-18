@@ -1,0 +1,4 @@
+@timestamp:date,severity:integer,label:keyword
+2024-01-01T00:00:00.000Z,1,low
+2024-01-02T00:00:00.000Z,2,medium
+2024-01-03T00:00:00.000Z,3,high

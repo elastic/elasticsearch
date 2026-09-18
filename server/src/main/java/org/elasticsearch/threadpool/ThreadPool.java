@@ -32,7 +32,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.LongAsyncCounter;
-import org.elasticsearch.telemetry.metric.LongGauge;
+import org.elasticsearch.telemetry.metric.LongAsyncGauge;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.internal.BuiltInExecutorBuilders;
@@ -61,6 +61,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.index.shard.IndexingStatsSettings.RECENT_WRITE_LOAD_HALF_LIFE_SETTING;
 
 /**
  * Manages all the Java thread pools we create. {@link Names} contains a list of the thread pools, but plugins can dynamically add more
@@ -152,6 +153,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
     public static final String THREAD_POOL_METRIC_NAME_QUEUE = ".threads.queue.size";
     public static final String THREAD_POOL_METRIC_NAME_ACTIVE = ".threads.active.current";
     public static final String THREAD_POOL_METRIC_NAME_UTILIZATION = ".threads.utilization.current";
+    public static final String THREAD_POOL_METRIC_NAME_UTILIZATION_EWMR = ".threads.utilization_ewmr.current";
     public static final String THREAD_POOL_METRIC_NAME_LARGEST = ".threads.largest.current";
     public static final String THREAD_POOL_METRIC_NAME_REJECTED = ".threads.rejected.total";
     public static final String THREAD_POOL_METRIC_NAME_QUEUE_TIME = ".queue.latency.histogram";
@@ -272,6 +274,15 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         Setting.Property.NodeScope
     );
 
+    // A setting to allow configuration of the half-life of the EWMR used to track utilization
+    // of the write thread pool. A zero value will disable it.
+    public static final Setting<TimeValue> WRITE_THREAD_POOL_UTILIZATION_EWMR_HALF_LIFE = Setting.timeSetting(
+        "thread_pool.write.utilization_ewmr.half_life",
+        RECENT_WRITE_LOAD_HALF_LIFE_SETTING,
+        TimeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
     /**
      * Defines and builds the many thread pools delineated in {@link Names}.
      *
@@ -337,7 +348,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         if (holder.executor() instanceof ThreadPoolExecutor threadPoolExecutor) {
             String prefix = THREAD_POOL_METRIC_PREFIX + name;
             instruments.add(
-                meterRegistry.registerLongGauge(
+                meterRegistry.registerLongAsyncGauge(
                     prefix + THREAD_POOL_METRIC_NAME_CURRENT,
                     "number of threads for " + name,
                     "count",
@@ -345,7 +356,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
                 )
             );
             instruments.add(
-                meterRegistry.registerLongGauge(
+                meterRegistry.registerLongAsyncGauge(
                     prefix + THREAD_POOL_METRIC_NAME_QUEUE,
                     "number queue size for " + name,
                     "count",
@@ -353,7 +364,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
                 )
             );
             instruments.add(
-                meterRegistry.registerLongGauge(
+                meterRegistry.registerLongAsyncGauge(
                     prefix + THREAD_POOL_METRIC_NAME_ACTIVE,
                     "number of active threads for " + name,
                     "count",
@@ -361,7 +372,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
                 )
             );
             instruments.add(
-                meterRegistry.registerLongGauge(
+                meterRegistry.registerLongAsyncGauge(
                     prefix + THREAD_POOL_METRIC_NAME_LARGEST,
                     "largest pool size for " + name,
                     "count",
@@ -596,7 +607,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
                     } catch (Exception e) {
                         logger.warn(format("Failed to close LongAsyncCounter for %s. %s", executor.info.getName(), e.getMessage()), e);
                     }
-                } else if (instrument instanceof LongGauge longgauge) {
+                } else if (instrument instanceof LongAsyncGauge longgauge) {
                     try {
                         longgauge.close();
                     } catch (Exception e) {

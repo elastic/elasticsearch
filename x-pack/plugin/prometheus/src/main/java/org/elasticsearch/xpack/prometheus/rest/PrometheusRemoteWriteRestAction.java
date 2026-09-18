@@ -37,6 +37,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * REST handler for Prometheus Remote Write requests. Accumulates the protobuf request body
  * while tracking memory usage via {@link IndexingPressure}, then dispatches to
  * {@link PrometheusRemoteWriteTransportAction}.
+ * <p>
+ * Path {@code {dataset}} and {@code {namespace}} segments are sanitized with {@link DataStream#sanitizeDataset} and
+ * {@link DataStream#sanitizeNamespace} respectively, like OTLP attributes, rather than rejected when they contain
+ * disallowed characters.
  */
 @ServerlessScope(Scope.PUBLIC)
 public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
@@ -80,10 +84,8 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        String dataset = request.param(DataStream.DATASET, "generic");
-        String namespace = request.param(DataStream.NAMESPACE, "default");
-        DataStream.validateDataset(dataset);
-        DataStream.validateNamespace(namespace);
+        String dataset = DataStream.sanitizeDataset(request.param(DataStream.DATASET, "generic"));
+        String namespace = DataStream.sanitizeNamespace(request.param(DataStream.NAMESPACE, "default"));
 
         // while the remote write spec mandates snappy, we intentionally want to allow additional compression formats
         var bodyPostProcessor = "snappy".equals(request.header(HttpHeaders.CONTENT_ENCODING))

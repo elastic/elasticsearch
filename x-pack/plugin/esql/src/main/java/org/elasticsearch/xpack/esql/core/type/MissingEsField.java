@@ -17,25 +17,8 @@ public class MissingEsField extends EsField {
 
     private static final TransportVersion ESQL_MISSING_ES_FIELD = TransportVersion.fromName("esql_missing_es_field");
 
-    public MissingEsField(
-        String name,
-        DataType esDataType,
-        Map<String, EsField> properties,
-        boolean aggregatable,
-        TimeSeriesFieldType timeSeriesFieldType
-    ) {
-        super(name, esDataType, properties, aggregatable, timeSeriesFieldType);
-    }
-
-    public MissingEsField(
-        String name,
-        DataType esDataType,
-        Map<String, EsField> properties,
-        boolean aggregatable,
-        boolean isAlias,
-        TimeSeriesFieldType timeSeriesFieldType
-    ) {
-        super(name, esDataType, properties, aggregatable, isAlias, timeSeriesFieldType);
+    public MissingEsField(String name) {
+        super(name, DataType.NULL, Map.of(), false, EsField.TimeSeriesFieldType.NONE);
     }
 
     public MissingEsField(StreamInput in) throws IOException {
@@ -50,5 +33,10 @@ public class MissingEsField extends EsField {
         // Things should still work fine with nodes that don't have MissingEsField,
         // so for BWC we just fall back to EsField, which is the closest thing to MissingEsField that older nodes will understand.
         return "EsField";
+    }
+
+    @Override
+    public String getNodeStringName() {
+        return "MissingEsField";
     }
 }

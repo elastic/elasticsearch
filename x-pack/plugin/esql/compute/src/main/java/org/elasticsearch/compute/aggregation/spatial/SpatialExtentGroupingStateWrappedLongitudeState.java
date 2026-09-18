@@ -54,7 +54,6 @@ final class SpatialExtentGroupingStateWrappedLongitudeState extends AbstractArra
         this.geoPointVisitor = new SpatialEnvelopeVisitor.GeoPointVisitor(SpatialEnvelopeVisitor.WrapLongitude.WRAP);
     }
 
-    @Override
     public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
         assert blocks.length >= offset;
         try (

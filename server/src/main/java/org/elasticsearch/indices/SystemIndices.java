@@ -24,11 +24,14 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -58,7 +61,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -149,6 +151,18 @@ public class SystemIndices {
             .flatMap(feature -> feature.getIndexDescriptors().stream())
             .filter(SystemIndexDescriptor::isAutomaticallyManaged)
             .collect(Collectors.toMap(SystemIndexDescriptor::getIndexPattern, SystemIndexDescriptor::getMappingsVersion));
+
+    public static final String NUMBER_OF_REPLICAS_SETTING_NAME = "cluster.system_indices.number_of_replicas";
+    public static final Setting<Integer> NUMBER_OF_REPLICAS_SETTING = Setting.intSetting(
+        NUMBER_OF_REPLICAS_SETTING_NAME,
+        IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING,
+        0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final String AUTO_EXPAND_REPLICAS_SETTING_NAME = "cluster.system_indices.auto_expand_replicas";
+    public static final Setting<AutoExpandReplicas> AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SYSTEM_INDICES_SETTING;
 
     /**
      * The node's full list of system features is stored here. The map is keyed
@@ -251,30 +265,26 @@ public class SystemIndices {
     }
 
     private static Map<String, CharacterRunAutomaton> getProductToSystemIndicesMap(Map<String, Feature> featureDescriptors) {
-        Map<String, Automaton> productToSystemIndicesMap = new HashMap<>();
+        Map<String, List<Automaton>> productToSystemIndicesMap = new HashMap<>();
         for (Feature feature : featureDescriptors.values()) {
             feature.getIndexDescriptors().forEach(systemIndexDescriptor -> {
                 if (systemIndexDescriptor.isExternal()) {
+                    Automaton automaton = SystemIndexDescriptor.buildAutomaton(
+                        systemIndexDescriptor.getIndexPattern(),
+                        systemIndexDescriptor.getAliasName()
+                    );
                     systemIndexDescriptor.getAllowedElasticProductOrigins()
-                        .forEach(origin -> productToSystemIndicesMap.compute(origin, (key, value) -> {
-                            Automaton automaton = SystemIndexDescriptor.buildAutomaton(
-                                systemIndexDescriptor.getIndexPattern(),
-                                systemIndexDescriptor.getAliasName()
-                            );
-                            return value == null ? automaton : Operations.union(value, automaton);
-                        }));
+                        .forEach(origin -> productToSystemIndicesMap.computeIfAbsent(origin, key -> new ArrayList<>()).add(automaton));
                 }
             });
             feature.getDataStreamDescriptors().forEach(dataStreamDescriptor -> {
                 if (dataStreamDescriptor.isExternal()) {
+                    Automaton automaton = SystemIndexDescriptor.buildAutomaton(
+                        dataStreamDescriptor.getBackingIndexPattern(),
+                        dataStreamDescriptor.getDataStreamName()
+                    );
                     dataStreamDescriptor.getAllowedElasticProductOrigins()
-                        .forEach(origin -> productToSystemIndicesMap.compute(origin, (key, value) -> {
-                            Automaton automaton = SystemIndexDescriptor.buildAutomaton(
-                                dataStreamDescriptor.getBackingIndexPattern(),
-                                dataStreamDescriptor.getDataStreamName()
-                            );
-                            return value == null ? automaton : Operations.union(value, automaton);
-                        }));
+                        .forEach(origin -> productToSystemIndicesMap.computeIfAbsent(origin, key -> new ArrayList<>()).add(automaton));
                 }
             });
         }
@@ -284,7 +294,9 @@ public class SystemIndices {
             .collect(
                 Collectors.toUnmodifiableMap(
                     Entry::getKey,
-                    entry -> new CharacterRunAutomaton(Operations.determinize(entry.getValue(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT))
+                    entry -> new CharacterRunAutomaton(
+                        Operations.determinize(Operations.union(entry.getValue()), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
+                    )
                 )
             );
     }
@@ -441,11 +453,10 @@ public class SystemIndices {
     }
 
     private static Automaton buildIndexAutomaton(Map<String, Feature> featureDescriptors) {
-        Optional<Automaton> automaton = featureDescriptors.values()
-            .stream()
-            .map(SystemIndices::featureToIndexAutomaton)
-            .reduce(Operations::union);
-        return Operations.determinize(automaton.orElse(EMPTY), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        return Operations.determinize(
+            unionAutomata(featureDescriptors.values().stream().map(SystemIndices::featureToIndexAutomaton)),
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+        );
     }
 
     /**
@@ -468,34 +479,38 @@ public class SystemIndices {
     }
 
     private static CharacterRunAutomaton buildNetNewIndexCharacterRunAutomaton(Map<String, Feature> featureDescriptors) {
-        Optional<Automaton> automaton = featureDescriptors.values()
-            .stream()
-            .flatMap(feature -> feature.getIndexDescriptors().stream())
-            .filter(SystemIndexDescriptor::isAutomaticallyManaged)
-            .filter(SystemIndexDescriptor::isNetNew)
-            .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName()))
-            .reduce(Operations::union);
-        return new CharacterRunAutomaton(Operations.determinize(automaton.orElse(EMPTY), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
+        return new CharacterRunAutomaton(
+            Operations.determinize(
+                unionAutomata(
+                    featureDescriptors.values()
+                        .stream()
+                        .flatMap(feature -> feature.getIndexDescriptors().stream())
+                        .filter(SystemIndexDescriptor::isAutomaticallyManaged)
+                        .filter(SystemIndexDescriptor::isNetNew)
+                        .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName()))
+                ),
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+            )
+        );
     }
 
     private static Automaton featureToIndexAutomaton(Feature feature) {
-        Optional<Automaton> systemIndexAutomaton = feature.getIndexDescriptors()
-            .stream()
-            .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName()))
-            .reduce(Operations::union);
-
-        return systemIndexAutomaton.orElse(EMPTY);
+        return unionAutomata(
+            feature.getIndexDescriptors()
+                .stream()
+                .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName()))
+        );
     }
 
     private static Automaton buildDataStreamAutomaton(Map<String, Feature> featureDescriptors) {
-        Optional<Automaton> automaton = featureDescriptors.values()
-            .stream()
-            .flatMap(feature -> feature.getDataStreamDescriptors().stream())
-            .map(SystemDataStreamDescriptor::getDataStreamName)
-            .map(dsName -> SystemIndexDescriptor.buildAutomaton(dsName, null))
-            .reduce(Operations::union);
-
-        return automaton.isPresent() ? Operations.determinize(automaton.get(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT) : EMPTY;
+        Automaton automaton = unionAutomata(
+            featureDescriptors.values()
+                .stream()
+                .flatMap(feature -> feature.getDataStreamDescriptors().stream())
+                .map(SystemDataStreamDescriptor::getDataStreamName)
+                .map(dsName -> SystemIndexDescriptor.buildAutomaton(dsName, null))
+        );
+        return automaton == EMPTY ? EMPTY : Operations.determinize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     private static Predicate<String> buildDataStreamNamePredicate(Map<String, Feature> featureDescriptors) {
@@ -504,19 +519,23 @@ public class SystemIndices {
     }
 
     private static Automaton buildDataStreamBackingIndicesAutomaton(Map<String, Feature> featureDescriptors) {
-        Optional<Automaton> automaton = featureDescriptors.values()
-            .stream()
-            .map(SystemIndices::featureToDataStreamBackingIndicesAutomaton)
-            .reduce(Operations::union);
-        return Operations.determinize(automaton.orElse(EMPTY), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        return Operations.determinize(
+            unionAutomata(featureDescriptors.values().stream().map(SystemIndices::featureToDataStreamBackingIndicesAutomaton)),
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+        );
     }
 
     private static Automaton featureToDataStreamBackingIndicesAutomaton(Feature feature) {
-        Optional<Automaton> systemDataStreamAutomaton = feature.getDataStreamDescriptors()
-            .stream()
-            .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getBackingIndexPattern(), null))
-            .reduce(Operations::union);
-        return systemDataStreamAutomaton.orElse(EMPTY);
+        return unionAutomata(
+            feature.getDataStreamDescriptors()
+                .stream()
+                .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getBackingIndexPattern(), null))
+        );
+    }
+
+    private static Automaton unionAutomata(Stream<Automaton> automata) {
+        List<Automaton> list = automata.toList();
+        return list.isEmpty() ? EMPTY : Operations.union(list);
     }
 
     public SystemDataStreamDescriptor validateDataStreamAccess(String dataStreamName, ThreadContext threadContext) {

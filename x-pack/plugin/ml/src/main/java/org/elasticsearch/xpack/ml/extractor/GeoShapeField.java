@@ -24,7 +24,7 @@ import java.util.Set;
 
 public class GeoShapeField extends SourceField {
 
-    static final String TYPE = "geo_shape";
+    public static final String TYPE = "geo_shape";
 
     private static final Set<String> TYPES = Collections.singleton(TYPE);
 

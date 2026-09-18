@@ -70,11 +70,13 @@
  *
  * <ol>
  *     <li>
- *         The target shard starts out with a {@link org.elasticsearch.indices.recovery.RecoveryState} at stage
- *         {@link org.elasticsearch.indices.recovery.RecoveryState.Stage#INIT}. At the start of the peer recovery process, the target node
- *         will try to recover from its local translog as far as if there are any operations to recover from it. It will first move to
- *         stage {@link org.elasticsearch.indices.recovery.RecoveryState.Stage#INDEX} and then try to recover as far as possible from
- *         existing files and the existing translog. During this process, it will move to
+ *         The target shard's {@link org.elasticsearch.indices.recovery.RecoveryState} is created together with the shard itself, at
+ *         stage {@link org.elasticsearch.indices.recovery.RecoveryState.Stage#CREATED}. The recovery may then sit queued on the target
+ *         node before it is dispatched (see {@link org.elasticsearch.indices.recovery.ThrottlingRecoveryService}). Once the recovery
+ *         actually starts, the state moves to {@link org.elasticsearch.indices.recovery.RecoveryState.Stage#INIT}. At the start
+ *         of the peer recovery process, the target node will try to recover from its local translog as far as if there are any
+ *         operations to recover from it. It will first move to stage {@link org.elasticsearch.indices.recovery.RecoveryState.Stage#INDEX}
+ *         and then try to recover as far as possible from existing files and the existing translog. During this process, it will move to
  *         {@link org.elasticsearch.indices.recovery.RecoveryState.Stage#VERIFY_INDEX}, verifying that the files on disk are not corrupted,
  *         then to {@link org.elasticsearch.indices.recovery.RecoveryState.Stage#TRANSLOG} during recovery from translog.
  *         A {@link  org.elasticsearch.indices.recovery.StartRecoveryRequest} is then sent to the primary node of the shard to recover by
@@ -169,13 +171,13 @@
  *         recovery. This leads to a call to {@link org.elasticsearch.index.shard.IndexShard#postRecovery} which moves the recovery state
  *         to stage {@link org.elasticsearch.indices.recovery.RecoveryState.Stage#DONE}, triggers a refresh of the shard and moves the
  *         shard to state {@link org.elasticsearch.index.shard.IndexShardState#POST_RECOVERY}. Finally, the recovery target will then
- *         send a {@link org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry} transport message to master to inform
+ *         send a {@link org.elasticsearch.cluster.action.shard.StartedShardEntry} transport message to master to inform
  *         it about the successful start of the shard.
  *     </li>
  *     <li>
  *         After receiving the {@code StartedShardEntry}, master will then update the cluster state to reflect the state of the now fully
  *         recovered recovery target by executing the
- *         {@link org.elasticsearch.cluster.action.shard.ShardStateAction.ShardStartedClusterStateTaskExecutor}. The resulting cluster
+ *         {@link org.elasticsearch.cluster.action.shard.ShardStartedTaskExecutor}. The resulting cluster
  *         state update is then observed by {@link org.elasticsearch.index.shard.IndexShard#updateShardState} which updates the shard state
  *         on the target node to {@link org.elasticsearch.index.shard.IndexShardState#STARTED} thus completing the peer recovery.
  *     </li>

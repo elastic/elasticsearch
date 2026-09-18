@@ -13,8 +13,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.RemoteClusterActionType;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
+import org.junit.After;
 import org.junit.ClassRule;
 
 import java.io.ByteArrayInputStream;
@@ -117,9 +118,8 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateThreadPool() throws Exception {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
@@ -531,21 +531,35 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             assertThat(remoteConnectionInfos, hasSize(1));
             assertThat(remoteConnectionInfos.get(0).isConnected(), is(true));
 
-            MalformedGetRequest malformedGetRequest = new MalformedGetRequest(otherIndexId);
+            final RemoteClusterClient remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+                "my_remote_cluster",
+                threadPool.generic(),
+                RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+            );
+
+            MalformedGetRequest malformedGetRequest = new MalformedGetRequest(new ShardId("idx-b", otherIndexId, 0));
             malformedGetRequest.assertParsesAsGetRequest();
             final ElasticsearchSecurityException e = expectThrows(
                 ElasticsearchSecurityException.class,
                 () -> executeRemote(
-                    remoteClusterService.getRemoteClusterClient(
-                        "my_remote_cluster",
-                        threadPool.generic(),
-                        RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
-                    ),
+                    remoteClusterClient,
                     new RemoteClusterActionType<>(TransportGetAction.TYPE.name() + "[s]", GetResponse::new),
                     malformedGetRequest
                 )
             );
             assertThat(e.getMessage(), containsString("is unauthorized"));
+
+            MalformedGetRequest forgedUuidGetRequest = new MalformedGetRequest(new ShardId("idx-a", otherIndexId, 0));
+            forgedUuidGetRequest.assertParsesAsGetRequest();
+            final ElasticsearchSecurityException e2 = expectThrows(
+                ElasticsearchSecurityException.class,
+                () -> executeRemote(
+                    remoteClusterClient,
+                    new RemoteClusterActionType<>(TransportGetAction.TYPE.name() + "[s]", GetResponse::new),
+                    forgedUuidGetRequest
+                )
+            );
+            assertThat(e2.getMessage(), containsString("is unauthorized"));
         }
 
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
@@ -634,11 +648,11 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         return service;
     }
 
-    private static class MalformedGetRequest extends LegacyActionRequest {
-        private final String otherIndexId;
+    private static class MalformedGetRequest extends UntypedActionRequest {
+        private final ShardId internalShardId;
 
-        MalformedGetRequest(String otherIndexId) {
-            this.otherIndexId = otherIndexId;
+        MalformedGetRequest(ShardId internalShardId) {
+            this.internalShardId = internalShardId;
         }
 
         @Override
@@ -651,7 +665,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             // This is a manually-written malformed get request, since it's intentionally difficult to form this kind of
             // request with production code.
             TaskId.EMPTY_TASK_ID.writeTo(out);
-            out.writeOptionalWriteable(new ShardId("idx-b", otherIndexId, 0)); // InternalShardId
+            out.writeOptionalWriteable(internalShardId); // InternalShardId
             out.writeOptionalString("idx-a"); // index name
             out.writeString("1"); // doc id
             out.writeOptionalString(null); // routing
@@ -679,7 +693,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             GetRequest parsedRequest = new GetRequest(inputStreamStreamInput);
             assertEquals("idx-a", parsedRequest.index());
             assertEquals("1", parsedRequest.id());
-            assertEquals("idx-b", parsedRequest.shards().get(0).getIndexName());
+            assertEquals(internalShardId, parsedRequest.shards().get(0));
         }
     }
 }

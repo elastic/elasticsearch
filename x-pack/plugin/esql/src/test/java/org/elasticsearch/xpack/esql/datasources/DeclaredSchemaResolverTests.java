@@ -1,0 +1,228 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.datasources;
+
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
+import org.elasticsearch.cluster.metadata.DatasetMapping;
+import org.elasticsearch.cluster.metadata.DatasetMapping.Dynamic;
+import org.elasticsearch.cluster.metadata.DatasetMapping.Mappings;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+
+public class DeclaredSchemaResolverTests extends ESTestCase {
+
+    private static DatasetMapping mapping(Map<String, DatasetFieldMapping> props) {
+        return new DatasetMapping(new Mappings(Dynamic.TRUE, props));
+    }
+
+    private static ReferenceAttribute attr(String name, DataType type) {
+        return new ReferenceAttribute(Source.EMPTY, null, name, type);
+    }
+
+    public void testOverlayNonStrictRenamesAndRetypesDeclaredColumnsOnly() {
+        List<Attribute> inferred = List.of(
+            attr("emp_no", DataType.INTEGER),
+            attr("first_name", DataType.KEYWORD),
+            attr("dept", DataType.KEYWORD)
+        );
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("id", new DatasetFieldMapping("long", "emp_no"));     // rename emp_no -> id, retype to long
+        props.put("name", new DatasetFieldMapping("keyword", "first_name")); // rename first_name -> name
+        // dept is undeclared and must pass through unchanged
+
+        DeclaredSchemaResolver.Overlaid o = DeclaredSchemaResolver.overlayNonStrict(inferred, mapping(props));
+
+        // user-facing output: logical names, declared types for declared columns, dept untouched
+        assertEquals(List.of("id", "name", "dept"), o.output().stream().map(Attribute::name).toList());
+        assertEquals(DataType.LONG, o.output().get(0).dataType()); // declared long beats inferred integer
+        assertEquals(DataType.KEYWORD, o.output().get(1).dataType());
+        assertEquals(DataType.KEYWORD, o.output().get(2).dataType());
+        // per-file schema is now LOGICAL too: the operator stays in logical names and the physical column is resolved
+        // at the reader (rename map for by-name readers, positional for text). Declared columns retyped; dept untouched.
+        assertEquals(List.of("id", "name", "dept"), o.fileSchema().stream().map(Attribute::name).toList());
+        assertEquals(DataType.LONG, o.fileSchema().get(0).dataType());
+    }
+
+    public void testOverlayRejectsRenameCollidingWithInferredColumn() {
+        // File has both x and y; declaring logical `y` with source `x` would emit two `y` columns (renamed-from-x plus
+        // the pass-through inferred y). Reject against the unified schema (non-lenient).
+        List<Attribute> inferred = List.of(attr("x", DataType.KEYWORD), attr("y", DataType.KEYWORD));
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("y", new DatasetFieldMapping("keyword", "x"));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DeclaredSchemaResolver.overlayNonStrict(inferred, mapping(props))
+        );
+        assertTrue(e.getMessage(), e.getMessage().contains("duplicate column [y]"));
+    }
+
+    public void testOverlayNonStrictErrorsOnDeclaredColumnMissingFromSource() {
+        List<Attribute> inferred = List.of(attr("a", DataType.KEYWORD));
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("b", new DatasetFieldMapping("long", null)); // 'b' is not in the inferred source
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DeclaredSchemaResolver.overlayNonStrict(inferred, mapping(props))
+        );
+        assertTrue(e.getMessage(), e.getMessage().contains("b"));
+    }
+
+    public void testOverlayNonStrictNoMappingsPassesThrough() {
+        List<Attribute> inferred = List.of(attr("a", DataType.KEYWORD));
+        DeclaredSchemaResolver.Overlaid o = DeclaredSchemaResolver.overlayNonStrict(
+            inferred,
+            new DatasetMapping(new Mappings(Dynamic.TRUE, Map.of(), "row_id"))
+        );
+        assertSame(inferred, o.output());
+        assertSame(inferred, o.fileSchema());
+    }
+
+    public void testDeclaredAttributesTypesNamesAndOrder() {
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("when", new DatasetFieldMapping("date", "ts"));
+        props.put("status", new DatasetFieldMapping("integer", null));
+        props.put("name", new DatasetFieldMapping("string", null)); // alias -> KEYWORD
+
+        List<Attribute> attrs = DeclaredSchemaResolver.declaredAttributes(mapping(props));
+
+        assertEquals(List.of("when", "status", "name"), attrs.stream().map(Attribute::name).toList());
+        assertEquals(DataType.DATETIME, attrs.get(0).dataType());
+        assertEquals(DataType.INTEGER, attrs.get(1).dataType());
+        assertEquals(DataType.KEYWORD, attrs.get(2).dataType()); // "string" alias
+    }
+
+    public void testDeclaredAttributesUseLogicalNamesNotSource() {
+        // The physical source name must never appear as an attribute name.
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("customer_id", new DatasetFieldMapping("keyword", "custID"));
+        List<Attribute> attrs = DeclaredSchemaResolver.declaredAttributes(mapping(props));
+        assertEquals(List.of("customer_id"), attrs.stream().map(Attribute::name).toList());
+    }
+
+    public void testRenameMapOnlyRenamedColumns() {
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("when", new DatasetFieldMapping("date", "ts"));
+        props.put("status", new DatasetFieldMapping("integer", null));
+        props.put("customer_id", new DatasetFieldMapping("keyword", "custID"));
+
+        Map<String, String> renames = DeclaredSchemaResolver.renameMap(mapping(props));
+        assertEquals(Map.of("when", "ts", "customer_id", "custID"), renames);
+    }
+
+    public void testNoMappingsYieldsEmpty() {
+        DatasetMapping roleOnly = new DatasetMapping(new Mappings(Dynamic.TRUE, Map.of(), "row_id"));
+        assertTrue(DeclaredSchemaResolver.declaredAttributes(roleOnly).isEmpty());
+        assertTrue(DeclaredSchemaResolver.renameMap(roleOnly).isEmpty());
+        assertTrue(DeclaredSchemaResolver.declaredAttributes(null).isEmpty());
+        assertTrue(DeclaredSchemaResolver.renameMap(null).isEmpty());
+    }
+
+    public void testUnsupportedTypeThrowsDefensively() {
+        // Both shapes the backstop rejects: a name that is not a type, and a real ES|QL type that is not
+        // declarable. `text` is the one exception (see testStoredTextResolvesToKeyword).
+        for (String bad : new String[] { "not_a_type", "geo_point" }) {
+            Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+            props.put("c", new DatasetFieldMapping(bad, null));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> DeclaredSchemaResolver.declaredAttributes(mapping(props))
+            );
+            assertThat(e.getMessage(), containsString(bad));
+        }
+    }
+
+    /**
+     * Cluster state can hold a mapping that declares `text`. It reads as keyword rather than failing the query, on
+     * both rails. The warning is asserted at ExternalSourceResolver level, which is where it reaches the response.
+     */
+    public void testStoredTextResolvesToKeyword() {
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("msg", new DatasetFieldMapping("text", null));
+        props.put("id", new DatasetFieldMapping("integer", null));
+
+        List<Attribute> declared = DeclaredSchemaResolver.declaredAttributes(mapping(props));
+
+        assertThat(declared, hasSize(2));
+        assertThat(declared.get(0).name(), equalTo("msg"));
+        assertThat(declared.get(0).dataType(), equalTo(DataType.KEYWORD));
+        assertThat(declared.get(1).dataType(), equalTo(DataType.INTEGER));
+
+        // The same substitution on the non-strict rail, which retypes an inferred column rather than minting one.
+        DeclaredSchemaResolver.Overlaid o = DeclaredSchemaResolver.overlayNonStrict(
+            List.of(attr("msg", DataType.KEYWORD), attr("id", DataType.INTEGER)),
+            mapping(props)
+        );
+        assertThat(o.output().get(0).dataType(), equalTo(DataType.KEYWORD));
+    }
+
+    /**
+     * The substitution on its own, apart from the whitelist {@code resolveType} layers on top. Every site that
+     * turns a stored declared type into an ES|QL type calls it, including the columnar type check, which has to
+     * see the type the reader is handed.
+     */
+    public void testDeclaredTypeAsReadSubstitutesOnlyText() {
+        assertThat(DeclaredSchemaResolver.declaredTypeAsRead("text"), equalTo(DataType.KEYWORD));
+        assertThat(DeclaredSchemaResolver.declaredTypeAsRead("keyword"), equalTo(DataType.KEYWORD));
+        assertThat(DeclaredSchemaResolver.declaredTypeAsRead("long"), equalTo(DataType.LONG));
+        // No whitelist here: a type this layer does not substitute comes back as itself, declarable or not, and
+        // resolveType is what rejects it.
+        assertThat(DeclaredSchemaResolver.declaredTypeAsRead("geo_point"), equalTo(DataType.GEO_POINT));
+        assertThat(DeclaredSchemaResolver.declaredTypeAsRead("not_a_type"), equalTo(DataType.UNSUPPORTED));
+    }
+
+    /**
+     * Only the columns whose read type differs from the declared one, and each carrying both types so the caller
+     * describes the substitution it found rather than a hard-coded pair.
+     */
+    public void testSubstitutionsCarryTheColumnAndBothTypes() {
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("a", new DatasetFieldMapping("keyword", null));
+        props.put("msg", new DatasetFieldMapping("text", null));
+        props.put("body", new DatasetFieldMapping("text", "body_raw"));
+        props.put("n", new DatasetFieldMapping("long", null));
+
+        assertThat(
+            DeclaredSchemaResolver.substitutions(mapping(props)),
+            equalTo(
+                List.of(
+                    new DeclaredSchemaResolver.Substitution("msg", DataType.TEXT, DataType.KEYWORD),
+                    new DeclaredSchemaResolver.Substitution("body", DataType.TEXT, DataType.KEYWORD)
+                )
+            )
+        );
+        assertThat(DeclaredSchemaResolver.substitutions(null), empty());
+    }
+
+    /** A mapping with no properties block at all: the same empty answer as a null mapping, not a failure. */
+    public void testSubstitutionsEmptyWhenMappingHasNoMappingsBlock() {
+        assertThat(DeclaredSchemaResolver.substitutions(new DatasetMapping((Mappings) null)), empty());
+    }
+
+    public void testMoveConsumesPhysicalInPlace() {
+        // @timestamp with source ts: ts is consumed and @timestamp takes its position (shipped move order preserved).
+        List<Attribute> inferred = List.of(attr("ts", DataType.DATETIME), attr("other", DataType.KEYWORD));
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("@timestamp", new DatasetFieldMapping("date", "ts"));
+        DatasetMapping m = mapping(props);
+        List<String> names = DeclaredSchemaResolver.overlayNonStrict(inferred, m).output().stream().map(Attribute::name).toList();
+        assertEquals(List.of("@timestamp", "other"), names);
+        assertEquals(Map.of("@timestamp", "ts"), DeclaredSchemaResolver.renameMap(m));
+    }
+}

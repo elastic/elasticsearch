@@ -37,6 +37,10 @@ setup:
   - match: { result: created }
 
   - do:
+      cluster.health:
+        wait_for_events: languid
+
+  - do:
       indices.get_mapping:
         index: test_index
 
@@ -88,6 +92,10 @@ setup:
             field_name_not_ignored: [ 10, 20, 30 ]
 
   - match: { result: created }
+
+  - do:
+      cluster.health:
+        wait_for_events: languid
 
   - do:
       indices.get_mapping:
@@ -145,6 +153,10 @@ setup:
   - match: { result: created }
 
   - do:
+      cluster.health:
+        wait_for_events: languid
+
+  - do:
       indices.get_mapping:
         index: test_index
 
@@ -199,6 +211,10 @@ setup:
   - match: { result: created }
 
   - do:
+      cluster.health:
+        wait_for_events: languid
+
+  - do:
       indices.get_mapping:
         index: test_index
 
@@ -221,8 +237,12 @@ setup:
 ---
 
 "Test field name length limit with static mapping":
+  - requires:
+      cluster_features: ["mapper.mapping_limit_checks_at_parse_time"]
+      reason: "mapping limits are enforced at parse time, throwing mapper_parsing_exception"
+
   - do:
-      catch: /illegal_argument_exception/
+      catch: /mapper_parsing_exception/
       indices.create:
         index: test_index
         body:
@@ -238,4 +258,4 @@ setup:
               test_really_long_field_name_that_will_be_ignored:
                 type: text
 
-  - match: {error.reason: "Field name [test_really_long_field_name_that_will_be_ignored] is longer than the limit of [45] characters"}
+  - match: { error.reason: "/.*\\[test_really_long_field_name_that_will_be_ignored\\].*longer.*limit.*\\[45\\].*/" }

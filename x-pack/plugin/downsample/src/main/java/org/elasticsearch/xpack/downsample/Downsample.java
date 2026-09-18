@@ -87,7 +87,6 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
             new DownsampleShardPersistentTaskExecutor(
                 client,
                 DownsampleShardTask.TASK_NAME,
-                clusterService.getSettings(),
                 threadPool.executor(DOWNSAMPLE_TASK_THREAD_POOL_NAME)
             )
         );

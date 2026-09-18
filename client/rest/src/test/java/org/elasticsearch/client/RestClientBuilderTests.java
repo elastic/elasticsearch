@@ -235,6 +235,11 @@ public class RestClientBuilderTests extends RestClientTestCase {
     public void testSetPathPrefixMalformed() {
         assertSetPathPrefixThrows("//");
         assertSetPathPrefixThrows("base/path//");
+        assertSetPathPrefixThrows("/base/path//");
+        assertSetPathPrefixThrows("/base//path");
+        assertSetPathPrefixThrows("/base//path/");
+        assertSetPathPrefixThrows("//base/path");
+        assertSetPathPrefixThrows("base//path");
     }
 
     private static void assertSetPathPrefixThrows(final String pathPrefix) {

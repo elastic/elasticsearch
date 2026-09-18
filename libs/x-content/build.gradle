@@ -9,6 +9,7 @@
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.embedded-providers'
 
 embeddedProviders {

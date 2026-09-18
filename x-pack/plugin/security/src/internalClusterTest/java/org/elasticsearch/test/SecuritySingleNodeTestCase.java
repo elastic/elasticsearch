@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -96,17 +97,15 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         tearDownRestClient();
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void setupSecurityIndex() throws Exception {
         deleteSecurityIndexIfExists();
         createSecurityIndexWithWaitForActiveShards();
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void cleanupSecurity() throws Exception {
         awaitSecurityMigration();
-        super.tearDown();
         if (resetNodeAfterTest()) {
             tearDownRestClient();
         }

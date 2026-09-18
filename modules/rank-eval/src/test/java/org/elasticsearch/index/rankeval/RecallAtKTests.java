@@ -29,6 +29,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.index.rankeval.RankEvalMetricTestHelper.releaseRatedSearchHitsOnly;
+import static org.elasticsearch.index.rankeval.RankEvalMetricTestHelper.releaseScratchHits;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -42,10 +44,16 @@ public class RecallAtKTests extends ESTestCase {
         List<RatedDocument> rated = new ArrayList<>();
         rated.add(createRatedDoc("test", "0", RELEVANT_RATING));
 
-        EvalQueryQuality evaluated = (new RecallAtK()).evaluate("id", toSearchHits(rated, "test"), rated);
-        assertEquals(1, evaluated.metricScore(), 0.00001);
-        assertEquals(1, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
-        assertEquals(1, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevant());
+        SearchHit[] hits = toSearchHits(rated, "test");
+        EvalQueryQuality evaluated = (new RecallAtK()).evaluate("id", hits, rated);
+        try {
+            assertEquals(1, evaluated.metricScore(), 0.00001);
+            assertEquals(1, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
+            assertEquals(1, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevant());
+        } finally {
+            releaseRatedSearchHitsOnly(evaluated);
+            releaseScratchHits(hits);
+        }
     }
 
     public void testIgnoreOneResult() {
@@ -56,10 +64,16 @@ public class RecallAtKTests extends ESTestCase {
         rated.add(createRatedDoc("test", "3", RELEVANT_RATING));
         rated.add(createRatedDoc("test", "4", IRRELEVANT_RATING));
 
-        EvalQueryQuality evaluated = (new RecallAtK()).evaluate("id", toSearchHits(rated, "test"), rated);
-        assertEquals((double) 4 / 4, evaluated.metricScore(), 0.00001);
-        assertEquals(4, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
-        assertEquals(4, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevant());
+        SearchHit[] hits = toSearchHits(rated, "test");
+        EvalQueryQuality evaluated = (new RecallAtK()).evaluate("id", hits, rated);
+        try {
+            assertEquals((double) 4 / 4, evaluated.metricScore(), 0.00001);
+            assertEquals(4, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
+            assertEquals(4, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevant());
+        } finally {
+            releaseRatedSearchHitsOnly(evaluated);
+            releaseScratchHits(hits);
+        }
     }
 
     /**
@@ -77,10 +91,16 @@ public class RecallAtKTests extends ESTestCase {
 
         RecallAtK recallAtN = new RecallAtK(2, 5);
 
-        EvalQueryQuality evaluated = recallAtN.evaluate("id", toSearchHits(rated.subList(0, 3), "test"), rated);
-        assertEquals((double) 1 / 3, evaluated.metricScore(), 0.00001);
-        assertEquals(1, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
-        assertEquals(3, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevant());
+        SearchHit[] hits = toSearchHits(rated.subList(0, 3), "test");
+        EvalQueryQuality evaluated = recallAtN.evaluate("id", hits, rated);
+        try {
+            assertEquals((double) 1 / 3, evaluated.metricScore(), 0.00001);
+            assertEquals(1, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
+            assertEquals(3, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevant());
+        } finally {
+            releaseRatedSearchHitsOnly(evaluated);
+            releaseScratchHits(hits);
+        }
     }
 
     public void testCorrectIndex() {
@@ -94,24 +114,35 @@ public class RecallAtKTests extends ESTestCase {
         // the following search hits contain only the last three documents
         List<RatedDocument> ratedSubList = rated.subList(2, 5);
 
-        EvalQueryQuality evaluated = (new RecallAtK(1, 5)).evaluate("id", toSearchHits(ratedSubList, "test"), rated);
-        assertEquals((double) 2 / 4, evaluated.metricScore(), 0.00001);
-        assertEquals(2, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
-        assertEquals(4, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevant());
+        SearchHit[] hits = toSearchHits(ratedSubList, "test");
+        EvalQueryQuality evaluated = (new RecallAtK(1, 5)).evaluate("id", hits, rated);
+        try {
+            assertEquals((double) 2 / 4, evaluated.metricScore(), 0.00001);
+            assertEquals(2, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
+            assertEquals(4, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevant());
+        } finally {
+            releaseRatedSearchHitsOnly(evaluated);
+            releaseScratchHits(hits);
+        }
     }
 
     public void testNoRatedDocs() throws Exception {
         int k = 5;
         SearchHit[] hits = new SearchHit[k];
         for (int i = 0; i < k; i++) {
-            hits[i] = SearchHit.unpooled(i, i + "");
+            hits[i] = new SearchHit(i, i + "");
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null));
         }
 
         EvalQueryQuality evaluated = (new RecallAtK()).evaluate("id", hits, Collections.emptyList());
-        assertEquals(0.0d, evaluated.metricScore(), 0.00001);
-        assertEquals(0, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
-        assertEquals(0, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevant());
+        try {
+            assertEquals(0.0d, evaluated.metricScore(), 0.00001);
+            assertEquals(0, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
+            assertEquals(0, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevant());
+        } finally {
+            releaseRatedSearchHitsOnly(evaluated);
+            releaseScratchHits(hits);
+        }
     }
 
     public void testNoResults() throws Exception {
@@ -218,7 +249,7 @@ public class RecallAtKTests extends ESTestCase {
     private static SearchHit[] toSearchHits(List<RatedDocument> rated, String index) {
         SearchHit[] hits = new SearchHit[rated.size()];
         for (int i = 0; i < rated.size(); i++) {
-            hits[i] = SearchHit.unpooled(i, i + "");
+            hits[i] = new SearchHit(i, i + "");
             hits[i].shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null));
         }
         return hits;

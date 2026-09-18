@@ -1,0 +1,70 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.qa.csv;
+
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
+import org.elasticsearch.test.AzureReactorThreadFilter;
+import org.elasticsearch.test.TestClustersThreadFilter;
+import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.BwcMatrixPolicy;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceCodecEligibility;
+
+import java.util.List;
+
+/**
+ * Parameterized integration tests for compressed CSV files (.csv.gz, .csv.zst, .csv.zstd, .csv.bz2, .csv.bz).
+ * Each csv-spec test is run against every configured storage backend and compression format.
+ */
+@ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
+public class CsvCompressedFormatSpecIT extends AbstractCsvExternalSpecTestCase {
+
+    private static final BwcMatrixPolicy BWC_MATRIX_POLICY = COMPRESSED_BWC_MATRIX_POLICY;
+    private static final List<String> COMPRESSED_FORMATS = EsqlDataSourceCodecEligibility.textCompressionFormats("csv");
+
+    public CsvCompressedFormatSpecIT(
+        String fileName,
+        String groupName,
+        String testName,
+        Integer lineNumber,
+        CsvTestCase testCase,
+        String instructions,
+        String format,
+        StorageBackend storageBackend
+    ) {
+        super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, format);
+    }
+
+    @Override
+    protected BwcMatrixPolicy bwcMatrixPolicy() {
+        return BWC_MATRIX_POLICY;
+    }
+
+    @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
+    public static List<Object[]> readScriptSpec() throws Exception {
+        // external-basic / external-multifile read the multi-value employees fixture, which does not
+        // parse as CSV under the default multi_value_syntax: none. Use the scalar twin (csv-basic),
+        // csv-headerless, and csv-multifile (both opt into brackets explicitly where they read bracket
+        // data) to restore the equivalent coverage.
+        return readExternalSpecTestsWithFormats(
+            BWC_MATRIX_POLICY,
+            COMPRESSED_FORMATS,
+            "/csv-basic.csv-spec",
+            "/csv-declared-schema.csv-spec",
+            "/datasources/external-declared-schema.csv-spec",
+            "/csv-declared-schema-multifile.csv-spec",
+            "/csv-headerless.csv-spec",
+            "/csv-skip-rows.csv-spec",
+            "/csv-multifile.csv-spec",
+            "/csv-multifile-resolution.csv-spec",
+            "/csv-multivalue.csv-spec",
+            "/csv-only-declared-dialect.csv-spec"
+        );
+    }
+}

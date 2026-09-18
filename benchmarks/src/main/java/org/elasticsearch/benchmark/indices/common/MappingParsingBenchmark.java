@@ -10,7 +10,7 @@
 package org.elasticsearch.benchmark.indices.common;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -25,7 +25,6 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.script.Script;
@@ -64,7 +63,7 @@ import java.util.concurrent.TimeUnit;
 public class MappingParsingBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     private static final String MAPPING = """
@@ -143,7 +142,7 @@ public class MappingParsingBenchmark {
                 () -> {
                     throw new UnsupportedOperationException();
                 },
-                new ProvidedIdFieldMapper(() -> true),
+                () -> true,
                 new ScriptCompiler() {
                     @Override
                     public <T> T compile(Script script, ScriptContext<T> scriptContext) {

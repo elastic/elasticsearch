@@ -22,27 +22,37 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -73,12 +83,28 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         return sb.toString();
     }
 
+    private static class ReleasableStringEntity extends StringEntity implements Releasable {
+        private final AtomicBoolean closed = new AtomicBoolean();
+
+        ReleasableStringEntity(String string, ContentType contentType) {
+            super(string, contentType);
+        }
+
+        @Override
+        public void close() {
+            closed.set(true);
+        }
+
+        boolean isClosed() {
+            return closed.get();
+        }
+    }
+
     private ThreadPool threadPool;
     private RestClient client;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initThreadPool() throws Exception {
         threadPool = new TestThreadPool(getTestName()) {
             @Override
             public ExecutorService executor(String name) {
@@ -95,8 +121,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void cleanup() throws Exception {
         terminate(threadPool);
     }
 
@@ -126,7 +151,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         RemoteReindexingUtils.lookupRemoteVersion(RejectAwareActionListener.wrap(v -> {
             assertEquals(expected, v);
             called.set(true);
-        }, e -> fail(), e -> fail()), threadPool, client);
+        }, e -> fail(), e -> fail()), threadPool, client, new NoopCircuitBreaker(CircuitBreaker.REQUEST), 1024L);
         assertTrue("listener was not called", called.get());
     }
 
@@ -157,7 +182,9 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
                     e -> {}
                 ),
                 threadPool,
-                client
+                client,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                1024L
             );
         } catch (RuntimeException e) {
             assertThat(e.getMessage(), containsString("Response didn't include Content-Type: body={"));
@@ -187,7 +214,9 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         RemoteReindexingUtils.lookupRemoteVersion(
             RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> fail("unexpected failure"), e -> rejected.set(true)),
             threadPool,
-            client
+            client,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
         );
         assertTrue("onRejection was not called", rejected.get());
     }
@@ -211,7 +240,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         RemoteReindexingUtils.lookupRemoteVersion(RejectAwareActionListener.wrap(v -> fail(), ex -> {
             assertTrue(ex instanceof ElasticsearchException);
             assertEquals(RestStatus.BAD_REQUEST, ((ElasticsearchStatusException) ex).status());
-        }, ex -> fail()), threadPool, client);
+        }, ex -> fail()), threadPool, client, new NoopCircuitBreaker(CircuitBreaker.REQUEST), 1024L);
     }
 
     /**
@@ -223,7 +252,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         RemoteReindexingUtils.lookupRemoteVersion(RejectAwareActionListener.wrap(v -> fail(), ex -> {
             assertTrue(ex instanceof IllegalArgumentException);
             assertThat(ex.getMessage(), containsString("Remote responded with a chunk that was too large"));
-        }, ex -> fail()), threadPool, client);
+        }, ex -> fail()), threadPool, client, new NoopCircuitBreaker(CircuitBreaker.REQUEST), 1024L);
     }
 
     public void testInvalidJsonThrowsElasticsearchException() {
@@ -235,7 +264,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         RemoteReindexingUtils.lookupRemoteVersion(RejectAwareActionListener.wrap(v -> fail(), ex -> {
             assertTrue(ex instanceof ElasticsearchException);
             assertThat(ex.getMessage(), containsString("remote is likely not an Elasticsearch instance"));
-        }, ex -> fail()), threadPool, client);
+        }, ex -> fail()), threadPool, client, new NoopCircuitBreaker(CircuitBreaker.REQUEST), 1024L);
     }
 
     /**
@@ -251,7 +280,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         RemoteReindexingUtils.lookupRemoteVersion(RejectAwareActionListener.wrap(v -> fail(), ex -> {
             assertTrue(ex instanceof ElasticsearchException);
             assertThat(ex.getMessage(), containsString("Error deserializing response"));
-        }, ex -> fail()), threadPool, client);
+        }, ex -> fail()), threadPool, client, new NoopCircuitBreaker(CircuitBreaker.REQUEST), 1024L);
     }
 
     public void testWrapExceptionToPreserveStatus() throws IOException {
@@ -356,7 +385,9 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             RejectAwareActionListener.wrap(v -> {
                 assertEquals(Version.fromString("1.7.5"), v);
                 success.set(true);
-            }, e -> fail("unexpected failure"), e -> fail("unexpected rejection"))
+            }, e -> fail("unexpected failure"), e -> fail("unexpected rejection")),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
         );
 
         assertTrue("listener should have received success", success.get());
@@ -384,7 +415,9 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
                 assertTrue(e instanceof ElasticsearchStatusException);
                 assertEquals(RestStatus.TOO_MANY_REQUESTS, ((ElasticsearchStatusException) e).status());
                 failed.set(true);
-            }, e -> fail("should have propagated as failure after retries exhausted"))
+            }, e -> fail("should have propagated as failure after retries exhausted")),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
         );
 
         assertTrue("listener should have received failure", failed.get());
@@ -414,7 +447,9 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             RejectAwareActionListener.wrap(v -> fail(), e -> {
                 assertTrue(e instanceof ElasticsearchStatusException);
                 assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ((ElasticsearchStatusException) e).status());
-            }, e -> fail())
+            }, e -> fail()),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
         );
 
         verify(client, times(1)).performRequestAsync(any(), any());
@@ -437,7 +472,9 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             RejectAwareActionListener.wrap(v -> {
                 assertEquals(Version.fromString("2.3.3"), v);
                 success.set(true);
-            }, e -> fail(), e -> fail())
+            }, e -> fail(), e -> fail()),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
         );
 
         assertTrue("listener should have received success", success.get());
@@ -463,15 +500,62 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             searchRequest,
             new String[] { index },
             TimeValue.timeValueMillis(between(1, 60000)),
+            Version.CURRENT,
             RejectAwareActionListener.wrap(pitId -> {
                 capturedPitId[0] = pitId;
                 success.set(true);
             }, e -> fail("unexpected failure"), e -> fail("unexpected rejection")),
             threadPool,
-            client
+            client,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
         );
         assertTrue("listener should have received success", success.get());
         assertArrayEquals(pitIdBytes, BytesReference.toBytes(capturedPitId[0]));
+    }
+
+    /**
+     * Verifies that open PIT sends {@code index_filter} in the JSON body when the source {@link SearchRequest} has a query
+     */
+    public void testOpenPitSuccessWithIndexFilterInRequestBody() throws IOException {
+        byte[] pitIdBytes = randomByteArrayOfLength(between(1, 64));
+        String base64Id = Base64.getUrlEncoder().encodeToString(pitIdBytes);
+        String json = "{\"id\":\"" + base64Id + "\"}";
+        Response response = mock(Response.class);
+        when(response.getEntity()).thenReturn(new StringEntity(json, ContentType.APPLICATION_JSON));
+        mockSuccess(response);
+
+        String index = randomAlphaOfLength(between(1, 10));
+        SearchRequest searchRequest = new SearchRequest().indices(index);
+        searchRequest.source(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")));
+        AtomicBoolean success = new AtomicBoolean(false);
+        BytesReference[] capturedPitId = new BytesReference[1];
+        RemoteReindexingUtils.openPit(
+            searchRequest,
+            new String[] { index },
+            TimeValue.timeValueMillis(between(1, 60000)),
+            Version.CURRENT,
+            RejectAwareActionListener.wrap(pitId -> {
+                capturedPitId[0] = pitId;
+                success.set(true);
+            }, e -> fail("unexpected failure"), e -> fail("unexpected rejection")),
+            threadPool,
+            client,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
+        );
+        assertTrue("listener should have received success", success.get());
+        assertArrayEquals(pitIdBytes, BytesReference.toBytes(capturedPitId[0]));
+
+        ArgumentCaptor<Request> requestCaptor = ArgumentCaptor.forClass(Request.class);
+        verify(client, times(1)).performRequestAsync(requestCaptor.capture(), any());
+        Request capturedRequest = requestCaptor.getValue();
+        assertNotNull(capturedRequest.getEntity());
+        String body = Streams.copyToString(new InputStreamReader(capturedRequest.getEntity().getContent(), StandardCharsets.UTF_8));
+        assertThat(body, containsString("\"index_filter\""));
+        assertThat(body, containsString("term"));
+        assertThat(body, containsString("\"field\""));
+        assertThat(body, containsString("\"value\""));
     }
 
     /**
@@ -487,9 +571,12 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             searchRequest,
             new String[] { index },
             randomPositiveTimeValue(),
+            Version.CURRENT,
             RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> fail("unexpected failure"), e -> rejected.set(true)),
             threadPool,
-            client
+            client,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
         );
         assertTrue("onRejection should have been called", rejected.get());
     }
@@ -516,13 +603,16 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             searchRequest,
             new String[] { index },
             randomPositiveTimeValue(),
+            Version.CURRENT,
             RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> {
                 assertTrue(e instanceof ElasticsearchStatusException);
                 assertEquals(statusCode, ((ElasticsearchStatusException) e).status().getStatus());
                 failed.set(true);
             }, e -> fail("unexpected rejection")),
             threadPool,
-            client
+            client,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
         );
         assertTrue("onFailure should have been called", failed.get());
     }
@@ -543,13 +633,16 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             searchRequest,
             new String[] { index },
             randomPositiveTimeValue(),
+            Version.CURRENT,
             RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> {
                 assertTrue(e instanceof ElasticsearchException);
                 assertThat(e.getMessage(), containsString("remote is likely not an Elasticsearch instance"));
                 failed.set(true);
             }, e -> fail("unexpected rejection")),
             threadPool,
-            client
+            client,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
         );
         assertTrue("onFailure should have been called", failed.get());
     }
@@ -570,13 +663,16 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             searchRequest,
             new String[] { index },
             randomPositiveTimeValue(),
+            Version.CURRENT,
             RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> {
                 assertTrue(e instanceof ElasticsearchException);
                 assertThat(getAllExceptionMessages(e), containsString("open point-in-time response must contain [id] field"));
                 failed.set(true);
             }, e -> fail("unexpected rejection")),
             threadPool,
-            client
+            client,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
         );
         assertTrue("onFailure should have been called", failed.get());
     }
@@ -593,13 +689,16 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
                 searchRequest,
                 new String[] { "index" },
                 randomPositiveTimeValue(),
+                Version.CURRENT,
                 RejectAwareActionListener.wrap(
                     v -> fail("unexpected success"),
                     err -> fail("unexpected failure"),
                     err -> fail("unexpected rejection")
                 ),
                 threadPool,
-                client
+                client,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                1024L
             )
         );
         assertThat(e.getMessage(), containsString("Routing is set"));
@@ -617,13 +716,16 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
                 searchRequest,
                 new String[] { "index" },
                 randomPositiveTimeValue(),
+                Version.CURRENT,
                 RejectAwareActionListener.wrap(
                     v -> fail("unexpected success"),
                     err -> fail("unexpected failure"),
                     err -> fail("unexpected rejection")
                 ),
                 threadPool,
-                client
+                client,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                1024L
             )
         );
         assertThat(e.getMessage(), containsString("Preference is set"));
@@ -642,13 +744,16 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
                 searchRequest,
                 new String[] { "index" },
                 randomPositiveTimeValue(),
+                Version.CURRENT,
                 RejectAwareActionListener.wrap(
                     v -> fail("unexpected success"),
                     err -> fail("unexpected failure"),
                     err -> fail("unexpected rejection")
                 ),
                 threadPool,
-                client
+                client,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                1024L
             )
         );
         assertThat(e.getMessage(), containsString("allow_partial_search_results"));
@@ -669,7 +774,9 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             pitId,
             RejectAwareActionListener.wrap(v -> success.set(true), e -> fail("unexpected failure"), e -> fail("unexpected rejection")),
             threadPool,
-            client
+            client,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
         );
         assertTrue("listener should have received success", success.get());
     }
@@ -685,7 +792,9 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             new BytesArray(randomByteArrayOfLength(between(1, 32))),
             RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> fail("unexpected failure"), e -> rejected.set(true)),
             threadPool,
-            client
+            client,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
         );
         assertTrue("onRejection should have been called", rejected.get());
     }
@@ -714,7 +823,9 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
                 failed.set(true);
             }, e -> fail("unexpected rejection")),
             threadPool,
-            client
+            client,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
         );
         assertTrue("onFailure should have been called", failed.get());
     }
@@ -737,9 +848,63 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
                 failed.set(true);
             }, e -> fail("unexpected rejection")),
             threadPool,
-            client
+            client,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
         );
         assertTrue("onFailure should have been called", failed.get());
+    }
+
+    public void testExecuteInstallsBreakerAwareConsumerFactoryAndClosesResponseEntityOnSuccess() {
+        ReleasableStringEntity entity = new ReleasableStringEntity("{\"version\":{\"number\":\"1.7.5\"}}", ContentType.APPLICATION_JSON);
+        Response response = mock(Response.class);
+        when(response.getEntity()).thenReturn(entity);
+        mockSuccess(response);
+
+        AtomicBoolean success = new AtomicBoolean(false);
+        RemoteReindexingUtils.lookupRemoteVersion(
+            RejectAwareActionListener.wrap(v -> success.set(true), e -> fail("unexpected failure"), e -> fail("unexpected rejection")),
+            threadPool,
+            client,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
+        );
+
+        assertTrue("listener should have received success", success.get());
+        assertTrue("response entity should have been closed after parsing", entity.isClosed());
+        ArgumentCaptor<Request> requestCaptor = ArgumentCaptor.forClass(Request.class);
+        verify(client).performRequestAsync(requestCaptor.capture(), any());
+        assertTrue(
+            requestCaptor.getValue()
+                .getOptions()
+                .getHttpAsyncResponseConsumerFactory()
+                .createHttpAsyncResponseConsumer() instanceof BreakerAwareHeapBufferedAsyncResponseConsumer
+        );
+    }
+
+    public void testExecuteClosesResponseEntityOnHttpError() throws Exception {
+        ReleasableStringEntity entity = new ReleasableStringEntity("bad request", ContentType.TEXT_PLAIN);
+        StatusLine statusLine = mock(StatusLine.class);
+        when(statusLine.getStatusCode()).thenReturn(RestStatus.BAD_REQUEST.getStatus());
+        Response response = mock(Response.class);
+        when(response.getStatusLine()).thenReturn(statusLine);
+        when(response.getEntity()).thenReturn(entity);
+        RequestLine requestLine = mock(RequestLine.class);
+        when(requestLine.getMethod()).thenReturn("GET");
+        when(response.getRequestLine()).thenReturn(requestLine);
+        mockFailure(new ResponseException(response));
+
+        AtomicBoolean failed = new AtomicBoolean(false);
+        RemoteReindexingUtils.lookupRemoteVersion(
+            RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> failed.set(true), e -> fail("unexpected rejection")),
+            threadPool,
+            client,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
+        );
+
+        assertTrue("listener should have received failure", failed.get());
+        assertTrue("response entity should have been closed after error extraction", entity.isClosed());
     }
 
     private Response successResponse(String resource) throws Exception {

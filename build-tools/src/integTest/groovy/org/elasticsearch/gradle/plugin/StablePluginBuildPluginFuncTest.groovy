@@ -46,8 +46,7 @@ class StablePluginBuildPluginFuncTest extends AbstractGradleFuncTest {
             }
             """
 
-        // underlaying TestClusterPlugin and StandaloneRestIntegTestTask are not cc compatible
-        configurationCacheCompatible = false
+        disableConfigurationCache("underlying TestClustersPlugin and StandaloneRestIntegTestTask are not cc compatible")
 
         def version = VersionProperties.elasticsearch
         setupNamedComponentScanner(dir("local-repo/org/elasticsearch/elasticsearch-plugin-scanner/${version}/"), version)

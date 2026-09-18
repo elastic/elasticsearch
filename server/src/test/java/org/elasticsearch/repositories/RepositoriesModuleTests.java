@@ -22,6 +22,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -46,9 +47,8 @@ public class RepositoriesModuleTests extends ESTestCase {
     private RecoverySettings recoverySettings;
     private NodeClient nodeClient;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initMocks() throws Exception {
         environment = mock(Environment.class);
         contentRegistry = mock(NamedXContentRegistry.class);
         threadPool = mock(ThreadPool.class);

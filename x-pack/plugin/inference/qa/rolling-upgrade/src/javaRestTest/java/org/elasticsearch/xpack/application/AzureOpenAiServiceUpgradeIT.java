@@ -58,8 +58,11 @@ public class AzureOpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
         var testTaskType = TaskType.TEXT_EMBEDDING;
 
         if (isOldCluster()) {
-            // queue a response as PUT will call the service
-            openAiEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(OpenAiServiceUpgradeIT.embeddingResponse()));
+            // queue a response as PUT will call the service. Pre-upgrade nodes only
+            // know the legacy JSON-array embedding shape, so feed them that.
+            openAiEmbeddingsServer.enqueue(
+                new MockResponse().setResponseCode(200).setBody(OpenAiServiceUpgradeIT.embeddingResponseJsonArray())
+            );
             put(oldClusterId, embeddingConfig(getUrl(openAiEmbeddingsServer)), testTaskType);
 
             var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterId).get(oldClusterEndpointIdentifier);
@@ -68,31 +71,37 @@ public class AzureOpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
             var configs = getConfigsWithBreakingChangeHandling(testTaskType, oldClusterId);
             assertEquals("azureopenai", configs.get(0).get("service"));
 
-            assertEmbeddingInference(oldClusterId);
+            // JSON-array shape so the request can be served by either an old or a
+            // new node during a mixed-cluster window.
+            assertEmbeddingInference(oldClusterId, false);
         } else if (isUpgradedCluster()) {
             // check old cluster model
             var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterId).get("endpoints");
             var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
 
-            // Inference on old cluster model
-            assertEmbeddingInference(oldClusterId);
+            // Inference on old cluster model: all nodes upgraded, use production base64 shape.
+            assertEmbeddingInference(oldClusterId, true);
 
-            openAiEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(OpenAiServiceUpgradeIT.embeddingResponse()));
+            openAiEmbeddingsServer.enqueue(
+                new MockResponse().setResponseCode(200).setBody(OpenAiServiceUpgradeIT.embeddingResponseBase64())
+            );
             put(upgradedClusterId, embeddingConfig(getUrl(openAiEmbeddingsServer)), testTaskType);
 
             configs = (List<Map<String, Object>>) get(testTaskType, upgradedClusterId).get("endpoints");
             assertThat(configs, hasSize(1));
 
             // Inference on the new config
-            assertEmbeddingInference(upgradedClusterId);
+            assertEmbeddingInference(upgradedClusterId, true);
 
             delete(oldClusterId);
             delete(upgradedClusterId);
         }
     }
 
-    void assertEmbeddingInference(String inferenceId) throws IOException {
-        openAiEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(OpenAiServiceUpgradeIT.embeddingResponse()));
+    /** See {@link OpenAiServiceUpgradeIT#assertEmbeddingInference(String, boolean)} for the rationale. */
+    void assertEmbeddingInference(String inferenceId, boolean useBase64) throws IOException {
+        var body = useBase64 ? OpenAiServiceUpgradeIT.embeddingResponseBase64() : OpenAiServiceUpgradeIT.embeddingResponseJsonArray();
+        openAiEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(body));
         var inferenceMap = inference(inferenceId, TaskType.TEXT_EMBEDDING, "some text");
         assertThat(inferenceMap.entrySet(), not(empty()));
     }

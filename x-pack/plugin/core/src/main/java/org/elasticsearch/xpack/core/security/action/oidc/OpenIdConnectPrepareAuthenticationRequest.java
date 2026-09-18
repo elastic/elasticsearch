@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.security.action.oidc;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,7 +19,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Represents a request to prepare an OAuth 2.0 authorization request
  */
-public class OpenIdConnectPrepareAuthenticationRequest extends LegacyActionRequest {
+public class OpenIdConnectPrepareAuthenticationRequest extends UntypedActionRequest {
 
     /**
      * The name of the OpenID Connect realm in the configuration that should be used for authentication

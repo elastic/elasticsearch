@@ -48,6 +48,7 @@ public class FilteredAggregatorFunctionTests extends AggregatorFunctionTestCase 
     @Override
     protected void assertSimpleOutput(List<Page> input, Block result) {
         long sum = 0;
+        boolean anySelected = false;
         for (Page page : input) {
             IntBlock ints = page.getBlock(0);
             for (int p = 0; p < ints.getPositionCount(); p++) {
@@ -64,6 +65,7 @@ public class FilteredAggregatorFunctionTests extends AggregatorFunctionTestCase 
                 if (selected == false) {
                     continue;
                 }
+                anySelected = true;
                 start = ints.getFirstValueIndex(p);
                 end = start + ints.getValueCount(p);
                 for (int i = start; i < end; i++) {
@@ -71,7 +73,11 @@ public class FilteredAggregatorFunctionTests extends AggregatorFunctionTestCase 
                 }
             }
         }
-        assertThat(((LongBlock) result).getLong(0), equalTo(sum));
+        if (anySelected == false) {
+            assertOutputFromEmpty(result);
+        } else {
+            assertThat(((LongBlock) result).getLong(0), equalTo(sum));
+        }
     }
 
     @Override

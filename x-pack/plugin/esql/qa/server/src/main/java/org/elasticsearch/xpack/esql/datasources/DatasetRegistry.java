@@ -1,0 +1,340 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.esql.datasources;
+
+import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
+
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+
+/**
+ * Class-scoped, idempotent registry of {@code data_source}/{@code dataset} pairs for the
+ * {@code FROM <dataset>} spec-test path, plus the raw {@code PUT}/{@code DELETE} verbs shared with test
+ * bases that manage their own dataset lifecycle.
+ *
+ * <p>Datasets and data sources are {@code ProjectCustom} cluster metadata, and none of
+ * {@link org.elasticsearch.test.rest.ESRestTestCase}'s between-test cleanup steps remove them: the wipe
+ * deletes indices, data streams, views, templates, snapshots, cluster settings and ILM/CCR/shutdown
+ * metadata and issues {@code POST /_features/_reset}, but ES|QL registers no system-feature reset hook,
+ * so these customs persist for the whole JVM until explicitly deleted. Registration is therefore safely
+ * cached by a content signature: re-registering the same {@code (name, type, settings)} is a no-op,
+ * while a changed signature re-issues the create-or-replace PUT. Call {@link #cleanup(RestClient)} from
+ * an {@code @AfterClass} hook to drop everything this registry created and clear the caches.
+ *
+ * <p>The registry is deliberately static: each spec IT runs in its own Gradle JVM fork, and
+ * {@link #cleanup(RestClient)} clears the caches, so sequential suites in one JVM stay isolated. When a
+ * suite cannot run {@link #cleanup(RestClient)} (a broken cluster, or a failure before the
+ * {@code @AfterClass} hook), it must still call {@link #clearCaches()} so a later suite in the same fork
+ * starts from an empty cache rather than skipping a needed PUT against a cluster that no longer holds the
+ * custom.
+ *
+ * <p>The survival invariant above is the load-bearing assumption behind the cache, so
+ * {@link #cleanup(RestClient)} fails loudly if a custom this registry recorded as successfully
+ * registered has vanished by teardown. That can only happen if the invariant breaks (e.g. a future
+ * framework change starts wiping these customs); surfacing it at teardown turns an otherwise
+ * non-obvious "FROM &lt;dataset&gt; not found" mid-suite failure into a precise signal.
+ */
+public final class DatasetRegistry {
+
+    /** data_source name -&gt; content signature of the last successful PUT. */
+    private static final Map<String, String> dataSources = new LinkedHashMap<>();
+    /** dataset name -&gt; content signature of the last successful PUT. */
+    private static final Map<String, String> datasets = new LinkedHashMap<>();
+
+    private DatasetRegistry() {}
+
+    /**
+     * Ensures a {@code data_source} named {@code name} of the given {@code type} (e.g. {@code s3}) with
+     * {@code settings} exists, issuing {@code PUT /_query/data_source/<name>} only when the content
+     * signature differs from the cached one. Returns {@code name} for chaining into
+     * {@link #ensureDataset}.
+     */
+    public static synchronized String ensureDataSource(RestClient client, String name, String type, Map<String, Object> settings)
+        throws IOException {
+        String signature = type + "|" + settings;
+        if (signature.equals(dataSources.get(name)) == false) {
+            putDataSource(client, name, type, settings);
+            dataSources.put(name, signature);
+        }
+        return name;
+    }
+
+    /**
+     * Ensures a {@code dataset} named {@code name} bound to {@code dataSource} + {@code resource} with the
+     * format options in the {@code withJson} object (the {@code WITH {...}} JSON, or {@code null} for
+     * none) exists, issuing {@code PUT /_query/dataset/<name>} only when the content signature differs
+     * from the cached one. The owning {@code data_source} must already exist (register it first via
+     * {@link #ensureDataSource}); the CRUD layer rejects a dataset whose parent is missing.
+     * <p>
+     * The signature is keyed off the raw {@code withJson} so the JSON is parsed only on a cache miss, not
+     * on every spec invocation.
+     */
+    public static synchronized void ensureDataset(RestClient client, String name, String dataSource, String resource, String withJson)
+        throws IOException {
+        String signature = dataSource + "|" + resource + "|" + withJson;
+        if (signature.equals(datasets.get(name)) == false) {
+            DatasetOptions options = parseDirectiveOptions(withJson);
+            putDataset(client, name, dataSource, resource, options.settings(), options.mappings());
+            datasets.put(name, signature);
+        }
+    }
+
+    /**
+     * Derives a valid (lowercase, index-name-safe) dataset name from an arbitrary resource path/URL by
+     * lowercasing it and collapsing every run of non-alphanumeric characters to a single underscore, then
+     * prepending {@code prefix} to guarantee a letter-led, collision-free name across callers.
+     */
+    public static String sanitizeDatasetName(String prefix, String resourcePath) {
+        return prefix + resourcePath.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "_");
+    }
+
+    /**
+     * Reserved key inside a {@code dataset:} directive's {@code WITH {...}} JSON: its value is the dataset's declared
+     * schema, which {@code PUT /_query/dataset/<name>} takes as a top-level field beside {@code settings} rather than
+     * inside it. A declaration cannot ride through {@code settings} because dataset settings are validated against
+     * each format's accepted keys ({@code FileDataSourceValidator}, via
+     * {@code DataSourceValidationUtils.rejectUnknownFields}), so the split below is what makes a declaration
+     * expressible in a spec file at all. No datasource defines a setting by this name, so reserving it shadows
+     * nothing.
+     */
+    static final String MAPPINGS = "mappings";
+
+    /**
+     * The two shapes a directive's {@code WITH {...}} JSON contributes to the PUT body: the format {@code settings},
+     * and the declared schema when the directive reserves {@link #MAPPINGS}.
+     */
+    record DatasetOptions(Map<String, Object> settings, @Nullable Map<String, Object> mappings) {}
+
+    /**
+     * Parses a {@code dataset:} directive's {@code WITH {...}} JSON ({@code null} maps to no settings and no declared
+     * schema), lifting the reserved {@link #MAPPINGS} key out of the settings map so {@link #datasetRequestBody} can
+     * emit it top-level.
+     * <p>
+     * Ordered, because every map on the path to the PUT bytes has to be: a declared schema's {@code properties} order
+     * IS its column order, and a strict declared read emits its columns in declaration order.
+     * <p>
+     * A {@link #MAPPINGS} value that is not an object is rejected here, where the directive text is still at hand,
+     * rather than reaching the server as a type error. A structurally valid but semantically wrong declaration (say an
+     * unknown {@code dynamic} value) is deliberately left to the server, whose parse error surfaces verbatim through
+     * {@link #assertOk}.
+     */
+    static DatasetOptions parseDirectiveOptions(String withJson) throws IOException {
+        if (withJson == null) {
+            return new DatasetOptions(Map.of(), null);
+        }
+        Map<String, Object> options;
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, withJson)) {
+            options = parser.mapOrdered();
+        }
+        if (options.containsKey(MAPPINGS) == false) {
+            return new DatasetOptions(options, null);
+        }
+        // Removed via containsKey rather than a null return so an explicit "mappings": null reads as the authoring
+        // error it is, not as a directive that declares nothing.
+        Object declared = options.remove(MAPPINGS);
+        if (declared instanceof Map == false) {
+            throw new IllegalArgumentException(
+                "[" + MAPPINGS + "] in a dataset directive's WITH must be a JSON object declaring the schema, got [" + declared + "]"
+            );
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> mappings = (Map<String, Object>) declared;
+        return new DatasetOptions(options, mappings);
+    }
+
+    /**
+     * Whether a {@code dataset:} directive declares a schema, i.e. reserves {@link #MAPPINGS}. Parses rather than
+     * string-matches, so a setting whose VALUE happens to be {@code "mappings"} does not read as a declaration. Used
+     * by the spec harness to guard the paths that cannot carry a declaration.
+     */
+    public static boolean declaresMappings(String withJson) {
+        return parseUnchecked(withJson).mappings() != null;
+    }
+
+    /**
+     * Whether a {@code dataset:} directive sets the named format setting. Answers from the same parse
+     * {@link #parseDirectiveOptions} performs, so neither a same-named key nested inside the declared schema nor a
+     * value that merely equals the name reads as a setting.
+     */
+    public static boolean declaresSetting(String withJson, String setting) {
+        return parseUnchecked(withJson).settings().containsKey(setting);
+    }
+
+    /**
+     * {@link #parseDirectiveOptions} for the predicates above, whose callers sit in streams and lambdas. A directive
+     * that cannot be parsed is a broken spec file, so it fails rather than answering either way.
+     */
+    private static DatasetOptions parseUnchecked(String withJson) {
+        try {
+            return parseDirectiveOptions(withJson);
+        } catch (IOException e) {
+            throw new UncheckedIOException("cannot parse a dataset directive's WITH JSON [" + withJson + "]", e);
+        }
+    }
+
+    /**
+     * Issues an uncached {@code PUT /_query/data_source/<name>} with {@code type} and (optional)
+     * {@code settings}. Shared by {@link #ensureDataSource} and by test bases that manage their own
+     * data-source lifecycle; callers wanting create-once-per-signature semantics should use
+     * {@link #ensureDataSource} instead.
+     */
+    public static void putDataSource(RestClient client, String name, String type, Map<String, Object> settings) throws IOException {
+        Request req = new Request("PUT", "/_query/data_source/" + name);
+        try (XContentBuilder b = jsonBuilder()) {
+            b.startObject().field("type", type);
+            if (settings.isEmpty() == false) {
+                b.field("settings", settings);
+            }
+            b.endObject();
+            req.setJsonEntity(Strings.toString(b));
+        }
+        assertOk(client.performRequest(req), "PUT data_source [" + name + "]");
+    }
+
+    /**
+     * Issues an uncached {@code PUT /_query/dataset/<name>} bound to {@code dataSource} + {@code resource}
+     * with the given format {@code settings}. Shared by {@link #ensureDataset} and by test bases that
+     * manage their own dataset lifecycle; the owning {@code data_source} must already exist.
+     */
+    public static void putDataset(RestClient client, String name, String dataSource, String resource, Map<String, Object> settings)
+        throws IOException {
+        putDataset(client, name, dataSource, resource, settings, null);
+    }
+
+    /**
+     * Issues an uncached {@code PUT /_query/dataset/<name>} bound to {@code dataSource} + {@code resource} with the
+     * given format {@code settings} and, when non-null, {@code mappings} as the body's top-level declared schema.
+     * The owning {@code data_source} must already exist.
+     * <p>
+     * A declaration has to be a sibling of {@code settings}, not an entry inside it: dataset settings are validated
+     * at PUT time against each format's accepted keys, so a schema smuggled into {@code settings} is rejected as an
+     * unknown setting on every file-backed provider.
+     */
+    public static void putDataset(
+        RestClient client,
+        String name,
+        String dataSource,
+        String resource,
+        Map<String, Object> settings,
+        @Nullable Map<String, Object> mappings
+    ) throws IOException {
+        Request req = new Request("PUT", "/_query/dataset/" + name);
+        req.setJsonEntity(datasetRequestBody(dataSource, resource, settings, mappings));
+        assertOk(client.performRequest(req), "PUT dataset [" + name + "]");
+    }
+
+    /**
+     * The {@code PUT /_query/dataset/<name>} body: {@code data_source}, {@code resource}, {@code settings} when
+     * non-empty, then the declared {@code mappings} when there is one. {@code mappings} is appended last, so for a
+     * given settings map, THIS method emits a declaration-free body byte-for-byte as it did before declared
+     * schemas were reachable. (The directive-based {@link #ensureDataset} signs the raw {@code WITH} text, which already contains any
+     * declaration, so it needs no separate mappings term.)
+     */
+    static String datasetRequestBody(
+        String dataSource,
+        String resource,
+        Map<String, Object> settings,
+        @Nullable Map<String, Object> mappings
+    ) throws IOException {
+        try (XContentBuilder b = jsonBuilder()) {
+            b.startObject().field("data_source", dataSource).field("resource", resource);
+            if (settings.isEmpty() == false) {
+                b.field("settings", settings);
+            }
+            if (mappings != null) {
+                b.field(MAPPINGS, mappings);
+            }
+            b.endObject();
+            return Strings.toString(b);
+        }
+    }
+
+    /**
+     * Deletes everything this registry created, datasets first so the data-source deletes do not 409 on
+     * a still-referenced parent, then clears the caches. Every cached entry was recorded only after a
+     * successful PUT and is expected to survive the suite (see the class Javadoc), so a missing custom
+     * here is treated as a broken survival invariant and fails teardown rather than being swallowed.
+     */
+    public static synchronized void cleanup(RestClient client) throws IOException {
+        for (String name : datasets.keySet()) {
+            deleteRegistered(client, "/_query/dataset/" + name);
+        }
+        datasets.clear();
+        for (String name : dataSources.keySet()) {
+            deleteRegistered(client, "/_query/data_source/" + name);
+        }
+        dataSources.clear();
+    }
+
+    /**
+     * Clears the static caches without issuing any REST calls. Call this from an {@code @AfterClass}
+     * {@code finally} so a suite that could not run {@link #cleanup(RestClient)} (broken cluster, or a
+     * failure that aborted cleanup) does not leave stale entries that would make a later suite in the same
+     * JVM fork skip a needed PUT.
+     */
+    public static synchronized void clearCaches() {
+        datasets.clear();
+        dataSources.clear();
+    }
+
+    /**
+     * {@code DELETE <path>} that swallows 404s, for ad-hoc sweeps of resources whose existence is not
+     * tracked by this registry (e.g. test indices, or datasets a test may or may not have created). The
+     * registry's own {@link #cleanup} deliberately does <em>not</em> use this — it expects its tracked
+     * customs to still exist.
+     */
+    public static void deleteIgnoringMissing(RestClient client, String path) throws IOException {
+        try {
+            client.performRequest(new Request("DELETE", path));
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                throw e;
+            }
+        }
+    }
+
+    /** Deletes a custom this registry registered; a 404 means it vanished mid-suite — see {@link #cleanup}. */
+    private static void deleteRegistered(RestClient client, String path) throws IOException {
+        try {
+            client.performRequest(new Request("DELETE", path));
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() == 404) {
+                throw new AssertionError(
+                    "["
+                        + path
+                        + "] was registered by this suite but is already gone at teardown; the data_source/dataset "
+                        + "survival invariant the registry's cache relies on appears to be broken",
+                    e
+                );
+            }
+            throw e;
+        }
+    }
+
+    private static void assertOk(Response response, String what) throws IOException {
+        int status = response.getStatusLine().getStatusCode();
+        if (status != 200) {
+            String body = response.getEntity() == null ? "<no body>" : EntityUtils.toString(response.getEntity());
+            throw new AssertionError(what + " returned unexpected status [" + status + "]: " + body);
+        }
+    }
+}

@@ -27,7 +27,10 @@ import java.util.BitSet;
 import java.util.Deque;
 import java.util.List;
 
+import static org.elasticsearch.painless.WriterConstants.CANCELLATION_POLL_INTERVAL;
+import static org.elasticsearch.painless.WriterConstants.CANCEL_POLL_FIELD;
 import static org.elasticsearch.painless.WriterConstants.CHAR_TO_STRING;
+import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_BOOLEAN;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_B_BYTE_EXPLICIT;
@@ -62,9 +65,12 @@ import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_SHORT_IMPLICIT
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_STRING_EXPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_STRING_IMPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_UTIL_TYPE;
+import static org.elasticsearch.painless.WriterConstants.LAMBDA_ALLOC_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.MAX_STRING_CONCAT_ARGS;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_ERROR_TYPE;
+import static org.elasticsearch.painless.WriterConstants.RUNNABLE_RUN;
+import static org.elasticsearch.painless.WriterConstants.RUNNABLE_TYPE;
 import static org.elasticsearch.painless.WriterConstants.STRING_CONCAT_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.STRING_TO_CHAR;
 import static org.elasticsearch.painless.WriterConstants.STRING_TYPE;
@@ -133,6 +139,38 @@ public final class MethodWriter extends GeneratorAdapter {
         ifICmp(GeneratorAdapter.GT, end);
         throwException(PAINLESS_ERROR_TYPE, "The maximum number of statements that can be executed in a loop has been reached.");
         mark(end);
+    }
+
+    /**
+     * Emits a decrement of the script's persistent {@code $cancelPoll} counter and, when it reaches
+     * zero, invokes the cancel {@link Runnable} and resets the counter to {@link
+     * WriterConstants#CANCELLATION_POLL_INTERVAL}. This is the low-level counterpart to {@link
+     * #writeLoopCounter(int, Location)}: the caller is responsible for resolving the slots and for
+     * guarding against a null runnable. The script receiver in {@code scriptThisSlot} must already
+     * hold a {@code $cancelPoll} field of type {@code int}.
+     *
+     * @param scriptThisSlot slot holding the script receiver that owns the {@code $cancelPoll} field
+     * @param runnableSlot   slot holding the non-null cancel {@link Runnable}
+     */
+    public void writeCancellationPoll(int scriptThisSlot, int runnableSlot) {
+        Label skip = new Label();
+
+        visitVarInsn(Opcodes.ALOAD, scriptThisSlot);
+        dup();
+        getField(CLASS_TYPE, CANCEL_POLL_FIELD, Type.INT_TYPE);
+        push(-1);
+        math(MethodWriter.ADD, Type.INT_TYPE);
+        dupX1();
+        putField(CLASS_TYPE, CANCEL_POLL_FIELD, Type.INT_TYPE);
+        ifZCmp(MethodWriter.GT, skip);
+
+        visitVarInsn(Opcodes.ALOAD, runnableSlot);
+        invokeInterface(RUNNABLE_TYPE, RUNNABLE_RUN);
+        visitVarInsn(Opcodes.ALOAD, scriptThisSlot);
+        push(CANCELLATION_POLL_INTERVAL);
+        putField(CLASS_TYPE, CANCEL_POLL_FIELD, Type.INT_TYPE);
+
+        mark(skip);
     }
 
     public void writeCast(PainlessCast cast) {
@@ -400,6 +438,33 @@ public final class MethodWriter extends GeneratorAdapter {
         invokeDynamic(name, methodType.getDescriptor(), DEF_BOOTSTRAP_HANDLE, args);
     }
 
+    /**
+     * Writes a dynamic call for a method reference with a {@code def} receiver, resolved by {@link DefBootstrap#REFERENCE}.
+     * <p>
+     * A charging reference has pushed the script after the receiver, so the call site takes a trailing {@link WriterConstants#CLASS_TYPE}
+     * parameter and passes the charge flag as an extra bootstrap argument. Both are omitted when not charging, which is what keeps
+     * call sites byte-for-byte identical while allocation tracking is disabled.
+     *
+     * @param name method name
+     * @param interfaceType the functional interface the reference produces
+     * @param receiverType the captured receiver
+     * @param interfaceCanonicalTypeName canonical type name of the functional interface, resolved at runtime
+     * @param chargesAllocation whether the runtime-resolved target is charged per invocation
+     */
+    public void invokeDefReferenceCall(
+        String name,
+        Type interfaceType,
+        Type receiverType,
+        String interfaceCanonicalTypeName,
+        boolean chargesAllocation
+    ) {
+        Type methodType = chargesAllocation
+            ? Type.getMethodType(interfaceType, receiverType, CLASS_TYPE)
+            : Type.getMethodType(interfaceType, receiverType);
+        Object[] params = chargesAllocation ? new Object[] { interfaceCanonicalTypeName, 1 } : new Object[] { interfaceCanonicalTypeName };
+        invokeDefCall(name, methodType, DefBootstrap.REFERENCE, params);
+    }
+
     public void invokeMethodCall(PainlessMethod painlessMethod) {
         Type type = Type.getType(painlessMethod.javaMethod().getDeclaringClass());
         Method method = Method.getMethod(painlessMethod.javaMethod());
@@ -428,16 +493,38 @@ public final class MethodWriter extends GeneratorAdapter {
     }
 
     public void invokeLambdaCall(FunctionRef functionRef) {
-        Object[] args = new Object[7 + functionRef.delegateInjections.length];
-        args[0] = Type.getMethodType(functionRef.interfaceMethodType.toMethodDescriptorString());
-        args[1] = functionRef.delegateClassName;
-        args[2] = functionRef.delegateInvokeType;
-        args[3] = functionRef.delegateMethodName;
-        args[4] = Type.getMethodType(functionRef.delegateMethodType.toMethodDescriptorString());
-        args[5] = functionRef.isDelegateInterface ? 1 : 0;
-        args[6] = functionRef.isDelegateAugmented ? 1 : 0;
-        System.arraycopy(functionRef.delegateInjections, 0, args, 7, functionRef.delegateInjections.length);
+        // A charging reference threads four extra static args (script capture index + estimator owner/name/descriptor) so the
+        // generated lambda charges per invocation. Typed references capture the script first, so the index is 0.
+        boolean chargesAllocation = functionRef.chargesAllocation;
 
-        invokeDynamic(functionRef.interfaceMethodName, functionRef.getFactoryMethodDescriptor(), LAMBDA_BOOTSTRAP_HANDLE, args);
+        int size = 7 + functionRef.delegateInjections.length;
+        if (chargesAllocation) {
+            size += 4;
+        }
+
+        Object[] args = new Object[size];
+        int i = 0;
+        args[i++] = Type.getMethodType(functionRef.interfaceMethodType.toMethodDescriptorString());
+        args[i++] = functionRef.delegateClassName;
+        args[i++] = functionRef.delegateInvokeType;
+        args[i++] = functionRef.delegateMethodName;
+        args[i++] = Type.getMethodType(functionRef.delegateMethodType.toMethodDescriptorString());
+        args[i++] = functionRef.isDelegateInterface ? 1 : 0;
+        args[i++] = functionRef.isDelegateAugmented ? 1 : 0;
+        if (chargesAllocation) {
+            java.lang.reflect.Method estimator = functionRef.allocationEstimator;
+            args[i++] = 0;
+            args[i++] = Type.getInternalName(estimator.getDeclaringClass());
+            args[i++] = estimator.getName();
+            args[i++] = Method.getMethod(estimator).getDescriptor();
+        }
+        System.arraycopy(functionRef.delegateInjections, 0, args, i, functionRef.delegateInjections.length);
+
+        invokeDynamic(
+            functionRef.interfaceMethodName,
+            functionRef.getFactoryMethodDescriptor(),
+            chargesAllocation ? LAMBDA_ALLOC_BOOTSTRAP_HANDLE : LAMBDA_BOOTSTRAP_HANDLE,
+            args
+        );
     }
 }

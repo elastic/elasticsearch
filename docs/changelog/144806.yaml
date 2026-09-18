@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 144806
-summary: Stats pushdown past EVAL/RENAME for external sources
-type: enhancement

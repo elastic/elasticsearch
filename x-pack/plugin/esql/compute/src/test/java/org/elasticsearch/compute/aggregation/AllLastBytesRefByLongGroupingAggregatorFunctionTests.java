@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.aggregation.FirstLastAggregatorTestingUtils.GroundTruthFirstLastAggregator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -14,6 +15,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.operator.blocksource.ListRowsBlockSourceOperator;
 
 import java.util.List;
@@ -56,5 +58,23 @@ public class AllLastBytesRefByLongGroupingAggregatorFunctionTests extends Groupi
         GroundTruthFirstLastAggregator work = new GroundTruthFirstLastAggregator(false);
         processPages(work, input, group);
         work.check(BlockUtils.toJavaObject(result, position));
+    }
+
+    /** Tests that groups arriving out of order (key 1 before null key) are handled correctly. */
+    public void testTwoBlocksOneKeyNull() {
+        var runner = new TestDriverRunner().builder(driverContext()).collectDeepCopy();
+        BlockFactory blockFactory = runner.blockFactory();
+        Page page1 = new Page(
+            blockFactory.newConstantLongBlockWith(1L, 1),
+            blockFactory.newConstantBytesRefBlockWith(new BytesRef(randomAlphaOfLength(5)), 1),
+            blockFactory.newConstantLongBlockWith(randomLong(), 1)
+        );
+        Page page2 = new Page(
+            blockFactory.newConstantNullBlock(1),
+            blockFactory.newConstantBytesRefBlockWith(new BytesRef(randomAlphaOfLength(5)), 1),
+            blockFactory.newConstantLongBlockWith(randomLong(), 1)
+        );
+        runner.input(List.of(page1, page2));
+        assertSimpleOutput(runner.deepCopy(), runner.run(simple()));
     }
 }

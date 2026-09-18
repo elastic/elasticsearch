@@ -1,0 +1,191 @@
+# Integration tests for the per-purpose Azure access tier settings:
+#   - data_access_tier      (applies to SNAPSHOT_DATA;     allowlisted, eagerly validated)
+#   - metadata_access_tier  (applies to SNAPSHOT_METADATA; allowlisted, eagerly validated)
+
+---
+setup:
+
+  # Clean up any leftovers from previous runs (relevant when running against a real Azure backend).
+  - do:
+      snapshot.delete:
+        repository: repository_access_tiers
+        snapshot: snapshot-access-tiers
+        ignore: 404
+  - do:
+      snapshot.delete_repository:
+        repository: repository_access_tiers
+        ignore: 404
+
+---
+teardown:
+
+  - do:
+      snapshot.delete:
+        repository: repository_access_tiers
+        snapshot: snapshot-access-tiers
+        ignore: 404
+  - do:
+      snapshot.delete_repository:
+        repository: repository_access_tiers
+        ignore: 404
+
+---
+"Per-purpose access tier settings round-trip via get_repository":
+
+  - do:
+      snapshot.create_repository:
+        repository: repository_access_tiers
+        body:
+          type: azure
+          settings:
+            container: @container@
+            client: integration_test
+            base_path: @base_path@
+            data_access_tier: hot
+            metadata_access_tier: cool
+
+  - do:
+      snapshot.get_repository:
+        repository: repository_access_tiers
+
+  - match: { repository_access_tiers.settings.data_access_tier: hot }
+  - match: { repository_access_tiers.settings.metadata_access_tier: cool }
+
+---
+"Snapshot and restore with per-purpose access tiers":
+
+  - do:
+      snapshot.create_repository:
+        repository: repository_access_tiers
+        body:
+          type: azure
+          settings:
+            container: @container@
+            client: integration_test
+            base_path: @base_path@
+            data_access_tier: hot
+            metadata_access_tier: cool
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: docs
+              _id: "1"
+          - snapshot: access-tiers
+          - index:
+              _index: docs
+              _id: "2"
+          - snapshot: access-tiers
+          - index:
+              _index: docs
+              _id: "3"
+          - snapshot: access-tiers
+
+  - do:
+      count:
+        index: docs
+
+  - match: { count: 3 }
+
+  - do:
+      snapshot.create:
+        repository: repository_access_tiers
+        snapshot: snapshot-access-tiers
+        wait_for_completion: true
+
+  - match: { snapshot.snapshot: snapshot-access-tiers }
+  - match: { snapshot.state: SUCCESS }
+  - match: { snapshot.shards.failed: 0 }
+
+  - do:
+      indices.delete:
+        index: docs
+
+  - do:
+      snapshot.restore:
+        repository: repository_access_tiers
+        snapshot: snapshot-access-tiers
+        wait_for_completion: true
+
+  - do:
+      count:
+        index: docs
+
+  - match: { count: 3 }
+
+---
+"Reject unknown data_access_tier":
+
+  - do:
+      catch: /repository_exception/
+      snapshot.create_repository:
+        repository: repository_access_tiers
+        verify: false
+        body:
+          type: azure
+          settings:
+            container: @container@
+            client: integration_test
+            data_access_tier: not_a_tier
+
+---
+"Reject unknown metadata_access_tier":
+
+  - do:
+      catch: /repository_exception/
+      snapshot.create_repository:
+        repository: repository_access_tiers
+        verify: false
+        body:
+          type: azure
+          settings:
+            container: @container@
+            client: integration_test
+            metadata_access_tier: not_a_tier
+
+---
+"Accept all valid access tiers":
+
+  - do:
+      snapshot.create_repository:
+        repository: repository_access_tiers
+        body:
+          type: azure
+          settings:
+            container: @container@
+            client: integration_test
+            base_path: @base_path@
+            data_access_tier: cold
+            metadata_access_tier: hot
+
+  - do:
+      snapshot.get_repository:
+        repository: repository_access_tiers
+
+  - match: { repository_access_tiers.settings.data_access_tier: cold }
+  - match: { repository_access_tiers.settings.metadata_access_tier: hot }
+
+  - do:
+      snapshot.delete_repository:
+        repository: repository_access_tiers
+
+  - do:
+      snapshot.create_repository:
+        repository: repository_access_tiers
+        body:
+          type: azure
+          settings:
+            container: @container@
+            client: integration_test
+            base_path: @base_path@
+            data_access_tier: cool
+            metadata_access_tier: cold
+
+  - do:
+      snapshot.get_repository:
+        repository: repository_access_tiers
+
+  - match: { repository_access_tiers.settings.data_access_tier: cool }
+  - match: { repository_access_tiers.settings.metadata_access_tier: cold }

@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -28,13 +27,16 @@ public class ModelStats implements ToXContentObject, Writeable {
         "inference_telemetry_added_semantic_text_stats"
     );
 
+    static final TransportVersion INFERENCE_TELEMETRY_SEMANTIC_TEXT_STATS_REQUIRED = TransportVersion.fromName(
+        "inference_telemetry_semantic_text_stats_required"
+    );
+
     private final String service;
     private final TaskType taskType;
     private long count;
-    @Nullable
     private final SemanticTextStats semanticTextStats;
 
-    public ModelStats(String service, TaskType taskType, long count, @Nullable SemanticTextStats semanticTextStats) {
+    public ModelStats(String service, TaskType taskType, long count, SemanticTextStats semanticTextStats) {
         this.service = service;
         this.taskType = taskType;
         this.count = count;
@@ -45,10 +47,12 @@ public class ModelStats implements ToXContentObject, Writeable {
         this.service = in.readString();
         this.taskType = in.readEnum(TaskType.class);
         this.count = in.readLong();
-        if (in.getTransportVersion().supports(INFERENCE_TELEMETRY_ADDED_SEMANTIC_TEXT_STATS)) {
-            this.semanticTextStats = in.readOptional(SemanticTextStats::new);
+        if (in.getTransportVersion().supports(INFERENCE_TELEMETRY_SEMANTIC_TEXT_STATS_REQUIRED)) {
+            this.semanticTextStats = new SemanticTextStats(in);
+        } else if (in.getTransportVersion().supports(INFERENCE_TELEMETRY_ADDED_SEMANTIC_TEXT_STATS)) {
+            this.semanticTextStats = Objects.requireNonNullElse(in.readOptional(SemanticTextStats::new), new SemanticTextStats());
         } else {
-            this.semanticTextStats = null;
+            this.semanticTextStats = new SemanticTextStats();
         }
     }
 
@@ -68,7 +72,6 @@ public class ModelStats implements ToXContentObject, Writeable {
         return count;
     }
 
-    @Nullable
     public SemanticTextStats semanticTextStats() {
         return semanticTextStats;
     }
@@ -85,7 +88,7 @@ public class ModelStats implements ToXContentObject, Writeable {
         builder.field("service", service);
         builder.field("task_type", taskType.name());
         builder.field("count", count);
-        if (semanticTextStats != null) {
+        if (semanticTextStats.isEmpty() == false) {
             builder.field("semantic_text", semanticTextStats);
         }
     }
@@ -95,7 +98,9 @@ public class ModelStats implements ToXContentObject, Writeable {
         out.writeString(service);
         out.writeEnum(taskType);
         out.writeLong(count);
-        if (out.getTransportVersion().supports(INFERENCE_TELEMETRY_ADDED_SEMANTIC_TEXT_STATS)) {
+        if (out.getTransportVersion().supports(INFERENCE_TELEMETRY_SEMANTIC_TEXT_STATS_REQUIRED)) {
+            semanticTextStats.writeTo(out);
+        } else if (out.getTransportVersion().supports(INFERENCE_TELEMETRY_ADDED_SEMANTIC_TEXT_STATS)) {
             out.writeOptionalWriteable(semanticTextStats);
         }
     }

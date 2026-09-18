@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -391,7 +392,8 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertIndexIsClosed(indexName);
         ensureGreen(indexName);
         internalCluster().assertSameDocIdsOnShards();
-        for (RecoveryState recovery : indicesAdmin().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
+        for (var recoveryInfo : indicesAdmin().prepareRecoveries(indexName).get().shardRecoveryInfos().get(indexName)) {
+            RecoveryState recovery = recoveryInfo.recoveryState();
             if (recovery.getPrimary() == false) {
                 assertThat(recovery.getIndex().fileDetails(), not(empty()));
             }
@@ -475,7 +477,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         for (String node : allocatedNodes) {
             IndexService indexService = internalCluster().getInstance(IndicesService.class, node).indexServiceSafe(resolveIndex(indexName));
             for (IndexShard shard : indexService) {
-                try (Engine.SearcherSupplier searcher = shard.acquireSearcherSupplier()) {
+                try (Engine.SearcherSupplier searcher = shard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT)) {
                     assertNotNull(searcher.getSearcherId());
                     if (searcherIds[shard.shardId().id()] != null) {
                         assertThat(searcher.getSearcherId(), equalTo(searcherIds[shard.shardId().id()]));
@@ -495,7 +497,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         for (String node : allocatedNodes) {
             IndexService indexService = internalCluster().getInstance(IndicesService.class, node).indexServiceSafe(resolveIndex(indexName));
             for (IndexShard shard : indexService) {
-                try (Engine.SearcherSupplier searcher = shard.acquireSearcherSupplier()) {
+                try (Engine.SearcherSupplier searcher = shard.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT)) {
                     assertNotNull(searcher.getSearcherId());
                     assertThat(searcher.getSearcherId(), equalTo(searcherIds[shard.shardId().id()]));
                 }
@@ -590,7 +592,8 @@ public class CloseIndexIT extends ESIntegTestCase {
     }
 
     void assertNoFileBasedRecovery(String indexName) {
-        for (RecoveryState recovery : indicesAdmin().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
+        for (var recoveryInfo : indicesAdmin().prepareRecoveries(indexName).get().shardRecoveryInfos().get(indexName)) {
+            RecoveryState recovery = recoveryInfo.recoveryState();
             if (recovery.getPrimary() == false) {
                 assertThat(recovery.getIndex().fileDetails(), empty());
             }

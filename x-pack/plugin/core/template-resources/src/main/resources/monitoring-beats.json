@@ -1157,6 +1157,9 @@
                             "failed": {
                               "type": "long"
                             },
+                            "failure_store": {
+                              "type": "long"
+                            },
                             "total": {
                               "type": "long"
                             },

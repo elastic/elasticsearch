@@ -1,0 +1,4 @@
+FROM employees
+| RENAME languages AS language_code
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE language_name == "English" AND LENGTH(language_name) > 3

@@ -8,12 +8,16 @@
 package org.elasticsearch.xpack.transform.integration;
 
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.features.TransportResetFeatureStateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -23,10 +27,14 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
+import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
 import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 
@@ -131,5 +139,42 @@ public class TransformInternalIndexIT extends TransformSingleNodeTestCase {
         }
 
         deleteTransform(transformId);
+    }
+
+    public void testParallelPutTransformsOnFreshCluster() {
+        // Ensure the transform internal index does not exist so both puts race to create it
+        client().execute(TransportResetFeatureStateAction.TYPE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
+
+        createSourceIndex("parallel-put-src");
+
+        var config1 = new TransformConfig.Builder().setId("parallel-put-1")
+            .setSource(new SourceConfig("parallel-put-src"))
+            .setDest(new DestConfig("parallel-put-dest-1", null, null))
+            .setPivotConfig(PivotConfigTests.randomPivotConfig())
+            .build();
+        var config2 = new TransformConfig.Builder().setId("parallel-put-2")
+            .setSource(new SourceConfig("parallel-put-src"))
+            .setDest(new DestConfig("parallel-put-dest-2", null, null))
+            .setPivotConfig(PivotConfigTests.randomPivotConfig())
+            .build();
+
+        PlainActionFuture<AcknowledgedResponse> future1 = new PlainActionFuture<>();
+        PlainActionFuture<AcknowledgedResponse> future2 = new PlainActionFuture<>();
+        client().execute(
+            PutTransformAction.INSTANCE,
+            new PutTransformAction.Request(config1, true, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT),
+            future1
+        );
+        client().execute(
+            PutTransformAction.INSTANCE,
+            new PutTransformAction.Request(config2, true, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT),
+            future2
+        );
+
+        assertThat(future1.actionGet().isAcknowledged(), is(true));
+        assertThat(future2.actionGet().isAcknowledged(), is(true));
+
+        deleteTransform("parallel-put-1");
+        deleteTransform("parallel-put-2");
     }
 }

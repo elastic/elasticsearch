@@ -9,6 +9,7 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 
@@ -17,6 +18,15 @@ import java.io.IOException;
  */
 public interface Highlighter {
     boolean canHighlight(MappedFieldType fieldType);
+
+    /**
+     * Whether this highlighter can highlight the given field without {@code _source} (sourcing its content from doc values or
+     * stored fields instead). When {@code true} for a non-stored field, {@link HighlightPhase} does not request {@code _source},
+     * avoiding the cost of rebuilding it in synthetic-source and columnar indices. Defaults to {@code false}.
+     */
+    default boolean canHighlightWithoutSource(MappedFieldType fieldType, SearchExecutionContext context) {
+        return false;
+    }
 
     HighlightField highlight(FieldHighlightContext fieldContext) throws IOException;
 }

@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsUtils.ensureEmptyTaskSettingsInRequestContext;
+
 /**
  * Creates {@link ElasticInferenceServiceDenseEmbeddingsModel} instances from config maps
  * or {@link ModelConfigurations} and {@link ModelSecrets} objects.
@@ -34,11 +36,16 @@ public class ElasticInferenceServiceDenseEmbeddingsModelCreator extends ElasticI
     public ElasticInferenceServiceDenseEmbeddingsModel createFromMaps(
         String inferenceId,
         TaskType taskType,
+        String service,
         Map<String, Object> serviceSettings,
+        @Nullable Map<String, Object> taskSettings,
         @Nullable ChunkingSettings chunkingSettings,
+        @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context,
         @Nullable EndpointMetadata endpointMetadata
     ) {
+        ensureEmptyTaskSettingsInRequestContext(taskSettings, context);
+
         return new ElasticInferenceServiceDenseEmbeddingsModel(
             inferenceId,
             taskType,

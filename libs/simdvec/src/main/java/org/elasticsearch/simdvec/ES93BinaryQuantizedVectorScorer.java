@@ -20,6 +20,7 @@ import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRO
 public abstract class ES93BinaryQuantizedVectorScorer {
 
     protected static final float FOUR_BIT_SCALE = 1f / ((1 << 4) - 1);
+    public static final int BBQ_CORRECTIONS_BYTES = (Float.BYTES * 3) + Short.BYTES;
     protected final int dimensions;
     protected final int numBytes;
     protected final int byteSize;
@@ -27,7 +28,7 @@ public abstract class ES93BinaryQuantizedVectorScorer {
     public ES93BinaryQuantizedVectorScorer(int dimensions, int numBytes) {
         this.dimensions = dimensions;
         this.numBytes = numBytes;
-        this.byteSize = numBytes + (Float.BYTES * 3) + Short.BYTES;
+        this.byteSize = numBytes + BBQ_CORRECTIONS_BYTES;
     }
 
     public abstract float score(
@@ -96,7 +97,7 @@ public abstract class ES93BinaryQuantizedVectorScorer {
         // assumed to be the squared l2norm of the centroid centered vectors.
         if (similarityFunction == EUCLIDEAN) {
             score = queryAdditionalCorrection + indexAdditionalCorrection - 2 * score;
-            return Math.max(VectorUtil.normalizeDistanceToUnitInterval(score), 0);
+            return VectorUtil.normalizeDistanceToUnitInterval(Math.max(score, 0f));
         } else {
             // For dot product/cosine and max inner product, we need to apply the additional correction, which is
             // assumed to be the non-centered dot-product between the vector and the centroid
@@ -104,7 +105,7 @@ public abstract class ES93BinaryQuantizedVectorScorer {
             if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
                 return VectorUtil.scaleMaxInnerProductScore(score);
             }
-            return VectorUtil.normalizeToUnitInterval(score);
+            return VectorUtil.normalizeToUnitInterval(Math.clamp(score, -1, 1));
         }
     }
 }

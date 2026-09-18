@@ -9,7 +9,9 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.CollectionUtil;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -17,6 +19,7 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiffableValueSerializer;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.elasticsearch.common.Strings;
@@ -25,6 +28,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.common.lucene.RamUsageEstimates;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ProjectSecrets;
 import org.elasticsearch.common.settings.SecureString;
@@ -62,7 +66,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -82,7 +85,9 @@ import static org.elasticsearch.cluster.metadata.Metadata.ALL;
 import static org.elasticsearch.cluster.project.ProjectStateRegistry.RESERVED_DIFF_VALUE_READER;
 import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
-public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<ProjectMetadata>, ChunkedToXContent {
+public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<ProjectMetadata>, ChunkedToXContent, Accountable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ProjectMetadata.class);
 
     private static final NamedDiffableValueSerializer<Metadata.ProjectCustom> PROJECT_CUSTOM_VALUE_SERIALIZER =
         new NamedDiffableValueSerializer<>(Metadata.ProjectCustom.class);
@@ -122,6 +127,24 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         false,
         false,
         RestStatus.NOT_FOUND,
+        EnumSet.of(ClusterBlockLevel.READ, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_READ, ClusterBlockLevel.METADATA_WRITE)
+    );
+
+    /**
+     * Whether the project carries the {@link #PROJECT_UNDER_DELETION_BLOCK}. The block is never lifted: it stays until the project and its
+     * metadata are removed from the cluster state.
+     */
+    public static boolean isProjectUnderDeletion(ClusterBlocks blocks, ProjectId projectId) {
+        return blocks.hasGlobalBlock(projectId, PROJECT_UNDER_DELETION_BLOCK);
+    }
+
+    public static final ClusterBlock PROJECT_UNDER_CREATION_BLOCK = new ClusterBlock(
+        16,
+        "project is under creation",
+        true,
+        false,
+        false,
+        RestStatus.SERVICE_UNAVAILABLE,
         EnumSet.of(ClusterBlockLevel.READ, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_READ, ClusterBlockLevel.METADATA_WRITE)
     );
 
@@ -168,10 +191,11 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         final var lookup = indicesLookup;
         final var dsMetadata = custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY);
         final var viewMetadata = custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
-        assert lookup == null || lookup.equals(Builder.buildIndicesLookup(dsMetadata, viewMetadata, indices))
+        final var datasetMetadata = custom(DatasetMetadata.TYPE, DatasetMetadata.EMPTY);
+        assert lookup == null || lookup.equals(Builder.buildIndicesLookup(dsMetadata, viewMetadata, datasetMetadata, indices))
             : "expected the current lookup to either not exist, or be equal to the newly constructed lookup, but it was not";
         try {
-            Builder.ensureNoNameCollisions(aliasedIndices.keySet(), indices, dsMetadata, viewMetadata);
+            Builder.ensureNoNameCollisions(aliasedIndices.keySet(), indices, dsMetadata, viewMetadata, datasetMetadata);
         } catch (Exception e) {
             assert false : e;
         }
@@ -190,6 +214,28 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         assert Set.of(visibleClosedIndices)
             .equals(indicesByPredicate.apply(idx -> idx.isHidden() == false && idx.getState() == IndexMetadata.State.CLOSE));
         return true;
+    }
+
+    /**
+     * Returns a best-effort estimate of the heap footprint of this project's {@code indices} and {@code templates}. Each
+     * {@link IndexMetadata} contributes its own {@link IndexMetadata#ramBytesUsed()}, with {@link MappingMetadata} instances shared across
+     * indices (see {@link #mappingsByHash}) counted only once. Each {@link IndexTemplateMetadata} contributes its own
+     * {@link IndexTemplateMetadata#ramBytesUsed()}.
+     * <p>
+     * Known gaps (deliberately not counted to keep the scope small): the {@code customs} map (project-level custom metadata such as
+     * data streams, ILM, persistent tasks), the derived {@code aliasedIndices} map, the cached index-name arrays, the lazily-built
+     * {@code indicesLookup}, and the {@code mappingsByHash} lookup itself (whose values are the already-counted, deduplicated mappings).
+     * These reference structures either duplicate data counted elsewhere or are derived caches, so omitting them keeps the estimate a
+     * conservative lower bound dominated by index and template metadata.
+     */
+    @Override
+    public long ramBytesUsed() {
+        long size = BASE_RAM_BYTES_USED;
+        size += RamUsageEstimates.safeSizeOfObject(id);
+        size += RamUsageEstimator.shallowSizeOf(oldestIndexVersion);
+        size += MetadataRamEstimators.ramBytesUsedByIndexMetadataMap(indices);
+        size += templates.ramBytesUsed();
+        return RamUsageEstimator.alignObjectSize(size);
     }
 
     /**
@@ -535,6 +581,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         i = Builder.buildIndicesLookup(
             custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY),
             custom(ViewMetadata.TYPE, ViewMetadata.EMPTY),
+            custom(DatasetMetadata.TYPE, DatasetMetadata.EMPTY),
             indices
         );
         indicesLookup = i;
@@ -553,6 +600,16 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
      */
     public boolean hasView(String viewName) {
         return custom(ViewMetadata.TYPE, ViewMetadata.EMPTY).getView(viewName) != null;
+    }
+
+    /**
+     * Returns whether a dataset exists with provided dataset name.
+     *
+     * @param datasetName The provided dataset name
+     * @return whether a dataset exists with provided dataset name
+     */
+    public boolean hasDataset(String datasetName) {
+        return custom(DatasetMetadata.TYPE, DatasetMetadata.EMPTY).get(datasetName) != null;
     }
 
     /**
@@ -1089,7 +1146,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         var settings = MetadataIndexTemplateService.resolveSettings(indexTemplate, componentTemplates());
         // Not using IndexSettings.MODE.get() to avoid validation that may fail at this point.
         var rawIndexMode = settings.get(IndexSettings.MODE.getKey());
-        return rawIndexMode != null ? Enum.valueOf(IndexMode.class, rawIndexMode.toUpperCase(Locale.ROOT)) : null;
+        return rawIndexMode != null ? IndexMode.fromString(rawIndexMode) : null;
     }
 
     /**
@@ -1098,8 +1155,9 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
      * {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING}
      */
     public boolean isIndexManagedByILM(IndexMetadata indexMetadata) {
-        if (Strings.hasText(indexMetadata.getLifecyclePolicyName()) == false) {
-            // no ILM policy configured so short circuit this to *not* managed by ILM
+        if (Strings.hasText(indexMetadata.getLifecyclePolicyName()) == false
+            || IndexSettings.MODE.get(indexMetadata.getSettings()) == IndexMode.LOOKUP) {
+            // in case of no ILM policy configured or lookup index, we short circuit this to *not* managed by ILM
             return false;
         }
 
@@ -1490,6 +1548,20 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             return (ViewMetadata) this.customs.getOrDefault(ViewMetadata.TYPE, ViewMetadata.EMPTY);
         }
 
+        public Builder datasets(Map<String, Dataset> datasets) {
+            previousIndicesLookup = null;
+            this.customs.put(DatasetMetadata.TYPE, new DatasetMetadata(datasets));
+            return this;
+        }
+
+        public DatasetMetadata datasetMetadata() {
+            return (DatasetMetadata) this.customs.getOrDefault(DatasetMetadata.TYPE, DatasetMetadata.EMPTY);
+        }
+
+        public Dataset dataset(String datasetName) {
+            return datasetMetadata().datasets().get(datasetName);
+        }
+
         public boolean put(String aliasName, String dataStream, Boolean isWriteDataStream, String filter) {
             previousIndicesLookup = null;
             DataStreamMetadata existing = dataStreamMetadata();
@@ -1669,7 +1741,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 indicesLookup = previousIndicesLookup;
             } else if (skipNameCollisionChecks == false) {
                 // we have changes to the entity names so we ensure we have no naming collisions
-                ensureNoNameCollisions(aliasedIndices.keySet(), indicesMap, dataStreamMetadata(), viewMetadata());
+                ensureNoNameCollisions(aliasedIndices.keySet(), indicesMap, dataStreamMetadata(), viewMetadata(), datasetMetadata());
             }
             assert assertDataStreams(indicesMap, dataStreamMetadata());
 
@@ -1717,7 +1789,12 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             SortedMap<String, IndexAbstraction> previousIndicesLookup,
             ImmutableOpenMap<String, IndexMetadata> indicesMap
         ) {
-            SortedMap<String, IndexAbstraction> newIndicesLookup = buildIndicesLookup(dataStreamMetadata(), viewMetadata(), indicesMap);
+            SortedMap<String, IndexAbstraction> newIndicesLookup = buildIndicesLookup(
+                dataStreamMetadata(),
+                viewMetadata(),
+                datasetMetadata(),
+                indicesMap
+            );
             if (previousIndicesLookup.equals(newIndicesLookup)) {
                 // They are identical and the lookup can be reused.
                 return true;
@@ -1738,17 +1815,22 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             return false;
         }
 
+        /**
+         * Verifies that the names of indices, aliases, data streams, views, and datasets do not collide with each other.
+         */
         static void ensureNoNameCollisions(
             Set<String> indexAliases,
             ImmutableOpenMap<String, IndexMetadata> indicesMap,
             DataStreamMetadata dataStreamMetadata,
-            ViewMetadata viewMetadata
+            ViewMetadata viewMetadata,
+            DatasetMetadata datasetMetadata
         ) {
             List<String> duplicates = new ArrayList<>();
             Set<String> aliasDuplicatesWithIndices = new HashSet<>();
             Set<String> aliasDuplicatesWithDataStreams = new HashSet<>();
             var allDataStreams = dataStreamMetadata.dataStreams();
             var allViewNames = viewMetadata.views().keySet();
+            var allDatasetNames = datasetMetadata.datasets().keySet();
             // Adding data stream aliases:
             for (String dataStreamAlias : dataStreamMetadata.getDataStreamAliases().keySet()) {
                 if (indexAliases.contains(dataStreamAlias)) {
@@ -1763,6 +1845,9 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 if (allViewNames.contains(dataStreamAlias)) {
                     duplicates.add("data stream alias and view have the same name (" + dataStreamAlias + ")");
                 }
+                if (allDatasetNames.contains(dataStreamAlias)) {
+                    duplicates.add("data stream alias and dataset have the same name (" + dataStreamAlias + ")");
+                }
             }
             for (String alias : indexAliases) {
                 if (allDataStreams.containsKey(alias)) {
@@ -1774,6 +1859,9 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 if (allViewNames.contains(alias)) {
                     duplicates.add("alias and view have the same name (" + alias + ")");
                 }
+                if (allDatasetNames.contains(alias)) {
+                    duplicates.add("alias and dataset have the same name (" + alias + ")");
+                }
             }
             allDataStreams.forEach((key, value) -> {
                 if (indicesMap.containsKey(key)) {
@@ -1782,10 +1870,21 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 if (allViewNames.contains(key)) {
                     duplicates.add("data stream [" + key + "] conflicts with view");
                 }
+                if (allDatasetNames.contains(key)) {
+                    duplicates.add("data stream [" + key + "] conflicts with dataset");
+                }
             });
             allViewNames.forEach(key -> {
                 if (indicesMap.containsKey(key)) {
                     duplicates.add("view [" + key + "] conflicts with index");
+                }
+                if (allDatasetNames.contains(key)) {
+                    duplicates.add("view [" + key + "] conflicts with dataset");
+                }
+            });
+            allDatasetNames.forEach(key -> {
+                if (indicesMap.containsKey(key)) {
+                    duplicates.add("dataset [" + key + "] conflicts with index");
                 }
             });
             if (aliasDuplicatesWithIndices.isEmpty() == false) {
@@ -1795,12 +1894,9 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 collectAliasDuplicates(indicesMap, dataStreamMetadata, aliasDuplicatesWithDataStreams, duplicates);
             }
             if (duplicates.isEmpty() == false) {
-                throw new IllegalStateException(
-                    "index, alias, data stream, and view names need to be unique, but the following duplicates "
-                        + "were found ["
-                        + Strings.collectionToCommaDelimitedString(duplicates)
-                        + "]"
-                );
+                String preamble = "index, alias, data stream, view, and dataset names need to be unique, "
+                    + "but the following duplicates were found [";
+                throw new IllegalStateException(preamble + Strings.collectionToCommaDelimitedString(duplicates) + "]");
             }
         }
 
@@ -1849,15 +1945,17 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         static SortedMap<String, IndexAbstraction> buildIndicesLookup(
             DataStreamMetadata dataStreamMetadata,
             ViewMetadata viewMetadata,
+            DatasetMetadata datasetMetadata,
             ImmutableOpenMap<String, IndexMetadata> indices
         ) {
-            if (indices.isEmpty() && viewMetadata.views().isEmpty()) {
+            if (indices.isEmpty() && viewMetadata.views().isEmpty() && datasetMetadata.datasets().isEmpty()) {
                 return Collections.emptySortedMap();
             }
             Map<String, IndexAbstraction> indicesLookup = new HashMap<>();
             Map<String, DataStream> indexToDataStreamLookup = new HashMap<>();
             collectDataStreams(dataStreamMetadata, indicesLookup, indexToDataStreamLookup);
             indicesLookup.putAll(viewMetadata.views());
+            indicesLookup.putAll(datasetMetadata.datasets());
 
             Map<String, List<IndexMetadata>> aliasToIndices = new HashMap<>();
             collectIndices(indices, indexToDataStreamLookup, indicesLookup, aliasToIndices);
@@ -2401,7 +2499,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             builder.customs(customs.apply(part.customs));
             if (part.indices == updatedIndices
                 && builder.dataStreamMetadata() == part.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY)
-                && builder.viewMetadata() == part.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY)) {
+                && builder.viewMetadata() == part.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY)
+                && builder.datasetMetadata() == part.custom(DatasetMetadata.TYPE, DatasetMetadata.EMPTY)) {
                 builder.previousIndicesLookup = part.indicesLookup;
             }
             return builder.build(true);

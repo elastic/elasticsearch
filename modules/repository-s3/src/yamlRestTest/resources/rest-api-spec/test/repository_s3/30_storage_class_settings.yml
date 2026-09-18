@@ -1,0 +1,246 @@
+# Integration tests for the per-purpose S3 storage class settings:
+#   - storage_class           (legacy, fallback for all OperationPurposes; only rejects GLACIER, lazily)
+#   - data_storage_class      (applies to SNAPSHOT_DATA;     allowlisted, eagerly validated)
+#   - metadata_storage_class  (applies to SNAPSHOT_METADATA; allowlisted, eagerly validated)
+
+---
+setup:
+
+  # Clean up any leftovers from previous runs (relevant when running against a real S3 backend).
+  - do:
+      snapshot.delete:
+        repository: repository_storage_classes
+        snapshot: snapshot-storage-classes
+        ignore: 404
+  - do:
+      snapshot.delete_repository:
+        repository: repository_storage_classes
+        ignore: 404
+
+---
+teardown:
+
+  - do:
+      snapshot.delete:
+        repository: repository_storage_classes
+        snapshot: snapshot-storage-classes
+        ignore: 404
+  - do:
+      snapshot.delete_repository:
+        repository: repository_storage_classes
+        ignore: 404
+
+---
+"Per-purpose storage class settings round-trip via get_repository":
+
+  - do:
+      snapshot.create_repository:
+        repository: repository_storage_classes
+        body:
+          type: s3
+          settings:
+            bucket: bucket
+            client: integration_test_permanent
+            base_path: base_path_integration_tests
+            canned_acl: private
+            storage_class: standard_ia
+            data_storage_class: onezone_ia
+            metadata_storage_class: glacier_ir
+
+  - do:
+      snapshot.get_repository:
+        repository: repository_storage_classes
+
+  - match: { repository_storage_classes.settings.storage_class: standard_ia }
+  - match: { repository_storage_classes.settings.data_storage_class: onezone_ia }
+  - match: { repository_storage_classes.settings.metadata_storage_class: glacier_ir }
+
+---
+"Snapshot and restore with per-purpose storage classes":
+
+  - do:
+      snapshot.create_repository:
+        repository: repository_storage_classes
+        body:
+          type: s3
+          settings:
+            bucket: bucket
+            client: integration_test_permanent
+            base_path: base_path_integration_tests
+            canned_acl: private
+            storage_class: standard
+            data_storage_class: onezone_ia
+            metadata_storage_class: standard_ia
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: docs
+              _id: "1"
+          - snapshot: storage-classes
+          - index:
+              _index: docs
+              _id: "2"
+          - snapshot: storage-classes
+          - index:
+              _index: docs
+              _id: "3"
+          - snapshot: storage-classes
+
+  - do:
+      count:
+        index: docs
+
+  - match: { count: 3 }
+
+  - do:
+      snapshot.create:
+        repository: repository_storage_classes
+        snapshot: snapshot-storage-classes
+        wait_for_completion: true
+
+  - match: { snapshot.snapshot: snapshot-storage-classes }
+  - match: { snapshot.state: SUCCESS }
+  - match: { snapshot.shards.failed: 0 }
+
+  - do:
+      indices.delete:
+        index: docs
+
+  - do:
+      snapshot.restore:
+        repository: repository_storage_classes
+        snapshot: snapshot-storage-classes
+        wait_for_completion: true
+
+  - do:
+      count:
+        index: docs
+
+  - match: { count: 3 }
+
+---
+"Reject unknown data_storage_class":
+
+  - do:
+      catch: /repository_exception/
+      snapshot.create_repository:
+        repository: repository_storage_classes
+        verify: false
+        body:
+          type: s3
+          settings:
+            bucket: bucket
+            client: integration_test_permanent
+            base_path: base_path_integration_tests
+            data_storage_class: not_a_class
+
+---
+"Reject unknown metadata_storage_class":
+
+  - do:
+      catch: /repository_exception/
+      snapshot.create_repository:
+        repository: repository_storage_classes
+        verify: false
+        body:
+          type: s3
+          settings:
+            bucket: bucket
+            client: integration_test_permanent
+            base_path: base_path_integration_tests
+            metadata_storage_class: not_a_class
+
+---
+"Reject glacier for data_storage_class (not in allowlist)":
+
+  - do:
+      catch: /repository_exception/
+      snapshot.create_repository:
+        repository: repository_storage_classes
+        verify: false
+        body:
+          type: s3
+          settings:
+            bucket: bucket
+            client: integration_test_permanent
+            base_path: base_path_integration_tests
+            data_storage_class: glacier
+
+---
+"Reject glacier for metadata_storage_class (not in allowlist)":
+
+  - do:
+      catch: /repository_exception/
+      snapshot.create_repository:
+        repository: repository_storage_classes
+        verify: false
+        body:
+          type: s3
+          settings:
+            bucket: bucket
+            client: integration_test_permanent
+            base_path: base_path_integration_tests
+            metadata_storage_class: glacier
+
+---
+"Accept allowlist-only classes for new settings":
+
+  - do:
+      snapshot.create_repository:
+        repository: repository_storage_classes
+        body:
+          type: s3
+          settings:
+            bucket: bucket
+            client: integration_test_permanent
+            base_path: base_path_integration_tests
+            data_storage_class: glacier_ir
+            metadata_storage_class: outposts
+
+  - do:
+      snapshot.get_repository:
+        repository: repository_storage_classes
+
+  - match: { repository_storage_classes.settings.data_storage_class: glacier_ir }
+  - match: { repository_storage_classes.settings.metadata_storage_class: outposts }
+
+  - do:
+      snapshot.delete_repository:
+        repository: repository_storage_classes
+
+  - do:
+      snapshot.create_repository:
+        repository: repository_storage_classes
+        body:
+          type: s3
+          settings:
+            bucket: bucket
+            client: integration_test_permanent
+            base_path: base_path_integration_tests
+            data_storage_class: snow
+            metadata_storage_class: snow
+
+  - do:
+      snapshot.get_repository:
+        repository: repository_storage_classes
+
+  - match: { repository_storage_classes.settings.data_storage_class: snow }
+  - match: { repository_storage_classes.settings.metadata_storage_class: snow }
+
+---
+"Legacy storage_class still rejects glacier":
+
+  - do:
+      catch: /repository_verification_exception/
+      snapshot.create_repository:
+        repository: repository_storage_classes
+        body:
+          type: s3
+          settings:
+            bucket: bucket
+            client: integration_test_permanent
+            base_path: base_path_integration_tests
+            storage_class: glacier

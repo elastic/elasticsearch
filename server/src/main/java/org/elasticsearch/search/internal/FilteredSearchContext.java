@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.SearchExtBuilder;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.collapse.CollapseContext;
@@ -362,6 +363,11 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public QuerySearchResult queryResult() {
         return in.queryResult();
+    }
+
+    @Override
+    public void registerTopHitsForRelease(SearchHits searchHits) {
+        in.registerTopHitsForRelease(searchHits);
     }
 
     @Override

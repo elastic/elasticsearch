@@ -9,10 +9,17 @@ package org.elasticsearch.xpack.esql.datasource.http;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpStatus;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -20,14 +27,18 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Map;
 import java.util.OptionalLong;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * StorageObject implementation using HTTP Range requests for efficient partial reads.
@@ -40,22 +51,30 @@ import java.util.concurrent.Executor;
  *   <li>Metadata retrieval via HEAD requests</li>
  * </ul>
  */
-public final class HttpStorageObject implements StorageObject {
+public final class HttpStorageObject extends AbstractMeteredStorageObject {
 
     private final HttpClient client;
     private final StoragePath path;
     private final URI uri;  // Cached URI to avoid repeated parsing
     private final HttpConfiguration config;
+    /** Null in unit tests that construct this object directly; production wires the provider's idle scheduler. */
+    private final ScheduledExecutorService idleScheduler;
 
     // Cached metadata to avoid repeated HEAD requests
     private Long cachedLength;
     private Instant cachedLastModified;
     private Boolean cachedExists;
+    /** First strong ETag returned by a GET; sent as If-Match on later GETs and reported as {@link #contentGeneration()}. */
+    private final AtomicReference<String> pinnedEtag = new AtomicReference<>();
 
     /**
      * Creates an HttpStorageObject without pre-known metadata.
      */
     public HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config) {
+        this(client, path, config, null);
+    }
+
+    HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config, ScheduledExecutorService idleScheduler) {
         if (client == null) {
             throw new IllegalArgumentException("client cannot be null");
         }
@@ -69,13 +88,18 @@ public final class HttpStorageObject implements StorageObject {
         this.path = path;
         this.uri = URI.create(path.toString());
         this.config = config;
+        this.idleScheduler = idleScheduler;
     }
 
     /**
      * Creates an HttpStorageObject with pre-known length.
      */
     public HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config, long length) {
-        this(client, path, config);
+        this(client, path, config, length, (ScheduledExecutorService) null);
+    }
+
+    HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config, long length, ScheduledExecutorService idleScheduler) {
+        this(client, path, config, idleScheduler);
         this.cachedLength = length;
     }
 
@@ -83,19 +107,108 @@ public final class HttpStorageObject implements StorageObject {
      * Creates an HttpStorageObject with pre-known length and last modified time.
      */
     public HttpStorageObject(HttpClient client, StoragePath path, HttpConfiguration config, long length, Instant lastModified) {
-        this(client, path, config, length);
+        this(client, path, config, length, lastModified, null);
+    }
+
+    HttpStorageObject(
+        HttpClient client,
+        StoragePath path,
+        HttpConfiguration config,
+        long length,
+        Instant lastModified,
+        ScheduledExecutorService idleScheduler
+    ) {
+        this(client, path, config, length, idleScheduler);
         this.cachedLastModified = lastModified;
     }
 
     @Override
     public InputStream newStream() throws IOException {
-        return sendRequest(this::buildGetRequest, HttpResponse.BodyHandlers.ofInputStream(), response -> {
-            int statusCode = response.statusCode();
-            if (statusCode != HttpStatus.SC_OK) {
-                throw new IOException("Failed to read object from " + path + ", HTTP status: " + statusCode);
+        long startNanos = System.nanoTime();
+        long[] bytesHolder = new long[] { 0L };
+        try {
+            return sendRequest(this::buildGetRequest, HttpResponse.BodyHandlers.ofInputStream(), response -> {
+                int statusCode = response.statusCode();
+                if (statusCode != HttpStatus.SC_OK) {
+                    long retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(
+                        response.headers().firstValue("retry-after").orElse(null)
+                    );
+                    throw throwReadFailure("Failed to read object from", statusCode, readErrorBody(response.body()), retryAfterMs);
+                }
+                OptionalLong contentLength = response.headers().firstValueAsLong(HttpHeaders.CONTENT_LENGTH);
+                if (contentLength.isPresent()) {
+                    bytesHolder[0] = contentLength.getAsLong();
+                }
+                InputStream body = validateHeaders(response.headers(), 0L, false, response.body());
+                return wrapBody(body);
+            });
+        } finally {
+            counters.addRequest(System.nanoTime() - startNanos, bytesHolder[0]);
+        }
+    }
+
+    /** Cap on the error-response body snippet folded into a failure message, in bytes. */
+    private static final int MAX_ERROR_BODY_BYTES = 512;
+
+    /**
+     * Maps a non-success HTTP status into the exception to surface to ES|QL. A retryable status
+     * (5xx/429) becomes an {@link ExternalUnavailableException} (503 — the read may succeed on retry);
+     * any other status becomes an {@link IOException}, which the external source operator classifies as
+     * a client-class 400. {@code detail} is an optional truncated error-body snippet appended for triage
+     * (a raw status alone is opaque; stores typically return a descriptive body). {@code retryAfterMs}
+     * is the parsed {@code Retry-After} hint (0 when absent). Returns (never throws) so both the
+     * synchronous and async read paths can route it.
+     */
+    private Exception mapReadFailure(String context, int statusCode, String detail, long retryAfterMs) {
+        String suffix = (detail == null || detail.isEmpty()) ? "" : ", body: " + detail;
+        if (ExternalUnavailableException.isRetryableStatus(statusCode)) {
+            boolean throttling = ExternalUnavailableException.isThrottlingStatus(statusCode);
+            return new ExternalUnavailableException(
+                throttling,
+                throttling ? retryAfterMs : 0L,
+                "HTTP store unavailable reading [{}] (HTTP {}){}",
+                path,
+                statusCode,
+                suffix
+            );
+        }
+        if (statusCode == HttpStatus.SC_PRECONDITION_FAILED) {
+            return new ExternalObjectChangedException("Object changed during read of [{}] (HTTP {}){}", path, statusCode, suffix);
+        }
+        return new IOException(context + " " + path + ", HTTP status: " + statusCode + suffix);
+    }
+
+    /**
+     * Synchronous-path bridge for {@link #mapReadFailure}: rethrows the mapped exception. The return
+     * type lets callers write {@code throw throwReadFailure(...)} so the compiler sees an exit.
+     */
+    private RuntimeException throwReadFailure(String context, int statusCode, String detail, long retryAfterMs) throws IOException {
+        Exception mapped = mapReadFailure(context, statusCode, detail, retryAfterMs);
+        if (mapped instanceof RuntimeException re) {
+            throw re;
+        }
+        throw (IOException) mapped;
+    }
+
+    /**
+     * Best-effort read of a truncated, UTF-8 error-response body for inclusion in a failure message.
+     * Reads at most {@link #MAX_ERROR_BODY_BYTES} and closes the stream. Never throws: error-body
+     * extraction must never mask or replace the real failure, so any problem yields {@code null}.
+     */
+    private static String readErrorBody(InputStream body) {
+        if (body == null) {
+            return null;
+        }
+        try (body) {
+            byte[] bytes = body.readNBytes(MAX_ERROR_BODY_BYTES);
+            if (bytes.length == 0) {
+                return null;
             }
-            return response.body();
-        });
+            String text = new String(bytes, StandardCharsets.UTF_8).strip();
+            return text.isEmpty() ? null : text;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     @Override
@@ -103,36 +216,65 @@ public final class HttpStorageObject implements StorageObject {
         if (position < 0) {
             throw new IllegalArgumentException("position must be non-negative, got: " + position);
         }
-        if (length < 0) {
-            throw new IllegalArgumentException("length must be non-negative, got: " + length);
+        boolean toEnd = length == READ_TO_END;
+        if (toEnd == false && length <= 0) {
+            throw new IllegalArgumentException("length must be positive or READ_TO_END, got: " + length);
         }
 
-        return sendRequest(() -> buildRangeRequest(position, length), HttpResponse.BodyHandlers.ofInputStream(), response -> {
-            int statusCode = response.statusCode();
-            // 206 = Partial Content (successful range request)
-            // 200 = OK (server doesn't support ranges but returned full content)
-            if (statusCode == HttpStatus.SC_PARTIAL_CONTENT) {
-                return response.body();
-            } else if (statusCode == HttpStatus.SC_OK) {
-                // Server doesn't support Range requests, skip to position manually
-                InputStream stream = response.body();
-                long skipped = stream.skip(position);
-                if (skipped != position) {
-                    stream.close();
-                    throw new IOException("Failed to skip to position " + position + ", only skipped " + skipped + " bytes");
+        long startNanos = System.nanoTime();
+        // Bytes: response Content-Length when known, else fall back to the requested range length.
+        long[] bytesHolder = new long[] { toEnd ? 0L : length };
+        try {
+            return sendRequest(() -> buildRangeRequest(position, length), HttpResponse.BodyHandlers.ofInputStream(), response -> {
+                int statusCode = response.statusCode();
+                OptionalLong contentLength = response.headers().firstValueAsLong(HttpHeaders.CONTENT_LENGTH);
+                if (contentLength.isPresent()) {
+                    bytesHolder[0] = contentLength.getAsLong();
                 }
-                // Wrap in a limited stream to ensure we only read 'length' bytes
-                return new BoundedInputStream(stream, length);
-            } else {
-                throw new IOException("Range request failed for " + path + ", HTTP status: " + statusCode);
-            }
-        });
+                // 206 = Partial Content (successful range request)
+                // 200 = OK (server doesn't support ranges but returned full content)
+                if (statusCode == HttpStatus.SC_PARTIAL_CONTENT) {
+                    InputStream body = validateHeaders(response.headers(), position, toEnd == false, response.body());
+                    return wrapBody(body);
+                } else if (statusCode == HttpStatus.SC_OK) {
+                    // Server doesn't support Range requests, skip to position manually. The skip runs on the
+                    // idle-wrapped body (open-phase setup, retried by the open loop on failure); typing wraps
+                    // the delivered tail so a mid-read drop after the skip resumes byte-exactly. Idle wrap
+                    // is applied before skip so a stall while seeking is bounded the same way as a stall
+                    // while reading.
+                    InputStream stream = wrapIdle(response.body());
+                    long skipped = stream.skip(position);
+                    if (skipped != position) {
+                        stream.close();
+                        throw new IOException("Failed to skip to position " + position + ", only skipped " + skipped + " bytes");
+                    }
+                    stream = validateHeaders(response.headers(), 0L, false, stream);
+                    InputStream typed = new HttpTransientTypingInputStream(stream, path);
+                    // READ_TO_END: read to the end (no bound); otherwise cap at the requested length.
+                    return toEnd ? typed : new BoundedInputStream(typed, length);
+                } else if (toEnd && statusCode == HttpStatus.SC_REQUESTED_RANGE_NOT_SATISFIABLE) {
+                    // Open-ended read at/after the end of an (empty or shorter) object: nothing to read. The SPI
+                    // contract for an open-ended read past the end is an empty stream.
+                    return InputStream.nullInputStream();
+                } else {
+                    long retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(
+                        response.headers().firstValue("retry-after").orElse(null)
+                    );
+                    throw throwReadFailure("Range request failed for", statusCode, readErrorBody(response.body()), retryAfterMs);
+                }
+            });
+        } finally {
+            counters.addRequest(System.nanoTime() - startNanos, bytesHolder[0]);
+        }
     }
 
     @Override
     public long length() throws IOException {
         if (cachedLength == null) {
             fetchMetadata();
+        }
+        if (cachedExists != null && cachedExists == false) {
+            throw new IOException("Object not found: " + path);
         }
         return cachedLength;
     }
@@ -141,6 +283,9 @@ public final class HttpStorageObject implements StorageObject {
     public Instant lastModified() throws IOException {
         if (cachedLastModified == null) {
             fetchMetadata();
+        }
+        if (cachedExists != null && cachedExists == false) {
+            throw new IOException("Object not found: " + path);
         }
         return cachedLastModified;
     }
@@ -158,6 +303,16 @@ public final class HttpStorageObject implements StorageObject {
         return path;
     }
 
+    @Override
+    public long knownLength() {
+        return cachedLength != null ? cachedLength : READ_TO_END;
+    }
+
+    @Override
+    public String contentGeneration() {
+        return pinnedEtag.get();
+    }
+
     // === ASYNC API (native implementation using HttpClient.sendAsync) ===
 
     /**
@@ -169,11 +324,18 @@ public final class HttpStorageObject implements StorageObject {
      *
      * @param position the starting byte position
      * @param length the number of bytes to read
+     * @param factory produces the destination {@link DirectReadBuffer} for the response body
      * @param executor executor (unused - HttpClient uses executor configured at creation)
      * @param listener callback for the result or failure
      */
     @Override
-    public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+    public void readBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
         if (position < 0) {
             listener.onFailure(new IllegalArgumentException("position must be non-negative, got: " + position));
             return;
@@ -182,39 +344,47 @@ public final class HttpStorageObject implements StorageObject {
             listener.onFailure(new IllegalArgumentException("length must be non-negative, got: " + length));
             return;
         }
+        if (length > Integer.MAX_VALUE) {
+            listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
+            return;
+        }
 
         HttpRequest request = buildRangeRequest(position, length);
 
-        // Use native async HTTP - no blocking, no extra threads needed
-        client.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray()).whenComplete((response, throwable) -> {
-            if (throwable != null) {
-                listener.onFailure(throwable instanceof Exception ex ? ex : new RuntimeException(throwable));
-                return;
-            }
-
-            int statusCode = response.statusCode();
-            // 206 = Partial Content (successful range request)
-            // 200 = OK (server doesn't support ranges but returned full content - need to slice)
-            if (statusCode == HttpStatus.SC_PARTIAL_CONTENT) {
-                listener.onResponse(ByteBuffer.wrap(response.body()));
-            } else if (statusCode == HttpStatus.SC_OK) {
-                // Server doesn't support Range requests, slice the response
-                byte[] fullBody = response.body();
-                int bodyLength = fullBody.length;
-                if (position >= bodyLength) {
-                    listener.onFailure(
-                        new IOException("Position " + position + " is beyond content length " + bodyLength + " for " + path)
-                    );
+        long startNanos = System.nanoTime();
+        onReadComplete(
+            client.sendAsync(request, DirectByteBufferBodyHandlers.ofRangeRead(position, (int) length, factory, path)),
+            (response, throwable) -> {
+                if (throwable != null) {
+                    counters.addRequest(System.nanoTime() - startNanos, 0L);
+                    listener.onFailure(mapAsyncSendFailure(throwable));
                     return;
                 }
-                int actualLength = (int) Math.min(length, bodyLength - position);
-                byte[] slice = new byte[actualLength];
-                System.arraycopy(fullBody, (int) position, slice, 0, actualLength);
-                listener.onResponse(ByteBuffer.wrap(slice));
-            } else {
-                listener.onFailure(new IOException("Range request failed for " + path + ", HTTP status: " + statusCode));
+
+                int statusCode = response.statusCode();
+                // The DirectByteBufferBodyHandlers.ofRangeRead handler already performs the range
+                // slicing internally for both 206 (server-side range) and 200 (full body) responses,
+                // returning a DirectReadBuffer scoped to the requested window.
+                if (statusCode == HttpStatus.SC_PARTIAL_CONTENT || statusCode == HttpStatus.SC_OK) {
+                    try {
+                        observeHeaders(response.headers(), position, true);
+                    } catch (ExternalObjectChangedException e) {
+                        counters.addRequest(System.nanoTime() - startNanos, 0L);
+                        response.body().close();
+                        listener.onFailure(e);
+                        return;
+                    }
+                    deliverRead(listener, response.body(), startNanos);
+                } else {
+                    counters.addRequest(System.nanoTime() - startNanos, 0L);
+                    response.body().close();
+                    long retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(
+                        response.headers().firstValue("retry-after").orElse(null)
+                    );
+                    listener.onFailure(mapReadFailure("Range request failed for", statusCode, null, retryAfterMs));
+                }
             }
-        });
+        );
     }
 
     /**
@@ -222,6 +392,11 @@ public final class HttpStorageObject implements StorageObject {
      */
     @Override
     public boolean supportsNativeAsync() {
+        return true;
+    }
+
+    @Override
+    public boolean readBytesAsyncReleasesExecutor() {
         return true;
     }
 
@@ -233,6 +408,7 @@ public final class HttpStorageObject implements StorageObject {
     private HttpRequest buildGetRequest() {
         HttpRequest.Builder builder = HttpRequest.newBuilder().uri(uri).GET().timeout(config.requestTimeout());
         addCustomHeaders(builder);
+        addIfMatch(builder);
         return builder.build();
     }
 
@@ -240,9 +416,8 @@ public final class HttpStorageObject implements StorageObject {
      * Builds a GET request with Range header for partial content.
      */
     private HttpRequest buildRangeRequest(long position, long length) {
-        // HTTP Range uses inclusive end: "bytes=start-end"
-        long endPosition = position + length - 1;
-        String rangeValue = "bytes=" + position + "-" + endPosition;
+        // HTTP Range uses inclusive end: "bytes=start-end". READ_TO_END is the open-ended form "bytes=start-".
+        String rangeValue = length == READ_TO_END ? "bytes=" + position + "-" : "bytes=" + position + "-" + (position + length - 1);
 
         HttpRequest.Builder builder = HttpRequest.newBuilder()
             .uri(uri)
@@ -250,6 +425,7 @@ public final class HttpStorageObject implements StorageObject {
             .GET()
             .timeout(config.requestTimeout());
         addCustomHeaders(builder);
+        addIfMatch(builder);
         return builder.build();
     }
 
@@ -275,6 +451,73 @@ public final class HttpStorageObject implements StorageObject {
         }
     }
 
+    private void addIfMatch(HttpRequest.Builder builder) {
+        String etag = pinnedEtag.get();
+        if (etag != null) {
+            builder.header(HttpHeaders.IF_MATCH, etag);
+        }
+    }
+
+    private void observeHeaders(java.net.http.HttpHeaders headers, long position, boolean closedRange) {
+        if (headers == null) {
+            observeEtag(null);
+            return;
+        }
+        observeEtag(headers.firstValue(HttpHeaders.ETAG).orElse(null));
+        Long total = headers.firstValue(HttpHeaders.CONTENT_RANGE).map(ContentRangeParser::parseTotalLength).orElse(null);
+        if (total != null) {
+            cachedLength = total;
+        } else if (closedRange == false && position == 0) {
+            headers.firstValueAsLong(HttpHeaders.CONTENT_LENGTH).ifPresent(len -> cachedLength = len);
+        }
+    }
+
+    /** Weak ETags ({@code W/"..."}) are not byte-for-byte identifiers, so they are never used as a pin. */
+    private void observeEtag(String etag) {
+        String current = pinnedEtag.get();
+        if (etag == null || etag.isBlank() || etag.regionMatches(true, 0, "W/", 0, 2)) {
+            if (current != null) {
+                throw new ExternalObjectChangedException("Object generation could not be verified during read of [{}]", path);
+            }
+            return;
+        }
+        if (current == null) {
+            if (pinnedEtag.compareAndSet(null, etag)) {
+                return;
+            }
+            current = pinnedEtag.get();
+        }
+        if (current.equals(etag) == false) {
+            throw new ExternalObjectChangedException("Object changed during read of [{}]", path);
+        }
+    }
+
+    /**
+     * Idle-timeout the body (S3 socket-timeout parity) then type mid-read faults as transient.
+     */
+    private InputStream wrapBody(InputStream body) {
+        return new HttpTransientTypingInputStream(wrapIdle(body), path);
+    }
+
+    private InputStream wrapIdle(InputStream body) {
+        return IdleTimeoutInputStream.wrap(body, config.idleTimeout(), path, idleScheduler);
+    }
+
+    private InputStream validateHeaders(java.net.http.HttpHeaders headers, long position, boolean closedRange, InputStream body)
+        throws IOException {
+        try {
+            observeHeaders(headers, position, closedRange);
+            return body;
+        } catch (RuntimeException e) {
+            try {
+                body.close();
+            } catch (Exception closeException) {
+                e.addSuppressed(closeException);
+            }
+            throw e;
+        }
+    }
+
     /**
      * Sends a synchronous HTTP request with proper interrupt handling.
      * <p>
@@ -295,14 +538,7 @@ public final class HttpStorageObject implements StorageObject {
         HttpResponse.BodyHandler<T> bodyHandler,
         CheckedFunction<HttpResponse<T>, R, IOException> responseHandler
     ) throws IOException {
-        HttpRequest request = requestSupplier.apply(null);
-        try {
-            HttpResponse<T> response = client.send(request, bodyHandler);
-            return responseHandler.apply(response);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("HTTP request interrupted for " + path, e);
-        }
+        return responseHandler.apply(sendChecked(requestSupplier.apply(null), bodyHandler));
     }
 
     /**
@@ -318,14 +554,61 @@ public final class HttpStorageObject implements StorageObject {
         HttpResponse.BodyHandler<T> bodyHandler,
         CheckedFunction<HttpResponse<T>, R, IOException> responseHandler
     ) throws IOException {
-        HttpRequest request = requestSupplier.get();
+        return responseHandler.apply(sendChecked(requestSupplier.get(), bodyHandler));
+    }
+
+    /**
+     * Sends {@code request} and types a transport fault the same way
+     * {@link HttpTransientTypingInputStream} types a mid-body drop. The JDK {@code HttpClient}
+     * reuses HTTP/1.1 keep-alive connections; when the peer has already closed one, {@code send()}
+     * throws a plain {@link IOException} or {@link IllegalStateException} with message {@code closed}
+     * before any response body exists. Those are retryable transport drops (a fresh connection
+     * succeeds), not client errors, so they become {@link ExternalUnavailableException}.
+     * Interrupt stays an {@link IOException} so it is not retried. Status-bearing failures are
+     * handled by the caller after a successful send.
+     */
+    private <T> HttpResponse<T> sendChecked(HttpRequest request, HttpResponse.BodyHandler<T> bodyHandler) throws IOException {
         try {
-            HttpResponse<T> response = client.send(request, bodyHandler);
-            return responseHandler.apply(response);
+            return client.send(request, bodyHandler);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("HTTP request interrupted for " + path, e);
+        } catch (IOException e) {
+            throw typeTransportFailure(e);
+        } catch (IllegalStateException e) {
+            throw typeTransportFailure(e);
         }
+    }
+
+    /**
+     * Types an async {@code sendAsync} failure. A circuit-breaker trip anywhere in the chain is
+     * returned first. An already-typed {@link ExternalUnavailableException} anywhere in the chain is
+     * returned unchanged so its retry and status signal is preserved — including the JDK
+     * {@code CompletionException(IOException("HTTP body processing failed: …", eue))} wrap of a 206
+     * length mismatch. One-level unwrap of {@link CompletionException} and {@link ExecutionException}
+     * then types a closed-keep-alive {@link IOException} / {@link IllegalStateException} the same way
+     * {@link #sendChecked} does. Cause is not peeled unconditionally: that would drop an
+     * {@link ExternalUnavailableException} that already has a transport cause. Other faults keep the
+     * path-prefixed {@link IOException} wrapper.
+     */
+    private Exception mapAsyncSendFailure(Throwable throwable) {
+        CircuitBreakingException breakerTrip = unwrapBreakerTrip(throwable, "HTTP read failed for", path);
+        if (breakerTrip != null) {
+            return breakerTrip;
+        }
+        if (ExceptionsHelper.unwrap(throwable, ExternalUnavailableException.class) instanceof ExternalUnavailableException eue) {
+            return eue;
+        }
+        Throwable cause = (throwable instanceof CompletionException || throwable instanceof ExecutionException)
+            && throwable.getCause() != null ? throwable.getCause() : throwable;
+        if (cause instanceof IOException || cause instanceof IllegalStateException) {
+            return typeTransportFailure((Exception) cause);
+        }
+        return new IOException("HTTP read failed for " + path, throwable);
+    }
+
+    private ExternalUnavailableException typeTransportFailure(Exception e) {
+        return new ExternalUnavailableException(false, e, "transient read failure for [{}]", path);
     }
 
     /**
@@ -342,7 +625,14 @@ public final class HttpStorageObject implements StorageObject {
                 if (contentLength.isPresent() == false) {
                     throw new IOException("Server did not return " + HttpHeaders.CONTENT_LENGTH + " for " + path);
                 }
-                cachedLength = contentLength.getAsLong();
+                // HEAD is not a GET: it reports whatever representation is current, which is not necessarily
+                // the one reads are pinned to. It must neither establish the pin nor overwrite the pinned
+                // representation's size (already set by the GET that pinned it).
+                String etag = pinnedEtag.get();
+                String observedEtag = response.headers().firstValue(HttpHeaders.ETAG).orElse(null);
+                if (etag == null || etag.equals(observedEtag)) {
+                    cachedLength = contentLength.getAsLong();
+                }
 
                 // Extract Last-Modified (optional)
                 java.util.Optional<String> lastModified = response.headers().firstValue(HttpHeaders.LAST_MODIFIED);

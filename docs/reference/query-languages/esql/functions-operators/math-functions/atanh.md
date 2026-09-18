@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ATANH` function [esql-atanh]
 
-:::{include} ../../_snippets/functions/layout/atanh.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/atanh.md
 :::

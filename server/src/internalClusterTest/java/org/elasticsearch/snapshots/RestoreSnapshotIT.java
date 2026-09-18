@@ -1062,7 +1062,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT).setIndex(indexName).setShard(0).setPrimary(true)
         ).actionGet();
 
-        logger.info("--> clusterExplainResponse1: {}", Strings.toString(clusterExplainResponse1, true, true));
+        logger.info("--> clusterExplainResponse1: {}", Strings.toTruncatedString(clusterExplainResponse1, true, true));
         for (var nodeDecision : clusterExplainResponse1.getExplanation()
             .getShardAllocationDecision()
             .getAllocateDecision()
@@ -1080,7 +1080,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT).setIndex(indexName).setShard(0).setPrimary(true)
         ).actionGet();
 
-        logger.info("--> clusterExplainResponse2: {}", Strings.toString(clusterExplainResponse2, true, true));
+        logger.info("--> clusterExplainResponse2: {}", Strings.toTruncatedString(clusterExplainResponse2, true, true));
         for (var nodeDecision : clusterExplainResponse2.getExplanation()
             .getShardAllocationDecision()
             .getAllocateDecision()

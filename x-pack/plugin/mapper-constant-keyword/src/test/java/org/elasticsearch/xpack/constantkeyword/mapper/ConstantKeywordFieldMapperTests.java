@@ -313,4 +313,5 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
     protected boolean supportsDocValuesSkippers() {
         return false;
     }
+
 }

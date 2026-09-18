@@ -9,16 +9,19 @@
 
 package org.elasticsearch.search;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -115,6 +118,58 @@ public class CollapseSearchResultsIT extends ESIntegTestCase {
                 .setCollapse(new CollapseBuilder(collapseField)),
             searchResponse -> {
                 assertEquals(collapseField, searchResponse.getHits().getCollapseField());
+            }
+        );
+    }
+
+    /**
+     * Regression test: a search that combines field collapsing with {@code inner_hits} and a nested query
+     * that also has {@code inner_hits} must return both sets of inner hits on each collapsed hit.
+     * Before the fix this triggered a fatal {@code AssertionError} in the search thread because
+     * {@code ExpandSearchPhase} called {@code SearchHit.setInnerHits} on a hit that already had
+     * inner hits attached by {@code InnerHitsPhase}.
+     */
+    public void testCollapseWithNestedQueryInnerHits() {
+        final String indexName = "test_collapse_nested_inner_hits";
+        createIndex(indexName);
+        assertAcked(indicesAdmin().preparePutMapping(indexName).setSource("""
+            {
+              "properties": {
+                "group_id":  { "type": "keyword" },
+                "items": {
+                  "type": "nested",
+                  "properties": {
+                    "name":  { "type": "keyword" },
+                    "price": { "type": "integer" }
+                  }
+                }
+              }
+            }
+            """, XContentType.JSON));
+
+        index(indexName, "doc1", Map.of("group_id", "A", "items", List.of(Map.of("name", "x", "price", 10))));
+        index(indexName, "doc2", Map.of("group_id", "A", "items", List.of(Map.of("name", "y", "price", 5))));
+        index(indexName, "doc3", Map.of("group_id", "B", "items", List.of(Map.of("name", "z", "price", 20))));
+        refresh(indexName);
+
+        assertNoFailuresAndResponse(
+            prepareSearch(indexName).setCollapse(
+                new CollapseBuilder("group_id").setInnerHits(new InnerHitBuilder("collapse_hits").setSize(10))
+            )
+                .setQuery(
+                    new NestedQueryBuilder("items", new MatchAllQueryBuilder(), ScoreMode.None).innerHit(
+                        new InnerHitBuilder("nested_items").setSize(10)
+                    )
+                ),
+            response -> {
+                SearchHits hits = response.getHits();
+                assertEquals(2, hits.getHits().length);
+                for (SearchHit hit : hits.getHits()) {
+                    Map<String, SearchHits> innerHits = hit.getInnerHits();
+                    assertNotNull("inner hits must be present on hit " + hit.getId(), innerHits);
+                    assertNotNull("collapse inner hits missing on hit " + hit.getId(), innerHits.get("collapse_hits"));
+                    assertNotNull("nested-query inner hits missing on hit " + hit.getId(), innerHits.get("nested_items"));
+                }
             }
         );
     }

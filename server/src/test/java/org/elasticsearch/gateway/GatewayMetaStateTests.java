@@ -27,6 +27,7 @@ import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestClusterCustomMetadata;
 import org.elasticsearch.test.TestProjectCustomMetadata;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -46,9 +47,8 @@ public class GatewayMetaStateTests extends ESTestCase {
 
     private ProjectId projectId;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initProjectId() throws Exception {
         projectId = randomProjectIdOrDefault();
     }
 

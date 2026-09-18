@@ -41,15 +41,22 @@ final class IntRangeVector extends AbstractVector implements IntVector {
     }
 
     @Override
+    public void copyTo(int srcPosition, int[] dst, int dstPosition, int length) {
+        for (int i = 0; i < length; i++) {
+            dst[dstPosition + i] = startInclusive + srcPosition + i;
+        }
+    }
+
+    @Override
     public IntBlock asBlock() {
         return new IntVectorBlock(this);
     }
 
     @Override
-    public IntVector filter(boolean mayContainDuplicates, int... positions) {
-        try (var builder = blockFactory().newIntVectorFixedBuilder(positions.length)) {
-            for (int i = 0; i < positions.length; i++) {
-                int p = positions[i];
+    public IntVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        try (var builder = blockFactory().newIntVectorFixedBuilder(length)) {
+            for (int i = 0; i < length; i++) {
+                int p = positions[offset + i];
                 builder.appendInt(i, getInt(p));
             }
             return builder.build();
@@ -109,6 +116,11 @@ final class IntRangeVector extends AbstractVector implements IntVector {
     @Override
     public ElementType elementType() {
         return ElementType.INT;
+    }
+
+    @Override
+    public int valueMaxByteSize() {
+        return Integer.BYTES;
     }
 
     @Override

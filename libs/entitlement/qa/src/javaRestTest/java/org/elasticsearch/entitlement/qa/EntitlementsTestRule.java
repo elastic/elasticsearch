@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.qa;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.PluginInstallSpec;
 import org.elasticsearch.test.cluster.util.resource.Resource;
@@ -29,6 +30,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
+@SuppressForbidden(reason = "TemporaryFolder.getRoot() returns java.io.File; System.out used for test setup debug logging")
 class EntitlementsTestRule implements TestRule {
 
     // entitlements that test methods may use, see EntitledActions
@@ -62,16 +64,32 @@ class EntitlementsTestRule implements TestRule {
     final TemporaryFolder testDir;
     final ElasticsearchCluster cluster;
     final TestRule ruleChain;
+    private final String overrideDescriptorName;
 
     EntitlementsTestRule(boolean modular, PolicyBuilder policyBuilder) {
-        this(modular, policyBuilder, tempDir -> Map.of());
+        this(modular, policyBuilder, tempDir -> Map.of(), null);
     }
 
-    @SuppressWarnings("this-escape")
     EntitlementsTestRule(boolean modular, PolicyBuilder policyBuilder, TempDirSystemPropertyProvider tempDirSystemPropertyProvider) {
+        this(modular, policyBuilder, tempDirSystemPropertyProvider, null);
+    }
+
+    /**
+     * @param overrideDescriptorName if non-null, rewrites the test plugin's descriptor {@code name=}
+     *                               to this value (the install directory stays {@link #ENTITLEMENT_TEST_PLUGIN_NAME}).
+     */
+    @SuppressWarnings("this-escape")
+    EntitlementsTestRule(
+        boolean modular,
+        PolicyBuilder policyBuilder,
+        TempDirSystemPropertyProvider tempDirSystemPropertyProvider,
+        String overrideDescriptorName
+    ) {
+        this.overrideDescriptorName = overrideDescriptorName;
         testDir = new TemporaryFolder();
         var tempDirSetup = new ExternalResource() {
             @Override
+            @SuppressForbidden(reason = "TemporaryFolder.getRoot() returns java.io.File")
             protected void before() throws Throwable {
                 Path testPath = testDir.getRoot().toPath();
                 Files.createDirectory(testPath.resolve("read_dir"));
@@ -86,16 +104,6 @@ class EntitlementsTestRule implements TestRule {
             .systemProperty("es.entitlements.verify_bytecode", "true")
             .systemProperty("es.entitlements.testdir", () -> testDir.getRoot().getAbsolutePath())
             .systemProperties(spec -> tempDirSystemPropertyProvider.get(testDir.getRoot().toPath()))
-            .jvmArg(
-                "--add-exports=java.base/org.elasticsearch.entitlement.bridge="
-                    + "org.elasticsearch.entitlement.qa.test,"
-                    + "org.elasticsearch.entitlement,"
-                    + "org.elasticsearch.entitlement.instrumentation,"
-                    + "java.logging,"
-                    + "java.net.http,"
-                    + "java.naming,"
-                    + "jdk.net"
-            )
             .setting("xpack.security.enabled", "false")
             // Logs in libs/entitlement/qa/build/test-results/javaRestTest/TEST-org.elasticsearch.entitlement.qa.EntitlementsXXX.xml
             // .setting("logger.org.elasticsearch.entitlement", "DEBUG")
@@ -134,9 +142,17 @@ class EntitlementsTestRule implements TestRule {
             buildEntitlements(spec, moduleName, policyBuilder);
         }
 
-        if (modular == false) {
+        boolean rewriteModulename = (modular == false);
+        boolean rewriteName = overrideDescriptorName != null;
+        if (rewriteModulename || rewriteName) {
             spec.withPropertiesOverride(old -> {
-                String props = old.replace("modulename=" + ENTITLEMENT_QA_TEST_MODULE_NAME, "");
+                String props = old;
+                if (rewriteModulename) {
+                    props = props.replace("modulename=" + ENTITLEMENT_QA_TEST_MODULE_NAME, "");
+                }
+                if (rewriteName) {
+                    props = props.replaceAll("(?m)^name=.*$", "name=" + overrideDescriptorName);
+                }
                 System.out.println("Using plugin properties:\n" + props);
                 return Resource.fromString(props);
             });

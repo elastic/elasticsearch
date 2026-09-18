@@ -17,7 +17,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -76,11 +76,11 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandlerTests extends EST
             """, INFERENCE_ID)));
     }
 
-    private static Request mockRequest() {
-        var request = mock(Request.class);
-        when(request.getInferenceEntityId()).thenReturn(INFERENCE_ID);
-        when(request.isStreaming()).thenReturn(true);
-        return request;
+    private static OutboundRequest mockRequest() {
+        var outboundRequest = mock(OutboundRequest.class);
+        when(outboundRequest.getInferenceEntityId()).thenReturn(INFERENCE_ID);
+        when(outboundRequest.isStreaming()).thenReturn(true);
+        return outboundRequest;
     }
 
     private static HttpResponse mockHttpResponse(int statusCode) {

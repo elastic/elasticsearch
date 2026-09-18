@@ -214,7 +214,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         transform = ((List<Map<String, Object>>) XContentMapValues.extractValue("transforms", stats)).get(0);
 
         // verify state exists
-        assertEquals("started", XContentMapValues.extractValue("state", transform));
+        assertThat(XContentMapValues.extractValue("state", transform), oneOf("started", "indexing"));
 
         // verify health exists
         assertEquals("green", XContentMapValues.extractValue("health.status", transform));

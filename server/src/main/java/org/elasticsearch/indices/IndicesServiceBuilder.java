@@ -35,6 +35,7 @@ import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -91,6 +92,7 @@ public class IndicesServiceBuilder {
     ActionLoggingFieldsProvider loggingFieldsProvider = (context) -> new ActionLoggingFields(context) {};
     Map<String, PluggableDirectoryMetricsHolder<?>> directoryMetricHolderMap;
     ThreadLocalDirectoryMetricHolder<StoreMetrics> storeMetricsHolder;
+    ThrottlingRecoveryService throttlingRecoveryService;
 
     public IndicesServiceBuilder settings(Settings settings) {
         this.settings = settings;
@@ -213,6 +215,11 @@ public class IndicesServiceBuilder {
         return this;
     }
 
+    public IndicesServiceBuilder throttlingRecoveryService(ThrottlingRecoveryService throttlingRecoveryService) {
+        this.throttlingRecoveryService = throttlingRecoveryService;
+        return this;
+    }
+
     public IndicesService build() {
         Objects.requireNonNull(settings);
         Objects.requireNonNull(pluginsService);
@@ -240,6 +247,7 @@ public class IndicesServiceBuilder {
         Objects.requireNonNull(mergeMetrics);
         Objects.requireNonNull(searchOperationListener);
         Objects.requireNonNull(loggingFieldsProvider);
+        Objects.requireNonNull(throttlingRecoveryService);
 
         // collect engine factory providers from plugins
         engineFactoryProviders = pluginsService.filterPlugins(EnginePlugin.class)

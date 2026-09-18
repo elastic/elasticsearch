@@ -9,7 +9,7 @@ package org.elasticsearch.compute.operator.fuse;
 
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.WarningsTests.TestWarningsSource;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 

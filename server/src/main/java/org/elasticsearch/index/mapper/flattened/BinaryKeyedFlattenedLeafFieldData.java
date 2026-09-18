@@ -32,7 +32,7 @@ public final class BinaryKeyedFlattenedLeafFieldData implements LeafFieldData {
     private final LeafFieldData delegate;
     private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
 
-    private static final SortedBinaryDocValues EMPTY = new SortedBinaryDocValues() {
+    private static final SortedBinaryDocValues EMPTY = new SortedBinaryDocValues(null) {
         @Override
         public boolean advanceExact(int doc) throws IOException {
             return false;
@@ -99,6 +99,7 @@ public final class BinaryKeyedFlattenedLeafFieldData implements LeafFieldData {
         private int seen;
 
         private KeyedFlattenedBinaryDocValues(BytesRef key, SortedBinaryDocValues delegate) {
+            super(delegate.docIdIterator());
             this.key = key;
             this.delegate = delegate;
         }

@@ -1,5 +1,0 @@
-pr: 139009
-summary: Always error out if CCS expression shows up when CCS is not supported
-area: CCS
-type: bug
-issues: [ 138987 ]

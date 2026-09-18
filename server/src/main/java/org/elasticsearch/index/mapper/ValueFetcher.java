@@ -18,6 +18,7 @@ import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -60,7 +61,9 @@ public interface ValueFetcher {
         if (values.isEmpty() && ignoredValues.isEmpty()) {
             return null;
         } else {
-            return new DocumentField(docName, values, ignoredValues);
+            // Don't retain the empty ArrayList in the long-lived DocumentField; the Collections.emptyList() identity
+            // also hits the fast path in DocumentField#getIgnoredValues.
+            return new DocumentField(docName, values, ignoredValues.isEmpty() ? Collections.emptyList() : ignoredValues);
         }
     }
 

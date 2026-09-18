@@ -1,0 +1,106 @@
+setup:
+  - requires:
+      cluster_features: [ "semantic_text.original_values_in_doc_values", "semantic_text.highlighter" ]
+      reason: semantic_text stores its original input value in doc values so _source can be rebuilt from doc values
+
+  - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-synthetic-index
+        body:
+          settings:
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              sparse_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+
+---
+"Original value is rebuilt from doc values in synthetic source":
+  - do:
+      index:
+        index: test-synthetic-index
+        id: doc_1
+        body:
+          sparse_field: "the quick brown fox"
+        refresh: true
+
+  # _source is reconstructed from doc values; the original field value must come back unchanged, and the exact key count proves no
+  # inference results (_inference_fields) or internal sub-fields are present.
+  - do:
+      get:
+        index: test-synthetic-index
+        id: doc_1
+  - match: { _source.sparse_field: "the quick brown fox" }
+  - length: { _source: 1 }
+
+  # The fields option reads the value from doc values (no _source) and must return the same value.
+  - do:
+      search:
+        index: test-synthetic-index
+        body:
+          fields: [ "sparse_field" ]
+          query:
+            ids:
+              values: [ "doc_1" ]
+  - match: { hits.hits.0.fields.sparse_field.0: "the quick brown fox" }
+
+---
+"Multi-valued original values keep document order":
+  - do:
+      index:
+        index: test-synthetic-index
+        id: doc_2
+        body:
+          sparse_field: [ "first value", "second value", "first value" ]
+        refresh: true
+
+  - do:
+      get:
+        index: test-synthetic-index
+        id: doc_2
+  - match: { _source.sparse_field: [ "first value", "second value", "first value" ] }
+  - length: { _source: 1 }
+
+---
+"Highlighting reads the field from doc values without _source":
+  - do:
+      index:
+        index: test-synthetic-index
+        id: hl_1
+        body:
+          sparse_field: "the quick brown fox"
+        refresh: true
+
+  # The semantic highlighter sources the chunk content from the doc values store (not _source) in a synthetic-source index.
+  - do:
+      search:
+        index: test-synthetic-index
+        body:
+          query:
+            semantic:
+              field: "sparse_field"
+              query: "What is a fox?"
+          highlight:
+            fields:
+              sparse_field:
+                type: "semantic"
+                number_of_fragments: 1
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "hl_1" }
+  - match: { hits.hits.0.highlight.sparse_field.0: "the quick brown fox" }

@@ -22,9 +22,7 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
@@ -52,8 +50,20 @@ public class SamlRestTestCase extends ESRestTestCase {
     public static final ElasticsearchCluster cluster = initTestCluster();
     private static Path caPath;
 
-    @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(new RunnableTestRuleAdapter(SamlRestTestCase::initWebserver)).around(cluster);
+    /**
+     * Build the rule chain for SAML rest tests.
+     * When {@code makeMetadataAvailableAtStartup} is {@code true}, metadata is served as soon as the mock server starts so the cluster's
+     * initial SAML realm load can succeed.
+     * When false, metadata is unavailable at startup (for tests that verify how the saml realm behaves when metadata could not be loaded).
+     */
+    protected static TestRule buildRuleChain(boolean makeMetadataAvailableAtStartup) {
+        return RuleChain.outerRule(new RunnableTestRuleAdapter(() -> {
+            initWebserver();
+            if (makeMetadataAvailableAtStartup) {
+                makeMetadataAvailable(1, 2, 3);
+            }
+        })).around(cluster);
+    }
 
     private static void initWebserver() {
         try {
@@ -116,6 +126,7 @@ public class SamlRestTestCase extends ESRestTestCase {
                     settings.put(prefix + ".order", String.valueOf(realmNumber));
                     settings.put(prefix + ".idp.entity_id", idpEntityId);
                     settings.put(prefix + ".idp.metadata.path", idpHttps + "metadata/" + realmNumber + ".xml");
+                    settings.put(prefix + ".idp.metadata.http.minimum_refresh", "500ms");
                     settings.put(prefix + ".sp.entity_id", "https://sp" + realmNumber + ".example.org/");
                     settings.put(prefix + ".sp.acs", acsHttps + "acs/" + realmNumber);
                     settings.put(prefix + ".attributes.principal", "urn:oid:2.5.4.3");
@@ -190,22 +201,6 @@ public class SamlRestTestCase extends ESRestTestCase {
             throw new FileNotFoundException("Cannot find classpath resource /ssl/ca.crt");
         }
         caPath = PathUtils.get(resource.toURI());
-    }
-
-    /**
-     * Make metadata available by default before each test, but make this behaviour controllable by subclasses.
-     */
-    @Before
-    public void initMetadata() {
-        if (isMetadataAvailable()) {
-            makeMetadataAvailable(1, 2, 3);
-        } else {
-            makeAllMetadataUnavailable();
-        }
-    }
-
-    protected boolean isMetadataAvailable() {
-        return true;
     }
 
     @Override

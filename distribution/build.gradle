@@ -218,7 +218,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
   }
 
   distro.copyModule(processDefaultOutputsTaskProvider, module)
-  dependencies.add('featuresMetadata', module)
+  dependencies.add('featuresMetadata', dependencies.project(path: module.path))
   if (module.name.startsWith('transport-') || (buildParams.snapshotBuild == false && module.name == 'apm')) {
     distro.copyModule(processIntegTestOutputsTaskProvider, module)
   }
@@ -226,20 +226,23 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
   restTestExpansions['expected.modules.count'] += 1
 }
 
-// use licenses from each of the bundled xpack plugins
+// Bundle x-pack modules
 Project xpack = project(':x-pack:plugin')
-xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
-  File licenses = new File(xpackModule.projectDir, 'licenses')
-  if (licenses.exists()) {
-    buildDefaultNoticeTaskProvider.configure {
-      licensesDir licenses
-      source xpackModule.file('src/main/java')
+Project esqlFunctions = project(':x-pack:plugin:esql:function')
+xpack.subprojects.findAll { it.parent == xpack || it.parent == esqlFunctions }.each { Project xpackModule ->
+  if (xpackModule.name.contains("stateless") == false) {
+    File licenses = new File(xpackModule.projectDir, 'licenses')
+    if (licenses.exists()) {
+      buildDefaultNoticeTaskProvider.configure {
+        licensesDir licenses
+        source xpackModule.file('src/main/java')
+      }
     }
-  }
-  distro.copyModule(processDefaultOutputsTaskProvider, xpackModule)
-  dependencies.add('featuresMetadata', xpackModule)
-  if (xpackModule.name.equals('core') || xpackModule.name.equals('security')) {
-    distro.copyModule(processIntegTestOutputsTaskProvider, xpackModule)
+    distro.copyModule(processDefaultOutputsTaskProvider, xpackModule)
+    dependencies.add('featuresMetadata', dependencies.project(path: xpackModule.path))
+    if (xpackModule.name.equals('core') || xpackModule.name.equals('security')) {
+      distro.copyModule(processIntegTestOutputsTaskProvider, xpackModule)
+    }
   }
 }
 
@@ -254,6 +257,18 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
   apply plugin: 'elasticsearch.jdk-download'
   apply plugin: 'elasticsearch.repositories'
 
+  def architecturesFor = { platform ->
+    def bundledJdkMajor = Integer.parseInt(
+      buildParams.runtimeJava.preRelease
+        ? buildParams.runtimeJavaVersion.get().getMajorVersion()
+        : VersionProperties.bundledJdkMajorVersion
+    )
+    if (platform == 'linux' || (platform == 'darwin' && bundledJdkMajor < 27)) {
+      return ['x64', 'aarch64']
+    }
+    return platform == 'darwin' ? ['aarch64'] : ['x64']
+  }
+
   if (buildParams.runtimeJava.preRelease) {
     String preReleaseType = buildParams.runtimeJava.preReleaseType
     def runtimeJavaMajorVersion = Integer.parseInt(buildParams.runtimeJavaVersion.get().getMajorVersion())
@@ -261,7 +276,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
     project.jdks {
       ['darwin', 'windows', 'linux'].each { platform ->
-        (platform == 'linux' || platform == 'darwin' ? ['x64', 'aarch64'] : ['x64']).each { architecture ->
+        architecturesFor(platform).each { architecture ->
           "bundled_${platform}_${architecture}" {
             it.version = preReleaseVersionString;
             it.vendor = "openjdk"
@@ -276,7 +291,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     // Setup all required JDKs
     project.jdks {
       ['darwin', 'windows', 'linux'].each { platform ->
-        (platform == 'linux' || platform == 'darwin' ? ['x64', 'aarch64'] : ['x64']).each { architecture ->
+        architecturesFor(platform).each { architecture ->
           "bundled_${platform}_${architecture}" {
             it.platform = platform
             it.version = VersionProperties.bundledJdkVersion
@@ -344,7 +359,10 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
     libsSecurityCli project(':x-pack:plugin:security:cli')
     libsGeoIpCli project(':distribution:tools:geoip-cli')
-    libsNative project(':libs:native:native-libraries')
+    // Request the dedicated `nativeLibs` consumable variant — see libs/native/libraries/build.gradle.
+    // Do not switch this back to the `default` configuration: it is plugin-order dependent and would
+    // silently bind to the Java runtime variant if `elasticsearch.build` is ever applied to that project.
+    libsNative project(path: ':libs:native:native-libraries', configuration: 'nativeLibs')
     libsEntitlementAgent project(':libs:entitlement:agent')
     libsEntitlementBridge project(':libs:entitlement:bridge')
   }

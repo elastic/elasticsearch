@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptorUtils;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.TestSystemIndexDescriptorAllowsTemplates;
 import org.elasticsearch.indices.TestSystemIndexPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -41,7 +42,9 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.indices.TestSystemIndexDescriptor.INDEX_NAME;
 import static org.elasticsearch.indices.TestSystemIndexDescriptor.PRIMARY_INDEX_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -159,6 +162,64 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             expectThrows(IllegalStateException.class, client().execute(AutoCreateAction.INSTANCE, request)).getMessage(),
             containsString("Cannot auto-create system index [.unmanaged-system-idx] with [index.hidden] set to 'false'")
         );
+    }
+
+    public void testAutoCreatedSystemIndexPicksUpNumberOfReplicasSetting() throws Exception {
+        updateClusterSettings(Settings.builder().put(SystemIndices.NUMBER_OF_REPLICAS_SETTING.getKey(), 2));
+        try {
+            CreateIndexRequest request = new CreateIndexRequest(UnmanagedSystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+            client().execute(AutoCreateAction.INSTANCE, request).get();
+
+            GetIndexResponse response = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
+                .addIndices(UnmanagedSystemIndexTestPlugin.SYSTEM_INDEX_NAME)
+                .get();
+            Settings settings = response.settings().get(UnmanagedSystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+            assertThat(settings, notNullValue());
+            assertThat(settings.get(SETTING_NUMBER_OF_REPLICAS), equalTo("2"));
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(SystemIndices.NUMBER_OF_REPLICAS_SETTING.getKey()));
+        }
+    }
+
+    public void testAutoCreatedSystemIndexPicksUpAutoExpandReplicasSetting() throws Exception {
+        updateClusterSettings(Settings.builder().put(SystemIndices.AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-2"));
+        try {
+            CreateIndexRequest request = new CreateIndexRequest(UnmanagedSystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+            client().execute(AutoCreateAction.INSTANCE, request).get();
+
+            GetIndexResponse response = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
+                .addIndices(UnmanagedSystemIndexTestPlugin.SYSTEM_INDEX_NAME)
+                .get();
+            Settings settings = response.settings().get(UnmanagedSystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+            assertThat(settings, notNullValue());
+            assertThat(settings.get(SETTING_AUTO_EXPAND_REPLICAS), equalTo("0-2"));
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(SystemIndices.AUTO_EXPAND_REPLICAS_SETTING.getKey()));
+        }
+    }
+
+    public void testAutoCreatedManagedSystemIndexPicksUpAutoExpandReplicasSetting() throws Exception {
+        updateClusterSettings(
+            Settings.builder()
+                .put(SystemIndices.AUTO_EXPAND_REPLICAS_SETTING.getKey(), "false")
+                .put(SystemIndices.NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+        );
+        try {
+            CreateIndexRequest request = new CreateIndexRequest(PRIMARY_INDEX_NAME);
+            client().execute(AutoCreateAction.INSTANCE, request).get();
+
+            GetIndexResponse response = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(PRIMARY_INDEX_NAME).get();
+            Settings settings = response.settings().get(PRIMARY_INDEX_NAME);
+            assertThat(settings, notNullValue());
+            assertThat(settings.get(SETTING_AUTO_EXPAND_REPLICAS), equalTo("false"));
+            assertThat(settings.get(SETTING_NUMBER_OF_REPLICAS), equalTo("0"));
+        } finally {
+            updateClusterSettings(
+                Settings.builder()
+                    .putNull(SystemIndices.AUTO_EXPAND_REPLICAS_SETTING.getKey())
+                    .putNull(SystemIndices.NUMBER_OF_REPLICAS_SETTING.getKey())
+            );
+        }
     }
 
     private String autoCreateSystemAliasViaV1Template(String indexName) throws Exception {

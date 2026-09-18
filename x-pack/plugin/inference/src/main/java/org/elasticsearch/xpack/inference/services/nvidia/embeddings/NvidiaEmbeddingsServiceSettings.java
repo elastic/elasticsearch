@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.inference.services.nvidia.embeddings;
 
 import org.apache.http.client.utils.URIBuilder;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -34,6 +34,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOpti
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 /**
  * Settings for the Nvidia embeddings service.
@@ -63,19 +64,12 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
 
         Integer dimensions = null;
         if (ConfigurationParseContext.isRequestContext(context) == false) {
-            dimensions = extractRequiredPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+            dimensions = extractRequiredPositiveInteger(map, DIMENSIONS, SERVICE_SETTINGS, validationException);
         }
-        var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var maxInputTokens = extractOptionalPositiveInteger(
-            map,
-            MAX_INPUT_TOKENS,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
+        var similarity = extractSimilarity(map, SERVICE_SETTINGS, validationException);
+        var maxInputTokens = extractOptionalPositiveInteger(map, MAX_INPUT_TOKENS, SERVICE_SETTINGS, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new NvidiaEmbeddingsServiceSettings(
             commonServiceSettings.model(),
@@ -148,6 +142,35 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
         @Nullable RateLimitSettings rateLimitSettings
     ) {
         this(modelId, createOptionalUri(url), dimensions, similarity, maxInputTokens, rateLimitSettings);
+    }
+
+    @Override
+    public NvidiaEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedMaxInputTokens = extractOptionalPositiveInteger(
+            serviceSettings,
+            MAX_INPUT_TOKENS,
+            SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new NvidiaEmbeddingsServiceSettings(
+            this.modelId,
+            this.uri,
+            this.dimensions,
+            this.similarity,
+            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
+            extractedRateLimitSettings
+        );
     }
 
     @Override
@@ -229,4 +252,8 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
         return Objects.hash(modelId, uri, dimensions, maxInputTokens, similarity, rateLimitSettings);
     }
 
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
 }

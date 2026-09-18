@@ -1,0 +1,9 @@
+from test
+| eval s = length(first_name)
+| rename languages AS language_code
+| keep s, language_code, last_name
+| lookup join languages_lookup ON language_code
+| eval t = length(last_name)
+| eval u = length(language_name)
+| sort language_code
+| limit 10

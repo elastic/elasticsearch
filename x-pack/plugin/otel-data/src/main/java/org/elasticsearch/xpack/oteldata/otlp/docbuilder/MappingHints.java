@@ -31,6 +31,7 @@ public record MappingHints(HistogramMapping histogramMapping, boolean docCount) 
 
     public static final String MAPPING_HINTS = "elasticsearch.mapping.hints";
     public static final String AGGREGATE_METRIC_DOUBLE = "aggregate_metric_double";
+    public static final String HISTOGRAM_RAW = "histogram:raw";
     public static final String DOC_COUNT = "_doc_count";
 
     public static MappingHints DEFAULT_TDIGEST = new MappingHints(HistogramMapping.TDIGEST, false);
@@ -59,6 +60,8 @@ public record MappingHints(HistogramMapping histogramMapping, boolean docCount) 
                             String value = hint.getStringValue();
                             if (value.equals(AGGREGATE_METRIC_DOUBLE)) {
                                 histoMapping = HistogramMapping.AGGREGATE_METRIC_DOUBLE;
+                            } else if (value.equals(HISTOGRAM_RAW) && histoMapping != HistogramMapping.AGGREGATE_METRIC_DOUBLE) {
+                                histoMapping = HistogramMapping.HISTOGRAM_RAW;
                             } else if (value.equals(DOC_COUNT)) {
                                 docCount = true;
                             }

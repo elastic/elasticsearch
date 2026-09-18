@@ -40,7 +40,7 @@ The following examples show how to parse and convert structured strings with `DI
 
 Parse a string that contains a timestamp, some text, and an IP address:
 
-:::{include} ../examples/docs.csv-spec/basicDissect.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/basicDissect.md
 :::
 
 ### Convert output to a non-string type
@@ -48,5 +48,5 @@ Parse a string that contains a timestamp, some text, and an IP address:
 By default, `DISSECT` outputs keyword string columns. To convert to another
 type, use [Type conversion functions](/reference/query-languages/esql/functions-operators/type-conversion-functions.md):
 
-:::{include} ../examples/docs.csv-spec/dissectWithToDatetime.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/dissectWithToDatetime.md
 :::

@@ -61,6 +61,7 @@ import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.coordination.StatefulPreVoteCollector;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
@@ -96,6 +97,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.dlm.TimeSeriesEligibleWriteWindowLocator;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -123,12 +125,19 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
+import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryFeatures;
+import org.elasticsearch.indices.recovery.RecoveryGateMonitor;
+import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
+import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
+import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.StatusInfo;
@@ -150,6 +159,9 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.fetch.chunk.ActiveFetchPhaseTasks;
+import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction;
+import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseResponseChunkAction;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.client.NoOpClient;
@@ -176,6 +188,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -406,6 +419,39 @@ public class SnapshotResiliencyTestHelper {
             TransportInterceptor createTransportInterceptor(DiscoveryNode node);
         }
 
+        // There is a deadlock condition where processPendingDeletes awaits on shard snapshots which may be scheduled
+        // after the processPendingDeletes task. In production these tasks run on different threadpools, and processPendingDeletes
+        // waits for 30 minutes. To simulate that here, we reschedule the processPendingDeletes task into the future each time we encounter
+        // it until it is the last task in the queue.
+        private Function<Runnable, Runnable> deferProcessPendingDeletes(Function<Runnable, Runnable> runnableWrapper) {
+            return runnable -> {
+                if (isProcessPendingDeletes(runnable) == false) {
+                    return runnableWrapper.apply(runnable);
+                }
+                final Runnable wrapped = runnableWrapper.apply(runnable);
+                return new Runnable() {
+                    @Override
+                    public void run() {
+                        if (deterministicTaskQueue.hasRunnableTasks()) {
+                            logger.debug("--> deferring {} because other DTQ tasks may hold shard locks", runnable);
+                            deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + 1, this);
+                            return;
+                        }
+                        wrapped.run();
+                    }
+
+                    @Override
+                    public String toString() {
+                        return runnable.toString();
+                    }
+                };
+            };
+        }
+
+        private static boolean isProcessPendingDeletes(Runnable task) {
+            return task.toString().contains("processPendingDeletes[");
+        }
+
         public class TestClusterNode {
 
             protected final ProjectResolver projectResolver = TestProjectResolvers.DEFAULT_PROJECT_ONLY;
@@ -417,7 +463,11 @@ public class SnapshotResiliencyTestHelper {
             );
 
             private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
-                Stream.concat(ClusterModule.getNamedWriteables().stream(), NetworkModule.getNamedWriteables().stream()).toList()
+                Stream.of(
+                    ClusterModule.getNamedWriteables().stream(),
+                    IndicesModule.getNamedWriteables().stream(),
+                    NetworkModule.getNamedWriteables().stream()
+                ).flatMap(Function.identity()).toList()
             );
 
             private final TransportInterceptorFactory transportInterceptorFactory;
@@ -449,6 +499,8 @@ public class SnapshotResiliencyTestHelper {
             private SnapshotShardsService snapshotShardsService;
 
             protected IndicesService indicesService;
+
+            protected ThrottlingRecoveryService throttlingRecoveryService;
 
             protected PeerRecoveryTargetService peerRecoveryTargetService;
 
@@ -482,7 +534,9 @@ public class SnapshotResiliencyTestHelper {
                 this.environment = createEnvironment(node.getName(), tempDir, nodeSettings(node));
                 this.settings = environment.settings();
                 this.pluginsService = createPluginsService(settings, environment);
-                this.threadPool = deterministicTaskQueue.getThreadPool(runnable -> DeterministicTaskQueue.onNodeLog(this.node, runnable));
+                this.threadPool = deterministicTaskQueue.getThreadPool(
+                    deferProcessPendingDeletes(runnable -> DeterministicTaskQueue.onNodeLog(this.node, runnable))
+                );
                 this.masterService = new FakeThreadPoolMasterService(node.getName(), threadPool, deterministicTaskQueue::scheduleNow);
                 this.client = new NodeClient(settings, threadPool, projectResolver);
                 this.usageService = new UsageService();
@@ -636,6 +690,14 @@ public class SnapshotResiliencyTestHelper {
                 );
                 final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
 
+                throttlingRecoveryService = new ThrottlingRecoveryService(
+                    threadPool,
+                    projectResolver,
+                    clusterService,
+                    RecoverySchedulingListener.NOOP,
+                    new RecoveryGateMonitor(List::of, threadPool, clusterService.getClusterSettings())
+                );
+
                 indicesService = new IndicesServiceBuilder().settings(settings)
                     .pluginsService(pluginsService)
                     .nodeEnvironment(nodeEnv)
@@ -668,6 +730,7 @@ public class SnapshotResiliencyTestHelper {
                     .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
                     .mapperMetrics(MapperMetrics.NOOP)
                     .mergeMetrics(MergeMetrics.NOOP)
+                    .throttlingRecoveryService(throttlingRecoveryService)
                     .build();
 
                 this.searchService = new SearchService(
@@ -693,9 +756,12 @@ public class SnapshotResiliencyTestHelper {
                     snapshotFilesProvider
                 );
 
-                final ActionFilters actionFilters = new ActionFilters(emptySet());
+                final ActionFilters actionFilters = ActionFilters.EMPTY;
+                final ActiveFetchPhaseTasks activeFetchPhaseTasks = new ActiveFetchPhaseTasks();
+                new TransportFetchPhaseResponseChunkAction(transportService, activeFetchPhaseTasks, namedWriteableRegistry);
                 Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
 
+                shardStateAction = new ShardStateAction(clusterService, transportService, allocationService, rerouteService, threadPool);
                 // Inject initialization from subclass which may be needed by initializations after this point.
                 doInit(actions, actionFilters);
 
@@ -707,7 +773,6 @@ public class SnapshotResiliencyTestHelper {
                     indicesService,
                     createSnapshotShardContextFactory()
                 );
-                shardStateAction = new ShardStateAction(clusterService, transportService, allocationService, rerouteService, threadPool);
                 nodeConnectionsService = new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
                 actions.put(
                     TransportUpdateSnapshotStatusAction.TYPE,
@@ -751,7 +816,8 @@ public class SnapshotResiliencyTestHelper {
                     indicesService,
                     clusterService,
                     recoverySettings,
-                    PeerOnlyRecoveryPlannerService.INSTANCE
+                    PeerOnlyRecoveryPlannerService.INSTANCE,
+                    new CompositeRecoverySchedulingListener()
                 );
 
                 final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
@@ -760,6 +826,7 @@ public class SnapshotResiliencyTestHelper {
                     client,
                     SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
                 );
+                searchTransportService.setSearchService(searchService);
 
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
@@ -788,7 +855,8 @@ public class SnapshotResiliencyTestHelper {
                         )
                     ),
                     RetentionLeaseSyncer.EMPTY,
-                    client
+                    client,
+                    RecoveryMetricsCollector.NOOP
                 );
                 final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
                 final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(
@@ -836,6 +904,7 @@ public class SnapshotResiliencyTestHelper {
                             client,
                             null,
                             UserAgentParserRegistry.NOOP,
+                            IpLocationService.NOOP,
                             FailureStoreMetrics.NOOP,
                             projectResolver,
                             new FeatureService(List.of()) {
@@ -858,7 +927,9 @@ public class SnapshotResiliencyTestHelper {
                             public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                                 return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                             }
-                        }
+                        },
+                        new TimeSeriesEligibleWriteWindowLocator(),
+                        DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
                     )
                 );
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(
@@ -874,7 +945,8 @@ public class SnapshotResiliencyTestHelper {
                     indexingMemoryLimits,
                     EmptySystemIndices.INSTANCE,
                     projectResolver,
-                    DocumentParsingProvider.EMPTY_INSTANCE
+                    DocumentParsingProvider.EMPTY_INSTANCE,
+                    bigArrays
                 );
                 actions.put(TransportShardBulkAction.TYPE, transportShardBulkAction);
                 final RestoreService restoreService = new RestoreService(
@@ -897,7 +969,13 @@ public class SnapshotResiliencyTestHelper {
                     mock(FileSettingsService.class),
                     threadPool,
                     false,
-                    IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance()
+                    IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance(),
+                    new FeatureService(List.of()) {
+                        @Override
+                        public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                            return RecoveryFeatures.RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE.equals(feature);
+                        }
+                    }
                 );
                 actions.put(
                     TransportPutMappingAction.TYPE,
@@ -949,6 +1027,16 @@ public class SnapshotResiliencyTestHelper {
                         new IndicesServiceTests.TestActionActionLoggingFieldsProvider(),
                         ActivityLogWriterProvider.NOOP,
                         CrossProjectModeDecider.NOOP
+                    )
+                );
+                actions.put(
+                    TransportFetchPhaseCoordinationAction.TYPE,
+                    new TransportFetchPhaseCoordinationAction(
+                        transportService,
+                        actionFilters,
+                        activeFetchPhaseTasks,
+                        new NoneCircuitBreakerService(),
+                        namedWriteableRegistry
                     )
                 );
                 actions.put(
@@ -1232,6 +1320,7 @@ public class SnapshotResiliencyTestHelper {
                 indicesService.close();
                 clusterService.close();
                 nodeConnectionsService.stop();
+                throttlingRecoveryService.close();
                 indicesClusterStateService.close();
                 peerRecoverySourceService.stop();
                 if (coordinator != null) {
@@ -1275,6 +1364,7 @@ public class SnapshotResiliencyTestHelper {
                 coordinator.start();
                 clusterService.getClusterApplierService().setNodeConnectionsService(nodeConnectionsService);
                 nodeConnectionsService.start();
+                throttlingRecoveryService.start();
                 clusterService.start();
                 indicesService.start();
                 indicesClusterStateService.start();

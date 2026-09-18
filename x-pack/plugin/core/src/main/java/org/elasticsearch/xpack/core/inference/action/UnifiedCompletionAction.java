@@ -11,9 +11,11 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
 
@@ -32,12 +34,13 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
         public static Request parseRequest(
             String inferenceEntityId,
             TaskType taskType,
+            boolean stream,
             TimeValue timeout,
             InferenceContext context,
             XContentParser parser
         ) throws IOException {
-            var unifiedRequest = UnifiedCompletionRequest.PARSER.apply(parser, null);
-            return new Request(inferenceEntityId, taskType, unifiedRequest, context, timeout);
+            var unifiedRequestBody = UnifiedCompletionRequestBody.PARSER.apply(parser, null);
+            return new Request(inferenceEntityId, taskType, new UnifiedCompletionRequest(unifiedRequestBody, stream), context, timeout);
         }
 
         private final String inferenceEntityId;
@@ -45,7 +48,12 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
         private final UnifiedCompletionRequest unifiedCompletionRequest;
         private final TimeValue timeout;
 
-        public Request(String inferenceEntityId, TaskType taskType, UnifiedCompletionRequest unifiedCompletionRequest, TimeValue timeout) {
+        public Request(
+            String inferenceEntityId,
+            TaskType taskType,
+            UnifiedCompletionRequest unifiedCompletionRequest,
+            @Nullable TimeValue timeout
+        ) {
             this(inferenceEntityId, taskType, unifiedCompletionRequest, InferenceContext.EMPTY_INSTANCE, timeout);
         }
 
@@ -54,13 +62,13 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
             TaskType taskType,
             UnifiedCompletionRequest unifiedCompletionRequest,
             InferenceContext context,
-            TimeValue timeout
+            @Nullable TimeValue timeout
         ) {
             super(context);
             this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
             this.taskType = Objects.requireNonNull(taskType);
             this.unifiedCompletionRequest = Objects.requireNonNull(unifiedCompletionRequest);
-            this.timeout = Objects.requireNonNull(timeout);
+            this.timeout = Objects.requireNonNullElse(timeout, TIMEOUT_NOT_DETERMINED);
         }
 
         public Request(StreamInput in) throws IOException {
@@ -83,12 +91,8 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
             return unifiedCompletionRequest;
         }
 
-        /**
-         * The Unified API only supports streaming so we always return true here.
-         * @return true
-         */
         public boolean isStreaming() {
-            return true;
+            return unifiedCompletionRequest.stream();
         }
 
         public TimeValue getTimeout() {
@@ -97,13 +101,13 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
 
         @Override
         public ActionRequestValidationException validate() {
-            if (unifiedCompletionRequest == null || unifiedCompletionRequest.messages() == null) {
+            if (unifiedCompletionRequest.body().messages() == null) {
                 var e = new ActionRequestValidationException();
                 e.addValidationError("Field [messages] cannot be null");
                 return e;
             }
 
-            if (unifiedCompletionRequest.messages().isEmpty()) {
+            if (unifiedCompletionRequest.body().messages().isEmpty()) {
                 var e = new ActionRequestValidationException();
                 e.addValidationError("Field [messages] cannot be an empty array");
                 return e;
@@ -124,13 +128,18 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
             out.writeString(inferenceEntityId);
             taskType.writeTo(out);
             unifiedCompletionRequest.writeTo(out);
-            out.writeTimeValue(timeout);
+            if (timeout.equals(TIMEOUT_NOT_DETERMINED)
+                && out.getTransportVersion().supports(INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED) == false) {
+                out.writeTimeValue(OLD_DEFAULT_TIMEOUT);
+            } else {
+                out.writeTimeValue(timeout);
+            }
         }
 
         @Override
         public boolean equals(Object o) {
             if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
+            var request = (Request) o;
             return super.equals(o)
                 && Objects.equals(inferenceEntityId, request.inferenceEntityId)
                 && taskType == request.taskType

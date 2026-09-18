@@ -1,6 +1,6 @@
 ```yaml {applies_to}
-serverless: preview
-stack: preview 9.1.0
+serverless: ga
+stack: preview 9.1-9.3, ga 9.4+
 ```
 
 The `FORK` processing command creates multiple execution branches to operate
@@ -20,14 +20,15 @@ on the same input data and combines the results in a single output table. A disc
 Together with the [`FUSE`](/reference/query-languages/esql/commands/fuse.md) command, `FORK` enables hybrid search to combine and score results from multiple queries. To learn more about using {{esql}} for search, refer to [ES|QL for search](docs-content://solutions/search/esql-for-search.md).
 
 
-% Use applies-switch tabs once we remove the implicit limit.
+::::{applies-switch}
 
-::::{note}
+:::{applies-item} { serverless: ga, stack: ga 9.4+ }
+`FORK` branches do not have an implicit `LIMIT 1000`.
+:::
 
-`FORK` branches default to `LIMIT 1000` if no `LIMIT` is provided.
-In a future release, no implicit `LIMIT` will be added to `FORK` branches.
-To maintain the current behavior of the queries using `FORK`, it is recommended
-to include a `LIMIT` in each `FORK` branch.
+:::{applies-item} stack: preview 9.1-9.3
+An implicit `LIMIT 1000` is added to each `FORK` branch.
+:::
 
 ::::
 
@@ -51,6 +52,10 @@ data type across all branches; missing columns are filled with `null` values.
 Row order is preserved within each branch, but rows from different branches may be
 interleaved. Use `SORT _fork` to group results by branch.
 
+## Comparing FORK with views and subqueries
+
+`FORK` is one of several ways to branch or combine data in ES|QL. For a detailed comparison with `FROM` subqueries and views, refer to [Combine and reuse ES|QL queries](/reference/query-languages/esql/esql-combine-reuse-queries.md#comparing-views-subqueries-and-fork).
+
 ## Limitations
 
 - `FORK` supports at most 8 execution branches.
@@ -66,7 +71,7 @@ The following examples show how to run parallel branches and combine their resul
 Each `FORK` branch returns one row. `FORK` adds a `_fork` column that indicates
 which branch each row came from:
 
-:::{include} ../examples/fork.csv-spec/simpleFork.md
+:::{include} ../../generated/x-pack-esql/commands/examples/fork.csv-spec/simpleFork.md
 :::
 
 ### Return row count alongside top results
@@ -74,5 +79,5 @@ which branch each row came from:
 Returns the total number of rows that match the query along with
 the top five rows sorted by score:
 
-:::{include} ../examples/fork.csv-spec/simpleForkWithStats.md
+:::{include} ../../generated/x-pack-esql/commands/examples/fork.csv-spec/simpleForkWithStats.md
 :::

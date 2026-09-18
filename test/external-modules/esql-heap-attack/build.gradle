@@ -11,12 +11,56 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 // Necessary to use tests in Serverless
 apply plugin: 'elasticsearch.internal-test-artifact'
 
+// Kept in sync with x-pack/plugin/esql-datasource-parquet/build.gradle, the only other consumer.
+versions << [
+  'hadoop' : '3.4.3',
+]
+
 esplugin {
   description = 'A test module that can trigger out of memory'
   classname ='org.elasticsearch.test.esql.heap_attack.HeapAttackPlugin'
 }
 
+dependencies {
+  javaRestTestImplementation project(':x-pack:plugin:esql:compute')
+  javaRestTestImplementation project(':libs:swisshash')
+
+  // EXTERNAL heap-attack suite: S3 fixture + qa server helpers (S3FixtureUtils), parquet writer
+  // for payload generation, and zstd-jni for compressing payloads in the test JVM. The cluster
+  // gets the matching plugins via clusterPlugins / clusterModules below.
+  javaRestTestImplementation project(':test:fixtures:s3-fixture')
+  javaRestTestImplementation project(':test:fixtures:aws-fixture-utils')
+  javaRestTestImplementation project(':x-pack:plugin:esql:qa:server')
+  // parquet-hadoop-bundle for the inline payload generator (ParquetWriter / SimpleGroup).
+  // parquet-mr's writer API references org.apache.hadoop.fs.Path on builder overloads, so
+  // Hadoop JARs are needed at compile time even though the test only uses the OutputFile path.
+  javaRestTestImplementation "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
+  // Hadoop JARs without transitives: parquet-mr's writer API references org.apache.hadoop.fs.Path
+  // on its builder overloads (compile-time only). At runtime we feed it a PlainParquetConfiguration
+  // so the actual Hadoop bootstrap path isn't taken — keeping the test classpath light and
+  // sidestepping dependency-verification updates for the full Hadoop transitive set.
+  javaRestTestImplementation("org.apache.hadoop:hadoop-common:${versions.hadoop}") {
+    transitive = false
+  }
+  javaRestTestImplementation("org.apache.hadoop:hadoop-mapreduce-client-core:${versions.hadoop}") {
+    transitive = false
+  }
+  javaRestTestImplementation "com.github.luben:zstd-jni:${versions.zstdJni}"
+
+  // Note: repository-s3 and the esql-datasource-{csv,ndjson,parquet,s3,zstd} plugins are
+  // already shipped as modules in the default distribution, so we don't declare them as
+  // clusterPlugins / clusterModules here (that would copy them into plugins/ on top of the
+  // existing modules/ entries and fail boot with a duplicate-key check).
+}
+
+tasks.named('compileJavaRestTestJava').configure {
+  options.compilerArgs << '-Xlint:-classfile'
+}
+
 tasks.named('javaRestTest') {
   usesDefaultDistribution("to be triaged")
   it.onlyIf("snapshot build") { buildParams.snapshotBuild }
+  // HeapAttackExternalIT materializes payloads (multi-GB Parquet/NDJSON/CSV byte arrays)
+  // inside the test JVM before pushing them into the in-memory S3 fixture.
+  maxHeapSize = '4G'
 }

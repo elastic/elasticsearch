@@ -130,7 +130,7 @@ public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
         }
 
         public String toString() {
-            return Strings.toString(this);
+            return Strings.toTruncatedString(this);
         }
 
         public static class FollowerInfo implements Writeable, ToXContentObject {

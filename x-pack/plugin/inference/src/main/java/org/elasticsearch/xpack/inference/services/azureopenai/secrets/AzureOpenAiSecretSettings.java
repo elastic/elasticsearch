@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.azureopenai.secrets;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
@@ -20,10 +19,11 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIENT_SECRET_FIELD;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 /**
  * An abstract class representing the secrets required for Azure OpenAI authentication.
@@ -34,11 +34,11 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
     public static final String API_KEY = "api_key";
     public static final String ENTRA_ID = "entra_id";
 
-    public static final String EXACTLY_ONE_SECRETS_FIELD_ERROR = format(
-        "[secret_settings] must have exactly one of [%s], [%s], or [%s] field set",
-        API_KEY,
-        ENTRA_ID,
-        CLIENT_SECRET_FIELD
+    private static final Set<String> SECRET_FIELDS = Set.of(API_KEY, ENTRA_ID, CLIENT_SECRET_FIELD);
+
+    public static final String EXACTLY_ONE_SECRETS_FIELD_ERROR = SecretSettings.exactlyOneFieldError(
+        SERVICE_SETTINGS.toString(),
+        SECRET_FIELDS
     );
 
     public static final String EXACTLY_ONE_CONFIG_DESCRIPTION =
@@ -52,37 +52,17 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
             return null;
         }
 
-        ValidationException validationException = new ValidationException();
-        var secureApiToken = extractOptionalSecureString(map, API_KEY, ModelSecrets.SECRET_SETTINGS, validationException);
-        var secureEntraId = extractOptionalSecureString(map, ENTRA_ID, ModelSecrets.SECRET_SETTINGS, validationException);
-        var clientSecret = extractOptionalSecureString(map, CLIENT_SECRET_FIELD, ModelSecrets.SECRET_SETTINGS, validationException);
+        var extractedSecretsMap = extractSecretsMap(map);
 
-        var provided = new HashMap<String, SecureString>();
-        if (secureApiToken != null) {
-            provided.put(API_KEY, secureApiToken);
-        }
-        if (secureEntraId != null) {
-            provided.put(ENTRA_ID, secureEntraId);
-        }
-        if (clientSecret != null) {
-            provided.put(CLIENT_SECRET_FIELD, clientSecret);
-        }
+        SecretSettings.validateExactlyOneField(extractedSecretsMap, SERVICE_SETTINGS.toString(), SECRET_FIELDS);
 
-        if (provided.isEmpty()) {
-            validationException.addValidationError(EXACTLY_ONE_SECRETS_FIELD_ERROR);
-        } else if (provided.size() > 1) {
-            validationException.addValidationError(EXACTLY_ONE_SECRETS_FIELD_ERROR + ", received: " + provided.keySet());
+        if (extractedSecretsMap.containsKey(API_KEY)) {
+            return new AzureOpenAiEntraIdApiKeySecrets(extractedSecretsMap.get(API_KEY), null);
         }
-
-        validationException.throwIfValidationErrorsExist();
-
-        if (secureApiToken != null) {
-            return new AzureOpenAiEntraIdApiKeySecrets(secureApiToken, null);
+        if (extractedSecretsMap.containsKey(ENTRA_ID)) {
+            return new AzureOpenAiEntraIdApiKeySecrets(null, extractedSecretsMap.get(ENTRA_ID));
         }
-        if (secureEntraId != null) {
-            return new AzureOpenAiEntraIdApiKeySecrets(null, secureEntraId);
-        }
-        return new AzureOpenAiOAuth2Secrets(clientSecret);
+        return new AzureOpenAiOAuth2Secrets(extractedSecretsMap.get(CLIENT_SECRET_FIELD));
     }
 
     public static Map<String, SettingsConfiguration> configurations(EnumSet<TaskType> supportedTaskTypes) {
@@ -112,7 +92,39 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
     }
 
     @Override
-    public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-        return AzureOpenAiSecretSettings.fromMap(new HashMap<>(newSecrets));
+    public AzureOpenAiSecretSettings newSecretSettings(Map<String, Object> newSecrets) {
+        var extractedSecrets = extractSecretsMap(newSecrets);
+        if (extractedSecrets.isEmpty()) {
+            return this;
+        }
+        return updated(extractedSecrets);
     }
+
+    /**
+     * Extracts the supported secret fields from {@code map} into a typed map of non-null values.
+     * Throws a {@link ValidationException} if any provided field is malformed (for example, an empty string).
+     * The caller is responsible for validating which combinations of fields are allowed for the current flow.
+     */
+    private static Map<String, SecureString> extractSecretsMap(Map<String, Object> map) {
+        var validationException = new ValidationException();
+        var secureApiToken = extractOptionalSecureString(map, API_KEY, SERVICE_SETTINGS, validationException);
+        var secureEntraId = extractOptionalSecureString(map, ENTRA_ID, SERVICE_SETTINGS, validationException);
+        var clientSecret = extractOptionalSecureString(map, CLIENT_SECRET_FIELD, SERVICE_SETTINGS, validationException);
+        validationException.throwIfValidationErrorsExist();
+
+        var provided = new HashMap<String, SecureString>();
+        if (secureApiToken != null) {
+            provided.put(API_KEY, secureApiToken);
+        }
+        if (secureEntraId != null) {
+            provided.put(ENTRA_ID, secureEntraId);
+        }
+        if (clientSecret != null) {
+            provided.put(CLIENT_SECRET_FIELD, clientSecret);
+        }
+        return provided;
+    }
+
+    /** Apply a non-empty update; subclasses enforce which fields they allow. */
+    protected abstract AzureOpenAiSecretSettings updated(Map<String, SecureString> provided);
 }

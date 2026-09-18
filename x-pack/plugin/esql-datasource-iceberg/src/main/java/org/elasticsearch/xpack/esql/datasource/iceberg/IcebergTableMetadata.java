@@ -10,6 +10,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -49,13 +50,23 @@ public class IcebergTableMetadata implements ExternalSourceMetadata {
         this.attributes = buildAttributes();
     }
 
+    /**
+     * Build ES|QL attributes from the Iceberg schema, honoring Iceberg's field-level optional/required marker
+     * ({@link Types.NestedField#isOptional()}). Defaulting to non-nullable (as the 3-arg {@link ReferenceAttribute}
+     * constructor does) would mislead planner rules (e.g. {@code COALESCE} simplification, {@code IS NULL}/
+     * {@code IS NOT NULL} rewriting) into dropping legitimate null rows for optional Iceberg columns.
+     * <p>
+     * Nullability is taken from the top-level column; element-level nullability inside a {@code LIST} (i.e.
+     * {@code ListType.elementIsOptional()}) is independent and not modelled at the attribute level.
+     */
     private List<Attribute> buildAttributes() {
         List<Attribute> attrs = new ArrayList<>();
         for (Types.NestedField field : schema.columns()) {
             DataType esqlType = mapIcebergTypeToEsql(field.type());
             // Skip unsupported types (MAP, STRUCT, etc.)
             if (esqlType != null && esqlType != DataType.UNSUPPORTED) {
-                attrs.add(new ReferenceAttribute(Source.EMPTY, field.name(), esqlType));
+                Nullability nullability = field.isOptional() ? Nullability.TRUE : Nullability.FALSE;
+                attrs.add(new ReferenceAttribute(Source.EMPTY, null, field.name(), esqlType, nullability, null, false));
             }
         }
         return attrs;

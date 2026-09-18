@@ -117,6 +117,7 @@ public class BasePluginBuildPlugin implements Plugin<Project> {
             task.getJavaVersion().set(providerFactory.provider(() -> javaExtension.getTargetCompatibility().toString()));
             task.getExtendedPlugins().set(providerFactory.provider(extension::getExtendedPlugins));
             task.getHasNativeController().set(providerFactory.provider(extension::isHasNativeController));
+            task.getNativeControllerEnabledSettings().set(providerFactory.provider(extension::getNativeControllerEnabledSettings));
             task.getRequiresKeystore().set(providerFactory.provider(extension::isRequiresKeystore));
             task.getIsLicensed().set(providerFactory.provider(extension::isLicensed));
             task.getDeploymentTarget().set(providerFactory.provider(extension::getDeploymentTarget));

@@ -42,6 +42,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -99,6 +100,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private String id;
     @Nullable
     private String routing;
+    private boolean routingFromSlice;
 
     private final IndexSource indexSource;
 
@@ -150,9 +152,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private Map<String, Map<String, String>> dynamicTemplateParams = Map.of();
 
     /**
-     * rawTimestamp field is used on the coordinate node, it doesn't need to be serialised.
+     * rawTimestamp and timeSeriesTimestamp fields are used on the coordinate node,
+     * they don't need to be serialised.
      */
     private Object rawTimestamp;
+    private Instant timeSeriesTimestamp;
     private BytesRef tsid;
 
     public IndexRequest(StreamInput in) throws IOException {
@@ -353,6 +357,23 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /**
+     * Marks whether the effective routing value was provided via the {@code slice} API parameter.
+     */
+    @Override
+    public IndexRequest setRoutingFromSlice(boolean routingFromSlice) {
+        this.routingFromSlice = routingFromSlice;
+        return this;
+    }
+
+    /**
+     * Returns {@code true} when this request routing came from the {@code slice} API parameter.
+     */
+    @Override
+    public boolean isRoutingFromSlice() {
+        return routingFromSlice;
+    }
+
+    /**
      * When {@link IndexMetadata#INDEX_DIMENSIONS} is populated,
      * the coordinating node will calculate _tsid during routing and set it on the request.
      * For time series indices where the setting is not populated, the _tsid will be created in the data node during document parsing.
@@ -435,7 +456,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     public Map<String, Object> sourceAsMap() {
-        return indexSource.sourceAsMap();
+        return indexSource.sourceAsMap(includeSourceOnError);
     }
 
     /**
@@ -962,6 +983,19 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public void setRawTimestamp(Object rawTimestamp) {
         assert this.rawTimestamp == null : "rawTimestamp only set in ingest phase, it can't be set twice";
         this.rawTimestamp = rawTimestamp;
+    }
+
+    public void setTimeSeriesTimestamp(Instant tsTimestamp) {
+        this.timeSeriesTimestamp = tsTimestamp;
+    }
+
+    /**
+     * NOTE: this field is not serialisable.
+     * @return the cached timestamp or null.
+     */
+    @Nullable
+    public Instant getTimeSeriesTimestamp() {
+        return timeSeriesTimestamp;
     }
 
     /**

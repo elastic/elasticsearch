@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `PI` function [esql-pi]
 
-:::{include} ../../_snippets/functions/layout/pi.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/pi.md
 :::

@@ -85,8 +85,7 @@ public interface NamedGroupExtractor {
         public NamedGroupExtractor grok(String pattern) {
             MatcherWatchdog watchdog = watchdogSupplier.get();
             /*
-             * Build the grok pattern in a PrivilegedAction so it can load
-             * things from the classpath.
+             * Build the grok pattern, loading built-in patterns from the classpath.
              */
             Grok grok;
             try {

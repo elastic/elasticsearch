@@ -43,10 +43,12 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -56,6 +58,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -105,6 +108,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final FailureStoreMetrics failureStoreMetrics;
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
     private final boolean clusterHasFailureStoreFeature;
+    @Nullable
+    private final BatchModeRouter router;
 
     BulkOperation(
         Task task,
@@ -121,7 +126,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         ActionListener<BulkResponse> listener,
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
-        boolean clusterHasFailureStoreFeature
+        boolean clusterHasFailureStoreFeature,
+        BatchIndexingEnabled batchIndexingEnabled
     ) {
         this(
             task,
@@ -140,7 +146,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             new FailureStoreDocumentConverter(),
             failureStoreMetrics,
             dataStreamFailureStoreSettings,
-            clusterHasFailureStoreFeature
+            clusterHasFailureStoreFeature,
+            batchIndexingEnabled
         );
     }
 
@@ -161,7 +168,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         FailureStoreDocumentConverter failureStoreDocumentConverter,
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
-        boolean clusterHasFailureStoreFeature
+        boolean clusterHasFailureStoreFeature,
+        BatchIndexingEnabled batchIndexingEnabled
     ) {
         super(listener);
         this.task = task;
@@ -183,6 +191,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.failureStoreMetrics = failureStoreMetrics;
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         this.clusterHasFailureStoreFeature = clusterHasFailureStoreFeature;
+        this.router = BatchModeRouter.create(bulkRequest, ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService));
     }
 
     @Override
@@ -278,7 +287,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         return groupRequestsByShards(
             clusterState,
             Iterators.enumerate(bulkRequest.requests.iterator(), BulkItemRequest::new),
-            BulkOperation::validateWriteIndex
+            BulkOperation::validateWriteIndex,
+            router
         );
     }
 
@@ -286,19 +296,29 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         return groupRequestsByShards(
             clusterState,
             Iterators.fromSupplier(failureStoreRedirects::poll),
-            (ia, ignore) -> validateRedirectIndex(ia)
+            (ia, ignore) -> validateRedirectIndex(ia),
+            null   // failure-store redirects always carry inline source
         );
     }
 
     private Map<ShardId, List<BulkItemRequest>> groupRequestsByShards(
         ClusterState clusterState,
         Iterator<BulkItemRequest> it,
-        BiConsumer<IndexAbstraction, DocWriteRequest<?>> indexOperationValidator
+        BiConsumer<IndexAbstraction, DocWriteRequest<?>> indexOperationValidator,
+        @Nullable BatchModeRouter batchRouter
     ) {
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
         final ConcreteIndices concreteIndices = new ConcreteIndices(project, indexNameExpressionResolver);
-        // Group the requests by ShardId -> Operations mapping
+        // Both modes fill the same map: x-content fills it incrementally in route(); provided-batch
+        // fills it in buildGrouping() after the deferred columnar routing pass completes.
         Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
+
+        // For provided-batch TSDB data streams: resolve @timestamp from the ESCF columns and cache it
+        // on each IndexRequest before the per-item loop, so DataStream#getWriteIndex can select the
+        // correct backing index.
+        if (batchRouter != null) {
+            batchRouter.preResolveTimestamps(project, bulkRequest.requests());
+        }
 
         while (it.hasNext()) {
             BulkItemRequest bulkItemRequest = it.next();
@@ -321,6 +341,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             try {
                 ia = concreteIndices.resolveIfAbsent(docWriteRequest);
                 indexOperationValidator.accept(ia, docWriteRequest);
+                TransportBulkAction.requireSliceRoutingWhenEnabled(docWriteRequest, ia, project::index);
 
                 TransportBulkAction.prohibitCustomRoutingOnDataStream(docWriteRequest, ia);
                 TransportBulkAction.prohibitAppendWritesInBackingIndices(docWriteRequest, ia, project::index);
@@ -331,14 +352,14 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     continue;
                 }
                 IndexRouting indexRouting = concreteIndices.routing(concreteIndex);
-                docWriteRequest.preRoutingProcess(indexRouting);
-                int shardId = docWriteRequest.route(indexRouting);
-                docWriteRequest.postRoutingProcess(indexRouting);
-                List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(
-                    new ShardId(concreteIndex, shardId),
-                    shard -> new ArrayList<>()
-                );
-                shardRequests.add(bulkItemRequest);
+                if (batchRouter != null) {
+                    batchRouter.route(bulkItemRequest, docWriteRequest, ia, concreteIndex, indexRouting, project, requestsByShard);
+                } else {
+                    docWriteRequest.preRoutingProcess(indexRouting);
+                    int shardId = docWriteRequest.route(indexRouting);
+                    docWriteRequest.postRoutingProcess(indexRouting);
+                    requestsByShard.computeIfAbsent(new ShardId(concreteIndex, shardId), shard -> new ArrayList<>()).add(bulkItemRequest);
+                }
             } catch (DataStream.TimestampError timestampError) {
                 IndexDocFailureStoreStatus failureStoreStatus = processFailure(bulkItemRequest, project, timestampError);
                 if (IndexDocFailureStoreStatus.USED.equals(failureStoreStatus) == false) {
@@ -353,7 +374,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 addFailureAndDiscardRequest(docWriteRequest, bulkItemRequest.id(), name, e, failureStoreStatus);
             }
         }
-        return requestsByShard;
+        return batchRouter != null ? batchRouter.buildGrouping(requestsByShard, this::onBatchRoutingFailure) : requestsByShard;
     }
 
     /**
@@ -391,9 +412,15 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         Runnable onRequestsCompleted
     ) {
         if (requestsByShard.isEmpty()) {
+            closeBatchEncoders();
             onRequestsCompleted.run();
             return;
         }
+
+        // Build per-shard source batches. For the inline-encoder path, batches are finalized here
+        // (rows were accumulated during routing). For provided-batch mode the source is scattered here.
+        Map<ShardId, SourceBatch> shardBatches = router != null ? router.shardBatches() : Map.of();
+        BatchModeRouter.validateBatchAlignment(requestsByShard, shardBatches);
 
         String nodeId = clusterService.localNode().getId();
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
@@ -404,15 +431,20 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
                 // Get effective shardCount for shardId and pass it on as parameter to new BulkShardRequest
                 var indexMetadata = project.getIndexSafe(shardId.getIndex());
-                SplitShardCountSummary reshardSplitShardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
+                SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
 
                 BulkShardRequest bulkShardRequest = new BulkShardRequest(
                     shardId,
-                    reshardSplitShardCountSummary,
+                    splitShardCountSummary,
                     bulkRequest.getRefreshPolicy(),
                     requests.toArray(new BulkItemRequest[0]),
                     bulkRequest.isSimulated()
                 );
+
+                SourceBatch shardBatch = shardBatches.get(shardId);
+                if (shardBatch != null) {
+                    bulkShardRequest.setBulkShardBatch(new BulkShardBatch(shardBatch));
+                }
 
                 if (indexMetadata.getInferenceFields().isEmpty() == false) {
                     bulkShardRequest.setInferenceFieldMap(indexMetadata.getInferenceFields());
@@ -423,10 +455,16 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 if (task != null) {
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
-                boolean redactSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG
-                    && IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(indexMetadata.getSettings());
+                boolean redactSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(indexMetadata.getSettings());
                 executeBulkShardRequest(bulkShardRequest, project.id(), bulkItemRequestCompleteRefCount.acquire(), redactSeqNo);
             }
+        }
+        closeBatchEncoders();
+    }
+
+    private void closeBatchEncoders() {
+        if (router != null) {
+            router.close();
         }
     }
 
@@ -491,8 +529,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             );
             releaseOnFinish.close();
         } else {
-            client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
-
+            client.execute(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
                 // Lazily get the project metadata to avoid keeping it around longer than it is needed
                 private ProjectMetadata projectMetadata = null;
 
@@ -585,10 +622,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         if (failureStoreCandidate != null && clusterHasFailureStoreFeature) {
             // Do not redirect documents to a failure store that were already headed to one.
             var isFailureStoreRequest = isFailureStoreRequest(docWriteRequest);
-            if (isFailureStoreRequest == false
-                && failureStoreCandidate.isFailureStoreEffectivelyEnabled(dataStreamFailureStoreSettings)
-                && error instanceof VersionConflictEngineException == false
-                && error instanceof EsRejectedExecutionException == false) {
+            if (shouldRedirectRequestToFailureStore(isFailureStoreRequest, failureStoreCandidate, error)) {
                 // Prepare the data stream failure store if necessary
                 maybeMarkFailureStoreForRollover(failureStoreCandidate);
 
@@ -628,6 +662,32 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     }
 
     /**
+     * Inspects a request and a shard-level failure to determine if the document should be redirected to the failure store.
+     * @param isFailureStoreRequest <code>true</code> if the request being checked was already going to the failure store,
+     *                              <code>false</code> if it is a normal doc. Requests already going to the failure store will not be
+     *                              redirected a second time.
+     * @param failureStoreCandidate the data stream the original request was being written to, or null if no data stream was involved.
+     *                              Requests are only routed to a failure store if they are headed to a data stream with an active failure
+     *                              store.
+     * @param error the shard-level error the request encountered. Version conflicts and exceptions related to backpressure are not
+     *              redirected.
+     * @return true if the request and error should be redirected to the provided data stream's failure store, false if it should not
+     */
+    private boolean shouldRedirectRequestToFailureStore(boolean isFailureStoreRequest, DataStream failureStoreCandidate, Throwable error) {
+        if (isFailureStoreRequest || failureStoreCandidate.isFailureStoreEffectivelyEnabled(dataStreamFailureStoreSettings) == false) {
+            return false;
+        }
+        return switch (error) {
+            case VersionConflictEngineException err -> false;
+            case EsRejectedExecutionException err -> false;
+            case CircuitBreakingException err -> false;
+            case ClusterBlockException err -> false;
+            case ElasticsearchException err -> err.status().getStatus() != 429;
+            default -> true;
+        };
+    }
+
+    /**
      * Tries to find a <i>candidate</i> redirect target for this write request. A candidate redirect target is a data stream that may or
      * may not have the failure store enabled.
      *
@@ -654,8 +714,14 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         // Convert the document into a failure document
         IndexRequest failureStoreRequest;
         try {
+            // If the original request carries only a row reference (no inline bytes), materialize
+            // the source now so that transformFailedRequest can read the document content.
+            IndexRequest writeRequest = TransportBulkAction.getIndexWriteRequest(request.request());
+            if (writeRequest != null && writeRequest.indexSource().hasSourceRow()) {
+                writeRequest.indexSource().ensureInlineSource();
+            }
             failureStoreRequest = failureStoreDocumentConverter.transformFailedRequest(
-                TransportBulkAction.getIndexWriteRequest(request.request()),
+                writeRequest,
                 cause,
                 failureStoreReference,
                 threadPool::absoluteTimeInMillis
@@ -802,6 +868,22 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
     private static boolean isFailureStoreRequest(DocWriteRequest<?> request) {
         return request instanceof IndexRequest ir && ir.isWriteToFailureStore();
+    }
+
+    /**
+     * Per-item failure handler passed to {@link BatchModeRouter#buildGrouping} for the columnar routing
+     * path. Mirrors the {@code catch (IllegalArgumentException | ...)} block in
+     * {@link #groupRequestsByShards}: marks the item failed and discards it from the working request
+     * list. All items in the deferred batch receive the same exception because the columnar routing
+     * trio ({@link org.elasticsearch.cluster.routing.IndexRouting#indexShard}) does not expose which
+     * row caused the failure.
+     */
+    private void onBatchRoutingFailure(BulkItemRequest item, Exception e) {
+        DocWriteRequest<?> request = item.request();
+        var failureStoreStatus = isFailureStoreRequest(request)
+            ? IndexDocFailureStoreStatus.FAILED
+            : IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
+        addFailureAndDiscardRequest(request, item.id(), request.index(), e, failureStoreStatus);
     }
 
     /**

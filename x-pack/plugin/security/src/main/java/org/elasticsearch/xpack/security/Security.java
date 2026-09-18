@@ -71,6 +71,7 @@ import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.ClusterStateLicenseService;
@@ -117,6 +118,7 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.netty4.AcceptChannelHandler;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.TLSConfig;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackField;
@@ -177,10 +179,15 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.CreateUserManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.QueryServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.settings.GetSecuritySettingsAction;
 import org.elasticsearch.xpack.core.security.action.settings.UpdateSecuritySettingsAction;
 import org.elasticsearch.xpack.core.security.action.stats.GetSecurityStatsAction;
@@ -195,6 +202,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequestBuilderFactory;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
+import org.elasticsearch.xpack.core.security.audit.AuditLogCustomizer;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -220,6 +228,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexRe
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
+import org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesProvider;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -279,10 +288,15 @@ import org.elasticsearch.xpack.security.action.saml.TransportSamlLogoutAction;
 import org.elasticsearch.xpack.security.action.saml.TransportSamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.security.action.saml.TransportSamlSpMetadataAction;
 import org.elasticsearch.xpack.security.action.service.TransportCreateServiceAccountTokenAction;
+import org.elasticsearch.xpack.security.action.service.TransportCreateUserManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.security.action.service.TransportDeleteServiceAccountTokenAction;
+import org.elasticsearch.xpack.security.action.service.TransportDeleteUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.security.action.service.TransportDeleteUserManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountAction;
 import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountCredentialsAction;
 import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.security.action.service.TransportPutUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.security.action.service.TransportQueryServiceAccountAction;
 import org.elasticsearch.xpack.security.action.settings.TransportGetSecuritySettingsAction;
 import org.elasticsearch.xpack.security.action.settings.TransportReloadRemoteClusterCredentialsAction;
 import org.elasticsearch.xpack.security.action.settings.TransportUpdateSecuritySettingsAction;
@@ -318,6 +332,7 @@ import org.elasticsearch.xpack.security.authc.service.CompositeServiceAccountTok
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
+import org.elasticsearch.xpack.security.authc.service.UserManagedServiceAccountStore;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthActions;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
@@ -331,6 +346,7 @@ import org.elasticsearch.xpack.security.authz.ReservedRoleNameChecker;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.interceptor.BulkShardRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.DatasetDatasourceRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.DlsFlsLicenseRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.IndicesAliasesRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
@@ -340,6 +356,7 @@ import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestIntercept
 import org.elasticsearch.xpack.security.authz.interceptor.ShardSearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.UpdateRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ValidateRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.ViewAndDatasetDlsFlsRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.DeprecationRoleDescriptorConsumer;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
@@ -405,8 +422,11 @@ import org.elasticsearch.xpack.security.rest.action.saml.RestSamlSpMetadataActio
 import org.elasticsearch.xpack.security.rest.action.service.RestClearServiceAccountTokenStoreCacheAction;
 import org.elasticsearch.xpack.security.rest.action.service.RestCreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.security.rest.action.service.RestDeleteServiceAccountTokenAction;
+import org.elasticsearch.xpack.security.rest.action.service.RestDeleteUserManagedServiceAccountAction;
 import org.elasticsearch.xpack.security.rest.action.service.RestGetServiceAccountAction;
 import org.elasticsearch.xpack.security.rest.action.service.RestGetServiceAccountCredentialsAction;
+import org.elasticsearch.xpack.security.rest.action.service.RestPutUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.security.rest.action.service.RestQueryServiceAccountAction;
 import org.elasticsearch.xpack.security.rest.action.settings.RestGetSecuritySettingsAction;
 import org.elasticsearch.xpack.security.rest.action.settings.RestUpdateSecuritySettingsAction;
 import org.elasticsearch.xpack.security.rest.action.stats.RestSecurityStatsAction;
@@ -440,7 +460,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.PrivilegedAction;
 import java.security.Provider;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -464,7 +483,6 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.security.AccessController.doPrivileged;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -504,11 +522,6 @@ public class Security extends Plugin
         null,
         "security-auditing",
         License.OperationMode.GOLD
-    );
-    public static final LicensedFeature.Momentary TOKEN_SERVICE_FEATURE = LicensedFeature.momentary(
-        null,
-        "security-token-service",
-        License.OperationMode.STANDARD
     );
 
     private static final String REALMS_FEATURE_FAMILY = "security-realms";
@@ -733,9 +746,9 @@ public class Security extends Plugin
      */
     public static Path resolveSecuredConfigFile(Environment env, String file) {
         Path config = env.configDir().resolve(file);
-        if (doPrivileged((PrivilegedAction<Boolean>) () -> Files.exists(config)) == false) {
+        if (Files.exists(config) == false) {
             Path legacyConfig = env.configDir().resolve("x-pack").resolve(file);
-            if (doPrivileged((PrivilegedAction<Boolean>) () -> Files.exists(legacyConfig))) {
+            if (Files.exists(legacyConfig)) {
                 DeprecationLogger.getLogger(XPackPlugin.class)
                     .warn(
                         DeprecationCategory.OTHER,
@@ -767,7 +780,9 @@ public class Security extends Plugin
                 services.linkedProjectConfigService(),
                 services.projectResolver(),
                 services.crossProjectModeDecider(),
-                services.projectRoutingResolver()
+                services.projectRoutingResolver(),
+                services.systemIndices(),
+                services.usageService()
             );
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
@@ -791,7 +806,9 @@ public class Security extends Plugin
         LinkedProjectConfigService linkedProjectConfigService,
         ProjectResolver projectResolver,
         CrossProjectModeDecider crossProjectModeDecider,
-        ProjectRoutingResolver projectRoutingResolver
+        ProjectRoutingResolver projectRoutingResolver,
+        SystemIndices coreSystemIndices,
+        UsageService usageService
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
@@ -828,19 +845,10 @@ public class Security extends Plugin
 
         final RestrictedIndices restrictedIndices = new RestrictedIndices(expressionResolver);
 
-        // audit trail service construction
-        final AuditTrail auditTrail = XPackSettings.AUDIT_ENABLED.get(settings)
-            ? new LoggingAuditTrail(settings, clusterService, threadPool)
-            : null;
-        final AuditTrailService auditTrailService = new AuditTrailService(auditTrail, getLicenseState());
-        components.add(auditTrailService);
-        this.auditTrailService.set(auditTrailService);
-
         final TokenService tokenService = new TokenService(
             settings,
             Clock.systemUTC(),
             client,
-            getLicenseState(),
             securityContext.get(),
             systemIndices.getMainIndexManager(),
             systemIndices.getTokenIndexManager(),
@@ -920,6 +928,8 @@ public class Security extends Plugin
             components,
             cacheInvalidatorRegistry,
             extensionComponents,
+            clusterService,
+            featureService,
             () -> new IndexServiceAccountTokenStore(
                 settings,
                 threadPool,
@@ -989,6 +999,15 @@ public class Security extends Plugin
         if (samlAuthenticateResponseHandlerFactory.get() == null) {
             samlAuthenticateResponseHandlerFactory.set(new SamlAuthenticateResponseHandler.DefaultFactory());
         }
+        final AuditLogCustomizer customAuditLogCustomizer = findValueFromExtensions(
+            "audit log customizer",
+            extension -> extension.getAuditLogCustomizer(extensionComponents, coreSystemIndices)
+        );
+        final AuditLogCustomizer auditLogCustomizer = customAuditLogCustomizer == null ? AuditLogCustomizer.NOOP : customAuditLogCustomizer;
+        final AuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, threadPool, auditLogCustomizer);
+        final AuditTrailService auditTrailService = new AuditTrailService(auditTrail, getLicenseState(), clusterService);
+        components.add(auditTrailService);
+        this.auditTrailService.set(auditTrailService);
         components.add(
             new PluginComponentBinding<>(
                 SamlAuthenticateResponseHandler.class,
@@ -1042,6 +1061,9 @@ public class Security extends Plugin
             customRoleProviders,
             getLicenseState()
         );
+        final List<ImplicitPrivilegesProvider> implicitPrivilegesProviders = securityExtensions.stream()
+            .flatMap(extension -> extension.getImplicitPrivilegesProviders(extensionComponents).stream())
+            .toList();
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(
             settings,
             clusterService,
@@ -1056,7 +1078,8 @@ public class Security extends Plugin
             dlsBitsetCache.get(),
             restrictedIndices,
             buildRoleBuildingExecutor(threadPool, settings),
-            new DeprecationRoleDescriptorConsumer(clusterService, projectResolver, threadPool)
+            new DeprecationRoleDescriptorConsumer(clusterService, projectResolver, threadPool),
+            implicitPrivilegesProviders
         );
         systemIndices.getMainIndexManager().addStateListener(allRolesStore::onSecurityIndexStateChange);
 
@@ -1133,20 +1156,25 @@ public class Security extends Plugin
         systemIndices.getMainIndexManager().addStateListener(authcService.get()::onSecurityIndexStateChange);
         dlsFlsEnabled.set(XPackSettings.DLS_FLS_ENABLED.get(settings));
         Set<RequestInterceptor> requestInterceptors = Sets.newHashSet(
-            new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService, dlsFlsEnabled.get()),
-            new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService, dlsFlsEnabled.get())
+            new ResizeRequestInterceptor(threadPool, auditTrailService, dlsFlsEnabled.get()),
+            new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), auditTrailService, dlsFlsEnabled.get()),
+            new DatasetDatasourceRequestInterceptor()
         );
 
         if (dlsFlsEnabled.get()) {
             requestInterceptors.addAll(
                 Arrays.asList(
-                    new SearchRequestInterceptor(threadPool, getLicenseState()),
-                    new ShardSearchRequestInterceptor(threadPool, getLicenseState()),
-                    new UpdateRequestInterceptor(threadPool, getLicenseState()),
-                    new BulkShardRequestInterceptor(threadPool, getLicenseState()),
+                    new SearchRequestInterceptor(threadPool),
+                    new ShardSearchRequestInterceptor(threadPool),
+                    new UpdateRequestInterceptor(threadPool),
+                    new BulkShardRequestInterceptor(threadPool),
                     new DlsFlsLicenseRequestInterceptor(threadPool.getThreadContext(), getLicenseState()),
-                    new SearchRequestCacheDisablingInterceptor(threadPool, getLicenseState()),
-                    new ValidateRequestInterceptor(threadPool, getLicenseState())
+                    new SearchRequestCacheDisablingInterceptor(threadPool),
+                    new ValidateRequestInterceptor(threadPool),
+                    new ViewAndDatasetDlsFlsRequestInterceptor(
+                        threadPool.getThreadContext(),
+                        () -> projectResolver.getProjectMetadata(clusterService.state())
+                    )
                 )
             );
         }
@@ -1176,7 +1204,8 @@ public class Security extends Plugin
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            projectRoutingResolver
+            projectRoutingResolver,
+            usageService
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1389,6 +1418,8 @@ public class Security extends Plugin
         List<Object> components,
         CacheInvalidatorRegistry cacheInvalidatorRegistry,
         SecurityExtension.SecurityComponents extensionComponents,
+        ClusterService clusterService,
+        FeatureService featureService,
         Supplier<IndexServiceAccountTokenStore> indexServiceAccountTokenStoreSupplier,
         Supplier<FileServiceAccountTokenStore> fileServiceAccountTokenStoreSupplier
     ) {
@@ -1422,7 +1453,33 @@ public class Security extends Plugin
             components.add(new PluginComponentBinding<>(NodeLocalServiceAccountTokenStore.class, fileServiceAccountTokenStore));
             components.add(fileServiceAccountTokenStore);
             components.add(indexServiceAccountTokenStore);
-            cacheInvalidatorRegistry.registerAlias("service", Set.of("file_service_account_token", "index_service_account_token"));
+
+            // Neither the account documents nor the caches over them carry a project dimension, so a multi-project
+            // cluster is left without the store and its account APIs report the feature as unavailable. Such a cluster
+            // ordinarily replaces the token store through SecurityExtension#getServiceAccountTokenStore and so never
+            // reaches this branch; the guard covers one left on the default wiring.
+            final UserManagedServiceAccountStore userManagedServiceAccountStore;
+            final Set<String> serviceAccountCacheNames;
+            if (extensionComponents.projectResolver().supportsMultipleProjects()) {
+                userManagedServiceAccountStore = null;
+                serviceAccountCacheNames = Set.of("file_service_account_token", "index_service_account_token");
+            } else {
+                userManagedServiceAccountStore = new UserManagedServiceAccountStore(
+                    settings,
+                    client.get(),
+                    systemIndices.getMainIndexManager(),
+                    clusterService,
+                    featureService,
+                    cacheInvalidatorRegistry
+                );
+                components.add(userManagedServiceAccountStore);
+                serviceAccountCacheNames = Set.of(
+                    "file_service_account_token",
+                    "index_service_account_token",
+                    UserManagedServiceAccountStore.CACHE_NAME
+                );
+            }
+            cacheInvalidatorRegistry.registerAlias("service", serviceAccountCacheNames);
 
             return new ServiceAccountService(
                 client.get(),
@@ -1430,7 +1487,8 @@ public class Security extends Plugin
                     List.of(fileServiceAccountTokenStore, indexServiceAccountTokenStore),
                     client.get().threadPool().getThreadContext()
                 ),
-                indexServiceAccountTokenStore
+                indexServiceAccountTokenStore,
+                userManagedServiceAccountStore
             );
         }
         // Completely handover service account token management to the extension if provided,
@@ -1664,12 +1722,15 @@ public class Security extends Plugin
         settingsList.add(CachingServiceAccountTokenStore.CACHE_TTL_SETTING);
         settingsList.add(CachingServiceAccountTokenStore.CACHE_HASH_ALGO_SETTING);
         settingsList.add(CachingServiceAccountTokenStore.CACHE_MAX_TOKENS_SETTING);
+        settingsList.add(UserManagedServiceAccountStore.CACHE_TTL_SETTING);
+        settingsList.add(UserManagedServiceAccountStore.CACHE_MAX_ACCOUNTS_SETTING);
         settingsList.add(SimpleRole.CACHE_SIZE_SETTING);
         settingsList.add(NativeRoleMappingStore.LAST_LOAD_CACHE_ENABLED_SETTING);
         settingsList.addAll(remoteClusterSecurityExtensionProvider.getSettings());
 
         // hide settings
         settingsList.add(Setting.stringListSetting(SecurityField.setting("hide_settings"), Property.NodeScope, Property.Filtered));
+
         return settingsList;
     }
 
@@ -1811,9 +1872,20 @@ public class Security extends Plugin
             new ActionHandler(DelegatePkiAuthenticationAction.INSTANCE, TransportDelegatePkiAuthenticationAction.class),
             new ActionHandler(CreateServiceAccountTokenAction.INSTANCE, TransportCreateServiceAccountTokenAction.class),
             new ActionHandler(DeleteServiceAccountTokenAction.INSTANCE, TransportDeleteServiceAccountTokenAction.class),
+            new ActionHandler(PutUserManagedServiceAccountAction.INSTANCE, TransportPutUserManagedServiceAccountAction.class),
+            new ActionHandler(DeleteUserManagedServiceAccountAction.INSTANCE, TransportDeleteUserManagedServiceAccountAction.class),
+            new ActionHandler(
+                CreateUserManagedServiceAccountTokenAction.INSTANCE,
+                TransportCreateUserManagedServiceAccountTokenAction.class
+            ),
+            new ActionHandler(
+                DeleteUserManagedServiceAccountTokenAction.INSTANCE,
+                TransportDeleteUserManagedServiceAccountTokenAction.class
+            ),
             new ActionHandler(GetServiceAccountCredentialsAction.INSTANCE, TransportGetServiceAccountCredentialsAction.class),
             new ActionHandler(GetServiceAccountNodesCredentialsAction.INSTANCE, TransportGetServiceAccountNodesCredentialsAction.class),
             new ActionHandler(GetServiceAccountAction.INSTANCE, TransportGetServiceAccountAction.class),
+            new ActionHandler(QueryServiceAccountAction.INSTANCE, TransportQueryServiceAccountAction.class),
             new ActionHandler(KibanaEnrollmentAction.INSTANCE, TransportKibanaEnrollmentAction.class),
             new ActionHandler(NodeEnrollmentAction.INSTANCE, TransportNodeEnrollmentAction.class),
             new ActionHandler(ProfileHasPrivilegesAction.INSTANCE, TransportProfileHasPrivilegesAction.class),
@@ -1850,6 +1922,7 @@ public class Security extends Plugin
             return emptyList();
         }
         Settings settings = restHandlersServices.settings();
+        final boolean userManagedServiceAccountsAvailable = restHandlersServices.projectResolver().supportsMultipleProjects() == false;
         return Stream.<RestHandler>of(
             new RestAuthenticateAction(settings, securityContext.get(), getLicenseState()),
             new RestClearRealmCacheAction(settings, getLicenseState()),
@@ -1908,8 +1981,11 @@ public class Security extends Plugin
             new RestDelegatePkiAuthenticationAction(settings, getLicenseState()),
             new RestCreateServiceAccountTokenAction(settings, getLicenseState()),
             new RestDeleteServiceAccountTokenAction(settings, getLicenseState()),
+            new RestPutUserManagedServiceAccountAction(settings, getLicenseState(), userManagedServiceAccountsAvailable),
+            new RestDeleteUserManagedServiceAccountAction(settings, getLicenseState(), userManagedServiceAccountsAvailable),
             new RestGetServiceAccountCredentialsAction(settings, getLicenseState()),
             new RestGetServiceAccountAction(settings, getLicenseState()),
+            new RestQueryServiceAccountAction(settings, getLicenseState(), userManagedServiceAccountsAvailable),
             new RestKibanaEnrollAction(settings, getLicenseState()),
             new RestNodeEnrollmentAction(settings, getLicenseState()),
             new RestProfileHasPrivilegesAction(settings, getLicenseState()),
@@ -2341,6 +2417,7 @@ public class Security extends Plugin
     public RestInterceptor getRestHandlerInterceptor(ThreadContext threadContext) {
         return new SecurityRestFilter(
             enabled,
+            HTTP_SSL_ENABLED.get(settings),
             threadContext,
             secondayAuthc.get(),
             auditTrailService.get(),
@@ -2407,7 +2484,7 @@ public class Security extends Plugin
                 if (fieldPermissions.hasFieldLevelSecurity() == false) {
                     return FieldPredicate.ACCEPT_ALL;
                 }
-                if (FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
+                if (!indexPermissions.isDlsFlsImplicit() && !FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState)) {
                     // check license last, once we know FLS is actually used
                     return FieldPredicate.ACCEPT_ALL;
                 }

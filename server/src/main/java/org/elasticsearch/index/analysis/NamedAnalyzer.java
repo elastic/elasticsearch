@@ -33,6 +33,21 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
         this(analyzer.name(), analyzer.scope(), analyzer.analyzer(), positionIncrementGap);
     }
 
+    public NamedAnalyzer(NamedAnalyzer analyzer, AnalyzerScope scope) {
+        this(analyzer.name, scope, analyzer.analyzer, analyzer.positionIncrementGap);
+    }
+
+    /**
+     * Copy of {@code source} under a different local {@code name}, sharing the same underlying
+     * analyzer, scope and position increment gap. Used when an index reuses a shared analyzer
+     * instance under its own local name: the wrapped analyzer (and its refcount) stays shared, but
+     * each index needs a NamedAnalyzer carrying its own local name so that field-mapper serialization
+     * emits this index's analyzer name and round-trips through mapping (de)serialization.
+     */
+    public NamedAnalyzer(String name, NamedAnalyzer source) {
+        this(name, source.scope, source.analyzer, source.positionIncrementGap);
+    }
+
     public NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer) {
         this(name, scope, analyzer, Integer.MIN_VALUE);
     }

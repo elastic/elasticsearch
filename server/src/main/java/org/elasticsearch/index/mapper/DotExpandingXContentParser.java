@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentLocation;
@@ -20,13 +19,10 @@ import org.elasticsearch.xcontent.XContentSubParser;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Supplier;
 
 /**
  * An XContentParser that reinterprets field names containing dots as an object structure.
- *
+ * <p>
  * A field name named {@code "foo.bar.baz":...} will be parsed instead as {@code 'foo':{'bar':{'baz':...}}}.
  * The token location is preserved so that error messages refer to the original content being parsed.
  * This parser can output duplicate keys, but that is fine given that it's used for document parsing. The mapping
@@ -39,10 +35,12 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
         private final ContentPath contentPath;
         final Deque<XContentParser> parsers = new ArrayDeque<>();
+        private XContentParser delegate; // cached top of stack — avoids peek() on every delegate() call
 
         WrappingParser(XContentParser in, ContentPath contentPath) throws IOException {
             this.contentPath = contentPath;
             parsers.push(in);
+            this.delegate = in;
             if (in.currentToken() == Token.FIELD_NAME) {
                 expandDots(in);
             }
@@ -56,12 +54,12 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         @Override
         public Token nextToken() throws IOException {
             Token token;
-            XContentParser delegate;
             // cache object field (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
             var parsers = this.parsers;
-            while ((token = (delegate = parsers.peek()).nextToken()) == null) {
+            while ((token = (this.delegate = parsers.peek()).nextToken()) == null) {
                 parsers.pop();
                 if (parsers.isEmpty()) {
+                    this.delegate = null;
                     return null;
                 }
             }
@@ -147,7 +145,9 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
                 }
                 subParser = new SingletonValueXContentParser(delegate);
             }
-            parsers.push(new DotExpandingXContentParser(subParser, subpaths, location, contentPath));
+            var expanded = new DotExpandingXContentParser(subParser, subpaths, location, contentPath);
+            parsers.push(expanded);
+            this.delegate = expanded;
         }
 
         private static void throwExpectedOpen(Token token) {
@@ -178,11 +178,11 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
         @Override
         protected XContentParser delegate() {
-            return parsers.peek();
+            return delegate;
         }
 
         /*
-        The following methods (map* and list*) are known not be called by DocumentParser when parsing documents, but we support indexing
+        map* and list* methods are known not to be called by DocumentParser when parsing documents, but we support indexing
         percolator queries which are also parsed through DocumentParser, and their parsing code is completely up to each query, which are
         also pluggable. That means that this parser needs to fully support parsing arbitrary content, when dots expansion is turned off.
         We do throw UnsupportedOperationException when dots expansion is enabled as we don't expect such methods to be ever called in
@@ -190,52 +190,13 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
          */
 
         @Override
-        public Map<String, Object> map() throws IOException {
-            if (contentPath.isWithinLeafObject()) {
-                return super.map();
-            }
-            throw new UnsupportedOperationException();
+        public boolean supportsMap() {
+            return contentPath.isWithinLeafObject();
         }
 
         @Override
-        public Map<String, Object> mapOrdered() throws IOException {
-            if (contentPath.isWithinLeafObject()) {
-                return super.mapOrdered();
-            }
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Map<String, String> mapStrings() throws IOException {
-            if (contentPath.isWithinLeafObject()) {
-                return super.mapStrings();
-            }
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public <T> Map<String, T> map(Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser)
-            throws IOException {
-            if (contentPath.isWithinLeafObject()) {
-                return super.map(mapFactory, mapValueParser);
-            }
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public List<Object> list() throws IOException {
-            if (contentPath.isWithinLeafObject()) {
-                return super.list();
-            }
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public List<Object> listOrderedMap() throws IOException {
-            if (contentPath.isWithinLeafObject()) {
-                return super.listOrderedMap();
-            }
-            throw new UnsupportedOperationException();
+        public boolean supportsList() {
+            return contentPath.isWithinLeafObject();
         }
     }
 
@@ -444,7 +405,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         }
 
         @Override
-        public Token nextToken() throws IOException {
+        public Token nextToken() {
             return null;
         }
     }

@@ -27,19 +27,23 @@ public class PyTorchBuilder {
     private static final String NUM_ALLOCATIONS_ARG = "--numAllocations=";
     private static final String CACHE_MEMORY_LIMIT_BYTES_ARG = "--cacheMemorylimitBytes=";
     private static final String LOW_PRIORITY_ARG = "--lowPriority";
+    private static final String SKIP_MODEL_VALIDATION_ARG = "--skipModelValidation";
 
     private final NativeController nativeController;
     private final ProcessPipes processPipes;
     private final StartTrainedModelDeploymentAction.TaskParams taskParams;
+    private final boolean modelGraphValidationEnabled;
 
     public PyTorchBuilder(
         NativeController nativeController,
         ProcessPipes processPipes,
-        StartTrainedModelDeploymentAction.TaskParams taskParams
+        StartTrainedModelDeploymentAction.TaskParams taskParams,
+        boolean modelGraphValidationEnabled
     ) {
         this.nativeController = Objects.requireNonNull(nativeController);
         this.processPipes = Objects.requireNonNull(processPipes);
         this.taskParams = Objects.requireNonNull(taskParams);
+        this.modelGraphValidationEnabled = modelGraphValidationEnabled;
     }
 
     public void build() throws IOException, InterruptedException {
@@ -62,6 +66,9 @@ public class PyTorchBuilder {
         }
         if (taskParams.getPriority() == Priority.LOW) {
             command.add(LOW_PRIORITY_ARG);
+        }
+        if (modelGraphValidationEnabled == false) {
+            command.add(SKIP_MODEL_VALIDATION_ARG);
         }
 
         return command;

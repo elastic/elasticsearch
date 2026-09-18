@@ -25,10 +25,18 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DenseVectorTestCaseHelper {
 
+    /**
+     * Builds dense_vector/scalar (and scalar/dense_vector) test cases for an arithmetic operator.
+     *
+     * @param warningsOnNull warnings the evaluator is expected to emit when {@code vectorScalarOp} or
+     *                        {@code scalarVectorOp} returns {@code null} (i.e. the operation is not finite
+     *                        for at least one element). Pass an empty list for operators that never return null.
+     */
     static List<TestCaseSupplier> denseVectorScalarCases(
         String opName,
         BiFunction<List<Float>, Number, List<Float>> vectorScalarOp,
-        BiFunction<Number, List<Float>, List<Float>> scalarVectorOp
+        BiFunction<Number, List<Float>, List<Float>> scalarVectorOp,
+        List<String> warningsOnNull
     ) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
@@ -38,14 +46,18 @@ public class DenseVectorTestCaseHelper {
             List<Float> vector = randomDenseVector(dimensions);
             int scalar = randomInt();
             List<Float> expected = vectorScalarOp.apply(vector, scalar);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(vector, DENSE_VECTOR, "vector"),
-                    new TestCaseSupplier.TypedData(scalar, DataType.INTEGER, "scalar").forceLiteral()
+            return withWarningsIfNull(
+                new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(vector, DENSE_VECTOR, "vector"),
+                        new TestCaseSupplier.TypedData(scalar, DataType.INTEGER, "scalar").forceLiteral()
+                    ),
+                    "DenseVectorScalarEvaluator[lhs=Attribute[channel=0], rhs=scalar_constant, opName=" + opName + "]",
+                    DENSE_VECTOR,
+                    equalTo(expected)
                 ),
-                "DenseVectorScalarEvaluator[lhs=Attribute[channel=0], rhs=scalar_constant, opName=" + opName + "]",
-                DENSE_VECTOR,
-                equalTo(expected)
+                expected,
+                warningsOnNull
             );
         }));
 
@@ -55,14 +67,18 @@ public class DenseVectorTestCaseHelper {
             List<Float> vector = randomDenseVector(dimensions);
             int scalar = randomInt();
             List<Float> expected = scalarVectorOp.apply(scalar, vector);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(scalar, DataType.INTEGER, "scalar").forceLiteral(),
-                    new TestCaseSupplier.TypedData(vector, DENSE_VECTOR, "vector")
+            return withWarningsIfNull(
+                new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(scalar, DataType.INTEGER, "scalar").forceLiteral(),
+                        new TestCaseSupplier.TypedData(vector, DENSE_VECTOR, "vector")
+                    ),
+                    "DenseVectorScalarEvaluator[lhs=Attribute[channel=0], rhs=scalar_constant, opName=" + opName + "]",
+                    DENSE_VECTOR,
+                    equalTo(expected)
                 ),
-                "DenseVectorScalarEvaluator[lhs=Attribute[channel=0], rhs=scalar_constant, opName=" + opName + "]",
-                DENSE_VECTOR,
-                equalTo(expected)
+                expected,
+                warningsOnNull
             );
         }));
 
@@ -72,14 +88,18 @@ public class DenseVectorTestCaseHelper {
             List<Float> vector = randomDenseVector(dimensions);
             long scalar = randomLong();
             List<Float> expected = vectorScalarOp.apply(vector, scalar);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(vector, DENSE_VECTOR, "vector"),
-                    new TestCaseSupplier.TypedData(scalar, DataType.LONG, "scalar").forceLiteral()
+            return withWarningsIfNull(
+                new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(vector, DENSE_VECTOR, "vector"),
+                        new TestCaseSupplier.TypedData(scalar, DataType.LONG, "scalar").forceLiteral()
+                    ),
+                    "DenseVectorScalarEvaluator[lhs=Attribute[channel=0], rhs=scalar_constant, opName=" + opName + "]",
+                    DENSE_VECTOR,
+                    equalTo(expected)
                 ),
-                "DenseVectorScalarEvaluator[lhs=Attribute[channel=0], rhs=scalar_constant, opName=" + opName + "]",
-                DENSE_VECTOR,
-                equalTo(expected)
+                expected,
+                warningsOnNull
             );
         }));
 
@@ -89,14 +109,18 @@ public class DenseVectorTestCaseHelper {
             List<Float> vector = randomDenseVector(dimensions);
             long scalar = randomLong();
             List<Float> expected = scalarVectorOp.apply(scalar, vector);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(scalar, DataType.LONG, "scalar").forceLiteral(),
-                    new TestCaseSupplier.TypedData(vector, DENSE_VECTOR, "vector")
+            return withWarningsIfNull(
+                new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(scalar, DataType.LONG, "scalar").forceLiteral(),
+                        new TestCaseSupplier.TypedData(vector, DENSE_VECTOR, "vector")
+                    ),
+                    "DenseVectorScalarEvaluator[lhs=Attribute[channel=0], rhs=scalar_constant, opName=" + opName + "]",
+                    DENSE_VECTOR,
+                    equalTo(expected)
                 ),
-                "DenseVectorScalarEvaluator[lhs=Attribute[channel=0], rhs=scalar_constant, opName=" + opName + "]",
-                DENSE_VECTOR,
-                equalTo(expected)
+                expected,
+                warningsOnNull
             );
         }));
 
@@ -106,14 +130,18 @@ public class DenseVectorTestCaseHelper {
             List<Float> vector = randomDenseVector(dimensions);
             double scalar = randomDouble();
             List<Float> expected = vectorScalarOp.apply(vector, scalar);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(vector, DENSE_VECTOR, "vector"),
-                    new TestCaseSupplier.TypedData(scalar, DataType.DOUBLE, "scalar").forceLiteral()
+            return withWarningsIfNull(
+                new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(vector, DENSE_VECTOR, "vector"),
+                        new TestCaseSupplier.TypedData(scalar, DataType.DOUBLE, "scalar").forceLiteral()
+                    ),
+                    "DenseVectorScalarEvaluator[lhs=Attribute[channel=0], rhs=scalar_constant, opName=" + opName + "]",
+                    DENSE_VECTOR,
+                    equalTo(expected)
                 ),
-                "DenseVectorScalarEvaluator[lhs=Attribute[channel=0], rhs=scalar_constant, opName=" + opName + "]",
-                DENSE_VECTOR,
-                equalTo(expected)
+                expected,
+                warningsOnNull
             );
         }));
 
@@ -123,17 +151,29 @@ public class DenseVectorTestCaseHelper {
             List<Float> vector = randomDenseVector(dimensions);
             double scalar = randomDoubleBetween(-1.0, 1.0, true);
             List<Float> expected = scalarVectorOp.apply(scalar, vector);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(scalar, DataType.DOUBLE, "scalar").forceLiteral(),
-                    new TestCaseSupplier.TypedData(vector, DENSE_VECTOR, "vector")
+            return withWarningsIfNull(
+                new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(scalar, DataType.DOUBLE, "scalar").forceLiteral(),
+                        new TestCaseSupplier.TypedData(vector, DENSE_VECTOR, "vector")
+                    ),
+                    "DenseVectorScalarEvaluator[lhs=Attribute[channel=0], rhs=scalar_constant, opName=" + opName + "]",
+                    DENSE_VECTOR,
+                    equalTo(expected)
                 ),
-                "DenseVectorScalarEvaluator[lhs=Attribute[channel=0], rhs=scalar_constant, opName=" + opName + "]",
-                DENSE_VECTOR,
-                equalTo(expected)
+                expected,
+                warningsOnNull
             );
         }));
 
         return suppliers;
+    }
+
+    private static TestCaseSupplier.TestCase withWarningsIfNull(
+        TestCaseSupplier.TestCase testCase,
+        List<Float> expected,
+        List<String> warningsOnNull
+    ) {
+        return expected == null ? testCase.withWarnings(warningsOnNull) : testCase;
     }
 }

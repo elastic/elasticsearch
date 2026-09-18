@@ -7,9 +7,14 @@
 
 package org.elasticsearch.xpack.esql.datasource.http.local;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -20,14 +25,22 @@ import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Tests for LocalStorageProvider and LocalStorageObject.
  */
 public class LocalStorageProviderTests extends ESTestCase {
+
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
 
     public void testReadFullFile() throws IOException {
         // Create a temporary file
@@ -118,8 +131,122 @@ public class LocalStorageProviderTests extends ESTestCase {
         assertEquals(List.of("file1.txt", "file2.csv"), fileNames);
     }
 
+    public void testListChildrenSeparatesFilesFromDirectories() throws IOException {
+        Path tempDir = createTempDir();
+        Files.writeString(tempDir.resolve("file1.txt"), "content1");
+        Files.createDirectories(tempDir.resolve("year=2024"));
+        Files.createDirectories(tempDir.resolve("year=2025"));
+        Files.writeString(tempDir.resolve("year=2024").resolve("nested.txt"), "nested");
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StorageChildren children = provider.listChildren(StoragePath.of(StoragePath.fileUri(tempDir)), 10_000);
+
+        // Filter out hidden files (like .DS_Store on macOS) and ExtraFS files/dirs for the assertions
+        List<String> fileNames = children.files()
+            .stream()
+            .map(e -> e.path().objectName())
+            .filter(name -> name.startsWith(".") == false && name.startsWith("extra") == false)
+            .sorted()
+            .toList();
+        List<String> dirNames = children.directories()
+            .stream()
+            .map(StoragePath::objectName)
+            .filter(name -> name.startsWith(".") == false && name.startsWith("extra") == false)
+            .sorted()
+            .toList();
+        assertEquals("only immediate files, not nested ones", List.of("file1.txt"), fileNames);
+        assertEquals(List.of("year=2024", "year=2025"), dirNames);
+    }
+
+    /**
+     * The walk feeds provider-produced child directory names back into the listing calls, so a directory whose name
+     * merely contains glob metacharacters must list fine — it is a path, not a pattern.
+     */
+    public void testListingToleratesGlobMetacharacterNames() throws IOException {
+        Path tempDir = createTempDir();
+        Path weird = tempDir.resolve("_tmp[0]");
+        Files.createDirectories(weird);
+        Files.writeString(weird.resolve("f.txt"), "x");
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StorageChildren children = provider.listChildren(StoragePath.of(StoragePath.fileUri(tempDir)), 10_000);
+        StoragePath weirdPath = children.directories()
+            .stream()
+            .filter(d -> d.objectName().equals("_tmp[0]"))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("bracket directory not listed"));
+
+        StorageChildren inside = provider.listChildren(weirdPath, 10_000);
+        assertTrue(inside.files().stream().anyMatch(e -> e.path().objectName().equals("f.txt")));
+
+        List<String> names = new ArrayList<>();
+        try (StorageIterator it = provider.listObjects(weirdPath, true)) {
+            while (it.hasNext()) {
+                names.add(it.next().path().objectName());
+            }
+        }
+        assertTrue(names.contains("f.txt"));
+    }
+
+    /** Exactly {@code limit} children are allowed; one over withdraws to {@code null} (the flat-listing fallback). */
+    public void testListChildrenPastLimitReturnsNull() throws IOException {
+        Path tempDir = createTempDir();
+        for (int i = 0; i < 5; i++) {
+            Files.writeString(tempDir.resolve("f" + i + ".txt"), "x");
+        }
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath dir = StoragePath.of(StoragePath.fileUri(tempDir));
+
+        // Count via an unbounded call first: the test framework's ExtraFS may add files of its own.
+        StorageChildren all = provider.listChildren(dir, 10_000);
+        int count = all.files().size() + all.directories().size();
+
+        assertNotNull("exactly the child count must be allowed", provider.listChildren(dir, count));
+        assertNull("one child over the limit must withdraw", provider.listChildren(dir, count - 1));
+    }
+
+    /**
+     * The recursive flat listing (two-arg walkFileTree) does not follow symlinks, and a walked listing must return
+     * the same files, or the same dataset yields different rows depending on whether a partition filter was present.
+     */
+    public void testListChildrenDoesNotFollowSymlinks() throws IOException {
+        Path tempDir = createTempDir();
+        Files.writeString(tempDir.resolve("real.txt"), "x");
+        Path linkTarget = createTempDir();
+        Files.writeString(linkTarget.resolve("hidden.txt"), "y");
+        try {
+            Files.createSymbolicLink(tempDir.resolve("filelink.txt"), tempDir.resolve("real.txt"));
+            Files.createSymbolicLink(tempDir.resolve("dirlink"), linkTarget);
+        } catch (UnsupportedOperationException | IOException e) {
+            assumeNoException("filesystem without symlink support", e);
+        }
+
+        StorageChildren children = new LocalStorageProvider().listChildren(StoragePath.of(StoragePath.fileUri(tempDir)), 10_000);
+        List<String> fileNames = children.files()
+            .stream()
+            .map(e -> e.path().objectName())
+            .filter(name -> name.startsWith(".") == false && name.startsWith("extra") == false)
+            .sorted()
+            .toList();
+        List<String> dirNames = children.directories()
+            .stream()
+            .map(StoragePath::objectName)
+            .filter(name -> name.startsWith(".") == false && name.startsWith("extra") == false)
+            .toList();
+        assertEquals("symlinked files are skipped, as the recursive flat walk skips them", List.of("real.txt"), fileNames);
+        assertEquals("symlinked directories are not descended", List.of(), dirNames);
+    }
+
+    public void testListChildrenOnMissingDirectoryThrows() {
+        Path tempDir = createTempDir();
+        LocalStorageProvider provider = new LocalStorageProvider();
+        expectThrows(
+            IOException.class,
+            () -> provider.listChildren(StoragePath.of(StoragePath.fileUri(tempDir.resolve("missing"))), 10_000)
+        );
+    }
+
     public void testFileNotFound() throws IOException {
-        // Use a temp directory path that doesn't exist (within allowed paths)
         Path tempDir = createTempDir();
         Path nonExistentFile = tempDir.resolve("nonexistent_file.txt");
 
@@ -128,7 +255,53 @@ public class LocalStorageProviderTests extends ESTestCase {
         StorageObject object = provider.newObject(path);
 
         assertFalse(object.exists());
-        expectThrows(IOException.class, () -> object.newStream());
+        expectThrows(NoSuchFileException.class, () -> object.newStream());
+    }
+
+    public void testLengthOnNonExistentFileThrows() throws IOException {
+        Path tempDir = createTempDir();
+        Path nonExistentFile = tempDir.resolve("nonexistent_file.txt");
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(nonExistentFile));
+        StorageObject object = provider.newObject(path);
+
+        NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> object.length());
+        assertThat(e.getMessage(), containsString("nonexistent_file.txt"));
+    }
+
+    public void testLastModifiedOnNonExistentFileThrows() throws IOException {
+        Path tempDir = createTempDir();
+        Path nonExistentFile = tempDir.resolve("nonexistent_file.txt");
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(nonExistentFile));
+        StorageObject object = provider.newObject(path);
+
+        expectThrows(NoSuchFileException.class, () -> object.lastModified());
+    }
+
+    public void testReadBytesOnNonExistentFileThrows() throws IOException {
+        Path tempDir = createTempDir();
+        Path nonExistentFile = tempDir.resolve("nonexistent_file.txt");
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(nonExistentFile));
+        StorageObject object = provider.newObject(path);
+
+        ByteBuffer buf = ByteBuffer.allocate(10);
+        expectThrows(NoSuchFileException.class, () -> object.readBytes(0, buf));
+    }
+
+    public void testNewStreamRangeOnNonExistentFileThrows() throws IOException {
+        Path tempDir = createTempDir();
+        Path nonExistentFile = tempDir.resolve("nonexistent_file.txt");
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(nonExistentFile));
+        StorageObject object = provider.newObject(path);
+
+        expectThrows(NoSuchFileException.class, () -> object.newStream(0, 10));
     }
 
     public void testSupportedSchemes() {
@@ -180,6 +353,33 @@ public class LocalStorageProviderTests extends ESTestCase {
         byte[] result = new byte[5];
         buf.get(result);
         assertEquals("56789", new String(result, StandardCharsets.UTF_8));
+    }
+
+    public void testReadBytesAsyncReturnsDirectBuffer() throws Exception {
+        Path tempFile = createTempFile("test", ".txt");
+        String content = "0123456789ABCDEFGHIJ";
+        Files.writeString(tempFile, content);
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(tempFile));
+        StorageObject object = provider.newObject(path);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
+
+        object.readBytesAsync(5, 5, FACTORY, Runnable::run, ActionListener.wrap(buf -> {
+            result.set(buf);
+            latch.countDown();
+        }, e -> { throw new AssertionError("unexpected failure", e); }));
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertNotNull(result.get());
+        try (DirectReadBuffer drb = result.get()) {
+            assertFalse("readBytesAsync must return a heap ByteBuffer", drb.buffer().isDirect());
+            byte[] actual = new byte[drb.buffer().remaining()];
+            drb.buffer().get(actual);
+            assertEquals("56789", new String(actual, StandardCharsets.UTF_8));
+        }
     }
 
     public void testReadBytesAtEndOfFile() throws IOException {
@@ -313,6 +513,22 @@ public class LocalStorageProviderTests extends ESTestCase {
         // Non-recursive should find zero files since all files are in subdirs
         List<StorageEntry> flatEntries = collectAll(provider.listObjects(prefix, false));
         assertEquals(0, flatEntries.size());
+    }
+
+    // -- glob guard --
+
+    public void testNewObjectRejectsGlobPattern() {
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath globPath = StoragePath.of("file:///tmp/multifile/*.csv.zst");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> provider.newObject(globPath));
+        assertThat(e.getMessage(), containsString("glob pattern"));
+        assertThat(e.getMessage(), containsString("*.csv.zst"));
+    }
+
+    public void testExistsRejectsGlobPattern() throws IOException {
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath globPath = StoragePath.of("file:///tmp/multifile/*.csv");
+        expectThrows(IllegalArgumentException.class, () -> provider.exists(globPath));
     }
 
     // -- helpers --

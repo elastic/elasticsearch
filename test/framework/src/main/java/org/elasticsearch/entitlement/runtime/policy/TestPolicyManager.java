@@ -51,7 +51,7 @@ public class TestPolicyManager extends PolicyManager {
         Collection<Path> classpath,
         Collection<URI> testOnlyClasspath
     ) {
-        super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, name -> classpath, pathLookup);
+        super(serverPolicy, apmAgentEntitlements, pluginPolicies, Map.of(), scopeResolver, name -> classpath, pathLookup);
         this.classpath = classpath;
         this.testOnlyClasspath = testOnlyClasspath;
         resetAfterTest();
@@ -214,6 +214,7 @@ public class TestPolicyManager extends PolicyManager {
 
     private static final String[] TEST_FRAMEWORK_PACKAGE_PREFIXES = {
         "org.gradle",
+        "worker.org.gradle", // gradle-worker.jar shades its runtime under a "worker." prefix
 
         "org.jcodings", // A library loaded with SPI that tries to create a CharsetProvider
         "com.google.common.jimfs", // Used on Windows

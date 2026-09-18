@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ST_SIMPLIFY` function [esql-st_simplify]
 
-:::{include} ../../_snippets/functions/layout/st_simplify.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/st_simplify.md
 :::

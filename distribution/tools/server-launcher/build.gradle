@@ -25,6 +25,7 @@ configurations {
 
 dependencies {
   implementation project(':libs:server-launcher-common')
+  implementation project(':libs:cli-terminal')
   testImplementation project(':test:framework')
 }
 
@@ -34,7 +35,7 @@ tasks.withType(CheckForbiddenApisTask).configureEach {
 }
 
 // --- GraalVM native-image build (Linux only, Docker-based) ---
-def graalVmMajor = VersionProperties.getBundledJdkMajorVersion()
+def graalVmMajor = "25" // A relatively recent LTS version
 def nativeImageImage = "ghcr.io/graalvm/native-image-community:${graalVmMajor}-ol8"
 def launcherMainClass = 'org.elasticsearch.server.launcher.ServerLauncher'
 
@@ -45,6 +46,8 @@ def nativeImageLinuxX64 = tasks.register('nativeImageLinuxX64', NativeImageBuild
   imageTag = nativeImageImage
   platform = 'linux/amd64'
   mainClass = launcherMainClass
+  // Use the AMD64 baseline so the binary runs on any x86_64 CPU; GraalVM 25 defaults to v3 which requires AVX2.
+  extraArgs = ['-march=compatibility']
   outputFile = layout.buildDirectory.file('native/linux-x86_64/server-launcher')
 }
 
@@ -55,6 +58,8 @@ def nativeImageLinuxAarch64 = tasks.register('nativeImageLinuxAarch64', NativeIm
   imageTag = nativeImageImage
   platform = 'linux/arm64'
   mainClass = launcherMainClass
+  // Use the ARMv8.0-A baseline so the binary runs on any aarch64 CPU; GraalVM 25's default requires LSE atomics (ARMv8.1).
+  extraArgs = ['-march=compatibility']
   outputFile = layout.buildDirectory.file('native/linux-aarch64/server-launcher')
 }
 

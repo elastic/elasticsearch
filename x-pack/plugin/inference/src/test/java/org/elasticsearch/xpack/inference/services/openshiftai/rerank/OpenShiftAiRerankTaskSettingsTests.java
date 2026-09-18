@@ -72,7 +72,9 @@ public class OpenShiftAiRerankTaskSettingsTests extends AbstractBWCWireSerializa
 
     public void testUpdatedTaskSettings_WithEmptyMap_ReturnsSameSettings() {
         var initialSettings = new OpenShiftAiRerankTaskSettings(5, true);
-        OpenShiftAiRerankTaskSettings updatedSettings = (OpenShiftAiRerankTaskSettings) initialSettings.updatedTaskSettings(Map.of());
+        OpenShiftAiRerankTaskSettings updatedSettings = (OpenShiftAiRerankTaskSettings) initialSettings.updatedTaskSettings(
+            new HashMap<>()
+        );
         assertThat(initialSettings, is(sameInstance(updatedSettings)));
     }
 

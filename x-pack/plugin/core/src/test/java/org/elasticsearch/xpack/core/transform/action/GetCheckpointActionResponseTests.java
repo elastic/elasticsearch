@@ -29,7 +29,7 @@ public class GetCheckpointActionResponseTests extends AbstractWireSerializingTes
             }
             checkpointsByIndex.put(randomAlphaOfLengthBetween(1, 10), checkpoints.stream().mapToLong(l -> l).toArray());
         }
-        return new Response(checkpointsByIndex);
+        return new Response(checkpointsByIndex, null);
     }
 
     @Override

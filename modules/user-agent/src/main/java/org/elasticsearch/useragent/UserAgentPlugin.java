@@ -15,6 +15,7 @@ import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.UserAgentParserRegistryProvider;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -37,7 +38,7 @@ public class UserAgentPlugin extends Plugin implements UserAgentParserRegistryPr
     );
 
     @Override
-    public org.elasticsearch.useragent.api.UserAgentParserRegistry createUserAgentParserRegistry(Environment env) {
+    public UserAgentParserRegistry createRegistry(Environment env) {
         return createRegistry(env, env.settings());
     }
 
@@ -56,6 +57,6 @@ public class UserAgentPlugin extends Plugin implements UserAgentParserRegistryPr
         Path ingestUserAgentConfigDirectory = env.configDir().resolve("ingest-user-agent");
         long cacheSize = CACHE_SIZE_SETTING.get(settings);
         UserAgentCache cache = new UserAgentCache(cacheSize);
-        return new UserAgentParserRegistry(cache, userAgentConfigDirectory, ingestUserAgentConfigDirectory);
+        return new UserAgentParserRegistryImpl(cache, userAgentConfigDirectory, ingestUserAgentConfigDirectory);
     }
 }

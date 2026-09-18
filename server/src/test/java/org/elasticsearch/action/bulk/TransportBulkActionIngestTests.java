@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -46,6 +47,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.dlm.TimeSeriesEligibleWriteWindowLocator;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
@@ -160,7 +162,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 TransportBulkActionIngestTests.this.clusterService,
                 ingestService,
                 new NodeClient(Settings.EMPTY, TransportBulkActionIngestTests.this.threadPool, TestProjectResolvers.alwaysThrow()),
-                new ActionFilters(Collections.emptySet()),
+                ActionFilters.EMPTY,
                 TestIndexNameExpressionResolver.newInstance(),
                 new IndexingPressure(SETTINGS),
                 EmptySystemIndices.INSTANCE,
@@ -172,7 +174,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                     public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                         return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                     }
-                }
+                },
+                new TimeSeriesEligibleWriteWindowLocator(),
+                DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
             );
         }
 
@@ -202,7 +206,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             super(
                 TransportIndexAction.NAME,
                 TransportBulkActionIngestTests.this.transportService,
-                new ActionFilters(Collections.emptySet()),
+                ActionFilters.EMPTY,
                 IndexRequest::new,
                 bulkAction
             );
@@ -299,6 +303,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
         clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(ClusterSettings.createBuiltInClusterSettings());
         localIngest = true;
         // setup nodes for local and remote
         DiscoveryNode localNode = mock(DiscoveryNode.class);
@@ -638,6 +643,29 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     public void testUseDefaultPipelineWithBulkUpsertWithAlias() throws Exception {
         String indexRequestName = randomFrom(new String[] { null, WITH_DEFAULT_PIPELINE, WITH_DEFAULT_PIPELINE_ALIAS });
         validatePipelineWithBulkUpsert(indexRequestName, WITH_DEFAULT_PIPELINE_ALIAS);
+    }
+
+    public void testBulkUpsertsDoNotReusePipelinesForDifferentIndices() throws Exception {
+        BulkRequest bulkRequest = new BulkRequest();
+        IndexRequest firstUpsert = new IndexRequest().id("id1").source(Collections.emptyMap());
+        IndexRequest secondUpsert = new IndexRequest().id("id2").source(Collections.emptyMap());
+        bulkRequest.add(new UpdateRequest(WITH_DEFAULT_PIPELINE_ALIAS, "id1").doc(firstUpsert).docAsUpsert(true));
+        bulkRequest.add(new UpdateRequest("index_without_pipeline", "id2").doc(secondUpsert).docAsUpsert(true));
+
+        ActionTestUtils.execute(action, null, bulkRequest, ActionTestUtils.assertNoFailureListener(response -> {}));
+
+        verify(ingestService).executeBulkRequest(
+            eq(projectId),
+            eq(bulkRequest.numberOfActions()),
+            bulkDocsItr.capture(),
+            any(),
+            any(),
+            any(),
+            failureHandler.capture(),
+            listener.capture()
+        );
+        assertEquals("default_pipeline", firstUpsert.getPipeline());
+        assertEquals(IngestService.NOOP_PIPELINE_NAME, secondUpsert.getPipeline());
     }
 
     private void validatePipelineWithBulkUpsert(@Nullable String indexRequestIndexName, String updateRequestIndexName) throws Exception {

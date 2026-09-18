@@ -84,6 +84,11 @@ public final class IndicesPermission {
             this.restrictedIndices = restrictedIndices;
         }
 
+        /**
+         * Adds an explicitly-granted group. Equivalent to
+         * {@link #addGroup(IndexPrivilege, FieldPermissions, Set, boolean, boolean, String...)} with
+         * {@code implicitlyGranted=false}.
+         */
         public Builder addGroup(
             IndexPrivilege privilege,
             FieldPermissions fieldPermissions,
@@ -91,7 +96,29 @@ public final class IndicesPermission {
             boolean allowRestrictedIndices,
             String... indices
         ) {
-            groups.add(new Group(privilege, fieldPermissions, query, allowRestrictedIndices, restrictedIndices, indices));
+            return addGroup(privilege, fieldPermissions, query, allowRestrictedIndices, false, indices);
+        }
+
+        /**
+         * Adds a group to the permission. When {@code implicitlyGranted} is {@code true}, the group is
+         * marked as having been contributed by an
+         * {@link org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesProvider} SPI
+         * implementation rather than declared in a role definition. The flag flows through to the
+         * resulting {@link IndicesAccessControl.IndexAccessControl} (via {@link #authorize}) and gates
+         * whether downstream DLS/FLS license enforcement and feature-usage tracking apply: implicit
+         * grants bypass them; explicit grants do not.
+         */
+        public Builder addGroup(
+            IndexPrivilege privilege,
+            FieldPermissions fieldPermissions,
+            @Nullable Set<BytesReference> query,
+            boolean allowRestrictedIndices,
+            boolean implicitlyGranted,
+            String... indices
+        ) {
+            groups.add(
+                new Group(privilege, fieldPermissions, query, allowRestrictedIndices, restrictedIndices, implicitlyGranted, indices)
+            );
             return this;
         }
 
@@ -543,29 +570,41 @@ public final class IndicesPermission {
             }
         }
 
-        public Collection<String> resolveConcreteIndices(List<Index> failureIndices) {
+        /**
+         * Returns the collection of concrete indices that this IndexResource resolves to,
+         * including failure indices if the selector is FAILURES.
+         * In case when the IndexResource is a view or dataset, it returns the abstraction name only.
+         * The returned collection is the one that DLS or FLS permissions need to be checked for.
+         */
+        public Collection<String> resolveConcreteIndicesViewsAndDatasets(List<Index> failureIndices) {
             if (indexAbstraction == null) {
                 return List.of();
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX) {
                 return List.of(indexAbstraction.getName());
-            } else if (IndexComponentSelector.FAILURES.equals(selector)) {
-                final List<String> concreteIndexNames = new ArrayList<>(failureIndices.size());
-                for (var idx : failureIndices) {
-                    concreteIndexNames.add(idx.getName());
+            } else if (indexAbstraction.getType() == IndexAbstraction.Type.VIEW
+                || indexAbstraction.getType() == IndexAbstraction.Type.DATASET) {
+                    return List.of(indexAbstraction.getName());
+                } else if (IndexComponentSelector.FAILURES.equals(selector)) {
+                    final List<String> concreteIndexNames = new ArrayList<>(failureIndices.size());
+                    for (var idx : failureIndices) {
+                        concreteIndexNames.add(idx.getName());
+                    }
+                    return concreteIndexNames;
+                } else {
+                    final List<Index> indices = indexAbstraction.getIndices();
+                    final List<String> concreteIndexNames = new ArrayList<>(indices.size());
+                    for (var idx : indices) {
+                        concreteIndexNames.add(idx.getName());
+                    }
+                    return concreteIndexNames;
                 }
-                return concreteIndexNames;
-            } else {
-                final List<Index> indices = indexAbstraction.getIndices();
-                final List<String> concreteIndexNames = new ArrayList<>(indices.size());
-                for (var idx : indices) {
-                    concreteIndexNames.add(idx.getName());
-                }
-                return concreteIndexNames;
-            }
         }
 
         public boolean canHaveBackingIndices() {
-            return indexAbstraction != null && indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX;
+            return indexAbstraction != null
+                && indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX
+                && indexAbstraction.getType() != IndexAbstraction.Type.VIEW
+                && indexAbstraction.getType() != IndexAbstraction.Type.DATASET;
         }
 
         public String nameWithSelector() {
@@ -639,6 +678,7 @@ public final class IndicesPermission {
         final Map<String, Set<FieldPermissions>> fieldPermissionsByIndex = Maps.newMapWithExpectedSize(totalResourceCount);
         final Map<String, DocumentLevelPermissions> roleQueriesByIndex = Maps.newMapWithExpectedSize(totalResourceCount);
         final Set<String> grantedResources = Sets.newHashSetWithExpectedSize(totalResourceCount);
+        final Set<String> indicesWithExplicitDlsFls = new HashSet<>();
 
         final IndexAccessControlCache indexAccessControlCache = new IndexAccessControlCache(fieldPermissionsCache);
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
@@ -648,15 +688,16 @@ public final class IndicesPermission {
             boolean granted = false;
             final String resourceName = resourceEntry.getKey();
             final IndexResource resource = resourceEntry.getValue();
-            final Collection<String> concreteIndices = resource.resolveConcreteIndices(
+            final Collection<String> concreteIndicesViewsAndDatasets = resource.resolveConcreteIndicesViewsAndDatasets(
                 failureIndicesByIndexResource.get(resourceEntry.getKey())
             );
 
             // Accumulate FLS and DLS at the resource level: one pass over groups instead of
-            // groups × concreteIndices. All concrete indices of a resource go through the same
-            // set of matching groups, so they accumulate identical permissions.
+            // groups × concreteIndicesViewsAndDatasets. All concrete indices of a resource go through
+            // the same set of matching groups, so they accumulate identical permissions.
             Set<FieldPermissions> fieldPermissions = null;
             DocumentLevelPermissions docPermissions = DocumentLevelPermissions.EMPTY;
+            boolean hasExplicitDlsFls = false;
 
             for (Group group : groups) {
                 // the group covers the given index OR the given index is a backing index and the group covers the parent data stream
@@ -686,6 +727,11 @@ public final class IndicesPermission {
                             // applied even when other permissions do have a role query
                             docPermissions = DocumentLevelPermissions.ALLOW_ALL;
                         }
+
+                        // Tracked at the resource level rather than per concrete index: all concrete
+                        // indices of a resource are matched by the same groups, so OR-ing here and
+                        // propagating below is equivalent to deciding it index by index.
+                        hasExplicitDlsFls |= false == group.implicitlyGranted() && (group.hasQuery() || fp.hasFieldLevelSecurity());
                     }
                 }
             }
@@ -697,9 +743,15 @@ public final class IndicesPermission {
                 // Using merge (not put) preserves cross-resource accumulation semantics: if a concrete
                 // index appears in multiple resources, their FLS/DLS contributions are unioned.
                 mergePermissions(fieldPermissionsByIndex, roleQueriesByIndex, resourceName, fieldPermissions, docPermissions);
-                for (String concreteIndex : concreteIndices) {
+                if (hasExplicitDlsFls) {
+                    indicesWithExplicitDlsFls.add(resourceName);
+                }
+                for (String concreteIndex : concreteIndicesViewsAndDatasets) {
                     if (false == concreteIndex.equals(resourceName)) {
                         mergePermissions(fieldPermissionsByIndex, roleQueriesByIndex, concreteIndex, fieldPermissions, docPermissions);
+                        if (hasExplicitDlsFls) {
+                            indicesWithExplicitDlsFls.add(concreteIndex);
+                        }
                     }
                     if (resource.canHaveBackingIndices()) {
                         // If the name appears directly as part of the requested indices, it takes precedence over implicit access
@@ -715,7 +767,11 @@ public final class IndicesPermission {
         for (String index : grantedResources) {
             indexPermissions.put(
                 index,
-                indexAccessControlCache.getOrCreate(roleQueriesByIndex.get(index), fieldPermissionsByIndex.get(index))
+                indexAccessControlCache.getOrCreate(
+                    roleQueriesByIndex.get(index),
+                    fieldPermissionsByIndex.get(index),
+                    indicesWithExplicitDlsFls.contains(index)
+                )
             );
         }
         return unmodifiableMap(indexPermissions);
@@ -968,6 +1024,10 @@ public final class IndicesPermission {
         // users. Setting this flag true eliminates the special status for the purpose of this permission - restricted indices still have
         // to be covered by the "indices"
         private final boolean allowRestrictedIndices;
+        // True if this group was contributed by an ImplicitPrivilegesProvider rather than
+        // declared in a role. Implicit groups are excluded from DLS/FLS license enforcement and
+        // feature-usage tracking; see IndicesPermission#authorize and IndicesAccessControl.
+        private final boolean implicitlyGranted;
 
         public Group(
             IndexPrivilege privilege,
@@ -975,6 +1035,7 @@ public final class IndicesPermission {
             @Nullable Set<BytesReference> query,
             boolean allowRestrictedIndices,
             RestrictedIndices restrictedIndices,
+            boolean implicitlyGranted,
             String... indices
         ) {
             assert indices.length != 0;
@@ -983,6 +1044,7 @@ public final class IndicesPermission {
             this.selectorPredicate = privilege.getSelectorPredicate();
             this.indices = indices;
             this.allowRestrictedIndices = allowRestrictedIndices;
+            this.implicitlyGranted = implicitlyGranted;
             if (allowRestrictedIndices) {
                 this.indexNameMatcher = StringMatcher.of(indices);
                 this.indexNameAutomaton = CachedSupplier.wrap(() -> Automatons.patterns(indices));
@@ -1034,6 +1096,10 @@ public final class IndicesPermission {
             return allowRestrictedIndices;
         }
 
+        public boolean implicitlyGranted() {
+            return implicitlyGranted;
+        }
+
         public Automaton getIndexMatcherAutomaton() {
             return indexNameAutomaton.get();
         }
@@ -1059,6 +1125,8 @@ public final class IndicesPermission {
                 + query
                 + ", allowRestrictedIndices="
                 + allowRestrictedIndices
+                + ", implicitlyGranted="
+                + implicitlyGranted
                 + '}';
         }
     }
@@ -1132,15 +1200,19 @@ public final class IndicesPermission {
      * is safe because all concrete indices of the same resource share the same accumulated objects,
      * which is the dominant deduplication case (e.g. 1500 backing indices of a data stream).
      *
+     * <p>{@code dlsFlsImplicit} is part of an {@code IndexAccessControl}'s identity, so explicit and
+     * implicit DLS/FLS are kept in separate maps rather than adding a third key dimension.
+     *
      * <p>This class is not thread-safe and is intended to be created and used within
      * a single invocation of {@code buildIndicesAccessControl}.
      */
     private static class IndexAccessControlCache {
 
         private final FieldPermissionsCache fieldPermissionsCache;
-        private final IdentityHashMap<
-            DocumentLevelPermissions,
-            IdentityHashMap<Set<FieldPermissions>, IndicesAccessControl.IndexAccessControl>> cache = new IdentityHashMap<>();
+        private final Map<DocumentLevelPermissions, Map<Set<FieldPermissions>, IndicesAccessControl.IndexAccessControl>> explicitDlsFls =
+            new IdentityHashMap<>();
+        private final Map<DocumentLevelPermissions, Map<Set<FieldPermissions>, IndicesAccessControl.IndexAccessControl>> implicitDlsFls =
+            new IdentityHashMap<>();
 
         IndexAccessControlCache(FieldPermissionsCache fieldPermissionsCache) {
             this.fieldPermissionsCache = fieldPermissionsCache;
@@ -1148,14 +1220,18 @@ public final class IndicesPermission {
 
         IndicesAccessControl.IndexAccessControl getOrCreate(
             @Nullable DocumentLevelPermissions docPerms,
-            @Nullable Set<FieldPermissions> fieldPerms
+            @Nullable Set<FieldPermissions> fieldPerms,
+            boolean hasExplicitDlsFls
         ) {
-            return cache.computeIfAbsent(docPerms, k -> new IdentityHashMap<>()).computeIfAbsent(fieldPerms, fp -> buildNew(docPerms, fp));
+            final var cache = hasExplicitDlsFls ? explicitDlsFls : implicitDlsFls;
+            return cache.computeIfAbsent(docPerms, k -> new IdentityHashMap<>())
+                .computeIfAbsent(fieldPerms, fp -> buildNew(docPerms, fp, hasExplicitDlsFls));
         }
 
         private IndicesAccessControl.IndexAccessControl buildNew(
             @Nullable DocumentLevelPermissions docPerms,
-            @Nullable Set<FieldPermissions> fieldPerms
+            @Nullable Set<FieldPermissions> fieldPerms,
+            boolean hasExplicitDlsFls
         ) {
             final DocumentPermissions documentPermissions;
             if (docPerms != null && docPerms != DocumentLevelPermissions.EMPTY && false == docPerms.isAllowAll()) {
@@ -1169,7 +1245,12 @@ public final class IndicesPermission {
             } else {
                 fieldPermissions = FieldPermissions.DEFAULT;
             }
-            return new IndicesAccessControl.IndexAccessControl(fieldPermissions, documentPermissions);
+            // dlsFlsImplicit: this IAC carries DLS or FLS, and every contributing group with DLS or
+            // FLS was itself implicit. If any explicit DLS/FLS group covered this index, the IAC is
+            // treated as explicit and downstream license checks apply normally.
+            final boolean dlsFlsImplicit = false == hasExplicitDlsFls
+                && (documentPermissions.hasDocumentLevelPermissions() || fieldPermissions.hasFieldLevelSecurity());
+            return new IndicesAccessControl.IndexAccessControl(fieldPermissions, documentPermissions, dlsFlsImplicit);
         }
     }
 }

@@ -1,0 +1,2 @@
+FROM salaries_int
+| WHERE emp_no IN (FROM employees | KEEP emp_no)

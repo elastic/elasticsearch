@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ql.expression;
 
-import org.elasticsearch.core.Tuple;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 
@@ -14,7 +14,6 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.ql.util.StringUtils.splitQualifiedIndex;
 
 /**
  * {@link Expression}s that can be materialized and describe properties of the derived table.
@@ -50,9 +49,9 @@ public abstract class Attribute extends NamedExpression {
     public Attribute(Source source, String name, String qualifier, Nullability nullability, NameId id, boolean synthetic) {
         super(source, name, emptyList(), id, synthetic);
         if (qualifier != null) {
-            Tuple<String, String> splitQualifier = splitQualifiedIndex(qualifier);
-            this.cluster = splitQualifier.v1();
-            this.qualifier = splitQualifier.v2();
+            var split = RemoteClusterAware.splitIndexName(qualifier);
+            this.cluster = split.clusterAlias();
+            this.qualifier = split.indexExpression();
         } else {
             this.cluster = null;
             this.qualifier = null;

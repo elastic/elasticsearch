@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `TO_GEOSHAPE` function [esql-to_geoshape]
 
-:::{include} ../../_snippets/functions/layout/to_geoshape.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/to_geoshape.md
 :::

@@ -20,15 +20,15 @@ dockerFixtures {
   }
   openldap {
     dockerContext = file("src/main/resources/openldap")
-    version = "1.0"
-    baseImages = ["osixia/openldap:1.4.0"]
+    version = "1.1"
+    baseImages = ["osixia/openldap:1.5.0"]
   }
 }
 
 dependencies {
   testImplementation project(':test:framework')
   api project(':test:fixtures:testcontainer-utils')
-  api "junit:junit:${versions.junit}"
+  api "junit:junit:${versions.junit4}"
 
   runtimeOnly "net.java.dev.jna:jna:${versions.jna}"
 }

@@ -13,25 +13,39 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.TableCatalog;
+import org.elasticsearch.xpack.esql.datasources.spi.TableCatalogFactory;
+import org.junit.Before;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
+
+import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
 
 /**
  * Tests verifying per-plugin lazy loading behavior in DataSourceModule.
@@ -44,10 +58,10 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
     private static final AtomicBoolean SPY_STORAGE_FACTORY_CALLED = new AtomicBoolean(false);
     private static final AtomicBoolean SPY_FORMAT_FACTORY_CALLED = new AtomicBoolean(false);
     private static final AtomicBoolean OTHER_FORMAT_FACTORY_CALLED = new AtomicBoolean(false);
+    private static final EncryptionService ENCRYPTION_SERVICE = mock(EncryptionService.class);
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
         SPY_STORAGE_FACTORY_CALLED.set(false);
         SPY_FORMAT_FACTORY_CALLED.set(false);
@@ -58,7 +72,15 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
         List<DataSourcePlugin> plugins = List.of(new SpyStoragePlugin(), new SpyFormatPlugin(), new OtherFormatPlugin());
         DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
 
-        new DataSourceModule(plugins, capabilities, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        new DataSourceModule(
+            plugins,
+            capabilities,
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
+        );
 
         assertFalse("Storage factory should not be called at construction", SPY_STORAGE_FACTORY_CALLED.get());
         assertFalse("Spy format factory should not be called at construction", SPY_FORMAT_FACTORY_CALLED.get());
@@ -74,7 +96,9 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             capabilities,
             Settings.EMPTY,
             blockFactory,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
         );
 
         module.formatReaderRegistry().byName("spy");
@@ -92,7 +116,9 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             capabilities,
             Settings.EMPTY,
             blockFactory,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
         );
 
         module.formatReaderRegistry().byExtension("data.spy");
@@ -110,7 +136,9 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             capabilities,
             Settings.EMPTY,
             blockFactory,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
         );
 
         assertFalse("Storage factory should not be called yet", SPY_STORAGE_FACTORY_CALLED.get());
@@ -129,7 +157,9 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             capabilities,
             Settings.EMPTY,
             blockFactory,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
         );
 
         DataSourceCapabilities caps = module.capabilities();
@@ -153,7 +183,9 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             capabilities,
             Settings.EMPTY,
             blockFactory,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
         );
 
         assertFalse("ftp scheme should not be supported", module.capabilities().supportsScheme("ftp"));
@@ -172,7 +204,9 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             capabilities,
             Settings.EMPTY,
             blockFactory,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
         );
 
         // Storage-only plugin should NOT produce a LazyConnectorFactory entry
@@ -235,13 +269,78 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
             capabilities,
             Settings.EMPTY,
             blockFactory,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
         );
 
         assertTrue("Should have fmt1 format", module.formatReaderRegistry().hasFormat("fmt1"));
         assertTrue("Should have fmt2 format", module.formatReaderRegistry().hasFormat("fmt2"));
         assertTrue("Should have .ext1 extension", module.formatReaderRegistry().hasExtension(".ext1"));
         assertTrue("Should have .ext2 extension", module.formatReaderRegistry().hasExtension(".ext2"));
+    }
+
+    /**
+     * The resolver validates through the three-argument {@code validateConfig} so warnings are buffered
+     * and flushed under the request context. The lazy wrappers must forward that form rather than
+     * inherit the interface default, which drops the sink and falls back to the two-argument form.
+     */
+    public void testLazyConnectorFactoryForwardsWarningSink() {
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedConnectorSchemes() {
+                return Set.of("warn");
+            }
+
+            @Override
+            public Map<String, ConnectorFactory> connectors(Settings settings) {
+                return Map.of("warn", new WarningSinkConnectorFactory());
+            }
+        };
+        DataSourceModule module = new DataSourceModule(
+            List.of(plugin),
+            DataSourceCapabilities.build(List.of(plugin)),
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
+        );
+        ExternalSourceFactory wrapper = module.sourceFactories().get("warn");
+        assertThat(wrapper, instanceOf(DataSourceModule.LazyConnectorFactory.class));
+
+        List<String> warnings = new ArrayList<>();
+        wrapper.validateConfig("warn://table", Map.of(), warnings::add);
+        assertEquals(List.of("warning for [warn://table]"), warnings);
+    }
+
+    public void testLazyTableCatalogWrapperForwardsWarningSink() {
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedCatalogs() {
+                return Set.of("warncat");
+            }
+
+            @Override
+            public Map<String, TableCatalogFactory> tableCatalogs(Settings settings) {
+                return Map.of("warncat", settings1 -> new WarningSinkTableCatalog());
+            }
+        };
+        DataSourceModule module = new DataSourceModule(
+            List.of(plugin),
+            DataSourceCapabilities.build(List.of(plugin)),
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
+        );
+        ExternalSourceFactory wrapper = module.sourceFactories().get("warncat");
+        assertThat(wrapper, instanceOf(DataSourceModule.LazyTableCatalogWrapper.class));
+
+        List<String> warnings = new ArrayList<>();
+        wrapper.validateConfig("s3://bucket/db/table", Map.of(), warnings::add);
+        assertEquals(List.of("warning for [s3://bucket/db/table]"), warnings);
     }
 
     // ===== Spy plugin implementations =====
@@ -255,7 +354,7 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
         @Override
         public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
             SPY_STORAGE_FACTORY_CALLED.set(true);
-            return Map.of("spy", s -> new StubStorageProvider());
+            return Map.of("spy", StorageProviderFactory.noConfigKeys(StubStorageProvider::new));
         }
     }
 
@@ -287,7 +386,85 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
 
     // ===== Stub implementations =====
 
+    /**
+     * Delegate that emits its warning only through the sink it is handed. The two-argument form fails
+     * outright, so a wrapper that drops the sink and falls back to it is caught rather than passing
+     * because the warning went to {@code HeaderWarning} instead.
+     */
+    private static class WarningSinkConnectorFactory implements ConnectorFactory {
+        @Override
+        public String type() {
+            return "warn";
+        }
+
+        @Override
+        public boolean canHandle(String location) {
+            return true;
+        }
+
+        @Override
+        public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
+            throw new UnsupportedOperationException("Stub");
+        }
+
+        @Override
+        public Connector open(Map<String, Object> config) {
+            throw new UnsupportedOperationException("Stub");
+        }
+
+        @Override
+        public void validateConfig(String location, Map<String, Object> config) {
+            fail("wrapper must forward the warning sink, not fall back to the two-argument form");
+        }
+
+        @Override
+        public void validateConfig(String location, Map<String, Object> config, Consumer<String> warningSink) {
+            warningSink.accept("warning for [" + location + "]");
+        }
+    }
+
+    /** Catalog twin of {@link WarningSinkConnectorFactory}. */
+    private static class WarningSinkTableCatalog implements TableCatalog {
+        @Override
+        public String catalogType() {
+            return "warncat";
+        }
+
+        @Override
+        public boolean canHandle(String path) {
+            return true;
+        }
+
+        @Override
+        public SourceMetadata metadata(String tablePath, Map<String, Object> config) {
+            throw new UnsupportedOperationException("Stub");
+        }
+
+        @Override
+        public List<DataFile> planScan(String tablePath, Map<String, Object> config, List<Object> predicates) {
+            throw new UnsupportedOperationException("Stub");
+        }
+
+        @Override
+        public void validateConfig(String location, Map<String, Object> config) {
+            fail("wrapper must forward the warning sink, not fall back to the two-argument form");
+        }
+
+        @Override
+        public void validateConfig(String location, Map<String, Object> config, Consumer<String> warningSink) {
+            warningSink.accept("warning for [" + location + "]");
+        }
+
+        @Override
+        public void close() {}
+    }
+
     private static class StubStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         @Override
         public List<String> supportedSchemes() {
             return List.of("spy");
@@ -322,7 +499,12 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class StubFormatReader implements FormatReader {
+    private static class StubFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
         private final String name;
         private final List<String> extensions;
 

@@ -1,0 +1,162 @@
+# Test cases for bot / AI-crawler user-agent parsing.
+#
+# Each entry has:
+#   ua      - the full User-Agent string sent by the crawler
+#   name    - expected details.name() from the parser (omit key when null is expected)
+#   version - expected details.version() from the parser (omit key when null is expected)
+#
+# Groups:
+#   1. URL-suffix false positives: UA strings that embed a +https://... URL whose path
+#      contains a bot/spider/crawl token that the generic matchers could mis-read as the name.
+#   2. No-keyword bots: UA strings whose bot name contains no bot/spider/crawl keyword,
+#      so they would fall through all generic patterns if not explicitly listed.
+#   3. Explicitly-named AI crawlers: dedicated regex entries in regexes.yml.
+#   4. Generic-matcher coverage: bots matched by the Bots General or named-alternation patterns.
+#   5. Pinned edge cases: bots whose parsing behaviour is non-obvious and worth locking down.
+
+bot_test_cases:
+
+  # -------------------------------------------------------------------
+  # 1. URL-suffix false positives
+  # -------------------------------------------------------------------
+
+  # +https://openai.com/bot — the /bot path suffix is a generic-matcher target.
+  - ua: "Mozilla/5.0 AppleWebkit/537.36 (KHTML, Like Gecko); compatible; ChatGPT-User/1.0; +https://openai.com/bot"
+    name: "ChatGPT-User"
+    version: "1.0"
+
+  # +https://.../webmasters/crawler — the /crawler suffix triggers the generic crawl catcher.
+  - ua: "meta-externalagent/1.1 (+https://developers.facebook.com/docs/sharing/webmasters/crawler)"
+    name: "meta-externalagent"
+    version: "1.1"
+
+  # +https://.../cohere-crawler — the /cohere-crawler suffix triggers the generic crawl catcher.
+  - ua: "cohere-ai/1.0; +https://docs.cohere.com/docs/cohere-crawler"
+    name: "cohere-ai"
+    version: "1.0"
+
+  # -------------------------------------------------------------------
+  # 2. No-keyword bots
+  # -------------------------------------------------------------------
+
+  - ua: "Mozilla/5.0 AppleWebkit/537.36 (KHTML, Like Gecko); compatible; MistralAI-User/1.0; +https://docs.mistral.ai/robots"
+    name: "MistralAI-User"
+    version: "1.0"
+
+  - ua: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Claude-User/1.0; +Claude-User@anthropic.com)"
+    name: "Claude-User"
+    version: "1.0"
+
+  - ua: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Perplexity-User/1.0; +https://perplexity.ai/perplexity-user)"
+    name: "Perplexity-User"
+    version: "1.0"
+
+  - ua: "meta-externalfetcher/1.0"
+    name: "meta-externalfetcher"
+    version: "1.0"
+
+  # -------------------------------------------------------------------
+  # 3. Explicitly-named AI crawlers
+  # -------------------------------------------------------------------
+
+  - ua: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot"
+    name: "OAI-SearchBot"
+    version: "1.0"
+
+  # Claude-Web is the legacy Anthropic UA token (deprecated 2024), kept for log compatibility.
+  - ua: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Claude-Web/1.0; +Claude-Web@anthropic.com)"
+    name: "Claude-Web"
+    version: "1.0"
+
+  # -------------------------------------------------------------------
+  # 4. Generic-matcher coverage
+  # -------------------------------------------------------------------
+
+  - ua: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.1; +https://openai.com/gptbot"
+    name: "GPTBot"
+    version: "1.1"
+
+  - ua: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ClaudeBot/1.0; +claudebot@anthropic.com)"
+    name: "ClaudeBot"
+    version: "1.0"
+
+  - ua: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)"
+    name: "PerplexityBot"
+    version: "1.0"
+
+  - ua: "Mozilla/5.0 (compatible; DuckAssistBot/1.0; +https://duckduckgo.com/duckassistbot)"
+    name: "DuckAssistBot"
+    version: "1.0"
+
+  - ua: "Mozilla/5.0 (compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot)"
+    name: "Amazonbot"
+    version: "0.1"
+
+  - ua: "Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)"
+    name: "AhrefsBot"
+    version: "7.0"
+
+  - ua: "CCBot/2.0 (https://commoncrawl.org/faq/)"
+    name: "CCBot"
+    version: "2.0"
+
+  - ua: "Mozilla/5.0 (compatible; Applebot/0.1; +http://www.apple.com/go/applebot)"
+    name: "Applebot"
+    version: "0.1"
+
+  - ua: "Mozilla/5.0 (Linux; Android 5.0) AppleWebKit/537.36 (KHTML, like Gecko) Mobile Safari/537.36 (compatible; Bytespider/1.0; spider-feedback@bytedance.com)"
+    name: "Bytespider"
+    version: "1.0"
+
+  - ua: "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
+    name: "Googlebot"
+    version: "2.1"
+
+  - ua: "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)"
+    name: "bingbot"
+    version: "2.0"
+
+  - ua: "Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)"
+    name: "YandexBot"
+    version: "3.0"
+
+  - ua: "Twitterbot/1.0"
+    name: "Twitterbot"
+    version: "1.0"
+
+  # SemrushBot/7~bl — the ~bl suffix is not captured; version is just the leading digit.
+  - ua: "Mozilla/5.0 (compatible; SemrushBot/7~bl; +http://www.semrush.com/bot.html)"
+    name: "SemrushBot"
+    version: "7"
+
+  - ua: "LinkedInBot/1.0 (compatible; Mozilla/5.0; Apache-HttpClient/4.1.1 +http://www.linkedin.com)"
+    name: "LinkedInBot"
+    version: "1.0"
+
+  # The alternation captures the full "Yahoo! Slurp" prefix, not just "Slurp".
+  - ua: "Mozilla/5.0 (compatible; Yahoo! Slurp; http://help.yahoo.com/help/us/ysearch/slurp)"
+    name: "Yahoo! Slurp"
+
+  - ua: "Mozilla/5.0 (compatible; MJ12bot/v1.4.8; http://mj12bot.com/)"
+    name: "MJ12bot"
+    version: "1.4.8"
+
+  - ua: "ia_archiver (+http://www.alexa.com/site/help/webmaster;crawler@alexa.com)"
+    name: "ia_archiver"
+
+  - ua: "Mozilla/5.0 (compatible; Pinterestbot/1.0; +https://www.pinterest.com/bot.html)"
+    name: "Pinterestbot"
+    version: "1.0"
+
+  # -------------------------------------------------------------------
+  # 5. Pinned edge cases
+  # -------------------------------------------------------------------
+
+  # Google's AI-training opt-out crawler; name contains no recognisable bot keyword,
+  # so the parser returns null.
+  - ua: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; Google-Extended"
+
+  # Meta's link-preview fetcher; has an explicit entry with family_replacement: 'FacebookBot'.
+  - ua: "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)"
+    name: "FacebookBot"
+    version: "1.1"

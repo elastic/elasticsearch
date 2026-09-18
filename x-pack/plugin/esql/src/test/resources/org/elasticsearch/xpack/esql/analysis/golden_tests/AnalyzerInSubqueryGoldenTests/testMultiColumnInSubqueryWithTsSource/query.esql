@@ -1,0 +1,7 @@
+FROM employees
+| WHERE (first_name, last_name) IN (
+    TS k8s
+    | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster, pod
+    | KEEP cluster, pod
+  )
+| KEEP first_name, last_name

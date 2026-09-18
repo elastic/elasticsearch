@@ -159,6 +159,8 @@ public class AsyncSearchConcurrentStatusIT extends AsyncSearchIntegTestCase {
 
             assertNoWorkerFailures(failures);
             assertStats(stats);
+            deleteAsyncSearch(id);
+            ensureTaskCompletion(id);
         }
     }
 

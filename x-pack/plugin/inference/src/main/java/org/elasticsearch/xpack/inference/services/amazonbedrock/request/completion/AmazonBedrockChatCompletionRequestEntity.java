@@ -22,5 +22,19 @@ public record AmazonBedrockChatCompletionRequestEntity(
     @Nullable Float temperature,
     @Nullable ToolChoice toolChoice,
     @Nullable List<Tool> tools,
-    @Nullable Float topP
-) {}
+    @Nullable Float topP,
+    @Nullable Double topK
+) {
+    public AmazonBedrockChatCompletionRequestEntity(
+        List<Message> messages,
+        @Nullable String model,
+        @Nullable Long maxCompletionTokens,
+        @Nullable List<String> stop,
+        @Nullable Float temperature,
+        @Nullable ToolChoice toolChoice,
+        @Nullable List<Tool> tools,
+        @Nullable Float topP
+    ) {
+        this(messages, model, maxCompletionTokens, stop, temperature, toolChoice, tools, topP, null);
+    }
+}

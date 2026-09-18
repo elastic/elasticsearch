@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jose.jwk.JWK;
 
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
+import org.elasticsearch.xpack.security.EntitledFileWatcher;
 
 import java.io.IOException;
 import java.net.URI;
@@ -391,7 +391,7 @@ class JwkSetLoader implements Releasable {
         boolean changed = false;
 
         FileChangeWatcher(Path path) {
-            this.fileWatcher = new PrivilegedFileWatcher(path);
+            this.fileWatcher = new EntitledFileWatcher(path);
             this.fileWatcher.addListener(this);
         }
 

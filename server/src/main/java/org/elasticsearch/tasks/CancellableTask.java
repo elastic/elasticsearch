@@ -86,6 +86,12 @@ public class CancellableTask extends Task {
     }
 
     /**
+     * Called before a cancellation request is applied to this task. Subclasses may override to reject the cancellation by throwing;
+     * the thrown exception is propagated back to the caller of the cancel API as a per-task failure.
+     */
+    public void ensureCancellable() {}
+
+    /**
      * Called after the task is cancelled so that it can take any actions that it has to take.
      */
     protected void onCancelled() {}
@@ -117,7 +123,7 @@ public class CancellableTask extends Task {
         return "CancellableTask{" + super.toString() + ", reason='" + cancelReason + '\'' + ", isCancelled=" + (cancelReason != null) + '}';
     }
 
-    private TaskCancelledException getTaskCancelledException() {
+    public TaskCancelledException getTaskCancelledException() {
         assert reason != null;
         return new TaskCancelledException("task cancelled [" + reason + ']');
     }

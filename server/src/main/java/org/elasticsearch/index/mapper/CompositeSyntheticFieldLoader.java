@@ -11,12 +11,12 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -34,15 +34,15 @@ import static java.util.Collections.emptyList;
 public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
     private final String leafFieldName;
     private final String fullFieldName;
-    private final Collection<Layer> parts;
+    private final Layer[] parts;
     private boolean storedFieldLoadersHaveValues;
     private boolean docValuesLoadersHaveValues;
 
-    public CompositeSyntheticFieldLoader(String leafFieldName, String fullFieldName, Layer... parts) {
-        this(leafFieldName, fullFieldName, Arrays.asList(parts));
+    public CompositeSyntheticFieldLoader(String leafFieldName, String fullFieldName, Collection<Layer> parts) {
+        this(leafFieldName, fullFieldName, parts.toArray(Layer[]::new));
     }
 
-    public CompositeSyntheticFieldLoader(String leafFieldName, String fullFieldName, Collection<Layer> parts) {
+    public CompositeSyntheticFieldLoader(String leafFieldName, String fullFieldName, Layer... parts) {
         this.leafFieldName = leafFieldName;
         this.fullFieldName = fullFieldName;
         this.parts = parts;
@@ -52,32 +52,32 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
 
     @Override
     public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-        return parts.stream().flatMap(Layer::storedFieldLoaders).map(e -> Map.entry(e.getKey(), new StoredFieldLoader() {
-            @Override
-            public void load(List<Object> newValues) {
-                storedFieldLoadersHaveValues = true;
-                e.getValue().load(newValues);
-            }
+        return Arrays.stream(parts).flatMap(Layer::storedFieldLoaders).map(e -> Map.entry(e.getKey(), newValues -> {
+            storedFieldLoadersHaveValues = true;
+            e.getValue().load(newValues);
         }));
     }
 
     @Override
     public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-        var loaders = new ArrayList<DocValuesLoader>(parts.size());
+        int i = 0;
+        var loaders = new DocValuesLoader[parts.length];
         for (var part : parts) {
             var partLoader = part.docValuesLoader(leafReader, docIdsInLeaf);
             if (partLoader != null) {
-                loaders.add(partLoader);
+                loaders[i++] = partLoader;
             }
         }
 
-        if (loaders.isEmpty()) {
+        if (i == 0) {
             return null;
         }
 
+        int size = i;
         return docId -> {
             boolean hasDocs = false;
-            for (var loader : loaders) {
+            for (int j = 0; j < size; j++) {
+                var loader = loaders[j];
                 hasDocs |= loader.advanceToDoc(docId);
             }
 
@@ -126,7 +126,9 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
     @Override
     public void reset() {
         softReset();
-        parts.forEach(SourceLoader.SyntheticFieldLoader::reset);
+        for (Layer part : parts) {
+            part.reset();
+        }
     }
 
     @Override
@@ -139,10 +141,11 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
      */
     public CompositeSyntheticFieldLoader mergedWith(CompositeSyntheticFieldLoader other) {
         if (other == null) {
-            return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, List.copyOf(parts));
+            return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, parts);
         }
-        List<Layer> mergedParts = new ArrayList<>(parts);
-        mergedParts.addAll(other.parts);
+        Layer[] mergedParts = new Layer[parts.length + other.parts.length];
+        System.arraycopy(parts, 0, mergedParts, 0, parts.length);
+        System.arraycopy(other.parts, 0, mergedParts, parts.length, other.parts.length);
         return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, mergedParts);
     }
 
@@ -180,7 +183,7 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
      */
     public static Layer malformedValuesLayer(String fieldName, IndexVersion indexVersion) {
         if (indexVersion.onOrAfter(IndexVersions.STORE_IGNORED_MALFORMED_IN_BINARY_DOC_VALUES)) {
-            return new MalformedValuesBinaryDocValuesLayer(fieldName);
+            return new MalformedValuesBinaryDocValuesLayer(fieldName, indexVersion);
         } else {
             return new MalformedValuesStoredFieldLayer(fieldName);
         }
@@ -209,8 +212,73 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
      * Layer that loads malformed values from binary doc values for synthetic source.
      */
     private static class MalformedValuesBinaryDocValuesLayer extends BinaryDocValuesSyntheticFieldLoaderLayer {
-        MalformedValuesBinaryDocValuesLayer(String fieldName) {
-            super(IgnoreMalformedStoredValues.name(fieldName));
+        MalformedValuesBinaryDocValuesLayer(String fieldName, IndexVersion indexVersion) {
+            super(IgnoreMalformedStoredValues.name(fieldName), indexVersion);
+        }
+
+        @Override
+        protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
+            XContentDataHelper.decodeAndWrite(b, value);
+        }
+    }
+
+    /**
+     * Appends the appropriate fallback layers to {@code layers} for a field that supports {@code ignore_malformed} and/or
+     * {@code doc_values.on_failure=ignore}.
+     *
+     * <p>In strict-columnar index modes created on or after {@link IndexVersions#MALFORMED_VALUES_IN_ON_FAILURE_COLUMN},
+     * {@link FallbackPostMapper#route} sends {@link FallbackPostMapper.Reason#MALFORMED} values to the shared per-field
+     * {@code ._on_failure} sidecar column, so only the on-failure layer is added — adding both would double-emit every value
+     * when both constraints are active on the same field. Older strict-columnar indices (created before the version gate) keep
+     * using {@code ._ignore_malformed}; the version check here must match the write-path check in
+     * {@link FallbackPostMapper#malformedUsesOnFailureColumn}. Outside strict-columnar, the two columns are always independent.
+     *
+     * <p>The on-failure layer is always appended <em>last</em> so encounter order is preserved.
+     *
+     * @param layers         the list to append to
+     * @param mapper         the field mapper owning this synthetic-source loader
+     * @param indexSettings  index settings used to derive the index version and whether the index is strict-columnar
+     */
+    public static void addFallbackLayers(List<Layer> layers, FieldMapper mapper, IndexSettings indexSettings) {
+        IndexVersion indexVersion = indexSettings.getIndexVersionCreated();
+        boolean ignoreMalformed = mapper.ignoreMalformed();
+        boolean malformedInOnFailure = FallbackPostMapper.malformedUsesOnFailureColumn(indexSettings);
+        if (ignoreMalformed && malformedInOnFailure == false) {
+            layers.add(malformedValuesLayer(mapper.fullPath(), indexVersion));
+        }
+        if (mapper.onFailureColumnEnabled() || (ignoreMalformed && malformedInOnFailure)) {
+            layers.add(onFailureValuesLayer(mapper.fullPath(), indexVersion));
+        }
+    }
+
+    /**
+     * Returns the synthetic-source layer that reconstructs {@code ignore_malformed} values: the {@code ._on_failure} sidecar
+     * column when {@link FallbackPostMapper#malformedUsesOnFailureColumn} applies (strict-columnar index created on or after
+     * {@link IndexVersions#MALFORMED_VALUES_IN_ON_FAILURE_COLUMN}), otherwise the {@code ._ignore_malformed} column.
+     *
+     * @param mapper         the field mapper owning this synthetic-source layer
+     * @param indexSettings  index settings used to derive the index version and whether the index is strict-columnar
+     */
+    public static Layer malformedFallbackLayer(FieldMapper mapper, IndexSettings indexSettings) {
+        return FallbackPostMapper.malformedUsesOnFailureColumn(indexSettings)
+            ? onFailureValuesLayer(mapper.fullPath(), indexSettings.getIndexVersionCreated())
+            : malformedValuesLayer(mapper.fullPath(), indexSettings.getIndexVersionCreated());
+    }
+
+    /**
+     * Returns the layer that reconstructs values from the {@code ._on_failure} sidecar column for synthetic source.
+     * Append it <em>last</em> in the composite so values 2..N trail the primary column and encounter order is preserved.
+     */
+    public static Layer onFailureValuesLayer(String fieldName, IndexVersion indexVersion) {
+        return new OnFailureValuesBinaryDocValuesLayer(fieldName, indexVersion);
+    }
+
+    /**
+     * Layer that loads on-failure values from binary doc values for synthetic source.
+     */
+    private static class OnFailureValuesBinaryDocValuesLayer extends BinaryDocValuesSyntheticFieldLoaderLayer {
+        OnFailureValuesBinaryDocValuesLayer(String fieldName, IndexVersion indexVersion) {
+            super(OnFailureStoredValues.name(fieldName), indexVersion);
         }
 
         @Override

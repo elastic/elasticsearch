@@ -10,6 +10,7 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -22,10 +23,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -98,7 +101,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
             cancellableClient.execute(
                 TransportMultiSearchAction.TYPE,
                 multiSearchRequest,
-                new RestRefCountedChunkedToXContentListener<>(channel)
+                RestActions.wrapWithSearchMetricsHeader(
+                    client.threadPool().getThreadContext(),
+                    MultiSearchResponse::mergeDirectoryMetrics,
+                    new RestRefCountedChunkedToXContentListener<>(channel)
+                )
             );
         };
     }
@@ -216,7 +223,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String searchType = request.param("search_type");
         boolean ccsMinimizeRoundtrips = SearchParamsParser.parseCcsMinimizeRoundtrips(crossProjectEnabled, request);
-        String routing = request.param("routing");
+        SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
 
         final Tuple<XContentType, ReleasableBytesReference> sourceTuple = request.contentOrSourceParam();
         final XContent xContent = sourceTuple.v1().xContent();
@@ -228,7 +235,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
             consumer,
             indices,
             indicesOptions,
-            routing,
+            parsedRouting,
             searchType,
             ccsMinimizeRoundtrips,
             allowExplicitIndex,

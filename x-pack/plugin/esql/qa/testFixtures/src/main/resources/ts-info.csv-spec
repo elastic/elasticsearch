@@ -1,6 +1,12 @@
 tsInfoBasic
 required_capability: ts_info_command
-TS k8s | TS_INFO | SORT metric_name, dimensions;
+
+// tag::tsInfoBasic[]
+TS k8s
+| TS_INFO
+| SORT metric_name, dimensions
+// end::tsInfoBasic[]
+;
 ignoreOrder:true
 
 metric_name:keyword    | data_stream:keyword | unit:keyword | metric_type:keyword | field_type:keyword | dimension_fields:keyword | dimensions:keyword
@@ -112,6 +118,39 @@ network.total_cost     | k8s                 | usd          | counter           
 network.total_cost     | k8s                 | usd          | counter             | double             | [cluster, pod, region]   | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
 ;
 
+tsInfoFilterByGauge
+required_capability: ts_info_command
+
+// tag::tsInfoFilterByGauge[]
+TS k8s
+| TS_INFO
+| WHERE metric_type == "gauge"
+| SORT metric_name, dimensions
+// end::tsInfoFilterByGauge[]
+;
+ignoreOrder:true
+
+metric_name:keyword    | data_stream:keyword | unit:keyword | metric_type:keyword | field_type:keyword | dimension_fields:keyword | dimensions:keyword
+network.eth0.rx        | k8s                 | packets      | gauge               | integer            | [cluster, pod, region]   | "{""cluster"":""prod"",""pod"":""one"",""region"":""[eu, us]""}"
+network.eth0.rx        | k8s                 | packets      | gauge               | integer            | [cluster, pod, region]   | "{""cluster"":""prod"",""pod"":""three"",""region"":""[eu, us]""}"
+network.eth0.rx        | k8s                 | packets      | gauge               | integer            | [cluster, pod, region]   | "{""cluster"":""prod"",""pod"":""two"",""region"":""[eu, us]""}"
+network.eth0.rx        | k8s                 | packets      | gauge               | integer            | [cluster, pod]           | "{""cluster"":""qa"",""pod"":""one""}"
+network.eth0.rx        | k8s                 | packets      | gauge               | integer            | [cluster, pod]           | "{""cluster"":""qa"",""pod"":""three""}"
+network.eth0.rx        | k8s                 | packets      | gauge               | integer            | [cluster, pod]           | "{""cluster"":""qa"",""pod"":""two""}"
+network.eth0.rx        | k8s                 | packets      | gauge               | integer            | [cluster, pod, region]   | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+network.eth0.rx        | k8s                 | packets      | gauge               | integer            | [cluster, pod, region]   | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+network.eth0.rx        | k8s                 | packets      | gauge               | integer            | [cluster, pod, region]   | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+network.eth0.tx        | k8s                 | packets      | gauge               | integer            | [cluster, pod, region]   | "{""cluster"":""prod"",""pod"":""one"",""region"":""[eu, us]""}"
+network.eth0.tx        | k8s                 | packets      | gauge               | integer            | [cluster, pod, region]   | "{""cluster"":""prod"",""pod"":""three"",""region"":""[eu, us]""}"
+network.eth0.tx        | k8s                 | packets      | gauge               | integer            | [cluster, pod, region]   | "{""cluster"":""prod"",""pod"":""two"",""region"":""[eu, us]""}"
+network.eth0.tx        | k8s                 | packets      | gauge               | integer            | [cluster, pod]           | "{""cluster"":""qa"",""pod"":""one""}"
+network.eth0.tx        | k8s                 | packets      | gauge               | integer            | [cluster, pod]           | "{""cluster"":""qa"",""pod"":""three""}"
+network.eth0.tx        | k8s                 | packets      | gauge               | integer            | [cluster, pod]           | "{""cluster"":""qa"",""pod"":""two""}"
+network.eth0.tx        | k8s                 | packets      | gauge               | integer            | [cluster, pod, region]   | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+network.eth0.tx        | k8s                 | packets      | gauge               | integer            | [cluster, pod, region]   | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+network.eth0.tx        | k8s                 | packets      | gauge               | integer            | [cluster, pod, region]   | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+;
+
 tsInfoCountDistinct
 required_capability: ts_info_command
 TS k8s | TS_INFO | STATS ts_count = COUNT(*);
@@ -123,12 +162,102 @@ ts_count:long
 
 tsInfoCountByMetricName
 required_capability: ts_info_command
-TS k8s | TS_INFO | STATS ts_count = COUNT(*) BY metric_name | SORT metric_name;
+
+// tag::tsInfoCountByMetric[]
+TS k8s
+| TS_INFO
+| STATS series_count = COUNT(*) BY metric_name
+| SORT metric_name
+// end::tsInfoCountByMetric[]
+;
 ignoreOrder:true
 
-ts_count:long | metric_name:keyword
-9             | network.eth0.rx
-9             | network.eth0.tx
-9             | network.total_bytes_in
-9             | network.total_cost
+// tag::tsInfoCountByMetric-result[]
+series_count:long | metric_name:keyword
+9                 | network.eth0.rx
+9                 | network.eth0.tx
+9                 | network.total_bytes_in
+9                 | network.total_cost
+// end::tsInfoCountByMetric-result[]
+;
+
+tsInfoCountDistinctByDimensions
+required_capability: ts_info_command
+
+// tag::tsInfoCountDistinctByDimensions[]
+TS k8s
+| TS_INFO
+| STATS metric_count = COUNT_DISTINCT(metric_name) BY dimensions
+| SORT dimensions
+// end::tsInfoCountDistinctByDimensions[]
+;
+ignoreOrder:true
+
+// tag::tsInfoCountDistinctByDimensions-result[]
+metric_count:long | dimensions:keyword
+4                 | "{""cluster"":""prod"",""pod"":""one"",""region"":""[eu, us]""}"
+4                 | "{""cluster"":""prod"",""pod"":""three"",""region"":""[eu, us]""}"
+4                 | "{""cluster"":""prod"",""pod"":""two"",""region"":""[eu, us]""}"
+4                 | "{""cluster"":""qa"",""pod"":""one""}"
+4                 | "{""cluster"":""qa"",""pod"":""three""}"
+4                 | "{""cluster"":""qa"",""pod"":""two""}"
+4                 | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+4                 | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+4                 | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+// end::tsInfoCountDistinctByDimensions-result[]
+;
+
+tsInfoDiscoverWithFilter
+required_capability: ts_info_command
+
+// tag::tsInfoDiscover[]
+TS k8s
+| WHERE cluster == "prod"
+| TS_INFO
+| SORT metric_name, dimensions
+// end::tsInfoDiscover[]
+;
+ignoreOrder:true
+
+metric_name:keyword    | data_stream:keyword | unit:keyword | metric_type:keyword | field_type:keyword | dimension_fields:keyword | dimensions:keyword
+network.eth0.rx        | k8s                 | packets      | gauge               | integer            | [cluster, pod, region]   | "{""cluster"":""prod"",""pod"":""one"",""region"":""[eu, us]""}"
+network.eth0.rx        | k8s                 | packets      | gauge               | integer            | [cluster, pod, region]   | "{""cluster"":""prod"",""pod"":""three"",""region"":""[eu, us]""}"
+network.eth0.rx        | k8s                 | packets      | gauge               | integer            | [cluster, pod, region]   | "{""cluster"":""prod"",""pod"":""two"",""region"":""[eu, us]""}"
+network.eth0.tx        | k8s                 | packets      | gauge               | integer            | [cluster, pod, region]   | "{""cluster"":""prod"",""pod"":""one"",""region"":""[eu, us]""}"
+network.eth0.tx        | k8s                 | packets      | gauge               | integer            | [cluster, pod, region]   | "{""cluster"":""prod"",""pod"":""three"",""region"":""[eu, us]""}"
+network.eth0.tx        | k8s                 | packets      | gauge               | integer            | [cluster, pod, region]   | "{""cluster"":""prod"",""pod"":""two"",""region"":""[eu, us]""}"
+network.total_bytes_in | k8s                 | bytes        | counter             | long               | [cluster, pod, region]   | "{""cluster"":""prod"",""pod"":""one"",""region"":""[eu, us]""}"
+network.total_bytes_in | k8s                 | bytes        | counter             | long               | [cluster, pod, region]   | "{""cluster"":""prod"",""pod"":""three"",""region"":""[eu, us]""}"
+network.total_bytes_in | k8s                 | bytes        | counter             | long               | [cluster, pod, region]   | "{""cluster"":""prod"",""pod"":""two"",""region"":""[eu, us]""}"
+network.total_cost     | k8s                 | usd          | counter             | double             | [cluster, pod, region]   | "{""cluster"":""prod"",""pod"":""one"",""region"":""[eu, us]""}"
+network.total_cost     | k8s                 | usd          | counter             | double             | [cluster, pod, region]   | "{""cluster"":""prod"",""pod"":""three"",""region"":""[eu, us]""}"
+network.total_cost     | k8s                 | usd          | counter             | double             | [cluster, pod, region]   | "{""cluster"":""prod"",""pod"":""two"",""region"":""[eu, us]""}"
+;
+
+tsInfoSelectColumns
+required_capability: ts_info_command
+
+// tag::tsInfoKeep[]
+TS k8s
+| WHERE cluster == "prod"
+| TS_INFO
+| KEEP metric_name, dimensions
+| SORT metric_name, dimensions
+// end::tsInfoKeep[]
+;
+ignoreOrder:true
+
+metric_name:keyword    | dimensions:keyword
+network.eth0.rx        | "{""cluster"":""prod"",""pod"":""one"",""region"":""[eu, us]""}"
+network.eth0.rx        | "{""cluster"":""prod"",""pod"":""three"",""region"":""[eu, us]""}"
+network.eth0.rx        | "{""cluster"":""prod"",""pod"":""two"",""region"":""[eu, us]""}"
+network.eth0.tx        | "{""cluster"":""prod"",""pod"":""one"",""region"":""[eu, us]""}"
+network.eth0.tx        | "{""cluster"":""prod"",""pod"":""three"",""region"":""[eu, us]""}"
+network.eth0.tx        | "{""cluster"":""prod"",""pod"":""two"",""region"":""[eu, us]""}"
+network.total_bytes_in | "{""cluster"":""prod"",""pod"":""one"",""region"":""[eu, us]""}"
+network.total_bytes_in | "{""cluster"":""prod"",""pod"":""three"",""region"":""[eu, us]""}"
+network.total_bytes_in | "{""cluster"":""prod"",""pod"":""two"",""region"":""[eu, us]""}"
+network.total_cost     | "{""cluster"":""prod"",""pod"":""one"",""region"":""[eu, us]""}"
+network.total_cost     | "{""cluster"":""prod"",""pod"":""three"",""region"":""[eu, us]""}"
+network.total_cost     | "{""cluster"":""prod"",""pod"":""two"",""region"":""[eu, us]""}"
 ;

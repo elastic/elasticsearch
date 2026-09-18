@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
@@ -187,7 +188,7 @@ public class TrainedModelAssignmentMetadata implements Metadata.ProjectCustom {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 
     public boolean hasOutdatedAssignments() {
@@ -226,6 +227,10 @@ public class TrainedModelAssignmentMetadata implements Metadata.ProjectCustom {
 
         public boolean hasModelDeployment(String deploymentId) {
             return deploymentRoutingEntries.containsKey(deploymentId);
+        }
+
+        public Set<String> deploymentIds() {
+            return Set.copyOf(deploymentRoutingEntries.keySet());
         }
 
         public Builder addNewAssignment(String deploymentId, TrainedModelAssignment.Builder assignment) {

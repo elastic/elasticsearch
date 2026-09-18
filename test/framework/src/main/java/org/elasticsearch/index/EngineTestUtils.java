@@ -10,6 +10,7 @@
 package org.elasticsearch.index;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -19,6 +20,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -48,6 +50,8 @@ public final class EngineTestUtils {
         if (refresh) {
             engine.refresh("test_get_doc_ids");
         }
+        final MapperService mapperService = engine.getEngineConfig().getMapperService();
+        final boolean columnarId = mapperService != null && mapperService.isUseColumnarId();
         try (Engine.Searcher searcher = engine.acquireSearcher("test_get_doc_ids", Engine.SearcherScope.INTERNAL)) {
             List<DocIdSeqNoAndSource> docs = new ArrayList<>();
             for (LeafReaderContext leafContext : searcher.getIndexReader().leaves()) {
@@ -55,6 +59,7 @@ public final class EngineTestUtils {
                 NumericDocValues seqNoDocValues = reader.getNumericDocValues(SeqNoFieldMapper.NAME);
                 NumericDocValues primaryTermDocValues = reader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
                 NumericDocValues versionDocValues = reader.getNumericDocValues(VersionFieldMapper.NAME);
+                BinaryDocValues idDocValues = columnarId ? reader.getBinaryDocValues(IdFieldMapper.NAME) : null;
                 Bits liveDocs = reader.getLiveDocs();
                 StoredFields storedFields = reader.storedFields();
                 for (int i = 0; i < reader.maxDoc(); i++) {
@@ -65,7 +70,13 @@ public final class EngineTestUtils {
                         }
                         final long primaryTerm = primaryTermDocValues.longValue();
                         Document doc = storedFields.document(i, Set.of(IdFieldMapper.NAME, SourceFieldMapper.NAME));
-                        BytesRef binaryID = doc.getBinaryValue(IdFieldMapper.NAME);
+                        BytesRef binaryID;
+                        if (columnarId) {
+                            idDocValues.advanceExact(i);
+                            binaryID = idDocValues.binaryValue();
+                        } else {
+                            binaryID = doc.getBinaryValue(IdFieldMapper.NAME);
+                        }
                         String id = Uid.decodeId(Arrays.copyOfRange(binaryID.bytes, binaryID.offset, binaryID.offset + binaryID.length));
                         final BytesRef source = doc.getBinaryValue(SourceFieldMapper.NAME);
                         if (seqNoDocValues.advanceExact(i) == false) {

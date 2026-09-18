@@ -18,6 +18,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.mapper.AbstractBlockLoaderTestCase;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.TestBlock;
@@ -44,7 +45,10 @@ public class BinaryMvMaxBytesRefsBlockLoaderTests extends AbstractBlockLoaderTes
             int docCount = 10_000;
             int cardinality = between(16, 2048);
             for (int i = 0; i < docCount; i++) {
-                var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
+                var field = new MultiValuedBinaryDocValuesField.SeparateCount(
+                    "field",
+                    MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                );
                 int baseLength = (i % cardinality) + 1;
                 char c = 'z';
                 field.add(new BytesRef(("" + c).repeat(baseLength)));
@@ -69,7 +73,7 @@ public class BinaryMvMaxBytesRefsBlockLoaderTests extends AbstractBlockLoaderTes
                 LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
 
                 var stringsLoader = new BytesRefsFromBinaryMultiSeparateCountBlockLoader("field");
-                var mvMinLoader = new MvMaxBytesRefsFromBinaryBlockLoader("field");
+                var mvMinLoader = new MvMaxBytesRefsFromBinaryBlockLoader("field", BinaryDocValuesFormat.SEPARATE_COUNT);
                 try (var stringsReader = stringsLoader.reader(breaker, ctx); var mvMinReader = mvMinLoader.reader(breaker, ctx)) {
                     assertThat(mvMinReader, readerMatcher());
                     BlockLoader.Docs docs = TestBlock.docs(ctx);

@@ -54,8 +54,22 @@ public abstract class ExponentialHistogramTestUtils {
         ReleasableExponentialHistogram histo = ExponentialHistogram.create(numBuckets, breaker, rawValues);
         // Setup a proper zeroThreshold based on a random chance
         if (histo.zeroBucket().count() > 0 && randomBoolean()) {
-            double smallestNonZeroValue = DoubleStream.of(rawValues).map(Math::abs).filter(val -> val != 0).min().orElse(0.0);
-            double zeroThreshold = smallestNonZeroValue * randomDouble();
+            int histoScale = histo.scale();
+            // compute a value that does not fall into the smallest populated bucket
+            double maxZeroThreshold = DoubleStream.of(rawValues)
+                .map(Math::abs)
+                .filter(val -> val != 0)
+                .min()
+                .stream()
+                .map(
+                    smallestNonZeroValue -> ExponentialScaleUtils.getLowerBucketBoundary(
+                        ExponentialScaleUtils.computeIndex(smallestNonZeroValue, histoScale),
+                        histoScale
+                    )
+                )
+                .findFirst()
+                .orElse(0.0);
+            double zeroThreshold = maxZeroThreshold * randomDouble();
             try (ReleasableExponentialHistogram releaseAfterCopy = histo) {
                 ZeroBucket zeroBucket;
                 if (zeroThreshold == 0 || randomBoolean()) {
@@ -65,6 +79,7 @@ public abstract class ExponentialHistogramTestUtils {
                     int scale = randomIntBetween(0, MAX_SCALE);
                     long index = ExponentialScaleUtils.computeIndex(zeroThreshold, scale) - 1;
                     zeroBucket = ZeroBucket.create(index, scale, histo.zeroBucket().count());
+                    zeroThreshold = zeroBucket.zeroThreshold();
                 }
                 ExponentialHistogramBuilder builder = ExponentialHistogram.builder(histo, breaker).zeroBucket(zeroBucket);
 
@@ -76,6 +91,22 @@ public abstract class ExponentialHistogramTestUtils {
                 }
                 histo = builder.build();
             }
+        }
+        if (histo.valueCount() > 0) {
+            // sanity check for min/max
+            assert histo.min() <= histo.max();
+            double estimatedMin = ExponentialHistogramUtils.estimateMin(
+                histo.zeroBucket(),
+                histo.negativeBuckets(),
+                histo.positiveBuckets()
+            ).getAsDouble();
+            assert estimatedMin - histo.min() <= 0.00000001;
+            double estimatedMax = ExponentialHistogramUtils.estimateMax(
+                histo.zeroBucket(),
+                histo.negativeBuckets(),
+                histo.positiveBuckets()
+            ).getAsDouble();
+            assert estimatedMax - histo.max() >= -0.00000001;
         }
         return histo;
     }

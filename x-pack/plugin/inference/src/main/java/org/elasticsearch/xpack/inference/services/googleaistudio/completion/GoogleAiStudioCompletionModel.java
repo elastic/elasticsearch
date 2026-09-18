@@ -42,7 +42,7 @@ public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
             service,
             GoogleAiStudioCompletionServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

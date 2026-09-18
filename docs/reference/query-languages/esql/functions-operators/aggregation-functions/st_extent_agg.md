@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ST_EXTENT_AGG` function [esql-st_extent_agg]
 
-:::{include} ../../_snippets/functions/layout/st_extent_agg.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/st_extent_agg.md
 :::

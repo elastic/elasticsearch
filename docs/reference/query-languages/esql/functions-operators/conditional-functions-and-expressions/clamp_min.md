@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `CLAMP_MIN` function [esql-clamp_min]
 
-:::{include} ../../_snippets/functions/layout/clamp_min.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/clamp_min.md
 :::

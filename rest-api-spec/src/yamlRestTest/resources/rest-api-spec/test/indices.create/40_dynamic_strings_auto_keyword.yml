@@ -1,0 +1,139 @@
+---
+setup:
+  - requires:
+      cluster_features: [ "ingest.dynamic_strings.auto_text_setting" ]
+      reason: "index.mapping.dynamic_strings.auto_text is gated by this feature"
+
+---
+"Dynamic string defaults to text with keyword subfield":
+  - do:
+      indices.create:
+        index: test_dynamic_strings_default
+        body:
+          mappings: {}
+
+  - do:
+      index:
+        index: test_dynamic_strings_default
+        id: "1"
+        body:
+          new_field: "hello"
+
+  - do:
+      indices.get_settings:
+        index: test_dynamic_strings_default
+        include_defaults: true
+
+  - match: { test_dynamic_strings_default.defaults.index.mapping.dynamic_strings.auto_text: "true" }
+
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+  - do:
+      indices.get_mapping:
+        index: test_dynamic_strings_default
+
+  - match: { test_dynamic_strings_default.mappings.properties.new_field.type: text }
+  - match: { test_dynamic_strings_default.mappings.properties.new_field.fields.keyword.type: keyword }
+
+---
+"Dynamic string without auto text omits text field":
+  - do:
+      indices.create:
+        index: test_dynamic_strings_no_text
+        body:
+          settings:
+            index.mapping.dynamic_strings.auto_text: false
+          mappings: {}
+
+  - do:
+      index:
+        index: test_dynamic_strings_no_text
+        id: "1"
+        body:
+          new_field: "hello"
+
+  - do:
+      indices.get_settings:
+        index: test_dynamic_strings_no_text
+
+  - match: { test_dynamic_strings_no_text.settings.index.mapping.dynamic_strings.auto_text: "false" }
+
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+  - do:
+      indices.get_mapping:
+        index: test_dynamic_strings_no_text
+
+  - match: { test_dynamic_strings_no_text.mappings.properties.new_field.type: keyword }
+  - is_false: test_dynamic_strings_no_text.mappings.properties.new_field.fields
+
+---
+"Dynamic string with auto text later disabled omits text subfield":
+  - do:
+      indices.create:
+        index: test_dynamic_strings
+        body:
+          settings:
+            index.mapping.dynamic_strings.auto_text: true
+          mappings: { }
+
+  - do:
+      index:
+        index: test_dynamic_strings
+        id: "1"
+        body:
+          new_field: "hello"
+
+  - do:
+      indices.get_settings:
+        index: test_dynamic_strings
+
+  - match: { test_dynamic_strings.settings.index.mapping.dynamic_strings.auto_text: "true" }
+
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+  - do:
+      indices.get_mapping:
+        index: test_dynamic_strings
+
+  - match: { test_dynamic_strings.mappings.properties.new_field.type: text }
+  - match: { test_dynamic_strings.mappings.properties.new_field.fields.keyword.type: keyword }
+
+  - do:
+      indices.put_settings:
+        index: test_dynamic_strings
+        body:
+          index.mapping.dynamic_strings.auto_text: false
+
+  - do:
+      index:
+        index: test_dynamic_strings
+        id: "2"
+        body:
+          new_field_2: "hello"
+
+  - do:
+      indices.get_settings:
+        index: test_dynamic_strings
+
+  - match: { test_dynamic_strings.settings.index.mapping.dynamic_strings.auto_text: "false" }
+
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+  - do:
+      indices.get_mapping:
+        index: test_dynamic_strings
+
+  - match: { test_dynamic_strings.mappings.properties.new_field.type: text }
+  - match: { test_dynamic_strings.mappings.properties.new_field.fields.keyword.type: keyword }
+
+  - match: { test_dynamic_strings.mappings.properties.new_field_2.type: keyword }
+  - is_false: test_dynamic_strings.mappings.properties.new_field_2.fields

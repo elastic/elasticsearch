@@ -1,0 +1,11 @@
+{
+  "index": {
+    "mode": "time_series",
+    "routing_path": ["cluster"],
+    "time_series": {
+      "start_time": "2024-05-10T00:00:00Z",
+      "end_time": "2024-05-20T00:00:00Z",
+      "temporality_field": "my_temporality"
+    }
+  }
+}

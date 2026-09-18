@@ -239,10 +239,12 @@
         - method: PUT
           path: /_index_template/{name}
           capabilities: [ "dlm.frozen_after" ]
-      test_runner_features: [ "capabilities" ]
+      test_runner_features: [ "capabilities", "allowed_warnings" ]
       reason: "Frozen after added"
 
   - do:
+      allowed_warnings:
+        - "Data stream lifecycle field [frozen_after] is not supported in serverless."
       indices.put_index_template:
         name: test-lifecycle
         body:
@@ -261,3 +263,58 @@
   - match: {index_templates.0.index_template.template.lifecycle.enabled: true}
   - match: {index_templates.0.index_template.template.lifecycle.data_retention: "30d"}
   - match: {index_templates.0.index_template.template.lifecycle.frozen_after: "10d"}
+
+---
+"Setting frozen_after on failure store lifecycle in index template is rejected":
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_index_template/{name}
+          capabilities: [ "failure_store.lifecycle.frozen_after_rejected" ]
+      test_runner_features: [ "capabilities" ]
+      reason: "Failure store lifecycle rejecting frozen_after was added in 9.5.1+"
+
+  - do:
+      indices.put_index_template:
+        name: test-failure-lifecycle
+        body:
+          index_patterns: frozen-failure-*
+          data_stream: {}
+          template:
+            data_stream_options:
+              failure_store:
+                lifecycle:
+                  frozen_after: "30d"
+      catch: '/Failure store lifecycle does not support freezing/'
+
+---
+"PUT index template with duplicate dynamic template names emits a warning":
+  - requires:
+      cluster_features: [ "mapper.dynamic_template.warn_on_duplicate_names" ]
+      reason: duplicate dynamic template name warning was added
+      test_runner_features: ["allowed_warnings", "warnings"]
+
+  - do:
+      allowed_warnings:
+        - "index template [test-dup-dynamic-templates] has index patterns [test-dup-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-dup-dynamic-templates] will take precedence during new index creation"
+      warnings:
+        - "Dynamic template [my_template] in template [test-dup-dynamic-templates] is defined more than once. It is not defined which of the duplicate definitions takes effect. Defining multiple dynamic templates with the same name will be rejected in a future version."
+      indices.put_index_template:
+        name: test-dup-dynamic-templates
+        body:
+          index_patterns: test-dup-*
+          template:
+            mappings:
+              dynamic_templates:
+                - my_template:
+                    match: "foo_*"
+                    mapping:
+                      type: keyword
+                - my_template:
+                    match: "bar_*"
+                    mapping:
+                      type: text
+
+  - do:
+      indices.delete_index_template:
+        name: test-dup-dynamic-templates

@@ -1,0 +1,2 @@
+TS "k8s-downsampled"
+| WHERE @timestamp == "2024-05-09T23:30:00.000Z"

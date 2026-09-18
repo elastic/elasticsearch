@@ -399,3 +399,16 @@
             _source: false
           dest:
             index: dest
+
+---
+"op_type create with external version_type fails":
+  - do:
+      catch: /create operations only support internal versioning/
+      reindex:
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+            op_type: create
+            version_type: external

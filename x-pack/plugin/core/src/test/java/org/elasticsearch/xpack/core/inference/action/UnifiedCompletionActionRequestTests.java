@@ -7,35 +7,57 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
+import org.elasticsearch.inference.completion.UnifiedCompletionUtils;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED;
-import static org.elasticsearch.test.BWCVersions.DEFAULT_BWC_VERSIONS;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.hamcrest.Matchers.is;
 
 public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializationTestCase<UnifiedCompletionAction.Request> {
 
     private static final TransportVersion INFERENCE_CONTEXT = TransportVersion.fromName("inference_context");
 
+    public void testConstructor_WithNullTimeout_UsesPlaceholder() {
+        var request = new UnifiedCompletionAction.Request(
+            randomAlphaOfLength(8),
+            TaskType.COMPLETION,
+            UnifiedCompletionRequest.streaming(UnifiedCompletionRequestBody.of(null)),
+            null
+        );
+        assertThat(request.getTimeout(), is(TIMEOUT_NOT_DETERMINED));
+    }
+
+    public void testConstructor_WithNonNullTimeout_UsesTimeout() {
+        var timeout = randomTimeValue();
+        var request = new UnifiedCompletionAction.Request(
+            randomAlphaOfLength(8),
+            TaskType.COMPLETION,
+            UnifiedCompletionRequest.streaming(UnifiedCompletionRequestBody.of(null)),
+            timeout
+        );
+        assertThat(request.getTimeout(), is(timeout));
+    }
+
     public void testValidation_ReturnsException_When_UnifiedCompletionRequestMessage_Is_Null() {
         var request = new UnifiedCompletionAction.Request(
             "inference_id",
             TaskType.COMPLETION,
-            UnifiedCompletionRequest.of(null),
+            UnifiedCompletionRequest.streaming(UnifiedCompletionRequestBody.of(null)),
             TimeValue.timeValueSeconds(10)
         );
         var exception = request.validate();
@@ -46,7 +68,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
         var request = new UnifiedCompletionAction.Request(
             "inference_id",
             TaskType.COMPLETION,
-            UnifiedCompletionRequest.of(List.of()),
+            UnifiedCompletionRequest.streaming(UnifiedCompletionRequestBody.of(List.of())),
             TimeValue.timeValueSeconds(10)
         );
         var exception = request.validate();
@@ -57,7 +79,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
         var request = new UnifiedCompletionAction.Request(
             "inference_id",
             TaskType.SPARSE_EMBEDDING,
-            UnifiedCompletionRequest.of(List.of(UnifiedCompletionRequestTests.randomMessage())),
+            UnifiedCompletionRequest.streaming(UnifiedCompletionRequestBody.of(List.of(UnifiedCompletionRequestBodyTests.randomMessage()))),
             TimeValue.timeValueSeconds(10)
         );
         var exception = request.validate();
@@ -68,7 +90,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
         var request = new UnifiedCompletionAction.Request(
             "inference_id",
             TaskType.ANY,
-            UnifiedCompletionRequest.of(List.of(UnifiedCompletionRequestTests.randomMessage())),
+            UnifiedCompletionRequest.streaming(UnifiedCompletionRequestBody.of(List.of(UnifiedCompletionRequestBodyTests.randomMessage()))),
             TimeValue.timeValueSeconds(10)
         );
         assertNull(request.validate());
@@ -80,48 +102,44 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
         if (version.supports(INFERENCE_CONTEXT) == false) {
             context = InferenceContext.EMPTY_INSTANCE;
         }
+
+        var timeout = instance.getTimeout();
+        if (version.supports(INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED) == false) {
+            if (timeout.equals(TIMEOUT_NOT_DETERMINED)) {
+                timeout = BaseInferenceActionRequest.OLD_DEFAULT_TIMEOUT;
+            }
+        }
+
         return new UnifiedCompletionAction.Request(
             instance.getInferenceEntityId(),
             instance.getTaskType(),
-            UnifiedCompletionRequestTests.mutateInstanceForTransportVersion(instance.getUnifiedCompletionRequest(), version),
+            new UnifiedCompletionRequest(
+                UnifiedCompletionRequestBodyTests.mutateInstanceForTransportVersion(instance.getUnifiedCompletionRequest().body(), version),
+                instance.isStreaming()
+            ),
             context,
-            instance.getTimeout()
+            timeout
         );
     }
 
-    // Versions before MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED throw an exception when serializing non-text content
-    // Those are tested in testMultimodalContentIsNotBackwardsCompatible
+    /**
+     * Versions before {@link UnifiedCompletionUtils#MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED} throw an exception when serializing
+     * non-text content, so we filter those out of the bwc versions to avoid test failures.
+     * The logic is tested directly by {@link #testMultimodalContentIsNotBackwardsCompatible}
+     */
     @Override
     protected Collection<TransportVersion> bwcVersions() {
         return super.bwcVersions().stream().filter(version -> version.supports(MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED)).toList();
     }
 
     public void testMultimodalContentIsNotBackwardsCompatible() throws IOException {
-        var unsupportedVersions = DEFAULT_BWC_VERSIONS.stream()
-            .filter(Predicate.not(version -> version.supports(MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED)))
-            .toList();
-        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
-            var testInstance = createTestInstance();
-            for (var unsupportedVersion : unsupportedVersions) {
-                if (testInstance.getUnifiedCompletionRequest().containsMultimodalContent()) {
-                    var statusException = assertThrows(
-                        ElasticsearchStatusException.class,
-                        () -> copyWriteable(testInstance, getNamedWriteableRegistry(), instanceReader(), unsupportedVersion)
-                    );
-                    assertThat(statusException.status(), is(RestStatus.BAD_REQUEST));
-                    assertThat(
-                        statusException.getMessage(),
-                        is(
-                            "Cannot send a multimodal chat completion request to an older node. "
-                                + "Please wait until all nodes are upgraded before using multimodal chat completion inputs"
-                        )
-                    );
-                } else {
-                    // If the instance doesn't contain multimodal content, assert that it can still be serialized
-                    assertBwcSerialization(testInstance, unsupportedVersion);
-                }
-            }
-        }
+        testSerializationIsNotBackwardsCompatible(
+            MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED,
+            i -> i.getUnifiedCompletionRequest().body().containsMultimodalContent(),
+            """
+                Cannot send a multimodal chat completion request to an older node. \
+                Please wait until all nodes are upgraded before using multimodal chat completion inputs"""
+        );
     }
 
     @Override
@@ -134,28 +152,35 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
         return new UnifiedCompletionAction.Request(
             randomAlphaOfLength(10),
             randomFrom(TaskType.values()),
-            UnifiedCompletionRequestTests.randomUnifiedCompletionRequest(),
+            UnifiedCompletionRequestTests.createRandom(),
             new InferenceContext(randomAlphaOfLength(10)),
-            TimeValue.timeValueMillis(randomLongBetween(1, 2048))
+            randomFrom(randomTimeValue(), null)
         );
     }
 
     @Override
     protected UnifiedCompletionAction.Request mutateInstance(UnifiedCompletionAction.Request instance) throws IOException {
-        String inferenceEntityId = instance.getInferenceEntityId();
-        TaskType taskType = instance.getTaskType();
-        UnifiedCompletionRequest unifiedCompletionRequest = instance.getUnifiedCompletionRequest();
-        InferenceContext inferenceContext = instance.getContext();
-        TimeValue timeout = instance.getTimeout();
+        var inferenceEntityId = instance.getInferenceEntityId();
+        var taskType = instance.getTaskType();
+        var unifiedCompletionRequest = instance.getUnifiedCompletionRequest();
+        var inferenceContext = instance.getContext();
+        var timeout = instance.getTimeout();
         switch (between(0, 4)) {
             case 0 -> inferenceEntityId = randomValueOtherThan(inferenceEntityId, () -> randomAlphaOfLength(10));
             case 1 -> taskType = randomValueOtherThan(taskType, () -> randomFrom(TaskType.values()));
             case 2 -> unifiedCompletionRequest = randomValueOtherThan(
                 unifiedCompletionRequest,
-                UnifiedCompletionRequestTests::randomUnifiedCompletionRequest
+                UnifiedCompletionRequestTests::createRandom
             );
             case 3 -> inferenceContext = randomValueOtherThan(inferenceContext, () -> new InferenceContext(randomAlphaOfLength(10)));
-            case 4 -> timeout = randomValueOtherThan(timeout, () -> TimeValue.timeValueMillis(randomLongBetween(1, 2048)));
+            case 4 -> {
+                if (timeout.equals(TIMEOUT_NOT_DETERMINED)) {
+                    // Using null as timeout will translate it internally to TIMEOUT_NOT_DETERMINED, which would not mutate the instance
+                    timeout = randomValueOtherThan(timeout, ESTestCase::randomTimeValue);
+                } else {
+                    timeout = randomValueOtherThan(timeout, () -> randomFrom(randomTimeValue(), null));
+                }
+            }
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new UnifiedCompletionAction.Request(inferenceEntityId, taskType, unifiedCompletionRequest, inferenceContext, timeout);
@@ -163,6 +188,6 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(UnifiedCompletionRequest.getNamedWriteables());
+        return new NamedWriteableRegistry(UnifiedCompletionRequestBody.getNamedWriteables());
     }
 }

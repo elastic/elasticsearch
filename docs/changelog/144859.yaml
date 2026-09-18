@@ -1,6 +1,0 @@
-area: CAT APIs
-issues: []
-pr: 144859
-summary: Fix `ArrayIndexOutOfBoundsException` in cat nodes for partial load average
-  arrays
-type: bug

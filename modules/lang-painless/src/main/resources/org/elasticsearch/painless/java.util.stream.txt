@@ -34,12 +34,12 @@ class java.util.stream.Collector {
 }
 
 class java.util.stream.DoubleStream {
-  boolean allMatch(DoublePredicate)
-  boolean anyMatch(DoublePredicate)
+  boolean org.elasticsearch.painless.api.Augmentation allMatch(DoublePredicate) @script_aware
+  boolean org.elasticsearch.painless.api.Augmentation anyMatch(DoublePredicate) @script_aware
   OptionalDouble average()
   Stream boxed()
   DoubleStream.Builder builder()
-  def collect(Supplier,ObjDoubleConsumer,BiConsumer)
+  def org.elasticsearch.painless.api.Augmentation collect(Supplier,ObjDoubleConsumer,BiConsumer) @script_aware
   DoubleStream concat(DoubleStream,DoubleStream)
   long count()
   DoubleStream distinct()
@@ -48,8 +48,8 @@ class java.util.stream.DoubleStream {
   OptionalDouble findAny()
   OptionalDouble findFirst()
   DoubleStream flatMap(DoubleFunction)
-  void forEach(DoubleConsumer)
-  void forEachOrdered(DoubleConsumer)
+  void org.elasticsearch.painless.api.Augmentation forEach(DoubleConsumer) @script_aware
+  void org.elasticsearch.painless.api.Augmentation forEachOrdered(DoubleConsumer) @script_aware
   PrimitiveIterator.OfDouble iterator()
   DoubleStream limit(long)
   DoubleStream map(DoubleUnaryOperator)
@@ -58,11 +58,11 @@ class java.util.stream.DoubleStream {
   Stream mapToObj(DoubleFunction)
   OptionalDouble max()
   OptionalDouble min()
-  boolean noneMatch(DoublePredicate)
+  boolean org.elasticsearch.painless.api.Augmentation noneMatch(DoublePredicate) @script_aware
   DoubleStream of(double[])
   DoubleStream peek(DoubleConsumer)
-  OptionalDouble reduce(DoubleBinaryOperator)
-  double reduce(double,DoubleBinaryOperator)
+  OptionalDouble org.elasticsearch.painless.api.Augmentation reduce(DoubleBinaryOperator) @script_aware
+  double org.elasticsearch.painless.api.Augmentation reduce(double,DoubleBinaryOperator) @script_aware
   DoubleStream sequential()
   DoubleStream skip(long)
   DoubleStream sorted()
@@ -78,14 +78,14 @@ class java.util.stream.DoubleStream$Builder {
 }
 
 class java.util.stream.IntStream {
-  boolean allMatch(IntPredicate)
-  boolean anyMatch(IntPredicate)
+  boolean org.elasticsearch.painless.api.Augmentation allMatch(IntPredicate) @script_aware
+  boolean org.elasticsearch.painless.api.Augmentation anyMatch(IntPredicate) @script_aware
   DoubleStream asDoubleStream()
   LongStream asLongStream()
   OptionalDouble average()
   Stream boxed()
   IntStream.Builder builder()
-  def collect(Supplier,ObjIntConsumer,BiConsumer)
+  def org.elasticsearch.painless.api.Augmentation collect(Supplier,ObjIntConsumer,BiConsumer) @script_aware
   IntStream concat(IntStream,IntStream)
   long count()
   IntStream distinct()
@@ -94,8 +94,8 @@ class java.util.stream.IntStream {
   OptionalInt findAny()
   OptionalInt findFirst()
   IntStream flatMap(IntFunction)
-  void forEach(IntConsumer)
-  void forEachOrdered(IntConsumer)
+  void org.elasticsearch.painless.api.Augmentation forEach(IntConsumer) @script_aware
+  void org.elasticsearch.painless.api.Augmentation forEachOrdered(IntConsumer) @script_aware
   PrimitiveIterator.OfInt iterator()
   IntStream limit(long)
   IntStream map(IntUnaryOperator)
@@ -104,13 +104,13 @@ class java.util.stream.IntStream {
   Stream mapToObj(IntFunction)
   OptionalInt max()
   OptionalInt min()
-  boolean noneMatch(IntPredicate)
+  boolean org.elasticsearch.painless.api.Augmentation noneMatch(IntPredicate) @script_aware
   IntStream of(int[])
   IntStream peek(IntConsumer)
   IntStream range(int,int)
   IntStream rangeClosed(int,int)
-  OptionalInt reduce(IntBinaryOperator)
-  int reduce(int,IntBinaryOperator)
+  OptionalInt org.elasticsearch.painless.api.Augmentation reduce(IntBinaryOperator) @script_aware
+  int org.elasticsearch.painless.api.Augmentation reduce(int,IntBinaryOperator) @script_aware
   IntStream sequential()
   IntStream skip(long)
   IntStream sorted()
@@ -126,13 +126,13 @@ class java.util.stream.IntStream$Builder {
 }
 
 class java.util.stream.LongStream {
-  boolean allMatch(LongPredicate)
-  boolean anyMatch(LongPredicate)
+  boolean org.elasticsearch.painless.api.Augmentation allMatch(LongPredicate) @script_aware
+  boolean org.elasticsearch.painless.api.Augmentation anyMatch(LongPredicate) @script_aware
   DoubleStream asDoubleStream()
   OptionalDouble average()
   Stream boxed()
   LongStream.Builder builder()
-  def collect(Supplier,ObjLongConsumer,BiConsumer)
+  def org.elasticsearch.painless.api.Augmentation collect(Supplier,ObjLongConsumer,BiConsumer) @script_aware
   LongStream concat(LongStream,LongStream)
   long count()
   LongStream distinct()
@@ -141,8 +141,8 @@ class java.util.stream.LongStream {
   OptionalLong findAny()
   OptionalLong findFirst()
   LongStream flatMap(LongFunction)
-  void forEach(LongConsumer)
-  void forEachOrdered(LongConsumer)
+  void org.elasticsearch.painless.api.Augmentation forEach(LongConsumer) @script_aware
+  void org.elasticsearch.painless.api.Augmentation forEachOrdered(LongConsumer) @script_aware
   PrimitiveIterator.OfLong iterator()
   LongStream limit(long)
   LongStream map(LongUnaryOperator)
@@ -151,13 +151,13 @@ class java.util.stream.LongStream {
   Stream mapToObj(LongFunction)
   OptionalLong max()
   OptionalLong min()
-  boolean noneMatch(LongPredicate)
+  boolean org.elasticsearch.painless.api.Augmentation noneMatch(LongPredicate) @script_aware
   LongStream of(long[])
   LongStream peek(LongConsumer)
   LongStream range(long,long)
   LongStream rangeClosed(long,long)
-  OptionalLong reduce(LongBinaryOperator)
-  long reduce(long,LongBinaryOperator)
+  OptionalLong org.elasticsearch.painless.api.Augmentation reduce(LongBinaryOperator) @script_aware
+  long org.elasticsearch.painless.api.Augmentation reduce(long,LongBinaryOperator) @script_aware
   LongStream sequential()
   LongStream skip(long)
   LongStream sorted()
@@ -173,11 +173,11 @@ class java.util.stream.LongStream$Builder {
 }
 
 class java.util.stream.Stream {
-  boolean allMatch(Predicate)
-  boolean anyMatch(Predicate)
+  boolean org.elasticsearch.painless.api.Augmentation allMatch(Predicate) @script_aware
+  boolean org.elasticsearch.painless.api.Augmentation anyMatch(Predicate) @script_aware
   Stream.Builder builder()
-  def collect(Collector)
-  def collect(Supplier,BiConsumer,BiConsumer)
+  def org.elasticsearch.painless.api.Augmentation collect(Collector) @script_aware
+  def org.elasticsearch.painless.api.Augmentation collect(Supplier,BiConsumer,BiConsumer) @script_aware
   Stream concat(Stream,Stream)
   long count()
   Stream distinct()
@@ -189,8 +189,8 @@ class java.util.stream.Stream {
   DoubleStream flatMapToDouble(Function)
   IntStream flatMapToInt(Function)
   LongStream flatMapToLong(Function)
-  void forEach(Consumer)
-  void forEachOrdered(Consumer)
+  void org.elasticsearch.painless.api.Augmentation forEach(Consumer) @script_aware
+  void org.elasticsearch.painless.api.Augmentation forEachOrdered(Consumer) @script_aware
   Stream limit(long)
   Stream map(Function)
   DoubleStream mapToDouble(ToDoubleFunction)
@@ -198,12 +198,12 @@ class java.util.stream.Stream {
   LongStream mapToLong(ToLongFunction)
   Optional max(Comparator)
   Optional min(Comparator)
-  boolean noneMatch(Predicate)
+  boolean org.elasticsearch.painless.api.Augmentation noneMatch(Predicate) @script_aware
   Stream of(def[])
   Stream peek(Consumer)
-  Optional reduce(BinaryOperator)
-  def reduce(def,BinaryOperator)
-  def reduce(def,BiFunction,BinaryOperator)
+  Optional org.elasticsearch.painless.api.Augmentation reduce(BinaryOperator) @script_aware
+  def org.elasticsearch.painless.api.Augmentation reduce(def,BinaryOperator) @script_aware
+  def org.elasticsearch.painless.api.Augmentation reduce(def,BiFunction,BinaryOperator) @script_aware
   Stream skip(long)
   Stream sorted()
   Stream sorted(Comparator)

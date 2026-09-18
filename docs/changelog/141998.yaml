@@ -1,5 +1,0 @@
-area: Snapshot/Restore
-issues: []
-pr: 141998
-summary: Batching of snapshot-delete start updates
-type: enhancement

@@ -1,0 +1,3 @@
+TS k8s
+| WHERE cluster IN (FROM employees | KEEP first_name)
+| STATS max_rate = max(rate(network.total_bytes_in)) BY cluster

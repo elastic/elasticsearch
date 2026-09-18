@@ -151,12 +151,12 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
  *     check if the function is being applied to a {@link FieldAttribute} and do something
  *     like:
  * </p>
- * <pre>{@code
+ * {@snippet lang="java" :
  *         if (field instanceof FieldAttribute f && f.dataType() == DataType.KEYWORD) {
  *             return new PushedBlockLoaderExpression(f, BlockLoaderFunctionConfig.Function.WHATEVER);
  *         }
  *         return null;
- * }</pre>
+ * }
  * <p>
  *     The rules system will check {@link MappedFieldType#supportsBlockLoaderConfig} for you.
  *     See the docs for {@link #tryPushToFieldLoading} for more on how to implement it.

@@ -40,8 +40,9 @@ public class RestScheduleNowTransformAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String id = restRequest.param(TransformField.ID.getPreferredName());
         TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
+        boolean defer = restRequest.paramAsBoolean(TransformField.DEFER.getPreferredName(), false);
 
-        ScheduleNowTransformAction.Request request = ScheduleNowTransformAction.Request.fromXContent(id, timeout);
+        var request = new ScheduleNowTransformAction.Request(id, timeout, defer);
 
         return channel -> client.execute(ScheduleNowTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

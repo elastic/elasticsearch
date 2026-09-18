@@ -15,14 +15,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRerankRequest;
 import org.elasticsearch.xpack.inference.services.azureaistudio.rerank.AzureAiStudioRerankModel;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
-public class AzureAiStudioRerankRequest extends AzureAiStudioRequest {
+public class AzureAiStudioRerankRequest extends AzureAiStudioRequest implements OutboundRerankRequest {
     private final String query;
     private final List<String> input;
     private final Boolean returnDocuments;
@@ -58,7 +59,7 @@ public class AzureAiStudioRerankRequest extends AzureAiStudioRequest {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         // Not applicable for rerank, only used in text embedding requests
         return this;
     }

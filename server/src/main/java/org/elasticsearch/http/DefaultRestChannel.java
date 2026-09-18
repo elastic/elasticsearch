@@ -27,8 +27,9 @@ import org.elasticsearch.rest.LoggingChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +48,11 @@ public class DefaultRestChannel extends AbstractRestChannel {
     static final String CONTENT_TYPE = "content-type";
     static final String CONTENT_LENGTH = "content-length";
     static final String SET_COOKIE = "set-cookie";
+    /**
+     * Response header carrying this node's {@code cluster.name}, emitted only when
+     * {@link HttpTransportSettings#SETTING_HTTP_CLUSTER_NAME_HEADER_ENABLED} is enabled.
+     */
+    static final String CLUSTER_NAME_HEADER = "Elastic-Cluster-Name";
 
     private final HttpRequest httpRequest;
     private final Recycler<BytesRef> recycler;
@@ -54,7 +60,7 @@ public class DefaultRestChannel extends AbstractRestChannel {
     private final ThreadContext threadContext;
     private final HttpChannel httpChannel;
     private final CorsHandler corsHandler;
-    private final Tracer tracer;
+    private final HttpServerInstrumentation instrumentation;
 
     @Nullable
     private final HttpTracer httpLogger;
@@ -68,7 +74,7 @@ public class DefaultRestChannel extends AbstractRestChannel {
         ThreadContext threadContext,
         CorsHandler corsHandler,
         @Nullable HttpTracer httpLogger,
-        Tracer tracer
+        HttpServerInstrumentation instrumentation
     ) {
         super(request, settings.detailedErrorsEnabled());
         this.httpChannel = httpChannel;
@@ -78,7 +84,7 @@ public class DefaultRestChannel extends AbstractRestChannel {
         this.threadContext = threadContext;
         this.corsHandler = corsHandler;
         this.httpLogger = httpLogger;
-        this.tracer = tracer;
+        this.instrumentation = instrumentation;
     }
 
     @Override
@@ -95,7 +101,7 @@ public class DefaultRestChannel extends AbstractRestChannel {
         if (HttpUtils.shouldCloseConnection(httpRequest)) {
             toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
         }
-        toClose.add(() -> tracer.stopTrace(request));
+        toClose.add(() -> instrumentation.end(request, restResponse));
         toClose.add(restResponse);
 
         boolean success = false;
@@ -158,6 +164,17 @@ public class DefaultRestChannel extends AbstractRestChannel {
             addCustomHeaders(httpResponse, restResponse.getHeaders());
             addCustomHeaders(httpResponse, restResponse.filterHeaders(threadContext.getResponseHeaders()));
 
+            HttpUtils.addDateHeader(httpResponse, Instant.now());
+
+            // Optionally surface the cluster name so clients (e.g. telemetry agents) can capture it without an extra
+            // request, mirroring the X-Found-Handling-Cluster header added by the Elastic Cloud proxy. It is withheld
+            // from unauthenticated responses so the cluster name is not disclosed to callers that failed authentication.
+            if (settings.clusterNameHeaderValue() != null
+                && restResponse.status() != RestStatus.UNAUTHORIZED
+                && restResponse.status() != RestStatus.FORBIDDEN) {
+                setHeaderField(httpResponse, CLUSTER_NAME_HEADER, settings.clusterNameHeaderValue());
+            }
+
             // If our response doesn't specify a content-type header, set one
             setHeaderField(httpResponse, CONTENT_TYPE, restResponse.contentType(), false);
             if (restResponse.isChunked() == false) {
@@ -169,10 +186,6 @@ public class DefaultRestChannel extends AbstractRestChannel {
             }
 
             addCookies(httpResponse);
-
-            tracer.setAttribute(request, "http.status_code", restResponse.status().getStatus());
-            restResponse.getHeaders()
-                .forEach((key, values) -> tracer.setAttribute(request, "http.response.headers." + key, String.join("; ", values)));
 
             ActionListener<Void> listener = ActionListener.releasing(Releasables.wrap(toClose));
             if (httpLogger != null) {

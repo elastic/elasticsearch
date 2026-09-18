@@ -1,0 +1,5 @@
+area: Infra/Scripting
+issues: []
+pr: 153299
+summary: Add Painless allocation annotations for String and collection allocators
+type: enhancement

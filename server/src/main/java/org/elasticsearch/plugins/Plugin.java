@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.FeatureService;
@@ -34,6 +35,8 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.iplocation.api.IpLocationService;
+import org.elasticsearch.persistent.PersistentTaskLifecycleManager;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
@@ -45,6 +48,7 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.RemoteTransportClient;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -216,6 +220,20 @@ public abstract class Plugin implements Closeable {
 
         /** A service to determine whether Cross-Project Search applies to a request */
         CrossProjectModeDecider crossProjectModeDecider();
+
+        /// Manages the lifecycle of persistent tasks controlled by a [Setting].
+        /// Plugins can register cluster-scoped or project-scoped tasks here so that the master node automatically
+        /// reconciles the task's presence in the cluster state on every cluster state update.
+        PersistentTaskLifecycleManager taskLifecycleManager();
+
+        /** A utility for recording lifecycle errors for data stream lifecycles */
+        DataStreamLifecycleErrorStore dlmErrorStore();
+
+        /** The IP location service for IP-geolocation database lookups and lifecycle management */
+        IpLocationService ipLocationService();
+
+        /** The usage service for tracking cluster and endpoint usage statistics */
+        UsageService usageService();
     }
 
     /**

@@ -11,6 +11,7 @@ package org.elasticsearch.search.fetch;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -56,6 +57,15 @@ public final class ScrollQueryFetchSearchResult extends SearchPhaseResult {
     @Override
     public FetchSearchResult fetchResult() {
         return result.fetchResult();
+    }
+
+    public void setDirectoryMetrics(DirectoryMetrics directoryMetrics) {
+        result.setDirectoryMetrics(directoryMetrics);
+    }
+
+    @Override
+    public DirectoryMetrics getDirectoryMetrics() {
+        return result.getDirectoryMetrics();
     }
 
     @Override

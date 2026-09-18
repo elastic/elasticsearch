@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
+import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -29,9 +30,13 @@ public class MergeReaderWrapper extends FlatVectorsReader {
     private final FlatVectorsReader mergeReader;
 
     public MergeReaderWrapper(FlatVectorsReader mainReader, FlatVectorsReader mergeReader) {
-        super(mainReader.getFlatVectorScorer());
         this.mainReader = mainReader;
         this.mergeReader = mergeReader;
+    }
+
+    @Override
+    public FlatVectorsScorer getFlatVectorScorer(String field) throws IOException {
+        return mainReader.getFlatVectorScorer(field);
     }
 
     @Override
@@ -70,8 +75,13 @@ public class MergeReaderWrapper extends FlatVectorsReader {
     }
 
     @Override
-    public FlatVectorsReader getMergeInstance() {
-        return mergeReader;
+    public FlatVectorsReader getMergeInstance() throws IOException {
+        return mergeReader.getMergeInstance();
+    }
+
+    @Override
+    public void finishMerge() throws IOException {
+        mergeReader.finishMerge();
     }
 
     @Override

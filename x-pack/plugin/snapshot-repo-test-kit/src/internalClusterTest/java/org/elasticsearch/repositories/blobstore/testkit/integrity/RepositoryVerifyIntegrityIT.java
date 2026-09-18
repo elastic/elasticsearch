@@ -7,8 +7,8 @@
 
 package org.elasticsearch.repositories.blobstore.testkit.integrity;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -659,7 +659,7 @@ public class RepositoryVerifyIntegrityIT extends AbstractSnapshotIntegTestCase {
                                 snapshotFiles.indexFiles(),
                                 new BlobStoreIndexShardSnapshot.FileInfo(
                                     "extra",
-                                    new StoreFileMetadata("extra", 1L, "checksum", Version.CURRENT.toString()),
+                                    new StoreFileMetadata("extra", 1L, "checksum", Build.current().version()),
                                     ByteSizeValue.ONE
                                 )
                             ),

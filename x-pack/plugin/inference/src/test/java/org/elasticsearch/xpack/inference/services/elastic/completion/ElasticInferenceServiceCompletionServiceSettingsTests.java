@@ -103,7 +103,7 @@ public class ElasticInferenceServiceCompletionServiceSettingsTests extends Abstr
     public void testFromMap_MissingModelId_ThrowsException() {
         ValidationException validationException = expectThrows(
             ValidationException.class,
-            () -> ElasticInferenceServiceCompletionServiceSettings.fromMap(new HashMap<>(Map.of()), ConfigurationParseContext.REQUEST)
+            () -> ElasticInferenceServiceCompletionServiceSettings.fromMap(new HashMap<>(), ConfigurationParseContext.REQUEST)
         );
 
         assertThat(validationException.getMessage(), containsString("does not contain the required setting [model_id]"));

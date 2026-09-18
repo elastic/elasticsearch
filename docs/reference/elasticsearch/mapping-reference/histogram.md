@@ -42,6 +42,10 @@ Because the data is not indexed, you only can use `histogram` fields for the fol
 * [range](/reference/aggregations/search-aggregations-bucket-range-aggregation.md#search-aggregations-bucket-range-aggregation-histogram-fields) aggregation
 * [exists](/reference/query-languages/query-dsl/query-dsl-exists-query.md) query
 
+### Query histogram fields in ES|QL
+
+In ES|QL, `histogram` fields that contain T-Digest data can be queried by casting to `tdigest` or `exponential_histogram`. HDR histogram data is not supported. Refer to [](/reference/query-languages/esql/esql-histogram-fields.md) for details.
+
 
 ## Building a histogram [mapping-types-histogram-building-histogram]
 
@@ -113,8 +117,7 @@ PUT my-index-000001/_doc/2
 
 ## Coercion from exponential histogram [histogram-coercion]
 ```{applies_to}
-stack: preview 9.3
-serverless: preview
+stack: preview 9.3, ga 9.4.0
 ```
 
 To facilitate transitions and mixed inputs, `histogram` fields support coercion from the `exponential_histogram` field structure. When `coerce` is enabled (default), you can provide an exponential histogram payload and Elasticsearch will convert it to the `histogram` field's internal T-Digest representation during indexing.

@@ -1,0 +1,5 @@
+SET unmapped_fields="load"; FROM (FROM apps_short, partial_mapping_sample_data | KEEP id),
+     (FROM apps_short, partial_mapping_sample_data | KEEP id)
+| KEEP id
+| SORT id NULLS LAST
+| LIMIT 5

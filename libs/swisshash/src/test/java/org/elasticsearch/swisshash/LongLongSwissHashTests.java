@@ -12,6 +12,7 @@ package org.elasticsearch.swisshash;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -41,9 +42,9 @@ public class LongLongSwissHashTests extends ESTestCase {
             params.add(new Object[] { addType, "tiny", 5, 0, 1, 1 });
             params.add(new Object[] { addType, "small", LongLongSwissHash.INITIAL_CAPACITY / 2, 0, 1, 1 });
             params.add(new Object[] { addType, "two key pages", PageCacheRecycler.PAGE_SIZE_IN_BYTES / (Long.BYTES * 2), 1, 2, 1 });
-            params.add(new Object[] { addType, "two id pages", PageCacheRecycler.PAGE_SIZE_IN_BYTES / Integer.BYTES, 3, 8, 2 });
-            params.add(new Object[] { addType, "many", PageCacheRecycler.PAGE_SIZE_IN_BYTES, 5, 32, 8 });
-            params.add(new Object[] { addType, "huge", 100_000, 7, 128, 32 });
+            params.add(new Object[] { addType, "two id pages", PageCacheRecycler.PAGE_SIZE_IN_BYTES / Integer.BYTES, 3, 7, 4 });
+            params.add(new Object[] { addType, "many", PageCacheRecycler.PAGE_SIZE_IN_BYTES, 5, 28, 16 });
+            params.add(new Object[] { addType, "huge", 100_000, 7, 112, 64 });
         }
         return params;
     }
@@ -108,7 +109,6 @@ public class LongLongSwissHashTests extends ESTestCase {
                 assertThat(hash.find(v1[i], v2[i]), equalTo((long) i));
             }
             assertThat(hash.size(), equalTo((long) v1.length));
-            // TODOassertThat(hash.find(randomValueOtherThanMany(values::contains, ESTestCase::randomLong)), equalTo(-1L));
 
             assertStatus(hash);
             assertThat("Only currently used pages are open", recycler.open, hasSize(expectedKeyPageCount + expectedIdPageCount));
@@ -291,6 +291,44 @@ public class LongLongSwissHashTests extends ESTestCase {
                 total++;
             }
             assertThat(total, equalTo(count));
+        }
+    }
+
+    public void testBulkAdd() {
+        TestRecycler recycler = new TestRecycler();
+        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        TriFunction<LongLongSwissHash, long[], long[], int[]> addKeys = (hash, k1s, k2s) -> {
+            final int[] ids = new int[k1s.length];
+            if (hash.supportBulkAdd() && randomBoolean()) {
+                hash.bulkAdd(k1s, k2s, ids, ids.length);
+            } else {
+                for (int i = 0; i < k1s.length; i++) {
+                    long id = hash.add(k1s[i], k2s[i]);
+                    ids[i] = Math.toIntExact(id >= 0 ? id : -1 - id);
+                }
+            }
+            return ids;
+        };
+        try (
+            var hash1 = new LongLongSwissHash(recycler, breaker, randomIntBetween(1, 4096));
+            var hash2 = new LongLongSwissHash(recycler, breaker, randomIntBetween(1, 4096))
+        ) {
+            int numBlocks = randomIntBetween(1, 10_000);
+            for (int i = 0; i < numBlocks; i++) {
+                final int positions = between(1, 2048);
+                final long[] keys1 = new long[positions];
+                boolean collisions = randomBoolean();
+                for (int v = 0; v < positions; v++) {
+                    keys1[v] = collisions ? randomLongBetween(-100, 100) : randomLong();
+                }
+                final long[] keys2 = new long[positions];
+                for (int v = 0; v < positions; v++) {
+                    keys2[v] = randomLongBetween(0, 100);
+                }
+                var id1s = addKeys.apply(hash1, keys1, keys2);
+                var id2s = addKeys.apply(hash2, keys1, keys2);
+                assertArrayEquals(id1s, id2s);
+            }
         }
     }
 

@@ -1,0 +1,19 @@
+ProjectExec[[message{f}#0, mapped_on_data_node{f(PotentiallyUnmappedKeywordEsField)}#1]]
+\_LimitExec[1000[INTEGER],null]
+  \_ExchangeExec[[message{f}#0, mapped_on_data_node{f(PotentiallyUnmappedKeywordEsField)}#1],false]
+    \_ProjectExec[[message{f}#0, mapped_on_data_node{f}#1]]
+      \_FieldExtractExec[[message{f}#0, mapped_on_data_node{f}#1]<[],[],[]>,_doc{f}#2]
+        \_EsQueryExec[sample_data], indexMode[standard], [_doc{f}#2], limit[1000], sort[] estimatedRowSize[104] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "mapped_on_data_node",
+    "next" : {
+      "term" : {
+        "mapped_on_data_node" : {
+          "value" : "Disconnection error",
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "mapped_on_data_node == \"Disconnection error\"@3:9"
+  }
+}, tags=[]]]]

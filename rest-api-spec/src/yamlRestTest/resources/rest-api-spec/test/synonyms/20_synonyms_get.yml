@@ -144,3 +144,101 @@ setup:
           id: "test-id-2"
         - synonyms: "work, hard"
           id: "test-id-3"
+
+---
+"Cursor-based pagination with search_after":
+  - requires:
+      cluster_features: [ synonyms.get.search_after ]
+      reason: "cursor-based pagination via search_after requires synonyms.get.search_after"
+
+  # First page: size=2, no search_after
+  - do:
+      synonyms.get_synonym:
+        id: test-get-synonyms
+        size: 2
+
+  - match: { count: 3 }
+  - length: { synonyms_set: 2 }
+  - match: { synonyms_set.0.id: "test-id-1" }
+  - match: { synonyms_set.1.id: "test-id-2" }
+  - set: { synonyms_set.1.id: cursor }
+
+  # Second page: resume with search_after — returns last rule
+  - do:
+      synonyms.get_synonym:
+        id: test-get-synonyms
+        size: 2
+        search_after: $cursor
+
+  - match: { count: 3 }
+  - length: { synonyms_set: 1 }
+  - match: { synonyms_set.0.id: "test-id-3" }
+
+---
+"search_after on first page with exact page size returns cursor":
+  - requires:
+      cluster_features: [ synonyms.get.search_after ]
+      reason: "cursor-based pagination via search_after requires synonyms.get.search_after"
+
+  # Request exactly all 3 rules in one page — client uses last id as cursor
+  - do:
+      synonyms.get_synonym:
+        id: test-get-synonyms
+        size: 3
+
+  - match: { count: 3 }
+  - length: { synonyms_set: 3 }
+  - set: { synonyms_set.2.id: cursor }
+
+  # Following the cursor returns an empty page
+  - do:
+      synonyms.get_synonym:
+        id: test-get-synonyms
+        size: 3
+        search_after: $cursor
+
+  - match: { count: 3 }
+  - length: { synonyms_set: 0 }
+
+---
+"search_after on empty synonym set returns empty page":
+  - requires:
+      cluster_features: [ synonyms.get.search_after ]
+      reason: "cursor-based pagination via search_after requires synonyms.get.search_after"
+
+  - do:
+      synonyms.put_synonym:
+        id: empty-synonym-set
+        body:
+          synonyms_set: []
+
+  - do:
+      synonyms.get_synonym:
+        id: empty-synonym-set
+
+  - match: { count: 0 }
+  - length: { synonyms_set: 0 }
+
+---
+"from and search_after cannot be combined":
+  - requires:
+      cluster_features: [ synonyms.get.search_after ]
+      reason: "cursor-based pagination via search_after requires synonyms.get.search_after"
+
+  - do:
+      catch: bad_request
+      synonyms.get_synonym:
+        id: test-get-synonyms
+        from: 1
+        search_after: "test-id-1"
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "[from] and [search_after] cannot be used together" }
+
+  - do:
+      catch: bad_request
+      synonyms.get_synonym:
+        id: test-get-synonyms
+        from: 0
+        search_after: "test-id-1"
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "[from] and [search_after] cannot be used together" }

@@ -24,11 +24,11 @@ import java.io.IOException;
  */
 public interface PartitionedDocValues {
     /**
+     * @param numPartitions the actual number of prefixes available in the partition
      * @param prefixes the prefix keys
      * @param startDocs the startDocs of corresponding prefix keys
-     * @param numPartitions the actual number of prefixes available in the partition
      */
-    record PrefixPartitions(int[] prefixes, int[] startDocs, int numPartitions) {
+    record PrefixPartitions(int numPartitions, int[] prefixes, int[] startDocs) {
 
     }
 

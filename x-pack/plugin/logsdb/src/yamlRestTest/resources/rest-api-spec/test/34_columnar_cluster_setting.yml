@@ -1,0 +1,80 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "columnar.enabled_setting" ]
+      reason: "columnar index modes and the cluster.columnar.enabled setting are required"
+
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster.columnar.enabled: null
+
+---
+"cluster.columnar.enabled disables creation of new columnar indices without affecting existing ones":
+  - do:
+      indices.create:
+        index: test_columnar_preexisting
+        body:
+          settings:
+            index.mode: columnar
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster.columnar.enabled: false
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_columnar_disabled
+        body:
+          settings:
+            index.mode: columnar
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_logsdb_columnar_disabled
+        body:
+          settings:
+            index.mode: logsdb_columnar
+
+  # The pre-existing columnar index keeps working while creation is disabled.
+  - do:
+      index:
+        index: test_columnar_preexisting
+        refresh: true
+        body:
+          message: "still going"
+
+  - do:
+      indices.get_settings:
+        index: test_columnar_preexisting
+  - match: { test_columnar_preexisting.settings.index.mode: "columnar" }
+
+  # Flipping the setting back on is picked up dynamically, without a restart.
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster.columnar.enabled: true
+
+  - do:
+      indices.create:
+        index: test_columnar_reenabled
+        body:
+          settings:
+            index.mode: columnar
+
+  - do:
+      indices.get_settings:
+        index: test_columnar_reenabled
+  - match: { test_columnar_reenabled.settings.index.mode: "columnar" }

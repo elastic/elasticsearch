@@ -6,61 +6,155 @@
  */
 package org.elasticsearch.xpack.esql.datasource.s3;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 
-import java.util.Locale;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Set;
+
+import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition.plaintext;
+import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition.secret;
 
 /**
  * Configuration for S3 access including credentials and endpoint settings.
+ * <p>
+ * The {@code auth} setting selects the mode explicitly — {@code auto}, {@code anonymous},
+ * {@code static_credentials}, {@code federated_identity}, or {@code managed_identity}. When omitted it defaults to
+ * {@code auto}, which infers the mode from the fields present. Supported modes:
+ * <ul>
+ *   <li>{@code auth=static_credentials} — access_key + secret_key (optionally session_token for STS temporary credentials)</li>
+ *   <li>{@code auth=federated_identity} workload-identity federation via {@code role_arn} (and optionally
+ *       {@code jwt_audience}, {@code role_session_name} and {@code sts_endpoint})</li>
+ *   <li>{@code auth=anonymous} — anonymous access to public buckets</li>
+ *   <li>{@code auth=managed_identity} — the node's instance credentials via the IMDS-family chain
+ *       (ECS task role, then EC2 instance profile). Requires the
+ *       {@code esql.external.managed_identity.enabled} cluster setting.</li>
+ * </ul>
  */
-public class S3Configuration {
+public class S3Configuration extends FileDataSourceConfiguration {
 
-    private final String accessKey;
-    private final String secretKey;
-    private final String endpoint;
-    private final String region;
-    private final String auth;
+    private static final DataSourceConfigDefinition ACCESS_KEY = secret("access_key");
+    private static final DataSourceConfigDefinition SECRET_KEY = secret("secret_key");
+    private static final DataSourceConfigDefinition SESSION_TOKEN = secret("session_token");
+    private static final DataSourceConfigDefinition ENDPOINT = plaintext("endpoint");
+    private static final DataSourceConfigDefinition REGION = plaintext("region");
+    private static final DataSourceConfigDefinition ADDRESSING_STYLE = plaintext("addressing_style").asCaseInsensitive();
+    private static final DataSourceConfigDefinition ROLE_ARN = plaintext("role_arn").asFederatedAuth();
+    private static final DataSourceConfigDefinition ROLE_SESSION_NAME = plaintext("role_session_name").asFederatedAuth();
+    private static final DataSourceConfigDefinition JWT_AUDIENCE = plaintext("jwt_audience").asFederatedAuth();
+    private static final DataSourceConfigDefinition STS_ENDPOINT = plaintext("sts_endpoint").asFederatedAuth();
+    private static final DataSourceConfigDefinition STS_REGION = plaintext("sts_region").asFederatedAuth();
 
-    private S3Configuration(String accessKey, String secretKey, String endpoint, String region, String auth) {
-        this.accessKey = accessKey;
-        this.secretKey = secretKey;
-        this.endpoint = endpoint;
-        this.region = region;
-        this.auth = auth != null ? auth.toLowerCase(Locale.ROOT) : null;
-        validate();
+    /** Typed resolved form of the {@code addressing_style} setting, for provider-side switching. */
+    public enum AddressingStyleMode {
+        /** Path-style when an endpoint override is set; SDK default (virtual-hosted) otherwise. */
+        AUTO("auto"),
+        /** Always path-style. */
+        PATH("path"),
+        /** SDK decides; bare-IP endpoints fall back to path-style. */
+        VIRTUAL_HOSTED("virtual_hosted");
+
+        private final String wireValue;
+
+        AddressingStyleMode(String wireValue) {
+            this.wireValue = wireValue;
+        }
+
+        /** Returns the mode for {@code value}, or {@code null} if the value is not recognised. */
+        static AddressingStyleMode fromWireValue(String value) {
+            for (AddressingStyleMode mode : values()) {
+                if (mode.wireValue.equals(value)) {
+                    return mode;
+                }
+            }
+            return null;
+        }
+
+        /** Accepted wire values in declaration order, for use in error messages. */
+        static List<String> canonicalValues() {
+            return Arrays.stream(values()).map(m -> m.wireValue).toList();
+        }
     }
 
-    private void validate() {
-        if (auth != null && "none".equals(auth) == false) {
-            throw new IllegalArgumentException("Unsupported auth value [" + auth + "]; supported values: [none]");
+    // Fields accepted on a data-source PUT. region is kept here for backward-compat storage;
+    // the storage provider never reads a data-source-level region (DatasetRewriter.mergeSettings
+    // removes it from the _datasource contribution before query time).
+    private static final Map<String, DataSourceConfigDefinition> DATA_SOURCE_FIELDS = DataSourceConfigDefinition.mapOf(
+        ACCESS_KEY,
+        SECRET_KEY,
+        SESSION_TOKEN,
+        ENDPOINT,
+        REGION,
+        ADDRESSING_STYLE,
+        ROLE_ARN,
+        ROLE_SESSION_NAME,
+        JWT_AUDIENCE,
+        STS_ENDPOINT,
+        STS_REGION,
+        AUTH
+    );
+
+    // Fields consumed at query time. Same set for now; can diverge if region is eventually
+    // retired from the data-source vocabulary (see elastic/esql-planning#1747 step 7).
+    private static final Map<String, DataSourceConfigDefinition> QUERY_FIELDS = DATA_SOURCE_FIELDS;
+
+    private S3Configuration(Map<String, Object> raw) {
+        super(raw, DATA_SOURCE_FIELDS);
+    }
+
+    private S3Configuration(Map<String, Object> raw, Set<String> preexistingSecretKeys) {
+        super(raw, DATA_SOURCE_FIELDS, preexistingSecretKeys);
+    }
+
+    @Override
+    protected void validateCredentials(ValidationException errors) {
+        // role_session_name, sts_endpoint, and jwt_audience are optional; role_arn is the minimum
+        // needed to mint an OIDC token and exchange it for credentials via STS AssumeRoleWithWebIdentity.
+        if (hasFederatedAuth()) {
+            if (roleArn() == null) {
+                errors.addValidationError("role_arn is required when federated authentication settings are configured");
+            }
         }
-        if (isAnonymous() && (accessKey != null || secretKey != null)) {
-            throw new IllegalArgumentException(
-                "auth=none cannot be combined with access_key/secret_key; anonymous access uses no credentials"
+    }
+
+    @Override
+    protected void validateSettings(ValidationException errors) {
+        String style = addressingStyle();
+        if (style != null && AddressingStyleMode.fromWireValue(style) == null) {
+            errors.addValidationError(
+                "Unsupported addressing_style value ["
+                    + style
+                    + "]; supported values: ["
+                    + String.join(", ", AddressingStyleMode.canonicalValues())
+                    + "]"
             );
         }
+        DataSourceValidationUtils.validateHttpUrl(endpoint(), ENDPOINT.name(), errors);
+        DataSourceValidationUtils.validateHttpUrl(stsEndpoint(), STS_ENDPOINT.name(), errors);
     }
 
-    public static S3Configuration fromParams(Map<String, Expression> params) {
-        if (params == null || params.isEmpty()) {
-            return null;
-        }
+    public static S3Configuration fromMap(Map<String, Object> raw) {
+        return raw == null || raw.isEmpty() ? null : new S3Configuration(raw);
+    }
 
-        String accessKey = extractStringParam(params, "access_key");
-        String secretKey = extractStringParam(params, "secret_key");
-        String endpoint = extractStringParam(params, "endpoint");
-        String region = extractStringParam(params, "region");
-        String auth = extractStringParam(params, "auth");
+    public static S3Configuration fromMap(Map<String, Object> raw, Set<String> preexistingSecretKeys) {
+        return raw == null || raw.isEmpty() ? null : new S3Configuration(raw, preexistingSecretKeys);
+    }
 
-        if (accessKey == null && secretKey == null && endpoint == null && region == null && auth == null) {
-            return null;
-        }
-
-        return new S3Configuration(accessKey, secretKey, endpoint, region, auth);
+    /**
+     * Lenient factory for query-time configuration maps, which may carry format-level options
+     * (e.g. {@code header_row}) alongside storage-level options. Filters unknown keys
+     * before construction; cross-field validation (auth/credential conflicts) and the endpoint
+     * URL check (which accepts everything the query path accepts, see
+     * {@link DataSourceValidationUtils#validateHttpUrl}) still run.
+     */
+    public static Configured<S3Configuration> fromQueryConfig(Map<String, Object> raw) {
+        return filterAndConstruct(raw, QUERY_FIELDS, S3Configuration::new);
     }
 
     public static S3Configuration fromFields(String accessKey, String secretKey, String endpoint, String region) {
@@ -68,70 +162,149 @@ public class S3Configuration {
     }
 
     public static S3Configuration fromFields(String accessKey, String secretKey, String endpoint, String region, String auth) {
-        if (accessKey == null && secretKey == null && endpoint == null && region == null && auth == null) {
-            return null;
-        }
-        return new S3Configuration(accessKey, secretKey, endpoint, region, auth);
+        return fromFields(accessKey, secretKey, null, endpoint, region, auth);
     }
 
-    private static String extractStringParam(Map<String, Expression> params, String key) {
-        Expression expr = params.get(key);
-        if (expr instanceof org.elasticsearch.xpack.esql.core.expression.Literal literal) {
-            Object value = literal.value();
-            if (value instanceof BytesRef bytesRef) {
-                return BytesRefs.toString(bytesRef);
-            }
-            return value != null ? value.toString() : null;
-        }
-        return null;
+    public static S3Configuration fromFields(
+        String accessKey,
+        String secretKey,
+        String sessionToken,
+        String endpoint,
+        String region,
+        String auth
+    ) {
+        var raw = buildRawMap(
+            ACCESS_KEY,
+            accessKey,
+            SECRET_KEY,
+            secretKey,
+            SESSION_TOKEN,
+            sessionToken,
+            ENDPOINT,
+            endpoint,
+            REGION,
+            region,
+            AUTH,
+            auth
+        );
+        return raw != null ? fromMap(raw) : null;
+    }
+
+    /**
+     * Builds a federated workload-identity configuration. {@code roleSessionName}, {@code stsEndpoint}, and
+     * {@code stsRegion} are optional.
+     */
+    public static S3Configuration fromFederatedFields(
+        String roleArn,
+        String roleSessionName,
+        String jwtAudience,
+        String stsEndpoint,
+        String stsRegion,
+        String endpoint,
+        String region
+    ) {
+        var raw = buildRawMap(
+            ROLE_ARN,
+            roleArn,
+            ROLE_SESSION_NAME,
+            roleSessionName,
+            JWT_AUDIENCE,
+            jwtAudience,
+            STS_ENDPOINT,
+            stsEndpoint,
+            STS_REGION,
+            stsRegion,
+            ENDPOINT,
+            endpoint,
+            REGION,
+            region
+        );
+        return raw != null ? fromMap(raw) : null;
     }
 
     public String accessKey() {
-        return accessKey;
+        return get(ACCESS_KEY.name());
     }
 
     public String secretKey() {
-        return secretKey;
+        return get(SECRET_KEY.name());
+    }
+
+    public String sessionToken() {
+        return get(SESSION_TOKEN.name());
     }
 
     public String endpoint() {
-        return endpoint;
+        return get(ENDPOINT.name());
     }
 
     public String region() {
-        return region;
+        return get(REGION.name());
     }
 
-    public String auth() {
-        return auth;
+    /**
+     * The raw {@code addressing_style} string, or {@code null} when absent. Prefer
+     * {@link #resolveAddressingStyle()} in provider code that switches on the result.
+     */
+    public String addressingStyle() {
+        return get(ADDRESSING_STYLE.name());
     }
 
-    public boolean isAnonymous() {
-        return "none".equals(auth);
+    /**
+     * Resolves the {@code addressing_style} setting to a typed enum for provider-side switching.
+     * Both absent ({@code null}) and the explicit value {@code "auto"} map to {@link AddressingStyleMode#AUTO}.
+     */
+    public AddressingStyleMode resolveAddressingStyle() {
+        String style = addressingStyle();
+        if (style == null) {
+            return AddressingStyleMode.AUTO;
+        }
+        AddressingStyleMode mode = AddressingStyleMode.fromWireValue(style);
+        return mode != null ? mode : AddressingStyleMode.AUTO;
     }
 
+    /** The IAM role ARN to assume via STS {@code AssumeRoleWithWebIdentity} on the federated auth path. */
+    public String roleArn() {
+        return get(ROLE_ARN.name());
+    }
+
+    /** Optional session name for the assumed-role session; a default is used when absent. */
+    public String roleSessionName() {
+        return get(ROLE_SESSION_NAME.name());
+    }
+
+    /** Optional override for audience passed to the workload-identity issuer when minting the OIDC token
+     *  presented to STS; defaults to {@code sts.amazonaws.com}. */
+    public String jwtAudience() {
+        return get(JWT_AUDIENCE.name());
+    }
+
+    /** Optional STS endpoint override (e.g. a regional endpoint or test fixture); defaults to the SDK resolution. */
+    public String stsEndpoint() {
+        return get(STS_ENDPOINT.name());
+    }
+
+    /**
+     * Optional region for the STS client, independent of the dataset {@link #region()}. STS uses regional endpoints
+     * ({@code sts.<region>.amazonaws.com}), so this allows assuming the role through a different region than the
+     * dataset. When unset, the dataset region is used (which also keeps STS in the dataset's AWS partition).
+     */
+    public String stsRegion() {
+        return get(STS_REGION.name());
+    }
+
+    @Override
     public boolean hasCredentials() {
-        return accessKey != null && secretKey != null;
+        return hasStoredSecret(ACCESS_KEY.name()) && hasStoredSecret(SECRET_KEY.name());
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        S3Configuration that = (S3Configuration) o;
-        return Objects.equals(accessKey, that.accessKey)
-            && Objects.equals(secretKey, that.secretKey)
-            && Objects.equals(endpoint, that.endpoint)
-            && Objects.equals(region, that.region)
-            && Objects.equals(auth, that.auth);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(accessKey, secretKey, endpoint, region, auth);
+    public String unresolvedAuthMessage() {
+        return "S3 data source requires credentials: set access_key and secret_key "
+            + "(optionally session_token for STS temporary credentials); "
+            + "set auth=anonymous for public buckets; "
+            + "set auth=managed_identity to use the node's instance role "
+            + "(requires the esql.external.managed_identity.enabled cluster setting); "
+            + "or configure federated authentication with role_arn";
     }
 }

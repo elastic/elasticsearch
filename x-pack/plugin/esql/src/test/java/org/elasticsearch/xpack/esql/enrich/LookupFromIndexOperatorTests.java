@@ -531,7 +531,10 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         var totalInputRows = input.stream().mapToInt(Page::getPositionCount).sum();
         var totalOutputRows = output.stream().mapToInt(Page::getPositionCount).sum();
 
-        return mapMatcher.entry("total_rows", totalInputRows).entry("pages_emitted", output.size()).entry("rows_emitted", totalOutputRows);
+        return mapMatcher.entry("total_rows", totalInputRows)
+            .entry("pages_emitted", output.size())
+            .entry("rows_emitted", totalOutputRows)
+            .entry("bytes_read", greaterThanOrEqualTo(0));
     }
 
     @Override

@@ -9,7 +9,8 @@
 
 package org.elasticsearch.logstashbridge.geoip;
 
-import org.elasticsearch.ingest.geoip.GeoIpProcessor;
+import org.elasticsearch.ingest.geoip.IpLocationServiceAdapter;
+import org.elasticsearch.ingest.iplocation.GeoIpProcessor;
 import org.elasticsearch.logstashbridge.ingest.ProcessorFactoryBridge;
 
 /**
@@ -22,6 +23,6 @@ public final class GeoIpProcessorFactoryBridge extends ProcessorFactoryBridge.Pr
     }
 
     GeoIpProcessorFactoryBridge(final IpDatabaseProviderBridge ipDatabaseProviderBridge) {
-        super(new GeoIpProcessor.Factory("geoip", ipDatabaseProviderBridge.toInternal()));
+        super(new GeoIpProcessor.Factory("geoip", IpLocationServiceAdapter.fromDatabaseProvider(ipDatabaseProviderBridge.toInternal())));
     }
 }

@@ -36,6 +36,12 @@ public final class ProcessUtils {
 
     private ProcessUtils() {}
 
+    /**
+     * The result of a captured tool process execution, containing the exit code and all lines
+     * written to stderr by the process.
+     */
+    public record Result(int exitCode, List<String> stderr) {}
+
     public static Process exec(Path workingDir, Path executable, Map<String, String> environment, boolean inheritIO, String... args) {
         return exec(null, workingDir, executable, environment, inheritIO, args);
     }
@@ -94,6 +100,74 @@ public final class ProcessUtils {
         }
 
         return process;
+    }
+
+    /**
+     * Executes a short-lived tool process and captures all stderr output for diagnostic purposes.
+     * Standard output is logged asynchronously via the process logger. This method blocks until
+     * the process exits and its entire stderr stream has been drained, so the returned
+     * {@link Result#stderr()} list is guaranteed to be complete on return.
+     *
+     * @param input      optional text to write to the process's stdin, or {@code null}
+     * @param workingDir the working directory for the process
+     * @param executable the executable to run
+     * @param environment the explicit environment for the process (parent environment is cleared)
+     * @param args       additional command-line arguments
+     * @return a {@link Result} with the process exit code and all captured stderr lines
+     * @throws InterruptedException if the current thread is interrupted while waiting
+     */
+    public static Result execAndCapture(String input, Path workingDir, Path executable, Map<String, String> environment, String... args)
+        throws InterruptedException {
+        if (Files.exists(executable) == false) {
+            throw new IllegalArgumentException("Can't run executable: `" + executable + "` does not exist.");
+        }
+
+        ProcessBuilder processBuilder = new ProcessBuilder();
+        List<String> command = new ArrayList<>();
+        command.addAll(
+            OS.conditional(
+                c -> c.onWindows(() -> List.of("cmd", "/c", workingDir.relativize(executable).toString()))
+                    .onUnix(() -> List.of(workingDir.relativize(executable).toString()))
+            )
+        );
+        command.addAll(Arrays.asList(args));
+
+        processBuilder.command(command);
+        processBuilder.directory(workingDir.toFile());
+        processBuilder.environment().clear();
+        processBuilder.environment().putAll(environment);
+
+        Process process;
+        List<String> stderrLines = new ArrayList<>();
+        Thread stderrThread;
+        try {
+            process = processBuilder.start();
+
+            // Drain stdout asynchronously — we do not need to capture it.
+            startLoggingThread(process.getInputStream(), PROCESS_LOGGER::info, executable.getFileName().toString());
+
+            // Drain stderr asynchronously while also collecting every line so that
+            // callers can include the output in diagnostic error messages.
+            stderrThread = startLoggingThread(process.getErrorStream(), line -> {
+                PROCESS_LOGGER.error(line);
+                stderrLines.add(line);
+            }, executable.getFileName().toString());
+
+            if (input != null) {
+                try (BufferedWriter writer = process.outputWriter()) {
+                    writer.write(input);
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("Error executing process: " + executable.getFileName(), e);
+        }
+
+        int exit = process.waitFor();
+        // Join the stderr thread so that all lines are guaranteed to be in stderrLines
+        // before we return the Result to the caller.
+        stderrThread.join();
+
+        return new Result(exit, List.copyOf(stderrLines));
     }
 
     public static void stopHandle(ProcessHandle processHandle, boolean forcibly) {
@@ -158,8 +232,8 @@ public final class ProcessUtils {
         }
     }
 
-    private static void startLoggingThread(InputStream is, Consumer<String> logAppender, String name) {
-        new Thread(() -> {
+    private static Thread startLoggingThread(InputStream is, Consumer<String> logAppender, String name) {
+        Thread thread = new Thread(() -> {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
@@ -168,6 +242,8 @@ public final class ProcessUtils {
             } catch (IOException e) {
                 throw new UncheckedIOException("Error reading output from process.", e);
             }
-        }, name + "-log-forwarder").start();
+        }, name + "-log-forwarder");
+        thread.start();
+        return thread;
     }
 }

@@ -38,6 +38,50 @@ public class TsidBuilderTests extends ESTestCase {
         return IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG);
     }
 
+    /**
+     * A builder reused via {@link TsidBuilder#reset()} — as {@code DimensionsExtractor} does on the
+     * batch path — must produce exactly what a fresh builder would, since state carried across builds
+     * (the hasher, and the multi-byte layout's value-similarity staging buffer) outlives a single
+     * build. The second shape is array-valued, so its dimension count exceeds the number of
+     * value-similarity bytes it emits and the backing array is deliberately larger than the returned
+     * slice.
+     */
+    public void testReusedBuilderMatchesFreshBuilder() {
+        for (IndexVersion version : List.of(randomMultiplePrefixBytesVersion(), randomSinglePrefixByteVersion())) {
+            TsidBuilder reused = TsidBuilder.newBuilder();
+
+            // Fills every value-similarity slot: 5 distinct paths against a cap of 4.
+            BytesRef first = addDistinctPaths(reused).buildTsid(version);
+            assertThat(first, equalTo(addDistinctPaths(TsidBuilder.newBuilder()).buildTsid(version)));
+
+            // 5 dimensions collapsing onto 1 path, so only one value-similarity byte is emitted.
+            reused.reset();
+            BytesRef second = addRepeatedPath(reused).buildTsid(version);
+            assertThat(second, equalTo(addRepeatedPath(TsidBuilder.newBuilder()).buildTsid(version)));
+            assertThat(second, not(equalTo(first)));
+
+            // And back again, so the shrink/grow transition is covered in both directions.
+            reused.reset();
+            assertThat(addDistinctPaths(reused).buildTsid(version), equalTo(first));
+        }
+    }
+
+    private static TsidBuilder addDistinctPaths(TsidBuilder builder) {
+        return builder.addStringDimension("a", "1")
+            .addStringDimension("b", "2")
+            .addStringDimension("c", "3")
+            .addStringDimension("d", "4")
+            .addStringDimension("e", "5");
+    }
+
+    private static TsidBuilder addRepeatedPath(TsidBuilder builder) {
+        return builder.addStringDimension("a", "1")
+            .addStringDimension("a", "2")
+            .addStringDimension("a", "3")
+            .addStringDimension("a", "4")
+            .addStringDimension("a", "5");
+    }
+
     public void testAddDimensions() {
         TsidBuilder builder = TsidBuilder.newBuilder()
             .addStringDimension("test_string", "hello")
@@ -57,8 +101,9 @@ public class TsidBuilderTests extends ESTestCase {
             HexFormat.of().formatHex(legacyTsid.bytes, legacyTsid.offset, legacyTsid.length),
             equalTo("bfa0a8d66356d2151e7889e42b7a295d065613ded4")
         );
-        BytesRef newTsid = builder.buildTsid(randomSinglePrefixByteVersion());
-        if (TsidBuilder.SINGLE_PREFIX_BYTE_ENABLED) {
+        IndexVersion newVersion = randomSinglePrefixByteVersion();
+        BytesRef newTsid = builder.buildTsid(newVersion);
+        if (TsidBuilder.useSingleBytePrefixLayout(newVersion)) {
             assertThat(
                 HexFormat.of().formatHex(newTsid.bytes, newTsid.offset, newTsid.length),
                 equalTo("bfd2151e7889e42b7a295d065613ded4")
@@ -76,10 +121,11 @@ public class TsidBuilderTests extends ESTestCase {
             builder.addStringDimension("_test_large_array", "value_" + i);
         }
         assertThat(builder.buildTsid(randomMultiplePrefixBytesVersion()).length, equalTo(19));
-        if (TsidBuilder.SINGLE_PREFIX_BYTE_ENABLED) {
-            assertThat(builder.buildTsid(randomSinglePrefixByteVersion()).length, equalTo(16));
+        IndexVersion singleVersion = randomSinglePrefixByteVersion();
+        if (TsidBuilder.useSingleBytePrefixLayout(singleVersion)) {
+            assertThat(builder.buildTsid(singleVersion).length, equalTo(16));
         } else {
-            assertThat(builder.buildTsid(randomSinglePrefixByteVersion()).length, equalTo(19));
+            assertThat(builder.buildTsid(singleVersion).length, equalTo(19));
         }
     }
 
@@ -172,12 +218,13 @@ public class TsidBuilderTests extends ESTestCase {
             .addStringDimension("test_array", "value1")
             .addStringDimension("test_array", "value2");
         BytesRef oldTsid = builder.buildTsid(randomMultiplePrefixBytesVersion());
-        BytesRef newTsid = builder.buildTsid(randomSinglePrefixByteVersion());
+        IndexVersion newVersion = randomSinglePrefixByteVersion();
+        BytesRef newTsid = builder.buildTsid(newVersion);
         assertThat(
             HexFormat.of().formatHex(oldTsid.bytes, oldTsid.offset, oldTsid.length),
             equalTo("01e3a0a8d693dbccd8eed09bb80b82b55d9756c7a6")
         );
-        if (TsidBuilder.SINGLE_PREFIX_BYTE_ENABLED) {
+        if (TsidBuilder.useSingleBytePrefixLayout(newVersion)) {
             assertThat(
                 HexFormat.of().formatHex(newTsid.bytes, newTsid.offset, newTsid.length),
                 equalTo("e3dbccd8eed09bb80b82b55d9756c7a6")
@@ -201,8 +248,9 @@ public class TsidBuilderTests extends ESTestCase {
             HexFormat.of().formatHex(oldTsid.bytes, oldTsid.offset, oldTsid.length),
             equalTo("afe3a0a8d67821311bea0fc3c9cbd40c8047c484aa")
         );
-        BytesRef newTsid = builder.buildTsid(randomSinglePrefixByteVersion());
-        if (TsidBuilder.SINGLE_PREFIX_BYTE_ENABLED) {
+        IndexVersion version = randomSinglePrefixByteVersion();
+        BytesRef newTsid = builder.buildTsid(version);
+        if (TsidBuilder.useSingleBytePrefixLayout(version)) {
             assertThat(
                 HexFormat.of().formatHex(newTsid.bytes, newTsid.offset, newTsid.length),
                 equalTo("e321311bea0fc3c9cbd40c8047c484aa")
@@ -211,4 +259,60 @@ public class TsidBuilderTests extends ESTestCase {
             assertThat(newTsid, equalTo(oldTsid));
         }
     }
+
+    public void testEnableSinglePrefixByte() {
+        assertTrue(TsidBuilder.useSingleBytePrefixLayout(IndexVersion.current()));
+    }
+
+    public void testPrefixByteRank() {
+        assertThat(TsidBuilder.prefixByteRank(TsidBuilder.OTEL_METRIC_FIELD), equalTo(0));
+        assertThat(TsidBuilder.prefixByteRank(TsidBuilder.PROMETHEUS_LABEL_FIELD), equalTo(1));
+        // Any ordinary path must get PREFIX_RANK_NONE, which must beat every special rank.
+        assertThat(TsidBuilder.prefixByteRank(randomAlphaOfLengthBetween(1, 20)), equalTo(TsidBuilder.PREFIX_RANK_NONE));
+        assertThat(TsidBuilder.PREFIX_RANK_NONE, greaterThan(1));
+    }
+
+    public void testSingleBytePrefixSpecialFieldUsesValueSimilarity() {
+        long h1 = randomLong();
+        long h2 = randomLong();
+        MurmurHash3.Hash128 scratch = new MurmurHash3.Hash128();
+        byte expected = TsidBuilder.similarityByte(h1, h2, scratch);
+        assertThat(TsidBuilder.singleBytePrefix(0, h1, h2, null, scratch), equalTo(expected));
+        assertThat(TsidBuilder.singleBytePrefix(1, h1, h2, null, scratch), equalTo(expected));
+    }
+
+    public void testSingleBytePrefixNameSimilarityPathUsesStreamHash() {
+        MurmurHash3.Hash128 nameSimilarityHash = new MurmurHash3.Hash128(randomLong(), randomLong());
+        MurmurHash3.Hash128 scratch = new MurmurHash3.Hash128();
+        byte expected = TsidBuilder.similarityByte(nameSimilarityHash);
+        assertThat(
+            TsidBuilder.singleBytePrefix(TsidBuilder.PREFIX_RANK_NONE, randomLong(), randomLong(), nameSimilarityHash, scratch),
+            equalTo(expected)
+        );
+    }
+
+    /**
+     * The prefix byte produced by {@code singleBytePrefix} with an OTel field's value hash must equal
+     * the first byte of the full TSID built by the row path for the same field value, confirming that
+     * the columnar prep method and {@code computeSingleBytePrefix} agree.
+     */
+    public void testSingleBytePrefixMatchesTsidPrefixByteForOtelField() {
+        String value = randomAlphaOfLengthBetween(1, 32);
+        byte[] utf8 = value.getBytes(StandardCharsets.UTF_8);
+        TsidBuilder builder = TsidBuilder.newBuilder()
+            .addStringDimension(TsidBuilder.OTEL_METRIC_FIELD, value)
+            .addLongDimension("other", randomLong());
+        BytesRef tsid = builder.buildTsid(IndexVersions.TSID_SINGLE_PREFIX_BYTE);
+
+        MurmurHash3.Hash128 valueHash = TsidBuilder.hashStringValue(utf8, 0, utf8.length, new MurmurHash3.Hash128());
+        byte prefix = TsidBuilder.singleBytePrefix(
+            TsidBuilder.prefixByteRank(TsidBuilder.OTEL_METRIC_FIELD),
+            valueHash.h1,
+            valueHash.h2,
+            null,
+            new MurmurHash3.Hash128()
+        );
+        assertThat(prefix, equalTo(tsid.bytes[tsid.offset]));
+    }
+
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -27,7 +28,7 @@ import java.util.stream.IntStream;
  * Does not take ownership of the given {@link BytesRefArray} and does not adjust circuit breakers to account for it.
  * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
-final class BytesRefArrayVector extends AbstractVector implements BytesRefVector {
+public final class BytesRefArrayVector extends AbstractVector implements BytesRefVector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArrayVector.class)
         // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
@@ -77,6 +78,16 @@ final class BytesRefArrayVector extends AbstractVector implements BytesRefVector
     }
 
     @Override
+    public PagedBytesCursor get(int position, PagedBytesCursor scratch) {
+        return values.get(position, scratch);
+    }
+
+    @Override
+    public int valueMaxByteSize() {
+        return values.valueMaxByteSize();
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.BYTES_REF;
     }
@@ -87,10 +98,11 @@ final class BytesRefArrayVector extends AbstractVector implements BytesRefVector
     }
 
     @Override
-    public BytesRefVector filter(boolean mayContainDuplicates, int... positions) {
+    public BytesRefVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         final var scratch = new BytesRef();
-        try (BytesRefVector.Builder builder = blockFactory().newBytesRefVectorBuilder(positions.length)) {
-            for (int pos : positions) {
+        try (BytesRefVector.Builder builder = blockFactory().newBytesRefVectorBuilder(length)) {
+            for (int i = offset, end = offset + length; i < end; i++) {
+                int pos = positions[i];
                 builder.appendBytesRef(values.get(pos, scratch));
             }
             return builder.build();

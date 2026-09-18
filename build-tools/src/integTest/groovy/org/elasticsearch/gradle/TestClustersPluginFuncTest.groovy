@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle
 
 import spock.lang.IgnoreIf
+import spock.lang.TempDir
 import spock.lang.Unroll
 import spock.util.environment.RestoreSystemProperties
 
@@ -26,9 +27,16 @@ import static org.elasticsearch.gradle.fixtures.JdkToolchainTestFixture.withMock
 @IgnoreIf({ os.isWindows() })
 class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
 
+    @TempDir
+    File gradleUserHome
+
+    @Override
+    protected File customGradleUserHome() {
+        return gradleUserHome
+    }
+
     def setup() {
-        // TestClusterPlugin with adding task listeners is not cc compatible
-        configurationCacheCompatible = false
+        disableConfigurationCache("TestClustersPlugin with adding task listeners is not cc compatible")
         buildFile << """
             import org.elasticsearch.gradle.testclusters.TestClustersAware
             import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
@@ -87,6 +95,33 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         assertEsOutputContains("myCluster", "Starting Elasticsearch process")
         assertEsOutputContains("myCluster", "Stopping node")
         assertNoCustomDistro('myCluster')
+    }
+
+    def "task succeeds and cluster stops via doLast when no leak is detected"() {
+        given:
+        // Guard against regressions in the new doLast stop-and-check path: the success
+        // case must stop the cluster without raising TestClustersException.
+        buildFile << """
+            testClusters {
+              myCluster {
+                testDistribution = 'default'
+              }
+            }
+
+            tasks.register('myTask', SomeClusterAwareTask) {
+                useCluster testClusters.myCluster
+            }
+        """
+
+        when:
+        def result = withMockedDistributionDownload(gradleRunner("myTask", '-i')) {
+            build()
+        }
+
+        then:
+        result.task(':myTask').outcome == org.gradle.testkit.runner.TaskOutcome.SUCCESS
+        assertEsOutputContains("myCluster", "Stopping node")
+        result.output.contains("Found resource leaks") == false
     }
 
     @Unroll

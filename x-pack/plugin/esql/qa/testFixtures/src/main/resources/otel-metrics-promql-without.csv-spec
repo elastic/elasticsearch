@@ -1,0 +1,226 @@
+// Regression tests for PromQL and ES|QL `without` on TSDB indices that use passthrough objects.
+// Covers both OTel-style (attributes.*) and Prometheus-style (labels.*) passthrough mappings.
+// Before the fix, without(cpu) was a no-op: the plan passed the short alias name "cpu" to
+// the _timeseries block loader, but the loader compared against the concrete field name
+// "attributes.cpu" / "labels.cpu" and the exclusion never matched.
+// https://github.com/elastic/elasticsearch/issues/151540
+
+
+// without(cpu) must exclude the `attributes.cpu` passthrough dimension from the
+// _timeseries series key. Before the fix, `cpu` and `state` both appeared in the key.
+without_otel_attribute_cpu_excludes_from_timeseries
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+required_capability: fix_ts_block_loader_passthrough_aliasing
+PROMQL index=otel-metrics step=1h result=(sum without (cpu) (metrics.cpu_time))
+| EVAL has_cpu = _timeseries LIKE "*cpu*"
+| KEEP result, _timeseries, has_cpu
+| SORT result;
+
+result:double | _timeseries:keyword                        | has_cpu:boolean
+3.0           | "{""attributes"":{""state"":""idle""}}"    | false
+15.0          | "{""attributes"":{""state"":""active""}}"  | false
+;
+
+
+// without(state) must exclude the `attributes.state` passthrough dimension.
+without_otel_attribute_state_excludes_from_timeseries
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+required_capability: fix_ts_block_loader_passthrough_aliasing
+PROMQL index=otel-metrics step=1h result=(sum without (state) (metrics.cpu_time))
+| EVAL has_state = _timeseries LIKE "*state*"
+| KEEP result, _timeseries, has_state
+| SORT result;
+
+result:double | _timeseries:keyword                        | has_state:boolean
+6.0           | "{""attributes"":{""cpu"":""system""}}"    | false
+12.0          | "{""attributes"":{""cpu"":""user""}}"      | false
+;
+
+
+sum_without_otel_cpu
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+required_capability: fix_ts_block_loader_passthrough_aliasing
+PROMQL index=otel-metrics step=1h result=(sum without (cpu) (metrics.cpu_time))
+| SORT result;
+
+result:double | step:datetime            | _timeseries:keyword
+3.0           | 2024-05-10T01:00:00.000Z | "{""attributes"":{""state"":""idle""}}"
+15.0          | 2024-05-10T01:00:00.000Z | "{""attributes"":{""state"":""active""}}"
+;
+
+
+sum_without_otel_state
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+required_capability: fix_ts_block_loader_passthrough_aliasing
+PROMQL index=otel-metrics step=1h result=(sum without (state) (metrics.cpu_time))
+| SORT result;
+
+result:double | step:datetime            | _timeseries:keyword
+6.0           | 2024-05-10T01:00:00.000Z | "{""attributes"":{""cpu"":""system""}}"
+12.0          | 2024-05-10T01:00:00.000Z | "{""attributes"":{""cpu"":""user""}}"
+;
+
+
+// sum by (state) is the "by" baseline equivalent to sum without (cpu).
+sum_by_state_baseline_for_without_cpu
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+required_capability: fix_ts_block_loader_passthrough_aliasing
+PROMQL index=otel-metrics step=1h result=(sum by (state) (metrics.cpu_time))
+| SORT result;
+
+result:double | step:datetime            | state:keyword
+3.0           | 2024-05-10T01:00:00.000Z | idle
+15.0          | 2024-05-10T01:00:00.000Z | active
+;
+
+
+// without(cpu) must exclude the `labels.cpu` passthrough dimension.
+without_prom_label_cpu_excludes_from_timeseries
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+required_capability: fix_ts_block_loader_passthrough_aliasing
+PROMQL index=prom-metrics step=1h result=(sum without (cpu) (metrics.cpu_time))
+| EVAL has_cpu = _timeseries LIKE "*cpu*"
+| KEEP result, _timeseries, has_cpu
+| SORT result;
+
+result:double | _timeseries:keyword                     | has_cpu:boolean
+3.0           | "{""labels"":{""state"":""idle""}}"     | false
+15.0          | "{""labels"":{""state"":""active""}}"   | false
+;
+
+
+// without(state) must exclude the `labels.state` passthrough dimension.
+without_prom_label_state_excludes_from_timeseries
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+required_capability: fix_ts_block_loader_passthrough_aliasing
+PROMQL index=prom-metrics step=1h result=(sum without (state) (metrics.cpu_time))
+| EVAL has_state = _timeseries LIKE "*state*"
+| KEEP result, _timeseries, has_state
+| SORT result;
+
+result:double | _timeseries:keyword                     | has_state:boolean
+6.0           | "{""labels"":{""cpu"":""system""}}"     | false
+12.0          | "{""labels"":{""cpu"":""user""}}"       | false
+;
+
+
+sum_without_prom_cpu
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+required_capability: fix_ts_block_loader_passthrough_aliasing
+PROMQL index=prom-metrics step=1h result=(sum without (cpu) (metrics.cpu_time))
+| SORT result;
+
+result:double | step:datetime            | _timeseries:keyword
+3.0           | 2024-05-10T01:00:00.000Z | "{""labels"":{""state"":""idle""}}"
+15.0          | 2024-05-10T01:00:00.000Z | "{""labels"":{""state"":""active""}}"
+;
+
+
+sum_without_prom_state
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+required_capability: fix_ts_block_loader_passthrough_aliasing
+PROMQL index=prom-metrics step=1h result=(sum without (state) (metrics.cpu_time))
+| SORT result;
+
+result:double | step:datetime            | _timeseries:keyword
+6.0           | 2024-05-10T01:00:00.000Z | "{""labels"":{""cpu"":""system""}}"
+12.0          | 2024-05-10T01:00:00.000Z | "{""labels"":{""cpu"":""user""}}"
+;
+
+
+sum_by_state_baseline_for_without_cpu_prom
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_without_grouping
+required_capability: fix_ts_block_loader_passthrough_aliasing
+PROMQL index=prom-metrics step=1h result=(sum by (state) (metrics.cpu_time))
+| SORT result;
+
+result:double | step:datetime            | state:keyword
+3.0           | 2024-05-10T01:00:00.000Z | idle
+15.0          | 2024-05-10T01:00:00.000Z | active
+;
+
+
+esql_without_otel_attribute_cpu
+required_capability: ts_command_v0
+required_capability: esql_without_grouping
+required_capability: fix_ts_block_loader_passthrough_aliasing
+TS otel-metrics
+| STATS result = sum(metrics.cpu_time) BY WITHOUT(cpu)
+| SORT result;
+
+result:double | _timeseries:keyword
+3.0           | "{""attributes"":{""state"":""idle""}}"
+15.0          | "{""attributes"":{""state"":""active""}}"
+;
+
+
+esql_without_otel_attribute_state
+required_capability: ts_command_v0
+required_capability: esql_without_grouping
+required_capability: fix_ts_block_loader_passthrough_aliasing
+TS otel-metrics
+| STATS result = sum(metrics.cpu_time) BY WITHOUT(state)
+| SORT result;
+
+result:double | _timeseries:keyword
+6.0           | "{""attributes"":{""cpu"":""system""}}"
+12.0          | "{""attributes"":{""cpu"":""user""}}"
+;
+
+
+esql_without_prom_label_cpu
+required_capability: ts_command_v0
+required_capability: esql_without_grouping
+required_capability: fix_ts_block_loader_passthrough_aliasing
+TS prom-metrics
+| STATS result = sum(metrics.cpu_time) BY WITHOUT(cpu)
+| SORT result;
+
+result:double | _timeseries:keyword
+3.0           | "{""labels"":{""state"":""idle""}}"
+15.0          | "{""labels"":{""state"":""active""}}"
+;
+
+
+esql_without_prom_label_state
+required_capability: ts_command_v0
+required_capability: esql_without_grouping
+required_capability: fix_ts_block_loader_passthrough_aliasing
+TS prom-metrics
+| STATS result = sum(metrics.cpu_time) BY WITHOUT(state)
+| SORT result;
+
+result:double | _timeseries:keyword
+6.0           | "{""labels"":{""cpu"":""system""}}"
+12.0          | "{""labels"":{""cpu"":""user""}}"
+;

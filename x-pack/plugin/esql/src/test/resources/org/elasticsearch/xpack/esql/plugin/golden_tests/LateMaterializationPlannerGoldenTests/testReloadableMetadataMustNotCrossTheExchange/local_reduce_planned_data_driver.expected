@@ -1,0 +1,6 @@
+ExchangeSinkExec[[_doc{f}#0, id_len{r}#1, hire_date{f}#2],false]
+\_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[_doc{f}#0, id_len{r}#1, hire_date{f}#2]]
+\_TopN[[Order[hire_date{f}#2,ASC,LAST]],5[INTEGER],false]
+  \_Eval[[LENGTH(CONCAT(_index{m}#3,_id{m}#4)) AS id_len#1]]
+    \_EsRelation[employees][_doc{f}#0, avg_worked_seconds{f}#5, birth_date{f}#6, emp_no{f}#7, first_name{f}#8, gender{f}#9, height{f}#10, height.float{f}#11, height.half_float{f}#12, height.scaled_float{f}#13, hire_date{f}#2, is_rehired{f}#14, job_positions{f}#15, languages{f}#16, languages.byte{f}#17, languages.long{f}#18, languages.short{f}#19, last_name{f}#20, salary{f}#21, salary_change{f}#22, salary_change.int{f}#23, salary_change.keyword{f}#24, salary_change.long{f}#25, still_hired{f}#26, _index{m}#3, _id{m}#4]<>]]

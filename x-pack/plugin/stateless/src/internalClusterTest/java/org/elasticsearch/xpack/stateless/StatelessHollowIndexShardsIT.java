@@ -1435,7 +1435,10 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         assertThat(getTotalLongCounterValue(HollowShardsMetrics.HOLLOW_SUCCESS_TOTAL, telemetryPluginA), equalTo(0L));
         assertThat(getTotalLongHistogramValue(HollowShardsMetrics.HOLLOW_TIME_MILLIS, telemetryPluginA), equalTo(0L));
         assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginA), equalTo(0L));
-        assertThat(getLastLongGaugeValue(HollowShardsMetrics.HOLLOWABLE_SHARDS_TOTAL, telemetryPluginA), equalTo((long) numberOfShards));
+        assertThat(
+            getLastLongAsyncGaugeValue(HollowShardsMetrics.HOLLOWABLE_SHARDS_TOTAL, telemetryPluginA),
+            equalTo((long) numberOfShards)
+        );
 
         logger.info("--> relocating {} hollowable shards from {} to {}", numberOfShards, indexNodeA, indexNodeB);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
@@ -1458,7 +1461,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         assertThat(getTotalLongCounterValue(HollowShardsMetrics.HOLLOW_SUCCESS_TOTAL, telemetryPluginA), equalTo((long) numberOfShards));
         assertThat(getTotalLongHistogramValue(HollowShardsMetrics.HOLLOW_TIME_MILLIS, telemetryPluginA), greaterThan(0L));
         assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginA), equalTo(0L));
-        assertThat(getLastLongGaugeValue(HollowShardsMetrics.HOLLOWABLE_SHARDS_TOTAL, telemetryPluginA), equalTo(0L));
+        assertThat(getLastLongAsyncGaugeValue(HollowShardsMetrics.HOLLOWABLE_SHARDS_TOTAL, telemetryPluginA), equalTo(0L));
 
         var telemetryPluginB = getTelemetryPlugin(indexNodeB);
         telemetryPluginB.collect();
@@ -1466,7 +1469,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginB),
             equalTo((long) numberOfShards)
         );
-        assertThat(getLastLongGaugeValue(HollowShardsMetrics.HOLLOWABLE_SHARDS_TOTAL, telemetryPluginA), equalTo(0L));
+        assertThat(getLastLongAsyncGaugeValue(HollowShardsMetrics.HOLLOWABLE_SHARDS_TOTAL, telemetryPluginA), equalTo(0L));
     }
 
     public void testRelocateHollowShards() throws Exception {

@@ -1269,6 +1269,11 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     }
 
     protected static long getLastLongGaugeValue(String name, TestTelemetryPlugin telemetryPlugin) {
+        List<Measurement> measurements = telemetryPlugin.getLongGaugeMeasurement(name);
+        return measurements.isEmpty() ? 0L : measurements.get(measurements.size() - 1).getLong();
+    }
+
+    protected static long getLastLongAsyncGaugeValue(String name, TestTelemetryPlugin telemetryPlugin) {
         List<Measurement> measurements = telemetryPlugin.getLongAsyncGaugeMeasurement(name);
         return measurements.isEmpty() ? 0L : measurements.get(measurements.size() - 1).getLong();
     }

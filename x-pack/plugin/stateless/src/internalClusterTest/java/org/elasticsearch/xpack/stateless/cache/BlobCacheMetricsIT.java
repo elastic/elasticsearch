@@ -266,7 +266,7 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
         final var plugin = getTestTelemetryPlugin(searchNode);
         assertBusy(() -> {
             plugin.collect();
-            final var gauge = plugin.getLongAsyncGaugeMeasurement(StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED);
+            final var gauge = plugin.getLongGaugeMeasurement(StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED);
             assertNotNull(gauge);
             assertFalse(gauge.isEmpty());
         });

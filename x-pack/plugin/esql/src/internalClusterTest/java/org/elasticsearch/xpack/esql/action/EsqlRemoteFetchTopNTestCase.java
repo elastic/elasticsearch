@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -42,6 +43,7 @@ public abstract class EsqlRemoteFetchTopNTestCase extends AbstractEsqlIntegTestC
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(EsqlFlags.ESQL_REMOTE_FETCH_TOPN.getKey(), true)
+            .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
             .build();
     }
 

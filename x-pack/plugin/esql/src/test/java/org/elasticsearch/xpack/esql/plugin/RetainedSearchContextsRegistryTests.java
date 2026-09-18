@@ -23,10 +23,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class RetainedSearchContextsRegistryTests extends ESTestCase {
+    private static final Predicate<Authentication> ALLOW_ALL = ignored -> true;
+
     private final RetainedSearchContextsRegistry registry = new RetainedSearchContextsRegistry();
 
     @After
@@ -39,11 +42,11 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
         AcquiredSearchContexts contexts = createContexts(searchContext);
 
         RetainedSearchContextsRegistry.Handle lease;
-        try (RetainedSearchContextsRegistry.Handle registration = registry.register("session-1", contexts)) {
+        try (RetainedSearchContextsRegistry.Handle registration = registry.register("session-1", contexts, null)) {
             assertTrue(registry.isRetained("session-1"));
             assertThat(registration.searchContexts().size(), equalTo(1));
 
-            lease = registry.acquire("session-1");
+            lease = registry.acquire("session-1", ALLOW_ALL);
         }
 
         assertTrue(registry.isRetained("session-1"));
@@ -62,8 +65,11 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
         SearchContext duplicateSearchContext = createSearchContext();
         AcquiredSearchContexts duplicateContexts = createContexts(duplicateSearchContext);
 
-        try (RetainedSearchContextsRegistry.Handle ignored = registry.register("session-1", contexts)) {
-            IllegalStateException e = expectThrows(IllegalStateException.class, () -> registry.register("session-1", duplicateContexts));
+        try (RetainedSearchContextsRegistry.Handle ignored = registry.register("session-1", contexts, null)) {
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> registry.register("session-1", duplicateContexts, null)
+            );
             assertEquals("search contexts already retained for session [session-1]", e.getMessage());
         }
 
@@ -73,7 +79,7 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
     }
 
     public void testAcquireUnknownSessionRejected() {
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> registry.acquire("missing"));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> registry.acquire("missing", ALLOW_ALL));
         assertEquals("no retained search contexts for session [missing]", e.getMessage());
     }
 
@@ -128,8 +134,8 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
         AcquiredSearchContexts contexts = createContexts(searchContext);
 
         RetainedSearchContextsRegistry.Handle lease;
-        try (RetainedSearchContextsRegistry.Handle ignored = registry.register("session-1", contexts)) {
-            lease = registry.acquire("session-1");
+        try (RetainedSearchContextsRegistry.Handle ignored = registry.register("session-1", contexts, null)) {
+            lease = registry.acquire("session-1", ALLOW_ALL);
         }
 
         lease.close();
@@ -142,7 +148,7 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
         SearchContext searchContext = createSearchContext();
         AcquiredSearchContexts contexts = createContexts(searchContext);
 
-        try (RetainedSearchContextsRegistry.Handle registration = registry.register("session-1", contexts)) {
+        try (RetainedSearchContextsRegistry.Handle registration = registry.register("session-1", contexts, null)) {
             assertNotNull(registration.searchContexts().get(0));
             assertFalse(searchContext.isClosed());
         }
@@ -154,10 +160,10 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
         SearchContext searchContext = createSearchContext();
         AcquiredSearchContexts contexts = createContexts(searchContext);
 
-        registry.register("session-1", contexts);
+        registry.register("session-1", contexts, null);
         assertTrue(registry.isRetained("session-1"));
 
-        registry.closeRegistration("session-1");
+        registry.closeRegistration("session-1", ALLOW_ALL);
 
         assertFalse(registry.isRetained("session-1"));
         assertThat(registry.retainedSessions(), equalTo(0));
@@ -170,9 +176,9 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
 
         RetainedSearchContextsRegistry.Handle lease1;
         RetainedSearchContextsRegistry.Handle lease2;
-        try (RetainedSearchContextsRegistry.Handle ignored = registry.register("session-1", contexts)) {
-            lease1 = registry.acquire("session-1");
-            lease2 = registry.acquire("session-1");
+        try (RetainedSearchContextsRegistry.Handle ignored = registry.register("session-1", contexts, null)) {
+            lease1 = registry.acquire("session-1", ALLOW_ALL);
+            lease2 = registry.acquire("session-1", ALLOW_ALL);
         }
 
         assertThat(registry.retainedSessions(), equalTo(1));
@@ -191,11 +197,11 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
         SearchContext searchContext = createSearchContext();
         AcquiredSearchContexts contexts = createContexts(searchContext);
 
-        RetainedSearchContextsRegistry.Handle registration = registry.register("session-1", contexts);
-        RetainedSearchContextsRegistry.Handle lease = registry.acquire("session-1");
+        RetainedSearchContextsRegistry.Handle registration = registry.register("session-1", contexts, null);
+        RetainedSearchContextsRegistry.Handle lease = registry.acquire("session-1", ALLOW_ALL);
 
         registration.close();
-        registry.closeRegistration("session-1");
+        registry.closeRegistration("session-1", ALLOW_ALL);
 
         assertFalse(searchContext.isClosed());
         assertTrue(registry.isRetained("session-1"));
@@ -208,9 +214,9 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
         SearchContext searchContext = createSearchContext();
         AcquiredSearchContexts contexts = createContexts(searchContext);
 
-        RetainedSearchContextsRegistry.Handle registration = registry.register("session-1", contexts);
+        RetainedSearchContextsRegistry.Handle registration = registry.register("session-1", contexts, null);
 
-        registry.closeRegistration("session-1");
+        registry.closeRegistration("session-1", ALLOW_ALL);
         registration.close();
 
         assertTrue(searchContext.isClosed());
@@ -220,10 +226,10 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
         SearchContext searchContext = createSearchContext();
         AcquiredSearchContexts contexts = createContexts(searchContext);
 
-        registry.register("session-1", contexts);
-        registry.closeRegistration("session-1");
+        registry.register("session-1", contexts, null);
+        registry.closeRegistration("session-1", ALLOW_ALL);
 
-        expectThrows(IllegalStateException.class, () -> registry.acquire("session-1"));
+        expectThrows(IllegalStateException.class, () -> registry.acquire("session-1", ALLOW_ALL));
         assertTrue(searchContext.isClosed());
     }
 
@@ -232,12 +238,12 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
         AcquiredSearchContexts contexts = createContexts(searchContext);
 
         RetainedSearchContextsRegistry.Handle lease;
-        try (RetainedSearchContextsRegistry.Handle ignored = registry.register("session-1", contexts)) {
-            lease = registry.acquire("session-1");
+        try (RetainedSearchContextsRegistry.Handle ignored = registry.register("session-1", contexts, null)) {
+            lease = registry.acquire("session-1", ALLOW_ALL);
         }
 
         assertFalse(searchContext.isClosed());
-        expectThrows(IllegalStateException.class, () -> registry.acquire("session-1"));
+        expectThrows(IllegalStateException.class, () -> registry.acquire("session-1", ALLOW_ALL));
 
         lease.close();
         assertTrue(searchContext.isClosed());
@@ -249,7 +255,7 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
         SearchContext searchContext = createSearchContext();
         AcquiredSearchContexts contexts = createContexts(searchContext);
 
-        RetainedSearchContextsRegistry.Handle registration = expiringRegistry.register("session-1", contexts);
+        RetainedSearchContextsRegistry.Handle registration = expiringRegistry.register("session-1", contexts, null);
         registration.finishRegistration();
         now[0] = 11L;
 
@@ -265,7 +271,7 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
         SearchContext searchContext = createSearchContext();
         AcquiredSearchContexts contexts = createContexts(searchContext);
 
-        RetainedSearchContextsRegistry.Handle registration = expiringRegistry.register("session-1", contexts);
+        RetainedSearchContextsRegistry.Handle registration = expiringRegistry.register("session-1", contexts, null);
         now[0] = 11L;
 
         expiringRegistry.expire();
@@ -285,9 +291,9 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
         SearchContext searchContext = createSearchContext();
         AcquiredSearchContexts contexts = createContexts(searchContext);
 
-        RetainedSearchContextsRegistry.Handle registration = expiringRegistry.register("session-1", contexts);
+        RetainedSearchContextsRegistry.Handle registration = expiringRegistry.register("session-1", contexts, null);
         registration.finishRegistration();
-        RetainedSearchContextsRegistry.Handle lease = expiringRegistry.acquire("session-1");
+        RetainedSearchContextsRegistry.Handle lease = expiringRegistry.acquire("session-1", ALLOW_ALL);
         now[0] = 11L;
 
         expiringRegistry.expire();
@@ -295,7 +301,7 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
         assertThat(expiringRegistry.retainedSessions(), equalTo(1));
         assertFalse(searchContext.isClosed());
 
-        RetainedSearchContextsRegistry.Handle secondLease = expiringRegistry.acquire("session-1");
+        RetainedSearchContextsRegistry.Handle secondLease = expiringRegistry.acquire("session-1", ALLOW_ALL);
         registration.close();
         secondLease.close();
         assertFalse(searchContext.isClosed());
@@ -313,18 +319,18 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
         List<String> released = new ArrayList<>();
         RemoteFetchService.RetainedSessionReleaser releaser = new RemoteFetchService.RetainedSessionReleaser((targetNode, sessionId) -> {
             released.add(targetNode.getId() + "/" + sessionId);
-            registry.closeRegistration(sessionId);
+            registry.closeRegistration(sessionId, ALLOW_ALL);
         });
 
-        try (RetainedSearchContextsRegistry.Handle registration = registry.register("session-1", contexts)) {
-            RetainedSearchContextsRegistry.Handle fetchLease = registry.acquire("session-1");
+        try (RetainedSearchContextsRegistry.Handle registration = registry.register("session-1", contexts, null)) {
+            RetainedSearchContextsRegistry.Handle fetchLease = registry.acquire("session-1", ALLOW_ALL);
             releaser.track(node, "session-1");
 
             releaser.close();
 
             assertThat(released, equalTo(List.of("node-1/session-1")));
             assertFalse(searchContext.isClosed());
-            expectThrows(IllegalStateException.class, () -> registry.acquire("session-1"));
+            expectThrows(IllegalStateException.class, () -> registry.acquire("session-1", ALLOW_ALL));
 
             fetchLease.close();
 
@@ -342,14 +348,14 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
         SearchContext searchContext = createSearchContext();
         AcquiredSearchContexts contexts = createContexts(searchContext);
 
-        RetainedSearchContextsRegistry.Handle registration = registry.register("session-1", contexts);
-        RetainedSearchContextsRegistry.Handle computeLease = registry.acquire("session-1");
+        RetainedSearchContextsRegistry.Handle registration = registry.register("session-1", contexts, null);
+        RetainedSearchContextsRegistry.Handle computeLease = registry.acquire("session-1", ALLOW_ALL);
 
         // Simulates the cancellation listener firing mid-compute.
         registration.close();
 
         assertFalse(searchContext.isClosed());
-        expectThrows(IllegalStateException.class, () -> registry.acquire("session-1"));
+        expectThrows(IllegalStateException.class, () -> registry.acquire("session-1", ALLOW_ALL));
 
         // Simulates the compute finishing and the response listener releasing its lease.
         computeLease.close();
@@ -362,10 +368,10 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
         SearchContext searchContext = createSearchContext();
         AcquiredSearchContexts contexts = createContexts(searchContext);
 
-        RetainedSearchContextsRegistry.Handle registration = registry.register("session-1", contexts);
+        RetainedSearchContextsRegistry.Handle registration = registry.register("session-1", contexts, null);
         int threads = randomIntBetween(4, 16);
         startInParallel(threads, i -> {
-            RetainedSearchContextsRegistry.Handle handle = registry.acquire("session-1");
+            RetainedSearchContextsRegistry.Handle handle = registry.acquire("session-1", ALLOW_ALL);
             handle.close();
         });
 
@@ -378,7 +384,7 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
         SearchContext searchContext = createSearchContext();
         AcquiredSearchContexts contexts = createContexts(searchContext);
 
-        RetainedSearchContextsRegistry.Handle registration = registry.register("session-1", contexts);
+        RetainedSearchContextsRegistry.Handle registration = registry.register("session-1", contexts, null);
         int acquirers = randomIntBetween(4, 16);
         CopyOnWriteArrayList<RetainedSearchContextsRegistry.Handle> acquired = new CopyOnWriteArrayList<>();
         startInParallel(acquirers + 1, i -> {
@@ -386,7 +392,7 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
                 registration.close();
             } else {
                 try {
-                    RetainedSearchContextsRegistry.Handle handle = registry.acquire("session-1");
+                    RetainedSearchContextsRegistry.Handle handle = registry.acquire("session-1", ALLOW_ALL);
                     acquired.add(handle);
                 } catch (IllegalStateException expected) {
                     // acquire after refcount reached zero
@@ -405,8 +411,8 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
         SearchContext searchContext = createSearchContext();
         AcquiredSearchContexts contexts = createContexts(searchContext);
 
-        RetainedSearchContextsRegistry.Handle registration = registry.register("session-1", contexts);
-        RetainedSearchContextsRegistry.Handle handle = registry.acquire("session-1");
+        RetainedSearchContextsRegistry.Handle registration = registry.register("session-1", contexts, null);
+        RetainedSearchContextsRegistry.Handle handle = registry.acquire("session-1", ALLOW_ALL);
 
         int threads = randomIntBetween(4, 16);
         startInParallel(threads, i -> handle.close());
@@ -420,12 +426,12 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
         SearchContext searchContext = createSearchContext();
         AcquiredSearchContexts contexts = createContexts(searchContext);
 
-        RetainedSearchContextsRegistry.Handle registration = registry.register("session-1", contexts);
+        RetainedSearchContextsRegistry.Handle registration = registry.register("session-1", contexts, null);
         startInParallel(2, i -> {
             if (i == 0) {
                 registration.close();
             } else {
-                registry.closeRegistration("session-1");
+                registry.closeRegistration("session-1", ALLOW_ALL);
             }
         });
 

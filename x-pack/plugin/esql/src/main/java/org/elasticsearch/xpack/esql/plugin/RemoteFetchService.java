@@ -53,7 +53,9 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -101,6 +103,7 @@ public final class RemoteFetchService {
     private final RetainedSearchContextsRegistry retainedSearchContexts;
     private final ExchangeServerFactory exchangeServerFactory;
     private final SecurityContext securityContext;
+    private final boolean securityEnabled;
 
     RemoteFetchService(TransportActionServices transportActionServices, BigArrays bigArrays, BlockFactory blockFactory) {
         this(
@@ -159,6 +162,7 @@ public final class RemoteFetchService {
         this.retainedSearchContexts = Objects.requireNonNull(retainedSearchContexts);
         this.exchangeServerFactory = Objects.requireNonNull(exchangeServerFactory);
         this.securityContext = Objects.requireNonNull(securityContext);
+        this.securityEnabled = XPackSettings.SECURITY_ENABLED.get(clusterService.getSettings());
         transportService.registerRequestHandler(
             RELEASE_ACTION_NAME,
             transportService.getThreadPool().executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME),
@@ -180,7 +184,13 @@ public final class RemoteFetchService {
     }
 
     RetainedSearchContextsRegistry.Handle retainSearchContexts(String sessionId, AcquiredSearchContexts searchContexts) {
-        return retainedSearchContexts.register(sessionId, searchContexts, securityContext.getAuthentication());
+        Authentication creator = securityContext.getAuthentication();
+        if (creator == null && securityEnabled) {
+            final String message = "cannot retain search contexts without an authentication";
+            assert false : message;
+            throw new IllegalStateException(message);
+        }
+        return retainedSearchContexts.register(sessionId, searchContexts, creator);
     }
 
     /**

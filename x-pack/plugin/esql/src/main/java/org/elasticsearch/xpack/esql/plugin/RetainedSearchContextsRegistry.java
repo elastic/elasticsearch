@@ -71,14 +71,11 @@ final class RetainedSearchContextsRegistry {
     /**
      * Registers the given search contexts for retention under {@code sessionId}, transferring lifecycle ownership to this registry.
      * On success, the returned {@link Handle} holds one reference; closing it (or all outstanding handles) will release the contexts.
+     * A {@code null} {@code creator} is only valid when security is disabled.
      *
      * @throws IllegalStateException if contexts are already retained for {@code sessionId}. In this case ownership is <b>not</b>
      *                               transferred — the caller remains responsible for closing {@code searchContexts}.
      */
-    Handle register(String sessionId, AcquiredSearchContexts searchContexts) {
-        return register(sessionId, searchContexts, null);
-    }
-
     Handle register(String sessionId, AcquiredSearchContexts searchContexts, @Nullable Authentication creator) {
         Entry entry = new Entry(searchContexts, creator, relativeTimeInMillis.getAsLong(), e -> entriesBySessionId.remove(sessionId, e));
         if (entriesBySessionId.putIfAbsent(sessionId, entry) != null) {
@@ -90,10 +87,6 @@ final class RetainedSearchContextsRegistry {
             entry::closeRegistration,
             () -> entry.finishRegistration(relativeTimeInMillis.getAsLong())
         );
-    }
-
-    Handle acquire(String sessionId) {
-        return acquire(sessionId, ignored -> true);
     }
 
     Handle acquire(String sessionId, Predicate<Authentication> canAccess) {
@@ -112,13 +105,6 @@ final class RetainedSearchContextsRegistry {
     boolean isRetained(String sessionId) {
         Entry entry = entriesBySessionId.get(sessionId);
         return entry != null && entry.refs.hasReferences();
-    }
-
-    void closeRegistration(String sessionId) {
-        Entry entry = entriesBySessionId.get(sessionId);
-        if (entry != null) {
-            entry.closeRegistration();
-        }
     }
 
     void closeRegistration(String sessionId, Predicate<Authentication> canAccess) {

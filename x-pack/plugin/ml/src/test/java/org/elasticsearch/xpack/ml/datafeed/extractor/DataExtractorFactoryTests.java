@@ -678,7 +678,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig,
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -703,7 +705,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig,
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -729,7 +733,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
 
         DataExtractorFactory.create(
             client,
+            cloudCredentialManager,
             datafeedConfig,
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,

@@ -141,7 +141,8 @@ public class DelayedDataDetectorFactoryTests extends ESTestCase {
             job,
             effective,
             mock(Client.class),
-            xContentRegistry()
+            xContentRegistry(),
+            mock(DataExtractorFactory.class)
         );
         assertThat(detector.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(false));
     }

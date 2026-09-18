@@ -427,7 +427,7 @@ public class DatafeedManagerTests extends ESTestCase {
             ActionListener<Boolean> listener = invocation.getArgument(2);
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
     }
 
     private static void mockGetJobWithSnapshot(JobConfigProvider jobConfigProvider, String jobId, @Nullable String snapshotId) {
@@ -553,7 +553,7 @@ public class DatafeedManagerTests extends ESTestCase {
             ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
 
         doAnswer(invocation -> {
             ActionListener<Tuple<DatafeedConfig, DocWriteResponse>> listener = (ActionListener<
@@ -630,7 +630,7 @@ public class DatafeedManagerTests extends ESTestCase {
             ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
 
         AtomicReference<Map<String, String>> capturedHeaders = new AtomicReference<>();
         doAnswer(invocation -> {
@@ -987,7 +987,7 @@ public class DatafeedManagerTests extends ESTestCase {
             ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
 
         doAnswer(invocation -> {
             ActionListener<Tuple<DatafeedConfig, DocWriteResponse>> listener = (ActionListener<
@@ -1049,7 +1049,7 @@ public class DatafeedManagerTests extends ESTestCase {
             ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
 
         doAnswer(invocation -> {
             ActionListener<Tuple<DatafeedConfig, DocWriteResponse>> listener = (ActionListener<
@@ -1111,10 +1111,10 @@ public class DatafeedManagerTests extends ESTestCase {
         }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
 
         doAnswer(invocation -> {
-            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
 
         doAnswer(invocation -> {
             ActionListener<Tuple<DatafeedConfig, DocWriteResponse>> listener = (ActionListener<
@@ -1174,10 +1174,10 @@ public class DatafeedManagerTests extends ESTestCase {
         }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
 
         doAnswer(invocation -> {
-            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
 
         doAnswer(invocation -> {
             ActionListener<Tuple<DatafeedConfig, DocWriteResponse>> listener = (ActionListener<
@@ -1249,10 +1249,10 @@ public class DatafeedManagerTests extends ESTestCase {
         DatafeedConfig updatedConfig = updatedBuilder.build();
 
         doAnswer(invocation -> {
-            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
@@ -1407,10 +1407,10 @@ public class DatafeedManagerTests extends ESTestCase {
         }).when(datafeedConfigProvider).updateDatefeedConfig(anyString(), any(), any(), any(), any());
 
         doAnswer(invocation -> {
-            ActionListener<Boolean> listener = invocation.getArgument(1);
+            ActionListener<Boolean> listener = invocation.getArgument(2);
             listener.onResponse(Boolean.TRUE);
             return null;
-        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any(), any());
 
         UpdateDatafeedAction.Request request = new UpdateDatafeedAction.Request(
             new DatafeedUpdate.Builder("test-datafeed").setQueryDelay(org.elasticsearch.core.TimeValue.timeValueSeconds(60)).build()

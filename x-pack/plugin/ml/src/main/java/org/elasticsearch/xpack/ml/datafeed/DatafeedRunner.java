@@ -16,6 +16,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -31,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.CrossClusterSearchStatsSnapshot;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -54,6 +57,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -73,6 +78,8 @@ public class DatafeedRunner {
     private final AnomalyDetectionAuditor auditor;
     // Use allocationId as key instead of datafeed id
     private final ConcurrentMap<Long, Holder> runningDatafeedsOnThisNode = new ConcurrentHashMap<>();
+    // Serializes ES|QL datafeed holder publication with setting-transition shutdown.
+    private final Object esqlDatafeedSettingLock = new Object();
     private final DatafeedJobBuilder datafeedJobBuilder;
     private final TaskRunner taskRunner = new TaskRunner();
     private final AutodetectProcessManager autodetectProcessManager;
@@ -117,23 +124,51 @@ public class DatafeedRunner {
     }
 
     public void run(TransportStartDatafeedAction.DatafeedTask task, boolean isReassignment, Consumer<Exception> finishHandler) {
+        Consumer<Exception> completionHandler = completeOnce(finishHandler);
+        AtomicReference<DatafeedConfig> datafeedConfigRef = new AtomicReference<>();
         ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(datafeedJob -> {
+            DatafeedConfig datafeedConfig = datafeedConfigRef.get();
             String jobId = datafeedJob.getJobId();
-            Holder holder = new Holder(
-                task,
-                task.getDatafeedId(),
-                datafeedJob,
-                new ProblemTracker(auditor, jobId, datafeedJob.numberOfSearchesIn24Hours()),
-                finishHandler
-            );
-            StoppedOrIsolated stoppedOrIsolated = task.executeIfNotStoppedOrIsolated(
-                () -> runningDatafeedsOnThisNode.put(task.getAllocationId(), holder)
-            );
+            ClusterState clusterState;
+            boolean esqlDatafeedDisabled;
+            StoppedOrIsolated stoppedOrIsolated = null;
+            Holder holder = null;
+            synchronized (esqlDatafeedSettingLock) {
+                clusterState = clusterService.state();
+                esqlDatafeedDisabled = isEsqlDatafeedDisabled(datafeedConfig, task, clusterState);
+                if (esqlDatafeedDisabled == false) {
+                    Holder newHolder = new Holder(
+                        task,
+                        task.getDatafeedId(),
+                        datafeedConfig,
+                        datafeedJob,
+                        new ProblemTracker(auditor, jobId, datafeedJob.numberOfSearchesIn24Hours()),
+                        completionHandler
+                    );
+                    stoppedOrIsolated = task.executeIfNotStoppedOrIsolated(
+                        () -> runningDatafeedsOnThisNode.put(task.getAllocationId(), newHolder)
+                    );
+                    holder = newHolder;
+                }
+            }
+            if (esqlDatafeedDisabled) {
+                auditEsqlDatafeedDisabled(datafeedConfig, projectId(task), clusterState);
+                datafeedJob.stop();
+                task.stop("esql_datafeeds_disabled", TimeValue.ZERO);
+                completionHandler.accept(null);
+                return;
+            }
             if (stoppedOrIsolated == StoppedOrIsolated.NEITHER) {
+                Holder runningHolder = holder;
+                if (stopEsqlDatafeedIfDisabled(runningHolder) || isDatafeedStartAllowed(runningHolder) == false) {
+                    return;
+                }
                 ActionListener<PersistentTask<?>> startedStateListener = new ActionListener<>() {
                     @Override
                     public void onResponse(PersistentTask<?> persistentTask) {
-                        taskRunner.runWhenJobIsOpened(task, jobId);
+                        if (isDatafeedStartAllowed(runningHolder)) {
+                            taskRunner.runWhenJobIsOpened(task, jobId);
+                        }
                     }
 
                     @Override
@@ -145,23 +180,21 @@ public class DatafeedRunner {
                                 task.getStoppedOrIsolated().toString().toLowerCase(Locale.ROOT)
                             );
                             runningDatafeedsOnThisNode.remove(task.getAllocationId());
-                            finishHandler.accept(null);
+                            completionHandler.accept(null);
                             return;
                         }
                         if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                             // The task was stopped in the meantime, no need to do anything
                             logger.info("[{}] Aborting as datafeed has been stopped", task.getDatafeedId());
                             runningDatafeedsOnThisNode.remove(task.getAllocationId());
-                            finishHandler.accept(null);
+                            completionHandler.accept(null);
                         } else {
-                            finishHandler.accept(e);
+                            completionHandler.accept(e);
                         }
                     }
                 };
-                if (isReassignment) {
-                    createUpdateDatafeedStateRetryableAction(task, startedStateListener).run();
-                } else {
-                    task.updatePersistentTaskState(DatafeedState.STARTED, startedStateListener);
+                if (dispatchStartedStateUpdateIfAllowed(runningHolder, task, isReassignment, startedStateListener) == false) {
+                    return;
                 }
             } else {
                 logger.info(
@@ -169,25 +202,114 @@ public class DatafeedRunner {
                     task.getDatafeedId(),
                     stoppedOrIsolated.toString().toLowerCase(Locale.ROOT)
                 );
-                finishHandler.accept(null);
+                completionHandler.accept(null);
             }
-        }, finishHandler);
+        }, completionHandler);
 
         ActionListener<DatafeedContext> datafeedContextListener = ActionListener.wrap(datafeedContext -> {
             StoppedOrIsolated stoppedOrIsolated = task.getStoppedOrIsolated();
             if (stoppedOrIsolated == StoppedOrIsolated.NEITHER) {
-                datafeedJobBuilder.build(task, datafeedContext, datafeedJobHandler);
+                datafeedConfigRef.set(datafeedContext.datafeedConfig());
+                ClusterState clusterState = clusterService.state();
+                if (isEsqlDatafeedDisabled(datafeedContext.datafeedConfig(), task, clusterState)) {
+                    auditEsqlDatafeedDisabled(datafeedContext.datafeedConfig(), projectId(task), clusterState);
+                    task.stop("esql_datafeeds_disabled", TimeValue.ZERO);
+                    completionHandler.accept(null);
+                } else {
+                    datafeedJobBuilder.build(task, datafeedContext, datafeedJobHandler);
+                }
             } else {
                 logger.info(
                     "[{}] Datafeed has been {} while building context",
                     task.getDatafeedId(),
                     stoppedOrIsolated.toString().toLowerCase(Locale.ROOT)
                 );
-                finishHandler.accept(null);
+                completionHandler.accept(null);
             }
-        }, finishHandler);
+        }, completionHandler);
 
         datafeedContextProvider.buildDatafeedContext(task.getDatafeedId(), datafeedContextListener);
+    }
+
+    private static Consumer<Exception> completeOnce(Consumer<Exception> finishHandler) {
+        AtomicBoolean completed = new AtomicBoolean();
+        return e -> {
+            if (completed.compareAndSet(false, true)) {
+                finishHandler.accept(e);
+            }
+        };
+    }
+
+    private boolean stopEsqlDatafeedIfDisabled(Holder holder) {
+        ClusterState clusterState;
+        synchronized (esqlDatafeedSettingLock) {
+            clusterState = clusterService.state();
+            if (isEsqlDatafeedDisabled(holder.datafeedConfig, holder.task, clusterState) == false) {
+                return false;
+            }
+            holder.markEsqlDatafeedDisabled();
+        }
+        holder.stopForDisabledEsqlDatafeeds(projectId(holder.task), clusterState);
+        return true;
+    }
+
+    private boolean isDatafeedStartAllowed(Holder holder) {
+        synchronized (esqlDatafeedSettingLock) {
+            return isDatafeedStartAllowedUnderLock(holder);
+        }
+    }
+
+    private boolean dispatchStartedStateUpdateIfAllowed(
+        Holder holder,
+        TransportStartDatafeedAction.DatafeedTask task,
+        boolean isReassignment,
+        ActionListener<PersistentTask<?>> startedStateListener
+    ) {
+        synchronized (esqlDatafeedSettingLock) {
+            if (isDatafeedStartAllowedUnderLock(holder) == false) {
+                return false;
+            }
+            if (isReassignment) {
+                createUpdateDatafeedStateRetryableAction(task, startedStateListener).run();
+            } else {
+                task.updatePersistentTaskState(DatafeedState.STARTED, startedStateListener);
+            }
+            return true;
+        }
+    }
+
+    private boolean isDatafeedStartAllowedUnderLock(Holder holder) {
+        return runningDatafeedsOnThisNode.get(holder.allocationId) == holder
+            && holder.task.getStoppedOrIsolated() == StoppedOrIsolated.NEITHER
+            && holder.isEsqlDatafeedDisabled() == false
+            && isEsqlDatafeedDisabled(holder.datafeedConfig, holder.task, clusterService.state()) == false;
+    }
+
+    private static boolean isEsqlDatafeedDisabled(
+        DatafeedConfig datafeedConfig,
+        TransportStartDatafeedAction.DatafeedTask task,
+        ClusterState clusterState
+    ) {
+        return datafeedConfig.getEsqlQuery() != null && MachineLearning.isEsqlDatafeedsEnabled(clusterState, projectId(task)) == false;
+    }
+
+    private static ProjectId projectId(TransportStartDatafeedAction.DatafeedTask task) {
+        String projectId = task.getProjectId();
+        return projectId == null ? ProjectId.DEFAULT : ProjectId.fromId(projectId);
+    }
+
+    private void auditEsqlDatafeedDisabled(DatafeedConfig datafeedConfig, ProjectId projectId, ClusterState clusterState) {
+        String settingScope = ProjectStateRegistry.getProjectSettings(projectId, clusterState)
+            .hasValue(MachineLearning.ESQL_DATAFEEDS_ENABLED.getKey()) ? "project" : "cluster";
+        String message = "Stopping ES|QL datafeed ["
+            + datafeedConfig.getId()
+            + "] for job ["
+            + datafeedConfig.getJobId()
+            + "] because ES|QL datafeeds are disabled; enable ES|QL datafeeds on the "
+            + settingScope
+            + " to restart it.";
+        logger.warn("{}", message);
+        auditor.warning(datafeedConfig.getJobId(), message);
     }
 
     /**
@@ -465,6 +587,7 @@ public class DatafeedRunner {
         private final TransportStartDatafeedAction.DatafeedTask task;
         private final long allocationId;
         private final String datafeedId;
+        private final DatafeedConfig datafeedConfig;
         // To ensure that we wait until lookback / realtime search has completed before we stop the datafeed
         private final ReentrantLock datafeedJobLock = new ReentrantLock(true);
         private final DatafeedJob datafeedJob;
@@ -474,10 +597,12 @@ public class DatafeedRunner {
         volatile Scheduler.Cancellable cancellable;
         private volatile boolean isNodeShuttingDown;
         private volatile boolean lookbackFinished;
+        private volatile boolean esqlDatafeedDisabled;
 
         Holder(
             TransportStartDatafeedAction.DatafeedTask task,
             String datafeedId,
+            DatafeedConfig datafeedConfig,
             DatafeedJob datafeedJob,
             ProblemTracker problemTracker,
             Consumer<Exception> finishHandler
@@ -485,6 +610,7 @@ public class DatafeedRunner {
             this.task = task;
             this.allocationId = task.getAllocationId();
             this.datafeedId = datafeedId;
+            this.datafeedConfig = datafeedConfig;
             this.datafeedJob = datafeedJob;
             this.defaultAutoCloseJob = task.isLookbackOnly();
             this.problemTracker = problemTracker;
@@ -510,6 +636,23 @@ public class DatafeedRunner {
 
         boolean isIsolated() {
             return datafeedJob.isIsolated();
+        }
+
+        void markEsqlDatafeedDisabled() {
+            esqlDatafeedDisabled = true;
+        }
+
+        boolean isEsqlDatafeedDisabled() {
+            return esqlDatafeedDisabled;
+        }
+
+        synchronized void stopForDisabledEsqlDatafeeds(ProjectId projectId, ClusterState clusterState) {
+            markEsqlDatafeedDisabled();
+            if (datafeedJob.isRunning() == false) {
+                return;
+            }
+            auditEsqlDatafeedDisabled(datafeedConfig, projectId, clusterState);
+            task.stop("esql_datafeeds_disabled", TimeValue.ZERO);
         }
 
         public void stop(String source, TimeValue timeout, Exception e) {
@@ -739,6 +882,7 @@ public class DatafeedRunner {
 
         @Override
         public void clusterChanged(ClusterChangedEvent event) {
+            stopEsqlDatafeedsDisabledBySetting(event);
             if (tasksToRun.isEmpty() || event.metadataChanged() == false) {
                 return;
             }
@@ -772,6 +916,23 @@ public class DatafeedRunner {
                 }
             }
             tasksToRun.retainAll(remainingTasks);
+        }
+
+        private void stopEsqlDatafeedsDisabledBySetting(ClusterChangedEvent event) {
+            List<Holder> datafeedsToStop = new ArrayList<>();
+            synchronized (esqlDatafeedSettingLock) {
+                for (Holder holder : runningDatafeedsOnThisNode.values()) {
+                    ProjectId projectId = projectId(holder.task);
+                    if (isEsqlDatafeedDisabled(holder.datafeedConfig, holder.task, event.state())
+                        && MachineLearning.isEsqlDatafeedsEnabled(event.previousState(), projectId)) {
+                        holder.markEsqlDatafeedDisabled();
+                        datafeedsToStop.add(holder);
+                    }
+                }
+            }
+            for (Holder holder : datafeedsToStop) {
+                holder.stopForDisabledEsqlDatafeeds(projectId(holder.task), event.state());
+            }
         }
     }
 

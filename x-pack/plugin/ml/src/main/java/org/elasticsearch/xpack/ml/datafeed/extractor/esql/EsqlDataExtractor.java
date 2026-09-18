@@ -43,6 +43,7 @@ public class EsqlDataExtractor implements DataExtractor {
     private static final Logger LOGGER = LogManager.getLogger(EsqlDataExtractor.class);
 
     private static final String EPOCH_MILLIS = "epoch_millis";
+    private static final String DEFAULT_LIMIT = " | LIMIT 10000";
 
     private final Client client;
     private final EsqlDataExtractorContext context;
@@ -150,7 +151,7 @@ public class EsqlDataExtractor implements DataExtractor {
 
         // Anomaly detection drops records that arrive out of time order
         // We add a SORT on the time field to ensure that the data is returned in time order
-        String orderedQuery = context.esqlQuery() + " | SORT ??timeField ASC";
+        String orderedQuery = appendGeneratedPipeline(maybeInjectLimit(context.esqlQuery()), " | SORT ??timeField ASC");
 
         long startMs = client.threadPool().relativeTimeInMillis();
         try (EsqlQueryResponse response = runEsqlQuery(orderedQuery, timeFilter, timeFieldParam())) {
@@ -173,6 +174,170 @@ public class EsqlDataExtractor implements DataExtractor {
         }
         return execute(request);
     }
+
+    static String maybeInjectLimit(String query) {
+        LimitScan limitScan = scanForOuterLimit(query);
+        return limitScan.hasOuterLimit() ? query : appendGeneratedPipeline(query, DEFAULT_LIMIT);
+    }
+
+    private static String appendGeneratedPipeline(String query, String pipeline) {
+        return query + (endsInLineComment(query) ? "\n" : "") + pipeline;
+    }
+
+    /**
+     * Identifies an outer LIMIT command without interpreting LIMIT-like text in strings, comments, or identifiers.
+     * The full ES|QL parser belongs to the ES|QL plugin, so this deliberately narrow scan only recognizes
+     * a depth-zero pipeline command that determines whether the datafeed needs its safety limit.
+     */
+    private static LimitScan scanForOuterLimit(String query) {
+        int nestingDepth = 0;
+        boolean hasOuterLimit = false;
+        for (int index = 0; index < query.length();) {
+            char character = query.charAt(index);
+            if (character == '"') {
+                index = skipQuotedString(query, index);
+            } else if (character == '`') {
+                index = skipQuotedIdentifier(query, index);
+            } else if (character == '/' && index + 1 < query.length() && query.charAt(index + 1) == '/') {
+                index = skipLineComment(query, index + 2);
+            } else if (character == '/' && index + 1 < query.length() && query.charAt(index + 1) == '*') {
+                index = skipBlockComment(query, index + 2);
+            } else if (isOpeningDelimiter(character)) {
+                nestingDepth++;
+                index++;
+            } else if (isClosingDelimiter(character)) {
+                nestingDepth = Math.max(0, nestingDepth - 1);
+                index++;
+            } else if (character == '|' && nestingDepth == 0) {
+                index++;
+                index = skipWhitespaceAndComments(query, index);
+                if (isLimitCommandAt(query, index)) {
+                    hasOuterLimit = true;
+                }
+            } else {
+                index++;
+            }
+        }
+        return new LimitScan(hasOuterLimit);
+    }
+
+    private static boolean endsInLineComment(String query) {
+        for (int index = 0; index < query.length();) {
+            char character = query.charAt(index);
+            if (character == '"') {
+                index = skipQuotedString(query, index);
+            } else if (character == '`') {
+                index = skipQuotedIdentifier(query, index);
+            } else if (character == '/' && index + 1 < query.length() && query.charAt(index + 1) == '/') {
+                index = skipLineComment(query, index + 2);
+                if (index == query.length()) {
+                    return true;
+                }
+            } else if (character == '/' && index + 1 < query.length() && query.charAt(index + 1) == '*') {
+                index = skipBlockComment(query, index + 2);
+            } else {
+                index++;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isOpeningDelimiter(char character) {
+        return character == '(' || character == '[' || character == '{';
+    }
+
+    private static boolean isClosingDelimiter(char character) {
+        return character == ')' || character == ']' || character == '}';
+    }
+
+    private static int skipWhitespaceAndComments(String query, int index) {
+        while (index < query.length()) {
+            if (Character.isWhitespace(query.charAt(index))) {
+                index++;
+            } else if (query.startsWith("//", index)) {
+                index = skipLineComment(query, index + 2);
+            } else if (query.startsWith("/*", index)) {
+                index = skipBlockComment(query, index + 2);
+            } else {
+                break;
+            }
+        }
+        return index;
+    }
+
+    private static boolean isLimitCommandAt(String query, int index) {
+        return index + "LIMIT".length() <= query.length()
+            && query.regionMatches(true, index, "LIMIT", 0, "LIMIT".length())
+            && (index + "LIMIT".length() == query.length() || isCommandBoundary(query.charAt(index + "LIMIT".length())));
+    }
+
+    private static boolean isCommandBoundary(char character) {
+        return Character.isWhitespace(character) || character == '/' || character == '(' || character == ')';
+    }
+
+    private static int skipQuotedString(String query, int index) {
+        boolean tripleQuoted = query.startsWith("\"\"\"", index);
+        int closingQuoteLength = tripleQuoted ? 3 : 1;
+        index += closingQuoteLength;
+        while (index < query.length()) {
+            if (tripleQuoted && query.startsWith("\"\"\"", index)) {
+                index += closingQuoteLength;
+                for (int optionalQuote = 0; optionalQuote < 2 && index < query.length() && query.charAt(index) == '"'; optionalQuote++) {
+                    index++;
+                }
+                return index;
+            }
+            if (tripleQuoted == false && query.charAt(index) == '\\') {
+                index += 2;
+            } else if (tripleQuoted == false && query.charAt(index) == '"') {
+                return index + 1;
+            } else {
+                index++;
+            }
+        }
+        return index;
+    }
+
+    private static int skipQuotedIdentifier(String query, int index) {
+        index++;
+        while (index < query.length()) {
+            if (query.charAt(index) == '`') {
+                if (index + 1 < query.length() && query.charAt(index + 1) == '`') {
+                    index += 2;
+                } else {
+                    return index + 1;
+                }
+            } else {
+                index++;
+            }
+        }
+        return index;
+    }
+
+    private static int skipLineComment(String query, int index) {
+        while (index < query.length() && query.charAt(index) != '\n' && query.charAt(index) != '\r') {
+            index++;
+        }
+        return index;
+    }
+
+    private static int skipBlockComment(String query, int index) {
+        int depth = 1;
+        while (index < query.length() && depth > 0) {
+            if (query.startsWith("/*", index)) {
+                depth++;
+                index += 2;
+            } else if (query.startsWith("*/", index)) {
+                depth--;
+                index += 2;
+            } else {
+                index++;
+            }
+        }
+        return index;
+    }
+
+    private record LimitScan(boolean hasOuterLimit) {}
 
     private List<EsqlQueryParam> timeFieldParam() {
         return List.of(new EsqlQueryParam("timeField", context.timeField(), IDENTIFIER));

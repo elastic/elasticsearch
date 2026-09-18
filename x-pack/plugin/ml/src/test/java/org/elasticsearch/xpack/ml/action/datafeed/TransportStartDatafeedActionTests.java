@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.ml.action.datafeed;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -34,8 +37,10 @@ import java.util.Set;
 
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests.addJobTask;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
@@ -46,6 +51,30 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
 public class TransportStartDatafeedActionTests extends ESTestCase {
+
+    public void testEsqlDatafeedWhenFlagOffShouldRejectStart() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", "job").setEsqlQuery("FROM logs").build();
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> TransportStartDatafeedAction.validateEsqlDatafeedEnabled(
+                datafeed,
+                ClusterState.builder(new ClusterName("test")).build(),
+                ProjectId.DEFAULT
+            )
+        );
+        assertThat(exception.getMessage(), containsString("xpack.ml.esql_datafeeds.enabled"));
+        assertThat(exception.getMessage(), containsString("enable"));
+        assertThat(exception.getMessage(), not(containsString("ml_datafeed_esql_query")));
+    }
+
+    public void testClassicDatafeedWhenFlagOffShouldAllowStart() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("classic-datafeed", "job").setIndices(List.of("logs")).build();
+        TransportStartDatafeedAction.validateEsqlDatafeedEnabled(
+            datafeed,
+            ClusterState.builder(new ClusterName("test")).build(),
+            ProjectId.DEFAULT
+        );
+    }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
@@ -145,13 +174,16 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         );
 
         StartDatafeedAction.DatafeedParams params = spy(new StartDatafeedAction.DatafeedParams("esql-datafeed", 0L));
-        DatafeedConfig effectiveDatafeed = DatafeedConfig.withCrossProjectModeIfEnabled(esqlDatafeed, decider);
-        if (effectiveDatafeed.getIndicesOptions() != null) {
-            params.setIndicesOptions(effectiveDatafeed.getIndicesOptions());
-        }
+        DatafeedConfig effectiveDatafeed = DatafeedConfig.withCrossProjectModeIfEnabled(
+            esqlDatafeed,
+            decider,
+            esqlDatafeed.getCloudInternalCredential() != null
+        );
+        TransportStartDatafeedAction.setIndicesOptionsIfPresent(params, effectiveDatafeed);
 
         assertThat(effectiveDatafeed, sameInstance(esqlDatafeed));
         assertThat(effectiveDatafeed.getIndicesOptions(), nullValue());
+        assertThat(TransportStartDatafeedAction.isCrossProjectMode(effectiveDatafeed), is(false));
         verify(params, never()).setIndicesOptions(any());
         assertThat(params.getIndicesOptions(), sameInstance(SearchRequest.DEFAULT_INDICES_OPTIONS));
     }

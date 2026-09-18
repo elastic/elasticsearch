@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.ml.rest.datafeeds;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -17,6 +19,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,10 +34,14 @@ import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 @ServerlessScope(Scope.PUBLIC)
 public class RestUpdateDatafeedAction extends BaseRestHandler {
 
-    private final Set<String> supportedCapabilities;
+    private final boolean mlCrossProjectSearchEnabled;
+    private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
 
-    public RestUpdateDatafeedAction(boolean mlCrossProjectSearchEnabled) {
-        this.supportedCapabilities = MlDatafeedRestCapabilities.supportedCapabilities(mlCrossProjectSearchEnabled);
+    public RestUpdateDatafeedAction(boolean mlCrossProjectSearchEnabled, ClusterService clusterService, ProjectResolver projectResolver) {
+        this.mlCrossProjectSearchEnabled = mlCrossProjectSearchEnabled;
+        this.clusterService = clusterService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -69,7 +76,10 @@ public class RestUpdateDatafeedAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return supportedCapabilities;
+        return MlDatafeedRestCapabilities.supportedCapabilities(
+            mlCrossProjectSearchEnabled,
+            MachineLearning.isEsqlDatafeedsEnabled(clusterService.state(), projectResolver.getProjectId())
+        );
     }
 
 }

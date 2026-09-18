@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 
 import java.util.Optional;
@@ -85,6 +86,17 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                         + "wait for the cluster to finish upgrading and try again.",
                     request.getDatafeed().getId(),
                     unsupportedReason.get()
+                )
+            );
+            return;
+        }
+        if (request.getDatafeed().getEsqlQuery() != null
+            && MachineLearning.isEsqlDatafeedsEnabled(state, projectResolver.getProjectId()) == false) {
+            listener.onFailure(
+                ExceptionsHelper.badRequestException(
+                    "Cannot create ES|QL datafeed [{}] while [xpack.ml.esql_datafeeds.enabled] is disabled; "
+                        + "enable ES|QL datafeeds and try again.",
+                    request.getDatafeed().getId()
                 )
             );
             return;

@@ -1,0 +1,218 @@
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      cluster.put_settings:
+        body:
+          persistent:
+            xpack.ml.esql_datafeeds.enabled: true
+
+  - do:
+      indices.create:
+        index: esql-datafeed-lifecycle-index
+        body:
+          mappings:
+            properties:
+              time:
+                type: date
+              value:
+                type: double
+
+  - do:
+      index:
+        index: esql-datafeed-lifecycle-index
+        id: "1"
+        body: >
+          {"time": "1970-01-01T00:00:01Z", "value": 1.0}
+
+  - do:
+      index:
+        index: esql-datafeed-lifecycle-index
+        id: "2"
+        body: >
+          {"time": "1970-01-01T00:00:02Z", "value": 2.0}
+
+  - do:
+      index:
+        index: esql-datafeed-lifecycle-index
+        id: "3"
+        body: >
+          {"time": "1970-01-01T00:00:03Z", "value": 3.0}
+
+  - do:
+      indices.refresh:
+        index: esql-datafeed-lifecycle-index
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: esql-datafeed-lifecycle-job
+        body: >
+          {
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "count"}]
+            },
+            "data_description": {
+              "time_field": "time",
+              "time_format": "epoch_ms"
+            }
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_datafeed:
+        datafeed_id: esql-datafeed-lifecycle-datafeed
+        body: >
+          {
+            "job_id": "esql-datafeed-lifecycle-job",
+            "delayed_data_check_config": {"enabled": false},
+            "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value"
+          }
+
+---
+"Test disabling ES|QL datafeeds stops running datafeed but keeps lifecycle APIs available":
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: esql-datafeed-lifecycle-datafeed
+  - match: { datafeeds.0.esql_query: "FROM esql-datafeed-lifecycle-index | KEEP time, value" }
+
+  - do:
+      catch: /query cannot be used in combination with esql_query/
+      ml.put_datafeed:
+        datafeed_id: esql-datafeed-dsl-mix
+        body: >
+          {
+            "job_id": "esql-datafeed-lifecycle-job",
+            "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value",
+            "query": {"match_all": {}}
+          }
+
+  - do:
+      catch: /aggregations cannot be used in combination with esql_query/
+      ml.put_datafeed:
+        datafeed_id: esql-datafeed-dsl-aggregations
+        body: >
+          {
+            "job_id": "esql-datafeed-lifecycle-job",
+            "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value",
+            "aggregations": {"max_value": {"max": {"field": "value"}}}
+          }
+
+  - do:
+      catch: /script_fields cannot be used in combination with esql_query/
+      ml.put_datafeed:
+        datafeed_id: esql-datafeed-dsl-script-fields
+        body: >
+          {
+            "job_id": "esql-datafeed-lifecycle-job",
+            "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value",
+            "script_fields": {"copied_value": {"script": "doc['value'].value"}}
+          }
+
+  - do:
+      catch: /runtime_mappings cannot be used in combination with esql_query/
+      ml.put_datafeed:
+        datafeed_id: esql-datafeed-dsl-runtime-mappings
+        body: >
+          {
+            "job_id": "esql-datafeed-lifecycle-job",
+            "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value",
+            "runtime_mappings": {"runtime_value": {"type": "long"}}
+          }
+
+  - do:
+      catch: /scroll_size cannot be used in combination with esql_query/
+      ml.put_datafeed:
+        datafeed_id: esql-datafeed-dsl-scroll-size
+        body: >
+          {
+            "job_id": "esql-datafeed-lifecycle-job",
+            "esql_query": "FROM esql-datafeed-lifecycle-index | KEEP time, value",
+            "scroll_size": 2000
+          }
+
+  - do:
+      ml.preview_datafeed:
+        datafeed_id: esql-datafeed-lifecycle-datafeed
+        start: 0
+        end: 4000
+  - length: { $body: 3 }
+  - match: { 0.time: 1000 }
+  - match: { 0.value: 1.0 }
+  - match: { 1.time: 2000 }
+  - match: { 1.value: 2.0 }
+  - match: { 2.time: 3000 }
+  - match: { 2.value: 3.0 }
+
+  - do:
+      ml.open_job:
+        job_id: esql-datafeed-lifecycle-job
+
+  - do:
+      ml.start_datafeed:
+        datafeed_id: esql-datafeed-lifecycle-datafeed
+        start: now
+  - match: { started: true }
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: esql-datafeed-lifecycle-datafeed
+  - match: { datafeeds.0.state: started }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      cluster.put_settings:
+        body:
+          persistent:
+            xpack.ml.esql_datafeeds.enabled: false
+
+  - do:
+      cluster.health:
+        wait_for_events: languid
+        wait_for_status: yellow
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: esql-datafeed-lifecycle-datafeed
+  - match: { datafeeds.0.state: stopped }
+
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: esql-datafeed-lifecycle-datafeed
+  - match: { datafeeds.0.esql_query: "FROM esql-datafeed-lifecycle-index | KEEP time, value" }
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: esql-datafeed-lifecycle-datafeed
+  - match: { datafeeds.0.state: stopped }
+
+  - do:
+      ml.stop_datafeed:
+        datafeed_id: esql-datafeed-lifecycle-datafeed
+  - match: { stopped: true }
+
+  - do:
+      ml.close_job:
+        job_id: esql-datafeed-lifecycle-job
+  - match: { closed: true }
+
+  - do:
+      tasks.cancel:
+        actions: "xpack/ml/*"
+
+---
+teardown:
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      cluster.put_settings:
+        body:
+          persistent:
+            xpack.ml.esql_datafeeds.enabled: null

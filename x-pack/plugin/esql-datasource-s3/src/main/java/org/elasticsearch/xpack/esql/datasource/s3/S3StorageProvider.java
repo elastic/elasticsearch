@@ -409,9 +409,10 @@ public class S3StorageProvider implements StorageProvider {
         //
         // SDK-level retries are DISABLED on the async client: it exists solely for
         // S3StorageObject#readBytesAsync, which drives Standard-strategy retries itself so that each
-        // attempt gets a fresh KnownLengthAsyncResponseTransformer. The SDK reuses one transformer
-        // across its internal retries, and a stale exceptionOccurred from a finished attempt cannot
-        // be attributed to an attempt — it could spuriously fail a healthy retry and free its buffer.
+        // attempt gets a fresh CrossRegionAwareResponseTransformer (wrapping a fresh
+        // KnownLengthAsyncResponseTransformer). The SDK reuses one transformer across its internal
+        // retries, and a stale exceptionOccurred from a finished attempt cannot be attributed to an
+        // attempt — it could spuriously fail a healthy retry and free its buffer.
         // See KnownLengthAsyncResponseTransformer's javadoc; do not re-enable retries here without
         // removing the single-use contract there.
         return configureCommon(S3AsyncClient.builder(), config, credentials, AwsRetryStrategy.doNotRetry(), null).httpClientBuilder(

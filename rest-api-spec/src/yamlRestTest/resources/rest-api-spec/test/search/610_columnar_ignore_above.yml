@@ -70,6 +70,30 @@ keyword ignore_above is a no-op in columnar - field-level:
   - match: { test.mappings.properties.kwd.ignore_above: 10 }
 
   - do:
+      search:
+        index: test
+        body: { query: { prefix: { kwd: { value: "this" } } } }
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test
+        body: { query: { term: { kwd: { value: "this value exceeds the ignore_above limit of 10 characters" } } } }
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test
+        body: { query: { wildcard: { kwd: { value: "*ignore_above*" } } } }
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test
+        body: { query: { exists: { field: kwd } } }
+  - match: { hits.total.value: 1 }
+
+  - do:
       indices.delete:
         index: test
 
@@ -108,6 +132,24 @@ keyword ignore_above is a no-op in columnar - array positions preserved:
   - is_false: hits.hits.0._ignored
 
   - do:
+      search:
+        index: test
+        body: { query: { term: { kwd: { value: "this is much longer than five chars" } } } }
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test
+        body: { query: { prefix: { kwd: { value: "this is" } } } }
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test
+        body: { query: { terms: { kwd: [ "short", "ok" ] } } }
+  - match: { hits.total.value: 1 }
+
+  - do:
       indices.delete:
         index: test
 
@@ -143,6 +185,18 @@ keyword ignore_above is a no-op in columnar - index-level default:
 
   - match: { hits.hits.0._source.kwd: "this value exceeds the index-level ignore_above limit of 10" }
   - is_false: hits.hits.0._ignored
+
+  - do:
+      search:
+        index: test
+        body: { query: { prefix: { kwd: { value: "this value" } } } }
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test
+        body: { query: { term: { kwd: { value: "this value exceeds the index-level ignore_above limit of 10" } } } }
+  - match: { hits.total.value: 1 }
 
   - do:
       indices.delete:
@@ -184,3 +238,68 @@ flattened ignore_above is a no-op in columnar:
   - match: { hits.hits.0._source.labels.env: "this value exceeds the ignore_above limit of 5 characters" }
   - match: { hits.hits.0._source.labels.region: "eu" }
   - is_false: hits.hits.0._ignored
+
+  - do:
+      search:
+        index: test
+        body: { query: { term: { "labels.env": { value: "this value exceeds the ignore_above limit of 5 characters" } } } }
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test
+        body: { query: { exists: { field: "labels.env" } } }
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test
+        body: { query: { term: { "labels.region": { value: "eu" } } } }
+  - match: { hits.total.value: 1 }
+
+---
+
+keyword ignore_above still drops values outside columnar:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: standard
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+                ignore_above: 10
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body:
+          kwd: "this value exceeds the ignore_above limit of 10 characters"
+        refresh: true
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+
+  - match: { hits.hits.0._ignored: [ "kwd" ] }
+
+  - do:
+      search:
+        index: test
+        body: { query: { prefix: { kwd: { value: "this" } } } }
+  - match: { hits.total.value: 0 }
+
+  - do:
+      search:
+        index: test
+        body: { query: { exists: { field: kwd } } }
+  - match: { hits.total.value: 0 }
+
+  - do:
+      indices.delete:
+        index: test

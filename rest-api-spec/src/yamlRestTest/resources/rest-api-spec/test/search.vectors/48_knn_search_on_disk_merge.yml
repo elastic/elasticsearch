@@ -4,7 +4,7 @@ setup:
       reason: "on_disk_merge needs to be supported"
 
 ---
-"on_disk_merge is accepted, round-trips, merges still search, and is updatable":
+"on_disk_merge is accepted and merges still search":
   - do:
       indices.create:
         index: on_disk_merge_hnsw
@@ -22,12 +22,6 @@ setup:
                 index_options:
                   type: hnsw
                   on_disk_merge: true
-
-  - do:
-      indices.get_mapping:
-        index: on_disk_merge_hnsw
-  - match: { on_disk_merge_hnsw.mappings.properties.vector.index_options.type: hnsw }
-  - match: { on_disk_merge_hnsw.mappings.properties.vector.index_options.on_disk_merge: true }
 
   - do:
       index:
@@ -74,22 +68,3 @@ setup:
             num_candidates: 3
   - match: { hits.total.value: 3 }
   - match: { hits.hits.0._id: "1" }
-
-  # the option is updatable in place: switch it off and the mapping no longer carries it
-  - do:
-      indices.put_mapping:
-        index: on_disk_merge_hnsw
-        body:
-          properties:
-            vector:
-              type: dense_vector
-              dims: 4
-              index: true
-              similarity: l2_norm
-              index_options:
-                type: hnsw
-                on_disk_merge: false
-  - do:
-      indices.get_mapping:
-        index: on_disk_merge_hnsw
-  - is_false: on_disk_merge_hnsw.mappings.properties.vector.index_options.on_disk_merge

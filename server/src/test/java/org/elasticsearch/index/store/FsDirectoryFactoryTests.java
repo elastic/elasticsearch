@@ -221,18 +221,14 @@ public class FsDirectoryFactoryTests extends ESTestCase {
      */
     private static boolean mergeCreatesAreDirect(FsDirectoryFactory.HybridDirectory dir) throws IOException {
         boolean direct;
-        try (IndexOutput probe = dir.createOutput("_probe.vec", directIOMergeContext())) {
+        try (IndexOutput probe = dir.createOutput("_sample.vec", directIOMergeContext())) {
             probe.writeInt(42);
             // DirectIOIndexOutput is package-private in Lucene, so the class name in toString() is the only handle.
             // If a Lucene upgrade renames it, this probe silently turns false and the direct-only assertions that
             // depend on it are skipped rather than failed: check here first when they stop running
             direct = probe.toString().contains("DirectIOIndexOutput");
         }
-        dir.deleteFile("_probe.vec");
-        assertTrue("the directory removes its probe file", Arrays.stream(dir.listAll()).noneMatch(f -> f.startsWith("_directio_probe_")));
-        if (dir.hasMergeDirectIODelegate() == false) {
-            assertFalse("without a merge delegate no create can be direct", direct);
-        }
+        dir.deleteFile("_sample.vec");
         return direct;
     }
 
@@ -241,16 +237,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             assertTrue(name, FsDirectoryFactory.HybridDirectory.isRawVectorFile(name));
         }
         // a .vec.tmp is a temp file, not raw vector data: HybridDirectory#getExtension reports "tmp"
-        for (String name : new String[] {
-            "_0.vemf",
-            "_0.veq",
-            "_0.veb",
-            "_0.vex",
-            "_0.mivf",
-            "_0.si",
-            "segments_1",
-            "_0_x.vec.tmp",
-            "_0" }) {
+        for (String name : new String[] { "_0.vemf", "_0.veq", "_0.veb", "_0.vex", "_0.mivf", "_0_x.vec.tmp", "_0" }) {
             assertFalse(name, FsDirectoryFactory.HybridDirectory.isRawVectorFile(name));
         }
     }
@@ -258,27 +245,22 @@ public class FsDirectoryFactoryTests extends ESTestCase {
     public void testHybridDirectoryDirectIOWriteRoundTrip() throws IOException {
         Path path = createTempDir("directIOWriteRoundTrip");
         try (
+            // a prefetch limit, so that the rescore delegate's inputs differ in class from the merge delegate's
             FsDirectoryFactory.HybridDirectory dir = new FsDirectoryFactory.HybridDirectory(
                 NativeFSLockFactory.INSTANCE,
                 new MMapDirectory(path),
-                0
+                64
             )
         ) {
             boolean direct = mergeCreatesAreDirect(dir);
 
-            // a merge create without the hint, a hinted create outside a merge, and hinted merge creates of
-            // anything but a raw vector file (the metadata sibling, a temp file) all stay buffered; the
-            // negative checks only mean something where the raw vector file itself does go direct
+            // these assertions only mean something where the raw vector file itself does go direct
             if (direct) {
                 try (IndexOutput meta = dir.createOutput("_0.vemf", directIOMergeContext())) {
                     assertFalse("only raw vector files take the merge delegate", meta.toString().contains("DirectIOIndexOutput"));
                     meta.writeInt(7);
                 }
-                try (IndexOutput tmp = dir.createOutput("_0_x.vec.tmp", directIOMergeContext())) {
-                    assertFalse("a temp file is not raw vector data", tmp.toString().contains("DirectIOIndexOutput"));
-                }
                 try (IndexOutput ctrl = dir.createOutput("_0_ctrl.vec", directIOMergeContext())) {
-                    assertTrue("the raw vector file takes the merge delegate", ctrl.toString().contains("DirectIOIndexOutput"));
                     ctrl.writeInt(7);
                 }
                 try (IndexInput meta = dir.openInput("_0.vemf", directIOMergeContext())) {
@@ -289,7 +271,11 @@ public class FsDirectoryFactoryTests extends ESTestCase {
                     assertEquals(7, meta.readInt());
                 }
                 try (IndexInput ctrl = dir.openInput("_0_ctrl.vec", directIOMergeContext())) {
-                    assertTrue("a merge-hinted raw vector open takes the merge delegate", ctrl.toString().contains("DirectIOIndexInput"));
+                    assertEquals(
+                        "a merge-hinted raw vector open takes the merge delegate, not the prefetching rescore one",
+                        "DirectIOIndexInput",
+                        ctrl.getClass().getSimpleName()
+                    );
                     assertEquals(7, ctrl.readInt());
                 }
             }

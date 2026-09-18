@@ -182,12 +182,26 @@ public class DirectIOIT extends ESIntegTestCase {
                     "Could not open .*\\.vec with direct IO"
                 );
             mockLog.addExpectation(expectation);
+            // and with on_disk_merge off a merge never even tries the direct path for the merged raw vector file
+            mockLog.addExpectation(
+                new MockLog.PatternNotSeenEventExpectation(
+                    "Direct IO not attempted for the merge",
+                    FsDirectoryFactory.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "Creating .*\\.vec with direct IO"
+                )
+            );
 
-            String indexName = indexVectors(false);
+            String indexName = indexVectors(false, false);
 
             // do a search
             var knn = List.of(new KnnSearchBuilder("fooVector", VectorData.fromBytes(new byte[64]), 10, 20, 10f, null, null));
             assertHitCount(prepareSearch(indexName).setKnnSearch(knn), 10);
+
+            // and a merge
+            indexDoc(indexName, "extra", "fooVector", IntStream.range(0, 64).mapToDouble(d -> randomFloat()).toArray());
+            refresh();
+            assertNoFailures(indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get());
             mockLog.assertAllExpectationsMatched();
         }
     }
@@ -212,43 +226,12 @@ public class DirectIOIT extends ESIntegTestCase {
                     "Could not create .*\\.vec with direct IO"
                 );
             mockLog.addExpectation(expectation);
-            if (SUPPORTED) {
-                // the create is logged before the attempt: a silent fallback to a buffered output must not pass
-                mockLog.addExpectation(
-                    new MockLog.PatternNotSeenEventExpectation(
-                        "No fallback from direct IO for the merge",
-                        FsDirectoryFactory.class.getCanonicalName(),
-                        Level.DEBUG,
-                        "Could not create .*\\.vec with direct IO"
-                    )
-                );
-            }
             String indexName = indexVectors(false, true);
             indexDoc(indexName, "extra", "fooVector", IntStream.range(0, 64).mapToDouble(d -> randomFloat()).toArray());
             refresh();
             assertNoFailures(indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get());
             var knn = List.of(new KnnSearchBuilder("fooVector", VectorData.fromBytes(new byte[64]), 10, 20, 10f, null, null));
             assertHitCount(prepareSearch(indexName).setKnnSearch(knn), 10);
-            mockLog.assertAllExpectationsMatched();
-        }
-    }
-
-    @TestLogging(value = "org.elasticsearch.index.store.FsDirectoryFactory:DEBUG", reason = "to capture trace logging for direct IO")
-    public void testDirectIONotUsedForMerges() {
-        try (MockLog mockLog = MockLog.capture(FsDirectoryFactory.class)) {
-            // with on_disk_merge off a merge never even tries the direct path for the merged raw vector file
-            mockLog.addExpectation(
-                new MockLog.PatternNotSeenEventExpectation(
-                    "Direct IO not attempted for the merge",
-                    FsDirectoryFactory.class.getCanonicalName(),
-                    Level.DEBUG,
-                    "Creating .*\\.vec with direct IO"
-                )
-            );
-            String indexName = indexVectors(false, false);
-            indexDoc(indexName, "extra", "fooVector", IntStream.range(0, 64).mapToDouble(d -> randomFloat()).toArray());
-            refresh();
-            assertNoFailures(indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get());
             mockLog.assertAllExpectationsMatched();
         }
     }

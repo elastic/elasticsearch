@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
@@ -2358,13 +2359,13 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                         containsString(
                             "flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                 + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                                + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())))"
+                                + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())), useDirectIO=false, onDiskMerge=false)"
                         ),
                         containsString(
                             "flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                 + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
                                 + "ES93GenericFlatVectorScorer(delegate=ESDefaultFlatVectorScorer(delegate="
-                                + "Lucene99MemorySegmentFlatVectorsScorer()))))"
+                                + "Lucene99MemorySegmentFlatVectorsScorer()))), useDirectIO=false, onDiskMerge=false)"
                         )
                     )
                 )
@@ -2443,13 +2444,14 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                             containsString(
                                 "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                     + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                                    + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())))"
+                                    + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer()))"
+                                    + ", useDirectIO=false, onDiskMerge=false)"
                             ),
                             containsString(
                                 "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                     + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
                                     + "ES93GenericFlatVectorScorer(delegate=ESDefaultFlatVectorScorer(delegate="
-                                    + "Lucene99MemorySegmentFlatVectorsScorer()))))"
+                                    + "Lucene99MemorySegmentFlatVectorsScorer()))), useDirectIO=false, onDiskMerge=false)"
                             )
                         )
                     )
@@ -2502,13 +2504,13 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                         containsString(
                             "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                 + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                                + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())))"
+                                + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())), useDirectIO=false, onDiskMerge=false)"
                         ),
                         containsString(
                             "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                 + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
                                 + "ES93GenericFlatVectorScorer(delegate=ESDefaultFlatVectorScorer(delegate="
-                                + "Lucene99MemorySegmentFlatVectorsScorer()))))"
+                                + "Lucene99MemorySegmentFlatVectorsScorer()))), useDirectIO=false, onDiskMerge=false)"
                         )
                     )
                 )
@@ -2611,13 +2613,13 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                         containsString(
                             "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                 + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                                + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())))"
+                                + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())), useDirectIO=false, onDiskMerge=false)"
                         ),
                         containsString(
                             "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                 + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
                                 + "ES93GenericFlatVectorScorer(delegate=ESDefaultFlatVectorScorer(delegate="
-                                + "Lucene99MemorySegmentFlatVectorsScorer()))))"
+                                + "Lucene99MemorySegmentFlatVectorsScorer()))), useDirectIO=false, onDiskMerge=false)"
                         )
                     )
                 )
@@ -2747,10 +2749,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
     }
 
-    /**
-     * {@code on_disk_merge} is accepted by every index type, round-trips through the mapping, defaults to off, and
-     * can be switched either way by a mapping update, since the type stays the same.
-     */
+    /** {@code on_disk_merge} can be flipped by a mapping update: the index type stays the same, so the update is not rejected. */
     public void testOnDiskMergeIndexOptions() throws IOException {
         for (String type : new String[] {
             "hnsw",
@@ -2762,53 +2761,45 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             "bbq_hnsw",
             "bbq_flat",
             "bbq_disk" }) {
-            MapperService mapperService = createMapperService(fieldMapping(b -> onDiskMergeMapping(b, type, true)));
+            MapperService mapperService = createMapperService(fieldMapping(b -> onDiskMergeMapping(b, type, null)));
+            assertFalse(type + " defaults to off", onDiskMergeOf(mapperService));
+            assertFormatCarriesOnDiskMerge(type, mapperService, false);
+
+            merge(mapperService, fieldMapping(b -> onDiskMergeMapping(b, type, true)));
             assertTrue(type, onDiskMergeOf(mapperService));
             assertThat(type, mapperService.documentMapper().mappingSource().toString(), containsString("\"on_disk_merge\":true"));
+            assertFormatCarriesOnDiskMerge(type, mapperService, true);
 
             merge(mapperService, fieldMapping(b -> onDiskMergeMapping(b, type, false)));
             assertFalse(type, onDiskMergeOf(mapperService));
             assertThat(type, mapperService.documentMapper().mappingSource().toString(), not(containsString("on_disk_merge")));
-
-            merge(mapperService, fieldMapping(b -> onDiskMergeMapping(b, type, true)));
-            assertTrue(type, onDiskMergeOf(mapperService));
         }
     }
 
-    public void testOnDiskMergeDefaultsToOff() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> {
-            b.field("type", "dense_vector");
-            b.field("dims", 64);
-            b.field("index", true);
-            b.startObject("index_options");
-            b.field("type", "bbq_hnsw");
-            b.endObject();
-        }));
-        assertFalse(onDiskMergeOf(mapperService));
-        assertThat(mapperService.documentMapper().mappingSource().toString(), not(containsString("on_disk_merge")));
-    }
-
-    public void testOnDiskMergeMustBeBoolean() {
-        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
-            b.field("type", "dense_vector");
-            b.field("dims", 64);
-            b.field("index", true);
-            b.startObject("index_options");
-            b.field("type", "hnsw");
-            b.field("on_disk_merge", "sometimes");
-            b.endObject();
-        })));
-        assertThat(e.getMessage(), containsString("only [true] or [false] are allowed"));
-    }
-
-    private static void onDiskMergeMapping(XContentBuilder b, String type, boolean onDiskMerge) throws IOException {
+    /** @param onDiskMerge the value of {@code on_disk_merge}, or {@code null} to leave it out */
+    private static void onDiskMergeMapping(XContentBuilder b, String type, Boolean onDiskMerge) throws IOException {
         b.field("type", "dense_vector");
         b.field("dims", 64);
         b.field("index", true);
         b.startObject("index_options");
         b.field("type", type);
-        b.field("on_disk_merge", onDiskMerge);
+        if (onDiskMerge != null) {
+            b.field("on_disk_merge", onDiskMerge);
+        }
         b.endObject();
+    }
+
+    /**
+     * {@code bbq_disk} is skipped: its format is built by its plugin, the server class throws a license error here,
+     * and the plugin's {@code DirectIOIT} covers that hand-off.
+     */
+    private static void assertFormatCarriesOnDiskMerge(String type, MapperService mapperService, boolean onDiskMerge) {
+        if (type.equals("bbq_disk")) {
+            return;
+        }
+        Codec codec = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null).codec("default");
+        KnnVectorsFormat format = ((PerFieldKnnVectorsFormat) codec.knnVectorsFormat()).getKnnVectorsFormatForField("field");
+        assertThat(type, format, hasToString(containsString("onDiskMerge=" + onDiskMerge)));
     }
 
     private static boolean onDiskMergeOf(MapperService mapperService) {

@@ -317,11 +317,6 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             return true;
         }
 
-        // visible for testing
-        boolean hasMergeDirectIODelegate() {
-            return mergeDirectIODelegate != null;
-        }
-
         @Override
         public void close() throws IOException {
             IOUtils.close(super::close, delegate);

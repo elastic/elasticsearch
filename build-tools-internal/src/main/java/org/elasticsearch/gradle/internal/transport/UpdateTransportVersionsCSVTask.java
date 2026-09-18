@@ -48,12 +48,8 @@ public abstract class UpdateTransportVersionsCSVTask extends DefaultTask {
 
         int upperBoundId = upperBound.definitionId().complete();
 
-        // Once a stack version has been recorded it is immutable: it captures the highest transport version id that
-        // shipped in that release. The upper bound read above only ever moves forward, and finalizing a release moves
-        // it forward itself, by generating the initial transport version for the next stack version. So when a
-        // finalization is retried after partially completing, the recorded id is expected to trail the current upper
-        // bound, and the already recorded id is the one to keep. An id ahead of the upper bound could never have
-        // shipped, so that is still an error.
+        // Idempotency check to ensure we don't try to increment this again if there is already an entry in the CSV file for
+        // the given stack version.
         Integer existingTransportVersionId = getExistingTransportVersionId(stackVersion);
         if (existingTransportVersionId != null) {
             if (existingTransportVersionId > upperBoundId) {

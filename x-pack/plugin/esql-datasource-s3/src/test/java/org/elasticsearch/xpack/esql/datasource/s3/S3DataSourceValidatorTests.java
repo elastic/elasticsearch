@@ -1483,7 +1483,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
      * unit tests that construct {@link FileDataSourceValidator} directly would still pass.
      */
     public void testDatasourceValidatorsIncludesResourceCheck() {
-        DataSourceValidator v = new S3DataSourcePlugin().datasourceValidators(org.elasticsearch.common.settings.Settings.EMPTY).get("s3");
+        DataSourceValidator v = new S3DataSourcePlugin().datasourceValidators(Settings.EMPTY).get("s3");
         var e = expectThrows(
             ValidationException.class,
             () -> v.validateDataset(Map.of(), "s3://arn:aws:s3:us-east-1:123456789012:accesspoint/my-ap/data/f.parquet", Map.of())

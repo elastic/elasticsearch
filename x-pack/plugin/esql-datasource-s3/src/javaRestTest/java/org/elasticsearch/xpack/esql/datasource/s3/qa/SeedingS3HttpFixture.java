@@ -43,16 +43,6 @@ import static fixture.aws.AwsFixtureUtils.sendError;
 @SuppressForbidden(reason = "test fixture seeds blobs directly into the S3 handler's in-memory store")
 public class SeedingS3HttpFixture extends S3HttpFixture {
 
-    /**
-     * The node setting that lets a cluster reach this fixture. Endpoints are confined to AWS hosts, and the
-     * fixture binds loopback, so each cluster names loopback here — the shape {@code reindex.remote.whitelist}
-     * uses for the same job.
-     */
-    static final String ALLOWED_ENDPOINT_HOSTS_SETTING = "esql.external.allowed_endpoint_hosts";
-
-    /** Loopback on any port, which is where every fixture in this repository binds. */
-    static final String LOOPBACK_ENDPOINT_HOSTS = "127.0.0.1:*,[::1]:*,localhost:*";
-
     private final String bucket;
     private final BiPredicate<String, String> authorizationPredicate;
     private S3HttpHandler handler;

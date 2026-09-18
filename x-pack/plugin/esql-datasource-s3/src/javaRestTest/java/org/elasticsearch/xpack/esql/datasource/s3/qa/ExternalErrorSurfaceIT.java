@@ -25,6 +25,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -88,8 +89,8 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
     private static final String ENCRYPTION_PASSWORD_ID = "test";
 
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .setting(SeedingS3HttpFixture.ALLOWED_ENDPOINT_HOSTS_SETTING, SeedingS3HttpFixture.LOOPBACK_ENDPOINT_HOSTS)
         .distribution(DistributionType.DEFAULT)
+        .setting(S3FixtureUtils.ALLOWED_ENDPOINT_HOSTS_SETTING, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting(Federation.FEDERATION_ENABLED.getKey(), "true")

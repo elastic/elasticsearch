@@ -41,22 +41,30 @@ public class S3EndpointCheckTests extends ESTestCase {
     );
 
     /**
-     * Asks the SDK's own resolver where each FIPS and dual-stack combination resolves to, over one region
-     * per partition plus three more in {@code aws}, and requires the rule to accept every one. Every
-     * partition is covered; a further region inside one adds no host shape the rule treats differently.
-     * A rule written against a single literal suffix cannot pass.
+     * Asks the SDK's own resolver where each FIPS, dual-stack and transfer-acceleration combination resolves
+     * to, over one region per partition plus three more in {@code aws}, and requires the rule to accept every
+     * one. Every partition is covered; a further region inside one adds no host shape the rule treats
+     * differently. A rule written against a single literal suffix cannot pass.
+     *
+     * <p>The population is the real regions above. The pseudo-regions {@link Region#regions()} also carries
+     * ({@code aws-us-gov-global} and the per-partition {@code aws-*-global} names) are deliberately outside
+     * it: they are an input to the resolver rather than an endpoint anyone configures, and nothing here
+     * establishes that AWS serves the {@code s3.aws-us-gov-global.amazonaws.com} hosts they produce. Refusing
+     * a form no source of truth confirms is the direction that cannot admit a host we did not mean to reach.
      */
     public void testAcceptsEveryEndpointTheResolverProduces() {
         int checked = 0;
         for (String region : REGIONS) {
             for (boolean fips : List.of(false, true)) {
                 for (boolean dualStack : List.of(false, true)) {
-                    String s3Host = resolveS3Host(region, fips, dualStack);
-                    if (s3Host != null) {
-                        // The resolver puts the bucket in the leading label; the setting names what remains.
-                        String service = s3Host.substring("mybucket.".length());
-                        assertTrue("rejected " + service, S3EndpointCheck.isPermittedHost(service, S3_SERVICE));
-                        checked++;
+                    for (boolean accelerate : List.of(false, true)) {
+                        String s3Host = resolveS3Host(region, fips, dualStack, accelerate);
+                        if (s3Host != null) {
+                            // The resolver puts the bucket in the leading label; the setting names what remains.
+                            String service = s3Host.substring("mybucket.".length());
+                            assertTrue("rejected " + service, S3EndpointCheck.isPermittedHost(service, S3_SERVICE));
+                            checked++;
+                        }
                     }
                     String stsHost = resolveStsHost(region, fips, dualStack);
                     if (stsHost != null) {
@@ -66,7 +74,7 @@ public class S3EndpointCheckTests extends ESTestCase {
                 }
             }
         }
-        assertEquals("the set of endpoints the resolver produces has changed", 68, checked);
+        assertEquals("the set of endpoints the resolver produces has changed", 86, checked);
     }
 
     public void testAcceptsAwsEndpoints() {
@@ -105,10 +113,26 @@ public class S3EndpointCheckTests extends ESTestCase {
         assertAllRefused(S3_SERVICE, "s3express-use1-az4.us-east-1.amazonaws.com", "s3express-control.us-east-1.amazonaws.com");
     }
 
-    /** Dual-stack is always regional: the resolver produces no region-less dual-stack endpoint. */
-    public void testRefusesDualStackWithoutARegion() {
-        assertAllRefused(S3_SERVICE, "s3.dualstack.amazonaws.com", "s3-fips.dualstack.amazonaws.com");
-        assertAllRefused(STS_SERVICE, "sts.dualstack.amazonaws.com");
+    /**
+     * The region-less dual-stack form. Transfer acceleration is served globally and has a dual-stack
+     * spelling, so {@code s3-accelerate.dualstack.<suffix>} is a host the pinned resolver produces — the
+     * sweep above reaches it through the accelerate axis. Requiring a region after {@code dualstack} would
+     * refuse it, which is why the global branch does not.
+     */
+    public void testAcceptsDualStackWithoutARegion() {
+        for (String host : List.of("s3-accelerate.dualstack.amazonaws.com", "s3.dualstack.amazonaws.com")) {
+            assertTrue(host, S3EndpointCheck.isPermittedHost(host, S3_SERVICE));
+        }
+        assertTrue(S3EndpointCheck.isPermittedHost("sts.dualstack.amazonaws.com", STS_SERVICE));
+    }
+
+    /**
+     * A bucket-qualified dual-stack name is still refused, which is what keeps the global branch from
+     * admitting a customer-chosen label: {@code dualstack} is a fixed label compared in second position,
+     * never a name anyone can register.
+     */
+    public void testRefusesBucketQualifiedDualStack() {
+        assertAllRefused(S3_SERVICE, "mybucket.s3.dualstack.amazonaws.com", "dualstack.s3.amazonaws.com");
     }
 
     public void testRefusesNonAwsHosts() {
@@ -274,17 +298,17 @@ public class S3EndpointCheckTests extends ESTestCase {
         }
     }
 
-    private static String resolveS3Host(String region, boolean fips, boolean dualStack) {
+    private static String resolveS3Host(String region, boolean fips, boolean dualStack, boolean accelerate) {
         try {
             var params = S3EndpointParams.builder().region(Region.of(region)).bucket("mybucket");
             return S3EndpointProvider.defaultProvider()
-                .resolveEndpoint(params.useFips(fips).useDualStack(dualStack).build())
+                .resolveEndpoint(params.useFips(fips).useDualStack(dualStack).accelerate(accelerate).build())
                 .join()
                 .url()
                 .getHost();
         } catch (RuntimeException e) {
-            // aws-cn has no FIPS endpoints and the ISO partitions no dual-stack ones; a combination the
-            // resolver refuses has no destination for the rule to admit.
+            // aws-cn has no FIPS endpoints, the ISO partitions no dual-stack ones, and accelerate is not
+            // served with FIPS; a combination the resolver refuses has no destination for the rule to admit.
             return null;
         }
     }

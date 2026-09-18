@@ -433,6 +433,14 @@ public final class ExternalSourceSettings {
      * the setting: the {@code https} requirement exists because a host rule rests on the certificate presented for
      * a name, and an operator naming an exact host and port has made that judgement themselves.
      * <p>
+     * The waiver covers {@code sts_endpoint} as well as {@code endpoint}, and that is the sharper half. The STS
+     * client authenticates with nothing but the node's own OIDC token, so a listed host named there receives that
+     * token — over plain {@code http} if the entry is reached that way. List a host for STS only where the network
+     * path to it is trusted on its own.
+     * <p>
+     * A pattern is matched against the host exactly as the URL spells it, where the AWS rule normalises first, so
+     * write the host as the SDK will send it: a differing case or a trailing root dot is not matched here.
+     * <p>
      * This is a node-scope setting — only someone who can configure the node can widen what it reaches. Holding
      * the privilege to manage data sources is not enough.
      */

@@ -36,7 +36,7 @@ import java.util.regex.Pattern;
  * <p>A host is permitted in one of two shapes, under an AWS partition DNS suffix:
  *
  * <ul>
- *   <li>{@code <service>[.dualstack].<region>}, or the global {@code <service>} — see
+ *   <li>{@code <service>[.dualstack].<region>}, or the global {@code <service>[.dualstack]} — see
  *       {@link #S3_SERVICE_LABELS} for the leading labels and what each reaches.</li>
  *   <li>{@code [<prefix>.]vpce-<id>.<service>.<region>.vpce} — an AWS PrivateLink interface endpoint, the
  *       one destination a customer cannot express any other way.</li>
@@ -140,21 +140,26 @@ final class S3EndpointCheck {
         if (Strings.hasText(value) == false) {
             return;
         }
+        // Both refusals below are unreachable today: the shared URL check in S3Configuration.validateSettings
+        // throws on an unparseable value, and on one with no host, before the configuration object this runs
+        // on exists. The invariant lives in another class, so this refuses rather than permits — a value this
+        // method cannot read is one it cannot vouch for.
         URI uri;
         try {
             uri = URI.create(value);
         } catch (IllegalArgumentException e) {
-            // Unreachable in practice: the shared URL check throws on a value this would reject, from
-            // S3Configuration.validateSettings, before the configuration object this runs on exists.
+            errors.addValidationError(settingName + " [" + value + "] is not a valid URL");
             return;
         }
         if (uri.getHost() == null) {
-            // Likewise unreachable: a value with no parseable host throws from the same place.
+            errors.addValidationError(settingName + " [" + value + "] names no host");
             return;
         }
         if (allowedByOperator.test(hostAndPort(uri))) {
             // Named by the node's own configuration, so the scheme is not examined either — see
-            // ExternalSourceSettings#ALLOWED_ENDPOINT_HOSTS.
+            // ExternalSourceSettings#ALLOWED_ENDPOINT_HOSTS. The match is exact where the AWS rule below
+            // normalises: an operator writes the host as the SDK will send it, so a differing case or a
+            // trailing root dot falls through to that rule rather than being waived here.
             return;
         }
         if ("https".equalsIgnoreCase(uri.getScheme()) == false) {
@@ -238,9 +243,12 @@ final class S3EndpointCheck {
             next++;
         }
         if (next == labels.length) {
-            // The global form, the service label alone. Dual-stack is always regional, so the region
-            // after it is required rather than optional.
-            return dualStack == false;
+            // The global form: the service label, optionally dual-stack. Transfer acceleration is served
+            // globally and has a dual-stack spelling, so the resolver does produce a region-less dual-stack
+            // host (s3-accelerate.dualstack.<suffix>). Admitting the shape for every service label names no
+            // host a customer controls, because "dualstack" is a fixed label compared here rather than a
+            // bucket or an access point the customer chose.
+            return true;
         }
         return next == labels.length - 1 && isRegionLabel(labels[next]);
     }

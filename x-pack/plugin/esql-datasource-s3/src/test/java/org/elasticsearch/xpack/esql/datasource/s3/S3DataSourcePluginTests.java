@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -108,6 +109,59 @@ public class S3DataSourcePluginTests extends ESTestCase {
             assertThat(e.getMessage(), containsString("not a supported AWS S3 endpoint"));
             var accepted = validator.validateDatasource(Map.of("endpoint", "https://s3.us-east-1.amazonaws.com", "auth", "anonymous"));
             assertEquals("https://s3.us-east-1.amazonaws.com", accepted.get("endpoint").nonSecretValue());
+        }
+    }
+
+    /**
+     * The operator allow-list, driven through the automaton the plugin actually builds rather than a
+     * hand-written predicate: {@code S3EndpointCheckTests} supplies its own {@code Predicate<String>}, so it
+     * cannot notice the glob compilation or the {@code host:port} spelling the plugin matches against.
+     *
+     * <p>Two of the entries name a port rather than a wildcard, and that is deliberate: a URL carrying no
+     * port has to acquire its scheme's default before {@code host:port} can match one of them, so these are
+     * the cases that hold the default-port inference. A wildcard entry would match whatever number the
+     * inference produced and prove nothing about it.
+     */
+    public void testAllowlistedHostIsAcceptedOverPlainHttp() throws IOException {
+        Settings settings = Settings.builder()
+            .putList("esql.external.allowed_endpoint_hosts", "127.0.0.1:9000", "localhost:80", "127.0.0.1:443")
+            .build();
+        try (S3DataSourcePlugin plugin = new S3DataSourcePlugin()) {
+            DataSourceValidator validator = plugin.datasourceValidators(settings).get("s3");
+            for (String endpoint : List.of(
+                "http://127.0.0.1:9000", // the named port, matched as written
+                "http://localhost",      // only matches localhost:80 if http's default port is inferred
+                "https://127.0.0.1"      // and this one only if https infers 443
+            )) {
+                var accepted = validator.validateDatasource(Map.of("endpoint", endpoint, "auth", "anonymous"));
+                assertEquals(endpoint, accepted.get("endpoint").nonSecretValue());
+            }
+            // The list is the enable: a host it does not name gets no waiver, on either the port or the name.
+            for (String endpoint : List.of("http://127.0.0.1:9001", "http://127.0.0.2:9000")) {
+                var e = expectThrows(
+                    ValidationException.class,
+                    () -> validator.validateDatasource(Map.of("endpoint", endpoint, "auth", "anonymous"))
+                );
+                assertThat(e.getMessage(), containsString("must use https"));
+            }
+            // An https host the list does not name falls through to the AWS host rule, not to a waiver.
+            var e = expectThrows(
+                ValidationException.class,
+                () -> validator.validateDatasource(Map.of("endpoint", "https://127.0.0.1:8443", "auth", "anonymous"))
+            );
+            assertThat(e.getMessage(), containsString("not a supported AWS S3 endpoint"));
+        }
+    }
+
+    /** The production default is an empty list, which must waive nothing. */
+    public void testEmptyAllowlistWaivesNothing() throws IOException {
+        try (S3DataSourcePlugin plugin = new S3DataSourcePlugin()) {
+            DataSourceValidator validator = plugin.datasourceValidators(Settings.EMPTY).get("s3");
+            var e = expectThrows(
+                ValidationException.class,
+                () -> validator.validateDatasource(Map.of("endpoint", "http://127.0.0.1:9000", "auth", "anonymous"))
+            );
+            assertThat(e.getMessage(), containsString("must use https"));
         }
     }
 

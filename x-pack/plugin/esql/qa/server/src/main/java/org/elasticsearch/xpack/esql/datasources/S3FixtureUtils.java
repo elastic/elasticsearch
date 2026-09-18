@@ -45,7 +45,6 @@ public final class S3FixtureUtils {
     /** Default S3 secret key for test fixtures */
     public static final String SECRET_KEY = "test-secret-key";
 
-    /** Default bucket name for test fixtures */
     /**
      * The node setting that lets a cluster reach its object-store fixture. Endpoints are confined to AWS hosts,
      * and every fixture in the repository binds a loopback address, so a test cluster names loopback here the
@@ -56,6 +55,7 @@ public final class S3FixtureUtils {
     /** Loopback on any port, which is every fixture this repository starts. */
     public static final String LOOPBACK_ENDPOINT_HOSTS = "127.0.0.1:*,[::1]:*,localhost:*";
 
+    /** Default bucket name for test fixtures */
     public static final String BUCKET = "test-bucket";
 
     /** Default warehouse path within the bucket */

@@ -67,13 +67,11 @@ public class Clusters {
             .setting("esql.external.local_allowed_paths", FixtureUtils.pathRepoRootForIcebergFixtures(Clusters.class))
             // S3 client configuration for accessing the S3HttpFixture
             .setting("s3.client.default.endpoint", s3EndpointSupplier)
-            .setting(
-                S3FixtureUtils.ALLOWED_ENDPOINT_HOSTS_SETTING,
-                () -> S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS,
-                // The split-role cluster below boots its data node with federation off, and this key is
-                // registered only while federation is, so that node must not be given it.
-                nodeSpec -> "data-node".equals(nodeSpec.getName()) == false
-            )
+            // Every node gets the endpoint allowlist, including the one the split-role cluster below boots with
+            // federation disabled. Whether the key is registered is decided by the system property
+            // Federation.REGISTER_PROPERTY, which defaults to registered and is not set anywhere in this module;
+            // the esql.federation.enabled setting turns the feature off without unregistering its settings.
+            .setting(S3FixtureUtils.ALLOWED_ENDPOINT_HOSTS_SETTING, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS)
             // S3 credentials must be stored in keystore, not as regular settings
             .keystore("s3.client.default.access_key", ACCESS_KEY)
             .keystore("s3.client.default.secret_key", SECRET_KEY)

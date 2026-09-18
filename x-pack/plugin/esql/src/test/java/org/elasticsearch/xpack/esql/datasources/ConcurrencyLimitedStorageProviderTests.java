@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
@@ -15,6 +17,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
+import java.util.Locale;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -24,7 +27,7 @@ import static org.mockito.Mockito.when;
 public class ConcurrencyLimitedStorageProviderTests extends ESTestCase {
 
     public void testListObjectsAcquiresPermit() throws Exception {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(5);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(5, false));
         StorageProvider delegate = mock(StorageProvider.class);
         StorageIterator emptyIterator = new StorageIterator() {
             @Override
@@ -52,7 +55,7 @@ public class ConcurrencyLimitedStorageProviderTests extends ESTestCase {
     }
 
     public void testExistsAcquiresAndReleasesPermit() throws Exception {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(3);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false));
         StorageProvider delegate = mock(StorageProvider.class);
         when(delegate.exists(any())).thenReturn(true);
 
@@ -65,7 +68,7 @@ public class ConcurrencyLimitedStorageProviderTests extends ESTestCase {
     }
 
     public void testExistsReleasesPermitOnException() throws Exception {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(3);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(3, false));
         StorageProvider delegate = mock(StorageProvider.class);
         when(delegate.exists(any())).thenThrow(new IOException("network error"));
 
@@ -79,7 +82,7 @@ public class ConcurrencyLimitedStorageProviderTests extends ESTestCase {
      * surface as the retryable 503-class {@link ExternalUnavailableException}, not a plain non-retryable IOException.
      */
     public void testPermitExhaustionThrowsRetryable503() throws Exception {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(1, 50);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false), 50);
         StorageProvider delegate = mock(StorageProvider.class);
         StorageIterator emptyIterator = new StorageIterator() {
             @Override
@@ -109,13 +112,53 @@ public class ConcurrencyLimitedStorageProviderTests extends ESTestCase {
             assertEquals(RestStatus.SERVICE_UNAVAILABLE, thrown.status());
             assertFalse("node-local permit exhaustion is not a remote throttle", thrown.throttling());
             assertTrue("permit exhaustion must be retryable", RetryPolicy.DEFAULT.isRetryable(thrown));
+            assertEquals(thrown.getCause().getMessage(), thrown.getMessage());
+            assertEquals(1, thrown.getMessage().toLowerCase(Locale.ROOT).split("timed out", -1).length - 1);
         } finally {
             held.close();
         }
     }
 
+    public void testPermitAcquireInterruptThrowsNonRetryableRejection() throws Exception {
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false));
+        StorageProvider delegate = mock(StorageProvider.class);
+        StorageIterator emptyIterator = new StorageIterator() {
+            @Override
+            public boolean hasNext() {
+                return false;
+            }
+
+            @Override
+            public StorageEntry next() {
+                return null;
+            }
+
+            @Override
+            public void close() {}
+        };
+        when(delegate.listObjects(any(), anyBoolean())).thenReturn(emptyIterator);
+        when(delegate.exists(any())).thenReturn(true);
+
+        ConcurrencyLimitedStorageProvider provider = new ConcurrencyLimitedStorageProvider(delegate, limiter);
+        StorageIterator held = provider.listObjects(StoragePath.of("s3://bucket/prefix"), true);
+        try {
+            Thread.currentThread().interrupt();
+            EsRejectedExecutionException thrown = expectThrows(
+                EsRejectedExecutionException.class,
+                () -> provider.exists(StoragePath.of("s3://bucket/key"))
+            );
+            assertEquals("Interrupted while acquiring a concurrency permit", thrown.getMessage());
+            assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(thrown));
+            assertFalse("an interrupt is not back-pressure and must not be retried", RetryPolicy.DEFAULT.isRetryable(thrown));
+            assertTrue("the interrupt status must be restored for the caller", Thread.currentThread().isInterrupted());
+        } finally {
+            Thread.interrupted();
+            held.close();
+        }
+    }
+
     public void testNewObjectReturnsConcurrencyLimitedObject() {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(5);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(5, false));
         StorageProvider delegate = mock(StorageProvider.class);
         StorageObject mockObj = mock(StorageObject.class);
         when(delegate.newObject(any(StoragePath.class))).thenReturn(mockObj);

@@ -30,12 +30,14 @@ import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
@@ -110,8 +112,8 @@ public class Mapper {
             return mapBinary(binary);
         }
 
-        if (p instanceof Fork fork) {
-            return mapFork(fork);
+        if (p instanceof MergePlan merge) {
+            return mapMergePlan(merge);
         }
 
         return MapperUtils.unsupported(p);
@@ -327,21 +329,28 @@ public class Mapper {
         return isIndexModeLookup;
     }
 
-    private PhysicalPlan mapFork(Fork fork) {
+    private PhysicalPlan mapMergePlan(MergePlan merge) {
         // after removing the implicit limit attached to each branch, the branch plan may not have a coordinator plan anymore, however
         // ComputeService.executePlan has trouble with executing plan without coordinator plan, adding exchange solves the issue
-        int childSize = fork.children().size();
+        int childSize = merge.children().size();
 
         List<PhysicalPlan> newChildren = new ArrayList<>(childSize);
         for (int i = 0; i < childSize; i++) {
-            PhysicalPlan child = mapInner(fork.children().get(i));
+            PhysicalPlan child = mapInner(merge.children().get(i));
             if (child instanceof FragmentExec) {
                 child = new ExchangeExec(child.source(), child);
             }
             newChildren.add(child);
         }
 
-        return new MergeExec(fork.source(), newChildren, fork.output());
+        // ViewUnionAll extends UnionAll, so it maps as UNION. A new MergePlan sibling fails here
+        // instead of inheriting UNION placement.
+        MergeExec.Kind kind = switch (merge) {
+            case Fork ignored -> MergeExec.Kind.FORK;
+            case UnionAll ignored -> MergeExec.Kind.UNION;
+            default -> throw new IllegalStateException("unexpected MergePlan subclass: " + merge.getClass().getName());
+        };
+        return new MergeExec(merge.source(), newChildren, merge.output(), kind);
     }
 
     /**

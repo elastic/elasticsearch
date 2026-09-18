@@ -153,6 +153,7 @@ import org.elasticsearch.xpack.esql.evaluator.command.IpLocationFunctionBridge;
 import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -346,7 +347,8 @@ public class LocalExecutionPlanner {
         FoldContext foldCtx,
         PlannerSettings plannerSettings,
         PhysicalPlan localPhysicalPlan,
-        IndexedByShardId<? extends ShardContext> shardContexts
+        IndexedByShardId<? extends ShardContext> shardContexts,
+        boolean singleNodeOptimizations
     ) {
         final boolean timeSeries = localPhysicalPlan.anyMatch(p -> p instanceof TimeSeriesAggregateExec);
         var context = new LocalExecutionPlannerContext(
@@ -363,7 +365,9 @@ public class LocalExecutionPlanner {
             shardContexts,
             physicalOperationProviders.analysisRegistry(),
             new Holder<>(),
-            new Holder<>()
+            new Holder<>(),
+            new Holder<>(),
+            singleNodeOptimizations
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
@@ -396,7 +400,7 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation plan(PhysicalPlan node, LocalExecutionPlannerContext context) {
         if (node instanceof AggregateExec aggregate) {
-            return planAggregation(aggregate, context);
+            return planAggregation(aggregate, context, false);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
             return planFieldExtractNode(fieldExtractExec, context);
         } else if (node instanceof ReadDimsExec readDimsExec) {
@@ -688,7 +692,11 @@ public class LocalExecutionPlanner {
         throw new EsqlIllegalArgumentException("unknown FUSE score method [" + fuse.fuseConfig() + "]");
     }
 
-    private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {
+    private PhysicalOperation planAggregation(
+        AggregateExec aggregate,
+        LocalExecutionPlannerContext context,
+        boolean allowPartitionedOutput
+    ) {
         var source = plan(aggregate.child(), context);
         HashAggregationOperator.ParallelConfig parallelConfig = null;
         if (parallelWorkerExecutor != null) {
@@ -700,7 +708,7 @@ public class LocalExecutionPlanner {
                     .aggregationPartitioningCountThreshold(context.plannerSettings().aggregationPartitioningCountThreshold())
             );
         }
-        return physicalOperationProviders.groupingPhysicalOperation(aggregate, source, parallelConfig, context);
+        return physicalOperationProviders.groupingPhysicalOperation(aggregate, source, parallelConfig, allowPartitionedOutput, context);
     }
 
     private PhysicalOperation planEsQueryNode(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
@@ -931,7 +939,13 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planExchangeSink(ExchangeSinkExec exchangeSink, LocalExecutionPlannerContext context) {
         Objects.requireNonNull(exchangeSinkSupplier, "ExchangeSinkHandler wasn't provided");
         var child = exchangeSink.child();
-        PhysicalOperation source = plan(child, context);
+        PhysicalOperation source;
+        if (child instanceof AggregateExec aggregate) {
+            // allow partitioned output if both partial and final on the same node
+            source = planAggregation(aggregate, context, context.singleNodeOptimizations());
+        } else {
+            source = plan(child, context);
+        }
         if (Assertions.ENABLED) {
             List<Attribute> inputAttributes = exchangeSink.child().output();
             for (Attribute attr : inputAttributes) {
@@ -2347,8 +2361,9 @@ public class LocalExecutionPlanner {
             ),
             source.layout
         );
-        // Add ScoreOperator only on data nodes. Data nodes are able to calculate scores running queries on the resulting docs.
-        if (context.shardContexts.isEmpty() == false && PlannerUtils.usesScoring(filter)) {
+        // Scoring normally needs a data node, which can run the query against the resulting docs. A runtime search is the
+        // exception: it scores per row from the values in the page, so it also contributes on the coordinator.
+        if (PlannerUtils.usesScoring(filter) && (context.shardContexts.isEmpty() == false || scoresWithoutShards(filter.condition()))) {
             // Add scorer operator to add the filter expression scores to the overall scores
             Attribute scoreAttribute = null;
 
@@ -2378,6 +2393,14 @@ public class LocalExecutionPlanner {
             );
         }
         return filterOperation;
+    }
+
+    /**
+     * Whether {@code condition} contains a scoring contributor that can be evaluated without a shard context, which
+     * today means a runtime full-text search.
+     */
+    private static boolean scoresWithoutShards(Expression condition) {
+        return condition.anyMatch(e -> e instanceof FullTextFunction ftf && ftf.isRuntimeSearch() && ftf.contributesToScore());
     }
 
     private PhysicalOperation planInsertEmptyBuckets(InsertEmptyBucketsExec insertEmptyBuckets, LocalExecutionPlannerContext context) {
@@ -2446,6 +2469,7 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planLimit(LimitExec limit, LocalExecutionPlannerContext context) {
+        context.lastVisitedLimit.set(limit);
         PhysicalOperation source = plan(limit.child(), context);
         return source.with(new LimitOperator.Factory((Integer) limit.limit().fold(context.foldCtx)), source.layout);
     }
@@ -2691,7 +2715,9 @@ public class LocalExecutionPlanner {
         IndexedByShardId<? extends ShardContext> shardContexts,
         @Nullable AnalysisRegistry analysisRegistry,
         Holder<TopNExec> lastVisitedTopN,
-        Holder<LuceneMinCompetitiveTimestampTopN> luceneMinCompetitivePilot
+        Holder<LimitExec> lastVisitedLimit,
+        Holder<LuceneMinCompetitiveTimestampTopN> luceneMinCompetitivePilot,
+        boolean singleNodeOptimizations
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);

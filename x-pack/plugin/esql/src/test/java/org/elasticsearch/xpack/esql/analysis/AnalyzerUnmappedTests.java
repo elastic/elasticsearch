@@ -15,6 +15,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -61,7 +62,6 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.nonLoadablePunkWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
@@ -82,6 +82,10 @@ import static org.hamcrest.Matchers.nullValue;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
+
+    public AnalyzerUnmappedTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     /**
      * Query suffixes that use the unsupported type-conflict field [message] in different commands.
@@ -427,7 +431,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     // A DROP of an unmapped field materializes it in the sibling branch (#152843); on a multi-FORK plan that new alignment runs before
-    // FORK verification, so this guards that it degrades to the clean single-FORK rejection rather than throwing from resolveFork.
+    // FORK verification, so this guards that it degrades to the clean single-FORK rejection rather than throwing from resolveMergePlan.
     public void testLoadModeRejectsMultipleForksWithDroppedUnmappedField() {
         partialMappingTest().statementError(setUnmappedLoad("""
             FROM partial_mapping_sample_data
@@ -2069,7 +2073,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(field.getUnmappedConversionExpression(), notNullValue());
     }
 
-    private static TestAnalyzer index1() {
+    private TestAnalyzer index1() {
         Map<String, EsField> mapping = Map.of("field", new UnsupportedEsField("field", List.of("flattened")));
         return analyzer().addIndex(
             new EsIndex("test", mapping, Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of())

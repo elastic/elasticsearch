@@ -174,6 +174,28 @@ public class CsvTestsDataLoader {
         // one column, while the bare scalar unmapped is an object here and stays fully unmapped (only its expansion can surface it).
         new TestDataset("unmapped_multi_mapped", "mapping-unmapped_multi_mapped.json", "unmapped_multi_mapped.csv"),
         new TestDataset("unmapped_multi_mapped_mixed", "mapping-unmapped_multi_mapped_mixed.json", "unmapped_multi_mapped_mixed.csv"),
+        // unmapped_source* family: indices used to test LOAD_ALL with arrays of data inside _source, synthetic source, _source includes
+        // and _source excludes, _source disabled
+        // Indices whose mapping JSON carries a top-level "_source" block (disabled, excludes, includes) are skipped by the data loader
+        // when supportsSourceFieldMapping=false (BWC / mixed-cluster runs); csv-spec tests against those indices must therefore also
+        // gate on required_capability: source_field_mapping.
+        new TestDataset("unmapped_source_stored", "mapping-unmapped_source.json", "unmapped_source.csv"),
+        new TestDataset("unmapped_source_stored", "mapping-unmapped_source.json", "unmapped_source.csv").withIndex(
+            "unmapped_source_synthetic"
+        ).withSetting("synthetic-source-settings.json"),
+        new TestDataset("unmapped_source_stored", "mapping-unmapped_source.json", "unmapped_source.csv").withIndex(
+            "unmapped_source_synth_keep_arrays"
+        ).withSetting("synthetic-source-keep-arrays-settings.json"),
+        new TestDataset("unmapped_source_disabled", "mapping-unmapped_source_disabled.json", "unmapped_source.csv"),
+        new TestDataset("unmapped_source_excludes", "mapping-unmapped_source_excludes.json", "unmapped_source.csv"),
+        new TestDataset("unmapped_source_includes", "mapping-unmapped_source_includes.json", "unmapped_source.csv"),
+        new TestDataset("unmapped_source_mapped", "mapping-unmapped_source_mapped.json", "unmapped_source.csv"),
+        new TestDataset(
+            "unmapped_source_subobjects_false",
+            "mapping-unmapped_source_subobjects_false.json",
+            "unmapped_source.csv",
+            "synthetic-source-settings.json"
+        ),
         new TestDataset("cross_mapping_a", "mapping-cross_mapping_a.json", "cross_mapping_a.csv"),
         new TestDataset("cross_mapping_b", "mapping-cross_mapping_b.json", "cross_mapping_b.csv"),
         new TestDataset("no_message_sample_data", "mapping-sample_data.json", "sample_data.csv").withTypeMapping(removeFields("message"))
@@ -244,6 +266,9 @@ public class CsvTestsDataLoader {
         new TestDataset("date_nanos"),
         new TestDataset("date_nanos_union_types"),
         new TestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json"),
+        // The flavor of k8s dataset ingested via Prometheus Remote Write.
+        new TestDataset("prometheus-k8s", "prometheus-k8s-mappings.json", "prometheus-k8s.csv", "prometheus-k8s-settings.json")
+            .withRequiredCapabilities(EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING),
         new TestDataset("k8s_unmapped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
             .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
             .withDynamic("false"),

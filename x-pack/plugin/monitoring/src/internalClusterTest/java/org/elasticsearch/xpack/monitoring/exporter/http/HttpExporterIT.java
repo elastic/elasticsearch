@@ -663,7 +663,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
             timestamp,
             intervalMillis,
             sourceNode,
-            new RecoveryResponse(0, 0, 0, null, null)
+            new RecoveryResponse(0, 0, 0, Map.of(), null)
         );
     }
 

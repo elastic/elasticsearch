@@ -17,6 +17,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -36,8 +39,12 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
+import java.time.Instant;
+import java.time.Period;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 
 public class PartitionFilterHintExtractorTests extends ESTestCase {
 
@@ -155,6 +162,34 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
 
         Map<String, List<PartitionFilterHint>> hints = PartitionFilterHintExtractor.extract(rel);
         assertTrue(hints.isEmpty());
+    }
+
+    /**
+     * Field {@code DATE_EXTRACT} is not a Hive folder bind. C2 inverts it after analysis;
+     * listing still sees an unresolved function and must not emit {@code year=}.
+     */
+    public void testDateExtractOnTimestampFieldIsNotHiveHint() {
+        String path = "s3://bucket/data/year=*/*.parquet";
+        Expression extract = new UnresolvedFunction(SRC, "DATE_EXTRACT", List.of(keywordLiteral("year"), unresolved("ts")));
+        LogicalPlan plan = filterAboveExternal(new Equals(SRC, extract, intLiteral(2024)), path);
+
+        Map<String, List<PartitionFilterHint>> hints = PartitionFilterHintExtractor.extract(plan);
+        assertTrue("DATE_EXTRACT on ts must not emit year=", hints.isEmpty());
+        assertEquals(path, GlobExpander.rewriteGlobWithHints(path, hints.getOrDefault(path, List.of())));
+    }
+
+    public void testDateTruncOnTimestampFieldIsNotHiveHint() {
+        String path = "s3://bucket/data/year=*/*.parquet";
+        Expression trunc = new UnresolvedFunction(
+            SRC,
+            "DATE_TRUNC",
+            List.of(new Literal(SRC, Period.ofYears(1), DataType.DATE_PERIOD), unresolved("ts"))
+        );
+        LogicalPlan plan = filterAboveExternal(new Equals(SRC, trunc, keywordLiteral("2024-01-01T00:00:00Z")), path);
+
+        Map<String, List<PartitionFilterHint>> hints = PartitionFilterHintExtractor.extract(plan);
+        assertTrue("DATE_TRUNC on ts must not emit year=", hints.isEmpty());
+        assertEquals(path, GlobExpander.rewriteGlobWithHints(path, hints.getOrDefault(path, List.of())));
     }
 
     public void testUnsupportedExpressionIgnored() {
@@ -382,7 +417,77 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         );
     }
 
+    /**
+     * Extractor stays attr-vs-literal: a raw {@code DATE_EXTRACT} call is not a hint even when
+     * every argument is a literal. Listing must run the preprocessor first.
+     */
+    public void testExtractorIgnoresRawDateExtract() {
+        Expression condition = new Equals(SRC, unresolved("year"), dateExtract("YEAR", datetimeLiteral(DASHBOARD_TS)));
+        LogicalPlan plan = filterAboveExternal(condition, PATH);
+
+        assertTrue("extractor must stay dumb about UnresolvedFunction", PartitionFilterHintExtractor.extract(plan).isEmpty());
+    }
+
+    public void testPreprocessorFoldsDashboardDateExtracts() {
+        Literal ts = datetimeLiteral(DASHBOARD_TS);
+        Expression condition = new And(
+            SRC,
+            new And(
+                SRC,
+                new Equals(SRC, unresolved("year"), dateExtract("YEAR", ts)),
+                new Equals(SRC, unresolved("month"), dateExtract("MONTH_OF_YEAR", ts))
+            ),
+            new Equals(SRC, unresolved("day"), dateExtract("DAY_OF_MONTH", ts))
+        );
+        LogicalPlan plan = filterAboveExternal(condition, PATH);
+
+        List<PartitionFilterHint> hints = extractFolded(plan).get(PATH);
+        assertNotSame("folding must copy the Filter, not mutate the session plan", plan, foldForListing(plan));
+        assertNotNull(hints);
+        assertEquals(3, hints.size());
+        assertEquals(new PartitionFilterHint("year", Operator.EQUALS, List.of(2026L)), hints.get(0));
+        assertEquals(new PartitionFilterHint("month", Operator.EQUALS, List.of(7L)), hints.get(1));
+        assertEquals(new PartitionFilterHint("day", Operator.EQUALS, List.of(13L)), hints.get(2));
+
+        assertTrue(
+            "session plan must keep the unresolved DATE_EXTRACT calls",
+            ((Filter) plan).condition().anyMatch(e -> e instanceof UnresolvedFunction)
+        );
+    }
+
+    public void testPreprocessorFoldsDateExtractOnLeft() {
+        Expression condition = new Equals(SRC, dateExtract("YEAR", datetimeLiteral(DASHBOARD_TS)), unresolved("year"));
+        LogicalPlan plan = filterAboveExternal(condition, PATH);
+
+        List<PartitionFilterHint> hints = extractFolded(plan).get(PATH);
+        assertNotNull(hints);
+        assertEquals(1, hints.size());
+        assertEquals(new PartitionFilterHint("year", Operator.EQUALS, List.of(2026L)), hints.get(0));
+    }
+
+    public void testPreprocessorDoesNotFoldFieldDateExtract() {
+        Expression condition = new Equals(SRC, unresolved("year"), dateExtract("YEAR", unresolved("start")));
+        LogicalPlan plan = filterAboveExternal(condition, PATH);
+
+        assertTrue("DATE_EXTRACT over an unresolved field cannot become a partition hint", extractFolded(plan).isEmpty());
+        assertSame("nothing folded, so the listing copy is the original plan", plan, foldForListing(plan));
+    }
+
+    public void testPreprocessorFoldsNestedDateExtractOverDateTrunc() {
+        UnresolvedFunction trunc = new UnresolvedFunction(
+            SRC,
+            "DATE_TRUNC",
+            List.of(new Literal(SRC, Period.ofDays(1), DataType.DATE_PERIOD), datetimeLiteral(DASHBOARD_TS))
+        );
+        LogicalPlan plan = filterAboveExternal(new Equals(SRC, unresolved("year"), dateExtract("YEAR", trunc)), PATH);
+
+        List<PartitionFilterHint> hints = extractFolded(plan).get(PATH);
+        assertEquals(List.of(new PartitionFilterHint("year", Operator.EQUALS, List.of(2026L))), hints);
+    }
+
     private static final String PATH = "s3://bucket/data/*.parquet";
+    private static final long DASHBOARD_TS = Instant.parse("2026-07-13T00:00:00Z").toEpochMilli();
+    private static final EsqlFunctionRegistry FUNCTION_REGISTRY = new EsqlFunctionRegistry();
 
     private static UnresolvedExternalRelation externalRelation(String path) {
         return new UnresolvedExternalRelation(SRC, Literal.keyword(SRC, path), Map.of());
@@ -403,5 +508,21 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
 
     private static Literal keywordLiteral(String value) {
         return Literal.keyword(SRC, value);
+    }
+
+    private static Literal datetimeLiteral(long millis) {
+        return new Literal(SRC, millis, DataType.DATETIME);
+    }
+
+    private static UnresolvedFunction dateExtract(String chrono, Expression date) {
+        return new UnresolvedFunction(SRC, "DATE_EXTRACT", List.of(Literal.keyword(SRC, chrono), date));
+    }
+
+    private static LogicalPlan foldForListing(LogicalPlan plan) {
+        return FoldDateFunctionFiltersForListing.fold(plan, TEST_CFG, FUNCTION_REGISTRY);
+    }
+
+    private static Map<String, List<PartitionFilterHint>> extractFolded(LogicalPlan plan) {
+        return PartitionFilterHintExtractor.extract(foldForListing(plan));
     }
 }

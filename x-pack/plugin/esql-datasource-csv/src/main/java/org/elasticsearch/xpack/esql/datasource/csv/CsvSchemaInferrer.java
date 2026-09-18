@@ -317,7 +317,7 @@ public class CsvSchemaInferrer {
         }
         DataType accepted = TYPE_CANDIDATES[currentIdx];
         DataType evidence = TYPE_CANDIDATES[evidenceIdx];
-        DataType committed = TypeWidening.join(accepted, evidence, TypeWidening.Policy.INFERENCE);
+        DataType committed = TypeWidening.join(accepted, evidence);
         // The join never invents a third type — a test in the lattice's own suite pins that
         // exhaustively — so the answer is either the evidence or the top, and there is no rung to
         // search for. It cannot be the accepted type: the identity case returned above, and

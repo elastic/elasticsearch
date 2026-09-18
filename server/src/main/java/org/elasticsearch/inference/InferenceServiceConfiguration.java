@@ -9,12 +9,9 @@
 
 package org.elasticsearch.inference;
 
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.configuration.InferenceServiceFeatures;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -22,8 +19,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -143,15 +138,6 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
 
     public static InferenceServiceConfiguration fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
-    }
-
-    public static InferenceServiceConfiguration fromXContentBytes(BytesReference source, XContentType xContentType) {
-        var parserConfig = XContentParserConfiguration.EMPTY.withRegistry(InferenceServiceFeatures.NAMED_X_CONTENT_REGISTRY);
-        try (XContentParser parser = XContentHelper.createParser(parserConfig, source, xContentType)) {
-            return InferenceServiceConfiguration.fromXContent(parser);
-        } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to parse inference service configuration", e);
-        }
     }
 
     @Override

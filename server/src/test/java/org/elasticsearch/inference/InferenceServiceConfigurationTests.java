@@ -9,6 +9,7 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -25,6 +26,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -52,6 +54,15 @@ public class InferenceServiceConfigurationTests extends AbstractBWCSerialization
         return InferenceServiceConfiguration.fromXContent(parser);
     }
 
+    public static InferenceServiceConfiguration fromXContentBytes(BytesReference source, XContentType xContentType) {
+        var parserConfig = XContentParserConfiguration.EMPTY.withRegistry(InferenceServiceFeaturesTests.NAMED_X_CONTENT_REGISTRY);
+        try (XContentParser parser = XContentHelper.createParser(parserConfig, source, xContentType)) {
+            return InferenceServiceConfiguration.fromXContent(parser);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("failed to parse inference service configuration", e);
+        }
+    }
+
     @Override
     protected boolean supportsUnknownFields() {
         return true;
@@ -68,7 +79,7 @@ public class InferenceServiceConfigurationTests extends AbstractBWCSerialization
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return InferenceServiceFeatures.NAMED_X_CONTENT_REGISTRY;
+        return InferenceServiceFeaturesTests.NAMED_X_CONTENT_REGISTRY;
     }
 
     @Override
@@ -159,7 +170,7 @@ public class InferenceServiceConfigurationTests extends AbstractBWCSerialization
             }
             """);
 
-        var configuration = InferenceServiceConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+        var configuration = fromXContentBytes(new BytesArray(content), XContentType.JSON);
         boolean humanReadable = true;
         var originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
         InferenceServiceConfiguration parsed;
@@ -199,7 +210,7 @@ public class InferenceServiceConfigurationTests extends AbstractBWCSerialization
             }
             """);
 
-        var configuration = InferenceServiceConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+        var configuration = fromXContentBytes(new BytesArray(content), XContentType.JSON);
         boolean humanReadable = true;
         var originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
         InferenceServiceConfiguration parsed;
@@ -220,7 +231,7 @@ public class InferenceServiceConfigurationTests extends AbstractBWCSerialization
             }
             """);
 
-        var configuration = InferenceServiceConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+        var configuration = fromXContentBytes(new BytesArray(content), XContentType.JSON);
         assertThat(configuration.getFeatures(), is(InferenceServiceFeatures.of(NonStreamingChatFeature.SUPPORTED_INSTANCE)));
         boolean humanReadable = true;
         var originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
@@ -247,7 +258,7 @@ public class InferenceServiceConfigurationTests extends AbstractBWCSerialization
                "configurations": {}
             }
             """);
-        var configuration = InferenceServiceConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+        var configuration = fromXContentBytes(new BytesArray(content), XContentType.JSON);
         assertNull(configuration.getFeatures());
     }
 
@@ -261,7 +272,7 @@ public class InferenceServiceConfigurationTests extends AbstractBWCSerialization
                "features": {"non_streaming_chat": {"supported": false}}
             }
             """);
-        var configuration = InferenceServiceConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+        var configuration = fromXContentBytes(new BytesArray(content), XContentType.JSON);
         assertThat(configuration.getFeatures(), is(InferenceServiceFeatures.of(NonStreamingChatFeature.UNSUPPORTED_INSTANCE)));
     }
 
@@ -276,10 +287,7 @@ public class InferenceServiceConfigurationTests extends AbstractBWCSerialization
             }
             """);
 
-        var exception = expectThrows(
-            XContentParseException.class,
-            () -> InferenceServiceConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON)
-        );
+        var exception = expectThrows(XContentParseException.class, () -> fromXContentBytes(new BytesArray(content), XContentType.JSON));
         assertThat(exception.getMessage(), containsString("[features]"));
     }
 
@@ -294,10 +302,7 @@ public class InferenceServiceConfigurationTests extends AbstractBWCSerialization
             }
             """);
 
-        var exception = expectThrows(
-            XContentParseException.class,
-            () -> InferenceServiceConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON)
-        );
+        var exception = expectThrows(XContentParseException.class, () -> fromXContentBytes(new BytesArray(content), XContentType.JSON));
         assertThat(exception.getMessage(), containsString("[features]"));
     }
 
@@ -321,7 +326,7 @@ public class InferenceServiceConfigurationTests extends AbstractBWCSerialization
             }
             """);
 
-        var configuration = InferenceServiceConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+        var configuration = fromXContentBytes(new BytesArray(content), XContentType.JSON);
 
         var apiKey = configuration.getConfigurations().get("api_key");
         assertThat(apiKey.getLabel(), is("API Key"));

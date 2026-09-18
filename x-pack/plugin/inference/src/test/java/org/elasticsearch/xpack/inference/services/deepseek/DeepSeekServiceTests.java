@@ -19,7 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
-import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfigurationTests;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -407,7 +407,7 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
                        }
                     """
             );
-            var configuration = InferenceServiceConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+            var configuration = InferenceServiceConfigurationTests.fromXContentBytes(new BytesArray(content), XContentType.JSON);
             var humanReadable = true;
             var originalBytes = toShuffledXContent(configuration, XContentType.JSON, EMPTY_PARAMS, humanReadable);
             var serviceConfiguration = service.getConfiguration();

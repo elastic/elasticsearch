@@ -36,12 +36,15 @@ import java.util.ArrayList;
 import java.util.Objects;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.inference.configuration.InferenceServiceFeatures.getNamedXContentEntries;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class InferenceServiceFeaturesTests extends AbstractBWCSerializationTestCase<InferenceServiceFeatures> {
+
+    public static final NamedXContentRegistry NAMED_X_CONTENT_REGISTRY = new NamedXContentRegistry(getNamedXContentEntries());
 
     private static final String TEST_FEATURE_DETAIL = "some detail";
     private static final String OTHER_TEST_FEATURE_DETAIL = "some other detail";
@@ -75,7 +78,7 @@ public class InferenceServiceFeaturesTests extends AbstractBWCSerializationTestC
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return InferenceServiceFeatures.NAMED_X_CONTENT_REGISTRY;
+        return NAMED_X_CONTENT_REGISTRY;
     }
 
     @Override
@@ -209,7 +212,7 @@ public class InferenceServiceFeaturesTests extends AbstractBWCSerializationTestC
     }
 
     private static NamedXContentRegistry registryIncludingTestFeature() {
-        var entries = new ArrayList<>(InferenceServiceFeatures.getNamedXContentEntries());
+        var entries = new ArrayList<>(getNamedXContentEntries());
         entries.add(
             new NamedXContentRegistry.Entry(InferenceFeature.class, new ParseField(TestFeature.NAME), (p, c) -> TestFeature.fromXContent(p))
         );

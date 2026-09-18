@@ -72,12 +72,6 @@ public class InferenceServiceFeatures implements Writeable, ToXContentObject {
         );
     }
 
-    /**
-     * Used by {@code InferenceServiceConfiguration#fromXContentBytes} so that parsing works without the caller having
-     * to thread a registry through. Parsers built elsewhere must supply this registry themselves.
-     */
-    public static final NamedXContentRegistry NAMED_X_CONTENT_REGISTRY = new NamedXContentRegistry(getNamedXContentEntries());
-
     public static InferenceServiceFeatures of(InferenceFeature... features) {
         var builder = new Builder();
         for (var feature : features) {

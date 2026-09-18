@@ -2,11 +2,21 @@ import { beforeEach, describe, expect, test } from "vitest";
 
 import { generatePipelines } from "./pipeline.ts";
 import { setBwcVersionsPath, setSnapshotBwcVersionsPath } from "./bwc-versions.ts";
+import { setBranchesJson } from "./later-branches.ts";
 
 describe("generatePipelines", () => {
   beforeEach(() => {
     setBwcVersionsPath(`${import.meta.dirname}/mocks/bwcVersions`);
     setSnapshotBwcVersionsPath(`${import.meta.dirname}/mocks/snapshotBwcVersions`);
+
+    setBranchesJson({
+      branches: [
+        { branch: "main", version: "9.6.0" },
+        { branch: "9.5", version: "9.5.5" },
+        { branch: "9.4", version: "9.4.8" },
+        { branch: "8.19", version: "8.19.22" },
+      ],
+    });
 
     process.env["GITHUB_PR_TARGET_BRANCH"] = "test-branch";
     process.env["GITHUB_PR_LABELS"] = "test-label-1,test-label-2";
@@ -113,5 +123,40 @@ describe("generatePipelines", () => {
 
     expect(usingDefaults).toBeDefined();
     expect(usingDefaults!.pipeline.env?.["CUSTOM_ENV_VAR"]).toBe("value");
+  });
+
+  const fwcSteps = (targetBranch: string) => {
+    process.env["GITHUB_PR_TARGET_BRANCH"] = targetBranch;
+
+    const pipelines = generatePipelines(`${import.meta.dirname}/mocks/pipelines`, ["build.gradle"]);
+    return pipelines.find((pipeline) => pipeline.name === "fwc-snapshots");
+  };
+
+  test("should run forward compatibility against the one branch ahead of 9.5", () => {
+    const fwc = fwcSteps("9.5");
+
+    expect(fwc?.pipeline.steps?.[0].steps?.[0].matrix).toEqual({
+      setup: { LATER_BRANCH: ["main"], PART: ["1", "2", "3", "4", "5", "6"] },
+    });
+  });
+
+  test("should run forward compatibility against every branch ahead of 9.4, oldest first", () => {
+    const fwc = fwcSteps("9.4");
+
+    expect(fwc?.pipeline.steps?.[0].steps?.[0].matrix).toEqual({
+      setup: { LATER_BRANCH: ["9.5", "main"], PART: ["1", "2", "3", "4", "5", "6"] },
+    });
+  });
+
+  test("should not run forward compatibility on main, where nothing is ahead", () => {
+    expect(fwcSteps("main")).toBeUndefined();
+  });
+
+  test("should not run forward compatibility on the excluded maintenance branch", () => {
+    expect(fwcSteps("8.19")).toBeUndefined();
+  });
+
+  test("should not run forward compatibility on a branch that is not a development branch", () => {
+    expect(fwcSteps("patch/serverless-fix")).toBeUndefined();
   });
 });

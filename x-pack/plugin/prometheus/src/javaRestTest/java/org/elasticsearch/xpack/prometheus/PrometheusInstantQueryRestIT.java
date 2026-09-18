@@ -15,9 +15,14 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.prometheus.PromqlResponseSeries.of;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -251,6 +256,256 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
             }
             """.replace("$DATA_STREAM", dataStream).replace("$ALIAS", alias));
         client().performRequest(request);
+    }
+
+    // --- tx/rx queries across ingestion paths through the instant query API ---
+    // Ingestion helpers live in the base class.
+
+    private static final Instant QUERY_TIME = Instant.parse("2024-05-10T00:00:00Z");
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantRawOperandsMatchAcrossIngestionPaths() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("tx / rx", 5, 10, 3);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantValues("tx / rx", 5, 10, 3);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantValues("tx / rx", 5, 10, 3);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantRawAndPairedOperandsMatchAcrossIngestionPaths() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("tx / (tx + rx)", 5.0 / 6, 10.0 / 11, 3.0 / 4);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantValues("tx / (tx + rx)", 5.0 / 6, 10.0 / 11, 3.0 / 4);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantValues("tx / (tx + rx)", 5.0 / 6, 10.0 / 11, 3.0 / 4);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantSumOverCrossMetricPairing() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("sum(tx / rx)", 18);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantValues("sum(tx / rx)", 18);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantValues("sum(tx / rx)", 18);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantSumOverSameMetricPairing() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("sum(tx / tx)", 3);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantValues("sum(tx / tx)", 3);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantValues("sum(tx / tx)", 3);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantSumOverChainedPairing() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("sum(tx / (tx + rx))", 5.0 / 6 + 10.0 / 11 + 3.0 / 4);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantValues("sum(tx / (tx + rx))", 5.0 / 6 + 10.0 / 11 + 3.0 / 4);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantValues("sum(tx / (tx + rx))", 5.0 / 6 + 10.0 / 11 + 3.0 / 4);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantGroupedSumOverPairing() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups("sum by (cluster) (tx / rx)", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantGroups("sum by (cluster) (tx / rx)", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantGroups("sum by (cluster) (tx / rx)", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantGroupedSumOverIncreasePairing() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups("sum by (cluster) (increase(tx[1m]) / increase(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantGroups("sum by (cluster) (increase(tx[1m]) / increase(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantGroups("sum by (cluster) (increase(tx[1m]) / increase(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantGroupedSumOverIratePairing() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups("sum by (cluster) (irate(tx[1m]) / irate(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantGroups("sum by (cluster) (irate(tx[1m]) / irate(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantGroups("sum by (cluster) (irate(tx[1m]) / irate(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantDefaultMatchingExcludesMetricName() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups("sum by (host, __name__) (tx) / sum by (host, __name__) (rx)", "host", txRxRatios());
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantGroups("sum by (host, __name__) (tx) / sum by (host, __name__) (rx)", "host", txRxRatios());
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantGroups("sum by (host, __name__) (tx) / sum by (host, __name__) (rx)", "host", txRxRatios());
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantIgnoringMatchingExcludesMetricName() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups("sum by (host, __name__) (tx) / ignoring () sum by (host, __name__) (rx)", "host", txRxRatios());
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantGroups("sum by (host, __name__) (tx) / ignoring () sum by (host, __name__) (rx)", "host", txRxRatios());
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantGroups("sum by (host, __name__) (tx) / ignoring () sum by (host, __name__) (rx)", "host", txRxRatios());
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantMatchingPreservesBothOperandSelections() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("topk(1, tx) + bottomk(1, tx)");
+        assertBinopInstantValues("bottomk(1, tx) + topk(1, tx)");
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantValues("topk(1, tx) + bottomk(1, tx)");
+        assertBinopInstantValues("bottomk(1, tx) + topk(1, tx)");
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantValues("topk(1, tx) + bottomk(1, tx)");
+        assertBinopInstantValues("bottomk(1, tx) + topk(1, tx)");
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantMatchingPreservesRightOperandSelection() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("tx / topk(1, rx)", 3);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantValues("tx / topk(1, rx)", 3);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantValues("tx / topk(1, rx)", 3);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantMatchingPreservesLeftOperandSelection() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantValues("topk(1, tx) / rx", 10);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantValues("topk(1, tx) / rx", 10);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantValues("topk(1, tx) / rx", 10);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantMixedDuplicateRawMatchKeysAreRejected() throws Exception {
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantDuplicate("tx_dup / rx_dup");
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantMixedDuplicateLeftExpressionMatchKeysAreRejected() throws Exception {
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantDuplicate("(tx_dup + 0) / rx_dup");
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testInstantMixedDuplicateRightExpressionMatchKeysAreRejected() throws Exception {
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantDuplicate("tx_dup / (rx_dup + 0)");
+    }
+
+    public void testInstantAggregatedOperandsMatchAcrossIngestionPaths() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantAggGroups();
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantAggGroups();
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantAggGroups();
+    }
+
+    public void testInstantExplicitOnMatchesRetainedMetricNames() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_TIME);
+        assertBinopInstantGroups("sum by (host, __name__) (tx) / on (host) sum by (host, __name__) (rx)", "host", txRxRatios());
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_TIME);
+        assertBinopInstantGroups("sum by (host, __name__) (tx) / on (host) sum by (host, __name__) (rx)", "host", txRxRatios());
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_TIME);
+        assertBinopInstantGroups("sum by (host, __name__) (tx) / on (host) sum by (host, __name__) (rx)", "host", txRxRatios());
+    }
+
+    private ObjectPath executeBinopInstantQuery(String expression) throws IOException {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query",
+            new BasicNameValuePair("query", expression),
+            new BasicNameValuePair("time", QUERY_TIME.toString())
+        );
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        ObjectPath responsePath = ObjectPath.createFromResponse(response);
+        assertThat(responsePath.evaluate("status"), equalTo("success"));
+        assertThat(responsePath.evaluate("data.resultType"), equalTo("vector"));
+        return responsePath;
+    }
+
+    private void assertBinopInstantValues(String expression, double... expected) throws IOException {
+        ObjectPath response = executeBinopInstantQuery(expression);
+        List<Double> actual = PromqlResponseSeries.ofInstant(response).stream().map(PromqlResponseSeries::value).sorted().toList();
+        Arrays.sort(expected);
+        assertEquals(expression + ": " + actual, expected.length, actual.size());
+        for (int i = 0; i < expected.length; i++) {
+            assertThat(expression, actual.get(i), closeTo(expected[i], 1e-10));
+        }
+    }
+
+    private void assertBinopInstantGroups(String expression, String group, Map<String, Double> expected) throws IOException {
+        ObjectPath response = executeBinopInstantQuery(expression);
+        Map<String, Double> actual = new HashMap<>();
+        for (PromqlResponseSeries series : PromqlResponseSeries.ofInstant(response)) {
+            assertNull("duplicate output group", actual.put(series.labels().get(group), series.value()));
+        }
+        assertThat(expression, actual.keySet(), equalTo(expected.keySet()));
+        expected.forEach((label, value) -> assertThat(expression + " " + label, actual.get(label), closeTo(value, 1e-10)));
+    }
+
+    private void assertBinopInstantAggGroups() throws IOException {
+        // Default matching exercises folding; explicit matching exercises the join.
+        for (String match : List.of("", "on (host)", "ignoring ()")) {
+            assertBinopInstantGroups("sum by (host) (tx) / " + match + " sum by (host) (rx)", "host", txRxRatios());
+        }
+    }
+
+    private void assertBinopInstantDuplicate(String expression) {
+        ResponseException error = expectThrows(ResponseException.class, () -> executeBinopInstantQuery(expression));
+        assertThat(error.getMessage(), containsString("duplicate"));
     }
 
 }

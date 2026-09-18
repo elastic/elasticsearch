@@ -175,14 +175,7 @@ final class PartitionPruningWalk {
             if (pending.isEmpty() || listings + dirs.size() > MAX_DIRECTORY_LISTINGS) {
                 // No hint can narrow a deeper level (or the budget is spent): finish each surviving subtree with
                 // one recursive listing, unless one flat listing of the whole prefix is cheaper.
-                return finishSurvivors(
-                    collector,
-                    provider,
-                    dirs,
-                    prunedColumns,
-                    inferColumnTypes(seenValues),
-                    lastHintedLevelPeerCount
-                );
+                return finishSurvivors(collector, provider, dirs, prunedColumns, inferColumnTypes(seenValues), lastHintedLevelPeerCount);
             }
 
             List<StoragePath> shapedDirs = new ArrayList<>();
@@ -294,14 +287,7 @@ final class PartitionPruningWalk {
                 // LIST per directory — and `WHERE <partition> AND <data column>` is the everyday shape. Keep the
                 // pruning already done and finish by recursively listing each surviving PARENT dir (dirs), not each
                 // child (next): listing the parent once enumerates the same files with one round trip instead of N.
-                return finishSurvivors(
-                    collector,
-                    provider,
-                    dirs,
-                    prunedColumns,
-                    inferColumnTypes(seenValues),
-                    lastHintedLevelPeerCount
-                );
+                return finishSurvivors(collector, provider, dirs, prunedColumns, inferColumnTypes(seenValues), lastHintedLevelPeerCount);
             }
             // Commit direct files now that we know finishSurvivors won't re-enumerate them.
             for (StorageEntry file : levelFiles) {

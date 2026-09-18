@@ -11,10 +11,12 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -36,7 +38,11 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
     private final List<CircuitBreaker> breakers = new ArrayList<>();
 
     LookupFromIndexService.LookupResponse createTestInstance(BlockFactory blockFactory) {
-        return new LookupFromIndexService.LookupResponse(randomList(0, 10, () -> randomPage(blockFactory)), blockFactory);
+        return new LookupFromIndexService.LookupResponse(
+            randomList(0, 10, () -> randomPage(blockFactory)),
+            blockFactory,
+            randomList(0, 3, () -> randomAlphaOfLength(10))
+        );
     }
 
     /**
@@ -74,7 +80,11 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
 
     @Override
     protected Writeable.Reader<LookupFromIndexService.LookupResponse> instanceReader() {
-        return in -> new LookupFromIndexService.LookupResponse(in, TestBlockFactory.getNonBreakingInstance());
+        return in -> new LookupFromIndexService.LookupResponse(
+            in,
+            TestBlockFactory.getNonBreakingInstance(),
+            new ThreadContext(Settings.EMPTY)
+        );
     }
 
     @Override
@@ -83,7 +93,7 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
         List<Page> pages = new ArrayList<>(instance.pages().size());
         pages.addAll(instance.pages());
         pages.add(randomPage(TestBlockFactory.getNonBreakingInstance()));
-        return new LookupFromIndexService.LookupResponse(pages, instance.blockFactory);
+        return new LookupFromIndexService.LookupResponse(pages, instance.blockFactory, instance.warnings());
     }
 
     public void testWithBreaker() throws IOException {
@@ -95,7 +105,7 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
                 orig,
                 getNamedWriteableRegistry(),
                 (out, v) -> v.writeTo(out),
-                in -> new LookupFromIndexService.LookupResponse(in, copyFactory),
+                in -> new LookupFromIndexService.LookupResponse(in, copyFactory, new ThreadContext(Settings.EMPTY)),
                 TransportVersion.current()
             );
             try {

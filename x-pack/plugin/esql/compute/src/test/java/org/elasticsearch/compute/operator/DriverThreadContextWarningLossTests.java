@@ -102,10 +102,10 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
             AtomicReference<List<String>> warningsSeenOnCompletion = new AtomicReference<>();
             AtomicReference<Exception> failure = new AtomicReference<>();
             runner.runToCompletion(List.of(driver), ActionListener.wrap(ignored -> {
-                // Read the response headers on whatever thread the driver actually completed on -
-                // exactly what production code does immediately after runToCompletion's listener
-                // fires, before anything might hop to yet another thread.
-                warningsSeenOnCompletion.set(threadContext.getResponseHeaders().getOrDefault("Warning", List.of()));
+                // Read warnings from the DriverContext: in the new architecture warnings accumulate
+                // in the per-driver sink (thread-safe set) rather than in thread-local response headers,
+                // so they are always visible here regardless of which thread the driver completed on.
+                warningsSeenOnCompletion.set(new java.util.ArrayList<>(driverContext.warnings()));
                 completed.countDown();
             }, e -> {
                 failure.set(e);
@@ -181,7 +181,7 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
             AtomicReference<List<String>> warningsSeenOnCompletion = new AtomicReference<>();
             AtomicReference<Exception> failure = new AtomicReference<>();
             runner.runToCompletion(List.of(driver), ActionListener.wrap(ignored -> {
-                warningsSeenOnCompletion.set(threadContext.getResponseHeaders().getOrDefault("Warning", List.of()));
+                warningsSeenOnCompletion.set(new java.util.ArrayList<>(driverContext.warnings()));
                 completed.countDown();
             }, e -> {
                 failure.set(e);
@@ -237,7 +237,7 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
         @Override
         protected Page process(Page page) {
             if (warned.compareAndSet(false, true)) {
-                Warnings warnings = Warnings.createOnlyWarnings(driverContext.warningsMode(), 1, 1, "test");
+                Warnings warnings = driverContext.createOnlyWarnings(1, 1, "test");
                 warnings.registerException(new IllegalArgumentException(warningMessage));
             }
             return page;
@@ -276,7 +276,7 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
         protected Page process(Page page) {
             Warning warning = warningsByPageIndex.get(pageIndex.getAndIncrement());
             if (warning != null && warning.warned().compareAndSet(false, true)) {
-                Warnings warnings = Warnings.createOnlyWarnings(driverContext.warningsMode(), 1, 1, "test");
+                Warnings warnings = driverContext.createOnlyWarnings(1, 1, "test");
                 warnings.registerException(new IllegalArgumentException(warning.message()));
             }
             return page;

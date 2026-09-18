@@ -20,6 +20,13 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
@@ -74,11 +81,22 @@ public class SingleValueMathQueryTests extends MapperServiceTestCase {
             List<List<Object>> fieldValues = setup.build(iw);
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
+                BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256))
+                    .withCircuitBreaking();
+                CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+                DriverContext dc = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
+                Warnings warnings = dc.createWarnings(1, 1, "test");
                 Query query = new SingleValueMatchQuery(
                     ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH),
-                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, 1, 1, "test")
+                    warnings,
+                    "single-value function encountered multi-value"
                 );
-                runCase(fieldValues, ctx.searcher().count(query));
+                int count = ctx.searcher().count(query);
+                dc.finish();
+                for (String w : dc.warnings()) {
+                    HeaderWarning.addWarning(w);
+                }
+                runCase(fieldValues, count);
                 setup.assertRewrite(ctx.searcher(), query);
             }
         }
@@ -91,7 +109,8 @@ public class SingleValueMathQueryTests extends MapperServiceTestCase {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
                 Query query = new SingleValueMatchQuery(
                     ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH),
-                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, 1, 1, "test")
+                    Warnings.NOOP_WARNINGS,
+                    "single-value function encountered multi-value"
                 );
                 runCase(List.of(), ctx.searcher().count(query));
             }

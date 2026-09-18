@@ -17,6 +17,7 @@ import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.document.column.TokenStreamColumn;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -421,7 +422,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         }
 
         private SyntheticIdTokenStreamColumn(BytesRef[] uids, int from, int count, FixedBitSet filter) {
-            super(SyntheticIdField.NAME, SyntheticIdField.COLUMNAR_INDEXED_TYPE, filter != null ? Density.SPARSE : Density.DENSE);
+            super(SyntheticIdField.NAME, SyntheticIdField.COLUMNAR_INDEXED_TYPE, Density.DENSE);
             this.uids = uids;
             this.from = from;
             this.count = count;
@@ -447,19 +448,36 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
         @Override
         public ObjectTupleCursor<TokenStream> tuples() {
+            if (filter == null) {
+                return new ObjectTupleCursor<>() {
+                    private int doc = -1;
+                    private final SyntheticIdField.EmptyTokenStream ts = new SyntheticIdField.EmptyTokenStream();
+
+                    @Override
+                    public int nextDoc() {
+                        ++doc;
+                        return doc < count ? doc : DocIdSetIterator.NO_MORE_DOCS;
+                    }
+
+                    @Override
+                    public TokenStream value() {
+                        return ts;
+                    }
+                };
+            }
+            // With filter: emit compact doc IDs (0-based rank in filter) for each set bit. Unlike
+            // sparse columns, the _id field is always present for every document, so there is no
+            // inner sparse cursor to co-iterate with — we walk the filter bits directly rather than
+            // using FilteredIterator (which exists to intersect a sparse data cursor with a filter).
             return new ObjectTupleCursor<>() {
-                private int doc = -1;
+                private int compactDoc = -1;
                 private final SyntheticIdField.EmptyTokenStream ts = new SyntheticIdField.EmptyTokenStream();
+                private final BitSetIterator bits = new BitSetIterator(filter, filter.cardinality());
 
                 @Override
                 public int nextDoc() {
-                    ++doc;
-                    if (filter != null) {
-                        while (doc < count && filter.get(doc) == false) {
-                            ++doc;
-                        }
-                    }
-                    return doc < count ? doc : DocIdSetIterator.NO_MORE_DOCS;
+                    ++compactDoc;
+                    return bits.nextDoc() != DocIdSetIterator.NO_MORE_DOCS ? compactDoc : DocIdSetIterator.NO_MORE_DOCS;
                 }
 
                 @Override

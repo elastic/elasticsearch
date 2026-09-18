@@ -12,9 +12,11 @@ package org.elasticsearch.sourcebatch;
 import org.apache.lucene.document.column.Column;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.FixedBitSet;
 
 import java.util.List;
+import java.util.function.IntSupplier;
 
 /**
  * A {@link SliceableColumn} that can also produce Lucene fields for both the columnar
@@ -27,10 +29,10 @@ public interface LuceneColumn extends SliceableColumn {
 
     /**
      * Returns a copy of this column that emits only documents whose bit is set in {@code filter}.
-     * When {@code filter} is non-null the returned column has {@link Column.Density#SPARSE} density.
-     * Passing {@code null} is a no-op when the column already has an active filter: the existing
-     * filter is preserved. Use {@link #singleFilter} to compose the incoming value with any
-     * pre-existing filter.
+     * The returned column retains the density of the underlying data: a dense column stays dense (it
+     * emits {@code filter.cardinality()} values at the filter-bit positions), while a sparse column
+     * stays sparse (it emits tuples with compact doc IDs 0-based in the filter). Pass {@code null}
+     * to remove any existing filter.
      *
      * @param filter a bitset of length equal to this column's doc count, or {@code null}
      */
@@ -45,6 +47,51 @@ public interface LuceneColumn extends SliceableColumn {
     static FixedBitSet singleFilter(FixedBitSet existing, FixedBitSet replacement) {
         assert existing == null || replacement == null : "cannot apply a filter to a column that already has one";
         return replacement != null ? replacement : existing;
+    }
+
+    /**
+     * Stateful helper for co-iterating a sparse data cursor with a filter bitset and mapping
+     * matching positions to compact doc IDs (0-based rank within the filter). One instance is
+     * created per filtered cursor; it is consumed in a single forward pass and must not be shared.
+     *
+     * <p>Typical usage:
+     * <pre>{@code
+     * FilteredIterator fi = new FilteredIterator(filter);
+     * // inside nextDoc():
+     * return fi.nextDoc(inner::nextDoc);
+     * }</pre>
+     */
+    final class FilteredIterator {
+
+        private final BitSetIterator filterBits;
+        private int filterBit;
+        private int compactDoc = 0;
+
+        public FilteredIterator(FixedBitSet filter) {
+            filterBits = new BitSetIterator(filter, filter.cardinality());
+            filterBit = filterBits.nextDoc();
+        }
+
+        /**
+         * Advances the inner cursor (via {@code advanceInner}) and the filter in lockstep until
+         * a position is found that is set in the filter and has data, then returns its compact doc
+         * ID (0-based rank within the filter). Returns {@link DocIdSetIterator#NO_MORE_DOCS} when
+         * either the data or the filter is exhausted.
+         */
+        public int nextDoc(IntSupplier advanceInner) {
+            while (true) {
+                if (filterBit == DocIdSetIterator.NO_MORE_DOCS) return DocIdSetIterator.NO_MORE_DOCS;
+                int innerDoc = advanceInner.getAsInt();
+                if (innerDoc == DocIdSetIterator.NO_MORE_DOCS) return DocIdSetIterator.NO_MORE_DOCS;
+                while (filterBit < innerDoc) {
+                    filterBit = filterBits.nextDoc();
+                    compactDoc++;
+                    if (filterBit == DocIdSetIterator.NO_MORE_DOCS) return DocIdSetIterator.NO_MORE_DOCS;
+                }
+                if (filterBit == innerDoc) return compactDoc;
+                // innerDoc is not in the filter; advance inner again
+            }
+        }
     }
 
     /**

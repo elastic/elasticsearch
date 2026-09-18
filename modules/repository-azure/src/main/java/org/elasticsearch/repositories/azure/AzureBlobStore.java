@@ -113,6 +113,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -120,7 +121,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -943,13 +943,7 @@ public class AzureBlobStore implements BlobStore {
         int byteBufferSize,
         int part
     ) {
-        return toFlux(() -> {
-            try {
-                return wrapInputStream(blobName, provider.apply(offset, length), part);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }, length, byteBufferSize);
+        return toFlux(() -> wrapInputStream(blobName, provider.apply(offset, length), part), length, byteBufferSize);
     }
 
     /**
@@ -1014,14 +1008,14 @@ public class AzureBlobStore implements BlobStore {
      * fresh stream on each subscribe (including Azure SDK retries) and closes it on terminate.
      * Does not mark or reset the stream. Also checks that the stream provided the expected number of bytes.
      *
-     * @param openStream        supplies an independent {@link InputStream} for this subscription
+     * @param openStream        opens an independent {@link InputStream} for this subscription
      * @param length            the expected length in bytes of the input stream
      * @param byteBufferSize    the size of the ByteBuffers to be created
      */
-    private static Flux<ByteBuffer> toFlux(Supplier<InputStream> openStream, long length, final int byteBufferSize) {
+    private static Flux<ByteBuffer> toFlux(Callable<InputStream> openStream, long length, final int byteBufferSize) {
         // Flux.using creates the stream per subscriber so retries resubscribe with a new InputStream.
         // subscribeOn a different scheduler to avoid blocking the network io threads when reading bytes from disk
-        return Flux.using(openStream::get, stream -> {
+        return Flux.using(openStream, stream -> {
             // the number of bytes read is updated in a thread pool (repository_azure) and later compared to the expected length in another
             // thread pool (azure_event_loop), so we need this to be atomic.
             final var bytesRead = new AtomicLong(0L);

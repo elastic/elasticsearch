@@ -1201,6 +1201,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return commitState.getMaxPendingOrUploadedGeneration();
     }
 
+    // Visible for testing
     public long getMaxGenerationToUpload(ShardId shardId) {
         final ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         return commitState.maxGenerationToUpload;
@@ -3154,7 +3155,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 assert pauseUpload(virtualPendingCompoundCommit.getGeneration()) == false
                     : shardId
                         + " provided unpromotable recovery registration vbcc "
-                        + virtualPrimaryTermAndGeneration
+                        + virtualPendingCompoundCommit.getGeneration()
                         + " greater than maxGenerationToUpload="
                         + maxGenerationToUpload;
                 final var virtualCompoundCommit = virtualPendingCompoundCommit.getStatelessCompoundCommit();

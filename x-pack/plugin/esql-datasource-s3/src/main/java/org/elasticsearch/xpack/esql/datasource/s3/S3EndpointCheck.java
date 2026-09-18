@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
-import software.amazon.awssdk.regions.EndpointTag;
-import software.amazon.awssdk.regions.PartitionEndpointKey;
 import software.amazon.awssdk.regions.PartitionMetadata;
 import software.amazon.awssdk.regions.Region;
 
@@ -16,46 +14,35 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 
 import java.net.URI;
-import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Predicate;
-import java.util.regex.Pattern;
 
 /**
- * Restricts the {@code endpoint} and {@code sts_endpoint} data-source settings to the AWS endpoints this
- * product supports, at {@code PUT /_query/data_source} time via
+ * Restricts the {@code endpoint} and {@code sts_endpoint} data-source settings at
+ * {@code PUT /_query/data_source} time, via
  * {@link org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator#withDatasourceCheck}.
  *
  * <p>Both settings become an endpoint override on an AWS SDK client builder, so whatever host they name is
  * one this node connects to. For {@code sts_endpoint} that host receives the node's own OIDC token as a
  * bearer credential, because the STS client authenticates with nothing else.
  *
- * <p>A host is permitted in one of two shapes, under an AWS partition DNS suffix, and both name a region:
+ * <p>A regional endpoint is matched by <em>membership</em> rather than by parsing: {@link #S3_ENDPOINT_HOSTS}
+ * and {@link #STS_ENDPOINT_HOSTS} are built at class load by crossing the enabled service labels with every
+ * region the SDK knows, so admitting a host means finding it in a set the SDK's own metadata generated. A
+ * region the pinned SDK has never heard of is therefore refused, not pattern-matched — {@code us-east-99} is
+ * a well-formed region token and names nothing. That is the intended direction: a new AWS region is readmitted
+ * by an SDK upgrade, and in the meantime by an operator naming the host in
+ * {@code esql.external.allowed_endpoint_hosts}.
  *
- * <ul>
- *   <li>{@code <service>[.dualstack].<region>}, or the historical {@code s3-<region>} spelling that carries
- *       its region in the service label — see {@link #S3_SERVICE_LABELS} for which leading labels qualify
- *       and which endpoint families are deliberately excluded.</li>
- *   <li>{@code [<prefix>.]vpce-<id>.<service>.<region>.vpce} — an AWS PrivateLink interface endpoint, the
- *       one destination a customer cannot express any other way.</li>
- * </ul>
+ * <p>PrivateLink is the one shape with no such source — {@code vpce} appears in none of the SDK jars, and the
+ * endpoint id is minted per customer — so {@code [<prefix>.]vpce-<id>.<service>.<region>.vpce} is matched
+ * against a generated tail, leaving only the id and its optional prefix to be read from the name.
  *
- * <p>Regional and PrivateLink are the whole permitted set. Every other AWS endpoint family — the global
- * endpoint, transfer acceleration, access points, object lambda, Outposts, the control plane, the legacy
- * alias and S3 Express — is refused, and reaching one takes an operator naming its host in
- * {@code esql.external.allowed_endpoint_hosts}. A knob per family would be a second lever over the same
- * rule, overridable by that list and therefore not a constraint at all.
- *
- * <p>Suffixes and region patterns come from the SDK's partition metadata, so a partition it gains needs no
- * change here. The interface-endpoint shape has no such source — {@code vpce} appears in none of the SDK
- * jars — so it is maintained here and pinned by {@code S3EndpointCheckTests}.
- *
- * <p>Requiring a region after the service label is load-bearing. Without it any name whose leading label
- * merely starts with the service prefix is admitted, and a bucket called {@code sts-anything} answers to
- * {@code sts-anything.s3.us-east-1.amazonaws.com}.
+ * <p>Requiring a region is load-bearing: without it a bucket anyone can create named {@code sts-anything}
+ * answers to {@code sts-anything.s3.us-east-1.amazonaws.com} and would be admitted. Every other AWS endpoint
+ * family is refused — see {@link #S3_SERVICE_LABELS}.
  */
 final class S3EndpointCheck {
 
@@ -63,76 +50,96 @@ final class S3EndpointCheck {
     static final String STS_SERVICE = "sts";
 
     /**
-     * The leading label of a regional S3 object endpoint. Beside it there is one form whose tail is
-     * generated rather than fixed, handled by pattern in {@link #isServiceLabel}: the historical
-     * {@code s3-<region>} spelling, which carries its region in the service label itself.
+     * Every S3 endpoint family AWS serves, with only the regional object endpoint enabled. The list is
+     * load-bearing rather than documentary: each enabled label is crossed with every region to build
+     * {@link #S3_ENDPOINT_HOSTS}, so uncommenting a line readmits that family for all regions at once.
      *
-     * <p>Every other S3 endpoint family AWS serves is deliberately absent, and each is reachable only by an
-     * operator naming its host in {@code esql.external.allowed_endpoint_hosts}:
+     * <p>The historical {@code s3-<region>} spelling is absent because it is not a label of its own — it
+     * carries the region inside the service label, and is generated separately. Dual-stack is absent because
+     * it is a label between the service and the region, so no host built from this list can contain it.
      *
-     * <ul>
-     *   <li>{@code s3-fips} — the regional endpoint over FIPS 140-validated cryptography. Absent because the
-     *       SDK does not treat an endpoint override as a way to ask for FIPS: setting its FIPS client option
-     *       alongside a custom endpoint fails with {@code A custom endpoint cannot be combined with FIPS},
-     *       and this data source exposes no such option. Permitting the hostname would imply a capability
-     *       nothing here delivers.</li>
-     *   <li>{@code s3-accesspoint}, {@code s3-accesspoint-fips} — an access point, which fronts one bucket
-     *       under its own policy.</li>
-     *   <li>{@code s3-accelerate} — transfer acceleration, which routes through an edge location.</li>
-     *   <li>{@code s3-object-lambda}, {@code s3-object-lambda-fips} — an access point that runs a Lambda over
-     *       each object as it is read.</li>
-     *   <li>{@code s3-outposts}, {@code s3-outposts-fips} — storage on an Outposts rack in the customer's own
-     *       data centre.</li>
-     *   <li>{@code s3-control}, {@code s3-control-fips} — the account-level control plane (access points,
-     *       jobs), which serves no object reads at all.</li>
-     *   <li>{@code s3-external-1} — the legacy {@code us-east-1} alias, still resolvable.</li>
-     *   <li>{@code s3express-<az>} — S3 Express, which serves only directory buckets; those are refused by
-     *       name in {@link S3ResourceCheck} as well, because the bucket name alone moves the destination.</li>
-     * </ul>
+     * <p>{@code s3-fips} and dual-stack are disabled for a different reason than the rest: the SDK rejects
+     * its FIPS and dual-stack client options when a custom endpoint is set, and this data source exposes
+     * neither option, so those hostnames would promise a capability nothing here delivers.
      */
-    private static final Set<String> S3_SERVICE_LABELS = Set.of("s3");
+    // tag::
+    private static final Set<String> S3_SERVICE_LABELS = Set.of(
+        "s3"                        // the regional object endpoint
+     // "s3-fips",                  // the same over FIPS 140-validated cryptography
+     // "s3-accesspoint",           // an access point, fronting one bucket under its own policy
+     // "s3-accesspoint-fips",
+     // "s3-accelerate",            // transfer acceleration, routed via an edge location
+     // "s3-object-lambda",         // an access point running a Lambda over each object as it is read
+     // "s3-object-lambda-fips",
+     // "s3-outposts",              // storage on an Outposts rack in the customer's own data centre
+     // "s3-outposts-fips",
+     // "s3-control",               // the account-level control plane, which serves no object reads
+     // "s3-control-fips",
+     // "s3-external-1",            // the legacy us-east-1 alias
+     // "s3express-<az>",           // S3 Express, whose buckets S3ResourceCheck refuses by name too
+    );
+    // end::
 
-    /** The leading label of a regional STS endpoint. {@code sts-fips} is absent for the reason S3's is. */
-    private static final Set<String> STS_SERVICE_LABELS = Set.of("sts");
+    /** The STS endpoint families, only the regional one enabled. {@code sts-fips} is disabled for S3's reason. */
+    // tag::
+    private static final Set<String> STS_SERVICE_LABELS = Set.of(
+        "sts"                       // the regional token service
+     // "sts-fips",                 // the same over FIPS 140-validated cryptography
+    );
+    // end::
+
+    /** Every permitted S3 host, in full. Built below; matched by equality. */
+    private static final Set<String> S3_ENDPOINT_HOSTS;
+
+    /** Every permitted STS host, in full. */
+    private static final Set<String> STS_ENDPOINT_HOSTS;
 
     /**
-     * Enumerated over {@link Region#regions()} — a fixed built-in list {@link Region#of} does not extend —
-     * crossed with the four FIPS/dual-stack combinations, because a partition spells its dual-stack
-     * destination under a different suffix ({@code api.aws}, {@code api.amazonwebservices.com.cn}).
+     * The fixed tails of a PrivateLink interface endpoint, {@code .<service>.<region>.vpce.<suffix>}, one per
+     * region. What precedes a tail is the customer's endpoint id and its optional prefix, which is all this
+     * class reads out of such a name.
      */
-    private static final Set<String> PARTITION_DNS_SUFFIXES;
-
-    /** The region-token patterns the SDK's partitions declare, used to require a region after the service label. */
-    private static final List<Pattern> REGION_PATTERNS;
+    private static final Set<String> S3_VPCE_TAILS;
+    private static final Set<String> STS_VPCE_TAILS;
 
     static {
-        List<PartitionEndpointKey> endpointKeys = List.of(
-            PartitionEndpointKey.builder().tags(Set.of()).build(),
-            PartitionEndpointKey.builder().tags(Set.of(EndpointTag.FIPS)).build(),
-            PartitionEndpointKey.builder().tags(Set.of(EndpointTag.DUALSTACK)).build(),
-            PartitionEndpointKey.builder().tags(Set.of(EndpointTag.FIPS, EndpointTag.DUALSTACK)).build()
-        );
-        Set<String> suffixes = new TreeSet<>();
-        Set<String> regionRegexes = new LinkedHashSet<>();
+        Set<String> s3Hosts = new TreeSet<>();
+        Set<String> stsHosts = new TreeSet<>();
+        Set<String> s3Tails = new TreeSet<>();
+        Set<String> stsTails = new TreeSet<>();
         for (Region region : Region.regions()) {
-            PartitionMetadata partition = PartitionMetadata.of(region);
-            regionRegexes.add(partition.regionRegex());
-            for (PartitionEndpointKey key : endpointKeys) {
-                String suffix = partition.dnsSuffix(key);
-                if (Strings.hasText(suffix)) {
-                    suffixes.add(suffix.toLowerCase(Locale.ROOT));
-                }
+            // The pseudo-regions Region.regions() also carries are an input to the SDK's resolver rather
+            // than endpoints anyone configures, and each resolves to a region-less global host, which this
+            // class refuses for naming no region.
+            if (region.isGlobalRegion()) {
+                continue;
             }
+            String id = region.id().toLowerCase(Locale.ROOT);
+            String suffix = PartitionMetadata.of(region).dnsSuffix();
+            if (Strings.hasText(suffix) == false) {
+                continue;
+            }
+            suffix = suffix.toLowerCase(Locale.ROOT);
+            for (String label : S3_SERVICE_LABELS) {
+                s3Hosts.add(label + "." + id + "." + suffix);
+            }
+            for (String label : STS_SERVICE_LABELS) {
+                stsHosts.add(label + "." + id + "." + suffix);
+            }
+            // The historical spelling, still resolvable and still in customer configuration.
+            s3Hosts.add(S3_SERVICE + "-" + id + "." + suffix);
+            s3Tails.add("." + S3_SERVICE + "." + id + ".vpce." + suffix);
+            stsTails.add("." + STS_SERVICE + "." + id + ".vpce." + suffix);
         }
-        if (suffixes.isEmpty() || regionRegexes.isEmpty()) {
+        if (s3Hosts.isEmpty() || stsHosts.isEmpty()) {
             // Both come from SDK metadata. Empty would silently refuse every endpoint value on the node,
             // which reads as a product outage rather than as a missing dependency; fail at load instead.
-            throw new IllegalStateException(
-                "no AWS partition metadata available: suffixes=" + suffixes + " regionPatterns=" + regionRegexes
-            );
+            throw new IllegalStateException("no AWS partition metadata available");
         }
-        PARTITION_DNS_SUFFIXES = Set.copyOf(suffixes);
-        REGION_PATTERNS = regionRegexes.stream().map(Pattern::compile).toList();
+        S3_ENDPOINT_HOSTS = Set.copyOf(s3Hosts);
+        STS_ENDPOINT_HOSTS = Set.copyOf(stsHosts);
+        S3_VPCE_TAILS = Set.copyOf(s3Tails);
+        STS_VPCE_TAILS = Set.copyOf(stsTails);
     }
 
     private S3EndpointCheck() {}
@@ -225,100 +232,57 @@ final class S3EndpointCheck {
         if (normalized.endsWith(".")) {
             normalized = normalized.substring(0, normalized.length() - 1);
         }
-        // Longest match, so amazonaws.com.cn is not consumed as amazonaws.com with a stray "cn" label.
-        String suffix = null;
-        for (String candidate : PARTITION_DNS_SUFFIXES) {
-            if (normalized.endsWith("." + candidate) && (suffix == null || candidate.length() > suffix.length())) {
-                suffix = candidate;
-            }
-        }
-        if (suffix == null) {
-            return false;
-        }
-        String prefix = normalized.substring(0, normalized.length() - suffix.length() - 1);
-        if (prefix.isEmpty()) {
-            return false;
-        }
-        String[] labels = prefix.split("\\.", -1);
-        for (String label : labels) {
-            if (label.isEmpty()) {
-                return false;
-            }
-        }
-        return isServiceEndpoint(labels, service) || isVpcInterfaceEndpoint(labels, service);
-    }
-
-    /** {@code <service>[.dualstack].<region>} before the suffix, or the global {@code <service>}. */
-    private static boolean isServiceEndpoint(String[] labels, String service) {
-        if (isServiceLabel(labels[0], service) == false) {
-            return false;
-        }
-        int next = 1;
-        boolean dualStack = next < labels.length && labels[next].equals("dualstack");
-        if (dualStack) {
-            next++;
-        }
-        if (next == labels.length) {
-            // Nothing after the service label, so no region was named. The historical s3-<region> spelling
-            // carries its region inside that label and is the one form that reaches here legitimately; the
-            // region-less global endpoints (s3.amazonaws.com, sts.amazonaws.com) are refused with the rest
-            // of the non-regional families.
-            return isDashRegionLabel(labels[0]);
-        }
-        return next == labels.length - 1 && isRegionLabel(labels[next]);
+        return endpointHosts(service).contains(normalized) || isVpcInterfaceEndpoint(normalized, service);
     }
 
     /**
-     * {@code [<prefix>.]vpce-<id>.<service>.<region>.vpce}, every part in a fixed position. The service
-     * immediately after the endpoint id is what separates an AWS-operated interface endpoint from a
-     * customer-published PrivateLink service, whose label there is {@code vpce-svc-<id>} — a spelling that
-     * satisfies the {@code vpce-} test too, so position rejects it rather than the prefix.
+     * {@code [<prefix>.]vpce-<id>.<service>.<region>.vpce} under the region's own partition suffix. The
+     * service and region come from the matched tail, so the only thing read out of the name is the endpoint
+     * id and its optional prefix, each of which must be a single label.
      *
-     * <p>The comparison is against the bare service name, so an interface endpoint for one of the other S3
-     * service labels — {@code s3-outposts}, say — is refused even though that label is accepted in a service
-     * endpoint. That is deliberate rather than an oversight: no source of truth here establishes what AWS
-     * serves for those, and refusing a form nobody has confirmed is the direction that cannot admit a host
-     * we did not mean to reach.
-     */
-    private static boolean isVpcInterfaceEndpoint(String[] labels, String service) {
-        // <id>.<service>.<region>.vpce, optionally preceded by one label such as bucket/accesspoint/control.
-        int start = labels.length - 4;
-        if (start != 0 && start != 1) {
-            return false;
-        }
-        return labels[start].startsWith("vpce-")
-            && labels[start].startsWith("vpce-svc-") == false
-            && labels[start + 1].equals(service)
-            && isRegionLabel(labels[start + 2])
-            && labels[start + 3].equals("vpce");
-    }
-
-    /**
-     * The leading label of a service endpoint.
+     * <p>Requiring {@code vpce-} and rejecting {@code vpce-svc-} is what separates an AWS-operated interface
+     * endpoint from a customer-published PrivateLink service, whose label in that position is
+     * {@code vpce-svc-<id>} and which any AWS account can stand up.
      *
-     * <p>Enumerated rather than prefix-matched: a prefix test admits the open set of names beginning
-     * {@code s3-} or {@code sts-}, which is wider than anything AWS serves.
+     * <p>The tail names the bare service, so an interface endpoint for one of the other S3 families —
+     * {@code s3-outposts}, say — is refused even if that family is later enabled above. No source of truth
+     * here establishes what AWS serves for those, and refusing a form nobody has confirmed is the direction
+     * that cannot admit a host we did not mean to reach.
      */
-    private static boolean isServiceLabel(String label, String service) {
-        return switch (service) {
-            case S3_SERVICE -> S3_SERVICE_LABELS.contains(label) || isDashRegionLabel(label);
-            case STS_SERVICE -> STS_SERVICE_LABELS.contains(label);
-            default -> throw new IllegalArgumentException("unknown service [" + service + "]");
-        };
-    }
-
-    /** The historical {@code s3-<region>} spelling, still resolvable and still in customer configuration. */
-    private static boolean isDashRegionLabel(String label) {
-        return label.startsWith("s3-") && isRegionLabel(label.substring(3));
-    }
-
-    private static boolean isRegionLabel(String label) {
-        for (Pattern pattern : REGION_PATTERNS) {
-            if (pattern.matcher(label).matches()) {
+    private static boolean isVpcInterfaceEndpoint(String host, String service) {
+        for (String tail : vpceTails(service)) {
+            if (host.endsWith(tail) == false) {
+                continue;
+            }
+            String head = host.substring(0, host.length() - tail.length());
+            int lastDot = head.lastIndexOf('.');
+            String id = head.substring(lastDot + 1);
+            String prefix = lastDot < 0 ? "" : head.substring(0, lastDot);
+            if (id.startsWith("vpce-") && id.startsWith("vpce-svc-") == false && (lastDot < 0 || isSingleLabel(prefix))) {
                 return true;
             }
         }
         return false;
+    }
+
+    private static boolean isSingleLabel(String value) {
+        return value.isEmpty() == false && value.indexOf('.') < 0;
+    }
+
+    private static Set<String> endpointHosts(String service) {
+        return switch (service) {
+            case S3_SERVICE -> S3_ENDPOINT_HOSTS;
+            case STS_SERVICE -> STS_ENDPOINT_HOSTS;
+            default -> throw new IllegalArgumentException("unknown service [" + service + "]");
+        };
+    }
+
+    private static Set<String> vpceTails(String service) {
+        return switch (service) {
+            case S3_SERVICE -> S3_VPCE_TAILS;
+            case STS_SERVICE -> STS_VPCE_TAILS;
+            default -> throw new IllegalArgumentException("unknown service [" + service + "]");
+        };
     }
 
 }

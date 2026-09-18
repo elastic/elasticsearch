@@ -60,25 +60,33 @@ public class S3EndpointCheckTests extends ESTestCase {
         int accepted = 0;
         int refused = 0;
         for (String region : REGIONS) {
+            // The destination the resolver picks with every option off is the one the rule permits. Stating
+            // the oracle as "the resolver's own plain answer" rather than as a host spelling is what keeps
+            // it independent of the rule: STS spells dual-stack by changing the suffix to api.aws, not by
+            // inserting a label, so an oracle written against the region's position would accept it.
+            String plainS3 = resolveS3Host(region, false, false, false);
+            String plainSts = resolveStsHost(region, false, false);
+            assertNotNull("no plain S3 endpoint for " + region, plainS3);
+            assertNotNull("no plain STS endpoint for " + region, plainSts);
             for (boolean fips : List.of(false, true)) {
                 for (boolean dualStack : List.of(false, true)) {
                     for (boolean accelerate : List.of(false, true)) {
                         String s3Host = resolveS3Host(region, fips, dualStack, accelerate);
                         if (s3Host != null) {
                             // The resolver puts the bucket in the leading label; the setting names what remains.
-                            String service = s3Host.substring("mybucket.".length());
-                            if (shouldBeAccepted(service, region)) {
-                                assertTrue("rejected " + service, S3EndpointCheck.isPermittedHost(service, S3_SERVICE));
+                            String host = s3Host.substring("mybucket.".length());
+                            if (s3Host.equals(plainS3)) {
+                                assertTrue("rejected " + host, S3EndpointCheck.isPermittedHost(host, S3_SERVICE));
                                 accepted++;
                             } else {
-                                assertFalse("accepted " + service, S3EndpointCheck.isPermittedHost(service, S3_SERVICE));
+                                assertFalse("accepted " + host, S3EndpointCheck.isPermittedHost(host, S3_SERVICE));
                                 refused++;
                             }
                         }
                     }
                     String stsHost = resolveStsHost(region, fips, dualStack);
                     if (stsHost != null) {
-                        if (shouldBeAccepted(stsHost, region)) {
+                        if (stsHost.equals(plainSts)) {
                             assertTrue("rejected " + stsHost, S3EndpointCheck.isPermittedHost(stsHost, STS_SERVICE));
                             accepted++;
                         } else {
@@ -89,41 +97,113 @@ public class S3EndpointCheckTests extends ESTestCase {
                 }
             }
         }
-        assertEquals("the set of endpoints the resolver produces has changed", 36, accepted);
-        assertEquals("the set of region-less endpoints the resolver produces has changed", 50, refused);
+        assertEquals("the set of endpoints the resolver produces has changed", 21, accepted);
+        assertEquals("the set of endpoints the resolver produces that the rule refuses has changed", 65, refused);
     }
 
     /**
-     * Whether the rule should accept this destination: the resolver put the region into the host, as a label
-     * of its own or inside the service label, and the host is not a FIPS endpoint. FIPS is refused even
-     * though it names a region — see {@code S3EndpointCheck.S3_SERVICE_LABELS} for why.
+     * The pseudo-regions {@link Region#regions()} carries alongside the real ones. They are an input to the
+     * SDK's resolver — {@code aws-global} selects the region-less global endpoint — and never a region a
+     * host names, so none of them may reach the permitted set as though it were one.
      */
-    private static boolean shouldBeAccepted(String host, String region) {
-        if (host.startsWith("s3-fips.") || host.startsWith("sts-fips.")) {
-            return false;
-        }
-        return host.contains("." + region + ".") || host.startsWith("s3-" + region + ".");
+    public void testRefusesPseudoRegions() {
+        assertAllRefused(
+            S3_SERVICE,
+            "s3.aws-global.amazonaws.com",
+            "s3.aws-cn-global.amazonaws.com.cn",
+            "s3.aws-us-gov-global.amazonaws.com",
+            "s3.aws-iso-global.c2s.ic.gov",
+            "s3-aws-global.amazonaws.com",
+            "vpce-0a1b2c3d.s3.aws-global.vpce.amazonaws.com"
+        );
+        assertAllRefused(STS_SERVICE, "sts.aws-global.amazonaws.com", "sts.aws-us-gov-global.amazonaws.com");
     }
 
-    public void testAcceptsAwsEndpoints() {
+    /**
+     * A region token that is well formed and names nothing. The rule admits a region because the pinned SDK
+     * lists it, never because it looks like one, so these are refused in every accepted shape — regional,
+     * historical and PrivateLink alike. A real new AWS region is readmitted by upgrading the SDK.
+     */
+    public void testRefusesWellFormedButUnknownRegions() {
+        assertAllRefused(
+            S3_SERVICE,
+            "s3.us-east-99.amazonaws.com",
+            "s3.eu-west-9.amazonaws.com",
+            "s3.xx-south-1.amazonaws.com",
+            "s3-us-east-99.amazonaws.com",
+            "vpce-0a1b2c3d.s3.us-east-99.vpce.amazonaws.com"
+        );
+        assertAllRefused(STS_SERVICE, "sts.us-east-99.amazonaws.com", "vpce-0a1b2c3d.sts.us-east-99.vpce.amazonaws.com");
+    }
+
+    /**
+     * Every endpoint family this data source does not support, refused across every partition, so that the
+     * family itself is what refuses them rather than an unrelated region or suffix. The list restates
+     * {@code S3EndpointCheck.S3_SERVICE_LABELS} independently: enabling a label there without meaning to
+     * turns this red, which is why the disabled families stay enumerated rather than forgotten.
+     */
+    public void testRefusesEveryDisabledFamilyInEveryRegion() {
+        List<String> disabledS3 = List.of(
+            "s3-fips",
+            "s3-accesspoint",
+            "s3-accesspoint-fips",
+            "s3-accelerate",
+            "s3-object-lambda",
+            "s3-object-lambda-fips",
+            "s3-outposts",
+            "s3-outposts-fips",
+            "s3-control",
+            "s3-control-fips",
+            "s3-external-1",
+            "s3express-use1-az4",
+            "s3express-control"
+        );
+        for (String region : REGIONS) {
+            String prefix = "mybucket.s3." + region + ".";
+            String suffix = resolveS3Host(region, false, false, false).substring(prefix.length());
+            for (String label : disabledS3) {
+                String host = label + "." + region + "." + suffix;
+                assertFalse(host, S3EndpointCheck.isPermittedHost(host, S3_SERVICE));
+            }
+            String stsFips = "sts-fips." + region + "." + suffix;
+            assertFalse(stsFips, S3EndpointCheck.isPermittedHost(stsFips, STS_SERVICE));
+        }
+    }
+
+    public void testAcceptsRegionalEndpoints() {
         for (String host : List.of(
             "s3.us-east-1.amazonaws.com",
-            "s3.dualstack.eu-west-1.amazonaws.com",
+            "s3.eu-west-1.amazonaws.com",
             "s3.cn-north-1.amazonaws.com.cn",
+            "s3.us-gov-west-1.amazonaws.com",
             // The historical spelling, which carries its region inside the service label.
             "s3-us-west-2.amazonaws.com",
             "S3.US-EAST-1.AMAZONAWS.COM",
-            "s3.us-east-1.amazonaws.com.",
-            // AWS PrivateLink, in the three prefixes AWS assigns for S3.
-            "bucket.vpce-0a1b2c3d4e5f.s3.us-east-1.vpce.amazonaws.com",
-            "accesspoint.vpce-0a1b2c3d.s3.eu-west-1.vpce.amazonaws.com",
-            "control.vpce-0a1b2c3d.s3.cn-north-1.vpce.amazonaws.com.cn"
+            "s3.us-east-1.amazonaws.com."
         )) {
             assertTrue(host, S3EndpointCheck.isPermittedHost(host, S3_SERVICE));
         }
-        for (String host : List.of("sts.us-east-1.amazonaws.com", "vpce-0a1b2c3d.sts.us-east-1.vpce.amazonaws.com")) {
+        for (String host : List.of("sts.us-east-1.amazonaws.com", "sts.eu-west-1.amazonaws.com", "STS.US-EAST-1.AMAZONAWS.COM")) {
             assertTrue(host, S3EndpointCheck.isPermittedHost(host, STS_SERVICE));
         }
+    }
+
+    /**
+     * AWS PrivateLink, which is how a cluster with no route to the public internet reaches S3, and therefore
+     * the form that has to keep working. The three prefixes are the ones AWS assigns for S3; STS publishes
+     * the same shape with no prefix. {@link #testRefusesVpcFormsOutsideTheExactShape} is the other half.
+     */
+    public void testAcceptsVpcInterfaceEndpoints() {
+        for (String host : List.of(
+            "bucket.vpce-0a1b2c3d4e5f.s3.us-east-1.vpce.amazonaws.com",
+            "accesspoint.vpce-0a1b2c3d.s3.eu-west-1.vpce.amazonaws.com",
+            "control.vpce-0a1b2c3d.s3.cn-north-1.vpce.amazonaws.com.cn",
+            // No prefix at all, which is the shape the id-only form takes.
+            "vpce-0a1b2c3d.s3.us-east-1.vpce.amazonaws.com"
+        )) {
+            assertTrue(host, S3EndpointCheck.isPermittedHost(host, S3_SERVICE));
+        }
+        assertTrue(S3EndpointCheck.isPermittedHost("vpce-0a1b2c3d.sts.us-east-1.vpce.amazonaws.com", STS_SERVICE));
     }
 
     /**
@@ -174,18 +254,19 @@ public class S3EndpointCheckTests extends ESTestCase {
     }
 
     /**
-     * Dual-stack is a modifier on a regional endpoint, never a substitute for the region. A bucket-qualified
-     * name is refused for the same reason the global form is: {@code dualstack} is a fixed label compared in
-     * second position, so the label the customer chose never lands where a region is required.
+     * Dual-stack, refused in every spelling including the regional one. An endpoint override cannot ask AWS
+     * for dual-stack — the SDK rejects its dual-stack client option when one is set, and this data source
+     * exposes no such option — so the host would promise an IPv6 path nothing here arranges.
      */
-    public void testDualStackNeedsARegion() {
-        assertTrue(S3EndpointCheck.isPermittedHost("s3.dualstack.us-east-1.amazonaws.com", S3_SERVICE));
+    public void testRefusesDualStackEndpoints() {
         assertAllRefused(
             S3_SERVICE,
+            "s3.dualstack.us-east-1.amazonaws.com",
             "s3.dualstack.amazonaws.com",
             "mybucket.s3.dualstack.us-east-1.amazonaws.com",
             "dualstack.s3.us-east-1.amazonaws.com"
         );
+        assertAllRefused(STS_SERVICE, "sts.dualstack.us-east-1.amazonaws.com");
     }
 
     /**

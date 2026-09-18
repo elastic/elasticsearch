@@ -215,11 +215,28 @@ The following settings are available for `s3` data sources:
 
 | Setting | Required | Description |
 |---|---|---|
-| `endpoint` | No | An explicit Amazon S3 endpoint override. Must be an absolute `https` URL naming a **regional** AWS S3 endpoint, such as `https://s3.us-east-1.amazonaws.com`, a FIPS or dual-stack variant of one, the historical `https://s3-us-west-2.amazonaws.com` spelling, or an AWS VPC interface endpoint such as `https://bucket.vpce-0a1b2c3d.s3.us-east-1.vpce.amazonaws.com`. Every AWS partition is accepted. Some of these forms also need `addressing_style: virtual_hosted`; see the next row. <br> Every other AWS endpoint family is rejected, including the global `https://s3.amazonaws.com`, transfer acceleration, access points, object lambda, Outposts, the account-level control plane, the legacy `s3-external-1` alias, and S3 Express. So are plain `http`, a value without a scheme, and a host the URL syntax does not allow (such as an underscore or a non-numeric port). Omit the setting to have the endpoint resolved from the region. <br> A node can permit further hosts with the `esql.external.allowed_endpoint_hosts` node setting, a list of `host:port` patterns that defaults to empty — this is how a deployment that needs one of the rejected families reaches it. It is set in `elasticsearch.yml`, so managing data sources does not grant it, and a host it names is accepted over plain `http` as well. {applies_to}`stack: experimental 9.6+` |
+| `endpoint` | No | Optional Amazon S3 endpoint override. Must be an absolute `https` URL naming a **regional** AWS S3 endpoint, for example `https://s3.us-east-1.amazonaws.com`. Omit to resolve the endpoint from the region. See [S3 endpoint requirements](#s3-endpoint-requirements). {applies_to}`stack: experimental 9.6+` |
 | `addressing_style` {applies_to}`stack: experimental 9.6+` | No | URL addressing style. `auto` (default) uses path-style when `endpoint` is set and SDK-default otherwise. `path` always uses path-style. `virtual_hosted` lets the SDK decide (bare-IP endpoints fall back to path-style). Use `virtual_hosted` for AWS FIPS, dual-stack, or VPC interface endpoints that require virtual-hosted addressing. |
 
-::::{warning}
-A data source created before this restriction keeps working for queries, but updating it requires an `endpoint` that satisfies the rule above. Creating a data source replaces all of its settings, so a data source that names an unsupported endpoint cannot have any of its settings changed — including rotating its credentials — until the endpoint is changed to a supported one or the data source is recreated.
+$$$s3-endpoint-requirements$$$
+::::{dropdown} S3 endpoint requirements
+:applies_to: stack: experimental 9.6+
+Accepted endpoint forms, in every AWS partition:
+
+- Regional: `https://s3.us-east-1.amazonaws.com`
+- FIPS or dual-stack variants of a regional endpoint
+- Historical: `https://s3-us-west-2.amazonaws.com`
+- VPC interface: `https://bucket.vpce-0a1b2c3d.s3.us-east-1.vpce.amazonaws.com`
+
+Some of these forms need `addressing_style: virtual_hosted`; refer to that setting in the table above.
+
+Every other AWS endpoint family is rejected, including the global `https://s3.amazonaws.com`, transfer acceleration, access points, object lambda, Outposts, the account-level control plane, the legacy `s3-external-1` alias, and S3 Express. So are plain `http`, a value without a scheme, and a host the URL syntax does not allow, such as an underscore or a non-numeric port.
+
+A node can permit additional hosts with the `esql.external.allowed_endpoint_hosts` node setting, a list of `host:port` patterns in `elasticsearch.yml` that defaults to empty. This is how a deployment that needs one of the rejected families reaches it. Because the setting is applied per node, managing data sources does not grant it. A host it names is also accepted over plain `http`.
+
+:::{warning}
+A data source created before endpoint validation was added keeps working for queries, but updating it requires an `endpoint` that passes validation. Creating a data source replaces all of its settings, so a data source with an unsupported endpoint cannot have any settings changed, including credential rotation, until the endpoint is updated or the data source is recreated.
+:::
 ::::
 
 :::{note}
@@ -235,7 +252,7 @@ The `region` setting on a data source is deprecated and has no effect. Set `regi
 | `role_arn` | Yes (federated identity) | The ARN of the IAM role {{es}} assumes via STS. Used with `auth: federated_identity`. |
 | `jwt_audience` | No | Overrides the JWT audience claim sent to STS. Defaults to `sts.amazonaws.com`. Used with `auth: federated_identity`. |
 | `role_session_name` | No | A label for the assumed-role session. Defaults to `elasticsearch-esql-datasource`. Used with `auth: federated_identity`. |
-| `sts_endpoint` | No | An explicit AWS STS endpoint override, for example `https://sts.us-east-1.amazonaws.com`. Used with `auth: federated_identity`. Subject to the same requirements as `endpoint`, against AWS STS endpoints rather than S3 ones. A host permitted through `esql.external.allowed_endpoint_hosts` receives the node's own OIDC token, which is the whole credential the STS call carries, so name a host there only where the network path to it is trusted. {applies_to}`stack: experimental 9.6+` |
+| `sts_endpoint` | No | Optional explicit AWS STS endpoint override, for example `https://sts.us-east-1.amazonaws.com`. Used with `auth: federated_identity`. Subject to the same [S3 endpoint requirements](#s3-endpoint-requirements), against AWS STS endpoints rather than S3 ones. Hosts added through `esql.external.allowed_endpoint_hosts` receive the node's OIDC token, so only permit a host on a trusted network path. {applies_to}`stack: experimental 9.6+` |
 | `sts_region` | No | The AWS region of the STS endpoint. Defaults to the dataset's `region` setting, or `us-east-1` if the dataset has no explicit region. Used with `auth: federated_identity`. |
 | `auth` | Yes | Authentication mode. Set it to `anonymous`, `static_credentials`, `managed_identity`, or `federated_identity`. |
 

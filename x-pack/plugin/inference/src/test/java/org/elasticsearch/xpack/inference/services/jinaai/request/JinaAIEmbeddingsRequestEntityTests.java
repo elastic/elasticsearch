@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.jinaai.request;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
@@ -27,6 +28,8 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.elasticsearch.inference.DataFormat.BASE64;
+import static org.elasticsearch.inference.DataFormat.URL;
+import static org.elasticsearch.inference.DataFormat.URL_INPUT_FORMAT_FEATURE_FLAG;
 import static org.elasticsearch.inference.DataType.AUDIO;
 import static org.elasticsearch.inference.DataType.IMAGE;
 import static org.elasticsearch.inference.DataType.PDF;
@@ -355,9 +358,55 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
         testXContent_Multimodal(VIDEO, TEST_DATA_URI, "video");
     }
 
+    public void testXContent_Multimodal_WritesImageUrl() throws IOException {
+        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
+        testXContent_Multimodal(IMAGE, URL, "https://example.com/image.png", "image");
+    }
+
+    public void testXContent_Multimodal_WritesAudioUrl() throws IOException {
+        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
+        testXContent_Multimodal(AUDIO, URL, "https://example.com/audio.mp3", "audio");
+    }
+
+    public void testXContent_Multimodal_WritesVideoUrl() throws IOException {
+        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
+        testXContent_Multimodal(VIDEO, URL, "https://example.com/video.mp4", "video");
+    }
+
     private static void testXContent_Multimodal(DataType dataType, String value, String fieldName) throws IOException {
         var entity = new JinaAIEmbeddingsRequestEntity(
             List.of(new InferenceStringGroup(new InferenceString(dataType, value))),
+            null,
+            createModel(
+                null,
+                TEST_MODEL_NAME,
+                null,
+                JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
+                randomAlphanumericOfLength(8),
+                null,
+                TaskType.EMBEDDING,
+                true
+            )
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, is(stripWhitespace(Strings.format("""
+            {
+              "input": [
+                {"%s": "%s"}
+              ],
+              "model": "%s",
+              "embedding_type": "%s"
+            }""", fieldName, value, TEST_MODEL_NAME, DEFAULT_EMBEDDING_TYPE))));
+    }
+
+    private static void testXContent_Multimodal(DataType dataType, DataFormat dataFormat, String value, String fieldName)
+        throws IOException {
+        var entity = new JinaAIEmbeddingsRequestEntity(
+            List.of(new InferenceStringGroup(new InferenceString(dataType, dataFormat, value))),
             null,
             createModel(
                 null,

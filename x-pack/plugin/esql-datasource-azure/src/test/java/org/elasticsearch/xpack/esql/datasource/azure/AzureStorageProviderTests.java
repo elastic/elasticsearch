@@ -24,6 +24,7 @@ import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
@@ -207,6 +208,45 @@ public class AzureStorageProviderTests extends ESTestCase {
             }
         }
         return entries;
+    }
+
+    // -- listChildren: hierarchy-level splitting into files and subdirectories --
+
+    public void testCollectChildrenSeparatesPrefixesFromBlobs() {
+        BlobItem subdir = new BlobItem().setName("data/year=2024/").setIsPrefix(Boolean.TRUE);
+        BlobItem marker = new BlobItem().setName("data/dir/").setProperties(properties(0L)); // "/"-named non-prefix blob
+        BlobItem file = new BlobItem().setName("data/file.parquet").setProperties(properties(123L));
+
+        StorageChildren children = AzureStorageProvider.collectChildren(
+            List.of(subdir, marker, file),
+            "wasbs://account.blob.core.windows.net/c/",
+            10
+        );
+
+        assertEquals(
+            List.of("wasbs://account.blob.core.windows.net/c/data/year=2024"),
+            children.directories().stream().map(StoragePath::toString).toList()
+        );
+        assertEquals(1, children.files().size());
+        assertEquals("wasbs://account.blob.core.windows.net/c/data/file.parquet", children.files().get(0).path().toString());
+        assertEquals(123L, children.files().get(0).length());
+    }
+
+    /** Exactly {@code limit} children are allowed; one over withdraws to {@code null} (the flat-listing fallback). */
+    public void testCollectChildrenPastLimitReturnsNull() {
+        List<BlobItem> items = List.of(
+            new BlobItem().setName("data/a.parquet").setProperties(properties(1L)),
+            new BlobItem().setName("data/b.parquet").setProperties(properties(1L)),
+            new BlobItem().setName("data/sub/").setIsPrefix(Boolean.TRUE)
+        );
+        String prefix = "wasbs://account.blob.core.windows.net/c/";
+
+        StorageChildren atLimit = AzureStorageProvider.collectChildren(items, prefix, 3);
+        assertNotNull(atLimit);
+        assertEquals(2, atLimit.files().size());
+        assertEquals(1, atLimit.directories().size());
+
+        assertNull("one child over the limit must withdraw", AzureStorageProvider.collectChildren(items, prefix, 2));
     }
 
     private static BlobItemProperties properties(long contentLength) {

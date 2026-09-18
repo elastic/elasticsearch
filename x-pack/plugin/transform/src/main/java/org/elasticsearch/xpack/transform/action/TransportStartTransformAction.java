@@ -177,6 +177,17 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 );
             }, listener::onFailure);
 
+        // <5b> Non-blocking start: acknowledge as soon as the task is committed to cluster state, then
+        // watch it detached from the client so a task that can never be assigned is cleaned up. Validation
+        // and destination-index creation are deferred to the running task (see TransformIndexer#onStart).
+        ActionListener<PersistentTasksCustomMetadata.PersistentTask<TransformTaskParams>> detachedPersistentTaskActionListener = listener
+            .delegateFailureAndWrap((delegate, t) -> {
+                TransformTaskParams transformTask = transformTaskParamsHolder.get();
+                assert transformTask != null;
+                delegate.onResponse(new StartTransformAction.Response(true));
+                watchNonBlockingTransformStart(t.getId(), transformTask, request.ackTimeout());
+            });
+
         // <4> Create the task in cluster state so that it will start executing on the node
         ActionListener<Boolean> createOrGetIndexListener = ActionListener.wrap(unused -> {
             TransformTaskParams transformTask = transformTaskParamsHolder.get();
@@ -186,13 +197,14 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 projectMetadata
             );
             if (existingTask == null) {
-                // Create the allocated task and wait for it to be started
+                // Create the allocated task. When wait_for_completion is true we block until it reaches STARTED;
+                // otherwise we acknowledge at commit and watch it detached from the client.
                 persistentTasksService.sendStartRequest(
                     transformTask.getId(),
                     TransformTaskParams.NAME,
                     transformTask,
                     request.masterNodeTimeout(),
-                    newPersistentTaskActionListener
+                    request.waitForCompletion() ? newPersistentTaskActionListener : detachedPersistentTaskActionListener
                 );
             } else {
                 TransformState transformState = (TransformState) existingTask.getState();
@@ -323,6 +335,40 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                     request.getInitialDelay()
                 )
             );
+            if (request.waitForCompletion() == false) {
+                // Non-blocking start: run only the cheap validations synchronously (source/dest indices, config
+                // shape, min-version, project routing) so obvious misconfigurations still fail fast with a 4xx.
+                // deferValidation=true skips validateQuery + deduceMappings and the transform-node redirect, so
+                // this stays a cheap local check; the expensive validation and destination-index creation are
+                // deferred to the running task (TransformIndexer#onStart) and surface any later failure as a
+                // FAILED transform via _stats.
+                var deferredValidateRequest = new ValidateTransformAction.Request(
+                    config,
+                    true,
+                    request.ackTimeout(),
+                    CloudCredential.copyOf(request.getCloudCredential())
+                );
+                // On success, skip dest-index creation and go straight to committing the task. Mirror the
+                // blocking path's unattended tolerance: an unattended transform proceeds even if validation fails.
+                ActionListener<ValidateTransformAction.Response> deferredValidationListener = ActionListener.wrap(
+                    ignored -> createOrGetIndexListener.onResponse(true),
+                    e -> {
+                        if (TransformEffectiveSettings.isUnattended(config.getSettings())) {
+                            createOrGetIndexListener.onResponse(true);
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    }
+                );
+                ClientHelper.executeAsyncWithOrigin(
+                    parentClient,
+                    ClientHelper.TRANSFORM_ORIGIN,
+                    ValidateTransformAction.INSTANCE,
+                    deferredValidateRequest,
+                    ActionListener.releaseAfter(deferredValidationListener, deferredValidateRequest)
+                );
+                return;
+            }
             // Hoist into a local so we can hand the same instance to executeAsyncWithOrigin and to
             // releaseAfter, which closes the request (and its CloudCredential SecureString) once the
             // dispatch listener fires. Plugs the leak when the request is forwarded to a remote node
@@ -404,6 +450,50 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 onFailure.accept(exception);
             }
         });
+    }
+
+    /**
+     * Watches a non-blocking start after the request has already been acknowledged. Unlike the blocking path
+     * (which rolls the task back and returns 429), we leave an un-assignable task in place so the framework keeps
+     * trying to assign it — it surfaces as WAITING in {@code _stats} — and audit the reason so the cause is visible
+     * in the transform notifications. A merely-slow assignment (timeout) is left for the framework with no audit noise.
+     */
+    private void watchNonBlockingTransformStart(String taskId, TransformTaskParams params, TimeValue timeout) {
+        String transformId = params.getId();
+        TransformPredicate predicate = new TransformPredicate();
+        persistentTasksService.waitForPersistentTaskCondition(
+            taskId,
+            predicate,
+            timeout,
+            new PersistentTasksService.WaitForPersistentTaskListener<TransformTaskParams>() {
+                @Override
+                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<TransformTaskParams> persistentTask) {
+                    if (predicate.exception != null) {
+                        String reason = predicate.exception.getMessage();
+                        logger.warn(
+                            () -> format("[%s] transform could not be assigned after non-blocking _start: %s", transformId, reason)
+                        );
+                        auditor.warning(
+                            transformId,
+                            "Transform could not be assigned to a node after starting; it is waiting to be assigned. Reason: " + reason
+                        );
+                    } else {
+                        logger.debug("[{}] transform started after non-blocking _start", transformId);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn(() -> format("[%s] error watching transform start after non-blocking _start; see _stats", transformId), e);
+                }
+
+                @Override
+                public void onTimeout(TimeValue t) {
+                    // Assignment is merely slow; leave it for the framework and let the caller poll _stats.
+                    logger.debug("[{}] transform not yet started after non-blocking _start within [{}]", transformId, t);
+                }
+            }
+        );
     }
 
     private void waitForTransformTaskStarted(

@@ -108,6 +108,11 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
             );
         }
 
+        @Override
+        boolean destinationIndexExists() {
+            return true;
+        }
+
         protected boolean triggerSaveState() {
             // persist every iteration for testing
             return true;

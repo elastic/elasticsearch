@@ -40,6 +40,11 @@
         "type": "time",
         "default": "30s",
         "description": "Controls the time to wait for the transform to start"
+      },
+      "wait_for_completion": {
+        "type": "boolean",
+        "default": true,
+        "description": "When true (default), the API blocks until validation and destination-index creation complete; when false, it returns as soon as the transform task is created and defers that work to the running task"
       }
     }
   }

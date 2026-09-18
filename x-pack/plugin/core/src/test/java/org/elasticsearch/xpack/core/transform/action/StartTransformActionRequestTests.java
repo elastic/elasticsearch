@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 
@@ -23,6 +26,7 @@ import java.util.Collection;
 
 import static java.time.Instant.ofEpochMilli;
 import static org.elasticsearch.xpack.core.transform.transforms.TransformConfig.TRANSFORM_CLOUD_CREDENTIAL_ON_REQUEST;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -30,6 +34,9 @@ import static org.hamcrest.Matchers.nullValue;
 public class StartTransformActionRequestTests extends AbstractWireSerializingTransformTestCase<Request> {
 
     private static final TransportVersion TRANSFORM_START_INITIAL_DELAY = TransportVersion.fromName("transform_start_initial_delay");
+    private static final TransportVersion TRANSFORM_START_WAIT_FOR_COMPLETION = TransportVersion.fromName(
+        "transform_start_wait_for_completion"
+    );
 
     @Override
     protected Request createTestInstance() {
@@ -56,18 +63,20 @@ public class StartTransformActionRequestTests extends AbstractWireSerializingTra
         Instant from = instance.from();
         TimeValue initialDelay = instance.getInitialDelay();
         TimeValue timeout = instance.ackTimeout();
+        boolean waitForCompletion = instance.waitForCompletion();
 
-        switch (between(0, 3)) {
+        switch (between(0, 4)) {
             case 0 -> id += randomAlphaOfLengthBetween(1, 5);
             case 1 -> from = from != null ? from.plus(Duration.ofDays(1)) : Instant.ofEpochMilli(randomNonNegativeLong());
             case 2 -> timeout = new TimeValue(timeout.duration() + randomLongBetween(1, 5), timeout.timeUnit());
             case 3 -> initialDelay = initialDelay != null
                 ? new TimeValue(initialDelay.duration() + randomLongBetween(1, 5), initialDelay.timeUnit())
                 : randomTimeValue();
+            case 4 -> waitForCompletion = waitForCompletion == false;
             default -> throw new AssertionError("Illegal randomization branch");
         }
 
-        Request mutated = new Request(id, from, initialDelay, timeout);
+        Request mutated = new Request(id, from, initialDelay, timeout, waitForCompletion);
         mutated.setCloudCredential(instance.getCloudCredential());
         return mutated;
     }
@@ -97,6 +106,33 @@ public class StartTransformActionRequestTests extends AbstractWireSerializingTra
                 + TransformTaskParams.INITIAL_DELAY.getPreferredName()
                 + " to an outdated node. Please upgrade the node to 9.6.0+ and try again."
         );
+    }
+
+    public void testWaitForCompletionRoundTripPreservesValue() throws IOException {
+        Request original = new Request(randomAlphaOfLengthBetween(1, 20), null, null, randomTimeValue(), false);
+        Request copy = copyWriteable(original, getNamedWriteableRegistry(), instanceReader());
+        assertThat(copy.waitForCompletion(), is(false));
+    }
+
+    public void testWaitForCompletionCannotSerializeToOlderNode() throws IOException {
+        // Non-default wait_for_completion=false is rejected rather than silently blocking on an older node.
+        Request original = new Request(randomAlphaOfLengthBetween(1, 20), null, null, randomTimeValue(), false);
+        var olderVersion = TransportVersionUtils.randomVersionNotSupporting(TRANSFORM_START_WAIT_FOR_COMPLETION);
+        var statusException = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> copyWriteable(original, getNamedWriteableRegistry(), instanceReader(), olderVersion)
+        );
+        assertThat(statusException.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(statusException.getMessage(), containsString(TransformField.WAIT_FOR_COMPLETION.getPreferredName()));
+    }
+
+    public void testWaitForCompletionDefaultsToTrue() throws IOException {
+        // The default (true) is dropped on old nodes rather than throwing, so blocking _start keeps working.
+        Request original = new Request(randomAlphaOfLengthBetween(1, 20), null, randomTimeValue());
+        assertThat(original.waitForCompletion(), is(true));
+        var olderVersion = TransportVersionUtils.randomVersionNotSupporting(TRANSFORM_START_WAIT_FOR_COMPLETION);
+        Request copy = copyWriteable(original, getNamedWriteableRegistry(), instanceReader(), olderVersion);
+        assertThat(copy.waitForCompletion(), is(true));
     }
 
     public void testCloudCredentialRoundTripPreservesValue() throws IOException {

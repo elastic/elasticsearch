@@ -1229,6 +1229,11 @@ public class ClientTransformIndexerTests extends ESTestCase {
         protected Tuple<String, SearchRequest> buildSearchRequest() {
             return new Tuple<>("mock", new SearchRequest("source_index").source(new SearchSourceBuilder()));
         }
+
+        @Override
+        boolean destinationIndexExists() {
+            return true;
+        }
     }
 
     private static class PitMockClient extends NoOpClient {

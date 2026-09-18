@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -27,6 +28,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -113,13 +115,14 @@ public class DatasetRegistrationContractIT extends ESRestTestCase {
     }
 
     public void testTheRegistrationIsRefusedWithItsDeclaredMessage() throws IOException {
+        assumeTrue("this case is about the query, not the registration", contractCase.outcome() == RegistrationContract.Outcome.REFUSED);
         String dataset = "contract_" + contractCase.name();
         // toUri(), not toString(): the endpoint requires a file:// URI, and a bare path is refused for
         // THAT rather than for the setting -- a 400 either way, which is what makes the message the
         // assertion. It also decides the case: the format is resolved from the resource's extension, and
         // an unresolved format leaves the format-scoped keys out of the accepted set, so the setting under
         // test comes back as an unknown key instead of an out-of-range one.
-        String resource = FIXTURE_DIR.resolve("simple." + contractCase.format()).toUri().toString();
+        String resource = FIXTURE_DIR.resolve(contractCase.resource()).toUri().toString();
 
         ResponseException refused = expectThrows(
             ResponseException.class,
@@ -145,6 +148,44 @@ public class DatasetRegistrationContractIT extends ESRestTestCase {
     }
 
     /**
+     * The other half of the no-I/O promise: registration cannot open the object, so a setting it cannot
+     * decide about is ACCEPTED here and fails when the reader finally looks.
+     *
+     * <p>Both halves are assertions. If the PUT starts refusing one of these, registration has acquired
+     * I/O and the contract has changed; if the query stops failing, the reader has started tolerating
+     * something it used to reject. The message after the query is what a user actually sees, and it is
+     * the only place this contract is visible at all -- no registration-time test can reach it.
+     */
+    public void testTheRegistrationIsAcceptedAndTheQueryFailsWithItsDeclaredMessage() throws IOException {
+        assumeTrue(
+            "this case is about the registration, not the query",
+            contractCase.outcome() == RegistrationContract.Outcome.QUERY_FAILS
+        );
+        String dataset = "contract_" + contractCase.name();
+        String resource = FIXTURE_DIR.resolve(contractCase.resource()).toUri().toString();
+
+        DatasetRegistry.putDataset(client(), dataset, SHARED_DS_NAME, resource, Map.copyOf(contractCase.settings()));
+
+        Request query = new Request("POST", "/_query");
+        query.setJsonEntity("{\"query\": \"" + String.format(Locale.ROOT, contractCase.query(), dataset) + "\"}");
+        ResponseException failed = expectThrows(
+            ResponseException.class,
+            contractCase.settings()
+                + " registered and then QUERIED CLEANLY. Either the reader now tolerates it, or the bytes "
+                + "stopped disagreeing with the settings -- either way this case is no longer testing what it says.",
+            () -> client().performRequest(query)
+        );
+
+        assertThat(
+            "the query failed, but not for the declared reason. The message is emitted by ["
+                + contractCase.emitter()
+                + "]; if it moved, update registration-contract.properties from the code rather than the other way round.",
+            failed.getMessage(),
+            containsString(contractCase.message())
+        );
+    }
+
+    /**
      * A file the registration never opens.
      *
      * <p>Every case here is refused before any I/O happens, so the bytes are irrelevant -- but the path
@@ -156,6 +197,9 @@ public class DatasetRegistrationContractIT extends ESRestTestCase {
         try {
             Path dir = Files.createTempDirectory("registration-contract-");
             Files.writeString(dir.resolve("simple.csv"), "a,b\n1,foo\n2,bar\n");
+            // CSV bytes under a name that implies no format, so an explicit `format` decides what the
+            // reader is told to expect and nothing at registration can contradict it.
+            Files.writeString(dir.resolve("noext"), "a,b\n1,foo\n2,bar\n");
             return dir;
         } catch (IOException e) {
             throw new AssertionError("could not lay down the registration-contract fixture", e);

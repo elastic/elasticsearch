@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.fixtures;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -38,16 +39,53 @@ public class RegistrationContractTests extends ESTestCase {
     }
 
     /**
-     * A message that names no setting is the failure this file exists to prevent: it passes on a refusal
-     * of something the case never varied. Pinning the shape stops a case being weakened to make it green.
+     * A message that names nothing the case pinned is the failure this file exists to prevent: it passes
+     * on a failure of something the case never varied. What counts as "names" differs by outcome, and the
+     * difference is real rather than a loophole -- a refusal comes from the validator and talks about the
+     * setting key, while a query failure comes from the reader, which never saw a settings map and talks
+     * about the file and the format it was told to expect.
      */
-    public void testEveryMessageNamesASettingTheCaseRegisters() {
+    public void testEveryMessageNamesSomethingTheCasePinned() {
         for (RegistrationContract.Case declared : RegistrationContract.get().cases()) {
+            boolean named = switch (declared.outcome()) {
+                case REFUSED -> declared.settings().keySet().stream().anyMatch(declared.message()::contains);
+                case QUERY_FAILS -> {
+                    String message = declared.message().toLowerCase(Locale.ROOT);
+                    yield declared.settings().values().stream().anyMatch(v -> message.contains(v.toLowerCase(Locale.ROOT)));
+                }
+            };
             assertTrue(
-                "case [" + declared.name() + "] asserts a message naming none of " + declared.settings().keySet(),
-                declared.settings().keySet().stream().anyMatch(declared.message()::contains)
+                "case ["
+                    + declared.name()
+                    + "] ("
+                    + declared.outcome()
+                    + ") asserts a message naming nothing it pinned: "
+                    + declared.settings(),
+                named
             );
         }
+    }
+
+    /** A refusal never runs a query, so declaring one says the case was half-converted from the other kind. */
+    public void testARefusedCaseMayNotDeclareAQuery() {
+        Properties props = wellFormed();
+        props.setProperty("case.sample_negative.query", "FROM %s | LIMIT 1");
+        Exception e = expectThrows(IllegalStateException.class, () -> RegistrationContract.parse(props));
+        assertThat(e.getMessage(), containsString("would never run"));
+    }
+
+    /** An unknown outcome is a typo that would otherwise silently fall back to the refusal kind. */
+    public void testAnUnknownOutcomeIsRejected() {
+        Properties props = wellFormed();
+        props.setProperty("case.sample_negative.outcome", "maybe");
+        Exception e = expectThrows(IllegalStateException.class, () -> RegistrationContract.parse(props));
+        assertThat(e.getMessage(), containsString("unknown outcome [maybe]"));
+    }
+
+    /** Both halves of the no-I/O promise need a case, or the second contract has no test at all. */
+    public void testTheContractCarriesBothOutcomes() {
+        var outcomes = RegistrationContract.get().cases().stream().map(RegistrationContract.Case::outcome).distinct().toList();
+        assertThat("both outcomes are declared", outcomes.size(), equalTo(2));
     }
 
     public void testAWellFormedCaseParses() {

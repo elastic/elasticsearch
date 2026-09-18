@@ -11,8 +11,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -40,10 +42,32 @@ public final class RegistrationContract {
 
     private static final String RESOURCE = "registration-contract.properties";
     private static final String DEFAULT_FORMAT = "csv";
+    private static final String DEFAULT_QUERY = "FROM %s | LIMIT 1";
     private static final String SETTINGS_PREFIX = "settings.";
 
     /** Every key shape the declaration recognises. A key matching none of these fails the load. */
-    private static final Set<String> ATTRIBUTES = Set.of("message", "emitter", "format");
+    private static final Set<String> ATTRIBUTES = Set.of("message", "emitter", "format", "outcome", "query", "resource");
+
+    /**
+     * Where the registration is expected to fail.
+     *
+     * <p>Registration performs no I/O, so a setting it cannot decide about is not refused -- it is
+     * accepted, and the failure arrives later when something finally opens the object. Those are two
+     * different contracts with two different messages, and a suite that can only express the first
+     * reports the second as a pass.
+     */
+    public enum Outcome {
+        /** The PUT is refused, and the message is the assertion. */
+        REFUSED,
+        /**
+         * The PUT is accepted and the QUERY fails.
+         *
+         * <p>A case of this kind pins both halves of the no-I/O promise at once: a PUT that starts
+         * refusing it means registration acquired I/O, and the message after it is the contract for
+         * what the reader says when it finally looks.
+         */
+        QUERY_FAILS
+    }
 
     /**
      * One registration that must be refused.
@@ -54,8 +78,20 @@ public final class RegistrationContract {
      * @param emitter   the symbol the message was read from, so the next reader can check it rather
      *                  than trusting that someone did
      * @param format    the format the dataset is registered as
+     * @param outcome   whether the PUT is refused, or accepted with the query failing after it
+     * @param query     the query to run for a {@code QUERY_FAILS} case, with {@code %s} for the dataset
+     * @param resource  the fixture file to register, relative to the suite's fixture directory
      */
-    public record Case(String name, Map<String, String> settings, String message, String emitter, String format) {
+    public record Case(
+        String name,
+        Map<String, String> settings,
+        String message,
+        String emitter,
+        String format,
+        Outcome outcome,
+        String query,
+        String resource
+    ) {
         public Case {
             settings = Map.copyOf(settings);
         }
@@ -135,7 +171,30 @@ public final class RegistrationContract {
             // drifted is exactly the one the search will not find.
             String emitter = required(props, name, "emitter");
             String format = props.getProperty("case." + name + ".format", DEFAULT_FORMAT).trim();
-            parsed.add(new Case(name, settings, message, emitter, format));
+            String outcomeText = props.getProperty("case." + name + ".outcome", Outcome.REFUSED.name()).trim();
+            Outcome outcome;
+            try {
+                outcome = Outcome.valueOf(outcomeText.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalStateException(
+                    "case ["
+                        + name
+                        + "] declares unknown outcome ["
+                        + outcomeText
+                        + "]; expected one of "
+                        + Arrays.toString(Outcome.values())
+                );
+            }
+            String query = props.getProperty("case." + name + ".query", DEFAULT_QUERY).trim();
+            // A refusal never runs a query, so declaring one says the case was written as the other kind
+            // and half-converted -- which would read as covering the query path while never touching it.
+            if (outcome == Outcome.REFUSED && props.getProperty("case." + name + ".query") != null) {
+                throw new IllegalStateException("case [" + name + "] is refused at registration, so its [query] would never run");
+            }
+            // The default fixture is a well-formed file of the declared format. A query-failure case is
+            // usually about bytes that do NOT match what the settings announce, so it names its own.
+            String resource = props.getProperty("case." + name + ".resource", "simple." + format).trim();
+            parsed.add(new Case(name, settings, message, emitter, format, outcome, query, resource));
         }
         if (parsed.isEmpty()) {
             throw new IllegalStateException("[" + RESOURCE + "] declares no cases; an empty contract asserts nothing and passes");

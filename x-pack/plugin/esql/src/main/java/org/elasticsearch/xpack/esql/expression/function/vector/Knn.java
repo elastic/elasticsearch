@@ -12,6 +12,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
@@ -19,7 +20,6 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.VectorData;
@@ -73,11 +73,14 @@ import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.K_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VECTOR_SIMILARITY_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VISIT_PERCENTAGE_FIELD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityMetric.DOT_PRODUCT;
 
 public class Knn extends SingleFieldFullTextFunction
     implements
@@ -91,6 +94,7 @@ public class Knn extends SingleFieldFullTextFunction
         .ternaryConfig(Knn::new)
         // Snapshot-only, matching the pragma that enables KNN's runtime search in the first place.
         .snapshotCapabilities("runtime_anywhere")
+        .snapshotCapabilities("runtime_similarity_function")
         .name("knn");
 
     private final Integer implicitK;
@@ -101,10 +105,19 @@ public class Knn extends SingleFieldFullTextFunction
 
     public static final String MIN_CANDIDATES_OPTION = "min_candidates";
 
+    /**
+     * Names the {@link VectorSimilarityMetric} to compare the vectors with, e.g. {@code "l2_norm"}. Only accepted
+     * when knn runs over a runtime expression - an indexed field takes its metric from the mapping instead. Not
+     * documented as a function named parameter yet because runtime knn, the only path that accepts it, is snapshot
+     * only; add the {@code @MapParam.MapParamEntry} for it when that path is released.
+     */
+    public static final String SIMILARITY_FUNCTION_OPTION = "similarity_function";
+
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
         entry(K_FIELD.getPreferredName(), INTEGER),
         entry(MIN_CANDIDATES_OPTION, INTEGER),
         entry(VECTOR_SIMILARITY_FIELD.getPreferredName(), FLOAT),
+        entry(SIMILARITY_FUNCTION_OPTION, KEYWORD),
         entry(VISIT_PERCENTAGE_FIELD.getPreferredName(), FLOAT),
         entry(BOOST_FIELD.getPreferredName(), FLOAT),
         entry(KnnQuery.RESCORE_OVERSAMPLE_FIELD, FLOAT)
@@ -294,6 +307,32 @@ public class Knn extends SingleFieldFullTextFunction
         return translatable;
     }
 
+    /**
+     * Beyond the type checks every option gets, the {@code similarity_function} value has to name one of the
+     * {@link VectorSimilarityMetric}s. Whether the option is allowed here at all depends on the plan rather than on
+     * the option itself, so that part is checked in {@link #fieldVerifier}.
+     */
+    @Override
+    protected TypeResolution resolveOptions() {
+        if (options() == null) {
+            return TypeResolution.TYPE_RESOLVED;
+        }
+        return Options.resolve(options(), source(), THIRD, getAllowedOptions(), opts -> {
+            String metric = BytesRefs.toString(opts.get(SIMILARITY_FUNCTION_OPTION));
+            if (metric != null && VectorSimilarityMetric.fromOptionValue(metric) == null) {
+                throw new InvalidArgumentException(
+                    format(
+                        null,
+                        "Invalid option [{}] in [{}], expected one of {}",
+                        SIMILARITY_FUNCTION_OPTION,
+                        sourceText(),
+                        VectorSimilarityMetric.optionValues()
+                    )
+                );
+            }
+        });
+    }
+
     @Override
     protected void fieldVerifier(
         LogicalPlan plan,
@@ -304,6 +343,17 @@ public class Knn extends SingleFieldFullTextFunction
     ) {
         super.fieldVerifier(plan, function, field, analysisRegistry, failures);
         if (false == isRuntimeSearch()) {
+            if (options() != null && queryOptions().get(SIMILARITY_FUNCTION_OPTION) != null) {
+                failures.add(
+                    Failure.fail(
+                        options(),
+                        "[KNN] option [{}] is only supported when [{}] is a non-index-mapped field or expression; "
+                            + "an indexed field is compared with the similarity declared in its mapping",
+                        SIMILARITY_FUNCTION_OPTION,
+                        field.sourceText()
+                    )
+                );
+            }
             return;
         }
 
@@ -343,12 +393,23 @@ public class Knn extends SingleFieldFullTextFunction
                 Failure.fail(query(), "[KNN] cannot operate on [{}]; query vector values are too large or too small.", query().sourceText())
             );
         }
-        if (squaredMagnitude == 0.0f) {
+        // Only cosine divides by the magnitude; the other metrics are well defined for a zero vector.
+        if (squaredMagnitude == 0.0f && similarityMetric() == VectorSimilarityMetric.COSINE) {
             failures.add(
                 Failure.fail(
                     query(),
                     "[KNN] cannot operate on [{}]; Cosine similarity does not support (query) vectors with zero magnitude.",
                     query().sourceText()
+                )
+            );
+        }
+        if (similarityMetric() == DOT_PRODUCT && VectorUtil.isUnitVector(vector) == false) {
+            failures.add(
+                Failure.fail(
+                    query(),
+                    "[KNN] dot_product requires unit-length vectors; query vector [{}] has magnitude [{}]",
+                    query().sourceText(),
+                    Math.sqrt(squaredMagnitude)
                 )
             );
         }
@@ -370,15 +431,29 @@ public class Knn extends SingleFieldFullTextFunction
     private ExpressionEvaluator.Factory evaluatorForRuntimeSearch(ToEvaluator toEvaluator) {
         float[] queryVector = queryAsFloats();
         Float similarityThreshold = similarityThresholdOption();
-        // TODO: for now we only support cosine similarity, accept a similarity function option in the future.
-        return new KnnRuntimeFilterEvaluator.Factory(
-            source(),
-            toEvaluator.apply(field()),
-            queryVector,
-            CosineSimilarity.SIMILARITY_FUNCTION,
-            similarityThreshold,
-            context -> similarityThreshold == null ? null : new float[queryVector.length]
-        );
+        VectorSimilarityMetric metric = similarityMetric();
+        if (metric == DOT_PRODUCT) {
+            return new KnnRuntimeFilterForDotProductEvaluator.Factory(
+                source(),
+                toEvaluator.apply(field()),
+                queryVector,
+                similarityThreshold,
+                // Allocate a scratch buffer whenever we will actually read the field vector: either to compare against
+                // the threshold or to validate unit length for DOT_PRODUCT.
+                context -> new float[queryVector.length]
+            );
+        } else {
+            return new KnnRuntimeFilterEvaluator.Factory(
+                source(),
+                toEvaluator.apply(field()),
+                queryVector,
+                metric,
+                similarityThreshold,
+                // Allocate a scratch buffer whenever we will actually read the field vector: either to compare against
+                // the threshold or to validate unit length for DOT_PRODUCT.
+                context -> similarityThreshold == null ? null : new float[queryVector.length]
+            );
+        }
     }
 
     @Override
@@ -392,12 +467,11 @@ public class Knn extends SingleFieldFullTextFunction
     private ExpressionEvaluator.Factory scorerForRuntimeSearch(ExpressionScoreMapper.ToScorer toScorer) {
         float[] queryVector = queryAsFloats();
         float boost = getBoost();
-        // TODO: for now we only support cosine similarity, accept a similarity function option in the future.
         return new KnnRuntimeScoreEvaluator.Factory(
             source(),
             toScorer.toEvaluator().apply(field()),
             queryVector,
-            CosineSimilarity.SIMILARITY_FUNCTION,
+            similarityMetric(),
             boost,
             context -> new float[queryVector.length]
         );
@@ -410,6 +484,18 @@ public class Knn extends SingleFieldFullTextFunction
         }
         Map<String, Object> opts = queryOptions();
         return (Float) opts.get(VECTOR_SIMILARITY_FIELD.getPreferredName());
+    }
+
+    /**
+     * The vector similarity metric used for runtime search path, defaulting to cosine when the
+     * {@code similarity_function} option is absent.
+     */
+    private VectorSimilarityMetric similarityMetric() {
+        if (options() == null) {
+            return VectorSimilarityMetric.COSINE;
+        }
+        String metric = BytesRefs.toString(queryOptions().get(SIMILARITY_FUNCTION_OPTION));
+        return metric == null ? VectorSimilarityMetric.COSINE : VectorSimilarityMetric.fromOptionValue(metric);
     }
 
     private float getBoost() {
@@ -592,17 +678,32 @@ public class Knn extends SingleFieldFullTextFunction
         return Objects.hash(field(), query(), queryBuilder(), implicitK(), filterExpressions(), options());
     }
 
+    private static void requireUnitLength(float[] vector) {
+        if (false == VectorUtil.isUnitVector(vector)) {
+            throw new IllegalArgumentException(
+                format(
+                    null,
+                    "dot_product requires unit-length vectors but encountered magnitude [{}]",
+                    Math.sqrt(VectorUtil.dotProduct(vector, vector))
+                )
+            );
+        }
+    }
+
     /**
-     * Evaluator factory for runtime KNN filter (boolean result): returns true for rows whose
-     * field vector has cosine similarity >= threshold (or always true when no threshold is set),
-     * false for rows below the threshold, and false for rows with a null field vector.
+     * Evaluator factory for runtime KNN filter (boolean result): returns true for rows whose field vector is at
+     * least as similar to the query vector as the threshold (or always true when no threshold is set), false otherwise.
+     * <p>
+     * Both sides are compared as normalized scores rather than as raw similarities, which is what makes the
+     * threshold mean "at least this similar" for every metric. This is the same normalize-then-compare check
+     * the knn query does.
      */
     @Evaluator(extraName = "RuntimeFilter", allNullsIsNull = false, warnExceptions = { IllegalArgumentException.class })
     static boolean runtimeFilter(
         @Position int position,
         FloatBlock fieldBlock,
         @Fixed float[] queryVector,
-        @Fixed DenseVectorFieldMapper.SimilarityFunction similarityFunction,
+        @Fixed VectorSimilarityMetric similarityMetric,
         @Fixed @Nullable Float similarityThreshold,
         @Fixed(includeInToString = false, scope = Fixed.Scope.THREAD_LOCAL) float[] scratchVector
     ) {
@@ -613,6 +714,7 @@ public class Knn extends SingleFieldFullTextFunction
         if (dimensions != queryVector.length) {
             throw new IllegalArgumentException("dense_vector dimensions do not match");
         }
+        // With no threshold, every row with a non-null vector passes. No need to read the vector.
         if (similarityThreshold == null) {
             return true;
         }
@@ -620,19 +722,57 @@ public class Knn extends SingleFieldFullTextFunction
         for (int i = 0; i < dimensions; i++) {
             scratchVector[i] = fieldBlock.getFloat(first + i);
         }
-        return similarityFunction.calculateSimilarity(scratchVector, queryVector) >= similarityThreshold;
+
+        float similarity = similarityMetric.calculateSimilarity(scratchVector, queryVector);
+        return similarityMetric.normalizeToRelevanceScore(similarity) >= similarityMetric.normalizeToRelevanceScore(similarityThreshold);
+    }
+
+    /**
+     * Same as {@link #runtimeFilter(int, FloatBlock, float[], VectorSimilarityMetric, Float, float[])} above,
+     * but also checks that the field vector is unit length for DOT_PRODUCT.
+     */
+    @Evaluator(extraName = "RuntimeFilterForDotProduct", allNullsIsNull = false, warnExceptions = { IllegalArgumentException.class })
+    static boolean runtimeFilterForDotProduct(
+        @Position int position,
+        FloatBlock fieldBlock,
+        @Fixed float[] queryVector,
+        @Fixed @Nullable Float similarityThreshold,
+        @Fixed(includeInToString = false, scope = Fixed.Scope.THREAD_LOCAL) float[] scratchVector
+    ) {
+        if (fieldBlock.isNull(position)) {
+            return false;
+        }
+        int dimensions = fieldBlock.getValueCount(position);
+        if (dimensions != queryVector.length) {
+            throw new IllegalArgumentException("dense_vector dimensions do not match");
+        }
+
+        // we need to read the vector even if similarityThreshold is null, because we need to check that it is unit length for DOT_PRODUCT
+        int first = fieldBlock.getFirstValueIndex(position);
+        for (int i = 0; i < dimensions; i++) {
+            scratchVector[i] = fieldBlock.getFloat(first + i);
+        }
+        requireUnitLength(scratchVector);
+        if (similarityThreshold == null) {
+            return true;
+        }
+        float similarity = DOT_PRODUCT.calculateSimilarity(scratchVector, queryVector);
+        return DOT_PRODUCT.normalizeToRelevanceScore(similarity) >= DOT_PRODUCT.normalizeToRelevanceScore(similarityThreshold);
     }
 
     /**
      * Evaluator factory for runtime KNN scoring (double result): normalizes the vector similarity value to the unit interval
      * and applies boost.
+     * We intentionally do not check for unit length here, because
+     * {@link #runtimeFilterForDotProduct(int, FloatBlock, float[], Float, float[]) filter evaluator}
+     * should have already done that for DOT_PRODUCT.
      */
     @Evaluator(extraName = "RuntimeScore", allNullsIsNull = false, warnExceptions = { IllegalArgumentException.class })
     static double runtimeScore(
         @Position int position,
         FloatBlock fieldBlock,
         @Fixed float[] queryVector,
-        @Fixed DenseVectorFieldMapper.SimilarityFunction similarityFunction,
+        @Fixed VectorSimilarityMetric similarityMetric,
         @Fixed float boost,
         @Fixed(includeInToString = false, scope = Fixed.Scope.THREAD_LOCAL) float[] scratchVector
     ) {
@@ -648,6 +788,6 @@ public class Knn extends SingleFieldFullTextFunction
         for (int i = 0; i < dimensions; i++) {
             scratchVector[i] = fieldBlock.getFloat(first + i);
         }
-        return VectorUtil.normalizeToUnitInterval(similarityFunction.calculateSimilarity(scratchVector, queryVector)) * boost;
+        return similarityMetric.normalizeToRelevanceScore(similarityMetric.calculateSimilarity(scratchVector, queryVector)) * boost;
     }
 }

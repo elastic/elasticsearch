@@ -2836,26 +2836,35 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     }
 
     public void testAbstractWarmingTaskComparison() {
-        var typesOtherThanMerge = Arrays.stream(Type.values()).collect(Collectors.toSet());
-        typesOtherThanMerge.remove(Type.INDEXING_MERGE);
+        var typesOtherThanMergeAndBCCPrewarm = Arrays.stream(Type.values()).collect(Collectors.toSet());
+        typesOtherThanMergeAndBCCPrewarm.remove(Type.INDEXING_MERGE);
+        typesOtherThanMergeAndBCCPrewarm.remove(Type.INDEXING_BCC_HEADER_PREWARM);
 
         var queue = new PriorityQueue<MyTask>();
 
-        var task1 = new MyTask(randomFrom(typesOtherThanMerge), 500);
+        var task1 = new MyTask(randomFrom(typesOtherThanMergeAndBCCPrewarm), 500);
         queue.add(task1);
-        var task2 = new MyTask(randomFrom(typesOtherThanMerge), randomLongBetween(0, 499));
+        var task2 = new MyTask(randomFrom(typesOtherThanMergeAndBCCPrewarm), randomLongBetween(0, 499));
         queue.add(task2);
-        var task3 = new MyTask(randomFrom(typesOtherThanMerge), randomLongBetween(501, Long.MAX_VALUE));
+        var task3 = new MyTask(randomFrom(typesOtherThanMergeAndBCCPrewarm), randomLongBetween(501, Long.MAX_VALUE));
         queue.add(task3);
         var task4 = new MyTask(Type.INDEXING_MERGE, randomLongBetween(1, Long.MAX_VALUE));
         queue.add(task4);
         var task5 = new MyTask(Type.INDEXING_MERGE, 0);
         queue.add(task5);
         // We don't explicitly handle overflow in position.
-        var task6 = new MyTask(randomFrom(typesOtherThanMerge), randomLongBetween(Long.MIN_VALUE, -1));
+        var task6 = new MyTask(randomFrom(typesOtherThanMergeAndBCCPrewarm), randomLongBetween(Long.MIN_VALUE, -1));
         queue.add(task6);
+        // BCC header prewarming sorts before everything else, even with a larger position.
+        var task7 = new MyTask(Type.INDEXING_BCC_HEADER_PREWARM, randomLongBetween(1, Long.MAX_VALUE));
+        queue.add(task7);
+        var task8 = new MyTask(Type.INDEXING_BCC_HEADER_PREWARM, 0);
+        queue.add(task8);
 
-        assertEquals(List.of(task6, task2, task1, task3, task5, task4), Stream.generate(queue::poll).takeWhile(Objects::nonNull).toList());
+        assertEquals(
+            List.of(task8, task7, task6, task2, task1, task3, task5, task4),
+            Stream.generate(queue::poll).takeWhile(Objects::nonNull).toList()
+        );
     }
 
     public void testPrioritizationOfWarmingTasks() throws IOException {

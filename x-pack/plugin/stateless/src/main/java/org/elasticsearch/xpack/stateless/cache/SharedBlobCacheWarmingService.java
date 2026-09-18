@@ -2218,7 +2218,8 @@ public class SharedBlobCacheWarmingService {
     }
 
     /// Base class for warming tasks that establishes priority of warming tasks.
-    /// All types have equal priority except [Type#INDEXING_MERGE] which has a lower priority.
+    /// All types have equal priority except [Type#INDEXING_BCC_HEADER_PREWARM] that has the highest priority, and [Type#INDEXING_MERGE]
+    /// that has the lowest.
     /// Tasks of equal priority based on type are ordered by caller-defined `position`.
     abstract static class AbstractWarmingTask implements ActionListener<Releasable>, Comparable<AbstractWarmingTask> {
         protected final Type type;
@@ -2231,20 +2232,35 @@ public class SharedBlobCacheWarmingService {
 
         @Override
         public int compareTo(AbstractWarmingTask that) {
-            // Merge warming has lower priority than other types (meaning it should compare bigger).
-            // Other types have equivalent priority but will be executed in FIFO order using provided task position.
+            // Region-0 warming (i.e., INDEXING_BCC_HEADER_PREWARM) has the highest priority (meaning it should compare lower) across all
+            // the types.
+            // Then, merge warming (i.e., INDEXING_MERGE) has lower priority than other types (meaning it should compare bigger).
+            // Equivalent types have equivalent priority but will be executed in FIFO order using provided task position.
             // `position` can technically overflow but that would only result in a small amount of tasks having
             // wrong priorities for a short time period.
             // So we don't have any special logic for that.
-            if (type == Type.INDEXING_MERGE) {
-                if (that.type == Type.INDEXING_MERGE) {
-                    return Long.compare(position, that.position);
-                } else {
-                    return 1;
-                }
+
+            if (type == that.type) {
+                return Long.compare(position, that.position);
             }
 
-            return that.type == Type.INDEXING_MERGE ? -1 : Long.compare(position, that.position);
+            if (type == Type.INDEXING_BCC_HEADER_PREWARM) {
+                return -1;
+            }
+
+            if (that.type == Type.INDEXING_BCC_HEADER_PREWARM) {
+                return 1;
+            }
+
+            if (type == Type.INDEXING_MERGE) {
+                return 1;
+            }
+
+            if (that.type == Type.INDEXING_MERGE) {
+                return -1;
+            }
+
+            return Long.compare(position, that.position);
         }
 
         @Override

@@ -81,10 +81,13 @@ coverage_project_dir() {
 # collector is needed. So this mapping is stated knowledge, and anything unmapped fails loudly.
 COVERAGE_TASK_LAYERS=(
   "test:unit"
+  "remoteFetchTopnFeatureFlagTest:unit"
   "internalClusterTest:internal-cluster"
   "javaRestTest:cluster"
   "yamlRestTest:cluster"
   "csvSpecTests:cluster"
+  "csvSpecTestsCurrentToCurrent:cluster"
+  "remoteDatasetInvisibleTest:cluster"
   "javaRestTestSecure:cluster"
 )
 
@@ -92,10 +95,13 @@ COVERAGE_TASK_LAYERS=(
 #   bcUpgradeTest  - runs old-version nodes; their coverage cannot map onto current classfiles.
 #   perfSmokeTest  - measures speed, not behaviour; counting it inflates coverage with something
 #                    nobody would call a test of correctness. Includable explicitly.
+#   goldenGc       - not a test: a repair tool that rewrites the golden-test sources it runs over,
+#                    and is not part of `check`. Running it here would edit the checkout.
 #   v<version>#... - the ~464 BWC-versioned variants, same reason as bcUpgradeTest.
 COVERAGE_EXCLUDED_TASKS=(
   "bcUpgradeTest"
   "perfSmokeTest"
+  "goldenGc"
 )
 
 # Projects excluded from the scope, as an extended regex over Gradle project paths. Each

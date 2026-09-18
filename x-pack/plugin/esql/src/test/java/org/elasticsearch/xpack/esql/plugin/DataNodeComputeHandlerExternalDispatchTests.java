@@ -203,7 +203,7 @@ public class DataNodeComputeHandlerExternalDispatchTests extends ESTestCase {
         assertThat(failure.getSuppressed()[0], sameInstance(second));
     }
 
-    public void testEmptyAssignmentsAreIgnored() {
+    public void testEmptyAssignmentWithNoOrphansIsDropped() {
         List<ExternalSplit> all = splits(1);
         Map<String, List<ExternalSplit>> assignments = new LinkedHashMap<>();
         assignments.put("node-empty", List.of());

@@ -306,22 +306,29 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 nodeId -> clusterService.state().nodes().get(nodeId),
                 transportService::getConnection
             );
-            if (beforeReassign.unresolved().isEmpty() == false) {
-                LOGGER.warn(
-                    "external splits on [{}] unreachable nodes ({} reachable): [{}]",
-                    beforeReassign.unresolved().size(),
-                    beforeReassign.resolved().size(),
-                    unresolvedNodeSummary(beforeReassign.unresolved())
-                );
-            }
             ExternalDispatchResolution resolution = reassignUnreachableSplits(beforeReassign);
             if (resolution.resolved().isEmpty()) {
                 if (resolution.unresolved().isEmpty() == false) {
+                    LOGGER.warn(
+                        "external splits on [{}] unreachable nodes (0 reachable): [{}]",
+                        resolution.unresolved().size(),
+                        unresolvedNodeSummary(resolution.unresolved())
+                    );
                     parentComputeListener.acquireCompute().onFailure(allExternalWorkersFailed(resolution.unresolved()));
                 } else {
                     parentComputeListener.acquireCompute().onResponse(DriverCompletionInfo.EMPTY);
                 }
                 return;
+            }
+            if (beforeReassign.unresolved().isEmpty() == false) {
+                LOGGER.debug(
+                    () -> Strings.format(
+                        "reassigned external splits from [%s] unreachable nodes onto [%s] reachable nodes: [%s]",
+                        beforeReassign.unresolved().size(),
+                        resolution.resolved().size(),
+                        unresolvedNodeSummary(beforeReassign.unresolved())
+                    )
+                );
             }
 
             for (ExternalDispatchResolution.ResolvedExternalNode target : resolution.resolved()) {

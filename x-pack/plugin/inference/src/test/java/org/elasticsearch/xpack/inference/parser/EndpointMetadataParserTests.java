@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.parser;
 
 import org.elasticsearch.inference.StatusHeuristic;
+import org.elasticsearch.inference.completion.Reasoning.ReasoningEffort;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.test.ESTestCase;
 
@@ -16,6 +17,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.inference.metadata.EndpointMetadata.CAPABILITIES_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.Capabilities.CONTEXT_WINDOW_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.Capabilities.REASONING_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.ContextWindow.MAX_INPUT_TOKENS_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.ContextWindow.MAX_OUTPUT_TOKENS_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.DENIED_BY_REGION_POLICY_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.DISPLAY_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Display.MODEL_CREATOR_FIELD;
@@ -39,8 +45,11 @@ import static org.elasticsearch.inference.metadata.EndpointMetadata.ModelIdentit
 import static org.elasticsearch.inference.metadata.EndpointMetadata.ModelIdentity.TIER_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.ModelIdentity.VERSION_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.REGIONS_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.ReasoningCapability.DEFAULT_EFFORT_LEVEL_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.ReasoningCapability.SUPPORTED_EFFORT_LEVELS_FIELD_NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class EndpointMetadataParserTests extends ESTestCase {
@@ -446,5 +455,128 @@ public class EndpointMetadataParserTests extends ESTestCase {
 
         var e = expectThrows(IllegalArgumentException.class, () -> EndpointMetadataParser.modelIdentityFromMap(map, ROOT));
         assertThat(e.getMessage(), containsString(CREATOR_FIELD));
+    }
+
+    public void testCapabilitiesFromMap_ReturnsEmpty_WhenMapIsNull() {
+        assertThat(EndpointMetadataParser.capabilitiesFromMap(null, ROOT), sameInstance(EndpointMetadata.Capabilities.EMPTY_INSTANCE));
+    }
+
+    public void testCapabilitiesFromMap_ReturnsEmpty_WhenMapIsEmpty() {
+        assertThat(
+            EndpointMetadataParser.capabilitiesFromMap(new HashMap<>(), ROOT),
+            sameInstance(EndpointMetadata.Capabilities.EMPTY_INSTANCE)
+        );
+    }
+
+    public void testCapabilitiesFromMap_ReturnsFullCapabilities() {
+        var reasoningMap = new HashMap<String, Object>();
+        reasoningMap.put(SUPPORTED_EFFORT_LEVELS_FIELD_NAME, List.of("high", "medium", "low"));
+        reasoningMap.put(DEFAULT_EFFORT_LEVEL_FIELD_NAME, "medium");
+
+        var contextWindowMap = new HashMap<String, Object>();
+        contextWindowMap.put(MAX_INPUT_TOKENS_FIELD_NAME, 1050000);
+        contextWindowMap.put(MAX_OUTPUT_TOKENS_FIELD_NAME, 128000);
+
+        var map = new HashMap<String, Object>();
+        map.put(REASONING_FIELD_NAME, reasoningMap);
+        map.put(CONTEXT_WINDOW_FIELD_NAME, contextWindowMap);
+
+        var result = EndpointMetadataParser.capabilitiesFromMap(map, ROOT);
+
+        assertThat(
+            result.reasoning().supportedEffortLevels(),
+            equalTo(List.of(ReasoningEffort.HIGH, ReasoningEffort.MEDIUM, ReasoningEffort.LOW))
+        );
+        assertThat(result.reasoning().defaultEffortLevel(), equalTo(ReasoningEffort.MEDIUM));
+        assertThat(result.contextWindow().maxInputTokens(), equalTo(1050000));
+        assertThat(result.contextWindow().maxOutputTokens(), equalTo(128000));
+    }
+
+    public void testCapabilitiesFromMap_ReasoningOnly() {
+        var reasoningMap = new HashMap<String, Object>();
+        reasoningMap.put(SUPPORTED_EFFORT_LEVELS_FIELD_NAME, List.of("high"));
+
+        var map = new HashMap<String, Object>();
+        map.put(REASONING_FIELD_NAME, reasoningMap);
+
+        var result = EndpointMetadataParser.capabilitiesFromMap(map, ROOT);
+
+        assertThat(result.reasoning().supportedEffortLevels(), equalTo(List.of(ReasoningEffort.HIGH)));
+        assertThat(result.contextWindow(), nullValue());
+    }
+
+    public void testCapabilitiesFromMap_ContextWindowOnly() {
+        var contextWindowMap = new HashMap<String, Object>();
+        contextWindowMap.put(MAX_INPUT_TOKENS_FIELD_NAME, 200000);
+
+        var map = new HashMap<String, Object>();
+        map.put(CONTEXT_WINDOW_FIELD_NAME, contextWindowMap);
+
+        var result = EndpointMetadataParser.capabilitiesFromMap(map, ROOT);
+
+        assertThat(result.reasoning(), nullValue());
+        assertThat(result.contextWindow().maxInputTokens(), equalTo(200000));
+        assertThat(result.contextWindow().maxOutputTokens(), nullValue());
+    }
+
+    public void testReasoningCapabilityFromMap_FiltersUnknownEffortValues() {
+        var map = new HashMap<String, Object>();
+        map.put(SUPPORTED_EFFORT_LEVELS_FIELD_NAME, List.of("high", "unknown_future_value", "low"));
+        map.put(DEFAULT_EFFORT_LEVEL_FIELD_NAME, "unknown_future_value");
+
+        var result = EndpointMetadataParser.reasoningCapabilityFromMap(map, ROOT);
+
+        assertThat(result.supportedEffortLevels(), equalTo(List.of(ReasoningEffort.HIGH, ReasoningEffort.LOW)));
+        assertThat(result.defaultEffortLevel(), nullValue());
+    }
+
+    public void testContextWindowFromMap_Throws_WhenMaxInputTokensWrongType() {
+        var map = new HashMap<String, Object>();
+        map.put(MAX_INPUT_TOKENS_FIELD_NAME, "not-a-number");
+
+        var e = expectThrows(IllegalArgumentException.class, () -> EndpointMetadataParser.contextWindowFromMap(map, ROOT));
+        assertThat(e.getMessage(), containsString(MAX_INPUT_TOKENS_FIELD_NAME));
+    }
+
+    public void testReasoningCapabilityFromMap_Throws_WhenSupportedEffortLevelsWrongType() {
+        var map = new HashMap<String, Object>();
+        map.put(SUPPORTED_EFFORT_LEVELS_FIELD_NAME, "high");
+
+        var e = expectThrows(IllegalArgumentException.class, () -> EndpointMetadataParser.reasoningCapabilityFromMap(map, ROOT));
+        assertThat(e.getMessage(), containsString(SUPPORTED_EFFORT_LEVELS_FIELD_NAME));
+    }
+
+    /**
+     * Sub-maps are extracted with an unchecked cast, matching the sibling {@code display} and {@code regions} parsers. The
+     * authorization response parser relies on this throwing rather than silently producing garbage.
+     */
+    public void testCapabilitiesFromMap_Throws_WhenContextWindowWrongType() {
+        var map = new HashMap<String, Object>();
+        map.put(CONTEXT_WINDOW_FIELD_NAME, "not-an-object");
+
+        expectThrows(ClassCastException.class, () -> EndpointMetadataParser.capabilitiesFromMap(map, ROOT));
+    }
+
+    public void testFromMap_ParsesCapabilitiesBlock() {
+        var reasoningMap = new HashMap<String, Object>();
+        reasoningMap.put(SUPPORTED_EFFORT_LEVELS_FIELD_NAME, List.of("high", "low"));
+        reasoningMap.put(DEFAULT_EFFORT_LEVEL_FIELD_NAME, "high");
+
+        var capabilitiesMap = new HashMap<String, Object>();
+        capabilitiesMap.put(REASONING_FIELD_NAME, reasoningMap);
+
+        var metadataMap = new HashMap<String, Object>();
+        metadataMap.put(HEURISTICS_FIELD_NAME, new HashMap<>());
+        metadataMap.put(INTERNAL_FIELD_NAME, new HashMap<>());
+        metadataMap.put(DISPLAY_FIELD_NAME, new HashMap<>());
+        metadataMap.put(CAPABILITIES_FIELD_NAME, capabilitiesMap);
+
+        var map = new HashMap<String, Object>();
+        map.put(METADATA_FIELD_NAME, metadataMap);
+
+        var result = EndpointMetadataParser.fromMap(map);
+
+        assertThat(result.capabilities().reasoning().supportedEffortLevels(), equalTo(List.of(ReasoningEffort.HIGH, ReasoningEffort.LOW)));
+        assertThat(result.capabilities().reasoning().defaultEffortLevel(), equalTo(ReasoningEffort.HIGH));
     }
 }

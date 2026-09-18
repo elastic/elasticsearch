@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.parser.EndpointMetadataParser;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -90,8 +91,42 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
         @Nullable EndpointMetadata.ModelIdentity modelIdentity,
         @Nullable String fingerprint,
         List<EndpointMetadata.EndpointRegion> regions,
-        boolean deniedByRegionPolicy
+        boolean deniedByRegionPolicy,
+        @Nullable EndpointMetadata.Capabilities capabilities
     ) {
+
+        public AuthorizedEndpoint(
+            String id,
+            String modelName,
+            TaskTypeObject taskType,
+            String status,
+            @Nullable List<String> properties,
+            String releaseDate,
+            @Nullable String endOfLifeDate,
+            @Nullable Configuration configuration,
+            @Nullable EndpointMetadata.Display display,
+            @Nullable EndpointMetadata.ModelIdentity modelIdentity,
+            @Nullable String fingerprint,
+            List<EndpointMetadata.EndpointRegion> regions,
+            boolean deniedByRegionPolicy
+        ) {
+            this(
+                id,
+                modelName,
+                taskType,
+                status,
+                properties,
+                releaseDate,
+                endOfLifeDate,
+                configuration,
+                display,
+                modelIdentity,
+                fingerprint,
+                regions,
+                deniedByRegionPolicy,
+                null
+            );
+        }
 
         public static final String RELEASE_DATE = "release_date";
         public static final String END_OF_LIFE_DATE = "end_of_life_date";
@@ -107,6 +142,7 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
         private static final String FINGERPRINT = "fingerprint";
         private static final String REGIONS = "regions";
         private static final String DENIED_BY_REGION_POLICY = "denied_by_region_policy";
+        private static final String CAPABILITIES = "capabilities";
 
         @SuppressWarnings("unchecked")
         public static ConstructingObjectParser<AuthorizedEndpoint, Void> AUTHORIZED_ENDPOINT_PARSER = new ConstructingObjectParser<>(
@@ -125,7 +161,8 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
                 (EndpointMetadata.ModelIdentity) args[9],
                 (String) args[10],
                 args[11] != null ? (List<EndpointMetadata.EndpointRegion>) args[11] : List.of(),
-                args[12] != null && (Boolean) args[12]
+                args[12] != null && (Boolean) args[12],
+                (EndpointMetadata.Capabilities) args[13]
             )
         );
 
@@ -155,6 +192,31 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
                 new ParseField(REGIONS)
             );
             AUTHORIZED_ENDPOINT_PARSER.declareBoolean(optionalConstructorArg(), new ParseField(DENIED_BY_REGION_POLICY));
+            // Read the whole capabilities object into a map before converting it. p.map() always consumes through the matching
+            // END_OBJECT, so if the conversion fails on a wrong-typed field the outer parser is still correctly positioned and the
+            // remaining endpoint fields (and endpoints) parse normally. Parsing directly with a ConstructingObjectParser would throw
+            // mid-object and leave the outer parser misaligned.
+            AUTHORIZED_ENDPOINT_PARSER.declareObject(
+                optionalConstructorArg(),
+                (p, c) -> parseCapabilitiesLeniently(p.map()),
+                new ParseField(CAPABILITIES)
+            );
+        }
+
+        @Nullable
+        private static EndpointMetadata.Capabilities parseCapabilitiesLeniently(Map<String, Object> capabilitiesMap) {
+            try {
+                return EndpointMetadataParser.capabilitiesFromMap(capabilitiesMap, CAPABILITIES);
+            } catch (Exception e) {
+                logger.info(
+                    Strings.format(
+                        "Failed to parse the [%s] field from the Elastic Inference Service authorization response; ignoring it",
+                        CAPABILITIES
+                    ),
+                    e
+                );
+                return null;
+            }
         }
     }
 

@@ -164,6 +164,10 @@ gradlePlugin {
       id = 'elasticsearch.benchmark'
       implementationClass = 'org.elasticsearch.gradle.internal.BenchmarkPlugin'
     }
+    ospackageBase {
+      id = 'elasticsearch.ospackage-base'
+      implementationClass = 'org.elasticsearch.gradle.internal.ospackage.OsPackageBasePlugin'
+    }
     foreignLibrary {
       id = 'elasticsearch.foreign-library'
       implementationClass = 'org.elasticsearch.gradle.internal.foreign.ForeignLibraryPlugin'
@@ -307,6 +311,9 @@ dependencies {
     api("org.slf4j:slf4j-api:2.0.6") {
       because("Align with what we use in production")
     }
+    api("org.tukaani:xz:1.10") {
+      because("transitively required by jdeb/redline; align on a maintained version")
+    }
   }
   // Forcefully downgrade the jackson platform as used in production
   api enforcedPlatform(buildLibs.jackson.platform)
@@ -337,6 +344,19 @@ dependencies {
   api buildLibs.asm.tree
   api buildLibs.httpclient5
   api buildLibs.httpcore5
+  api(buildLibs.redline) {
+    because 'needed by the elasticsearch.ospackage-base plugin to build rpm packages'
+    // Where logging goes is a runtime decision
+    exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+  }
+  api(buildLibs.jdeb) {
+    because 'needed by the elasticsearch.ospackage-base plugin to build deb packages'
+    exclude group: 'org.apache.maven', module: 'maven-core'
+    exclude group: 'org.apache.maven', module: 'maven-plugin-api'
+    exclude group: 'org.apache.maven', module: 'maven-project'
+    exclude group: 'org.apache.maven', module: 'maven-artifact'
+    exclude group: 'org.codehaus.plexus', module: 'plexus-utils'
+  }
 
   compileOnly buildLibs.checkstyle
   compileOnly buildLibs.reflections

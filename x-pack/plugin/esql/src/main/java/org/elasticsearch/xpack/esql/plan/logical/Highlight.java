@@ -368,12 +368,7 @@ public class Highlight extends UnaryPlan
             failures.add(fail(this, "{}", e.getMessage()));
             return;
         }
-        verifyQuery(
-            HighlightAnalyzers.resolve(fields, commandAnalyzerName, analysisRegistry),
-            commandAnalyzerName,
-            failures,
-            analysisRegistry
-        );
+        verifyQuery(commandAnalyzerName, failures, analysisRegistry);
     }
 
     /** The user-set {@code WITH {"analyzer": ...}} name, or {@code null} when absent. */
@@ -395,13 +390,10 @@ public class Highlight extends UnaryPlan
             + "].";
     }
 
-    private void verifyQuery(
-        Map<String, NamedAnalyzer> fieldAnalyzers,
-        String commandAnalyzerName,
-        Failures failures,
-        AnalysisRegistry analysisRegistry
-    ) {
+    private void verifyQuery(String commandAnalyzerName, Failures failures, AnalysisRegistry analysisRegistry) {
         try {
+            // TO_TEXT declarations may not have been verified yet.
+            Map<String, NamedAnalyzer> fieldAnalyzers = HighlightAnalyzers.resolve(fields, commandAnalyzerName, analysisRegistry);
             // Enforce ON membership only when the query and field list are both explicit. An implicit query
             // treats a field outside ON as match-none instead of failing.
             HighlightQueryBuilders.verify(
@@ -412,7 +404,7 @@ public class Highlight extends UnaryPlan
                 implicitQuery,
                 analysisRegistry
             );
-        } catch (IllegalArgumentException e) {
+        } catch (InvalidArgumentException | IllegalArgumentException e) {
             // Attach to the query node, not this Highlight node: failures dedupe by node, so pinning it here would let a
             // co-located option/analyzer failure on this node swallow the query error (see VerifierTests#testHighlightAnalyzerOption).
             failures.add(fail(query, "{}", e.getMessage()));

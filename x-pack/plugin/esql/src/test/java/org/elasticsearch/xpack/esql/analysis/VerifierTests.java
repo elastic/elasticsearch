@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -5189,6 +5190,22 @@ public class VerifierTests extends AnalyzerTestCase {
             "FROM test | HIGHLIGHT \"fox AND\" ON first_name WITH { \"analyzer\": 123 }",
             allOf(containsString("Option [analyzer] must be a string"), containsString("Invalid query [fox AND]"))
         );
+    }
+
+    /** A declared analyzer failure must preserve source locations and other verification errors. */
+    public void testHighlightUnknownDeclaredAnalyzer() {
+        analyzer().minimumTransportVersion(TransportVersion.current())
+            .error(
+                """
+                    ROW t = TO_TEXT("fox", {"analyzer": "not_a_real_analyzer"})
+                    | HIGHLIGHT "fox" ON t WITH {"number_of_fragments": -1}
+                    | LIMIT 10
+                    """,
+                allOf(
+                    containsString("line 1:9: [not_a_real_analyzer] is not a registered analyzer"),
+                    containsString("Option [number_of_fragments] must be >= 0")
+                )
+            );
     }
 
     /** WITH must name the same analyzer as the borrowed WHERE leaf. */

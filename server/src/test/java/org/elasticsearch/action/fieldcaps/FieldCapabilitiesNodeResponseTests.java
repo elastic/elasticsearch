@@ -184,6 +184,35 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         }
     }
 
+    /** Checks the analyzer version boundary for both grouped and ungrouped index responses. */
+    public void testIndexAnalyzerSerialization() throws Exception {
+        var title = new IndexFieldCapabilitiesBuilder("title", "text").indexAnalyzer("english").build();
+        var tag = new IndexFieldCapabilitiesBuilder("tag", "keyword").build();
+        var fields = Map.of("title", title, "tag", tag);
+        var response = new FieldCapabilitiesNodeResponse(
+            List.of(
+                new FieldCapabilitiesIndexResponse("ungrouped", null, fields, true, IndexMode.STANDARD),
+                new FieldCapabilitiesIndexResponse("grouped-1", "mapping", fields, true, IndexMode.STANDARD),
+                new FieldCapabilitiesIndexResponse("grouped-2", "mapping", fields, true, IndexMode.STANDARD)
+            ),
+            Map.of(),
+            Set.of()
+        );
+        for (TransportVersion version : List.of(
+            TransportVersionUtils.getPreviousVersion(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER),
+            FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER
+        )) {
+            var copy = copyInstance(response, version);
+            var expectedTitle = version.supports(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER)
+                ? title
+                : new IndexFieldCapabilitiesBuilder("title", "text").build();
+            assertThat(copy.getIndexResponses(), hasSize(3));
+            for (var indexResponse : copy.getIndexResponses()) {
+                assertEquals(Map.of("title", expectedTitle, "tag", tag), indexResponse.get());
+            }
+        }
+    }
+
     private static FieldCapabilitiesNodeResponse randomNodeResponse(List<FieldCapabilitiesIndexResponse> indexResponses) {
         int numUnmatched = randomIntBetween(0, 3);
         final Set<ShardId> unmatchedShardIds = new HashSet<>();

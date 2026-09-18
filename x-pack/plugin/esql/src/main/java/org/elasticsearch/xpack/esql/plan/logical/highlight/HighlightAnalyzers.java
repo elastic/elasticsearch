@@ -62,7 +62,7 @@ public final class HighlightAnalyzers {
                 return PlannerUtils.resolveAnalyzer(HighlightQueryBuilders.DEFAULT_ANALYZER_NAME, analysisRegistry);
             }
         }
-        // TO_TEXT already verified a declared analyzer, so this resolve either succeeds or never ran.
+        // Unknown TO_TEXT analyzers are errors, unlike unknown mapping analyzers.
         String declared = AnalyzedTextExpression.valuesAnalyzerOf(field);
         return PlannerUtils.resolveAnalyzer(declared != null ? declared : HighlightQueryBuilders.DEFAULT_ANALYZER_NAME, analysisRegistry);
     }

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
@@ -52,10 +53,10 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
 
     @Override
     public LogicalPlan apply(LogicalPlan plan) {
-        return pruneColumns(plan, plan.outputSet().asBuilder(), false);
+        return pruneColumns(plan, plan.outputSet().asBuilder(), false, true);
     }
 
-    private static LogicalPlan pruneColumns(LogicalPlan plan, AttributeSet.Builder used, boolean inlineJoin) {
+    private static LogicalPlan pruneColumns(LogicalPlan plan, AttributeSet.Builder used, boolean inlineJoin, boolean pruneAggregates) {
         // while going top-to-bottom (upstream)
         return plan.transformDownSkipBranch((p, skipBranch) -> {
             // Note: It is NOT required to do anything special for binary plans like JOINs, except INLINE STATS and MARK JOIN. It is
@@ -77,7 +78,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             do {
                 recheck.set(false);
                 p = switch (p) {
-                    case Aggregate agg -> pruneColumnsInAggregate(agg, used, inlineJoin);
+                    case Aggregate agg -> pruneAggregates ? pruneColumnsInAggregate(agg, used, inlineJoin) : agg;
                     case InlineJoin inj -> pruneColumnsInInlineJoin(inj, used, recheck);
                     case MarkJoin markJoin -> pruneUnusedMarkJoin(markJoin, used, recheck);
                     case Eval eval -> pruneColumnsInEval(eval, used, recheck);
@@ -85,10 +86,9 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     case EsRelation esr -> pruneColumnsInEsRelation(esr, used);
                     case ExternalRelation ext -> pruneColumnsInExternalRelation(ext, used);
                     case MergePlan mergePlan -> {
-                        // Skip descending into the merge subtree: pruneColumnsInMergePlan handles Fork subplans
-                        // internally, while UnionAll is left untouched except for leaf unions. Using skipBranch
-                        // (instead of a sticky flag) ensures that pruning resumes for siblings outside the merge, e.g.
-                        // the right-hand side of an enclosing InlineJoin.
+                        // Skip descending into the merge subtree: pruneColumnsInMergePlan recurses into each subplan
+                        // itself. Using skipBranch (instead of a sticky flag) ensures that pruning resumes for siblings
+                        // outside the merge, e.g., the right-hand side of an enclosing InlineJoin.
                         skipBranch.set(true);
                         yield pruneColumnsInMergePlan(mergePlan, used);
                     }
@@ -148,7 +148,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
     private static LogicalPlan pruneColumnsInInlineJoin(InlineJoin ij, AttributeSet.Builder used, Holder<Boolean> recheck) {
         LogicalPlan p = ij;
         used.addAll(ij.references());
-        var right = pruneColumns(ij.right(), used, true);
+        var right = pruneColumns(ij.right(), used, true, true);
 
         if (right.outputSet().subtract(ij.references()).isEmpty() || isLocalEmptyRelation(right)) {
             // ij.references() are the join keys and if the output of the inline join doesn't contain anything else except the join keys,
@@ -298,12 +298,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
     // TODO: see ResolveUnmapped#patchMergePlan comment
     private static LogicalPlan pruneColumnsInMergePlan(MergePlan mergePlan, AttributeSet.Builder used) {
 
-        if (mergePlan instanceof UnionAll unionAll) {
-            if (PushDownUtils.isLeafUnionAll(unionAll) == false) {
-                // Subquery-shape UnionAll: each branch's Project is pruned by the transformDown
-                // traversal when it reaches the branch; skip here to avoid double-pruning.
-                return mergePlan;
-            }
+        if (mergePlan instanceof UnionAll unionAll && PushDownUtils.isLeafUnionAll(unionAll)) {
             // Direct-leaf UnionAll (heterogeneous FROM): prune ExternalRelation children so the
             // format reader only loads the columns actually needed. EsRelation children are left
             // intact — InsertFieldExtraction handles field-level extraction at execution time.
@@ -317,6 +312,11 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 newChildren.add(newChild);
             }
             return changed ? unionAll.replaceChildren(newChildren) : unionAll;
+        }
+        // LOAD_ALL stamps $$unmapped_fields, which is not synthetic and is not referenced above the
+        // union, so dropping unused merge columns would drop it.
+        if (mergePlan instanceof UnionAll unionAll && carriesUnmappedFieldsAttribute(unionAll)) {
+            return mergePlan;
         }
 
         // prune the output attributes of the merge based on usage from the rest of the plan
@@ -359,7 +359,8 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     var prunedAttrs = p.projections().stream().filter(x -> mergeOutputNames.contains(x.name())).toList();
                     return new Project(p.source(), p.child(), prunedAttrs);
                 });
-                newSubPlan = pruneColumns(newSubPlan, usedAttrs, false);
+                // Subquery unions keep inner STATS even when its output is unused above the union.
+                newSubPlan = pruneColumns(newSubPlan, usedAttrs, false, mergePlan instanceof UnionAll == false);
             }
             if (false == newSubPlan.equals(subPlan)) {
                 subPlanChanged = true;
@@ -370,6 +371,11 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             mergePlan = mergePlan.replaceSubPlansAndOutput(newChildren, prunedMergeAttrs);
         }
         return mergePlan;
+    }
+
+    private static boolean carriesUnmappedFieldsAttribute(UnionAll unionAll) {
+        return unionAll.output().stream().anyMatch(a -> a instanceof UnmappedFieldsAttribute)
+            || unionAll.children().stream().anyMatch(child -> child.output().stream().anyMatch(a -> a instanceof UnmappedFieldsAttribute));
     }
 
     /**

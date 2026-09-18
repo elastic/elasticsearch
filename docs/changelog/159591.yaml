@@ -1,4 +1,4 @@
-area: "Compute Engine, ES|QL"
+area: ES|QL
 issues: []
 pr: 159591
 summary: Add granular remote fetch exchange profiling

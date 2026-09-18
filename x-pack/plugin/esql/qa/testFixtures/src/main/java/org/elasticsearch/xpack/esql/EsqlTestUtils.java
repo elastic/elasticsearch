@@ -163,7 +163,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
-import java.net.URI;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
@@ -186,7 +185,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.jar.JarInputStream;
@@ -235,7 +233,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
 
 public final class EsqlTestUtils {
 
@@ -1198,7 +1195,7 @@ public final class EsqlTestUtils {
             .map(EsqlTestUtils::normalizeResourcePath)
             .map(PathAndName::from)
             .toList();
-        Set<String> matches = new TreeSet<>();
+        Map<String, URL> matches = new TreeMap<>();
         for (Path path : classpathRoots) {
             if (path.toString().endsWith(".jar")) {
                 try (JarInputStream jar = jarInputStream(path.toUri().toURL())) {
@@ -1210,7 +1207,13 @@ public final class EsqlTestUtils {
                             for (var preparedPattern : preparedPatterns) {
                                 if (Objects.equals(preparedPattern.path(), resource.path())
                                     && Regex.simpleMatch(preparedPattern.name(), resource.name())) {
-                                    assertTrue(matches.add("jar:" + path.toUri() + "!/" + normalizedResourcePath));
+                                    var previous = matches.put(
+                                        normalizedResourcePath,
+                                        new URL("jar:" + path.toUri() + "!/" + normalizedResourcePath)
+                                    );
+                                    if (previous != null) {
+                                        throw new IllegalStateException("Duplicate classpath resource [" + normalizedResourcePath + "]");
+                                    }
                                 }
                             }
                         }
@@ -1225,7 +1228,13 @@ public final class EsqlTestUtils {
                                 if (Files.isRegularFile(child)) {
                                     String fileName = child.getFileName().toString();
                                     if (Regex.simpleMatch(preparedPattern.name(), fileName)) {
-                                        assertTrue(matches.add(child.toString()));
+                                        String logicalPath = preparedPattern.path().isEmpty()
+                                            ? fileName
+                                            : preparedPattern.path() + "/" + fileName;
+                                        var previous = matches.put(logicalPath, child.toUri().toURL());
+                                        if (previous != null) {
+                                            throw new IllegalStateException("Duplicate classpath resource [" + logicalPath + "]");
+                                        }
                                     }
                                 }
                             }
@@ -1236,13 +1245,7 @@ public final class EsqlTestUtils {
         }
         long end = System.nanoTime();
         LOGGER.debug("Detected {} matching resources in {} ms", matches.size(), TimeUnit.SECONDS.toMillis(end - start));
-        return matches.stream().map(it -> {
-            try {
-                return URI.create(it).toURL();
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }).toList();
+        return List.copyOf(matches.values());
     }
 
     private static String normalizeResourcePath(String resourcePath) {

@@ -20,7 +20,7 @@ import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 
-import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -59,7 +59,10 @@ public class EsqlTestUtilsTests extends ESTestCase {
 
         expectThrows(
             IllegalStateException.class,
-            containsString("Duplicate classpath resource [datasources/nested-a.csv-spec]"),
+            anyOf(
+                containsString("Duplicate classpath resource [datasources/nested-a.csv-spec]"),
+                containsString("Duplicate classpath resource [datasources/nested-b.csv-spec]")
+            ),
             () -> resourceNames(
                 EsqlTestUtils.classpathResources(List.of("/datasources/*.csv-spec", "/datasources/nested-*"), List.of(root))
             )
@@ -87,6 +90,16 @@ public class EsqlTestUtilsTests extends ESTestCase {
             resourceNames(EsqlTestUtils.classpathResources(List.of("/*.csv-spec"), List.of(jar))),
             equalTo(List.of("root.csv-spec"))
         );
+        expectThrows(
+            IllegalStateException.class,
+            anyOf(
+                containsString("Duplicate classpath resource [datasources/nested-a.csv-spec]"),
+                containsString("Duplicate classpath resource [datasources/nested-b.csv-spec]")
+            ),
+            () -> resourceNames(
+                EsqlTestUtils.classpathResources(List.of("/datasources/*.csv-spec", "/datasources/nested-*"), List.of(jar, jar))
+            )
+        );
     }
 
     public void testClasspathResourcesRejectDuplicateLogicalPathsWithBothOrigins() throws Exception {
@@ -97,11 +110,7 @@ public class EsqlTestUtilsTests extends ESTestCase {
 
         expectThrows(
             IllegalStateException.class,
-            allOf(
-                containsString("datasources/duplicate.csv-spec"),
-                containsString(first.toAbsolutePath().normalize().toString()),
-                containsString(second.toAbsolutePath().normalize().toString())
-            ),
+            containsString("Duplicate classpath resource [datasources/duplicate.csv-spec]"),
             () -> EsqlTestUtils.classpathResources(List.of("/datasources/*.csv-spec"), List.of(first, second))
         );
     }

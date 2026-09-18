@@ -48,6 +48,8 @@ import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STAT
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -394,50 +396,63 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
                 }, task)
             );
 
+        final var sourceCommitService = internalCluster().getInstance(StatelessCommitService.class, oldIndexNode);
+
         logger.info("--> moving index shard from {} to {}", oldIndexNode, newIndexNode);
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, oldIndexNode, newIndexNode));
-        logger.info("--> waiting for the relocation handoff to be paused");
-        safeAwait(pauseHandoff);
+        try {
+            logger.info("--> waiting for the relocation handoff to be paused");
+            safeAwait(pauseHandoff);
 
-        // markRelocating has run, so maxGenerationToUpload is the generation of the last flush on the source.
-        final long maxGenerationToUpload = sourceShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
+            // The handoff request is only sent once the markRelocating listener has fired, so the bound is already pinned.
+            final long maxGenerationToUpload = sourceCommitService.getMaxGenerationToUpload(sourceShard.shardId());
+            assertThat("markRelocating pinned before the handoff request is sent", maxGenerationToUpload, lessThan(Long.MAX_VALUE));
 
-        startSearchNode();
-        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
-        logger.info("--> waiting for the search shard registration to reach the old indexing node");
-        safeAwait(pauseRegistration);
+            startSearchNode();
+            updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
+            logger.info("--> waiting for the search shard registration to reach the old indexing node");
+            safeAwait(pauseRegistration);
 
-        logger.info("--> force merging on the old node to create a commit above maxGenerationToUpload");
-        client(oldIndexNode).admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).execute();
+            logger.info("--> force merging on the old node to create a commit above maxGenerationToUpload");
+            client(oldIndexNode).admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).execute();
 
-        final var sourceCommitService = internalCluster().getInstance(StatelessCommitService.class, oldIndexNode);
-        assertBusy(
-            () -> assertThat(
+            assertBusy(
+                () -> assertThat(
+                    sourceCommitService.getMaxPendingOrUploadedGeneration(sourceShard.shardId()),
+                    greaterThan(maxGenerationToUpload)
+                )
+            );
+
+            logger.info(
+                "--> before resuming registration: maxGenerationToUpload=[{}], maxPendingOrUploaded=[{}], latestUploadedBcc=[{}], "
+                    + "engine=[{}]",
+                maxGenerationToUpload,
                 sourceCommitService.getMaxPendingOrUploadedGeneration(sourceShard.shardId()),
-                greaterThan(maxGenerationToUpload)
-            )
-        );
+                sourceCommitService.getLatestUploadedBcc(sourceShard.shardId()).primaryTermAndGeneration(),
+                sourceShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration()
+            );
+            logger.info("--> resuming the search shard registration");
+            resumeRegistration.countDown();
 
-        logger.info(
-            "--> before resuming registration: maxGenerationToUpload=[{}], maxPendingOrUploaded=[{}], latestUploadedBcc=[{}], engine=[{}]",
-            maxGenerationToUpload,
-            sourceCommitService.getMaxPendingOrUploadedGeneration(sourceShard.shardId()),
-            sourceCommitService.getLatestUploadedBcc(sourceShard.shardId()).primaryTermAndGeneration(),
-            sourceShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration()
-        );
-        logger.info("--> resuming the search shard registration");
-        resumeRegistration.countDown();
+            final var registrationResponse = safeAwait(firstRegistration);
+            logger.info(
+                "--> registration returned [{}], maxGenerationToUpload=[{}], source engine is at [{}]",
+                registrationResponse.getCompoundCommit().primaryTermAndGeneration(),
+                maxGenerationToUpload,
+                sourceShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration()
+            );
+            assertThat(
+                "a commit above maxGenerationToUpload must never be handed to a recovering search shard",
+                registrationResponse.getCompoundCommit().generation(),
+                lessThanOrEqualTo(maxGenerationToUpload)
+            );
 
-        final var registrationResponse = safeAwait(firstRegistration);
-        logger.info(
-            "--> registration returned [{}], maxGenerationToUpload=[{}], source engine is at [{}]",
-            registrationResponse.getCompoundCommit().primaryTermAndGeneration(),
-            maxGenerationToUpload,
-            sourceShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration()
-        );
-
-        logger.info("--> resuming the relocation handoff");
-        resumeHandoff.countDown();
+            logger.info("--> resuming the relocation handoff");
+            resumeHandoff.countDown();
+        } finally {
+            resumeRegistration.countDown();
+            resumeHandoff.countDown();
+        }
 
         ensureGreen(indexName);
         assertResponse(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {

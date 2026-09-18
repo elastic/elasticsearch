@@ -1201,6 +1201,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return commitState.getMaxPendingOrUploadedGeneration();
     }
 
+    public long getMaxGenerationToUpload(ShardId shardId) {
+        final ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        return commitState.maxGenerationToUpload;
+    }
+
     /**
      * Returns a 'snapshot' of the current blob locations. Concurrent changes to the shard commit states may not be
      * reflected in the returned Map.
@@ -1813,7 +1818,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 .map(PendingUploadVirtualBatchCompoundCommit::commit);
         }
 
-        private Optional<VirtualBatchedCompoundCommit> getMaxPendingUploadBccBelowMaxGenerationToUpload() {
+        private Optional<VirtualBatchedCompoundCommit> getMaxPendingUploadBccBoundedByMaxGenerationToUpload() {
             return pendingUploadBccGenerations.values()
                 .stream()
                 .filter(pending -> pauseUpload(pending.getPrimaryTermAndGeneration().generation()) == false)
@@ -3040,12 +3045,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         /// Note: an equivalent check on the new-commit-notification path can be found in `commitAfterRelocationStarted`
         /// within [StatelessCommitService#onCommitCreation].
         @Nullable
-        private VirtualBatchedCompoundCommit getLatestVirtualBccForUnpromotableRecovery() {
+        private synchronized VirtualBatchedCompoundCommit getLatestVirtualBccForUnpromotableRecovery() {
             final var virtualBcc = getCurrentVirtualBcc();
-            if (virtualBcc != null && pauseUpload(virtualBcc.getPrimaryTermAndGeneration().generation()) == false) {
+            if (virtualBcc != null && pauseUpload(virtualBcc.getMaxGeneration()) == false) {
                 return virtualBcc;
             }
-            return getMaxPendingUploadBccBelowMaxGenerationToUpload().orElse(null);
+            return getMaxPendingUploadBccBoundedByMaxGenerationToUpload().orElse(null);
         }
 
         /**
@@ -3145,13 +3150,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     break;
                 }
                 final var virtualPrimaryTermAndGeneration = virtual.getPrimaryTermAndGeneration();
-                assert virtual.getMaxGeneration() <= maxGenerationToUpload
+                final var virtualPendingCompoundCommit = virtual.getLastPendingCompoundCommit();
+                assert pauseUpload(virtualPendingCompoundCommit.getGeneration()) == false
                     : shardId
                         + " provided unpromotable recovery registration vbcc "
                         + virtualPrimaryTermAndGeneration
                         + " greater than maxGenerationToUpload="
                         + maxGenerationToUpload;
-                final var virtualPendingCompoundCommit = virtual.getLastPendingCompoundCommit();
                 final var virtualCompoundCommit = virtualPendingCompoundCommit.getStatelessCompoundCommit();
 
                 var referencedPrimaryTermAndGenerations = BatchedCompoundCommit.computeReferencedBCCGenerations(virtualCompoundCommit)

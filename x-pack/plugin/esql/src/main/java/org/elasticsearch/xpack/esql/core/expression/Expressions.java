@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 
@@ -115,21 +116,11 @@ public final class Expressions {
      * from the children would report {@code keyword} and drop {@code original_types}.
      */
     public static List<Attribute> keepExistingUnsupportedAttributes(List<Attribute> converted, List<Attribute> existingOutput) {
-        Map<String, UnsupportedAttribute> existing = new HashMap<>();
-        for (Attribute attr : existingOutput) {
-            if (attr instanceof UnsupportedAttribute ua) {
-                existing.put(ua.name(), ua);
-            }
-        }
-        if (existing.isEmpty()) {
-            return converted;
-        }
-        List<Attribute> kept = new ArrayList<>(converted.size());
-        for (Attribute attr : converted) {
-            UnsupportedAttribute ua = existing.get(attr.name());
-            kept.add(ua != null ? ua : attr);
-        }
-        return kept;
+        Map<String, Attribute> existing = existingOutput.stream()
+            .filter(attr -> attr instanceof UnsupportedAttribute)
+            .map(attr -> (UnsupportedAttribute) attr)
+            .collect(Collectors.toMap(FieldAttribute::name, e -> e));
+        return existing.isEmpty() ? converted : converted.stream().map(attr -> existing.getOrDefault(attr.name(), attr)).toList();
     }
 
     public static boolean anyMatch(List<? extends Expression> exps, Predicate<? super Expression> predicate) {

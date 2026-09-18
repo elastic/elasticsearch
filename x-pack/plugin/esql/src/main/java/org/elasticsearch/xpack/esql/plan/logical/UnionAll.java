@@ -96,12 +96,7 @@ public class UnionAll extends MergePlan implements PostOptimizationPlanVerificat
     }
 
     private boolean hasUnmappedFieldsAttribute() {
-        for (Attribute attr : output()) {
-            if (attr instanceof UnmappedFieldsAttribute) {
-                return true;
-            }
-        }
-        return false;
+        return output().stream().anyMatch(attr -> attr instanceof UnmappedFieldsAttribute);
     }
 
     @Override

@@ -1066,7 +1066,8 @@ public class SharedBlobCacheWarmingService {
             if (hasActiveShutdownForRemovalNodes(state)) {
                 return new SearchRecoveryTimeout(
                     searchRecoveryWarmingRelocationWithShutdownTimeout,
-                    "relocation source not shutting down, cluster shutdown metadata present"
+                    "relocation source not shutting down, cluster shutdown metadata present",
+                    true
                 );
             }
             return new SearchRecoveryTimeout(

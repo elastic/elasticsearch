@@ -311,9 +311,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             boolean changed = false;
             for (LogicalPlan child : unionAll.children()) {
                 LogicalPlan newChild = child instanceof ExternalRelation ext ? pruneColumnsInExternalRelation(ext, used) : child;
-                if (newChild != child) {
-                    changed = true;
-                }
+                changed |= newChild != child;
                 newChildren.add(newChild);
             }
             return changed ? unionAll.replaceChildren(newChildren) : unionAll;

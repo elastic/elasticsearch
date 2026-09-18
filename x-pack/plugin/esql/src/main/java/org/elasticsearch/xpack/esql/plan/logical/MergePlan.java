@@ -29,6 +29,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExistingUnsupportedAttributes;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 
 /**
@@ -134,7 +135,12 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
     }
 
     protected List<Attribute> refreshedOutput() {
-        return withUnmappedFieldsAttributeFromChildren(toReferenceAttributesPreservingIds(outputUnion(children()), this.output()));
+        List<Attribute> converted = toReferenceAttributesPreservingIds(outputUnion(children()), this.output());
+        // LOAD_ALL stamps $$unmapped_fields; preserve type-conflict UnsupportedAttributes that alignment Eval-null'd in children.
+        if (unmappedFieldsAttributeFromChildren() != null) {
+            converted = keepExistingUnsupportedAttributes(converted, this.output());
+        }
+        return withUnmappedFieldsAttributeFromChildren(converted);
     }
 
     private List<Attribute> withUnmappedFieldsAttributeFromChildren(List<Attribute> converted) {

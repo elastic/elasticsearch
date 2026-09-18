@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 
@@ -108,6 +109,19 @@ public final class Expressions {
             list.add(refAttr);
         }
         return list;
+    }
+
+    /**
+     * Keep {@link UnsupportedAttribute}s already on {@code existingOutput}. LOAD_ALL UnionAll type conflicts put that
+     * attribute on the union output while the children hold null-keyword aliases so they can still execute; rebuilding
+     * from the children would report {@code keyword} and drop {@code original_types}.
+     */
+    public static List<Attribute> keepExistingUnsupportedAttributes(List<Attribute> converted, List<Attribute> existingOutput) {
+        Map<String, Attribute> existing = existingOutput.stream()
+            .filter(attr -> attr instanceof UnsupportedAttribute)
+            .map(attr -> (UnsupportedAttribute) attr)
+            .collect(Collectors.toMap(FieldAttribute::name, e -> e));
+        return existing.isEmpty() ? converted : converted.stream().map(attr -> existing.getOrDefault(attr.name(), attr)).toList();
     }
 
     public static boolean anyMatch(List<? extends Expression> exps, Predicate<? super Expression> predicate) {

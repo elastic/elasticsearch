@@ -137,7 +137,6 @@ public class Clusters {
                 .setting("xpack.ml.enabled", "false")
                 .setting("path.repo", fixturesPath)
                 .setting("s3.client.default.endpoint", s3EndpointSupplier)
-                .setting(S3FixtureUtils.ALLOWED_ENDPOINT_HOSTS_SETTING, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS)
                 .keystore("s3.client.default.access_key", ACCESS_KEY)
                 .keystore("s3.client.default.secret_key", SECRET_KEY)
                 .setting("s3.client.default.protocol", "http")

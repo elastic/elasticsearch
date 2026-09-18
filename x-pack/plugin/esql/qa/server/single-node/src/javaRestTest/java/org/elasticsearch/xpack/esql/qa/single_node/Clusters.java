@@ -86,7 +86,6 @@ public class Clusters {
             .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))
             .configFile("ingest-geoip/GeoLite2-Country.mmdb", Resource.fromClasspath("GeoLite2-Country.mmdb"))
             .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"))
-            .setting(S3FixtureUtils.ALLOWED_ENDPOINT_HOSTS_SETTING, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS)
             .setting("ingest.geoip.downloader.enabled", "false");
         if (federationSettings) {
             // Federation is only on by default in snapshot builds; the data source and dataset suites here need it on
@@ -95,7 +94,10 @@ public class Clusters {
             // override it with either form: explicit settings win over suppliers regardless of order, and among
             // suppliers the last one applied wins.
             builder.setting(Federation.FEDERATION_ENABLED.getKey(), () -> "true")
-                .setting("esql.external.local_allowed_paths", csvDataPath::toString);
+                .setting("esql.external.local_allowed_paths", csvDataPath::toString)
+                // Registered only while federation is, like the key above it: a node with the feature
+                // unregistered does not know it and refuses to start rather than ignoring it.
+                .setting(S3FixtureUtils.ALLOWED_ENDPOINT_HOSTS_SETTING, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS);
         }
         builder.apply(() -> configProvider);
         if (securityEnabled) {

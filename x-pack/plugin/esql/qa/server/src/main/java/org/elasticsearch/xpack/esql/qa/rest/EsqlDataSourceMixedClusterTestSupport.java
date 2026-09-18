@@ -16,6 +16,7 @@ import org.elasticsearch.test.cluster.local.LocalNodeSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.junit.Assume;
 import org.junit.rules.TestRule;
 import org.junit.runners.model.Statement;
@@ -126,6 +127,11 @@ public final class EsqlDataSourceMixedClusterTestSupport {
             false,
             localAllowedPath
         );
+        // The endpoint allowlist that lets this node reach the S3 fixture. It goes here rather than on the
+        // cluster because only a current node has the endpoint rule it relaxes, and only a current node knows
+        // the key: an old node — including a detached build of main from before it existed — would refuse to
+        // start on it.
+        node.setting(S3FixtureUtils.ALLOWED_ENDPOINT_HOSTS_SETTING, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS);
         nodeConfig.configure(node, Version.CURRENT, true);
     }
 

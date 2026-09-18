@@ -208,12 +208,11 @@ public class KoelnerPhonetik implements StringEncoder {
                 // (e.g. left over from an earlier part) can't be overshot.
                 int sizeBeforeBranching = variations.size();
                 if (sizeBeforeBranching >= maxVariations) {
-                    String pattern = getPatterns()[i];
+                    String suffix = str.substring(position);
                     for (int ii = 0; ii < sizeBeforeBranching; ii++) {
-                        variations.set(ii, variations.get(ii) + prevPart + pattern);
+                        variations.set(ii, variations.get(ii) + suffix);
                     }
-                    position = substPos + pattern.length();
-                    continue;
+                    break;
                 }
                 int branchesToAdd = Math.min(sizeBeforeBranching, maxVariations - sizeBeforeBranching);
                 List<String> varNew = new ArrayList<>(branchesToAdd);

@@ -742,9 +742,14 @@ public final class IndicesPermission {
                 // Propagate resource-level permissions to the resource name and all concrete indices.
                 // Using merge (not put) preserves cross-resource accumulation semantics: if a concrete
                 // index appears in multiple resources, their FLS/DLS contributions are unioned.
-                mergePermissions(fieldPermissionsByIndex, roleQueriesByIndex, resourceName, fieldPermissions, docPermissions);
-                if (hasExplicitDlsFls) {
-                    indicesWithExplicitDlsFls.add(resourceName);
+                // Guarded on a non-empty resolution because FLS and DLS are propagated over concrete
+                // indices: a name that resolves to no index (i.e. one absent from the cluster) records
+                // neither, and the resulting IndexAccessControl is unrestricted.
+                if (false == concreteIndicesViewsAndDatasets.isEmpty()) {
+                    mergePermissions(fieldPermissionsByIndex, roleQueriesByIndex, resourceName, fieldPermissions, docPermissions);
+                    if (hasExplicitDlsFls) {
+                        indicesWithExplicitDlsFls.add(resourceName);
+                    }
                 }
                 for (String concreteIndex : concreteIndicesViewsAndDatasets) {
                     if (false == concreteIndex.equals(resourceName)) {

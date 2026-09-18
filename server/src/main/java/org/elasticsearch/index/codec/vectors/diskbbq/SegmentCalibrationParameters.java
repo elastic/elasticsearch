@@ -27,10 +27,19 @@ public sealed interface SegmentCalibrationParameters permits SegmentCalibrationP
 
     void writeTo(StreamOutput out) throws IOException;
 
+    boolean calibrated();
+
+    String type();
+
     /**
      * Provides OSQ-specific auto-calibration parameters.
      */
     record Osq(QuantEncoding encoding, boolean precondition, float oversample) implements SegmentCalibrationParameters {
+
+        @Override
+        public String type() {
+            return "osq";
+        }
 
         @Override
         public void toXContent(XContentBuilder builder) throws IOException {
@@ -46,6 +55,11 @@ public sealed interface SegmentCalibrationParameters permits SegmentCalibrationP
             out.writeEnum(encoding);
             out.writeBoolean(precondition);
             out.writeFloat(oversample);
+        }
+
+        @Override
+        public boolean calibrated() {
+            return Float.isNaN(oversample) == false;
         }
     }
 

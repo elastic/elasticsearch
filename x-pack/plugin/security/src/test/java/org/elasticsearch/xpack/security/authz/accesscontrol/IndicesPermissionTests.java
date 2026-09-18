@@ -779,6 +779,58 @@ public class IndicesPermissionTests extends ESTestCase {
         }
     }
 
+    public void testBackingIndicesShareOneIndexAccessControlInstance() {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        String dataStreamName = randomAlphaOfLength(6);
+        int numBackingIndices = randomIntBetween(3, 10);
+        List<IndexMetadata> backingIndices = new ArrayList<>();
+        for (int backingIndexNumber = 1; backingIndexNumber <= numBackingIndices; backingIndexNumber++) {
+            backingIndices.add(createBackingIndexMetadata(DataStream.getDefaultBackingIndexName(dataStreamName, backingIndexNumber)));
+        }
+        builder.put(
+            DataStreamTestHelper.newInstance(
+                dataStreamName,
+                backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
+            )
+        );
+        for (IndexMetadata index : backingIndices) {
+            builder.put(index, false);
+        }
+        ProjectMetadata metadata = builder.build();
+
+        // Explicit DLS and FLS, matching the project that hit the OOM.
+        IndicesPermission permission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
+            IndexPrivilege.READ,
+            new FieldPermissions(fieldPermissionDef(new String[] { "_field" }, null)),
+            Collections.singleton(new BytesArray("{}")),
+            false,
+            dataStreamName
+        ).build();
+
+        IndicesAccessControl iac = permission.authorize(
+            TransportSearchAction.TYPE.name(),
+            Sets.newHashSet(dataStreamName),
+            metadata,
+            new FieldPermissionsCache(Settings.EMPTY)
+        );
+
+        assertThat(iac.isGranted(), is(true));
+        IndicesAccessControl.IndexAccessControl dataStreamAccess = iac.getIndexPermissions(dataStreamName);
+        assertThat(dataStreamAccess, is(notNullValue()));
+        assertThat(dataStreamAccess.getFieldPermissions().hasFieldLevelSecurity(), is(true));
+        assertThat(dataStreamAccess.getDocumentPermissions().hasDocumentLevelPermissions(), is(true));
+        assertThat("explicit DLS/FLS must not be marked implicit", dataStreamAccess.isDlsFlsImplicit(), is(false));
+
+        for (IndexMetadata im : backingIndices) {
+            String backingIndexName = im.getIndex().getName();
+            assertSame(
+                "backing index [" + backingIndexName + "] must share the data stream's IndexAccessControl instance",
+                dataStreamAccess,
+                iac.getIndexPermissions(backingIndexName)
+            );
+        }
+    }
+
     public void testAuthorizationForMappingUpdates() {
         final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final ProjectMetadata.Builder projBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())

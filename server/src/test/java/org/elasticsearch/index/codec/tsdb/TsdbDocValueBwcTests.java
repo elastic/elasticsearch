@@ -37,6 +37,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.PrintStreamInfoStream;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.bwc.Elasticsearch816Codec;
@@ -49,8 +50,11 @@ import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
@@ -96,13 +100,16 @@ public class TsdbDocValueBwcTests extends ESTestCase {
     }
 
     public void testMixedIndexDocValueBinaryPerBlockCompression() throws Exception {
+        // Use the same enablePerBlockCompression for both codecs so the compression settings match
+        // and addRawBlock takes the verbatim-copy path for oversized single-doc blocks.
+        boolean enablePerBlockCompression = randomBoolean();
         var oldCodec = alwaysDocValuesFormat(
-            new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1, randomBoolean())
+            new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1, enablePerBlockCompression)
         );
         var newCodec = alwaysDocValuesFormat(
-            new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1, randomBoolean())
+            new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1, enablePerBlockCompression)
         );
-        testMixedIndex(oldCodec, newCodec, this::assertVersion819, this::assertVersion819);
+        testMixedIndex(oldCodec, newCodec, this::assertVersion819, this::assertVersion819, true);
     }
 
     public void testMixedIndex816To900Lucene101() throws Exception {
@@ -168,6 +175,16 @@ public class TsdbDocValueBwcTests extends ESTestCase {
 
     void testMixedIndex(Codec oldCodec, Codec newCodec, VersionAssert assertOldVersion, VersionAssert assertNewVersion) throws IOException,
         NoSuchFieldException, IllegalAccessException, ClassNotFoundException {
+        testMixedIndex(oldCodec, newCodec, assertOldVersion, assertNewVersion, false);
+    }
+
+    void testMixedIndex(
+        Codec oldCodec,
+        Codec newCodec,
+        VersionAssert assertOldVersion,
+        VersionAssert assertNewVersion,
+        boolean expectVerbatimCopy
+    ) throws IOException, NoSuchFieldException, IllegalAccessException, ClassNotFoundException {
         String timestampField = "@timestamp";
         String hostnameField = "host.name";
         long baseTimestamp = 1704067200000L;
@@ -225,10 +242,10 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                     }
                     // One extra oversized binary_tag doc per round. This causes maxLength >=
                     // blockBytesThreshold to be satisfied, so the merge loop probes for a raw block
-                    // and calls addRawBlock. Because the source and target codecs differ in these BWC
-                    // tests (GROUPED_VINT→BITPACKING, NO_COMPRESS→compressed, or mismatched
-                    // enablePerBlockCompression), addRawBlock returns false and the merge must fall
-                    // back to the normal binaryValue()+addDoc() path without corrupting the result.
+                    // and calls addRawBlock. When the source and target codecs share the same
+                    // compression settings addRawBlock returns true and the block is copied verbatim;
+                    // otherwise it returns false and the merge falls back to the normal
+                    // binaryValue()+addDoc() path.
                     String oversizedValue = randomAlphaOfLength(oversizedBinaryTagLen);
                     long oversizedTs = timestamp++;
                     oversizedByTimestamp.put(oversizedTs, oversizedValue);
@@ -312,6 +329,10 @@ public class TsdbDocValueBwcTests extends ESTestCase {
 
             var iwc = getTimeSeriesIndexWriterConfig(hostnameField, timestampField, newCodec);
             iwc.setMergePolicy(new LogByteSizeMergePolicy());
+            var baos = expectVerbatimCopy ? new ByteArrayOutputStream() : null;
+            if (baos != null) {
+                iwc.setInfoStream(new PrintStreamInfoStream(new PrintStream(baos, true, StandardCharsets.UTF_8)));
+            }
             try (var iw = new IndexWriter(dir, iwc)) {
                 iw.forceMerge(1);
                 // Check documents after force merge:
@@ -386,6 +407,12 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                         }
                     }
                 }
+            }
+            if (baos != null) {
+                assertTrue(
+                    "verbatim-copy must have fired during merge",
+                    baos.toString(StandardCharsets.UTF_8).contains("copied binary block of")
+                );
             }
         }
     }

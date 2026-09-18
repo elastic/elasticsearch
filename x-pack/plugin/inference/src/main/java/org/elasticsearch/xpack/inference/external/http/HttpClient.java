@@ -152,16 +152,7 @@ public class HttpClient implements Closeable {
     }
 
     private void failRequestUsingResponseThread(HttpRequest request, Exception ex, ActionListener<?> listener) {
-        failRequestUsingResponseThread(request, ex, listener, false);
-    }
-
-    private void failRequestUsingResponseThread(HttpRequest request, Exception ex, ActionListener<?> listener, boolean selfAborted) {
-        if (selfAborted) {
-            // this is our own abort coming back; the consumer already knows the stream ended
-            logger.debug(() -> format("Stream for inference entity id [%s] ended after cancellation", request.inferenceEntityId()), ex);
-        } else {
-            throttlerManager.warn(logger, format("Request from inference entity id [%s] failed", request.inferenceEntityId()), ex);
-        }
+        throttlerManager.warn(logger, format("Request from inference entity id [%s] failed", request.inferenceEntityId()), ex);
         failUsingResponseThread(getException(ex), listener);
     }
 
@@ -214,11 +205,18 @@ public class HttpClient implements Closeable {
           Cancelling the execute() future does cancel it directly (important for idle connections). FutureUtils.cancel does not
           interrupt (mayInterruptIfRunning=false), which is sufficient: the async client has no thread blocked on the exchange,
           and the future's cancellable tears the exchange down and releases the leased connection regardless of the flag.
+
+          Race: the reactive consumer's completed() callback fires as soon as the response head is parsed, which can happen
+          before client.execute() returns and exchange is assigned. An abort that lands in that window calls
+          FutureUtils.cancel(null), which silently no-ops, leaving the lease held until the socket timeout. The fix uses a
+          second abortRequested flag: abortExchange writes it before reading exchange, while stream() writes exchange before
+          reading abortRequested, so at least one side observes the other (Dekker ordering over two volatile atomics). The
+          re-check after exchange.set() closes the gap.
          */
         var exchange = new AtomicReference<Future<Void>>();
-        var aborted = new AtomicBoolean(false);
+        var abortRequested = new AtomicBoolean(false);
         Runnable abortExchange = () -> {
-            aborted.set(true);
+            abortRequested.set(true);
             FutureUtils.cancel(exchange.get());
         };
 
@@ -247,7 +245,9 @@ public class HttpClient implements Closeable {
 
             @Override
             public void failed(Exception ex) {
-                failRequestUsingResponseThread(request, ex, notifyOnceListener, aborted.get());
+                // Only reachable before the response head arrives; BasicFuture.failed returns false once completed,
+                // so this callback cannot fire after completed() has already delivered the head.
+                failRequestUsingResponseThread(request, ex, notifyOnceListener);
             }
 
             @Override
@@ -256,26 +256,37 @@ public class HttpClient implements Closeable {
             }
         });
 
-        exchange.set(client.execute(SimpleRequestProducer.create(request.httpRequest()), reactiveConsumer, context, new FutureCallback<>() {
-            @Override
-            public void completed(Void response) {
-                // the body publisher delivers the terminal signal to the subscriber
-            }
+        var exchangeFuture = client.execute(
+            SimpleRequestProducer.create(request.httpRequest()),
+            reactiveConsumer,
+            context,
+            new FutureCallback<>() {
+                @Override
+                public void completed(Void response) {
+                    // the body publisher delivers the terminal signal to the subscriber
+                }
 
-            @Override
-            public void failed(Exception ex) {
-                // Reachable before the response head arrived (e.g. connection failures) and mid-body when the socket timeout
-                // fires; after the head arrived the notify-once listener drops this call and the failure reaches the body
-                // publisher instead. This is the one hook guaranteed to fire regardless of subscription state, and the client
-                // discards the pooled endpoint before invoking it, so the connection is reclaimed even if nobody subscribed.
-                failUsingResponseThread(getException(ex), notifyOnceListener);
-            }
+                @Override
+                public void failed(Exception ex) {
+                    // Reachable before the response head arrived (e.g. connection failures) and mid-body when the socket timeout
+                    // fires; after the head arrived the notify-once listener drops this call and the failure reaches the body
+                    // publisher instead. This is the one hook guaranteed to fire regardless of subscription state, and the client
+                    // discards the pooled endpoint before invoking it, so the connection is reclaimed even if nobody subscribed.
+                    failUsingResponseThread(getException(ex), notifyOnceListener);
+                }
 
-            @Override
-            public void cancelled() {
-                cancelRequestUsingResponseThread(request, notifyOnceListener);
+                @Override
+                public void cancelled() {
+                    cancelRequestUsingResponseThread(request, notifyOnceListener);
+                }
             }
-        }));
+        );
+        exchange.set(exchangeFuture);
+        // Close the abort race: if abortExchange ran before exchange was assigned it saw null and its cancel was a no-op.
+        // At least one of these two reads observes the other's write (Dekker; see comment above), so this re-check is sufficient.
+        if (abortRequested.get()) {
+            FutureUtils.cancel(exchangeFuture);
+        }
     }
 
     @Override

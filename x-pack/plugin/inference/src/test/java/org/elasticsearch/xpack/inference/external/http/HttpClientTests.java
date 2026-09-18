@@ -18,6 +18,8 @@ import org.apache.hc.core5.function.Supplier;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.impl.BasicEntityDetails;
+import org.apache.hc.core5.http.message.BasicHttpResponse;
 import org.apache.hc.core5.http.nio.AsyncPushConsumer;
 import org.apache.hc.core5.http.nio.AsyncRequestProducer;
 import org.apache.hc.core5.http.nio.AsyncResponseConsumer;
@@ -28,6 +30,7 @@ import org.apache.hc.core5.net.URIBuilder;
 import org.apache.hc.core5.reactor.IOReactorStatus;
 import org.apache.hc.core5.util.Timeout;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.Strings;
@@ -71,6 +74,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 public class HttpClientTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
@@ -442,6 +449,156 @@ public class HttpClientTests extends ESTestCase {
         }
     }
 
+    /**
+     * Given a streaming request where the response head arrives synchronously inside {@code doExecute} (before the exchange
+     * future is assigned to {@code exchange})
+     * When the downstream immediately cancels the subscription on the response-pool thread while the test thread is still
+     * blocked inside {@code doExecute}
+     * Then the exchange future must still be cancelled after {@code exchange.set()} returns.
+     *
+     * <p>Without the re-check after {@code exchange.set()}, {@code abortExchange} runs while {@code exchange.get()} is null,
+     * the cancel is silently lost ({@link org.elasticsearch.common.util.concurrent.FutureUtils#cancel} returns false on null),
+     * and the leased connection stays held until the socket timeout.</p>
+     */
+    public void testStream_CancelBeforeExchangeFutureIsAssignedReleasesConnection() throws Exception {
+        var cancelLatch = new CountDownLatch(1);
+
+        var asyncClient = new CallbackInvokingHttpAsyncClient(new ExecuteHook() {
+            @Override
+            public <T> void onExecute(AsyncResponseConsumer<T> responseConsumer, FutureCallback<T> callback) {
+                // Fire the head-arrived callback synchronously before doExecute returns, so the response-pool thread can subscribe
+                // and cancel before exchange.set() runs on this (test) thread.
+                try {
+                    responseConsumer.consumeResponse(
+                        new BasicHttpResponse(200),
+                        // non-null EntityDetails required: ReactiveResponseConsumer calls streamEnd(null) when null,
+                        // completing the body immediately and changing the test scenario
+                        new BasicEntityDetails(-1, ContentType.APPLICATION_OCTET_STREAM),
+                        HttpClientContext.create(),
+                        null
+                    );
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+                // Block until the subscriber has cancelled (abortExchange ran with exchange.get() == null),
+                // then return so exchange.set() can run and the re-check fires.
+                safeAwait(cancelLatch);
+            }
+        });
+
+        var httpPost = createHttpPost(webServer.getPort(), "a", "b");
+
+        try (var client = new HttpClient(emptyHttpSettings(), asyncClient, threadPool, mockThrottlerManager(), new TestCircuitBreaker())) {
+            client.start();
+
+            client.stream(
+                httpPost,
+                HttpClientContext.create(),
+                ActionListener.wrap(streamingResult -> streamingResult.body().subscribe(new Flow.Subscriber<>() {
+                    @Override
+                    public void onSubscribe(Flow.Subscription subscription) {
+                        subscription.cancel(); // triggers abortExchange while exchange is still null
+                        cancelLatch.countDown();
+                    }
+
+                    @Override
+                    public void onNext(byte[] item) {}
+
+                    @Override
+                    public void onError(Throwable throwable) {}
+
+                    @Override
+                    public void onComplete() {}
+                }),
+                    // release the latch on any unexpected failure so the test thread is not blocked indefinitely
+                    e -> cancelLatch.countDown()
+                )
+            );
+
+            // stream() returns only after doExecute returns; by then exchange.set() and the re-check have both run
+            assertTrue(
+                "exchange future must have been cancelled by the re-check after exchange.set()",
+                asyncClient.lastFuture().isCancelled()
+            );
+        }
+    }
+
+    /**
+     * Given a streaming request where the reactive consumer's {@code failed} callback fires before the response head
+     * (i.e. before {@code consumeResponse} has been called)
+     * When the failure is delivered to the reactive consumer
+     * Then the listener must receive {@code onFailure} and the throttler must log a warning.
+     *
+     * <p>This test pins the behavior of the 3-argument {@code failRequestUsingResponseThread} after the 4-argument
+     * {@code selfAborted} overload was removed.</p>
+     */
+    public void testStream_ResponseConsumerFailureBeforeHead_WarnsAndFailsListener() throws Exception {
+        var throttlerManager = mockThrottlerManager();
+        var asyncClient = new CallbackInvokingHttpAsyncClient(new ExecuteHook() {
+            @Override
+            public <T> void onExecute(AsyncResponseConsumer<T> responseConsumer, FutureCallback<T> callback) {
+                responseConsumer.failed(new ElasticsearchException("pre-head failure"));
+            }
+        });
+        var httpPost = createHttpPost(webServer.getPort(), "a", "b");
+
+        try (var client = new HttpClient(emptyHttpSettings(), asyncClient, threadPool, throttlerManager, new TestCircuitBreaker())) {
+            client.start();
+
+            var listener = new TestPlainActionFuture<StreamingHttpResult>();
+            client.stream(httpPost, HttpClientContext.create(), listener);
+
+            var thrown = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(thrown.getMessage(), is("pre-head failure"));
+            verify(throttlerManager).warn(any(), anyString(), any(Throwable.class));
+        }
+    }
+
+    /**
+     * Given a streaming request where the response head has already arrived (i.e. {@code consumeResponse} was called)
+     * When the reactive consumer's {@code failed} callback fires afterwards
+     * Then no warning must be logged, because {@link org.apache.hc.core5.concurrent.BasicFuture#failed} returns {@code false}
+     * once completed and does not invoke the {@link FutureCallback} — so the failure is routed through the data consumer to
+     * the downstream subscriber, not through {@code failRequestUsingResponseThread}.
+     *
+     * <p>This test is the regression guard that makes deleting the {@code selfAborted} dead-code branch provably safe.</p>
+     */
+    public void testStream_ResponseConsumerFailureAfterHead_DoesNotWarn() throws Exception {
+        var throttlerManager = mockThrottlerManager();
+        var asyncClient = new CallbackInvokingHttpAsyncClient(new ExecuteHook() {
+            @Override
+            public <T> void onExecute(AsyncResponseConsumer<T> responseConsumer, FutureCallback<T> callback) {
+                // Deliver the head first: completes responseFuture and dispatches onResponse to the inference_response pool.
+                try {
+                    responseConsumer.consumeResponse(
+                        new BasicHttpResponse(200),
+                        new BasicEntityDetails(-1, ContentType.APPLICATION_OCTET_STREAM),
+                        HttpClientContext.create(),
+                        null
+                    );
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+                // Fail the consumer after the head: BasicFuture.failed returns false (already completed),
+                // so FutureCallback.failed is NOT called and no warn fires.
+                responseConsumer.failed(new ElasticsearchException("mid-stream failure"));
+            }
+        });
+        var httpPost = createHttpPost(webServer.getPort(), "a", "b");
+
+        try (var client = new HttpClient(emptyHttpSettings(), asyncClient, threadPool, throttlerManager, new TestCircuitBreaker())) {
+            client.start();
+
+            var listener = new TestPlainActionFuture<StreamingHttpResult>();
+            client.stream(httpPost, HttpClientContext.create(), listener);
+
+            // The listener received onResponse from the head-arrived callback, not onFailure
+            assertNotNull(listener.actionGet(TEST_REQUEST_TIMEOUT));
+            // The reactive consumer's failed() was silently dropped; no warn must have fired
+            verify(throttlerManager, never()).warn(any(), anyString(), any(Throwable.class));
+        }
+    }
+
     private static HttpRequest createStreamRequest(int port) throws URISyntaxException {
         URI uri = new URIBuilder().setScheme("http").setHost("localhost").setPort(port).setPath("/" + randomAlphaOfLength(5)).build();
         var httpPost = SimpleRequestBuilder.post(uri)
@@ -588,20 +745,50 @@ public class HttpClientTests extends ESTestCase {
     }
 
     /**
-     * A minimal {@link CloseableHttpAsyncClient} that immediately hands the {@link FutureCallback} of every execution to the
-     * given consumer. A hand-rolled subclass is used instead of a Mockito mock because all of the client's {@code execute}
-     * methods are final and funnel into the protected {@code doExecute}, which a mock cannot stub.
+     * A hook invoked inside {@link CloseableHttpAsyncClient#doExecute} so tests can drive both the
+     * {@link AsyncResponseConsumer} (e.g. call {@code consumeResponse} to simulate head arrival) and the outer
+     * {@link FutureCallback} (e.g. call {@code failed} to simulate a connection error).
+     *
+     * <p>The generic method keeps {@code T} linked between consumer and callback, which a plain
+     * {@code BiConsumer&lt;AsyncResponseConsumer&lt;?&gt;, FutureCallback&lt;?&gt;&gt;} would lose. Because the method is
+     * generic, lambdas cannot be used — implement via an anonymous class or a named class.</p>
+     */
+    private interface ExecuteHook {
+        <T> void onExecute(AsyncResponseConsumer<T> responseConsumer, FutureCallback<T> callback);
+    }
+
+    /**
+     * A minimal {@link CloseableHttpAsyncClient} that hands every execution to the given {@link ExecuteHook} and captures
+     * the returned {@link CompletableFuture} so tests can assert on its cancellation state. A hand-rolled subclass is used
+     * instead of a Mockito mock because all of the client's {@code execute} methods are final and funnel into the protected
+     * {@code doExecute}, which a mock cannot stub.
      */
     private static class CallbackInvokingHttpAsyncClient extends CloseableHttpAsyncClient {
-        private final Consumer<FutureCallback<?>> callbackConsumer;
+        private final ExecuteHook hook;
         private final AtomicInteger startCalls = new AtomicInteger(0);
+        private final AtomicReference<CompletableFuture<?>> lastFuture = new AtomicReference<>();
 
+        /** Convenience constructor: only drives the outer {@link FutureCallback}, ignoring the response consumer. */
         CallbackInvokingHttpAsyncClient(Consumer<FutureCallback<?>> callbackConsumer) {
-            this.callbackConsumer = callbackConsumer;
+            this(new ExecuteHook() {
+                @Override
+                public <T> void onExecute(AsyncResponseConsumer<T> responseConsumer, FutureCallback<T> callback) {
+                    callbackConsumer.accept(callback);
+                }
+            });
+        }
+
+        CallbackInvokingHttpAsyncClient(ExecuteHook hook) {
+            this.hook = hook;
         }
 
         int startCalls() {
             return startCalls.get();
+        }
+
+        /** Returns the {@link CompletableFuture} returned from the most recent {@code doExecute} call. */
+        CompletableFuture<?> lastFuture() {
+            return lastFuture.get();
         }
 
         @Override
@@ -629,8 +816,10 @@ public class HttpClientTests extends ESTestCase {
             HttpContext context,
             FutureCallback<T> callback
         ) {
-            callbackConsumer.accept(callback);
-            return new CompletableFuture<>();
+            hook.onExecute(responseConsumer, callback);
+            var future = new CompletableFuture<T>();
+            lastFuture.set(future);
+            return future;
         }
 
         @Override

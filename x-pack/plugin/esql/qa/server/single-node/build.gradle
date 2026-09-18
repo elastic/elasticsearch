@@ -147,6 +147,17 @@ tasks.named('javaRestTest') {
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
 }
 
+// Not wired into 'check': .buildkite/pipelines/periodic-esql-generative.yml invokes this by name.
+tasks.register('generativeTests', StandaloneRestIntegTestTask) {
+  usesDefaultDistribution("to be triaged")
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  classpath = sourceSets.javaRestTest.runtimeClasspath
+  filter {
+    includeTestsMatching 'org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT'
+  }
+}
+
 def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
   usesDefaultDistribution("to be triaged")
   // AbstractEsqlSpecIT declares its cluster with shared(true), which is incompatible with parallel forks

@@ -219,13 +219,17 @@ public abstract class BWCCodec extends Codec {
     }
 
     /**
-     * Returns a backward-compatible codec for the given codec. If the codec is one of the known Lucene 8.x codecs,
-     * it returns a corresponding read-only backward-compatible codec. Otherwise, it returns the original codec.
-     * Lucene 8.x codecs are still shipped with the current version of Lucene.
-     * Earlier codecs we are providing directly they will also be read-only backward-compatible, but they don't require the renaming.
+     * Remaps Lucene 8.x codec implementations to the archive {@code BWCLucene8*} wrappers.
+     * Earlier archive codecs (5.x–7.x) are already our own classes and do not need renaming.
      *
-     * This switch is only for indices created in ES 6.x, later written into in ES 7.x (Lucene 8.x). Indices created
-     * in ES 7.x can be read directly by ES if marked read-only, without going through archive indices.
+     * <p>This is only for indices <em>created</em> in Elasticsearch 6.x that were later <em>written</em>
+     * in 7.x, so some segments carry a Lucene 8 codec class name. {@link #wrap} replaces that codec
+     * with the matching archive wrapper (stripped postings, metadata-only points, segment version
+     * rewritten to {@link Version#LATEST}).
+     *
+     * <p>Indices created in Elasticsearch 7.x are not archive indices: they are opened read-only by
+     * the server {@code Lucene80}/{@code 84}/{@code 86}/{@code 87} codecs. Those SPI names are
+     * independent of this remap.
      */
     @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_FOUNDATIONS)
     private static Codec getBackwardCompatibleCodec(Codec codec) {

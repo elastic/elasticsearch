@@ -19,12 +19,10 @@ import java.util.regex.Pattern;
 public class OldCodecsAvailableTests extends ESTestCase {
 
     /**
-     * This test verifies for each Lucene codec available via SPI; we also provide a corresponding BWC codec counterpart.
-     * Using a ServiceLoader, we fetch all classes matching the codecPathRegex (this is applied for Lucne8xCodec at the moment).
-     * For each entry of the returned list, we intend to load the BWC counterpart reflectively.
-     *
-     * Reminder to add Lucene BWC codecs under {@link org.elasticsearch.xpack.lucene.bwc.codecs} whenever Elasticsearch is upgraded
-     * to the next major Lucene version.
+     * Reminder that each {@code Lucene8xCodec} class on the classpath still needs a matching
+     * {@code BWCLucene8xCodec} archive wrapper. {@link BWCCodec} remaps those Lucene 8 class names
+     * when wrapping 7.x segments inside a 6.x-created archive index. This is not the Elasticsearch 7
+     * read-only path (server SPI names {@code Lucene80}/{@code 84}/{@code 86}/{@code 87}).
      */
     @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_FOUNDATIONS)
     public void testLuceneBWCCodecsAvailable() {

@@ -1,3 +1,7 @@
+org.elasticsearch.index.codec.lucene80.Lucene80Codec
+org.elasticsearch.index.codec.lucene84.Lucene84Codec
+org.elasticsearch.index.codec.lucene86.Lucene86Codec
+org.elasticsearch.index.codec.lucene87.Lucene87Codec
 org.elasticsearch.index.codec.bwc.Elasticsearch814Codec
 org.elasticsearch.index.codec.bwc.Elasticsearch816Codec
 org.elasticsearch.index.codec.bwc.Elasticsearch900Codec

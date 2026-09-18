@@ -15,11 +15,12 @@ import org.apache.lucene.codecs.PointsFormat;
 import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
+import org.elasticsearch.index.codec.lucene50.Lucene50CompoundFormat;
+import org.elasticsearch.index.codec.lucene50.Lucene50LiveDocsFormat;
+import org.elasticsearch.index.codec.lucene50.Lucene50StoredFieldsFormat;
+import org.elasticsearch.index.codec.lucene60.Lucene60FieldInfosFormat;
+import org.elasticsearch.index.codec.lucene70.Lucene70SegmentInfoFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.BWCCodec;
-import org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.Lucene50CompoundFormat;
-import org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.Lucene50LiveDocsFormat;
-import org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.Lucene50StoredFieldsFormat;
-import org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.Lucene60FieldInfosFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.Lucene60MetadataOnlyPointsFormat;
 
 /**

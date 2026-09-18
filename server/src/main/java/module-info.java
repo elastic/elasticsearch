@@ -249,6 +249,13 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.cache.query;
     exports org.elasticsearch.index.cache.request;
     exports org.elasticsearch.index.codec;
+    exports org.elasticsearch.index.codec.lucene50;
+    exports org.elasticsearch.index.codec.lucene60;
+    exports org.elasticsearch.index.codec.lucene70;
+    exports org.elasticsearch.index.codec.lucene80;
+    exports org.elasticsearch.index.codec.lucene84;
+    exports org.elasticsearch.index.codec.lucene86;
+    exports org.elasticsearch.index.codec.lucene87;
     exports org.elasticsearch.index.codec.tsdb;
     exports org.elasticsearch.index.codec.bloomfilter;
     exports org.elasticsearch.index.codec.storedfields;
@@ -465,6 +472,8 @@ module org.elasticsearch.server {
 
     provides org.apache.lucene.codecs.PostingsFormat
         with
+            org.elasticsearch.index.codec.lucene50.Lucene50PostingsFormat,
+            org.elasticsearch.index.codec.lucene84.Lucene84PostingsFormat,
             org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat,
             org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat,
             org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat,
@@ -503,6 +512,10 @@ module org.elasticsearch.server {
 
     provides org.apache.lucene.codecs.Codec
         with
+            org.elasticsearch.index.codec.lucene80.Lucene80Codec,
+            org.elasticsearch.index.codec.lucene84.Lucene84Codec,
+            org.elasticsearch.index.codec.lucene86.Lucene86Codec,
+            org.elasticsearch.index.codec.lucene87.Lucene87Codec,
             org.elasticsearch.index.codec.bwc.Elasticsearch814Codec,
             org.elasticsearch.index.codec.bwc.Elasticsearch816Codec,
             org.elasticsearch.index.codec.bwc.Elasticsearch900Codec,

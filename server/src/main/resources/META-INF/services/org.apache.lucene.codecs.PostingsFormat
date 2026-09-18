@@ -1,3 +1,5 @@
+org.elasticsearch.index.codec.lucene50.Lucene50PostingsFormat
+org.elasticsearch.index.codec.lucene84.Lucene84PostingsFormat
 org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat
 org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat
 org.elasticsearch.index.codec.postings.ES812PostingsFormat

@@ -17,7 +17,7 @@
  *
  * Modifications copyright (C) 2026 Elasticsearch B.V.
  */
-package org.elasticsearch.xpack.lucene.bwc.codecs.lucene87;
+package org.elasticsearch.index.codec.lucene87;
 
 import org.apache.lucene.backward_codecs.compressing.CompressionMode;
 import org.apache.lucene.codecs.StoredFieldsFormat;
@@ -29,7 +29,7 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
-import org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.compressing.Lucene50CompressingStoredFieldsFormat;
+import org.elasticsearch.index.codec.lucene50.compressing.Lucene50CompressingStoredFieldsFormat;
 
 import java.io.IOException;
 import java.util.Objects;

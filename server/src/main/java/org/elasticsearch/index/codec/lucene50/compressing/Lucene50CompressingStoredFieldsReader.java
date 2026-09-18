@@ -17,7 +17,7 @@
  *
  * Modifications copyright (C) 2026 Elasticsearch B.V.
  */
-package org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.compressing;
+package org.elasticsearch.index.codec.lucene50.compressing;
 
 import org.apache.lucene.backward_codecs.compressing.CompressionMode;
 import org.apache.lucene.backward_codecs.compressing.Decompressor;

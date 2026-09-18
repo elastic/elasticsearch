@@ -17,7 +17,7 @@
  *
  * Modifications copyright (C) 2026 Elasticsearch B.V.
  */
-package org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.compressing;
+package org.elasticsearch.index.codec.lucene50.compressing;
 
 import java.io.Closeable;
 import java.io.IOException;

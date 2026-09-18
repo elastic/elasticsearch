@@ -17,7 +17,7 @@
  *
  * Modifications copyright (C) 2026 Elasticsearch B.V.
  */
-package org.elasticsearch.xpack.lucene.bwc.codecs.lucene50;
+package org.elasticsearch.index.codec.lucene50;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.CompoundDirectory;

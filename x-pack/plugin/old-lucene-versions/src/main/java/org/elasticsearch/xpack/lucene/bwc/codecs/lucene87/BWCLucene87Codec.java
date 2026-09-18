@@ -16,17 +16,20 @@ import org.apache.lucene.codecs.PointsFormat;
 import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
+import org.elasticsearch.index.codec.lucene50.Lucene50CompoundFormat;
+import org.elasticsearch.index.codec.lucene50.Lucene50LiveDocsFormat;
+import org.elasticsearch.index.codec.lucene60.Lucene60FieldInfosFormat;
+import org.elasticsearch.index.codec.lucene86.Lucene86SegmentInfoFormat;
+import org.elasticsearch.index.codec.lucene87.Lucene87StoredFieldsFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.BWCCodec;
-import org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.Lucene50CompoundFormat;
-import org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.Lucene50LiveDocsFormat;
-import org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.Lucene60FieldInfosFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene86.Lucene86MetadataOnlyPointsFormat;
-import org.elasticsearch.xpack.lucene.bwc.codecs.lucene86.Lucene86SegmentInfoFormat;
 
 /**
- * This is a fork of {@code org.apache.lucene.backward_codecs.lucene87.Lucene87Codec}
- * Implements the Lucene 8.7 index format. Loaded via SPI for indices created/written with Lucene 8.7.0-8.11.3
- * (Elasticsearch [7.10.0-7-17.26]), mounted as archive indices in Elasticsearch 8.x / 9.x.
+ * Archive wrapper for Lucene 8.7 segments (Elasticsearch 7.10.0–7.17.x).
+ *
+ * <p>Used only when an Elasticsearch 6.x archive index was later written in 7.x, so some segments
+ * still name {@code Lucene87Codec}. {@link BWCCodec} remaps that class to this wrapper. Indices
+ * created in 7.x are opened read-only by the server {@code Lucene87} codec, not by this class.
  */
 public class BWCLucene87Codec extends BWCCodec {
 

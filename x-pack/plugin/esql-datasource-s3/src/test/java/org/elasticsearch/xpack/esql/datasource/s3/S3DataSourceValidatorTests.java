@@ -580,12 +580,17 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertThat(e.getMessage(), containsString("first_file_wins"));
     }
 
-    public void testValidateDatasetFileSortByRejectedWhenSchemaResolutionOmitted() {
-        var e = expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_sort_by", "name"))
-        );
-        assertThat(e.getMessage(), containsString("first_file_wins"));
+    public void testValidateDatasetOmittedSchemaResolutionMaterializesFirstFileWins() {
+        Map<String, Object> first = validator.validateDataset(Map.of(), "s3://b/p", Map.of());
+        Map<String, Object> second = validator.validateDataset(Map.of(), "s3://b/p", Map.of());
+        assertEquals("first_file_wins", first.get("schema_resolution"));
+        assertEquals(first, second);
+    }
+
+    public void testValidateDatasetFileSortByAcceptedWhenSchemaResolutionOmitted() {
+        Map<String, Object> result = validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_sort_by", "name"));
+        assertEquals("first_file_wins", result.get("schema_resolution"));
+        assertEquals("name", result.get("file_sort_by"));
     }
 
     public void testValidateDatasetFileSortByAcceptedWithFirstFileWins() {
@@ -623,7 +628,15 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasetMaxErrors() {
-        assertEquals("100", validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_errors", "100")).get("max_errors"));
+        // A bare budget without error_mode is refused — the mode is the user's decision.
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_errors", "100")));
+    }
+
+    public void testValidateDatasetMaxErrorsWithExplicitMode() {
+        assertEquals(
+            "100",
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_errors", "100", "error_mode", "skip_row")).get("max_errors")
+        );
     }
 
     public void testValidateDatasetMaxErrorsNonNumber() {
@@ -631,7 +644,16 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasetMaxErrorRatio() {
-        assertEquals("0.1", validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_error_ratio", "0.1")).get("max_error_ratio"));
+        // A bare budget without error_mode is refused — the mode is the user's decision.
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_error_ratio", "0.1")));
+    }
+
+    public void testValidateDatasetMaxErrorRatioWithExplicitMode() {
+        assertEquals(
+            "0.1",
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_error_ratio", "0.1", "error_mode", "null_field"))
+                .get("max_error_ratio")
+        );
     }
 
     public void testValidateDatasetMaxErrorRatioOutOfRange() {

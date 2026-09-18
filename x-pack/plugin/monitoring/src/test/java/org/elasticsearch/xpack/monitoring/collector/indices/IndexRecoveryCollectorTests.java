@@ -173,7 +173,7 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
             final RecoveryResponse recoveries = document.getRecoveryResponse();
             assertThat(recoveries, notNullValue());
             assertThat(recoveries.hasRecoveries(), equalTo(true));
-            assertThat(recoveries.shardRecoveryStates().size(), equalTo(nbRecoveries));
+            assertThat(recoveries.shardRecoveryInfos().size(), equalTo(nbRecoveries));
         }
 
         assertWarnings(

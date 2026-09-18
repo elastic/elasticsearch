@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -175,8 +176,10 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
         } catch (Exception e) {
             // Release breaker charges for any RatedRequests that were fully parsed before the failure.
             // SearchSourceBuilder.close() is idempotent, so double-closing is safe.
-            for (RatedRequest rr : pendingRatedRequests.get()) {
-                if (rr.getEvaluationRequest() != null) rr.getEvaluationRequest().close();
+            try {
+                Releasables.close(pendingRatedRequests.get().stream().map(RatedRequest::getEvaluationRequest).toList());
+            } catch (RuntimeException closeEx) {
+                e.addSuppressed(closeEx);
             }
             throw e;
         } finally {

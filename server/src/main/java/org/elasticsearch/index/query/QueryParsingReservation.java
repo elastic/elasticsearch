@@ -41,7 +41,10 @@ public final class QueryParsingReservation extends AbstractRefCounted {
     public void addCharges(List<Releasable> charges) {
         if (tryIncRef()) {
             try {
-                releasables.addAll(charges);
+                // Synchronized because multiple rewrite threads may call addCharges() concurrently.
+                synchronized (releasables) {
+                    releasables.addAll(charges);
+                }
             } finally {
                 decRef();
             }

@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
@@ -108,22 +109,16 @@ public class RestRankEvalAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         RankEvalRequest rankEvalRequest = new RankEvalRequest();
-        boolean parseSucceeded = false;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             parseRankEvalRequest(rankEvalRequest, request, parser, clusterSupportsFeature);
-            parseSucceeded = true;
-        } finally {
-            // Release parse-time breaker charges for any rated requests accumulated before a thrown
-            // exception, since the RestChannelConsumer is never returned in that case.
-            if (parseSucceeded == false && rankEvalRequest.getRankEvalSpec() != null) {
-                rankEvalRequest.getRankEvalSpec().getRatedRequests().forEach(rr -> {
-                    if (rr.getEvaluationRequest() != null) rr.getEvaluationRequest().close();
-                });
-            }
         }
         List<RatedRequest> ratedRequests = rankEvalRequest.getRankEvalSpec().getRatedRequests();
+        // RankEvalSpec.parse() handles partial-parse cleanup internally; no extra guard needed here.
         return new RestChannelConsumer() {
             private boolean dispatched = false;
+            private final Runnable closeAll = () -> Releasables.close(
+                ratedRequests.stream().map(RatedRequest::getEvaluationRequest).toList()
+            );
 
             @Override
             public void accept(RestChannel channel) throws Exception {
@@ -145,10 +140,14 @@ public class RestRankEvalAction extends BaseRestHandler {
                                     response.close();
                                 }
                             }
-                        }, () -> ratedRequests.forEach(rr -> { if (rr.getEvaluationRequest() != null) rr.getEvaluationRequest().close(); }))
+                        }, closeAll)
                     );
                 } catch (Exception e) {
-                    ratedRequests.forEach(rr -> { if (rr.getEvaluationRequest() != null) rr.getEvaluationRequest().close(); });
+                    try {
+                        closeAll.run();
+                    } catch (RuntimeException closeEx) {
+                        e.addSuppressed(closeEx);
+                    }
                     throw e;
                 }
             }
@@ -157,7 +156,7 @@ public class RestRankEvalAction extends BaseRestHandler {
             public void close() {
                 // Abandonment path: called if the consumer is discarded without accept() being invoked.
                 if (dispatched == false) {
-                    ratedRequests.forEach(rr -> { if (rr.getEvaluationRequest() != null) rr.getEvaluationRequest().close(); });
+                    closeAll.run();
                 }
             }
         };

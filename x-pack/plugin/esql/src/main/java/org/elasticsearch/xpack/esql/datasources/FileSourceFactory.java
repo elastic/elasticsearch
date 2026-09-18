@@ -324,6 +324,21 @@ final class FileSourceFactory implements ExternalSourceFactory {
         if (config == null || config.isEmpty()) {
             return;
         }
+        // Warn when a budget is present without an explicit mode: the query path infers skip_row, which
+        // may surprise the caller. Routes through the sink so the message reaches the client response
+        // regardless of which thread validateConfig runs on (request or metadata-read executor).
+        if (config.get(ErrorPolicy.CONFIG_ERROR_MODE) == null
+            && (config.get(ErrorPolicy.CONFIG_MAX_ERRORS) != null || config.get(ErrorPolicy.CONFIG_MAX_ERROR_RATIO) != null)) {
+            warningSink.accept(
+                "["
+                    + ErrorPolicy.CONFIG_MAX_ERRORS
+                    + "] or ["
+                    + ErrorPolicy.CONFIG_MAX_ERROR_RATIO
+                    + "] was set without ["
+                    + ErrorPolicy.CONFIG_ERROR_MODE
+                    + "]; [skip_row] is in effect -- [fail_fast] is not"
+            );
+        }
         StoragePath storagePath = StoragePath.of(location);
         Configured<StorageProvider> resolvedStorage = storageRegistry.createProviderTrackingConsumedKeys(
             storagePath.scheme(),

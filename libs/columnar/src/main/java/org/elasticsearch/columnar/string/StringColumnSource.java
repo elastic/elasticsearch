@@ -49,4 +49,12 @@ public interface StringColumnSource {
      * - so nothing is decoded to count.
      */
     int nonNullValues(BytesRef dst) throws IOException;
+
+    /**
+     * How many non-null values the document these values are positioned on holds.
+     *
+     * <p>Answered from what the column records — how many slots the document has, and which of them are
+     * null — so no value is decoded to count them.
+     */
+    int nonNullValueCount() throws IOException;
 }

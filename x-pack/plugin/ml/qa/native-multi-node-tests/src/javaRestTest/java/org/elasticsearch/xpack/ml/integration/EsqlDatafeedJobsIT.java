@@ -213,14 +213,7 @@ public class EsqlDatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate(index)
-            .setMapping(
-                "source_time",
-                "type=date,format=epoch_millis",
-                "event_time",
-                "type=date,format=epoch_millis",
-                "value",
-                "type=long"
-            )
+            .setMapping("source_time", "type=date,format=epoch_millis", "event_time", "type=date,format=epoch_millis", "value", "type=long")
             .get();
     }
 

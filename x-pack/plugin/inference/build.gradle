@@ -63,6 +63,12 @@ dependencies {
   implementation 'org.apache.commons:commons-lang3:3.20.0'
   implementation 'org.apache.commons:commons-text:1.15.0'
 
+  /* Apache HttpClient 5 reactive bridge for streaming responses (httpclient5/httpcore5 themselves are provided by x-pack-core) */
+  implementation("org.apache.httpcomponents.core5:httpcore5-reactive:${versions.httpcore5}") {
+    // httpcore5 is already provided at runtime by the extended plugin x-pack-core
+    exclude group: 'org.apache.httpcomponents.core5', module: 'httpcore5'
+  }
+
   /* AWS SDK v2 */
   implementation("software.amazon.awssdk:bedrockruntime:${versions.awsv2sdk}")
   implementation("software.amazon.awssdk:sagemakerruntime:${versions.awsv2sdk}")

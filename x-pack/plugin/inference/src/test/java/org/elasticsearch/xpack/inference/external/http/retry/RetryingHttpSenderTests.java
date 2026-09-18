@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.inference.external.http.retry;
 
-import org.apache.http.ConnectionClosedException;
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
+import org.apache.hc.core5.http.ConnectionClosedException;
+import org.apache.hc.core5.http.HttpResponse;
+import org.apache.hc.core5.http.message.BasicHttpResponse;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -101,11 +101,8 @@ public class RetryingHttpSenderTests extends ESTestCase {
     }
 
     public void testSend_CallsSenderAgain_WhenAFailureStatusCodeIsReturned() throws IOException {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(300).thenReturn(200);
-
         var httpResponse = mock(HttpResponse.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
+        when(httpResponse.getCode()).thenReturn(300).thenReturn(200);
 
         var httpClient = mock(HttpClient.class);
 
@@ -379,7 +376,6 @@ public class RetryingHttpSenderTests extends ESTestCase {
 
     public void testSend_ReturnsFailure_WhenValidateResponseThrowsAnException_AfterOneRetry() throws IOException {
         var httpResponse = mock(HttpResponse.class);
-        when(httpResponse.getStatusLine()).thenReturn(mock(StatusLine.class));
 
         var sender = mock(HttpClient.class);
 
@@ -416,7 +412,6 @@ public class RetryingHttpSenderTests extends ESTestCase {
 
     public void testSend_ReturnsFailure_WhenValidateResponseThrowsAnElasticsearchException_AfterOneRetry() throws IOException {
         var httpResponse = mock(HttpResponse.class);
-        when(httpResponse.getStatusLine()).thenReturn(mock(StatusLine.class));
 
         var httpClient = mock(HttpClient.class);
 
@@ -967,14 +962,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
     }
 
     private static HttpResponse mockHttpResponse(int statusCode, String reasonPhrase) {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
-        when(statusLine.getReasonPhrase()).thenReturn(reasonPhrase);
-
-        var httpResponse = mock(HttpResponse.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
-
-        return httpResponse;
+        return new BasicHttpResponse(statusCode, reasonPhrase);
     }
 
     private void executeTasks(Runnable runnable, int retries) {

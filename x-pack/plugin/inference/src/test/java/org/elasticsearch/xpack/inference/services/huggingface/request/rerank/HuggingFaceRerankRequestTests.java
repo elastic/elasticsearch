@@ -7,11 +7,10 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface.request.rerank;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankModel;
 import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankModelTests;
@@ -21,7 +20,6 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class HuggingFaceRerankRequestTests extends ESTestCase {
@@ -49,13 +47,12 @@ public class HuggingFaceRerankRequestTests extends ESTestCase {
         var request = createRequest(topN, returnDocuments);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(AUTH_HEADER_VALUE));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
 
         assertThat(requestMap.get(INPUT), is(List.of(INPUT)));
         assertThat(requestMap.get(QUERY), is(QUERY));
@@ -93,7 +90,7 @@ public class HuggingFaceRerankRequestTests extends ESTestCase {
         }
 
         @Override
-        public void decorateWithAuth(HttpPost httpPost) {
+        public void decorateWithAuth(SimpleHttpRequest httpPost) {
             httpPost.setHeader(HttpHeaders.AUTHORIZATION, AUTH_HEADER_VALUE);
         }
     }

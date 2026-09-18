@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.llama.request.completion;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
@@ -19,7 +18,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class LlamaChatCompletionRequestTests extends ESTestCase {
@@ -29,10 +27,9 @@ public class LlamaChatCompletionRequestTests extends ESTestCase {
         var request = createRequest("model", "url", "secret", input, true);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(request.getURI().toString(), is("url"));
         assertThat(requestMap.get("stream"), is(true));
         assertThat(requestMap.get("model"), is("model"));
@@ -47,10 +44,9 @@ public class LlamaChatCompletionRequestTests extends ESTestCase {
         var request = createRequestWithNoAuth("model", "url", input, false);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(request.getURI().toString(), is("url"));
         assertThat(requestMap.get("stream"), is(false));
         assertThat(requestMap.get("model"), is("model"));

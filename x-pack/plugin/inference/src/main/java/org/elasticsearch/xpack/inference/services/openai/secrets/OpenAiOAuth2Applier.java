@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.openai.secrets;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2ClusterSettings;
@@ -48,7 +48,7 @@ public record OpenAiOAuth2Applier(String inferenceId, TokenCache cache, OAuth2To
     }
 
     @Override
-    public void applyTo(HttpRequestBase request, ActionListener<HttpRequestBase> listener) {
+    public void applyTo(SimpleHttpRequest request, ActionListener<SimpleHttpRequest> listener) {
         cache.getToken(inferenceId, fetcher, listener.delegateFailureAndWrap((l, token) -> {
             request.setHeader(HttpHeaders.AUTHORIZATION, bearerToken(token.bearer()));
             l.onResponse(request);

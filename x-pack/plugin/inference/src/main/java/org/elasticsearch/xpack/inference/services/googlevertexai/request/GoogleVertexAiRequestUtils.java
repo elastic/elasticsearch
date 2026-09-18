@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.request;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.RestStatus;
@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
 public final class GoogleVertexAiRequestUtils {
     private static final List<String> AUTH_SCOPE = Collections.singletonList("https://www.googleapis.com/auth/cloud-platform");
 
-    public static void decorateWithBearerToken(HttpPost httpPost, GoogleVertexAiSecretSettings secretSettings) {
+    public static void decorateWithBearerToken(SimpleHttpRequest httpPost, GoogleVertexAiSecretSettings secretSettings) {
         try {
             GoogleCredentials credentials = ServiceAccountCredentials.fromStream(
                 new ByteArrayInputStream(secretSettings.serviceAccountJson().toString().getBytes(StandardCharsets.UTF_8))

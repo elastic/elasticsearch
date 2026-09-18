@@ -7,8 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.voyageai.request;
 
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InputType;
@@ -40,9 +41,9 @@ public class VoyageAIEmbeddingsRequest implements OutboundDenseEmbeddingRequest 
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpPost = new HttpPost(embeddingsModel.uri());
+        SimpleHttpRequest httpPost = SimpleRequestBuilder.post(embeddingsModel.uri()).build();
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(
+        httpPost.setBody(
             Strings.toString(
                 new VoyageAIEmbeddingsRequestEntity(
                     input,
@@ -50,9 +51,9 @@ public class VoyageAIEmbeddingsRequest implements OutboundDenseEmbeddingRequest 
                     embeddingsModel.getServiceSettings(),
                     embeddingsModel.getTaskSettings()
                 )
-            ).getBytes(StandardCharsets.UTF_8)
+            ).getBytes(StandardCharsets.UTF_8),
+            ContentType.APPLICATION_JSON
         );
-        httpPost.setEntity(byteEntity);
 
         decorateWithHeaders(httpPost, embeddingsModel);
 

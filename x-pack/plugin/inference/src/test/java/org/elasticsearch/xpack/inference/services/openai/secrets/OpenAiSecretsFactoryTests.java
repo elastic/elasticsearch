@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.openai.secrets;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.ValidationException;
@@ -72,18 +72,18 @@ public class OpenAiSecretsFactoryTests extends ESTestCase {
 
         assertThat(secretsApplier, sameInstance(NoopSecretsApplier.INSTANCE));
 
-        var listener = new TestPlainActionFuture<HttpRequestBase>();
-        var httpPost = new HttpPost();
+        var listener = new TestPlainActionFuture<SimpleHttpRequest>();
+        var httpPost = SimpleRequestBuilder.post().build();
         secretsApplier.applyTo(httpPost, listener);
 
         var resultRequest = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
         assertThat(resultRequest, sameInstance(httpPost));
-        assertThat(resultRequest.getAllHeaders(), emptyArray());
+        assertThat(resultRequest.getHeaders(), emptyArray());
     }
 
     public void testCreateSecretsApplier_ApiKey_SetsBearerAuthorizationHeader() {
         var apiKey = randomSecureStringOfLength(10);
-        var httpPost = new HttpPost();
+        var httpPost = SimpleRequestBuilder.post().build();
         var secretSettings = new DefaultSecretSettings(apiKey);
         var serviceSettings = serviceSettingsWith(null);
 
@@ -163,18 +163,18 @@ public class OpenAiSecretsFactoryTests extends ESTestCase {
 
         assertThat(secretsApplier, sameInstance(NoopSecretsApplier.INSTANCE));
 
-        var listener = new TestPlainActionFuture<HttpRequestBase>();
-        var httpPost = new HttpPost();
+        var listener = new TestPlainActionFuture<SimpleHttpRequest>();
+        var httpPost = SimpleRequestBuilder.post().build();
         secretsApplier.applyTo(httpPost, listener);
 
         var resultRequest = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
         assertThat(resultRequest, sameInstance(httpPost));
-        assertThat(resultRequest.getAllHeaders(), emptyArray());
+        assertThat(resultRequest.getHeaders(), emptyArray());
     }
 
     public void testCreateSecretsApplier_ApiKeySecrets_SetsBearerAuthorizationHeader() {
         var apiKey = randomSecureStringOfLength(10);
-        var httpPost = new HttpPost();
+        var httpPost = SimpleRequestBuilder.post().build();
 
         var secretsApplier = OpenAiSecretsFactory.createSecretsApplier(new DefaultSecretSettings(apiKey));
 

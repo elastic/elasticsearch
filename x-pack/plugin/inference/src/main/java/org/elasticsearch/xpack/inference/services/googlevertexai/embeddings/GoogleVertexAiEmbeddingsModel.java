@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.utils.URIBuilder;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -29,6 +29,7 @@ import java.util.Objects;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.buildUriPreservingColons;
 
 public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
 
@@ -103,7 +104,7 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
         GoogleVertexAiEmbeddingsServiceSettings serviceSettings,
         GoogleVertexAiEmbeddingsTaskSettings taskSettings,
         @Nullable GoogleVertexAiSecretSettings secrets,
-        BiConsumer<HttpPost, GoogleVertexAiModel> authHeaderDecorator
+        BiConsumer<SimpleHttpRequest, GoogleVertexAiModel> authHeaderDecorator
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
@@ -144,20 +145,21 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
     }
 
     public static URI buildUri(@Nullable String location, String projectId, String modelId) throws URISyntaxException {
-        return new URIBuilder().setScheme("https")
-            .setHost(GoogleVertexAiUtils.resolveHost(location))
-            .setPathSegments(
-                GoogleVertexAiUtils.V1,
-                GoogleVertexAiUtils.PROJECTS,
-                projectId,
-                GoogleVertexAiUtils.LOCATIONS,
-                GoogleVertexAiUtils.resolveLocation(location),
-                GoogleVertexAiUtils.PUBLISHERS,
-                GoogleVertexAiUtils.PUBLISHER_GOOGLE,
-                GoogleVertexAiUtils.MODELS,
-                format("%s:%s", modelId, GoogleVertexAiUtils.PREDICT)
-            )
-            .build();
+        return buildUriPreservingColons(
+            new URIBuilder().setScheme("https")
+                .setHost(GoogleVertexAiUtils.resolveHost(location))
+                .setPathSegments(
+                    GoogleVertexAiUtils.V1,
+                    GoogleVertexAiUtils.PROJECTS,
+                    projectId,
+                    GoogleVertexAiUtils.LOCATIONS,
+                    GoogleVertexAiUtils.resolveLocation(location),
+                    GoogleVertexAiUtils.PUBLISHERS,
+                    GoogleVertexAiUtils.PUBLISHER_GOOGLE,
+                    GoogleVertexAiUtils.MODELS,
+                    format("%s:%s", modelId, GoogleVertexAiUtils.PREDICT)
+                )
+        );
     }
 
     @Override

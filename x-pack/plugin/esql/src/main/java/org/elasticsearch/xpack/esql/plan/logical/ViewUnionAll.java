@@ -33,7 +33,7 @@ public class ViewUnionAll extends UnionAll {
     }
 
     @Override
-    public ViewUnionAll replaceChildren(List<LogicalPlan> newChildren) {
+    public LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
         return new ViewUnionAll(source(), asSubqueryMap(newChildren), output());
     }
 

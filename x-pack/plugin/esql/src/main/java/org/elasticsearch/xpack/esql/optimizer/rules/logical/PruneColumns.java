@@ -85,11 +85,10 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     case EsRelation esr -> pruneColumnsInEsRelation(esr, used);
                     case ExternalRelation ext -> pruneColumnsInExternalRelation(ext, used);
                     case MergePlan mergePlan -> {
-                        // Skip descending into the merge subtree: pruneColumnsInMergePlan recurses into each subplan
-                        // itself, seeding a fresh `used` set per branch. Branch attributes are matched to the merge
-                        // output by name rather than by id, so the outer `used` set does not apply to them. Using
-                        // skipBranch (instead of a sticky flag) ensures that pruning resumes for siblings outside the
-                        // merge, e.g., the right-hand side of an enclosing InlineJoin.
+                        // Skip descending into the merge subtree: pruneColumnsInMergePlan handles Fork subplans
+                        // internally, while UnionAll is left untouched except for leaf unions. Using skipBranch
+                        // (instead of a sticky flag) ensures that pruning resumes for siblings outside the merge, e.g.
+                        // the right-hand side of an enclosing InlineJoin.
                         skipBranch.set(true);
                         yield pruneColumnsInMergePlan(mergePlan, used);
                     }
@@ -299,7 +298,12 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
     // TODO: see ResolveUnmapped#patchMergePlan comment
     private static LogicalPlan pruneColumnsInMergePlan(MergePlan mergePlan, AttributeSet.Builder used) {
 
-        if (mergePlan instanceof UnionAll unionAll && PushDownUtils.isLeafUnionAll(unionAll)) {
+        if (mergePlan instanceof UnionAll unionAll) {
+            if (PushDownUtils.isLeafUnionAll(unionAll) == false) {
+                // Subquery-shape UnionAll: each branch's Project is pruned by the transformDown
+                // traversal when it reaches the branch; skip here to avoid double-pruning.
+                return mergePlan;
+            }
             // Direct-leaf UnionAll (heterogeneous FROM): prune ExternalRelation children so the
             // format reader only loads the columns actually needed. EsRelation children are left
             // intact — InsertFieldExtraction handles field-level extraction at execution time.

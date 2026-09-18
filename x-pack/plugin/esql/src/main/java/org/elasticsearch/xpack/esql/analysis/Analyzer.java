@@ -237,6 +237,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExistingUnsupportedAttributes;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
@@ -1800,7 +1801,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // output, so MergePlan.outputUnion misses it. Surface it as a FORK column when a sibling branch can surface it (the dropping
             // branch then null-fills it). Skip it when no branch can surface it (e.g. dropped in every branch), else it would be null
             // everywhere and isn't a real column.
-            if (alignUnmappedAcrossBranches && fork.children().stream().anyMatch(ResolveRefs::branchHasUnprojectedRelation)) {
+            if (alignUnmappedAcrossBranches && fork.children().stream().anyMatch(ResolveRefs::branchCanSurfaceLoadedField)) {
                 addDroppedUnmappedFieldsMissingFromMerge(outputUnion, unmappedFieldsDroppedByProjection(fork));
             }
             List<String> mergeColumns = outputUnion.stream().map(Attribute::name).toList();
@@ -1952,7 +1953,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return mergePlan;
             }
 
-            return mergePlan.replaceSubPlansAndOutput(newSubPlans, toReferenceAttributesPreservingIds(outputUnion, mergePlan.output()));
+            return mergePlan.replaceSubPlansAndOutput(
+                newSubPlans,
+                unmappedResolution.loadsAllUnmappedFields()
+                    ? keepExistingUnsupportedAttributes(
+                        toReferenceAttributesPreservingIds(outputUnion, mergePlan.output()),
+                        mergePlan.output()
+                    )
+                    : toReferenceAttributesPreservingIds(outputUnion, mergePlan.output())
+            );
         }
 
         /*
@@ -2095,6 +2104,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
+         * Whether an unmapped field materialized at this branch's source would reach the branch output: true only if walking
+         * column-preserving unary plans from the root reaches a non-LOOKUP {@link EsRelation} (a Project/Aggregate in the way drops it).
+         */
+        private static boolean branchCanSurfaceLoadedField(LogicalPlan plan) {
+            return canSurfaceFromSource(plan, null, false);
+        }
+
+        /**
          * Whether a field named {@code name} materialized at this branch's source would reach the branch output. A
          * {@link ResolvingProject} is asked whether the terms it was written with admit the name, so {@code KEEP *} lets it through
          * while a pattern-less {@code KEEP} does not. Any other {@link Project} has no pattern to consult and an {@link Aggregate}
@@ -2102,16 +2119,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          */
         private static boolean branchCanSurfaceLoadedField(LogicalPlan plan, String name) {
             return canSurfaceFromSource(plan, name, true);
-        }
-
-        /**
-         * Whether any field materialized at this branch's source would reach the branch output. Unlike
-         * {@link #branchCanSurfaceLoadedField} this cannot consult the projection's pattern: a literal {@code DROP x} restricts
-         * nothing there ({@code UnmappedFieldsPattern.forDrop} records only wildcard removals), yet it is exactly the case that must
-         * keep {@code x} out of the FORK output when every branch drops it.
-         */
-        private static boolean branchHasUnprojectedRelation(LogicalPlan plan) {
-            return canSurfaceFromSource(plan, null, false);
         }
 
         private static boolean canSurfaceFromSource(LogicalPlan plan, String name, boolean consultResolvingProject) {
@@ -3545,7 +3552,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (generatedUnionFields) {
                 plan = addGeneratedFieldsToEsRelations(
                     plan,
-                    state.unionFieldAttributes.stream().map(attr -> (FieldAttribute) attr.inner()).toList()
+                    state.unionFieldAttributes.stream().map(attr -> (FieldAttribute) attr.inner()).toList(),
+                    context.unmappedResolution().loadsAllUnmappedFields()
                 );
             }
 
@@ -3562,6 +3570,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * and thereby get used in FieldExtractExec
          */
         private static LogicalPlan addGeneratedFieldsToEsRelations(LogicalPlan plan, List<FieldAttribute> unionFieldAttributes) {
+            return addGeneratedFieldsToEsRelations(plan, unionFieldAttributes, false);
+        }
+
+        private static LogicalPlan addGeneratedFieldsToEsRelations(
+            LogicalPlan plan,
+            List<FieldAttribute> unionFieldAttributes,
+            boolean preserveResolvingProject
+        ) {
             var res = plan.transformDown(EsRelation.class, esr -> {
                 List<Attribute> missing = new ArrayList<>();
                 for (FieldAttribute fa : unionFieldAttributes) {
@@ -3577,7 +3593,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return esr;
             });
             if (res.equals(plan) == false) {
-                res = carryOverSyntheticAttributesThroughProjects(res);
+                res = carryOverSyntheticAttributesThroughProjects(res, preserveResolvingProject);
             }
             return res;
         }
@@ -4120,19 +4136,26 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (fa.field() instanceof PotentiallyUnmappedSingleTypeEsField punk) {
                         DataType mappedType = punk.mappedField().getDataType();
 
+                        // DENSE_VECTOR has a KEYWORD converter, but it reads hexadecimal strings whereas an unmapped DENSE_VECTOR loads
+                        // from _source as an array of numbers (#152184). Implicitly casting a partially unmapped DENSE_VECTOR from KEYWORD
+                        // would therefore produce garbage, so we exclude it from auto-casting.
+                        if (mappedType != DataType.DENSE_VECTOR == false) {
+                            return fa;
+                        }
+
                         // Look up the converter by the widened type so a partially unmapped short is auto-cast to integer, matching a
                         // fully mapped short. The mapped leg keeps its original type below (see typeResolutions).
-                        AbstractConvertFunction convert = ResolveRefs.implicitCastFromKeyword(
-                            mappedType.widenSmallNumeric(),
-                            fa,
-                            context.configuration()
-                        );
+                        DataType widenedType = mappedType.widenSmallNumeric();
+                        var convertFactory = EsqlDataTypeConverter.converterFunctionFactory(widenedType);
+                        ConvertFunction convert = convertFactory == null
+                            ? null
+                            : convertFactory.apply(fa.source(), fa, context.configuration());
                         // We can only load an unmapped field from _source as KEYWORD, so without a converter accepting KEYWORD input we
                         // can't auto-cast. Leave the PUNK in place: a cast applied directly to the field is resolved by ResolveUnionTypes
                         // (which loads the unmapped leg from _source), while every other use falls back to the mapped type in
                         // UnionTypesCleanup (null where unmapped). The PUNK reports its mapped type rather than UNSUPPORTED, so renames and
                         // groupings carry the real type.
-                        if (convert == null) {
+                        if (convert == null || convert.supportedTypes().contains(KEYWORD) == false) {
                             return fa;
                         }
 
@@ -4518,7 +4541,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             // Carry over the synthetic convert-function attributes added to UnionAll output through Project above it.
             if (convertFunctionsToAttributes.isEmpty() == false) {
-                planWithConvertFunctionsPushedDown = carryOverSyntheticAttributesThroughProjects(planWithConvertFunctionsPushedDown);
+                planWithConvertFunctionsPushedDown = carryOverSyntheticAttributesThroughProjects(
+                    planWithConvertFunctionsPushedDown,
+                    context.unmappedResolution().loadsAllUnmappedFields()
+                );
             }
 
             // Then replace the conversion functions with the corresponding attributes in the UnionAll output
@@ -5149,7 +5175,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * <p>Used by both {@code ResolveUnionTypes} (for multi-typed EsRelation fields) and
      * {@code ResolveUnionTypesInUnionAll} (for type conflicts across {@link UnionAll} branches).
      */
-    private static LogicalPlan carryOverSyntheticAttributesThroughProjects(LogicalPlan plan) {
+    private static LogicalPlan carryOverSyntheticAttributesThroughProjects(LogicalPlan plan, boolean preserveResolvingProject) {
         return plan.transformUp(Project.class, p -> {
             // Skip Projects whose projections are not yet resolved (e.g. an unexpanded KEEP wildcard sitting above a still-unresolved
             // union-typed field reference). Their output cannot be computed yet — calling p.output() would throw UnresolvedException.
@@ -5168,8 +5194,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             List<NamedExpression> newProjections = new ArrayList<>(p.projections());
             newProjections.addAll(syntheticAttributesToCarryOver);
-            // Preserve ResolvingProject so LOAD_ALL can still read the original KEEP/DROP pattern.
-            return p.withProjections(newProjections);
+            // LOAD_ALL KEEP/DROP is a ResolvingProject whose original pattern must survive. Default KEEP is a plain Project.
+            return preserveResolvingProject ? p.withProjections(newProjections) : new Project(p.source(), p.child(), newProjections);
         });
     }
 }

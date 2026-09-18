@@ -164,12 +164,12 @@ public class ResolvingProject extends Project {
     @Override
     public ResolvingProject replaceChild(LogicalPlan newChild) {
         ResolvingProject recomputed = new ResolvingProject(source(), newChild, command);
+        // LOAD_ALL stamps $$unmapped_fields. Convert synthetics must survive re-resolution of that KEEP/DROP.
+        if (newChild.output().stream().anyMatch(a -> a instanceof UnmappedFieldsAttribute) == false) {
+            return recomputed;
+        }
         Set<String> names = new HashSet<>(Expressions.names(recomputed.projections()));
         Set<String> childNames = newChild.outputSet().names();
-        // Convert-function synthetics (e.g. $$field$converted_to$long) must survive re-resolution.
-        // Skip the empty-mapping <no-fields> placeholder: ResolveUnmapped has already replaced it on the
-        // relation, and re-appending it would project an attribute the child no longer outputs.
-        // Only keep synthetics the new child still produces — a different child must not inherit orphans.
         var missingSynthetics = projections().stream()
             .filter(
                 p -> p.synthetic()

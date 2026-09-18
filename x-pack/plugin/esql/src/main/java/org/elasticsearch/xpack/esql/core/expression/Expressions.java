@@ -47,9 +47,6 @@ public final class Expressions {
      *   clear user-facing error. Exception: a two-legged PUNK ({@link TypeConflictedField#isSingleTypePotentiallyUnmapped()})
      *   keeps its single mapped type on the {@link ReferenceAttribute} so it surfaces through a
      *   {@link org.elasticsearch.xpack.esql.plan.logical.MergePlan} output.</li>
-     *   <li>An {@link UnsupportedAttribute} already in {@code existingOutput} is kept. UnionAll type conflicts put that
-     *   attribute on the union output while the children hold null-keyword aliases so they can still execute; rebuilding
-     *   from the children would report {@code keyword} and drop {@code original_types}.</li>
      *   <li>An {@link ExternalMetadataAttribute} is rebuilt as the same subtype with the preserved id. The
      *   "virtual column" identity must survive operators that re-class their output (e.g. {@code MergePlan.refreshOutput()})
      *   because downstream rules such as {@code Analyzer.planWithoutSyntheticAttributes} (which strips
@@ -73,10 +70,6 @@ public final class Expressions {
         List<Attribute> list = new ArrayList<>(named.size());
         for (NamedExpression exp : named) {
             Attribute existing = existingByName.get(exp.name());
-            if (existing instanceof UnsupportedAttribute ua) {
-                list.add(ua);
-                continue;
-            }
             NameId id = existing != null ? existing.id() : new NameId();
             Attribute refAttr = switch (exp) {
                 case FieldAttribute fa when fa.field() instanceof TypeConflictedField tcf ->
@@ -114,6 +107,29 @@ public final class Expressions {
             list.add(refAttr);
         }
         return list;
+    }
+
+    /**
+     * Keep {@link UnsupportedAttribute}s already on {@code existingOutput}. LOAD_ALL UnionAll type conflicts put that
+     * attribute on the union output while the children hold null-keyword aliases so they can still execute; rebuilding
+     * from the children would report {@code keyword} and drop {@code original_types}.
+     */
+    public static List<Attribute> keepExistingUnsupportedAttributes(List<Attribute> converted, List<Attribute> existingOutput) {
+        Map<String, UnsupportedAttribute> existing = new HashMap<>();
+        for (Attribute attr : existingOutput) {
+            if (attr instanceof UnsupportedAttribute ua) {
+                existing.put(ua.name(), ua);
+            }
+        }
+        if (existing.isEmpty()) {
+            return converted;
+        }
+        List<Attribute> kept = new ArrayList<>(converted.size());
+        for (Attribute attr : converted) {
+            UnsupportedAttribute ua = existing.get(attr.name());
+            kept.add(ua != null ? ua : attr);
+        }
+        return kept;
     }
 
     public static boolean anyMatch(List<? extends Expression> exps, Predicate<? super Expression> predicate) {

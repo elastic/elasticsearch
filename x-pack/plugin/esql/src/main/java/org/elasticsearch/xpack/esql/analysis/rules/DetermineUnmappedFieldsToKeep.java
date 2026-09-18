@@ -44,6 +44,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExistingUnsupportedAttributes;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 
 /**
@@ -221,7 +222,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         if (plan instanceof EsRelation esr) {
             return stamp(esr, pattern);
         }
-        if (plan.noneMatch(p -> p instanceof MergePlan)) {
+        if (plan.anyMatch(p -> p instanceof MergePlan) == false) {
             return plan.transformUp(EsRelation.class, esr -> stamp(esr, pattern));
         }
         return plan.replaceChildren(plan.children().stream().map(c -> annotate(c, pattern)).toList());
@@ -317,7 +318,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             .filter(attr -> attr.name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME) == false)
             .toList();
         List<Attribute> newOutput = CollectionUtils.combine(
-            toReferenceAttributesPreservingIds(withoutUnmapped, unionAll.output()),
+            keepExistingUnsupportedAttributes(toReferenceAttributesPreservingIds(withoutUnmapped, unionAll.output()), unionAll.output()),
             unmapped
         );
         return childrenChanged == false && newOutput.equals(unionAll.output())

@@ -13,6 +13,7 @@ import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -101,6 +102,54 @@ public class CircuitBreakingOperationsTests extends ESTestCase {
      * Builds a pathological NFA that causes exponential state blowup during determinization:
      * .*a.*b.*c.*d... with {@code depth} interleaved wildcards and literals.
      */
+    /** The charged product must accept exactly the language Lucene's {@code minus} accepts, whatever the inputs. */
+    public void testMinusMatchesLuceneOnRandomAutomata() {
+        for (int i = 0; i < 20; i++) {
+            Automaton a = AutomatonTestUtil.randomAutomaton(random());
+            Automaton excluded = Operations.determinize(
+                AutomatonTestUtil.randomAutomaton(random()),
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+            );
+            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
+            Automaton expected = Operations.minus(a, excluded, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            Automaton actual = CircuitBreakingOperations.minus(a, excluded, breaker, "test");
+            assertTrue(
+                AutomatonTestUtil.sameLanguage(
+                    Operations.determinize(expected, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT),
+                    Operations.determinize(actual, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
+                )
+            );
+            assertEquals("everything reserved during the product is released", 0L, breaker.getUsed());
+        }
+    }
+
+    /**
+     * A product whose cost is in its transitions, not its states: a class of many separate ranges gives every product
+     * state one transition per range, so a pair with only a few hundred states carries tens of thousands of transitions.
+     * A reservation sized from the state count alone clears a limit the real build exceeds many times over.
+     */
+    public void testMinusChargesTransitionsNotJustStates() {
+        StringBuilder ranges = new StringBuilder("[");
+        for (int i = 0; i < 100; i++) {
+            ranges.append((char) (0x100 + 2 * i));
+        }
+        ranges.append(']');
+        Automaton a = new RegExp(".*x.{10}").toAutomaton();
+        Automaton excluded = Operations.determinize(
+            new RegExp(ranges + "*\u0100" + ranges + "{6}").toAutomaton(),
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+        );
+        CircuitBreaker roomy = newLimitedBreaker(ByteSizeValue.ofGb(1));
+        Automaton product = CircuitBreakingOperations.minus(a, excluded, roomy, "test");
+        assertEquals(0L, roomy.getUsed());
+        assertTrue("few states", product.getNumStates() < 200);
+        assertTrue("many transitions", product.getNumTransitions() > 20_000);
+        // a state-count reservation of even 2 KB per state would be well under this limit
+        CircuitBreaker small = newLimitedBreaker(ByteSizeValue.ofBytes(product.getNumStates() * 2048L));
+        expectThrows(CircuitBreakingException.class, () -> CircuitBreakingOperations.minus(a, excluded, small, "test"));
+        assertEquals(0L, small.getUsed());
+    }
+
     private static Automaton buildPathologicalNFA(int depth) {
         List<Automaton> automata = new ArrayList<>();
         for (int i = 0; i < depth; i++) {

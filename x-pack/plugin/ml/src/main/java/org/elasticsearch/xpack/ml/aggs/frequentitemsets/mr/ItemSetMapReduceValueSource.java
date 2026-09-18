@@ -27,6 +27,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
@@ -54,7 +55,8 @@ public abstract class ItemSetMapReduceValueSource {
             int id,
             IncludeExclude includeExclude,
             AbstractItemSetMapReducer.OrdinalOptimization ordinalOptimization,
-            Optional<LeafReaderContext> ctx
+            Optional<LeafReaderContext> ctx,
+            AggregationContext context
         ) throws IOException;
     }
 
@@ -346,7 +348,8 @@ public abstract class ItemSetMapReduceValueSource {
             int id,
             IncludeExclude includeExclude,
             AbstractItemSetMapReducer.OrdinalOptimization ordinalOptimization,
-            Optional<LeafReaderContext> ctx
+            Optional<LeafReaderContext> ctx,
+            AggregationContext context
         ) throws IOException {
             super(config, id, ValueFormatter.BYTES_REF);
 
@@ -359,14 +362,14 @@ public abstract class ItemSetMapReduceValueSource {
                 this.executionStrategy = new GlobalOrdinalsStrategy(
                     getField(),
                     (Bytes.WithOrdinals) config.getValuesSource(),
-                    includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(config.format()),
+                    includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(config.format(), context),
                     ctx.get()
                 );
             } else {
                 this.executionStrategy = new MapStrategy(
                     getField(),
                     (Bytes) config.getValuesSource(),
-                    includeExclude == null ? null : includeExclude.convertToStringFilter(config.format())
+                    includeExclude == null ? null : includeExclude.convertToStringFilter(config.format(), context)
                 );
             }
         }
@@ -396,7 +399,8 @@ public abstract class ItemSetMapReduceValueSource {
             int id,
             IncludeExclude includeExclude,
             AbstractItemSetMapReducer.OrdinalOptimization unusedOrdinalOptimization,
-            Optional<LeafReaderContext> unusedCtx
+            Optional<LeafReaderContext> unusedCtx,
+            AggregationContext unusedContext
         ) {
             super(config, id, ValueFormatter.LONG);
             this.source = (Numeric) config.getValuesSource();

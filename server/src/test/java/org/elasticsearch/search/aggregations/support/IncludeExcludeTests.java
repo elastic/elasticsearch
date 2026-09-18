@@ -13,6 +13,14 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
@@ -27,11 +35,19 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class IncludeExcludeTests extends ESTestCase {
+
+    private static final int DEFAULT_MAX_REGEX_LENGTH = IndexSettings.MAX_REGEX_LENGTH_SETTING.getDefault(Settings.EMPTY);
+    private static final CircuitBreaker BREAKER = new NoopCircuitBreaker("test");
 
     public static IncludeExclude randomIncludeExclude() {
         switch (randomInt(7)) {
@@ -63,12 +79,12 @@ public class IncludeExcludeTests extends ESTestCase {
 
     public void testEmptyTermsWithOrds() throws IOException {
         IncludeExclude inexcl = new IncludeExclude(null, null, new TreeSet<>(Set.of(new BytesRef("foo"))), null);
-        OrdinalsFilter filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
+        OrdinalsFilter filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH, BREAKER);
         LongBitSet acceptedOrds = filter.acceptedGlobalOrdinals(DocValues.emptySortedSet());
         assertEquals(0, acceptedOrds.length());
 
         inexcl = new IncludeExclude(null, null, null, new TreeSet<>(Set.of(new BytesRef("foo"))));
-        filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
+        filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH, BREAKER);
         acceptedOrds = filter.acceptedGlobalOrdinals(DocValues.emptySortedSet());
         assertEquals(0, acceptedOrds.length());
     }
@@ -110,12 +126,12 @@ public class IncludeExcludeTests extends ESTestCase {
             }
 
         };
-        OrdinalsFilter ordFilter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
+        OrdinalsFilter ordFilter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH, BREAKER);
         LongBitSet acceptedOrds = ordFilter.acceptedGlobalOrdinals(ords);
         assertEquals(1, acceptedOrds.length());
         assertEquals(acceptedOrds.get(0), accept);
 
-        StringFilter strFilter = inexcl.convertToStringFilter(DocValueFormat.RAW);
+        StringFilter strFilter = inexcl.convertToStringFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH, BREAKER);
         assertEquals(strFilter.accept(value), accept);
     }
 
@@ -384,4 +400,193 @@ public class IncludeExcludeTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> new IncludeExclude(null, regex, null, values));
     }
 
+    public void testRegexLongerThanLimitIsRejectedBeforeCompilation() {
+        String regex = "a".repeat(DEFAULT_MAX_REGEX_LENGTH + 1);
+        for (IncludeExclude inexcl : List.of(
+            new IncludeExclude(regex, null, null, null),
+            new IncludeExclude(null, regex, null, null),
+            new IncludeExclude("a", regex, null, null)
+        )) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> inexcl.convertToStringFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH, BREAKER)
+            );
+            assertThat(e.getMessage(), containsString("The length of regex [" + regex.length() + "]"));
+            assertThat(e.getMessage(), containsString("allowed maximum of [" + DEFAULT_MAX_REGEX_LENGTH + "]"));
+            assertThat(e.getMessage(), containsString(IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey()));
+            e = expectThrows(
+                IllegalArgumentException.class,
+                () -> inexcl.convertToOrdinalsFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH, BREAKER)
+            );
+            assertThat(e.getMessage(), containsString(IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey()));
+        }
+    }
+
+    public void testRegexAtLimitCompiles() {
+        String regex = "a".repeat(DEFAULT_MAX_REGEX_LENGTH);
+        StringFilter filter = new IncludeExclude(regex, null, null, null).convertToStringFilter(
+            DocValueFormat.RAW,
+            DEFAULT_MAX_REGEX_LENGTH,
+            BREAKER
+        );
+        assertTrue(filter.accept(new BytesRef(regex)));
+        assertFalse(filter.accept(new BytesRef("b")));
+    }
+
+    /**
+     * A short pattern of nested bounded repeats expands to a state count no length limit catches; building it must trip the
+     * breaker rather than exhaust the heap. The 1 MB limit is far below what this pattern's NFA would need.
+     */
+    public void testHugeRegexTripsTheBreaker() {
+        IncludeExclude inexcl = new IncludeExclude("[ab]{1000}{1000}{20}", null, null, null);
+        CircuitBreaker limited = newLimitedBreaker(ByteSizeValue.ofMb(1));
+        expectThrows(
+            CircuitBreakingException.class,
+            () -> inexcl.convertToStringFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH, limited)
+        );
+        assertEquals("the reservation is released on failure", 0L, limited.getUsed());
+    }
+
+    /**
+     * Validation runs before the aggregator is built, so an unmapped field, which builds no filter, still rejects a pattern
+     * that could never compile; and a pattern that passes validation must not be compiled by it.
+     */
+    public void testValidateRegexRejectsMalformedAndOverLongPatterns() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new IncludeExclude("[", null, null, null).validateRegex(DEFAULT_MAX_REGEX_LENGTH)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new IncludeExclude("a", "(", null, null).validateRegex(DEFAULT_MAX_REGEX_LENGTH)
+        );
+        String tooLong = "a".repeat(DEFAULT_MAX_REGEX_LENGTH + 1);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IncludeExclude(null, tooLong, null, null).validateRegex(DEFAULT_MAX_REGEX_LENGTH)
+        );
+        assertThat(e.getMessage(), containsString("The length of regex [" + tooLong.length() + "] used in the [exclude]"));
+        // Would OOM if validation compiled the automaton rather than only parsing the pattern.
+        new IncludeExclude("[ab]{1000}{1000}{1000}", null, null, null).validateRegex(DEFAULT_MAX_REGEX_LENGTH);
+    }
+
+    /**
+     * Two patterns that each compile cheaply but whose {@code minus} is a product of the two, dense because the exclude is a
+     * class of many separate ranges: every product state carries one transition per range. The build is charged as it
+     * grows, so it trips a small limit and succeeds, with everything released, on a large one.
+     */
+    public void testExcludeProductIsChargedToTheBreaker() {
+        StringBuilder ranges = new StringBuilder("[");
+        for (int i = 0; i < 100; i++) {
+            ranges.append((char) (0x100 + 2 * i));
+        }
+        ranges.append(']');
+        IncludeExclude inexcl = new IncludeExclude(".*x.{10}", ranges + "*\u0100" + ranges + "{6}", null, null);
+        CircuitBreaker small = newLimitedBreaker(ByteSizeValue.ofMb(4));
+        expectThrows(
+            CircuitBreakingException.class,
+            () -> inexcl.convertToStringFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH, small)
+        );
+        assertEquals("every reservation is released on failure", 0L, small.getUsed());
+        CircuitBreaker roomy = newLimitedBreaker(ByteSizeValue.ofGb(1));
+        StringFilter filter = inexcl.convertToStringFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH, roomy);
+        assertTrue(filter.accept(new BytesRef("x0123456789")));
+        assertFalse(
+            "excluded: seven class characters after the marker",
+            filter.accept(new BytesRef("x\u0100\u0200\u0200\u0200\u0200\u0200\u0200"))
+        );
+        assertEquals("every reservation is released after the build", 0L, roomy.getUsed());
+    }
+
+    /**
+     * Both patterns pass the length check and compile within the determinize limit; only the product is huge (it exhausted
+     * a 512 MB heap when measured). The breaker must stop the build long before that.
+     */
+    public void testExcludeProductThatExhaustsTheHeapIsRefused() {
+        IncludeExclude inexcl = new IncludeExclude("[ab]{1000}{5}", "(a|b)*b(a|b){10}", null, null);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(64));
+        expectThrows(
+            CircuitBreakingException.class,
+            () -> inexcl.convertToStringFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH, breaker)
+        );
+        assertEquals("every reservation is released on failure", 0L, breaker.getUsed());
+    }
+
+    /** The compiled pattern outlives the build, so the filter reports it for the request-lifetime charge. */
+    public void testStringFilterReportsItsRetainedAutomaton() {
+        StringFilter regex = new IncludeExclude("a.*", null, null, null).convertToStringFilter(
+            DocValueFormat.RAW,
+            DEFAULT_MAX_REGEX_LENGTH,
+            BREAKER
+        );
+        assertTrue(regex.ramBytesUsed() > 0);
+        StringFilter exact = new IncludeExclude(null, null, new TreeSet<>(Set.of(newBytesRef("a"))), null).convertToStringFilter(
+            DocValueFormat.RAW,
+            DEFAULT_MAX_REGEX_LENGTH,
+            BREAKER
+        );
+        assertEquals(0L, exact.ramBytesUsed());
+    }
+
+    public void testTooComplexRegexIsAClientError() {
+        // Exponential state blow-up under determinization, well within the length limit.
+        IncludeExclude inexcl = new IncludeExclude("(a|b)*a(a|b){30}", null, null, null);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> inexcl.convertToStringFilter(DocValueFormat.RAW, DEFAULT_MAX_REGEX_LENGTH, BREAKER)
+        );
+        assertThat(e.getMessage(), containsString("too complex to determinize"));
+        assertThat(e.getCause(), instanceOf(TooComplexToDeterminizeException.class));
+    }
+
+    /**
+     * Lucene parses nested groups recursively, so a deep pattern overflows the stack while parsing. The pattern must
+     * not be compiled when the {@link IncludeExclude} is built (that runs on the coordinator's HTTP thread and on the
+     * data nodes' transport threads) and the overflow must surface as a client error, not an {@link Error}.
+     */
+    public void testDeeplyNestedRegexIsAClientError() {
+        int depth = 20_000;
+        String regex = "(".repeat(depth) + "a" + ")".repeat(depth);
+        IncludeExclude inexcl = new IncludeExclude(regex, null, null, null);
+        assertDeepNestingRejected(() -> inexcl.convertToStringFilter(DocValueFormat.RAW, Integer.MAX_VALUE, BREAKER));
+        assertDeepNestingRejected(() -> inexcl.convertToOrdinalsFilter(DocValueFormat.RAW, Integer.MAX_VALUE, BREAKER));
+        IncludeExclude excl = new IncludeExclude("a", regex, null, null);
+        assertDeepNestingRejected(() -> excl.convertToStringFilter(DocValueFormat.RAW, Integer.MAX_VALUE, BREAKER));
+    }
+
+    /**
+     * Lucene parses concatenation iteratively but {@code toAutomaton()} still recurses over the left-deep tree that a run
+     * of character classes produces, so the overflow happens after a successful parse.
+     */
+    public void testLongConcatenationRegexIsAClientError() {
+        String regex = "[^a]".repeat(50_000);
+        IncludeExclude inexcl = new IncludeExclude(regex, null, null, null);
+        assertDeepNestingRejected(() -> inexcl.convertToStringFilter(DocValueFormat.RAW, Integer.MAX_VALUE, BREAKER));
+    }
+
+    /**
+     * Runs on a thread with a fixed, small stack so the overflow does not depend on the JVM's default stack size,
+     * which differs between platforms (1 MB on x86-64, 2 MB on aarch64).
+     */
+    private static void assertDeepNestingRejected(Runnable compile) {
+        AtomicReference<Throwable> thrown = new AtomicReference<>();
+        Thread thread = new Thread(null, () -> {
+            try {
+                compile.run();
+            } catch (Throwable t) {
+                thrown.set(t);
+            }
+        }, "small-stack-regex", 256 * 1024);
+        thread.setDaemon(true);
+        thread.start();
+        try {
+            thread.join(TimeValue.timeValueSeconds(30).millis());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError(e);
+        }
+        assertFalse("regex compilation did not finish", thread.isAlive());
+        assertThat(thrown.get(), instanceOf(IllegalArgumentException.class));
+        assertThat(thrown.get().getMessage(), containsString("too deeply nested"));
+    }
 }

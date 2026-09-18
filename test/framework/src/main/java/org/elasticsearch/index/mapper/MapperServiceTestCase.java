@@ -814,6 +814,11 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             }
 
             @Override
+            public void addCircuitBreakerMemory(long bytes, String label) {
+                breaker.addEstimateBytesAndMaybeBreak(bytes, label);
+            }
+
+            @Override
             public Analyzer getIndexAnalyzer(Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
                 throw new UnsupportedOperationException();
             }

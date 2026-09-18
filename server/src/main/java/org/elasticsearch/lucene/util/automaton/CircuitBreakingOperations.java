@@ -13,8 +13,10 @@ import org.apache.lucene.internal.hppc.BitMixer;
 import org.apache.lucene.internal.hppc.IntCursor;
 import org.apache.lucene.internal.hppc.IntIntHashMap;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
+import org.apache.lucene.internal.hppc.LongIntHashMap;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
@@ -63,6 +65,16 @@ public final class CircuitBreakingOperations {
      * </ul>
      */
     private static final long ESTIMATED_BYTES_PER_STATE = 200L;
+
+    /**
+     * Live bytes per reachable product state: its worklist entry, its slot in the pair map and the state itself. Only live
+     * memory is charged; the copies array growth leaves behind are the collector's.
+     */
+    private static final long PRODUCT_STATE_BYTES = 80L;
+    /** Live bytes per transition: three ints plus growth headroom in the product, or one {@code Transition} object in a sorted input. */
+    private static final long PRODUCT_TRANSITION_BYTES = 48L;
+    /** Reserve in steps of this size rather than on every transition. */
+    private static final long PRODUCT_CHARGE_STEP = 64 * 1024L;
 
     /**
      * Determinizes the given automaton, periodically checking the provided circuit breaker.
@@ -215,6 +227,108 @@ public final class CircuitBreakingOperations {
     // Package-private helper classes copied from Lucene (10.3.2) because
     // they are not accessible outside org.apache.lucene.util.automaton.
     // ------------------------------------------------------------------
+
+    /**
+     * {@link Operations#minus(Automaton, Automaton, int)} with the product construction charged to the breaker as it grows.
+     * Lucene walks every reachable pair of states of the two automata and creates a state for each pair with the overlap
+     * of their transitions, with no accounting of its own. How many pairs are reachable and how many ranges overlap is
+     * only known once the walk is done, and a pair of many-range character classes costs orders of magnitude more per
+     * state than two chains, so no estimate taken before the build is safe. Temporary memory is released before
+     * returning; the caller accounts the result's {@code ramBytesUsed()}.
+     *
+     * @param excluded must already be deterministic
+     */
+    public static Automaton minus(Automaton a, Automaton excluded, CircuitBreaker circuitBreaker, String label) {
+        assert excluded.isDeterministic() : "excluded must be determinized (and charged) by the caller";
+        if (Operations.isEmpty(a) || a == excluded) {
+            return Automata.makeEmpty();
+        }
+        if (Operations.isEmpty(excluded)) {
+            return a;
+        }
+        // complement totalizes the exclude and copies it again to drop dead states; each copy is about its own size
+        long complementReservation = 3 * excluded.ramBytesUsed();
+        circuitBreaker.addEstimateBytesAndMaybeBreak(complementReservation, label);
+        Automaton complement;
+        try {
+            complement = Operations.complement(excluded, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        } finally {
+            circuitBreaker.addWithoutBreaking(-complementReservation, label);
+        }
+        return intersection(a, complement, circuitBreaker, label);
+    }
+
+    /** {@link Operations#intersection(Automaton, Automaton)}, charging each product state and transition as it is created. */
+    static Automaton intersection(Automaton a1, Automaton a2, CircuitBreaker circuitBreaker, String label) {
+        if (a1 == a2) {
+            return a1;
+        }
+        if (a1.getNumStates() == 0) {
+            return a1;
+        }
+        if (a2.getNumStates() == 0) {
+            return a2;
+        }
+        long reserved = 0;
+        long pending = (long) (a1.getNumTransitions() + a2.getNumTransitions()) * PRODUCT_TRANSITION_BYTES;
+        try {
+            circuitBreaker.addEstimateBytesAndMaybeBreak(pending, label);
+            reserved += pending;
+            pending = 0;
+            Transition[][] transitions1 = a1.getSortedTransitions();
+            Transition[][] transitions2 = a2.getSortedTransitions();
+            Automaton c = new Automaton();
+            c.createState();
+            ArrayDeque<int[]> worklist = new ArrayDeque<>();
+            LongIntHashMap newstates = new LongIntHashMap();
+            worklist.add(new int[] { 0, 0, 0 });
+            newstates.put(pairKey(0, 0), 0);
+            while (worklist.isEmpty() == false) {
+                int[] p = worklist.removeFirst();
+                c.setAccept(p[0], a1.isAccept(p[1]) && a2.isAccept(p[2]));
+                Transition[] t1 = transitions1[p[1]];
+                Transition[] t2 = transitions2[p[2]];
+                for (int n1 = 0, b2 = 0; n1 < t1.length; n1++) {
+                    while (b2 < t2.length && t2[b2].max < t1[n1].min) {
+                        b2++;
+                    }
+                    for (int n2 = b2; n2 < t2.length && t1[n1].max >= t2[n2].min; n2++) {
+                        if (t2[n2].max >= t1[n1].min) {
+                            long key = pairKey(t1[n1].dest, t2[n2].dest);
+                            int r;
+                            if (newstates.containsKey(key)) {
+                                r = newstates.get(key);
+                            } else {
+                                r = c.createState();
+                                worklist.add(new int[] { r, t1[n1].dest, t2[n2].dest });
+                                newstates.put(key, r);
+                                pending += PRODUCT_STATE_BYTES;
+                            }
+                            c.addTransition(p[0], r, Math.max(t1[n1].min, t2[n2].min), Math.min(t1[n1].max, t2[n2].max));
+                            pending += PRODUCT_TRANSITION_BYTES;
+                            if (pending >= PRODUCT_CHARGE_STEP) {
+                                circuitBreaker.addEstimateBytesAndMaybeBreak(pending, label);
+                                reserved += pending;
+                                pending = 0;
+                            }
+                        }
+                    }
+                }
+            }
+            c.finishState();
+            // removeDeadStates copies the live part of c
+            long copy = c.ramBytesUsed();
+            circuitBreaker.addEstimateBytesAndMaybeBreak(copy, label);
+            reserved += copy;
+            return Operations.removeDeadStates(c);
+        } finally {
+            circuitBreaker.addWithoutBreaking(-reserved, label);
+        }
+    }
+
+    private static long pairKey(int s1, int s2) {
+        return ((long) s1 << 32) | (s2 & 0xffffffffL);
+    }
 
     abstract static class IntSet {
         abstract int[] getArray();

@@ -11,12 +11,20 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.lucene.search.cost.RegexpNfaRamEstimator;
+import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringRenderable;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -74,6 +82,7 @@ public class LabelMatcher implements NodeStringRenderable {
     private final String name;
     private final List<String> values;
     private final Matcher matcher;
+    private final int maxRegexLength;
 
     private Automaton automaton;
 
@@ -82,9 +91,15 @@ public class LabelMatcher implements NodeStringRenderable {
     }
 
     public LabelMatcher(String name, List<String> values, Matcher matcher) {
+        this(name, values, matcher, MAX_REGEX_LENGTH);
+    }
+
+    /** Tests lift the length bound to reach the compiler's own overflow guard with a pattern the bound would reject first. */
+    LabelMatcher(String name, List<String> values, Matcher matcher, int maxRegexLength) {
         this.name = name;
         this.values = values;
         this.matcher = matcher;
+        this.maxRegexLength = maxRegexLength;
     }
 
     public String name() {
@@ -119,37 +134,112 @@ public class LabelMatcher implements NodeStringRenderable {
         return matcher;
     }
 
+    /**
+     * The bound the regexp query applies through {@code index.max_regex_length}, at its default: a label matcher has no
+     * index to read the setting from, but an unbounded pattern is how a query author overflows the compiler's stack.
+     */
+    public static final int MAX_REGEX_LENGTH = IndexSettings.MAX_REGEX_LENGTH_SETTING.getDefault(Settings.EMPTY);
+
     // TODO: externalize this to allow pluggable strategies (such as caching across labels/requests)
     public Automaton automaton() {
         if (automaton != null) {
             return automaton;
         }
-
-        Automaton result;
-        if (isMultiValue() && matcher.isRegex() == false) {
-            // Multi-value exact match: union of all literal values
-            List<Automaton> automata = values.stream().map(Automata::makeString).toList();
-            result = Operations.union(automata);
-        } else if (isMultiValue()) {
-            // Multi-value regex: union of all regex patterns
-            List<Automaton> automata = values.stream().map(v -> new RegExp(v).toAutomaton()).toList();
-            result = Operations.union(automata);
-        } else {
-            // Single value
-            String v = getFirstValue();
-            try {
-                result = matcher.isRegex() ? new RegExp(v).toAutomaton() : Automata.makeString(v);
-            } catch (IllegalArgumentException ex) {
-                throw new QlIllegalArgumentException(ex, "Cannot parse regex {}", v);
-            }
+        // A bad pattern is the user's, so every failure is a client error; QlIllegalArgumentException would be a 500.
+        // minimize() and complement() determinize too, so the guard covers the whole build, not just the parse.
+        try {
+            automaton = buildAutomaton();
+        } catch (TooComplexToDeterminizeException e) {
+            throw new IllegalArgumentException("The regex used in a label matcher is too complex to determinize", e);
+        } catch (StackOverflowError e) {
+            // Lucene's parser and toAutomaton() both recurse on nesting; an Error here would take the node down.
+            throw new IllegalArgumentException("The regex used in a label matcher is too deeply nested");
         }
-        result = MinimizationOperations.minimize(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-        // negate if needed
-        if (matcher == NEQ || matcher == NREG) {
-            result = Operations.complement(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-        }
-        automaton = result;
         return automaton;
+    }
+
+    private static final String BREAKER_LABEL = "promql_label_matcher";
+    /** Three table references, one reverse-edge entry and its share of the list that holds it, per state and alphabet point. */
+    private static final long MINIMIZE_BYTES_PER_CELL = 64;
+    /** The per-state partition set, split block and bit sets. */
+    private static final long MINIMIZE_BYTES_PER_STATE = 128;
+
+    private Automaton buildAutomaton() {
+        // Matchers are built while parsing, before any request breaker exists, so each build is bounded the way constant
+        // folding is: by a fresh fold budget, held only while the automaton is built. A length limit alone does not bound
+        // the heap: [ab]{1000}{1000}{1000} is 22 characters and about a billion NFA states.
+        CircuitBreaker breaker = FoldContext.small().circuitBreakerView(Source.EMPTY);
+        long held = 0;
+        try {
+            Automaton result;
+            if (isMultiValue() && matcher.isRegex() == false) {
+                // Multi-value exact match: union of all literal values
+                List<Automaton> automata = values.stream().map(Automata::makeString).toList();
+                result = Operations.union(automata);
+            } else if (isMultiValue()) {
+                // Multi-value regex: union of all regex patterns
+                List<Automaton> automata = new ArrayList<>(values.size());
+                for (String value : values) {
+                    Automaton automaton = regexAutomaton(value, breaker);
+                    held += hold(automaton, breaker);
+                    automata.add(automaton);
+                }
+                result = Operations.union(automata);
+            } else {
+                // Single value
+                String v = getFirstValue();
+                result = matcher.isRegex() ? regexAutomaton(v, breaker) : Automata.makeString(v);
+            }
+            held += hold(result, breaker);
+            result = CircuitBreakingOperations.determinize(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, breaker, BREAKER_LABEL);
+            held += hold(result, breaker);
+            // Hopcroft minimization builds three states-by-alphabet tables plus a reverse-edge list per cell, far larger than
+            // the DFA itself; complement then totalizes and copies it. Charge both before either runs.
+            long tables = (long) result.getNumStates() * result.getStartPoints().length * MINIMIZE_BYTES_PER_CELL + (long) result
+                .getNumStates() * MINIMIZE_BYTES_PER_STATE + 3 * result.ramBytesUsed();
+            breaker.addEstimateBytesAndMaybeBreak(tables, BREAKER_LABEL);
+            held += tables;
+            result = MinimizationOperations.minimize(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            // negate if needed
+            if (matcher == NEQ || matcher == NREG) {
+                result = Operations.complement(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            }
+            return result;
+        } finally {
+            breaker.addWithoutBreaking(-held);
+        }
+    }
+
+    private static long hold(Automaton automaton, CircuitBreaker breaker) {
+        long bytes = automaton.ramBytesUsed();
+        breaker.addEstimateBytesAndMaybeBreak(bytes, BREAKER_LABEL);
+        return bytes;
+    }
+
+    private Automaton regexAutomaton(String regex, CircuitBreaker breaker) {
+        if (regex.length() > maxRegexLength) {
+            throw new IllegalArgumentException(
+                "The length of regex ["
+                    + regex.length()
+                    + "] used in a label matcher has exceeded the allowed maximum of ["
+                    + maxRegexLength
+                    + "]"
+            );
+        }
+        RegExp re;
+        try {
+            re = new RegExp(regex);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Cannot parse regex " + regex, ex);
+        }
+        // The NFA is built with its estimated peak reserved, as the regexp query does; the budget refuses it before any of it exists.
+        long reservation = RegexpNfaRamEstimator.estimateRamBytes(re);
+        breaker.addEstimateBytesAndMaybeBreak(reservation, BREAKER_LABEL);
+        try {
+            return re.toAutomaton();
+        } finally {
+            breaker.addWithoutBreaking(-reservation);
+        }
     }
 
     public boolean matchesAll() {

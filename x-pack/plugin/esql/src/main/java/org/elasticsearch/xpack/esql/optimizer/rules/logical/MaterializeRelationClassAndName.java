@@ -50,9 +50,9 @@ import java.util.List;
  * <p>
  * That {@code Eval} is why this rule runs in its own batch after {@code operators()} has converged rather
  * than inside it. {@code PushDownUtils.isLeafUnionAll} gates four {@code UnionAll} pushdowns and accepts
- * only a relation or a {@code Project} directly over one, because {@code Project > Eval > relation} is the
- * shape a FORK branch has. Materialising inside {@code operators()} therefore made every branch look like
- * a FORK branch and switched those pushdowns off: a heterogeneous {@code STATS} stopped decomposing into a
+ * only a relation or a {@code Project} directly over one, so that it excludes the subquery shape
+ * {@code Project > Eval? > Subquery}. Materialising inside {@code operators()} put an {@code Eval} under
+ * every branch and so switched those pushdowns off: a heterogeneous {@code STATS} stopped decomposing into a
  * partial per branch and shipped every row to one aggregator instead. Running afterwards, the pushdowns
  * see the plain relation, and an aggregate that was pushed into a branch keeps this {@code Eval} below it
  * -- so {@code STATS ... BY _class} groups on a per-branch constant. {@code RelationClassGoldenTests} pins

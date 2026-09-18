@@ -144,6 +144,9 @@ tests:
 - class: org.elasticsearch.xpack.rank.linear.LinearRetrieverIT
   method: testLinearRetrieverPartialSearchErrorsFalse
   issue: https://github.com/elastic/elasticsearch/issues/159724
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
+  method: testHugeToBase64
+  issue: https://github.com/elastic/elasticsearch/issues/159785
 
 # Examples:
 #

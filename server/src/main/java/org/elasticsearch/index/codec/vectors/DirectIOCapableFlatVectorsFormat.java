@@ -69,41 +69,44 @@ public abstract class DirectIOCapableFlatVectorsFormat extends AbstractFlatVecto
         if (state.context.context() != IOContext.Context.DEFAULT || canUseDirectIO(state) == false) {
             return createReader(state);
         }
-        // two independent decisions: on_disk_rescore says how the search-side reader reads,
-        // on_disk_merge says how merges read
-        if (useDirectIO == false && onDiskMerge == false) {
+        // the two options are independent, but in every combination the merge instance must never be the
+        // random-access direct I/O search reader
+        if (useDirectIO && onDiskMerge) {
+            return new MergeReaderWrapper(createReader(directIOSearchState(state)), () -> createReader(directIOMergeState(state)), true);
+        } else if (useDirectIO) {
+            return new MergeReaderWrapper(createReader(directIOSearchState(state)), () -> createReader(state), true);
+        } else if (onDiskMerge) {
+            return new MergeReaderWrapper(createReader(state), () -> createReader(directIOMergeState(state)), false);
+        } else {
             return createReader(state);
         }
-        SegmentReadState mainState = useDirectIO
-            ? new SegmentReadState(
-                state.directory,
-                state.segmentInfo,
-                state.fieldInfos,
-                new DirectIOContext(state.context.hints()),
-                state.segmentSuffix
-            )
-            : state;
-        if (onDiskMerge == false) {
-            // direct I/O searches, page-cache merges: the merge instance must not be the
-            // random-access direct I/O reader, so merges get a plain reader of their own
-            return new MergeReaderWrapper(createReader(mainState), () -> createReader(state), useDirectIO);
-        }
-        // MERGE here only selects the merge-sized direct I/O delegate in HybridDirectory; the reader is
-        // created from the search-time state, so the context carries no MergeInfo (see DirectIOContext#mergeInfo)
-        SegmentReadState mergeDirectIOState = new SegmentReadState(
+    }
+
+    private static SegmentReadState directIOSearchState(SegmentReadState state) {
+        return new SegmentReadState(
+            state.directory,
+            state.segmentInfo,
+            state.fieldInfos,
+            new DirectIOContext(state.context.hints()),
+            state.segmentSuffix
+        );
+    }
+
+    /**
+     * the merge-side state with the direct I/O hint. MERGE here only selects the merge-sized direct I/O delegate in
+     * HybridDirectory; the reader is created from the search-time state, so the context carries no MergeInfo (see
+     * DirectIOContext#mergeInfo). A merge reads each source twice through this reader, once to verify its checksum
+     * and once to stream it; both stay direct on purpose, since verifying through the page cache would fault the
+     * whole source in, the eviction the option exists to avoid
+     */
+    private static SegmentReadState directIOMergeState(SegmentReadState state) {
+        return new SegmentReadState(
             state.directory,
             state.segmentInfo,
             state.fieldInfos,
             new DirectIOContext(IOContext.Context.MERGE, state.context.hints()),
             state.segmentSuffix
         );
-        // the wrapper serves searches from the main reader and merges from a lazily-created reader
-        // whose MERGE-context direct I/O hint the directory routes to its merge-sized delegate. A merge
-        // reads each source twice through the instance it takes from getMergeInstance(): once to verify
-        // its checksum, once to stream it. Both stay direct on purpose: verifying through the page cache
-        // would fault the whole source in, the eviction the option exists to avoid, so the second
-        // device read is the price paid
-        return new MergeReaderWrapper(createReader(mainState), () -> createReader(mergeDirectIOState), useDirectIO);
     }
 
     /**

@@ -76,10 +76,8 @@ public class ReloadableTlsStrategyTests extends ESTestCase {
         final ReloadableTlsStrategy wrapper = new ReloadableTlsStrategy();
 
         final SSLSession session = mock(SSLSession.class);
-        final TlsDetails tlsDetails = mock(TlsDetails.class);
-        when(tlsDetails.getSSLSession()).thenReturn(session);
         final TransportSecurityLayer result = mock(TransportSecurityLayer.class);
-        when(result.getTlsDetails()).thenReturn(tlsDetails);
+        when(result.getTlsDetails()).thenReturn(new TlsDetails(session, null));
 
         wrapper.setDelegate(completingDelegate(result));
         final int epoch = wrapper.currentEpoch();
@@ -157,7 +155,7 @@ public class ReloadableTlsStrategyTests extends ESTestCase {
         final ReloadableTlsStrategy wrapper = new ReloadableTlsStrategy();
         wrapper.setDelegate(mock(DefaultClientTlsStrategy.class));
 
-        final boolean result = wrapper.upgrade(mock(TransportSecurityLayer.class), mock(HttpHost.class), null, null, null, null);
+        final boolean result = wrapper.upgrade(mock(TransportSecurityLayer.class), new HttpHost("localhost"), null, null, null, null);
         assertTrue("deprecated upgrade() must always return true", result);
     }
 

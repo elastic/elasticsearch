@@ -14,7 +14,6 @@ import org.apache.hc.client5.http.ssl.DefaultClientTlsStrategy;
 import org.apache.hc.core5.http.ConnectionReuseStrategy;
 import org.apache.hc.core5.http.HttpRequest;
 import org.apache.hc.core5.http.HttpResponse;
-import org.apache.hc.core5.http.protocol.HttpCoreContext;
 import org.elasticsearch.test.ESTestCase;
 
 import javax.net.ssl.SSLSession;
@@ -29,7 +28,7 @@ public class RotationAwareReuseStrategyTests extends ESTestCase {
 
     private static HttpClientContext contextWithSession(SSLSession session) {
         final HttpClientContext ctx = HttpClientContext.create();
-        ctx.setAttribute(HttpCoreContext.SSL_SESSION, session);
+        ctx.setSSLSession(session);
         return ctx;
     }
 

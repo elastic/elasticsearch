@@ -686,7 +686,7 @@ public class CaseExtraTests extends ESTestCase {
     private void assertMultivalueConditionWarnings() {
         assertWarnings(
             "Line -1:-1: evaluation of [cond] failed, treating result as false. Only first 20 failures recorded.",
-            "Line -1:-1: java.lang.IllegalArgumentException: CASE expects a single-valued boolean"
+            "Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
         );
     }
 

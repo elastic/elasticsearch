@@ -58,11 +58,12 @@ public final class Case extends EsqlScalarFunction {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Case.class)
         .unaryVariadic(Case::new)
         // A one value list condition is single valued, so it picks a branch like a plain boolean.
-        // A multivalued one warns even when the CASE is only partially folded.
-        .capabilities("flattened", "single_value_list_condition", "partial_fold_multivalue_warning")
+        // A multivalued one warns even when the CASE is only partially folded, and reports the
+        // same message the other functions use.
+        .capabilities("flattened", "single_value_list_condition", "partial_fold_multivalue_warning", "standard_multivalue_message")
         .name("case");
 
-    private static final String MULTIVALUE_CONDITION_MESSAGE = "CASE expects a single-valued boolean";
+    private static final String MULTIVALUE_CONDITION_MESSAGE = "single-value function encountered multi-value";
 
     record Condition(Expression condition, Expression value) {
         ConditionEvaluatorSupplier toEvaluator(ToEvaluator toEvaluator) {

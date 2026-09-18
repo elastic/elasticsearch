@@ -65,7 +65,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 returnType,
                 List.of(
                     "Line -1:-1: evaluation of [cond] failed, treating result as false. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.IllegalArgumentException: CASE expects a single-valued boolean"
+                    "Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
                 )
             );
         }
@@ -84,7 +84,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 returnType,
                 List.of(
                     "Line -1:-1: evaluation of [cond1] failed, treating result as false. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.IllegalArgumentException: CASE expects a single-valued boolean"
+                    "Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
                 )
             );
             fourAndFiveArgs(
@@ -95,7 +95,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 returnType,
                 List.of(
                     "Line -1:-1: evaluation of [cond2] failed, treating result as false. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.IllegalArgumentException: CASE expects a single-valued boolean"
+                    "Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
                 )
             );
         }

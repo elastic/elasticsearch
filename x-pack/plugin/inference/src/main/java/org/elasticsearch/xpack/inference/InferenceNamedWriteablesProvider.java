@@ -126,6 +126,12 @@ import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCo
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.nvidia.rerank.NvidiaRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiSecretSettings;
+import org.elasticsearch.xpack.inference.services.ocigenai.completion.OciGenAiChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.ocigenai.embeddings.OciGenAiEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.ocigenai.embeddings.OciGenAiEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.ocigenai.rerank.OciGenAiRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.ocigenai.rerank.OciGenAiRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
@@ -190,6 +196,7 @@ public class InferenceNamedWriteablesProvider {
         addAzureAiStudioNamedWriteables(namedWriteables);
         addGoogleAiStudioNamedWritables(namedWriteables);
         addIbmWatsonxNamedWritables(namedWriteables);
+        addOciGenAiNamedWriteables(namedWriteables);
         addGoogleVertexAiNamedWriteables(namedWriteables);
         addMistralNamedWriteables(namedWriteables);
         addCustomElandWriteables(namedWriteables);
@@ -705,6 +712,35 @@ public class InferenceNamedWriteablesProvider {
                 IbmWatsonxChatCompletionServiceSettings.NAME,
                 IbmWatsonxChatCompletionServiceSettings::new
             )
+        );
+    }
+
+    private static void addOciGenAiNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(SecretSettings.class, OciGenAiSecretSettings.NAME, OciGenAiSecretSettings::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                OciGenAiEmbeddingsServiceSettings.NAME,
+                OciGenAiEmbeddingsServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(TaskSettings.class, OciGenAiEmbeddingsTaskSettings.NAME, OciGenAiEmbeddingsTaskSettings::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                OciGenAiChatCompletionServiceSettings.NAME,
+                OciGenAiChatCompletionServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(ServiceSettings.class, OciGenAiRerankServiceSettings.NAME, OciGenAiRerankServiceSettings::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(TaskSettings.class, OciGenAiRerankTaskSettings.NAME, OciGenAiRerankTaskSettings::new)
         );
     }
 

@@ -205,6 +205,7 @@ import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
 import org.elasticsearch.xpack.inference.services.llama.LlamaService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaService;
+import org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 import org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiService;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerClient;
@@ -724,6 +725,7 @@ public class InferencePlugin extends Plugin
         factories.add(context -> new AmazonBedrockService(httpFactory.get(), amazonBedrockFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new AlibabaCloudSearchService(httpFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new IbmWatsonxService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new OciGenAiService(httpFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new JinaAIService(httpFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new VoyageAIService(httpFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new DeepSeekService(httpFactory.get(), serviceComponents.get(), context));

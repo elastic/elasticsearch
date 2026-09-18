@@ -679,6 +679,132 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         }
     }
 
+    /**
+     * Verifies the invariant: {@link IndexEngine#isVersionMapUnsafe} consults the archive's unsafe
+     * flag only for {@link Engine.OperationPurpose#GET_FROM_TRANSLOG}, which is the only purpose for
+     * which {@link IndexEngine#refreshInternalSearcher} flushes and can therefore clear the archive.
+     * For all other purposes, only {@code current} and {@code old} maps are consulted.
+     * <p>
+     * If this invariant is ever broken — i.e. some other purpose starts consulting the archive while
+     * {@code refreshInternalSearcher} does not flush for that purpose — every write under an unsafe
+     * archive will trigger repeated, fruitless refreshes in a tight loop.
+     */
+    public void testVersionMapUnsafeCheckConsultsArchiveOnlyForGetFromTranslog() throws IOException {
+        try (var engine = newIndexEngine(indexConfig())) {
+            // Arm the archive-unsafe state: APPEND-index followed by a refresh
+            engine.index(appendDoc("1"));
+            engine.refresh("test");
+
+            // After the refresh: current and old are clean, archive.isUnsafe=true
+            for (Engine.OperationPurpose purpose : Engine.OperationPurpose.values()) {
+                boolean expected = purpose == Engine.OperationPurpose.GET_FROM_TRANSLOG;
+                assertEquals("isVersionMapUnsafe(" + purpose + ") with only archive unsafe", expected, engine.isVersionMapUnsafe(purpose));
+            }
+        }
+    }
+
+    /**
+     * Verifies that mutation-path writes do not trigger unnecessary version-map refreshes when
+     * only the archive's unsafe flag is set (i.e. {@code current} and {@code old} are clean).
+     * <p>
+     * Previously, {@code isVersionMapUnsafe} used the full {@link org.elasticsearch.index.engine.LiveVersionMap#isUnsafe()}
+     * check for all purposes including {@code MUTATION}. Because {@link StatelessLiveVersionMapArchive#isUnsafe()}
+     * can only be cleared by a flush that {@code refreshInternalSearcher} deliberately skips for mutation
+     * purposes, every write would re-enter {@code synchronized(versionMap)} and trigger a redundant
+     * refresh in a tight loop — causing write-thread-pool queue latency to spike on index nodes.
+     */
+    public void testMutationWritesDoNotRefreshWhenOnlyArchiveIsUnsafe() throws IOException {
+        var unsafeRefreshCount = new AtomicInteger();
+        var commitService = mockCommitService(Settings.EMPTY);
+        var indexConfig = indexConfig();
+        var objectStoreService = mock(ObjectStoreService.class);
+
+        try (
+            var engine = new IndexEngine(
+                indexConfig,
+                mock(TranslogReplicator.class),
+                objectStoreService::getTranslogBlobContainer,
+                commitService,
+                mock(HollowShardsService.class),
+                mock(SharedBlobCacheWarmingService.class),
+                new RefreshManagerService.Noop(),
+                mockReshardIndexService(),
+                commitService.getCommitBCCResolverForShard(indexConfig.getShardId()),
+                DocumentParsingProvider.EMPTY_INSTANCE,
+                new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP, HollowShardsMetrics.NOOP),
+                newIndexEngineDynamicSettings(indexConfig.getIndexSettings().getNodeSettings()),
+                commitService.getShardLocalCommitsTracker(indexConfig.getShardId()).shardLocalReadersTracker()
+            ) {
+                @Override
+                public void close() throws IOException {
+                    try {
+                        super.close();
+                    } finally {
+                        indexConfig.getStore().decRef();
+                    }
+                }
+
+                @Override
+                protected RefreshResult refreshInternalSearcher(Engine.OperationPurpose purpose, String source, boolean block)
+                    throws EngineException {
+                    if (UNSAFE_VERSION_MAP_REFRESH_SOURCE.equals(source)) {
+                        unsafeRefreshCount.incrementAndGet();
+                    }
+                    return super.refreshInternalSearcher(purpose, source, block);
+                }
+            }
+        ) {
+            engine.skipTranslogRecovery();
+
+            // Index via the APPEND optimisation path to arm the archive-unsafe state
+            engine.index(appendDoc("1"));
+            engine.refresh("test");  // rotates current/old into archive; archive.isUnsafe=true
+
+            // Precondition: only archive is unsafe — verify both sides of the fix
+            assertFalse(engine.isVersionMapUnsafe(Engine.OperationPurpose.MUTATION));
+            assertTrue(engine.isVersionMapUnsafe(Engine.OperationPurpose.GET_FROM_TRANSLOG));
+
+            int refreshesBefore = unsafeRefreshCount.get();
+
+            // Mutation writes must NOT trigger UNSAFE_VERSION_MAP_REFRESH_SOURCE refreshes
+            int numWrites = randomIntBetween(5, 20);
+            for (int i = 0; i < numWrites; i++) {
+                engine.index(randomDoc(String.valueOf(i + 2)));
+            }
+
+            assertThat(
+                "mutation writes triggered unexpected version-map refreshes with only archive unsafe",
+                unsafeRefreshCount.get(),
+                equalTo(refreshesBefore)
+            );
+        }
+    }
+
+    /**
+     * Builds an {@link Engine.Index} that triggers the APPEND optimisation path
+     * ({@code canOptimizeAddDocument} returns {@code true}) by setting a non-negative
+     * {@code autoGeneratedIdTimestamp}.  The APPEND path calls {@code maybePutIndexUnderLock},
+     * which marks {@code current} as unsafe and — after a subsequent refresh — causes the
+     * {@link StatelessLiveVersionMapArchive} to set its {@code isUnsafe} flag.
+     */
+    private static Engine.Index appendDoc(String id) throws IOException {
+        var doc = randomDoc(id);
+        return new Engine.Index(
+            doc.uid(),
+            doc.parsedDoc(),
+            UNASSIGNED_SEQ_NO,
+            1,
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            PRIMARY,
+            System.nanoTime(),
+            0L,  // autoGeneratedIdTimestamp >= 0 triggers APPEND path (UNSET is -1L)
+            false,
+            UNASSIGNED_SEQ_NO,
+            0
+        );
+    }
+
     private static Engine.Index versionConflictingIndexOperation(Engine.Index indexOp) throws IOException {
         return new Engine.Index(
             newUid(indexOp.parsedDoc()),

@@ -23,6 +23,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.enforceSafeAccess;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.get;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isCurrentUnsafe;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafe;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.maybePutIndex;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.newDeleteVersionValue;
@@ -203,6 +204,54 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         flush(map, currentGeneration, preCommitGeneration);
         archive.afterUnpromotablesRefreshed(preCommitGeneration.get());
         assertThat(archive.getMinDeleteTimestamp(), equalTo(Long.MAX_VALUE));
+    }
+
+    /**
+     * Verifies that {@link org.elasticsearch.index.engine.LiveVersionMap#isCurrentUnsafe()} ignores
+     * the archive's unsafe flag and only reflects the state of the {@code current} and {@code old} maps.
+     * <p>
+     * After a refresh moves an unsafe map into the archive, {@code isUnsafe()} remains {@code true}
+     * (the archive still reports unsafe until search nodes flush), but {@code isCurrentUnsafe()} becomes
+     * {@code false} because {@code current} and {@code old} are both clean. This distinction is what
+     * allows {@link org.elasticsearch.xpack.stateless.engine.IndexEngine} to avoid serialising
+     * mutation-path writes on an indefinitely-set archive unsafe flag.
+     */
+    public void testIsCurrentUnsafeIgnoresArchiveUnsafeState() {
+        AtomicLong currentGeneration = new AtomicLong(0);
+        AtomicLong preCommitGeneration = new AtomicLong(0);
+        var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
+        var map = newLiveVersionMap(archive);
+
+        assertFalse(isUnsafe(map));
+        assertFalse(isCurrentUnsafe(map));
+
+        // APPEND-path index marks current as unsafe
+        maybePutIndex(map, "1", newIndexVersionValue(randomOperationLocation(), 1, 1, 1));
+        assertTrue(isUnsafe(map));
+        assertTrue(isCurrentUnsafe(map));
+
+        // A refresh rotates current→old→archive: archive.isUnsafe becomes true, current and old become clean
+        refresh(map);
+        assertTrue("archive received unsafe map: isUnsafe() must still be true", isUnsafe(map));
+        assertFalse("current and old are clean: isCurrentUnsafe() must be false", isCurrentUnsafe(map));
+
+        // Extra refreshes and flushes (without an unpromotable-refresh ack) must not change this
+        int extraRefreshes = randomIntBetween(1, 5);
+        for (int i = 0; i < extraRefreshes; i++) {
+            if (randomBoolean()) {
+                preCommitGeneration.incrementAndGet();
+                currentGeneration.incrementAndGet();
+            }
+            refresh(map);
+        }
+        assertTrue(isUnsafe(map));
+        assertFalse(isCurrentUnsafe(map));
+
+        // Only a flush acknowledged by the search nodes clears the archive flag
+        flush(map, currentGeneration, preCommitGeneration);
+        archive.afterUnpromotablesRefreshed(preCommitGeneration.get());
+        assertFalse(isUnsafe(map));
+        assertFalse(isCurrentUnsafe(map));
     }
 
     public void testUnsafeMapIsRecordedInArchiveUntilUnpromotablesAreRefreshed() {

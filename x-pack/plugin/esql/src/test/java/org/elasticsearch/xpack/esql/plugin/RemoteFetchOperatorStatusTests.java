@@ -112,11 +112,8 @@ public class RemoteFetchOperatorStatusTests extends AbstractWireSerializingTestC
 
     public void testEmptyProfileIsOmittedFromXContent() {
         RemoteFetchOperator.Status status = new RemoteFetchOperator.Status(1, 2, 30, 20, 4, 3);
-        assertThat(
-            Strings.toString(status),
-            equalTo("""
-                {"pages_received":1,"pages_emitted":2,"rows_received":30,"rows_emitted":20,"batches_sent":4,"exchanges_opened":3}""")
-        );
+        assertThat(Strings.toString(status), equalTo("""
+            {"pages_received":1,"pages_emitted":2,"rows_received":30,"rows_emitted":20,"batches_sent":4,"exchanges_opened":3}"""));
     }
 
     public void testProfileIsOmittedForOldVersions() throws IOException {

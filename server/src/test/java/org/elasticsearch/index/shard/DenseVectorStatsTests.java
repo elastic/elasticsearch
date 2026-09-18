@@ -387,10 +387,7 @@ public class DenseVectorStatsTests extends AbstractWireSerializingTestCase<Dense
 
         assertThat(output, containsString("auto_calibration"));
         String afterPlainField = output.substring(output.indexOf("\"plain_field\""));
-        assertFalse(
-            "auto_calibration should not appear in plain_field block",
-            afterPlainField.contains("auto_calibration")
-        );
+        assertFalse("auto_calibration should not appear in plain_field block", afterPlainField.contains("auto_calibration"));
     }
 
     public void testBasicAdd() {

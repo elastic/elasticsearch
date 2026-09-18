@@ -285,12 +285,7 @@ public class DenseVectorStats implements Writeable, ToXContentFragment {
         public final long sizeInBytes;
         public final int numberOfSegments;
 
-        public AutoCalibrationEntry(
-            SegmentCalibrationParameters parameters,
-            long numberOfVectors,
-            long sizeInBytes,
-            int numberOfSegments
-        ) {
+        public AutoCalibrationEntry(SegmentCalibrationParameters parameters, long numberOfVectors, long sizeInBytes, int numberOfSegments) {
             this.parameters = parameters;
             this.numberOfVectors = numberOfVectors;
             this.sizeInBytes = sizeInBytes;

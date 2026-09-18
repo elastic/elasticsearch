@@ -7,15 +7,25 @@
 
 package org.elasticsearch.xpack.esql.type;
 
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 
+import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomProperties;
 import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomTextEsField;
 
 public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
+    /** Older peers omit the analyzer name while retaining the rest of the field definition. */
+    public void testAnalyzerNameSerialization() throws IOException {
+        var field = new TextEsField("title", Map.of(), false, false, EsField.TimeSeriesFieldType.NONE, "english");
+        var oldVersion = TransportVersionUtils.getPreviousVersion(TextEsField.FIELD_CAPS_INDEX_ANALYZER);
+        assertEquals(new TextEsField("title", Map.of(), false, false, EsField.TimeSeriesFieldType.NONE), copyInstance(field, oldVersion));
+        assertEquals(field, copyInstance(field, TextEsField.FIELD_CAPS_INDEX_ANALYZER));
+    }
+
     @Override
     protected TextEsField createTestInstance() {
         return randomTextEsField(4);

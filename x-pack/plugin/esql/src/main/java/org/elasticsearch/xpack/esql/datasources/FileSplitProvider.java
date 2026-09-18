@@ -2859,8 +2859,8 @@ public class FileSplitProvider implements SplitProvider {
 
     /**
      * Hive partitions and {@code _file.*} listing values plus the engine-materialised per-file
-     * constants ({@code _score} and the all-null standard names). Used only for discovery filter
-     * evaluation; the {@link FileTask} carries hive + {@code _file.*} only.
+     * constants (the all-null standard names). Used only for discovery filter evaluation; the
+     * {@link FileTask} carries hive + {@code _file.*} only.
      * Only names bound as metadata in the relation's output receive constants, matching the
      * reader. Data columns retain their physical values or missing-column null-fill.
      */

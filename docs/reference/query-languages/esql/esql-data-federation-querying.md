@@ -88,9 +88,9 @@ When sources have different schemas, columns that do not exist in a given source
 | `_class` {applies_to}`stack: experimental 9.6+` | `dataset` |
 | `_name` {applies_to}`stack: experimental 9.6+` | The dataset name. |
 | `_file.path`, `_file.name`, `_file.directory`, `_file.size`, `_file.modified` | The object each row was read from. |
-| `_score` | `0` |
 | `_ignored` | null |
 | `_index_mode`, `_tsid`, `_size` | null |
+| `_score` | null |
 | `_index` {applies_to}`stack: experimental 9.6+` | null |
 | `_id`, `_version`, `_source` {applies_to}`stack: experimental 9.6+` | null |
 

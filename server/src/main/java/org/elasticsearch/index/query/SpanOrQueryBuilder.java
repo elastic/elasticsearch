@@ -151,6 +151,11 @@ public class SpanOrQueryBuilder extends LeafQueryBuilder<SpanOrQueryBuilder> imp
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        return QUERY_BUILDER_SIZE_ESTIMATE_BYTES + clauses.size() * 8L;
+    }
+
+    @Override
     protected int doHashCode() {
         return Objects.hash(clauses);
     }

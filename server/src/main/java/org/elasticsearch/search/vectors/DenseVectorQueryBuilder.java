@@ -320,6 +320,18 @@ public class DenseVectorQueryBuilder extends LeafQueryBuilder<DenseVectorQueryBu
     }
 
     @Override
+    protected long parseTimeBreakerEstimate() {
+        long base = QUERY_BUILDER_SIZE_ESTIMATE_BYTES + fieldName.length() * 2L + 64L;
+        if (queryVector == null) {
+            return base + (queryVectorBuilder != null ? queryVectorBuilder.parseTimeBreakerEstimate() : 0L);
+        }
+        if (queryVector.floatVector() != null) return base + queryVector.floatVector().length * 4L;
+        if (queryVector.byteVector() != null) return base + queryVector.byteVector().length;
+        if (queryVector.stringVector() != null) return base + queryVector.stringVector().length() * 2L;
+        return base;
+    }
+
+    @Override
     protected int doHashCode() {
         return Objects.hash(fieldName, queryVector, queryVectorBuilder, similarityFunction, quantized);
     }

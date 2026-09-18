@@ -248,26 +248,41 @@ public class RatedRequest implements Writeable, ToXContentObject {
     private static final ParseField FIELDS_FIELD = new ParseField("summary_fields");
     private static final ParseField TEMPLATE_ID_FIELD = new ParseField("template_id");
 
+    // Tracks the SSB parsed by the PARSER's REQUEST_FIELD lambda so fromXContent can release it if
+    // ConstructingObjectParser throws before invoking the constructor (e.g. a required field is absent).
+    private static final ThreadLocal<SearchSourceBuilder> pendingRequest = new ThreadLocal<>();
+
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<RatedRequest, Predicate<NodeFeature>> PARSER = new ConstructingObjectParser<>(
         "request",
-        a -> new RatedRequest(
-            (String) a[0],
-            (List<RatedDocument>) a[1],
-            (SearchSourceBuilder) a[2],
-            (Map<String, Object>) a[3],
-            (String) a[4]
-        )
+        a -> {
+            SearchSourceBuilder ssb = (SearchSourceBuilder) a[2];
+            // Hand off ownership before construction; if the constructor throws, the catch below cleans up.
+            pendingRequest.remove();
+            try {
+                return new RatedRequest((String) a[0], (List<RatedDocument>) a[1], ssb, (Map<String, Object>) a[3], (String) a[4]);
+            } catch (Exception e) {
+                // Constructor validation failed after the query was parsed and charged; release the charge.
+                if (ssb != null) ssb.close();
+                throw e;
+            }
+        }
     );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ID_FIELD);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> RatedDocument.fromXContent(p), RATINGS_FIELD);
-        PARSER.declareObject(
-            ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> new SearchSourceBuilder().parseXContent(p, false, c),
-            REQUEST_FIELD
-        );
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+            SearchSourceBuilder ssb = new SearchSourceBuilder();
+            try {
+                ssb.parseXContent(p, false, c);
+                pendingRequest.set(ssb);
+                return ssb;
+            } catch (Exception e) {
+                ssb.close();
+                throw e;
+            }
+        }, REQUEST_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), PARAMS_FIELD);
         PARSER.declareStringArray(RatedRequest::addSummaryFields, FIELDS_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TEMPLATE_ID_FIELD);
@@ -277,7 +292,17 @@ public class RatedRequest implements Writeable, ToXContentObject {
      * parse from rest representation
      */
     public static RatedRequest fromXContent(XContentParser parser, Predicate<NodeFeature> clusterSupportsFeature) {
-        return PARSER.apply(parser, clusterSupportsFeature);
+        try {
+            return PARSER.apply(parser, clusterSupportsFeature);
+        } catch (Exception e) {
+            // If ConstructingObjectParser threw before invoking the constructor (e.g. a required field was
+            // absent), the SSB parsed for REQUEST_FIELD is still in pendingRequest; release its charge.
+            SearchSourceBuilder ssb = pendingRequest.get();
+            if (ssb != null) ssb.close();
+            throw e;
+        } finally {
+            pendingRequest.remove();
+        }
     }
 
     @Override

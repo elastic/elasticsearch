@@ -203,7 +203,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         // nothing is set that we can't support
         validateSearchRequest(request);
 
-        // The original request is added as-is (if normal indices exist), minus the rollup indices
+        // The original request is added as-is (if normal indices exist), minus the rollup indices.
         final SearchRequest originalRequest = new SearchRequest(context.getLiveIndices(), request.source());
         MultiSearchRequest msearch = new MultiSearchRequest();
         if (context.hasLiveIndices()) {

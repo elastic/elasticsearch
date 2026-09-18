@@ -10,14 +10,20 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -212,4 +218,41 @@ public class DenseVectorQueryBuilderTests extends AbstractQueryTestCase<DenseVec
         assertThat(e.getMessage(), containsString("similarity_function"));
         assertThat(e.getMessage(), containsString("quantized"));
     }
+
+    public void testQueryVectorBuilderTextBreakerEstimate() {
+        // When queryVector is absent, parseTimeBreakerEstimate() delegates to queryVectorBuilder.
+        QueryVectorBuilder stub = new QueryVectorBuilder() {
+            @Override
+            public void buildVector(Client c, ActionListener<float[]> l) {}
+
+            @Override
+            public String getWriteableName() {
+                return "stub";
+            }
+
+            @Override
+            public TransportVersion getMinimalSupportedVersion() {
+                return TransportVersion.minimumCompatible();
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) {}
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder b, ToXContent.Params p) {
+                return b;
+            }
+
+            @Override
+            public long parseTimeBreakerEstimate() {
+                return 500L;
+            }
+        };
+        DenseVectorQueryBuilder q = new DenseVectorQueryBuilder(VECTOR_FIELD, null, stub, null, null);
+        assertEquals(
+            AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + VECTOR_FIELD.length() * 2L + 64L + 500L,
+            q.parseTimeBreakerEstimate()
+        );
+    }
+
 }

@@ -354,6 +354,15 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         assertThat(rewritten, CoreMatchers.instanceOf(MatchNoneQueryBuilder.class));
     }
 
+    public void testPayloadBreakerTripsOnLargeTermsList() throws IOException {
+        // Root query is charged its full parseTimeBreakerEstimate(). One term fits; two do not.
+        // CircuitBreakingException propagates directly — no ObjectParser wrapping at root level.
+        String term = "value";
+        long perTerm = term.length() * 2L + 64L;
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + TEXT_FIELD_NAME.length() * 2L + 64L + perTerm;
+        assertParseTimeBreaker(limit, new TermsQueryBuilder(TEXT_FIELD_NAME, term), new TermsQueryBuilder(TEXT_FIELD_NAME, term, "other"));
+    }
+
     @Override
     protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
         QueryBuilder query = super.parseQuery(parser);

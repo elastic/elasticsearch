@@ -275,4 +275,17 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
             assertThat(clauseQuery, equalTo(expectedClauseQueries.get(i)));
         }
     }
+
+    public void testFieldValueBreakerEstimate() throws IOException {
+        // MatchBoolPrefixQueryBuilder stores value as String: estimateValue = s.length()*2 + 64.
+        // TEXT_FIELD_NAME = "mapped_string" (13 chars): fieldName cost = 13*2+64 = 90.
+        // "hi" → estimateValue = 2*2+64 = 68. Small cost = BASELINE + 90 + 68 = 414.
+        long baseline = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        String shortValue = "hi";
+        long smallCost = baseline + 13 * 2L + 64L + shortValue.length() * 2L + 64L;
+        long limit = smallCost;
+        MatchBoolPrefixQueryBuilder small = new MatchBoolPrefixQueryBuilder(TEXT_FIELD_NAME, shortValue);
+        MatchBoolPrefixQueryBuilder big = new MatchBoolPrefixQueryBuilder(TEXT_FIELD_NAME, "x".repeat(500));
+        assertParseTimeBreaker(limit, small, big);
+    }
 }

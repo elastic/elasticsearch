@@ -53,11 +53,23 @@ public final class RescorerRetrieverBuilder extends CompoundRetrieverBuilder<Res
             if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                 List<RescorerBuilder<?>> rescorers = new ArrayList<>();
                 while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                    rescorers.add(RescorerBuilder.parseFromXContent(parser, name -> context.trackRescorerUsage(name)));
+                    rescorers.add(
+                        RescorerBuilder.parseFromXContent(
+                            parser,
+                            name -> context.trackRescorerUsage(name),
+                            context.getQueryParsingReleasables()
+                        )
+                    );
                 }
                 return rescorers;
             } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                return List.of(RescorerBuilder.parseFromXContent(parser, name -> context.trackRescorerUsage(name)));
+                return List.of(
+                    RescorerBuilder.parseFromXContent(
+                        parser,
+                        name -> context.trackRescorerUsage(name),
+                        context.getQueryParsingReleasables()
+                    )
+                );
             } else {
                 throw new IllegalArgumentException(
                     "Unknown format for [rescorer.rescore], expects an object or an array of objects, got: " + parser.currentToken()

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.kql.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -271,6 +272,14 @@ public class KqlQueryBuilderTests extends AbstractQueryTestCase<KqlQueryBuilder>
         KqlQueryBuilder kqlQuery = new KqlQueryBuilder(generateRandomKqlQuery()).queryName(randomIdentifier());
         QueryBuilder rewrittenQuery = rewriteQuery(kqlQuery, queryRewriteContext, searchExecutionContext);
         assertThat(rewrittenQuery.queryName(), equalTo(kqlQuery.queryName()));
+    }
+
+    public void testQueryBreakerEstimate() throws IOException {
+        // cost = BASELINE + query.length() * 2 + 64
+        // "hi" (2 chars): 256 + 4 + 64 = 324; limit = 324 (equal → does not trip)
+        String smallQuery = "hi";
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + smallQuery.length() * 2L + 64L;
+        assertParseTimeBreaker(limit, new KqlQueryBuilder(smallQuery), new KqlQueryBuilder("x".repeat(500)));
     }
 
     public void testQueryBoostIsPreserved() throws IOException {

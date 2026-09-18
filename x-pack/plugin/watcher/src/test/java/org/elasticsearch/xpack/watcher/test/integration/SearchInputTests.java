@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -64,6 +64,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -97,7 +99,6 @@ public class SearchInputTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testExecute() throws Exception {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
-        PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
         SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
             "",
             1,
@@ -107,8 +108,11 @@ public class SearchInputTests extends ESTestCase {
             ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
-        searchFuture.onResponse(searchResponse);
-        when(client.search(requestCaptor.capture())).thenReturn(searchFuture);
+        doAnswer(invocation -> {
+            ActionListener<SearchResponse> listener = invocation.getArgument(2);
+            ActionListener.respondAndRelease(listener, searchResponse);
+            return null;
+        }).when(client).execute(any(), requestCaptor.capture(), any());
 
         @SuppressWarnings("rawtypes")
         ArgumentCaptor<Map> headersCaptor = ArgumentCaptor.forClass(Map.class);
@@ -135,9 +139,9 @@ public class SearchInputTests extends ESTestCase {
         assertThat(headersCaptor.getAllValues(), hasSize(0));
     }
 
+    @SuppressWarnings("unchecked")
     public void testDifferentSearchType() throws Exception {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
-        PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
         SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
             "",
             1,
@@ -147,8 +151,11 @@ public class SearchInputTests extends ESTestCase {
             ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
-        searchFuture.onResponse(searchResponse);
-        when(client.search(requestCaptor.capture())).thenReturn(searchFuture);
+        doAnswer(invocation -> {
+            ActionListener<SearchResponse> listener = invocation.getArgument(2);
+            ActionListener.respondAndRelease(listener, searchResponse);
+            return null;
+        }).when(client).execute(any(), requestCaptor.capture(), any());
 
         SearchSourceBuilder searchSourceBuilder = searchSource().query(boolQuery().must(matchQuery("event_type", "a")));
         SearchType searchType = getRandomSupportedSearchType();
@@ -189,9 +196,9 @@ public class SearchInputTests extends ESTestCase {
     }
 
     // source: https://discuss.elastic.co/t/need-help-for-energy-monitoring-system-alerts/89415/3
+    @SuppressWarnings("unchecked")
     public void testThatEmptyRequestBodyWorks() throws Exception {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
-        PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
         SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
             "",
             1,
@@ -201,8 +208,11 @@ public class SearchInputTests extends ESTestCase {
             ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
-        searchFuture.onResponse(searchResponse);
-        when(client.search(requestCaptor.capture())).thenReturn(searchFuture);
+        doAnswer(invocation -> {
+            ActionListener<SearchResponse> listener = invocation.getArgument(2);
+            ActionListener.respondAndRelease(listener, searchResponse);
+            return null;
+        }).when(client).execute(any(), requestCaptor.capture(), any());
 
         try (
             XContentBuilder builder = jsonBuilder().startObject()

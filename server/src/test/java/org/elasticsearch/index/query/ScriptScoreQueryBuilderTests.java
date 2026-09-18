@@ -28,6 +28,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -151,5 +152,25 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
         ScriptScoreQueryBuilder queryBuilder = doCreateTestQueryBuilder();
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> queryBuilder.toQuery(searchExecutionContext));
         assertEquals("[script score] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", e.getMessage());
+    }
+
+    public void testScriptParamsBreakerEstimate() throws IOException {
+        // ScriptScoreQueryBuilder.parseTimeBreakerEstimate() = BASELINE + estimateValue(source) + estimateValue(params) + lang
+        // estimateValue(String s) = s.length()*2 + 64. Inner MatchAllQueryBuilder also charges BASELINE (256) via namedObject.
+        // Small: source = "score" (5 chars), empty params → own 256+(5*2+64)+32+(8*2+64)=504; total 256+504=760
+        // Large: same source, Map.of("k", "x".repeat(500)) → params 1210; own 256+74+1210+80=1620; total 256+1620=1876
+        String source = "score";
+        long innerMatchAllCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES;
+        long ownSmallCost = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + source.length() * 2L + 64L + 32L + "painless".length()
+            * 2L + 64L;
+        long limit = innerMatchAllCost + ownSmallCost;
+        assertParseTimeBreaker(
+            limit,
+            new ScriptScoreQueryBuilder(new MatchAllQueryBuilder(), new Script(source)),
+            new ScriptScoreQueryBuilder(
+                new MatchAllQueryBuilder(),
+                new Script(ScriptType.INLINE, "painless", source, Map.of("k", "x".repeat(500)))
+            )
+        );
     }
 }

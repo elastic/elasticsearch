@@ -26,6 +26,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -284,6 +285,21 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
         return new String[] { WeightedTokensQueryBuilder.TOKENS_FIELD.getPreferredName() };
     }
 
+    public void testModelTextBreakerEstimate() throws IOException {
+        // cost = BASELINE + fieldName + modelText.length()*2+64 + modelId.length()*2+64
+        // RANK_FEATURES_FIELD "rank" (4 chars = 72) + "hi" (68) + "m" (66): 256+72+68+66 = 462
+        String smallModelText = "hi";
+        String modelId = "m";
+        long limit = AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + RANK_FEATURES_FIELD.length() * 2L + 64L + smallModelText
+            .length() * 2L + 64L + modelId.length() * 2L + 64L;
+        assertParseTimeBreaker(
+            limit,
+            new TextExpansionQueryBuilder(RANK_FEATURES_FIELD, smallModelText, modelId),
+            new TextExpansionQueryBuilder(RANK_FEATURES_FIELD, "x".repeat(500), modelId)
+        );
+        assertWarnings(TextExpansionQueryBuilder.TEXT_EXPANSION_DEPRECATION_MESSAGE);
+    }
+
     public void testThatTokensAreCorrectlyPruned() {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         TextExpansionQueryBuilder queryBuilder = createTestQueryBuilder();
@@ -293,5 +309,11 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
         } else {
             assertTrue(rewrittenQueryBuilder instanceof WeightedTokensQueryBuilder);
         }
+    }
+
+    @Override
+    protected boolean supportsParseTimeBreakerSelfTest() {
+        // text_expansion emits a deprecation warning during parsing; the base self-test cannot assert it
+        return false;
     }
 }

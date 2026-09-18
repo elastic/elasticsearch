@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -23,6 +24,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -36,11 +38,11 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
     private static final ParseField RESCORE_QUERY_WEIGHT_FIELD = new ParseField("rescore_query_weight");
     private static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode");
 
-    private static final ObjectParser<InnerBuilder, Void> QUERY_RESCORE_PARSER = new ObjectParser<>(NAME);
+    private static final ObjectParser<InnerBuilder, List<Releasable>> QUERY_RESCORE_PARSER = new ObjectParser<>(NAME);
     static {
         QUERY_RESCORE_PARSER.declareObject(InnerBuilder::setQueryBuilder, (p, c) -> {
             try {
-                return parseTopLevelQuery(p);
+                return parseTopLevelQuery(p, q -> {}, c);
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "Could not parse inner query", e);
             }
@@ -161,7 +163,11 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
     }
 
     public static QueryRescorerBuilder fromXContent(XContentParser parser) throws IOException {
-        InnerBuilder innerBuilder = QUERY_RESCORE_PARSER.parse(parser, new InnerBuilder(), null);
+        return fromXContent(parser, null);
+    }
+
+    public static QueryRescorerBuilder fromXContent(XContentParser parser, List<Releasable> releasables) throws IOException {
+        InnerBuilder innerBuilder = QUERY_RESCORE_PARSER.parse(parser, new InnerBuilder(), releasables);
         return innerBuilder.build();
     }
 

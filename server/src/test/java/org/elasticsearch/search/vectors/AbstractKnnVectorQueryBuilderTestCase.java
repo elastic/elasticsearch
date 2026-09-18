@@ -15,13 +15,17 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitsRewriteContext;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -36,6 +40,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.AbstractBuilderTestCase;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -682,6 +687,42 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             }
             return boolQuery;
         });
+    }
+
+    public void testQueryVectorBuilderTextBreakerEstimate() {
+        // When queryVector is absent, parseTimeBreakerEstimate() delegates to queryVectorBuilder.
+        QueryVectorBuilder stub = new QueryVectorBuilder() {
+            @Override
+            public void buildVector(Client c, ActionListener<float[]> l) {}
+
+            @Override
+            public String getWriteableName() {
+                return "stub";
+            }
+
+            @Override
+            public TransportVersion getMinimalSupportedVersion() {
+                return TransportVersion.minimumCompatible();
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) {}
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder b, ToXContent.Params p) {
+                return b;
+            }
+
+            @Override
+            public long parseTimeBreakerEstimate() {
+                return 500L;
+            }
+        };
+        KnnVectorQueryBuilder q = new KnnVectorQueryBuilder(VECTOR_FIELD, stub, 10, null, null, null);
+        assertEquals(
+            AbstractQueryBuilder.QUERY_BUILDER_SIZE_ESTIMATE_BYTES + VECTOR_FIELD.length() * 2L + 64L + 32L + 500L,
+            q.parseTimeBreakerEstimate()
+        );
     }
 
     public void testMatchAllFilterIsDropped() throws IOException {

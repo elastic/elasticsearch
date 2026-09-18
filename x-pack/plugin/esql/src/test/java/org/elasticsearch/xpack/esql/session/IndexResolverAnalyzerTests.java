@@ -26,20 +26,31 @@ import static org.hamcrest.Matchers.nullValue;
 public class IndexResolverAnalyzerTests extends ESTestCase {
 
     /**
-     * Shared analyzer name is kept only when every index reports the same one. A disagreement or a missing
-     * name on either side returns null. HIGHLIGHT treats that as {@code standard}.
+     * Shared analyzer is kept only when every index reports the same name and
+     * {@code position_increment_gap}. A disagreement or a missing name returns null.
+     * HIGHLIGHT treats that as {@code standard}.
      */
     public void testSharedIndexAnalyzerNeedsEveryIndexToAgree() {
         assertThat(resolveTitle("english", "english").analyzerName(), equalTo("english"));
         assertThat(resolveTitle("english", "standard").analyzerName(), nullValue());
         assertThat(resolveTitle("english", null).analyzerName(), nullValue());
         assertThat(resolveTitle(null, "english").analyzerName(), nullValue());
+
+        TextEsField sameGap = resolveTitle(index("idx-a", "english", 0), index("idx-b", "english", 0));
+        assertThat(sameGap.analyzerName(), equalTo("english"));
+        assertThat(sameGap.positionIncrementGap(), equalTo(0));
+        assertThat(resolveTitle(index("idx-a", "english", 0), index("idx-b", "english", 100)).analyzerName(), nullValue());
     }
 
     private static TextEsField resolveTitle(String first, String second) {
-        FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder()
-            .withIndexResponses(List.of(index("idx-a", first), index("idx-b", second)))
-            .build();
+        return resolveTitle(
+            index("idx-a", first, TextEsField.DEFAULT_POSITION_INCREMENT_GAP),
+            index("idx-b", second, TextEsField.DEFAULT_POSITION_INCREMENT_GAP)
+        );
+    }
+
+    private static TextEsField resolveTitle(FieldCapabilitiesIndexResponse... indices) {
+        FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder().withIndexResponses(List.of(indices)).build();
         IndexResolution resolution = IndexResolver.mergedMappings(
             "idx-*",
             false,
@@ -52,8 +63,10 @@ public class IndexResolverAnalyzerTests extends ESTestCase {
         return (TextEsField) esField;
     }
 
-    private static FieldCapabilitiesIndexResponse index(String index, String analyzer) {
-        var title = new IndexFieldCapabilitiesBuilder("title", "text").indexAnalyzer(analyzer).build();
+    private static FieldCapabilitiesIndexResponse index(String index, String analyzer, int positionIncrementGap) {
+        var title = new IndexFieldCapabilitiesBuilder("title", "text").indexAnalyzer(analyzer)
+            .indexAnalyzerPositionIncrementGap(positionIncrementGap)
+            .build();
         return new FieldCapabilitiesIndexResponse(index, index, Map.of("title", title), true, IndexMode.STANDARD);
     }
 }

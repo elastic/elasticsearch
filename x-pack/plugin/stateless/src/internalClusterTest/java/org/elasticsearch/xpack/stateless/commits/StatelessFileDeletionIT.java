@@ -1108,7 +1108,6 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         verifyBlobDeletionDeferredDuringRelocation(false);
     }
 
-
     private void verifyBlobDeletionDeferredDuringRelocation(boolean relocationSucceeds) throws Exception {
         startMasterOnlyNode();
         final var indexNodeA = startIndexNode();

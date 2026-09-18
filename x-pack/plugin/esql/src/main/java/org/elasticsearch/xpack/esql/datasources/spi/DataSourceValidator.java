@@ -50,15 +50,6 @@ public interface DataSourceValidator {
     );
 
     /**
-     * Names of credential (secret) settings accepted on a data source PUT for this provider type.
-     * Used by the REST layer to filter these values from the audit log body. Providers that carry
-     * credentials must override this; the default returns an empty set (no filtering).
-     */
-    default Set<String> secretSettingNames() {
-        return Set.of();
-    }
-
-    /**
      * Closed auth-mode token for a stored data source, or {@code null} when the mode cannot be
      * resolved (caller clamps to {@code unknown}). Must not throw; must not read secret values.
      */

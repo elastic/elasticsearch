@@ -138,6 +138,17 @@ public class AuditIT extends ESRestTestCase {
         });
     }
 
+    /**
+     * Verifies that a data source PUT via the {@code source} query parameter is rejected with HTTP 400.
+     * Using {@code contentParser()} instead of {@code contentOrSourceParamParser()} in the REST handler
+     * prevents successful registration from a query string, which is the primary goal: credentials in
+     * the query string would otherwise be stored in cluster state and appear in query logs.
+     * <p>
+     * Note: the {@code url.query} field of an {@code authentication_failed} audit event is still written
+     * before the handler runs (SecurityRestFilter writes auth events before dispatching), so the query
+     * string is audited regardless of whether the handler accepts the request. This test only asserts
+     * that no successful registration occurs.
+     */
     public void testDataSourceDefinitionInQueryStringRejected() throws Exception {
         final String dataSourceName = randomAlphaOfLength(4).toLowerCase(Locale.ROOT) + randomIntBetween(100, 999);
         final String accessKey = randomAlphaOfLength(20);

@@ -84,9 +84,12 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
         if (enabled() == false) {
             return Map.of();
         }
-        DataSourceValidator v = new FileDataSourceValidator("azure", AzureConfiguration::fromMap, supportedSchemes()).withSecretFieldNames(
-            Set.of("connection_string", "key", "sas_token")
-        );
+        DataSourceValidator v = new FileDataSourceValidator("azure", AzureConfiguration::fromMap, supportedSchemes());
         return Map.of(v.type(), v);
+    }
+
+    @Override
+    public Set<String> datasourceSecretSettingNames() {
+        return AzureConfiguration.secretFieldNames();
     }
 }

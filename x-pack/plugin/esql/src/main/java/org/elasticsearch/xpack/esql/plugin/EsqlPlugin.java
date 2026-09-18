@@ -578,7 +578,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             });
         }
         Set<String> secretNames = new HashSet<>();
-        crudValidators.values().forEach(v -> secretNames.addAll(v.secretSettingNames()));
+        allDataSourcePlugins.forEach(p -> secretNames.addAll(p.datasourceSecretSettingNames()));
         this.dataSourceSecretSettingNames = Set.copyOf(secretNames);
 
         QueryMetricsListener collector = metricsCollectors.isEmpty() ? QueryMetricsListener.NOOP : metrics -> {

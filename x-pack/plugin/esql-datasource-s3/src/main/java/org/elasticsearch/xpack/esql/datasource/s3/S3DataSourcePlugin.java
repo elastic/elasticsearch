@@ -175,9 +175,13 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
                     + "set [region] on the dataset instead, or [sts_region] for the STS endpoint region on a federated source, "
                     + "or omit it to have the bucket region detected automatically"
             )
-            .withResourceCheck(S3ResourceCheck::validate)
-            .withSecretFieldNames(Set.of("access_key", "secret_key", "session_token"));
+            .withResourceCheck(S3ResourceCheck::validate);
         return Map.of(v.type(), v);
+    }
+
+    @Override
+    public Set<String> datasourceSecretSettingNames() {
+        return S3Configuration.secretFieldNames();
     }
 
     @Override

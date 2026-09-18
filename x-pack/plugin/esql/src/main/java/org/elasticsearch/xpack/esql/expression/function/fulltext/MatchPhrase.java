@@ -63,6 +63,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MatchPhrase.class)
         .ternary(MatchPhrase::new)
+        .capabilities("to_text_on_indexed_field_fix", "to_string_on_indexed_field_fix")
         .name("match_phrase");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(KEYWORD, TEXT, NULL);
     public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT);

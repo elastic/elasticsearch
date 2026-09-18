@@ -24,20 +24,26 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -109,6 +115,60 @@ public class MatchRuntimeSearchEvaluatorTests extends ESTestCase {
         ReferenceAttribute field = new ReferenceAttribute(Source.EMPTY, "field", fieldType);
         Literal query = new Literal(Source.EMPTY, queryValue, queryType);
         Match match = new Match(Source.EMPTY, field, query, null, EsqlTestUtils.TEST_CFG);
+        assertTrue("expected a runtime search, not a pushed-down query", match.isRuntimeSearch());
+        return match;
+    }
+
+    /**
+     * {@code match(to_text(field), ...)} where {@code field} is normal mapped
+     * {@code keyword} {@link FieldAttribute} — not a {@link ReferenceAttribute} standing in for a computed
+     * column. This is the inline-{@code to_text}-on-an-indexed-field shape from
+     * <a href="https://github.com/elastic/elasticsearch/issues/159265">#159265</a>: {@code to_text} declares that
+     * the value must be matched as analyzed {@code text} (see {@link ToText}'s class Javadoc), and that holds
+     * regardless of whether the field happens to be indexed, so this must take the runtime path exactly like
+     * {@link #runtimeMatch} does for a non-indexed reference.
+     */
+    private static Match runtimeMatchOnToTextOverIndexedField(String queryValue) {
+        FieldAttribute child = new FieldAttribute(
+            Source.EMPTY,
+            "field",
+            new EsField("field", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        ToText field = new ToText(Source.EMPTY, child);
+        Match match = new Match(
+            Source.EMPTY,
+            field,
+            new Literal(Source.EMPTY, new BytesRef(queryValue), KEYWORD),
+            null,
+            EsqlTestUtils.TEST_CFG
+        );
+        assertTrue("expected a runtime search, not a pushed-down query", match.isRuntimeSearch());
+        return match;
+    }
+
+    /**
+     * {@code match(to_string(field), ...)} where {@code field} is a genuine, single-typed, always-mapped
+     * {@code text} {@link FieldAttribute} - the mirror-image bug of
+     * {@link #runtimeMatchOnToTextOverIndexedField}: {@code TO_STRING} declares that the value must be
+     * matched as exact, unanalyzed {@code keyword} text (see {@code ToString}'s class Javadoc: TEXT and
+     * KEYWORD are "treated ... almost the same, the main difference is that TEXT is considered to be
+     * analyzed, while KEYWORD is not"), and that holds regardless of whether the field happens to be
+     * indexed as TEXT, so this must take the runtime path exactly like it would for a non-indexed reference.
+     */
+    private static Match runtimeMatchOnToStringOverIndexedField(String queryValue) {
+        FieldAttribute child = new FieldAttribute(
+            Source.EMPTY,
+            "field",
+            new EsField("field", TEXT, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        ToString field = new ToString(Source.EMPTY, child, TEST_CFG);
+        Match match = new Match(
+            Source.EMPTY,
+            field,
+            new Literal(Source.EMPTY, new BytesRef(queryValue), KEYWORD),
+            null,
+            EsqlTestUtils.TEST_CFG
+        );
         assertTrue("expected a runtime search, not a pushed-down query", match.isRuntimeSearch());
         return match;
     }
@@ -289,6 +349,40 @@ public class MatchRuntimeSearchEvaluatorTests extends ESTestCase {
     public void testTextWithZeroTermsQueryUsesConstantBlock() {
         Match match = runtimeMatch(TEXT, new BytesRef("! ! !"), TEXT);
         assertThat(match.toEvaluator(toEvaluator()), instanceOf(ConstantEvaluators.CONSTANT_FALSE_FACTORY.getClass()));
+    }
+
+    /**
+     * https://github.com/elastic/elasticsearch/issues/159265: {@code match(to_text(keyword_field), "benign")}
+     * written inline, directly over a real single-typed mapped {@code keyword} field, must match case-insensitively
+     * — the same standard-analyzer semantics {@link #testTextIsAnalyzed} pins for a non-indexed
+     * reference. Before the fix, the field's presence as a genuine {@link FieldAttribute} made
+     * {@link Match#isRuntimeSearch()} return {@code false}, so this case never reached the runtime evaluator at all
+     * and instead got pushed down as a plain (exact, case-sensitive) match on the raw keyword field.
+     */
+    public void testTextValuesAnalyzerFromToTextOverIndexedField() {
+        Boolean[] result = evaluate(runtimeMatchOnToTextOverIndexedField("benign"), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("Benign"));
+            builder.appendBytesRef(new BytesRef("Other"));
+        }));
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    /**
+     * Mirror-image bug of {@link #testTextValuesAnalyzerFromToTextOverIndexedField}:
+     * {@code match(to_string(text_field), "benign")} written inline, directly over a real single-typed mapped
+     * {@code text} field, must match exactly and case-sensitively - the value must equal the query in full,
+     * not merely share an analyzed token with it. Before the fix, the field's presence as a genuine
+     * {@link FieldAttribute} made {@link Match#isRuntimeSearch()} return {@code false}, so this was pushed
+     * down as a plain (analyzed) match on the raw text field, which over-matches: substrings and
+     * case-differing values incorrectly match too.
+     */
+    public void testKeywordExactSemanticsFromToStringOverIndexedField() {
+        Boolean[] result = evaluate(runtimeMatchOnToStringOverIndexedField("benign"), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("Benign")); // case differs from the query: must not match
+            builder.appendBytesRef(new BytesRef("This is Benign")); // query is only a substring: must not match
+            builder.appendBytesRef(new BytesRef("benign")); // exact match: must match
+        }));
+        assertArrayEquals(new Boolean[] { false, false, true }, result);
     }
 
     /**

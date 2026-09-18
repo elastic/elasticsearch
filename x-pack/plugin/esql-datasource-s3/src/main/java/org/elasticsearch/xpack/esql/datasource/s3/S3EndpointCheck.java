@@ -33,14 +33,21 @@ import java.util.regex.Pattern;
  * one this node connects to. For {@code sts_endpoint} that host receives the node's own OIDC token as a
  * bearer credential, because the STS client authenticates with nothing else.
  *
- * <p>A host is permitted in one of two shapes, under an AWS partition DNS suffix:
+ * <p>A host is permitted in one of two shapes, under an AWS partition DNS suffix, and both name a region:
  *
  * <ul>
- *   <li>{@code <service>[.dualstack].<region>}, or the global {@code <service>[.dualstack]} — see
- *       {@link #S3_SERVICE_LABELS} for the leading labels and what each reaches.</li>
+ *   <li>{@code <service>[.dualstack].<region>}, or the historical {@code s3-<region>} spelling that carries
+ *       its region in the service label — see {@link #S3_SERVICE_LABELS} for which leading labels qualify
+ *       and which endpoint families are deliberately excluded.</li>
  *   <li>{@code [<prefix>.]vpce-<id>.<service>.<region>.vpce} — an AWS PrivateLink interface endpoint, the
  *       one destination a customer cannot express any other way.</li>
  * </ul>
+ *
+ * <p>Regional and PrivateLink are the whole permitted set. Every other AWS endpoint family — the global
+ * endpoint, transfer acceleration, access points, object lambda, Outposts, the control plane, the legacy
+ * alias and S3 Express — is refused, and reaching one takes an operator naming its host in
+ * {@code esql.external.allowed_endpoint_hosts}. A knob per family would be a second lever over the same
+ * rule, overridable by that list and therefore not a constraint at all.
  *
  * <p>Suffixes and region patterns come from the SDK's partition metadata, so a partition it gains needs no
  * change here. The interface-endpoint shape has no such source — {@code vpce} appears in none of the SDK
@@ -56,27 +63,31 @@ final class S3EndpointCheck {
     static final String STS_SERVICE = "sts";
 
     /**
-     * The leading label of every S3 endpoint AWS serves, and what each one reaches. Beside these there is
-     * one form whose tail is generated rather than fixed, handled by pattern in {@link #isServiceLabel}:
-     * the historical {@code s3-<region>} spelling. The {@code s3express-<az>} label is deliberately absent —
-     * it serves only directory buckets, which {@link S3ResourceCheck} refuses.
+     * The leading label of a regional S3 object endpoint, plain or FIPS. Beside these there is one form
+     * whose tail is generated rather than fixed, handled by pattern in {@link #isServiceLabel}: the
+     * historical {@code s3-<region>} spelling, which carries its region in the service label itself.
+     *
+     * <p>Every other S3 endpoint family AWS serves is deliberately absent, and each is reachable only by an
+     * operator naming its host in {@code esql.external.allowed_endpoint_hosts}:
+     *
+     * <ul>
+     *   <li>{@code s3-accesspoint}, {@code s3-accesspoint-fips} — an access point, which fronts one bucket
+     *       under its own policy.</li>
+     *   <li>{@code s3-accelerate} — transfer acceleration, which routes through an edge location.</li>
+     *   <li>{@code s3-object-lambda}, {@code s3-object-lambda-fips} — an access point that runs a Lambda over
+     *       each object as it is read.</li>
+     *   <li>{@code s3-outposts}, {@code s3-outposts-fips} — storage on an Outposts rack in the customer's own
+     *       data centre.</li>
+     *   <li>{@code s3-control}, {@code s3-control-fips} — the account-level control plane (access points,
+     *       jobs), which serves no object reads at all.</li>
+     *   <li>{@code s3-external-1} — the legacy {@code us-east-1} alias, still resolvable.</li>
+     *   <li>{@code s3express-<az>} — S3 Express, which serves only directory buckets; those are refused by
+     *       name in {@link S3ResourceCheck} as well, because the bucket name alone moves the destination.</li>
+     * </ul>
      */
-    private static final Set<String> S3_SERVICE_LABELS = Set.of(
-        "s3",                     // the regional and global object endpoint
-        "s3-fips",                // the same, over a FIPS 140-validated endpoint
-        "s3-accesspoint",         // an access point, which fronts one bucket under its own policy
-        "s3-accesspoint-fips",
-        "s3-accelerate",          // transfer acceleration, which routes through an edge location
-        "s3-object-lambda",       // an access point that runs a Lambda over each object as it is read
-        "s3-object-lambda-fips",
-        "s3-outposts",            // storage on an Outposts rack in the customer's own data centre
-        "s3-outposts-fips",
-        "s3-control",             // the account-level control plane (access points, jobs), not object reads
-        "s3-control-fips",
-        "s3-external-1"           // the legacy us-east-1 alias, still resolvable
-    );
+    private static final Set<String> S3_SERVICE_LABELS = Set.of("s3", "s3-fips");
 
-    /** The leading label of every STS endpoint: the token service, regional or global, plain or FIPS. */
+    /** The leading label of a regional STS endpoint: the token service, plain or FIPS. */
     private static final Set<String> STS_SERVICE_LABELS = Set.of("sts", "sts-fips");
 
     /**
@@ -243,12 +254,11 @@ final class S3EndpointCheck {
             next++;
         }
         if (next == labels.length) {
-            // The global form: the service label, optionally dual-stack. Transfer acceleration is served
-            // globally and has a dual-stack spelling, so the resolver does produce a region-less dual-stack
-            // host (s3-accelerate.dualstack.<suffix>). Admitting the shape for every service label names no
-            // host a customer controls, because "dualstack" is a fixed label compared here rather than a
-            // bucket or an access point the customer chose.
-            return true;
+            // Nothing after the service label, so no region was named. The historical s3-<region> spelling
+            // carries its region inside that label and is the one form that reaches here legitimately; the
+            // region-less global endpoints (s3.amazonaws.com, sts.amazonaws.com) are refused with the rest
+            // of the non-regional families.
+            return isDashRegionLabel(labels[0]);
         }
         return next == labels.length - 1 && isRegionLabel(labels[next]);
     }

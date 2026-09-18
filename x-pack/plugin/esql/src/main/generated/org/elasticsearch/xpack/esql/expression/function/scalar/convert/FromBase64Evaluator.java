@@ -9,13 +9,13 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
@@ -32,14 +32,14 @@ public final class FromBase64Evaluator implements ExpressionEvaluator {
 
   private final ExpressionEvaluator field;
 
-  private final BytesRefBuilder oScratch;
+  private final BreakingBytesRefBuilder oScratch;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public FromBase64Evaluator(Source source, ExpressionEvaluator field, BytesRefBuilder oScratch,
-      DriverContext driverContext) {
+  public FromBase64Evaluator(Source source, ExpressionEvaluator field,
+      BreakingBytesRefBuilder oScratch, DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.oScratch = oScratch;
@@ -114,7 +114,7 @@ public final class FromBase64Evaluator implements ExpressionEvaluator {
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(field);
+    Releasables.closeExpectNoException(field, oScratch);
   }
 
   private Warnings warnings() {
@@ -129,10 +129,10 @@ public final class FromBase64Evaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory field;
 
-    private final Function<DriverContext, BytesRefBuilder> oScratch;
+    private final Function<DriverContext, BreakingBytesRefBuilder> oScratch;
 
     public Factory(Source source, ExpressionEvaluator.Factory field,
-        Function<DriverContext, BytesRefBuilder> oScratch) {
+        Function<DriverContext, BreakingBytesRefBuilder> oScratch) {
       this.source = source;
       this.field = field;
       this.oScratch = oScratch;

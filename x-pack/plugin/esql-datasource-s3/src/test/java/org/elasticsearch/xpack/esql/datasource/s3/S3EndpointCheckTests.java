@@ -370,6 +370,10 @@ public class S3EndpointCheckTests extends ESTestCase {
             "vpce-0a1b.vpce-svc-0c2d.us-east-1.vpce.amazonaws.com",
             "vpce-svc-0c2d.s3.us-east-1.vpce.amazonaws.com",
             "vpce-0a1b.ec2.us-east-1.vpce.amazonaws.com",
+            // The id position must hold an endpoint id, not merely one label. Without this the shape
+            // accepts any single label AWS has not minted a name for.
+            "evil.s3.us-east-1.vpce.amazonaws.com",
+            "s3.s3.us-east-1.vpce.amazonaws.com",
             "a.b.vpce-0a1b.s3.us-east-1.vpce.amazonaws.com",
             "vpce-0a1b.s3.us-east-1.notvpce.amazonaws.com",
             "vpce-0a1b.us-east-1.vpce.amazonaws.com",

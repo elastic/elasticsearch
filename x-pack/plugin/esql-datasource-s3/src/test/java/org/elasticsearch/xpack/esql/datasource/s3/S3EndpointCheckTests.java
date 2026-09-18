@@ -272,9 +272,8 @@ public class S3EndpointCheckTests extends ESTestCase {
     }
 
     /**
-     * Dual-stack, refused in every spelling including the regional one. An endpoint override cannot ask AWS
-     * for dual-stack — the SDK rejects its dual-stack client option when one is set, and this data source
-     * exposes no such option — so the host would promise an IPv6 path nothing here arranges.
+     * Dual-stack, refused in every spelling including the regional one. The host is real and naming it would
+     * reach it; it is refused because nothing here has been tested over one, not because it cannot work.
      */
     public void testRefusesDualStackEndpoints() {
         assertAllRefused(

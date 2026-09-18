@@ -63,9 +63,9 @@ final class S3EndpointCheck {
      * carries the region inside the service label, and is generated separately. Dual-stack is absent because
      * it is a label between the service and the region, so no host built from this list can contain it.
      *
-     * <p>{@code s3-fips} and dual-stack are disabled for a different reason than the rest: the SDK rejects
-     * its FIPS and dual-stack client options when a custom endpoint is set, and this data source exposes
-     * neither option, so those hostnames would promise a capability nothing here delivers.
+     * <p>{@code s3-fips} and dual-stack are disabled for the same reason as the rest: nothing here has been
+     * tested against them. Naming one does reach it, so this is a decision about what is supported, not a
+     * technical limit. AWS serves S3 FIPS only in GovCloud and the ISO partitions.
      */
     // tag::
     private static final Set<String> S3_SERVICE_LABELS = Set.of(

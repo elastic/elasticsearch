@@ -430,8 +430,7 @@ irate_of_ratio:double | cluster:keyword | time_bucket:datetime
 
 ;
 
-// Fails until nested binary operations pair series at full identity: the pairing collapse inherits the parent's narrowed grouping.
-irate_of_ratio_promql-Ignore
+irate_of_ratio_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 

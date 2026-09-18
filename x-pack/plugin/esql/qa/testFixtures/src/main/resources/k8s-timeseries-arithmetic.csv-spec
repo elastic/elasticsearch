@@ -427,8 +427,7 @@ ratio:double | step:datetime            | cluster:keyword
 0.518662     | 2024-05-10T00:00:00.000Z | staging
 ;
 
-// Fails until nested binary operations pair series at full identity: the pairing collapse inherits the parent's narrowed grouping.
-tx_ratio_promql-Ignore
+tx_ratio_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 PROMQL index=k8s step=1h ratio=(
@@ -529,8 +528,7 @@ result:double | step:datetime            | _timeseries:keyword
 -2282.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
 ;
 
-// Fails until nested binary operations pair series at full identity: the pairing collapse inherits the parent's narrowed grouping.
-aggregate_over_division_promql-Ignore
+aggregate_over_division_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 PROMQL index=k8s step=1h result=(sum(network.eth0.tx / network.eth0.rx))
@@ -541,8 +539,7 @@ result:double | step:datetime
 10.063636     | 2024-05-10T01:00:00.000Z
 ;
 
-// Fails until nested binary operations pair series at full identity: the pairing collapse inherits the parent's narrowed grouping.
-aggregate_ratio_over_division_promql-Ignore
+aggregate_ratio_over_division_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 PROMQL index=k8s step=1h result=(sum by (cluster) (network.eth0.tx) / sum by (cluster) (network.eth0.tx / network.eth0.rx))
@@ -555,8 +552,7 @@ result:double | step:datetime            | cluster:keyword
 946.344952    | 2024-05-10T01:00:00.000Z | staging
 ;
 
-// Fails until nested binary operations pair series at full identity: the pairing collapse inherits the parent's narrowed grouping.
-sum_by_over_chained_subtraction_promql-Ignore
+sum_by_over_chained_subtraction_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 PROMQL index=k8s step=1h result=(sum by (cluster) (network.eth0.tx - network.eth0.rx - network.eth0.rx))

@@ -1560,8 +1560,8 @@ public abstract class DocsV3Support {
             if (appliesTo.isEmpty()) {
                 return;
             }
-            // The derived badge above states stack: unavailable for a serverlessOnly setting, and a declared
-            // applies_to replaces the badge wholesale -- so declaring one must not quietly drop that statement.
+            // renderSettingDefinition derives stack: unavailable for a serverlessOnly setting, and a declared
+            // applies_to replaces that badge wholesale -- so declaring one must not quietly drop the statement.
             // Requiring the axis to be present is not enough: stack: ga names it and still contradicts it.
             // (serverlessOnly itself is only a deployment marker; QuerySettings reads it in applicableIn, which
             // feeds telemetry. What makes such a setting unavailable on stack is its own validator, as

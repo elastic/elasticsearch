@@ -516,49 +516,6 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
         }
     }
 
-    public void testUnderscoredFieldsSearchability() {
-        assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "_field1", "type=text", "_field2", "type=text"));
-        prepareIndex("test").setId("1")
-            .setSource("field1", "value1", "_field1", "_value1", "_field2", "_value2")
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
-
-        {
-            // user6's role does not grant _field1: not searchable, not visible in _source
-            var user6 = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)));
-            assertHitCount(user6.prepareSearch("test").setQuery(QueryBuilders.matchQuery("field1", "value1")), 1);
-            assertHitCount(user6.prepareSearch("test").setQuery(QueryBuilders.matchQuery("_field1", "_value1")), 0);
-            assertHitCount(user6.prepareSearch("test").setQuery(QueryBuilders.matchQuery("_field2", "_value2")), 0);
-            assertHitCount(user6.prepareSearch("test").setQuery(QueryBuilders.existsQuery("_field1")), 0);
-            // allowlisted metadata fields remain usable
-            assertHitCount(user6.prepareSearch("test").setQuery(QueryBuilders.idsQuery().addIds("1")), 1);
-            assertHitCount(user6.prepareSearch("test").setQuery(QueryBuilders.existsQuery("field1")), 1);
-            assertResponse(user6.prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()), response -> {
-                assertThat(response.getHits().getHits()[0].getSourceAsMap(), equalTo(Map.of("field1", "value1")));
-            });
-        }
-
-        {
-            // user7's role grants _field1 and _field2 but has a (legacy) except entry for _field2, _id and _seq_no
-            var user7 = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)));
-            assertHitCount(user7.prepareSearch("test").setQuery(QueryBuilders.matchQuery("_field1", "_value1")), 1);
-            assertHitCount(user7.prepareSearch("test").setQuery(QueryBuilders.matchQuery("_field2", "_value2")), 0);
-            assertHitCount(user7.prepareSearch("test").setQuery(QueryBuilders.existsQuery("_field2")), 0);
-            // _id and _seq_no cannot be excluded: they are minimally required metadata fields
-            assertHitCount(user7.prepareSearch("test").setQuery(QueryBuilders.idsQuery().addIds("1")), 1);
-            assertResponse(
-                user7.prepareSearch("test")
-                    .setQuery(QueryBuilders.matchAllQuery())
-                    .addSort("_seq_no", SortOrder.ASC)
-                    .seqNoAndPrimaryTerm(true),
-                response -> {
-                    assertThat(response.getHits().getHits()[0].getSeqNo(), equalTo(0L));
-                    assertThat(response.getHits().getHits()[0].getSourceAsMap(), equalTo(Map.of("field1", "value1", "_field1", "_value1")));
-                }
-            );
-        }
-    }
-
     @SuppressWarnings("unchecked")
     private static void assertExpectedFields(Map<String, MappingMetadata> mappings, String... fields) {
         Map<String, Object> sourceAsMap = mappings.get("test").getSourceAsMap();

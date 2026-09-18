@@ -81,10 +81,10 @@ public class FlsMetadataFieldsRestIT extends SecurityOnTrialLicenseRestTestCase 
 
     public void testSearchFunctionalityRelyingOnMetadataFieldsWorksUnderFls() throws IOException {
         // the ids query works even though the role lists _id in its except clause
-        assertHitCount(FLS_FILE_ROLE_USER, """
+        assertHitCount(FLS_FILE_ROLE_USER, INDEX_NAME, """
             {"query": {"ids": {"values": ["1"]}}}""", 1);
         // exists queries are answered from _field_names
-        assertHitCount(FLS_FILE_ROLE_USER, """
+        assertHitCount(FLS_FILE_ROLE_USER, INDEX_NAME, """
             {"query": {"exists": {"field": "field1"}}}""", 1);
         // sorting on _seq_no and fetching _seq_no/_primary_term/_version work with FLS enabled
         final Request request = new Request("GET", INDEX_NAME + "/_search");
@@ -117,19 +117,19 @@ public class FlsMetadataFieldsRestIT extends SecurityOnTrialLicenseRestTestCase 
 
     public void testUnderscoredUserFieldsAreNotAccessibleUnderFls() throws IOException {
         // the admin sees and can search the underscore-prefixed user field and the FLS-hidden field
-        assertHitCount("x_pack_rest_user", """
+        assertHitCount("x_pack_rest_user", INDEX_NAME, """
             {"query": {"match": {"_field3": "3"}}}""", 1);
-        assertHitCount("x_pack_rest_user", """
+        assertHitCount("x_pack_rest_user", INDEX_NAME, """
             {"query": {"exists": {"field": "_field3"}}}""", 1);
-        assertHitCount("x_pack_rest_user", """
+        assertHitCount("x_pack_rest_user", INDEX_NAME, """
             {"query": {"match": {"hidden_field": "0"}}}""", 1);
 
         // the FLS user does not: _field3 is neither granted nor an allowlisted metadata field
-        assertHitCount(FLS_FILE_ROLE_USER, """
+        assertHitCount(FLS_FILE_ROLE_USER, INDEX_NAME, """
             {"query": {"match": {"_field3": "3"}}}""", 0);
-        assertHitCount(FLS_FILE_ROLE_USER, """
+        assertHitCount(FLS_FILE_ROLE_USER, INDEX_NAME, """
             {"query": {"exists": {"field": "_field3"}}}""", 0);
-        assertHitCount(FLS_FILE_ROLE_USER, """
+        assertHitCount(FLS_FILE_ROLE_USER, INDEX_NAME, """
             {"query": {"match": {"hidden_field": "0"}}}""", 0);
 
         // the fields API does not leak the hidden fields either
@@ -144,6 +144,109 @@ public class FlsMetadataFieldsRestIT extends SecurityOnTrialLicenseRestTestCase 
         @SuppressWarnings("unchecked")
         final Map<String, Object> fields = (Map<String, Object>) firstHit(response).get("fields");
         assertThat(fields, equalTo(Map.of("field1", List.of("1"))));
+    }
+
+    public void testUnderscoredFieldsSearchability() throws IOException {
+        final String index = "index-002";
+        final Request createIndex = new Request("PUT", index);
+        createIndex.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "field1": { "type": "keyword" },
+                  "_field1": { "type": "keyword" },
+                  "_field2": { "type": "keyword" }
+                }
+              }
+            }""");
+        assertOK(adminClient().performRequest(createIndex));
+        ensureGreen(index);
+        final Request indexDoc = new Request("POST", index + "/_doc/1?refresh=true");
+        indexDoc.setJsonEntity("""
+            {"field1": "value1", "_field1": "_value1", "_field2": "_value2"}""");
+        assertOK(adminClient().performRequest(indexDoc));
+
+        assertOK(createRole("fls_underscored_not_granted_role", """
+            {
+              "indices": [
+                {
+                  "names": [ "index-002" ],
+                  "privileges": [ "read" ],
+                  "field_security": {
+                    "grant": [ "field1" ],
+                    "except": [ "_field1" ]
+                  }
+                }
+              ]
+            }"""));
+        assertOK(createRole("fls_underscored_granted_role", """
+            {
+              "indices": [
+                {
+                  "names": [ "index-002" ],
+                  "privileges": [ "read" ],
+                  "field_security": {
+                    "grant": [ "field1", "_field1", "_field2" ],
+                    "except": [ "_field2", "_id", "_seq_no" ]
+                  }
+                }
+              ]
+            }"""));
+
+        // the role does not grant _field1; its legacy except entry has no additional effect: not searchable, not visible in _source
+        createUser(
+            FLS_FILE_ROLE_USER,
+            SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING,
+            List.of("fls_underscored_not_granted_role")
+        );
+        assertHitCount(FLS_FILE_ROLE_USER, index, """
+            {"query": {"match": {"field1": "value1"}}}""", 1);
+        assertHitCount(FLS_FILE_ROLE_USER, index, """
+            {"query": {"match": {"_field1": "_value1"}}}""", 0);
+        assertHitCount(FLS_FILE_ROLE_USER, index, """
+            {"query": {"match": {"_field2": "_value2"}}}""", 0);
+        assertHitCount(FLS_FILE_ROLE_USER, index, """
+            {"query": {"exists": {"field": "_field1"}}}""", 0);
+        // allowlisted metadata fields remain usable
+        assertHitCount(FLS_FILE_ROLE_USER, index, """
+            {"query": {"ids": {"values": ["1"]}}}""", 1);
+        assertHitCount(FLS_FILE_ROLE_USER, index, """
+            {"query": {"exists": {"field": "field1"}}}""", 1);
+        assertThat(matchAllSingleHit(FLS_FILE_ROLE_USER, index).get("_source"), equalTo(Map.of("field1", "value1")));
+
+        // the role grants _field1 and _field2 but has a (legacy) except entry for _field2, _id and _seq_no
+        createUser(FLS_FILE_ROLE_USER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING, List.of("fls_underscored_granted_role"));
+        assertHitCount(FLS_FILE_ROLE_USER, index, """
+            {"query": {"match": {"_field1": "_value1"}}}""", 1);
+        assertHitCount(FLS_FILE_ROLE_USER, index, """
+            {"query": {"match": {"_field2": "_value2"}}}""", 0);
+        assertHitCount(FLS_FILE_ROLE_USER, index, """
+            {"query": {"exists": {"field": "_field2"}}}""", 0);
+        // _id and _seq_no cannot be excluded: they are minimally required metadata fields
+        assertHitCount(FLS_FILE_ROLE_USER, index, """
+            {"query": {"ids": {"values": ["1"]}}}""", 1);
+        final Request sortRequest = new Request("GET", index + "/_search");
+        sortRequest.setJsonEntity("""
+            {
+              "query": { "match_all": {} },
+              "sort": [ { "_seq_no": "asc" } ],
+              "seq_no_primary_term": true
+            }""");
+        sortRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authzHeader(FLS_FILE_ROLE_USER)));
+        final Map<String, Object> hit = firstHit(responseAsMap(client().performRequest(sortRequest)));
+        assertThat(hit.get("_seq_no"), equalTo(0));
+        assertThat(hit.get("_source"), equalTo(Map.of("field1", "value1", "_field1", "_value1")));
+
+        deleteRole("fls_underscored_not_granted_role");
+        deleteRole("fls_underscored_granted_role");
+    }
+
+    private Map<String, Object> matchAllSingleHit(String user, String index) throws IOException {
+        final Request request = new Request("GET", index + "/_search");
+        request.setJsonEntity("""
+            {"query": {"match_all": {}}}""");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authzHeader(user)));
+        return firstHit(responseAsMap(client().performRequest(request)));
     }
 
     public void testCreateRoleWithUnderscoredFieldsInExceptList() throws IOException {
@@ -435,8 +538,8 @@ public class FlsMetadataFieldsRestIT extends SecurityOnTrialLicenseRestTestCase 
         return basicAuthHeaderValue(user, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
     }
 
-    private void assertHitCount(String user, String queryBody, int expectedHits) throws IOException {
-        final Request request = new Request("GET", INDEX_NAME + "/_search");
+    private void assertHitCount(String user, String index, String queryBody, int expectedHits) throws IOException {
+        final Request request = new Request("GET", index + "/_search");
         request.setJsonEntity(queryBody);
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authzHeader(user)));
         final Map<String, Object> response = responseAsMap(client().performRequest(request));

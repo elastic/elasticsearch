@@ -14,9 +14,11 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -55,9 +57,11 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -196,6 +200,210 @@ public class DatafeedRunnerTests extends ESTestCase {
         datafeedRunner.run(task, false, handler);
 
         assertThat(datafeedRunner.countDatafeedsWithUnavailableProjects(), equalTo(1L));
+    }
+
+    public void testEsqlDatafeedShouldStopWhenRuntimeSettingIsDisabled() throws Exception {
+        Job job = createDatafeedJob().setCreateTime(new Date()).build();
+        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder(DATAFEED_ID, JOB_ID).setEsqlQuery("FROM logs").build();
+        givenDatafeedHasNeverRunBefore(job, esqlDatafeed);
+
+        ClusterState enabledState = clusterStateWithEsqlDatafeedsEnabled(true);
+        ClusterState disabledState = clusterStateWithEsqlDatafeedsEnabled(false);
+        when(clusterService.state()).thenReturn(enabledState);
+
+        Consumer<Exception> handler = mockConsumer();
+        StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams(DATAFEED_ID, 0L);
+        DatafeedTask task = TransportStartDatafeedActionTests.createDatafeedTask(1, "type", "action", null, params, datafeedRunner);
+        task = spyDatafeedTask(task);
+        datafeedRunner.run(task, false, handler);
+
+        capturedClusterStateListener.getValue()
+            .clusterChanged(new ClusterChangedEvent("disable ES|QL datafeeds", disabledState, enabledState));
+
+        verify(datafeedJob).stop();
+        verify(handler).accept(null);
+        verify(auditor).warning(
+            JOB_ID,
+            "Stopping ES|QL datafeed [datafeed_id] for job [job_id] because ES|QL datafeeds are disabled; "
+                + "enable ES|QL datafeeds on the cluster to restart it."
+        );
+        assertThat(datafeedRunner.isRunning(task), is(false));
+    }
+
+    public void testEsqlDatafeedShouldStopWhenProjectSettingIsDisabled() throws Exception {
+        Job job = createDatafeedJob().setCreateTime(new Date()).build();
+        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder(DATAFEED_ID, JOB_ID).setEsqlQuery("FROM logs").build();
+        givenDatafeedHasNeverRunBefore(job, esqlDatafeed);
+
+        ClusterState enabledState = clusterStateWithEsqlDatafeedsEnabled(true);
+        ClusterState disabledProjectState = ClusterState.builder(enabledState)
+            .putCustom(
+                ProjectStateRegistry.TYPE,
+                ProjectStateRegistry.builder()
+                    .putProjectSettings(
+                        ProjectId.DEFAULT,
+                        Settings.builder().put(MachineLearning.ESQL_DATAFEEDS_ENABLED.getKey(), false).build()
+                    )
+                    .build()
+            )
+            .build();
+        when(clusterService.state()).thenReturn(enabledState);
+
+        Consumer<Exception> handler = mockConsumer();
+        StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams(DATAFEED_ID, 0L);
+        DatafeedTask task = TransportStartDatafeedActionTests.createDatafeedTask(1, "type", "action", null, params, datafeedRunner);
+        task = spyDatafeedTask(task);
+        datafeedRunner.run(task, false, handler);
+
+        capturedClusterStateListener.getValue()
+            .clusterChanged(new ClusterChangedEvent("disable ES|QL datafeeds", disabledProjectState, enabledState));
+
+        verify(handler).accept(null);
+        verify(auditor).warning(
+            JOB_ID,
+            "Stopping ES|QL datafeed [datafeed_id] for job [job_id] because ES|QL datafeeds are disabled; "
+                + "enable ES|QL datafeeds on the project to restart it."
+        );
+        assertThat(datafeedRunner.isRunning(task), is(false));
+    }
+
+    public void testEsqlDatafeedShouldNotScheduleWhenSettingIsDisabledBeforeHolderPublication() throws Exception {
+        Job job = createDatafeedJob().setCreateTime(new Date()).build();
+        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder(DATAFEED_ID, JOB_ID).setEsqlQuery("FROM logs").build();
+        givenDatafeedHasNeverRunBefore(job, esqlDatafeed);
+
+        ClusterState enabledState = clusterStateWithEsqlDatafeedsEnabled(true);
+        AtomicReference<ClusterState> clusterState = new AtomicReference<>(enabledState);
+        when(clusterService.state()).thenAnswer(ignored -> clusterState.get());
+        ClusterState disabledState = clusterStateWithEsqlDatafeedsEnabled(false);
+        AtomicReference<ActionListener<DatafeedJob>> datafeedJobListener = new AtomicReference<>();
+        doAnswer(invocationOnMock -> {
+            datafeedJobListener.set(invocationOnMock.getArgument(2));
+            return null;
+        }).when(datafeedJobBuilder).build(any(), any(), any());
+
+        Consumer<Exception> handler = mockConsumer();
+        StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams(DATAFEED_ID, 0L);
+        DatafeedTask task = TransportStartDatafeedActionTests.createDatafeedTask(1, "type", "action", null, params, datafeedRunner);
+        task = spyDatafeedTask(task);
+        datafeedRunner.run(task, false, handler);
+
+        clusterState.set(disabledState);
+        capturedClusterStateListener.getValue()
+            .clusterChanged(new ClusterChangedEvent("disable ES|QL datafeeds", disabledState, enabledState));
+        datafeedJobListener.get().onResponse(datafeedJob);
+
+        verify(datafeedJob).stop();
+        verify(task, never()).updatePersistentTaskState(eq(DatafeedState.STARTED), any());
+        verify(datafeedJob, never()).runLookBack(anyLong(), nullable(Long.class));
+        verify(handler).accept(null);
+        assertThat(datafeedRunner.isRunning(task), is(false));
+    }
+
+    public void testEsqlDatafeedShouldNotCompleteTwiceWhenSettingIsDisabledBeforeStartedStateResponse() throws Exception {
+        Job job = createDatafeedJob().setCreateTime(new Date()).build();
+        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder(DATAFEED_ID, JOB_ID).setEsqlQuery("FROM logs").build();
+        givenDatafeedHasNeverRunBefore(job, esqlDatafeed);
+
+        ClusterState enabledState = clusterStateWithEsqlDatafeedsEnabled(true);
+        AtomicReference<ClusterState> clusterState = new AtomicReference<>(enabledState);
+        when(clusterService.state()).thenAnswer(ignored -> clusterState.get());
+        ClusterState disabledState = clusterStateWithEsqlDatafeedsEnabled(false);
+
+        Consumer<Exception> handler = mockConsumer();
+        StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams(DATAFEED_ID, 0L);
+        DatafeedTask task = TransportStartDatafeedActionTests.createDatafeedTask(1, "type", "action", null, params, datafeedRunner);
+        task = spyDatafeedTask(task);
+        AtomicReference<ActionListener<PersistentTask<?>>> startedStateListener = new AtomicReference<>();
+        doAnswer(invocationOnMock -> {
+            startedStateListener.set(invocationOnMock.getArgument(1));
+            return null;
+        }).when(task).updatePersistentTaskState(eq(DatafeedState.STARTED), any());
+        datafeedRunner.run(task, false, handler);
+
+        verify(task).updatePersistentTaskState(eq(DatafeedState.STARTED), any());
+        CountDownLatch disableComplete = new CountDownLatch(1);
+        Thread disableThread = new Thread(() -> {
+            clusterState.set(disabledState);
+            capturedClusterStateListener.getValue()
+                .clusterChanged(new ClusterChangedEvent("disable ES|QL datafeeds", disabledState, enabledState));
+            disableComplete.countDown();
+        });
+        disableThread.start();
+        assertTrue(disableComplete.await(5, TimeUnit.SECONDS));
+        startedStateListener.get().onFailure(new org.elasticsearch.ResourceNotFoundException("datafeed task was removed"));
+
+        verify(datafeedJob).stop();
+        verify(datafeedJob, never()).runLookBack(anyLong(), nullable(Long.class));
+        verify(datafeedJob, never()).runRealtime();
+        verify(handler, times(1)).accept(null);
+        assertThat(datafeedRunner.isRunning(task), is(false));
+    }
+
+    public void testEsqlDatafeedShouldNotSendStartedStateWhenDisableLinearizesBeforeStartDispatch() throws Exception {
+        Job job = createDatafeedJob().setCreateTime(new Date()).build();
+        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder(DATAFEED_ID, JOB_ID).setEsqlQuery("FROM logs").build();
+        givenDatafeedHasNeverRunBefore(job, esqlDatafeed);
+
+        ClusterState enabledState = clusterStateWithEsqlDatafeedsEnabled(true);
+        AtomicReference<ClusterState> clusterState = new AtomicReference<>(enabledState);
+        when(clusterService.state()).thenAnswer(ignored -> clusterState.get());
+        ClusterState disabledState = clusterStateWithEsqlDatafeedsEnabled(false);
+        AtomicReference<ActionListener<DatafeedJob>> datafeedJobListener = new AtomicReference<>();
+        doAnswer(invocationOnMock -> {
+            datafeedJobListener.set(invocationOnMock.getArgument(2));
+            return null;
+        }).when(datafeedJobBuilder).build(any(), any(), any());
+
+        Consumer<Exception> handler = mockConsumer();
+        StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams(DATAFEED_ID, 0L);
+        DatafeedTask task = TransportStartDatafeedActionTests.createDatafeedTask(1, "type", "action", null, params, datafeedRunner);
+        task = spyDatafeedTask(task);
+        datafeedRunner.run(task, false, handler);
+
+        CountDownLatch disableComplete = new CountDownLatch(1);
+        Thread disableThread = new Thread(() -> {
+            clusterState.set(disabledState);
+            capturedClusterStateListener.getValue()
+                .clusterChanged(new ClusterChangedEvent("disable ES|QL datafeeds", disabledState, enabledState));
+            disableComplete.countDown();
+        });
+        disableThread.start();
+        assertTrue(disableComplete.await(5, TimeUnit.SECONDS));
+
+        CountDownLatch startComplete = new CountDownLatch(1);
+        Thread startThread = new Thread(() -> {
+            datafeedJobListener.get().onResponse(datafeedJob);
+            startComplete.countDown();
+        });
+        startThread.start();
+        assertTrue(startComplete.await(5, TimeUnit.SECONDS));
+
+        verify(datafeedJob).stop();
+        verify(task, never()).updatePersistentTaskState(eq(DatafeedState.STARTED), any());
+        verify(datafeedJob, never()).runLookBack(anyLong(), nullable(Long.class));
+        verify(datafeedJob, never()).runRealtime();
+        verify(handler, times(1)).accept(null);
+        assertThat(datafeedRunner.isRunning(task), is(false));
+    }
+
+    public void testClassicDatafeedShouldKeepRunningWhenRuntimeSettingIsDisabled() throws Exception {
+        ClusterState enabledState = clusterStateWithEsqlDatafeedsEnabled(true);
+        ClusterState disabledState = clusterStateWithEsqlDatafeedsEnabled(false);
+        when(clusterService.state()).thenReturn(enabledState);
+
+        Consumer<Exception> handler = mockConsumer();
+        StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams(DATAFEED_ID, 0L);
+        DatafeedTask task = TransportStartDatafeedActionTests.createDatafeedTask(1, "type", "action", null, params, datafeedRunner);
+        task = spyDatafeedTask(task);
+        datafeedRunner.run(task, false, handler);
+
+        capturedClusterStateListener.getValue()
+            .clusterChanged(new ClusterChangedEvent("disable ES|QL datafeeds", disabledState, enabledState));
+
+        verify(datafeedJob, never()).stop();
+        verify(auditor, never()).warning(anyString(), anyString());
+        assertThat(datafeedRunner.isRunning(task), is(true));
     }
 
     private static LinkedClusterState available(String alias) {
@@ -574,7 +782,12 @@ public class DatafeedRunnerTests extends ESTestCase {
     public void testStoppedTaskStateUpdateFailureShouldCompleteGracefully() {
         enableSynchronousRetryScheduling();
         DatafeedTask task = createDatafeedTask(DATAFEED_ID, 0L, 60000L);
-        when(task.getStoppedOrIsolated()).thenReturn(DatafeedTask.StoppedOrIsolated.NEITHER, DatafeedTask.StoppedOrIsolated.STOPPED);
+        when(task.getStoppedOrIsolated()).thenReturn(
+            DatafeedTask.StoppedOrIsolated.NEITHER,
+            DatafeedTask.StoppedOrIsolated.NEITHER,
+            DatafeedTask.StoppedOrIsolated.NEITHER,
+            DatafeedTask.StoppedOrIsolated.STOPPED
+        );
         doAnswer(invocationOnMock -> {
             ActionListener<PersistentTask<?>> listener = invocationOnMock.getArgument(1);
             listener.onFailure(new MasterNotDiscoveredException());
@@ -681,5 +894,14 @@ public class DatafeedRunnerTests extends ESTestCase {
             );
             return null;
         }).when(datafeedContextProvider).buildDatafeedContext(eq(DATAFEED_ID), any());
+    }
+
+    private ClusterState clusterStateWithEsqlDatafeedsEnabled(boolean enabled) {
+        return ClusterState.builder(clusterService.state())
+            .metadata(
+                Metadata.builder(clusterService.state().metadata())
+                    .persistentSettings(Settings.builder().put(MachineLearning.ESQL_DATAFEEDS_ENABLED.getKey(), enabled).build())
+            )
+            .build();
     }
 }

@@ -311,7 +311,7 @@ public final class DatafeedManager {
 
             BiConsumer<DatafeedConfig, ActionListener<Boolean>> wrappedValidator = (updatedConfig, validatorListener) -> {
                 warnIfProjectRoutingIsInert(request.getUpdate().getProjectRouting());
-                jobConfigProvider.validateDatafeedJob(updatedConfig, validatorListener);
+                jobConfigProvider.validateDatafeedJob(updatedConfig, headers, validatorListener);
             };
 
             final String datafeedId = request.getUpdate().getId();
@@ -705,6 +705,7 @@ public final class DatafeedManager {
 
         CheckedConsumer<Boolean, Exception> jobOk = ok -> jobConfigProvider.validateDatafeedJob(
             request.getDatafeed(),
+            headers,
             ActionListener.wrap(validationOk, listener::onFailure)
         );
 

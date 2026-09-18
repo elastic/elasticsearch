@@ -74,12 +74,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigBuilderTests.createRandomizedDatafeedConfigBuilder;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_AGGS;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_CHUNKING_OFF;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_QUERY;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_RUNTIME_MAPPINGS;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCRIPT_FIELDS;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCROLL_SIZE;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD;
 import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createTestQueryProvider;
 import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPersistedCloudCredential;
 import static org.hamcrest.Matchers.containsString;
@@ -1296,6 +1291,32 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertThat(result, sameInstance(datafeed));
     }
 
+    public void testWithCrossProjectModeIfEnabledShouldKeepEsqlIndicesOptionsAbsentWhenLocalOnly() {
+        DatafeedConfig datafeed = createEsqlDatafeedBuilder().build();
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
+                Settings.builder().put("serverless.cross_project.enabled", false).build()
+            );
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider, false, true);
+
+        assertThat(result, sameInstance(datafeed));
+        assertThat(result.getIndicesOptions(), nullValue());
+    }
+
+    public void testWithCrossProjectModeIfEnabledShouldKeepEsqlIndicesOptionsAbsentWhenCpsHasNoCredential() {
+        DatafeedConfig datafeed = createEsqlDatafeedBuilder().build();
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
+                Settings.builder().put("serverless.cross_project.enabled", true).build()
+            );
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider, false, true);
+
+        assertThat(result, sameInstance(datafeed));
+        assertThat(result.getIndicesOptions(), nullValue());
+    }
+
     public void testWithCrossProjectModeIfEnabled_GivenCrossProjectEnabledAndNotAlreadySet() {
         assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
@@ -1745,7 +1766,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         builder.setParsedQuery(QueryBuilders.termQuery("field", "value"));
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
-        assertThat(e.getMessage(), equalTo(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_QUERY));
+        assertThat(e.getMessage(), equalTo(Messages.getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, "query")));
     }
 
     public void testBuild_GivenEsqlQueryWithAggregationsThrows() {
@@ -1756,7 +1777,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         );
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
-        assertThat(e.getMessage(), equalTo(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_AGGS));
+        assertThat(e.getMessage(), equalTo(Messages.getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, "aggregations")));
     }
 
     public void testBuild_GivenEsqlQueryWithScriptFieldsThrows() {
@@ -1766,7 +1787,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         );
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
-        assertThat(e.getMessage(), equalTo(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCRIPT_FIELDS));
+        assertThat(e.getMessage(), equalTo(Messages.getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, "script_fields")));
     }
 
     public void testBuild_GivenEsqlQueryWithRuntimeMappingsThrows() {
@@ -1778,7 +1799,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         builder.setRuntimeMappings(runtimeFields);
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
-        assertThat(e.getMessage(), equalTo(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_RUNTIME_MAPPINGS));
+        assertThat(e.getMessage(), equalTo(Messages.getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, "runtime_mappings")));
     }
 
     public void testBuild_GivenEsqlQueryWithCustomScrollSizeThrows() {
@@ -1786,19 +1807,20 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         builder.setScrollSize(500);
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
-        assertThat(e.getMessage(), equalTo(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCROLL_SIZE));
+        assertThat(e.getMessage(), equalTo(Messages.getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, "scroll_size")));
     }
 
-    public void testBuild_GivenEsqlQueryWithChunkingOffThrows() {
+    public void testBuild_GivenEsqlQueryWithChunkingOffShouldSucceed() {
         DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
         builder.setChunkingConfig(ChunkingConfig.newOff());
 
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
-        assertThat(e.getMessage(), equalTo(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_CHUNKING_OFF));
+        assertThat(builder.build().getChunkingConfig(), equalTo(ChunkingConfig.newOff()));
     }
 
     public void testBuild_GivenEsqlQueryAloneSucceeds() {
         DatafeedConfig config = createEsqlDatafeedBuilder().build();
+        assertThat(config.getIndicesOptions(), nullValue());
+        assertThat(config.getRuntimeMappings(), nullValue());
         assertThat(config.getEsqlQuery(), equalTo("FROM logs"));
         assertThat(config.getChunkingConfig(), equalTo(ChunkingConfig.newAuto()));
     }

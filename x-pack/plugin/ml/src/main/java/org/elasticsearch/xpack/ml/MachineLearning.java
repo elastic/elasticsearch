@@ -23,12 +23,14 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -867,6 +869,24 @@ public class MachineLearning extends Plugin
         Setting.Property.NodeScope
     );
 
+    /** Enables creation and execution of ES|QL-backed anomaly detection datafeeds. */
+    public static final Setting<Boolean> ESQL_DATAFEEDS_ENABLED = Setting.boolSetting(
+        "xpack.ml.esql_datafeeds.enabled",
+        false,
+        Property.NodeScope,
+        Property.ProjectScope,
+        Property.OperatorDynamic
+    );
+
+    /** Resolves the setting from project state when present, otherwise from cluster state. */
+    public static boolean isEsqlDatafeedsEnabled(ClusterState state, ProjectId projectId) {
+        Settings settings = Settings.builder()
+            .put(state.metadata().settings())
+            .put(ProjectStateRegistry.getProjectSettings(projectId, state))
+            .build();
+        return ESQL_DATAFEEDS_ENABLED.get(settings);
+    }
+
     /**
      * The time that has to pass after scaling up, before scaling down is allowed.
      * Note that the ML autoscaling has its own cooldown time to release the hardware.
@@ -992,6 +1012,7 @@ public class MachineLearning extends Plugin
             CCS_STABILIZATION_FLOOR,
             CONFIG_METRICS_POLL_INTERVAL,
             REQUIRE_ROLLBACK_SNAPSHOT_BEFORE_SCOPE_CHANGE,
+            ESQL_DATAFEEDS_ENABLED,
             DUMMY_ENTITY_MEMORY,
             DUMMY_ENTITY_PROCESSORS,
             SCALE_UP_COOLDOWN_TIME,
@@ -1682,10 +1703,28 @@ public class MachineLearning extends Plugin
             restHandlers.add(new RestUpdateModelSnapshotAction());
             restHandlers.add(new RestGetDatafeedsAction());
             restHandlers.add(new RestGetDatafeedStatsAction());
-            restHandlers.add(new RestPutDatafeedAction(mlCrossProjectSearchEnabled));
-            restHandlers.add(new RestUpdateDatafeedAction(mlCrossProjectSearchEnabled));
+            restHandlers.add(
+                new RestPutDatafeedAction(
+                    mlCrossProjectSearchEnabled,
+                    restHandlersServices.clusterService(),
+                    restHandlersServices.projectResolver()
+                )
+            );
+            restHandlers.add(
+                new RestUpdateDatafeedAction(
+                    mlCrossProjectSearchEnabled,
+                    restHandlersServices.clusterService(),
+                    restHandlersServices.projectResolver()
+                )
+            );
             restHandlers.add(new RestDeleteDatafeedAction());
-            restHandlers.add(new RestPreviewDatafeedAction(mlCrossProjectSearchEnabled));
+            restHandlers.add(
+                new RestPreviewDatafeedAction(
+                    mlCrossProjectSearchEnabled,
+                    restHandlersServices.clusterService(),
+                    restHandlersServices.projectResolver()
+                )
+            );
             restHandlers.add(new RestStartDatafeedAction());
             restHandlers.add(new RestStopDatafeedAction());
             restHandlers.add(new RestDeleteModelSnapshotAction());

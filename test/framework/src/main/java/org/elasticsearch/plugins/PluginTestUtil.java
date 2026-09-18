@@ -70,6 +70,6 @@ public class PluginTestUtil {
     }
 
     public static ActionPlugin.RestHandlersServices emptyRestHandlersServices() {
-        return new ActionPlugin.RestHandlersServices(Settings.EMPTY, null, null, CrossProjectModeDecider.NOOP);
+        return new ActionPlugin.RestHandlersServices(Settings.EMPTY, null, null, null, CrossProjectModeDecider.NOOP);
     }
 }

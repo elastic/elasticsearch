@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.RestController;
@@ -145,6 +146,7 @@ public interface ActionPlugin {
     record RestHandlersServices(
         Settings settings,
         RestController restController,
+        ClusterService clusterService,
         ProjectResolver projectResolver,
         CrossProjectModeDecider crossProjectModeDecider
     ) {}

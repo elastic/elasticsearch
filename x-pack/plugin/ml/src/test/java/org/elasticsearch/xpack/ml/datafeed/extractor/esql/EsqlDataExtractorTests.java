@@ -79,7 +79,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
         assertThat(extractor.hasNext(), is(true));
         extractor.next();
 
-        assertThat(extractor.capturedOrderedQuery, equalTo(DEFAULT_QUERY + " | SORT ??timeField ASC"));
+        assertThat(extractor.capturedOrderedQuery, equalTo(DEFAULT_QUERY + " | LIMIT 10000 | SORT ??timeField ASC"));
         assertThat(extractor.capturedParams, equalTo(List.of(new EsqlQueryParam("timeField", "timestamp", IDENTIFIER))));
         verify(timingStatsReporter).reportSearchDuration(any());
     }
@@ -91,7 +91,121 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
         extractor.next();
 
-        assertThat(extractor.capturedOrderedQuery, equalTo(esqlQuery + " | SORT ??timeField ASC"));
+        assertThat(extractor.capturedOrderedQuery, equalTo(esqlQuery + " | LIMIT 10000 | SORT ??timeField ASC"));
+    }
+
+    public void testQueryWithoutLimitCommandShouldAppendDefaultLimit() {
+        String query = "FROM logs-* | KEEP @timestamp, bytes";
+
+        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query + " | LIMIT 10000"));
+    }
+
+    public void testQueryWithLimitCommandShouldPreserveUserLimit() {
+        String query = "FROM logs-* | LIMIT 20";
+
+        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query));
+    }
+
+    public void testNextGivenUserLimitShouldKeepUserLimitAndAppendTimeSort() throws IOException {
+        String query = "FROM logs-* | LIMIT 20";
+        TestDataExtractor extractor = createExtractor(1000L, 2000L, query, "timestamp");
+        extractor.enqueueRow(List.of(column("timestamp", DATE)), "2000-01-01T00:00:00.100Z");
+
+        extractor.next();
+
+        assertThat(extractor.capturedOrderedQuery, equalTo(query + " | SORT ??timeField ASC"));
+    }
+
+    public void testNextGivenUserLimitEndingInLineCommentShouldAppendTimeSortOnNewLine() throws IOException {
+        String query = "FROM logs-* | LIMIT 20 // explanation";
+        TestDataExtractor extractor = createExtractor(1000L, 2000L, query, "timestamp");
+        extractor.enqueueRow(List.of(column("timestamp", DATE)), "2000-01-01T00:00:00.100Z");
+
+        extractor.next();
+
+        assertThat(extractor.capturedOrderedQuery, equalTo(query + "\n | SORT ??timeField ASC"));
+    }
+
+    public void testQueryWithLimitInQuotedStringShouldAppendDefaultLimit() {
+        String query = "FROM logs-* | WHERE message == \"LIMIT 20\"";
+
+        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query + " | LIMIT 10000"));
+    }
+
+    public void testQueryWithLimitInTripleQuotedStringShouldAppendDefaultLimit() {
+        String query = "FROM logs-* | WHERE message == \"\"\"| LIMIT 20\"\"\"";
+
+        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query + " | LIMIT 10000"));
+    }
+
+    public void testNextGivenFourQuoteTripleStringAndOuterLimitShouldAppendTimeSort() throws IOException {
+        String query = "FROM logs-* | WHERE message == \"\"\"literal\"\"\"\" | LIMIT 20";
+        TestDataExtractor extractor = createExtractor(1000L, 2000L, query, "timestamp");
+        extractor.enqueueRow(List.of(column("timestamp", DATE)), "2000-01-01T00:00:00.100Z");
+
+        extractor.next();
+
+        assertThat(extractor.capturedOrderedQuery, equalTo(query + " | SORT ??timeField ASC"));
+    }
+
+    public void testQueryWithFiveQuoteTripleStringAndOuterLimitShouldPreserveOuterLimit() {
+        String query = "FROM logs-* | WHERE message == \"\"\"literal\"\"\"\"\" | LIMIT 20";
+
+        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query));
+    }
+
+    public void testQueryWithLimitInCommentShouldAppendDefaultLimit() {
+        String query = "FROM logs-* // | LIMIT 20\n| KEEP @timestamp";
+
+        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query + " | LIMIT 10000"));
+    }
+
+    public void testQueryWithLimitInBlockCommentShouldAppendDefaultLimit() {
+        String query = "FROM logs-* /* | LIMIT 20 */ | KEEP @timestamp";
+
+        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query + " | LIMIT 10000"));
+    }
+
+    public void testQueryWithLimitInNestedBlockCommentShouldAppendDefaultLimit() {
+        String query = "FROM logs-* /* outer /* | LIMIT 20 */ comment */ | KEEP @timestamp";
+
+        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query + " | LIMIT 10000"));
+    }
+
+    public void testQueryWithLimitSubstringShouldAppendDefaultLimit() {
+        String query = "FROM logs-* | KEEP limit_value, `LIMIT``_value`";
+
+        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query + " | LIMIT 10000"));
+    }
+
+    public void testQueryWithLimitInInSubqueryShouldAppendDefaultLimit() {
+        String query = "FROM logs-* | WHERE id IN (FROM other-logs | LIMIT 3 | KEEP id)";
+
+        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query + " | LIMIT 10000"));
+    }
+
+    public void testQueryWithLimitInForkBranchesShouldAppendDefaultLimit() {
+        String query = "FROM logs-* | FORK (WHERE level == \"warn\" | LIMIT 3) (WHERE level == \"error\" | LIMIT 4)";
+
+        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query + " | LIMIT 10000"));
+    }
+
+    public void testQueryWithNestedAndOuterLimitShouldPreserveOuterLimit() {
+        String query = "FROM logs-* | WHERE id IN (FROM other-logs | LIMIT 3 | KEEP id) | LIMIT 20";
+
+        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query));
+    }
+
+    public void testQueryEndingInLineCommentShouldAppendLimitOnNewLine() {
+        String query = "FROM logs-* // no user limit";
+
+        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query + "\n | LIMIT 10000"));
+    }
+
+    public void testMultilineMixedCaseLimitCommandShouldPreserveUserLimit() {
+        String query = "FROM logs-*\n| KEEP @timestamp\n| lImIt 42";
+
+        assertThat(EsqlDataExtractor.maybeInjectLimit(query), equalTo(query));
     }
 
     public void testNextGivenTimeFilterIsHalfOpen() throws IOException {

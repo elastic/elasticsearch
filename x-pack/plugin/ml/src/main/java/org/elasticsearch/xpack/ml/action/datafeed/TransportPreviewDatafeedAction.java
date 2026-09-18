@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.action.datafeed;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -16,6 +17,9 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -42,6 +46,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearningExtensionHolder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
@@ -74,6 +79,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     private final SecurityContext securityContext;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final CloudCredentialManager cloudCredentialManager;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPreviewDatafeedAction(
@@ -86,7 +92,8 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         JobConfigProvider jobConfigProvider,
         DatafeedConfigProvider datafeedConfigProvider,
         NamedXContentRegistry xContentRegistry,
-        MachineLearningExtensionHolder machineLearningExtensionHolder
+        MachineLearningExtensionHolder machineLearningExtensionHolder,
+        ProjectResolver projectResolver
     ) {
         super(
             PreviewDatafeedAction.NAME,
@@ -108,12 +115,19 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         this.cloudCredentialManager = machineLearningExtensionHolder.isEmpty()
             ? new CloudCredentialManager.Noop()
             : machineLearningExtensionHolder.getMachineLearningExtension().getCloudCredentialManager();
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected void doExecute(Task task, PreviewDatafeedAction.Request request, ActionListener<PreviewDatafeedAction.Response> listener) {
         TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         ActionListener<DatafeedConfig> datafeedConfigActionListener = listener.delegateFailureAndWrap((delegate, datafeedConfig) -> {
+            try {
+                validateEsqlDatafeedEnabled(datafeedConfig, clusterService.state(), projectResolver.getProjectId());
+            } catch (ElasticsearchStatusException e) {
+                delegate.onFailure(e);
+                return;
+            }
             if (request.getJobConfig() != null) {
                 previewDatafeed(parentTaskId, datafeedConfig, request.getJobConfig().build(new Date()), request, delegate);
                 return;
@@ -133,6 +147,16 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 request.getDatafeedId(),
                 parentTaskId,
                 datafeedConfigActionListener.delegateFailureAndWrap((l, builder) -> l.onResponse(builder.build()))
+            );
+        }
+    }
+
+    static void validateEsqlDatafeedEnabled(DatafeedConfig datafeedConfig, ClusterState state, ProjectId projectId) {
+        if (datafeedConfig.getEsqlQuery() != null && MachineLearning.isEsqlDatafeedsEnabled(state, projectId) == false) {
+            throw new ElasticsearchStatusException(
+                "Cannot preview ES|QL datafeed while [xpack.ml.esql_datafeeds.enabled] is disabled; "
+                    + "enable ES|QL datafeeds and try again.",
+                org.elasticsearch.rest.RestStatus.BAD_REQUEST
             );
         }
     }

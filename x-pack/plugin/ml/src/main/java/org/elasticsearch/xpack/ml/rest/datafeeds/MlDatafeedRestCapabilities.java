@@ -20,6 +20,7 @@ public final class MlDatafeedRestCapabilities {
      * Old nodes in a mixed cluster, or nodes with CPS disabled, will not report this capability via {@code /_capabilities}.
      */
     public static final String ML_CROSS_PROJECT_SEARCH = "ml_cross_project_search";
+    public static final String ML_DATAFEED_ESQL_QUERY = "ml_datafeed_esql_query";
 
     private static final Set<String> CAPABILITIES_ENABLED = Set.of(ML_CROSS_PROJECT_SEARCH);
     private static final Set<String> CAPABILITIES_DISABLED = Set.of();
@@ -33,4 +34,12 @@ public final class MlDatafeedRestCapabilities {
     public static Set<String> supportedCapabilities(boolean mlCrossProjectSearchEnabled) {
         return mlCrossProjectSearchEnabled ? CAPABILITIES_ENABLED : CAPABILITIES_DISABLED;
     }
+
+    public static Set<String> supportedCapabilities(boolean mlCrossProjectSearchEnabled, boolean esqlDatafeedsEnabled) {
+        if (mlCrossProjectSearchEnabled) return esqlDatafeedsEnabled
+            ? Set.of(ML_CROSS_PROJECT_SEARCH, ML_DATAFEED_ESQL_QUERY)
+            : CAPABILITIES_ENABLED;
+        return esqlDatafeedsEnabled ? Set.of(ML_DATAFEED_ESQL_QUERY) : CAPABILITIES_DISABLED;
+    }
+
 }

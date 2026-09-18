@@ -6,11 +6,15 @@
  */
 package org.elasticsearch.xpack.ml.action.datafeed;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -44,6 +48,7 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomCloudCredentialEncryptedData;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -56,6 +61,30 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TransportPreviewDatafeedActionTests extends ESTestCase {
+
+    public void testEsqlDatafeedWhenFlagOffShouldRejectPreview() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", "job").setEsqlQuery("FROM logs").build();
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> TransportPreviewDatafeedAction.validateEsqlDatafeedEnabled(
+                datafeed,
+                ClusterState.builder(new ClusterName("test")).build(),
+                ProjectId.DEFAULT
+            )
+        );
+        assertThat(exception.getMessage(), containsString("xpack.ml.esql_datafeeds.enabled"));
+        assertThat(exception.getMessage(), containsString("enable"));
+        assertThat(exception.getMessage(), not(containsString("ml_datafeed_esql_query")));
+    }
+
+    public void testClassicDatafeedWhenFlagOffShouldAllowPreview() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("classic-datafeed", "job").setIndices(List.of("logs")).build();
+        TransportPreviewDatafeedAction.validateEsqlDatafeedEnabled(
+            datafeed,
+            ClusterState.builder(new ClusterName("test")).build(),
+            ProjectId.DEFAULT
+        );
+    }
 
     private DataExtractor dataExtractor;
     private ActionListener<PreviewDatafeedAction.Response> actionListener;

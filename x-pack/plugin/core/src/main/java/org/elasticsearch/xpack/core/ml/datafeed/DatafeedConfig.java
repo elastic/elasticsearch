@@ -77,12 +77,7 @@ import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGG
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_AGGS;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_CHUNKING_OFF;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_QUERY;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_RUNTIME_MAPPINGS;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCRIPT_FIELDS;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCROLL_SIZE;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_DATA_HISTOGRAM_MUST_HAVE_NESTED_MAX_AGGREGATION;
@@ -441,6 +436,9 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             return datafeed;
         }
         IndicesOptions baseOptions = datafeed.getIndicesOptions();
+        if (baseOptions == null) {
+            return datafeed;
+        }
         // Only rebuild if CPS mode is not already enabled to avoid unnecessary object creation
         if (baseOptions.resolveCrossProjectIndexExpression()) {
             return datafeed;
@@ -455,13 +453,14 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
      */
     static DatafeedConfig normalizeExecutionForLocalOnlySearch(DatafeedConfig datafeed) {
         boolean clearRouting = datafeed.getProjectRouting() != null;
-        boolean demoteIndices = datafeed.getIndicesOptions().resolveCrossProjectIndexExpression();
+        IndicesOptions indicesOptions = datafeed.getIndicesOptions();
+        boolean demoteIndices = indicesOptions != null && indicesOptions.resolveCrossProjectIndexExpression();
         if (clearRouting == false && demoteIndices == false) {
             return datafeed;
         }
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeed);
         if (demoteIndices) {
-            IndicesOptions modifiedOptions = IndicesOptions.builder(datafeed.getIndicesOptions())
+            IndicesOptions modifiedOptions = IndicesOptions.builder(indicesOptions)
                 .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(false))
                 .build();
             builder.setIndicesOptions(modifiedOptions);
@@ -544,7 +543,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     public Optional<Tuple<TransportVersion, String>> minRequiredTransportVersion() {
         if (esqlQuery != null) {
             return Optional.of(
-                new Tuple<>(ML_DATAFEED_ESQL_QUERY, "datafeed uses esql_query which requires transport version ml_datafeed_esql_query")
+                new Tuple<>(ML_DATAFEED_ESQL_QUERY, "datafeed uses an ES|QL query, which requires support for ES|QL datafeeds")
             );
         }
         return Optional.empty();
@@ -814,15 +813,17 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (chunkingConfig != null) {
                 builder.field(CHUNKING_CONFIG.getPreferredName(), chunkingConfig);
             }
-            builder.startObject(INDICES_OPTIONS.getPreferredName());
-            indicesOptions.toXContent(builder, params);
-            builder.endObject();
+            if (indicesOptions != null) {
+                builder.startObject(INDICES_OPTIONS.getPreferredName());
+                indicesOptions.toXContent(builder, params);
+                builder.endObject();
+            }
         } else { // Don't include random defaults or unnecessary defaults in export
             if (queryDelay.equals(defaultRandomQueryDelay(jobId)) == false) {
                 builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
             }
             // Indices options are a pretty advanced feature, better to not include them if they are just the default ones
-            if (indicesOptions.equals(SearchRequest.DEFAULT_INDICES_OPTIONS) == false) {
+            if (indicesOptions != null && indicesOptions.equals(SearchRequest.DEFAULT_INDICES_OPTIONS) == false) {
                 builder.startObject(INDICES_OPTIONS.getPreferredName());
                 indicesOptions.toXContent(builder, params);
                 builder.endObject();
@@ -861,7 +862,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         if (maxEmptySearches != null) {
             builder.field(MAX_EMPTY_SEARCHES.getPreferredName(), maxEmptySearches);
         }
-        if (runtimeMappings.isEmpty() == false) {
+        if (runtimeMappings != null && runtimeMappings.isEmpty() == false) {
             builder.field(SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName(), runtimeMappings);
         }
         if (projectRouting != null) {
@@ -1343,6 +1344,10 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             return this.indicesOptions;
         }
 
+        public String getEsqlQuery() {
+            return this.esqlQuery;
+        }
+
         public Builder setRuntimeMappings(Map<String, Object> runtimeMappings) {
             this.runtimeMappings = ExceptionsHelper.requireNonNull(
                 runtimeMappings,
@@ -1376,12 +1381,17 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (MlStrings.isValidId(id) == false) {
                 throw ExceptionsHelper.badRequestException(getMessage(INVALID_ID, ID.getPreferredName(), id));
             }
-            if (indices == null || indices.isEmpty() || indices.contains("")) {
+            if (esqlQuery == null && (indices == null || indices.isEmpty() || indices.contains(""))) {
                 throw invalidOptionValue(INDICES.getPreferredName(), indices);
             }
 
             validateScriptFields();
-            RuntimeMappingsValidator.validate(runtimeMappings);
+            if (runtimeMappings == null && esqlQuery == null) {
+                runtimeMappings = Collections.emptyMap();
+            }
+            if (runtimeMappings != null) {
+                RuntimeMappingsValidator.validate(runtimeMappings);
+            }
             validateEsqlQueryConflicts();
             // Non-ES|QL datafeeds always carry a query; restore the historical match_all default when
             // the caller did not set an explicit query. Must come after validateEsqlQueryConflicts()
@@ -1395,10 +1405,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             if (indicesOptions == null && esqlQuery == null) {
                 indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED;
             }
-            if (indicesOptions != null && indicesOptions.resolveCrossProjectIndexExpression()) {
-                throw new ElasticsearchStatusException("Cross-project search is not enabled for Datafeeds", RestStatus.FORBIDDEN);
-            }
-
             return new DatafeedConfig(
                 id,
                 jobId,
@@ -1435,22 +1441,29 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                 return;
             }
             if (queryProvider != null) {
-                throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_QUERY));
+                throw ExceptionsHelper.badRequestException(
+                    getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, QUERY.getPreferredName())
+                );
             }
             if (aggProvider != null) {
-                throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_AGGS));
+                throw ExceptionsHelper.badRequestException(
+                    getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, AGGREGATIONS.getPreferredName())
+                );
             }
             if (scriptFields != null && scriptFields.isEmpty() == false) {
-                throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCRIPT_FIELDS));
+                throw ExceptionsHelper.badRequestException(
+                    getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, SCRIPT_FIELDS.getPreferredName())
+                );
             }
             if (runtimeMappings != null && runtimeMappings.isEmpty() == false) {
-                throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_RUNTIME_MAPPINGS));
+                throw ExceptionsHelper.badRequestException(
+                    getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName())
+                );
             }
             if (scrollSize != null && scrollSize != DEFAULT_SCROLL_SIZE) {
-                throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCROLL_SIZE));
-            }
-            if (chunkingConfig != null && chunkingConfig.isEnabled() == false) {
-                throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_CHUNKING_OFF));
+                throw ExceptionsHelper.badRequestException(
+                    getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, SCROLL_SIZE.getPreferredName())
+                );
             }
             // TODO: Remove the default indicesOptions that are set as they are not needed for ESQL.
             /*if (indicesOptions != null) {

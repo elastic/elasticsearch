@@ -254,7 +254,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     crossProjectModeDecider,
                     datafeedConfigHolder.get().getCloudInternalCredential() != null
                 );
-                boolean isCpsMode = effectiveDatafeed.getIndicesOptions().resolveCrossProjectIndexExpression();
+                boolean isCpsMode = isCrossProjectMode(effectiveDatafeed);
 
                 if (isCpsMode) {
                     // Skip license check for CPS - all projects share the same highest license
@@ -318,6 +318,12 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
         ActionListener<DatafeedConfig.Builder> datafeedListener = ActionListener.wrap(datafeedBuilder -> {
             DatafeedConfig datafeedConfig = datafeedBuilder.build();
+            try {
+                validateEsqlDatafeedEnabled(datafeedConfig, state, projectResolver.getProjectId());
+            } catch (ElasticsearchStatusException e) {
+                responseHeaderPreservingListener.onFailure(e);
+                return;
+            }
             DatafeedConfig effectiveDatafeed = DatafeedConfig.withCrossProjectModeIfEnabled(
                 datafeedConfig,
                 crossProjectModeDecider,
@@ -325,15 +331,23 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             );
             params.setDatafeedIndices(datafeedConfig.getIndices());
             params.setJobId(datafeedConfig.getJobId());
-            if (effectiveDatafeed.getIndicesOptions() != null) {
-                params.setIndicesOptions(effectiveDatafeed.getIndicesOptions());
-            }
+            setIndicesOptionsIfPresent(params, effectiveDatafeed);
             datafeedConfigHolder.set(datafeedConfig);
 
             jobConfigProvider.getJob(datafeedConfig.getJobId(), null, jobListener);
         }, responseHeaderPreservingListener::onFailure);
 
         datafeedConfigProvider.getDatafeedConfig(params.getDatafeedId(), null, datafeedListener);
+    }
+
+    static void validateEsqlDatafeedEnabled(DatafeedConfig datafeedConfig, ClusterState state, ProjectId projectId) {
+        if (datafeedConfig.getEsqlQuery() != null && MachineLearning.isEsqlDatafeedsEnabled(state, projectId) == false) {
+            throw ExceptionsHelper.badRequestException(
+                "Cannot start ES|QL datafeed [{}] while [xpack.ml.esql_datafeeds.enabled] is disabled; "
+                    + "enable ES|QL datafeeds and try again.",
+                datafeedConfig.getId()
+            );
+        }
     }
 
     // _origin: is the CPS origin-project qualifier, resolved at search time by the CPS rewriter, not a
@@ -343,6 +357,16 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             .stream()
             .filter(index -> index.startsWith(ProjectRoutingResolver.ORIGIN + ":") == false)
             .toList();
+    }
+
+    static boolean isCrossProjectMode(DatafeedConfig datafeed) {
+        return datafeed.getIndicesOptions() != null && datafeed.getIndicesOptions().resolveCrossProjectIndexExpression();
+    }
+
+    static void setIndicesOptionsIfPresent(StartDatafeedAction.DatafeedParams params, DatafeedConfig datafeed) {
+        if (datafeed.getIndicesOptions() != null) {
+            params.setIndicesOptions(datafeed.getIndicesOptions());
+        }
     }
 
     static void checkRemoteConfigVersions(

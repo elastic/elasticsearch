@@ -617,7 +617,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
 
     public void testMatchNoneClauseDoesNotDisableKeepSet() {
         Query query = new BooleanQuery.Builder().add(contentTerm("fox"), BooleanClause.Occur.SHOULD)
-            .add(new MatchNoDocsQuery("unmapped fields [year]"), BooleanClause.Occur.SHOULD)
+            .add(new MatchNoDocsQuery("unmapped field"), BooleanClause.Occur.SHOULD)
             .build();
 
         HighlightOperator.TokenKeepSet keepSet = HighlightOperator.buildKeepSet(query);

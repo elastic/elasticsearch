@@ -19,6 +19,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.datasource.s3.S3EndpointCheck.S3_SERVICE;
@@ -57,8 +59,8 @@ public class S3EndpointCheckTests extends ESTestCase {
      * it: they are an input to the resolver rather than an endpoint anyone configures.
      */
     public void testAnswersForEveryEndpointTheResolverProduces() {
-        int accepted = 0;
-        int refused = 0;
+        Set<String> acceptedHosts = new TreeSet<>();
+        Set<String> refusedHosts = new TreeSet<>();
         for (String region : REGIONS) {
             // The destination the resolver picks with every option off is the one the rule permits. Stating
             // the oracle as "the resolver's own plain answer" rather than as a host spelling is what keeps
@@ -77,10 +79,10 @@ public class S3EndpointCheckTests extends ESTestCase {
                             String host = s3Host.substring("mybucket.".length());
                             if (s3Host.equals(plainS3)) {
                                 assertTrue("rejected " + host, S3EndpointCheck.isPermittedHost(host, S3_SERVICE));
-                                accepted++;
+                                acceptedHosts.add(host);
                             } else {
                                 assertFalse("accepted " + host, S3EndpointCheck.isPermittedHost(host, S3_SERVICE));
-                                refused++;
+                                refusedHosts.add(host);
                             }
                         }
                     }
@@ -88,17 +90,26 @@ public class S3EndpointCheckTests extends ESTestCase {
                     if (stsHost != null) {
                         if (stsHost.equals(plainSts)) {
                             assertTrue("rejected " + stsHost, S3EndpointCheck.isPermittedHost(stsHost, STS_SERVICE));
-                            accepted++;
+                            acceptedHosts.add(stsHost);
                         } else {
                             assertFalse("accepted " + stsHost, S3EndpointCheck.isPermittedHost(stsHost, STS_SERVICE));
-                            refused++;
+                            refusedHosts.add(stsHost);
                         }
                     }
                 }
             }
         }
-        assertEquals("the set of endpoints the resolver produces has changed", 21, accepted);
-        assertEquals("the set of endpoints the resolver produces that the rule refuses has changed", 65, refused);
+        // What gates the rule is the assertTrue/assertFalse above, on every destination; these assertions
+        // gate the sweep itself, which is a different job. Counting distinct hosts rather than resolver
+        // combinations is what makes that stable: the plain S3 and STS endpoints are one each per region
+        // however many FIPS, dual-stack and acceleration combinations the resolver answers for it, so this
+        // fails when the sweep stops covering a region rather than when the SDK gains a combination. The
+        // combination counts it replaces moved on every SDK bump, and a moved count gets re-pasted.
+        assertEquals("one permitted endpoint per service per region", 2 * REGIONS.size(), acceptedHosts.size());
+        assertFalse("the sweep must exercise refusals too", refusedHosts.isEmpty());
+        for (String host : acceptedHosts) {
+            assertFalse("host both accepted and refused: " + host, refusedHosts.contains(host));
+        }
     }
 
     /**
@@ -383,6 +394,11 @@ public class S3EndpointCheckTests extends ESTestCase {
             "s3.s3.us-east-1.vpce.amazonaws.com",
             "a.b.vpce-0a1b.s3.us-east-1.vpce.amazonaws.com",
             "vpce-0a1b.s3.us-east-1.notvpce.amazonaws.com",
+            // The tail must sit at the end of the host. Today the head arithmetic refuses this for a
+            // second reason — the tail begins with a dot, so the label before it can never start vpce- —
+            // which means without this case the anchoring itself is pinned by nothing.
+            "vpce-0a1b.s3.us-east-1.vpce.amazonaws.com.attacker.example.com",
+            "vpce-0a1b.s3.us-east-1.vpce.amazonaws.com.evil.co",
             "vpce-0a1b.us-east-1.vpce.amazonaws.com",
             // The region requirement on the S3 arm. Every case above is refused for a second reason as
             // well, so without this one the requirement is pinned only by its STS counterpart.

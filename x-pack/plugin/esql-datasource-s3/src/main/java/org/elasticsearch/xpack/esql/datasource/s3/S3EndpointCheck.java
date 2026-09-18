@@ -150,7 +150,8 @@ final class S3EndpointCheck {
         }
         if (s3Hosts.isEmpty() || stsHosts.isEmpty()) {
             // Both come from SDK metadata. Empty would silently refuse every endpoint value on the node,
-            // which reads as a product outage rather than as a missing dependency; fail at load instead.
+            // which reads as a product outage rather than as a missing dependency. This class is first
+            // touched by a data-source PUT, so the failure surfaces there rather than at node startup.
             throw new IllegalStateException("no AWS partition metadata available");
         }
         S3_ENDPOINT_HOSTS = Set.copyOf(s3Hosts);
@@ -257,9 +258,11 @@ final class S3EndpointCheck {
      * service and region come from the matched tail, so the only thing read out of the name is the endpoint
      * id and its optional prefix, each of which must be a single label.
      *
-     * <p>Requiring {@code vpce-} and rejecting {@code vpce-svc-} is what separates an AWS-operated interface
-     * endpoint from a customer-published PrivateLink service, whose label in that position is
-     * {@code vpce-svc-<id>} and which any AWS account can stand up.
+     * <p>What excludes a customer-published PrivateLink service is the tail, not the {@code vpce-svc-} test:
+     * AWS mints such an endpoint as {@code vpce-<id>-<hash>.vpce-svc-<serviceid>.<region>.vpce.<suffix>},
+     * whose label before the region is the service id rather than {@code s3} or {@code sts}, so no generated
+     * tail matches it. The {@code vpce-svc-} test is defence in depth against a spelling AWS does not mint;
+     * it is kept because the tail is the only thing holding that line and one guard is not enough for it.
      *
      * <p>The tail names the bare service, so an interface endpoint for one of the other S3 families —
      * {@code s3-outposts}, say — is refused even if that family is later enabled above. No source of truth

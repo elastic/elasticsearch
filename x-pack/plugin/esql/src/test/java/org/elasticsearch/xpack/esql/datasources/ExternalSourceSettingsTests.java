@@ -21,6 +21,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class ExternalSourceSettingsTests extends ESTestCase {
 
     public void testDefaults() {
@@ -226,6 +228,41 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_LISTED_OBJECTS));
         // Registered rather than merely declared: an unregistered key fails a node that carries it in its config.
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS));
+    }
+
+    /**
+     * The allowlist is matched against {@code host:port}, so an entry naming no port matches nothing. Refusing
+     * it at startup is the difference between an operator seeing their mistake and seeing an endpoint refusal
+     * that says nothing about the entry meant to admit it.
+     */
+    public void testAllowedEndpointHostsRequireAPort() {
+        for (String entry : List.of("minio.corp.example.com", "127.0.0.1", "[::1]", "localhost:", "[::1")) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS.get(
+                    Settings.builder().putList(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY, entry).build()
+                )
+            );
+            assertThat(e.getMessage(), containsString("names no port"));
+        }
+    }
+
+    public void testAllowedEndpointHostsAcceptsPortBearingEntries() {
+        Settings settings = Settings.builder()
+            .putList(
+                ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY,
+                "127.0.0.1:*",
+                "[::1]:*",
+                "localhost:9000",
+                "minio.corp.example.com:443"
+            )
+            .build();
+        assertEquals(4, ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS.get(settings).size());
+    }
+
+    /** The default permits nothing, which is what makes the list the enable rather than a filter. */
+    public void testAllowedEndpointHostsDefaultsToEmpty() {
+        assertTrue(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS.get(Settings.EMPTY).isEmpty());
     }
 
     public void testMaxConcurrentSegmentatorsDefaultDerivesBelowPoolSize() {

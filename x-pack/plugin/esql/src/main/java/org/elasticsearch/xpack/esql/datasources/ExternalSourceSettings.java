@@ -444,10 +444,37 @@ public final class ExternalSourceSettings {
      * This is a node-scope setting — only someone who can configure the node can widen what it reaches. Holding
      * the privilege to manage data sources is not enough.
      */
+    public static final String ALLOWED_ENDPOINT_HOSTS_KEY = "esql.external.allowed_endpoint_hosts";
+
     public static final Setting<List<String>> ALLOWED_ENDPOINT_HOSTS = Setting.stringListSetting(
-        "esql.external.allowed_endpoint_hosts",
+        ALLOWED_ENDPOINT_HOSTS_KEY,
+        (Setting.Validator<List<String>>) entries -> entries.forEach(ExternalSourceSettings::validateEndpointHostEntry),
         Setting.Property.NodeScope
     );
+
+    /**
+     * Refuses an entry that names no port. Entries are matched against {@code host:port}, so one written as a
+     * bare hostname — the natural thing to copy from a URL — matches nothing, and the refusal the operator
+     * then sees talks about the endpoint rather than about the entry that failed to admit it. Since this
+     * setting is the only way past a security control, that silence is worth refusing at startup instead.
+     */
+    private static void validateEndpointHostEntry(String entry) {
+        // A bracketed IPv6 literal carries colons of its own, so the port separator is the first one after
+        // the closing bracket rather than the first one in the entry.
+        int afterHost = entry.startsWith("[") ? entry.indexOf(']') : 0;
+        int portSeparator = afterHost < 0 ? -1 : entry.indexOf(':', afterHost);
+        if (portSeparator < 0 || portSeparator == entry.length() - 1) {
+            throw new IllegalArgumentException(
+                "["
+                    + ALLOWED_ENDPOINT_HOSTS_KEY
+                    + "] entry ["
+                    + entry
+                    + "] names no port. Entries are matched against host:port, so write for example ["
+                    + entry
+                    + ":443]; an entry without a port matches nothing."
+            );
+        }
+    }
 
     public static List<Setting<?>> settings() {
         return List.of(

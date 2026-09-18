@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
@@ -94,6 +95,10 @@ public class ReplaceDateTruncBucketWithRoundToTests extends AbstractLocalLogical
                 """, predicateString);
             Configuration configuration = TEST_CFG;
             LogicalPlan localPlan = localPlan(testAnalyzer().coordinatorPlan(query), configuration, searchStats);
+            if (localPlan instanceof LocalRelation) {
+                assertEquals(0, roundToPointsSize);
+                continue;
+            }
             Project project = as(localPlan, Project.class);
             TopN topN = as(project.child(), TopN.class);
             Eval eval = as(topN.child(), Eval.class);
@@ -118,6 +123,10 @@ public class ReplaceDateTruncBucketWithRoundToTests extends AbstractLocalLogical
                 """, predicateString);
             Configuration configuration = TEST_CFG;
             LogicalPlan localPlan = localPlan(testAnalyzer().coordinatorPlan(query), configuration, searchStats);
+            if (localPlan instanceof LocalRelation) {
+                assertEquals(0, roundToPointsSize);
+                continue;
+            }
             Limit limit = as(localPlan, Limit.class);
             Aggregate aggregate = as(limit.child(), Aggregate.class);
             Eval eval = as(aggregate.child(), Eval.class);
@@ -142,6 +151,10 @@ public class ReplaceDateTruncBucketWithRoundToTests extends AbstractLocalLogical
                 """, predicateString);
             Configuration configuration = TEST_CFG;
             LogicalPlan localPlan = localPlan(testAnalyzer().coordinatorPlan(query), configuration, searchStats);
+            if (localPlan instanceof LocalRelation) {
+                assertEquals(0, roundToPointsSize);
+                continue;
+            }
             Limit limit = as(localPlan, Limit.class);
             Aggregate aggregate = as(limit.child(), Aggregate.class);
             Eval eval = as(aggregate.child(), Eval.class);

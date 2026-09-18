@@ -256,6 +256,18 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
   apply plugin: 'elasticsearch.jdk-download'
   apply plugin: 'elasticsearch.repositories'
 
+  def architecturesFor = { platform ->
+    def bundledJdkMajor = Integer.parseInt(
+      buildParams.runtimeJava.preRelease
+        ? buildParams.runtimeJavaVersion.get().getMajorVersion()
+        : VersionProperties.bundledJdkMajorVersion
+    )
+    if (platform == 'linux' || (platform == 'darwin' && bundledJdkMajor < 27)) {
+      return ['x64', 'aarch64']
+    }
+    return platform == 'darwin' ? ['aarch64'] : ['x64']
+  }
+
   if (buildParams.runtimeJava.preRelease) {
     Integer buildNumber = Integer.getInteger("runtime.java.build")
     String preReleaseType = buildParams.runtimeJava.preReleaseType
@@ -267,7 +279,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
     project.jdks {
       ['darwin', 'windows', 'linux'].each { platform ->
-        (platform == 'linux' || platform == 'darwin' ? ['x64', 'aarch64'] : ['x64']).each { architecture ->
+        architecturesFor(platform).each { architecture ->
           "bundled_${platform}_${architecture}" {
             it.version = preReleaseVersionString;
             it.vendor = "openjdk"
@@ -282,7 +294,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     // Setup all required JDKs
     project.jdks {
       ['darwin', 'windows', 'linux'].each { platform ->
-        (platform == 'linux' || platform == 'darwin' ? ['x64', 'aarch64'] : ['x64']).each { architecture ->
+        architecturesFor(platform).each { architecture ->
           "bundled_${platform}_${architecture}" {
             it.platform = platform
             it.version = VersionProperties.bundledJdkVersion

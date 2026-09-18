@@ -155,6 +155,9 @@ public class IndicesServiceCloseTests extends ESTestCase {
         assertEquals(0, indicesService.indicesRefCount.refCount());
     }
 
+    // TODO: LUCENE11 Lucene 11 LRUQueryCache hook change (lucene#15558): cacheSize stays 0
+    // after search, and close may leave shardStats non-empty. Unmute after
+    // ElasticsearchLRUQueryCache uses onCacheEntryInserted/onCacheEntryEvicted.
     public void testCloseAfterRequestHasUsedQueryCache() throws Exception {
         Node node = startNode();
         IndicesService indicesService = node.injector().getInstance(IndicesService.class);
@@ -193,6 +196,7 @@ public class IndicesServiceCloseTests extends ESTestCase {
         assertEquals(0L, cache.getStats(shard.shardId(), () -> 0L).getCacheSize());
     }
 
+    // TODO: LUCENE11 see testCloseAfterRequestHasUsedQueryCache — lucene#15558.
     public void testCloseWhileOngoingRequestUsesQueryCache() throws Exception {
         Node node = startNode();
         IndicesService indicesService = node.injector().getInstance(IndicesService.class);

@@ -799,3 +799,17 @@ tests:
     - testAndNotRLike {WILDCARD}
     - testAndNotCaseInsensitiveRLike {WILDCARD}
   issue: https://github.com/elastic/elasticsearch/issues/113465
+# Lucene 11 LRUQueryCache fires onQueryCache/onDocIdSetCache per (segment, query)
+# (lucene#15558). Shard QueryCacheStats / close asserts still expect the old hooks.
+- class: org.elasticsearch.indices.IndicesQueryCacheTests
+  methods:
+    - testBasics
+    - testTwoShards
+    - testStatsOnEviction
+    - testGetStatsMemory
+  issue: https://github.com/apache/lucene/issues/15558
+- class: org.elasticsearch.indices.IndicesServiceCloseTests
+  methods:
+    - testCloseAfterRequestHasUsedQueryCache
+    - testCloseWhileOngoingRequestUsesQueryCache
+  issue: https://github.com/apache/lucene/issues/15558

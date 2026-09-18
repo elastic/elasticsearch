@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.stateless.lucene;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
@@ -28,6 +31,8 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongFunction;
 
 public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
+
+    private static final Logger logger = LogManager.getLogger(IndexBlobStoreCacheDirectory.class);
 
     public IndexBlobStoreCacheDirectory(StatelessSharedBlobCacheService cacheService, ShardId shardId) {
         super(cacheService, shardId);
@@ -135,6 +140,7 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
     }
 
     public IndexBlobStoreCacheDirectory createBccChainWalkDirectory() {
+        logger.log(Level.INFO, "MPIKA EDO: createBccChainWalkDirectory");
         return new IndexBlobStoreCacheDirectory(
             cacheService,
             shardId,
@@ -144,6 +150,7 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
         ) {
             @Override
             protected CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
+                logger.log(Level.INFO, "MPIKA EDO: createBccChainWalkDirectory.getCacheBlobReader");
                 return createCacheBlobReader(
                     fileName,
                     getBlobContainer(blobFile.primaryTerm()),
@@ -156,6 +163,7 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
 
             @Override
             public IndexBlobStoreCacheDirectory createPerBccMetadataReadDirectory() {
+                logger.log(Level.INFO, "MPIKA EDO: createBccChainWalkDirectory.createPerBccMetadataReadDirectory");
                 return IndexBlobStoreCacheDirectory.this.createBccChainWalkDirectory();
             }
         };

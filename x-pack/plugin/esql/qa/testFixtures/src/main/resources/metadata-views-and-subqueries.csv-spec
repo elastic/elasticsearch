@@ -120,6 +120,29 @@ language_code:integer | language_name:keyword | _index:keyword
 4                     | German                | null
 ;
 
+// _score behaves differently from _index across the same branches: the real index produces a
+// concrete 0.0 (no scoring query is present), while the view branch has no _score to produce and
+// is null-filled. The two are distinguishable in the output, which 0.0-filling would hide.
+viewAndRealIndexMetadataScoreZeroAndNull
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: outer_metadata_null_injection
+
+FROM view_languages, languages METADATA _score
+| SORT language_code, _score NULLS LAST
+;
+
+language_code:integer | language_name:keyword | _score:double
+1                     | English               | 0.0
+1                     | English               | null
+2                     | French                | 0.0
+2                     | French                | null
+3                     | Spanish               | 0.0
+3                     | Spanish               | null
+4                     | German                | 0.0
+4                     | German                | null
+;
+
 viewBodyDeclaresMetadataPassesThroughToOuter
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions

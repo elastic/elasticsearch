@@ -1,6 +1,6 @@
 ProjectExec[[emp_no{r}#0, _class{xm}#1, _name{xm}#2]]
 \_LimitExec[1000[INTEGER],null]
-  \_MergeExec[[emp_no{r}#0, salary{r}#3, dept{r}#4, _class{xm}#1, _name{xm}#2]]
+  \_MergeExec[[emp_no{r}#0, salary{r}#3, dept{r}#4, _class{xm}#1, _name{xm}#2],UNION]
     |_ProjectExec[[emp_no{r}#5, salary{r}#6, dept{r}#7, _class{xm}#8, _name{xm}#9]]
     | \_ProjectExec[[emp_no{r}#5, salary{r}#6, dept{r}#7, _class{r}#8, _name{r}#9]]
     |   \_LimitExec[1000[INTEGER],null]

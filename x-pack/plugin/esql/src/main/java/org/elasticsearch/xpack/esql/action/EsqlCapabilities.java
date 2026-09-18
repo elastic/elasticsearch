@@ -1502,6 +1502,16 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_INLINE_STATS_PRUNING,
 
         /**
+         * Fix for {@code ResolveUnionTypesInUnionAll} incorrectly pushing a type-conversion function into {@code UnionAll} branches
+         * when an {@code Aggregate} (STATS) sits between the conversion and the {@code UnionAll}. Grouping keys preserve their
+         * identifiers through an aggregation, so the name-and-id match used to collect push-down candidates falsely matched
+         * conversions that read aggregate output rather than union branch columns. The synthetic pushed-down reference was then
+         * unreachable from the consumer, causing {@code PlanConsistencyChecker} to throw {@code IllegalStateException}.
+         * esql-planning#1987
+         */
+        SUBQUERY_IN_FROM_COMMAND_FIX_CONVERT_GROUP_KEY,
+
+        /**
          * Support IN non-correlated subqueries in WHERE command.
          */
         WHERE_IN_SUBQUERY,

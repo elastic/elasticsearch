@@ -7,11 +7,13 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
@@ -33,17 +35,20 @@ public final class MvZipEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private final EvalOperator.ExpressionEvaluator delim;
 
+  private final BreakingBytesRefBuilder work;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public MvZipEvaluator(Source source, EvalOperator.ExpressionEvaluator leftField,
       EvalOperator.ExpressionEvaluator rightField, EvalOperator.ExpressionEvaluator delim,
-      DriverContext driverContext) {
+      BreakingBytesRefBuilder work, DriverContext driverContext) {
     this.source = source;
     this.leftField = leftField;
     this.rightField = rightField;
     this.delim = delim;
+    this.work = work;
     this.driverContext = driverContext;
   }
 
@@ -94,7 +99,8 @@ public final class MvZipEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
-        MvZip.process(result, p, leftFieldBlock, rightFieldBlock, delimBlock.getBytesRef(delimBlock.getFirstValueIndex(p), delimScratch));
+        BytesRef delim = delimBlock.getBytesRef(delimBlock.getFirstValueIndex(p), delimScratch);
+        MvZip.process(result, p, leftFieldBlock, rightFieldBlock, delim, this.work);
       }
       return result.build();
     }
@@ -107,7 +113,7 @@ public final class MvZipEvaluator implements EvalOperator.ExpressionEvaluator {
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(leftField, rightField, delim);
+    Releasables.closeExpectNoException(leftField, rightField, delim, work);
   }
 
   private Warnings warnings() {
@@ -131,18 +137,22 @@ public final class MvZipEvaluator implements EvalOperator.ExpressionEvaluator {
 
     private final EvalOperator.ExpressionEvaluator.Factory delim;
 
+    private final Function<DriverContext, BreakingBytesRefBuilder> work;
+
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory leftField,
         EvalOperator.ExpressionEvaluator.Factory rightField,
-        EvalOperator.ExpressionEvaluator.Factory delim) {
+        EvalOperator.ExpressionEvaluator.Factory delim,
+        Function<DriverContext, BreakingBytesRefBuilder> work) {
       this.source = source;
       this.leftField = leftField;
       this.rightField = rightField;
       this.delim = delim;
+      this.work = work;
     }
 
     @Override
     public MvZipEvaluator get(DriverContext context) {
-      return new MvZipEvaluator(source, leftField.get(context), rightField.get(context), delim.get(context), context);
+      return new MvZipEvaluator(source, leftField.get(context), rightField.get(context), delim.get(context), work.apply(context), context);
     }
 
     @Override

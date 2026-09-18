@@ -178,33 +178,32 @@ public abstract sealed class DecodedVector permits DecodedVector.ByteVector, Dec
 
     /** A vector whose components are stored as four big-endian bytes each (IEEE 754 float). */
     static final class EncodedFloatVector extends DecodedVector {
-        private final byte[] bytes;
+        private final ByteBuffer buffer;
 
-        EncodedFloatVector(byte[] bytes) {
-            this.bytes = bytes;
+        EncodedFloatVector(ByteBuffer buffer) {
+            this.buffer = buffer.slice().order(ByteOrder.BIG_ENDIAN);
         }
 
         @Override
         public float[] toFloatArray() {
-            float[] values = new float[bytes.length / Float.BYTES];
-            ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN).asFloatBuffer().get(values);
+            float[] values = new float[buffer.remaining() / Float.BYTES];
+            buffer.asFloatBuffer().get(values);
             return values;
         }
 
         @Override
         public List<Object> toFloatList() {
-            ByteBuffer buffer = ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN);
-            int count = bytes.length / Float.BYTES;
+            int count = buffer.remaining() / Float.BYTES;
             List<Object> values = new ArrayList<>(count);
             for (int i = 0; i < count; i++) {
-                values.add(buffer.getFloat());
+                values.add(buffer.getFloat(i * Float.BYTES));
             }
             return values;
         }
 
         @Override
         public String toBase64() {
-            return Base64.getEncoder().encodeToString(bytes);
+            return Base64.getEncoder().encodeToString(toByteArray(buffer));
         }
     }
 
@@ -285,7 +284,7 @@ public abstract sealed class DecodedVector permits DecodedVector.ByteVector, Dec
     private static DecodedVector byteBackedVector(ByteBuffer buffer, ElementType elementType) {
         return switch (elementType) {
             case BYTE, BIT -> new ByteVector(toByteArray(buffer));
-            case FLOAT, BFLOAT16 -> new EncodedFloatVector(toByteArray(buffer));
+            case FLOAT, BFLOAT16 -> new EncodedFloatVector(buffer);
         };
     }
 
@@ -344,14 +343,14 @@ public abstract sealed class DecodedVector permits DecodedVector.ByteVector, Dec
 
     /**
      * Converts a {@link ByteBuffer} to a byte array, avoiding an array copy when the buffer's backing array
-     * exactly covers the readable region.
+     * exactly covers the readable region. Does not modify the buffer's position.
      */
     private static byte[] toByteArray(ByteBuffer buffer) {
         if (buffer.hasArray() && buffer.arrayOffset() == 0 && buffer.position() == 0 && buffer.remaining() == buffer.array().length) {
             return buffer.array();
         }
         byte[] bytes = new byte[buffer.remaining()];
-        buffer.get(bytes);
+        buffer.get(buffer.position(), bytes);
         return bytes;
     }
 

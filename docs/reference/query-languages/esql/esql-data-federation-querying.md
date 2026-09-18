@@ -69,13 +69,15 @@ If your dataset exceeds these limits, narrow the resource path or adjust the set
 
 Datasets share the same namespace as indices, data streams, aliases, and [{{esql}} views](esql-views.md), so `FROM` resolves each name independently.
 
+{applies_to}`stack: experimental 9.6+` `_class` and `_name` are available from 9.6. On 9.5, use `METADATA _index`, which returns the dataset name for dataset rows in that version.
+
 ```esql
 FROM speedtest_data, network_incidents METADATA _class, _name
 | KEEP _class, _name, category, severity, avg_d_kbps, avg_lat_ms
 | LIMIT 10
 ```
 
-When sources have different schemas, columns that do not exist in a given source return `null` for rows from that source. Use `METADATA _name` to see which source each row came from: it returns the dataset name for dataset rows and the index name for index rows. `METADATA _class` returns what kind of source a row came from — `index` or `dataset` — so a query can tell the two apart without knowing the names in advance.
+When sources have different schemas, columns that do not exist in a given source return `null` for rows from that source. {applies_to}`stack: experimental 9.6+` Use `METADATA _name` to see which source each row came from: it returns the dataset name for dataset rows and the index name for index rows. `METADATA _class` returns what kind of source a row came from — `index` or `dataset` — so a query can tell the two apart without knowing the names in advance.
 
 {applies_to}`stack: experimental 9.6+` `_index` does not answer this question on a dataset. It names an index, and a dataset is not one, so it returns `null` for dataset rows. In earlier versions it returned the dataset name.
 
@@ -98,7 +100,7 @@ When sources have different schemas, columns that do not exist in a given source
 files carry no document identity, version, or stored source. In 9.5, these fields returned synthetic
 values (dataset name, row ID, file modification time, row-as-JSON) instead of null.
 
-`_class` and `_name` answer the same two questions on every source. On an index they return `index` and
+{applies_to}`stack: experimental 9.6+` `_class` and `_name` answer the same two questions on every source. On an index they return `index` and
 the concrete index name; on a dataset, `dataset` and the dataset name. A `FROM` that names both kinds
 can separate the rows without knowing in advance which names resolve to which.
 
@@ -152,7 +154,7 @@ The limitations below include operations that require structures available only 
 If a query against a dataset returns unexpected results or errors, check the following common causes.
 
 Unexpected nulls in query results
-:   If you query a dataset and an index together with `FROM`, columns that do not exist in one source return null for rows from that source. Use `METADATA _name` to check which source each row came from. Separately, complex Parquet types MAP, nested LIST, and VARIANT return null because they are not currently supported.
+:   If you query a dataset and an index together with `FROM`, columns that do not exist in one source return null for rows from that source. {applies_to}`stack: experimental 9.6+` Use `METADATA _name` to check which source each row came from; on 9.5, use `METADATA _index`. Separately, complex Parquet types MAP, nested LIST, and VARIANT return null because they are not currently supported.
 
 Slow queries
 :   Add [`KEEP`](/reference/query-languages/esql/commands/keep.md) to select only the columns you need, add a [`WHERE`](/reference/query-languages/esql/commands/where.md) filter, and add a [`LIMIT`](/reference/query-languages/esql/commands/limit.md). For Parquet datasets, these push down to the reader and can significantly reduce the amount of data read from storage. Check the number of files your dataset's resource path resolves to. Large file counts increase query planning time.

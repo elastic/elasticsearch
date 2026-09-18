@@ -76,10 +76,6 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
         this(DenseVectorFieldMapper.ElementType.FLOAT, false, false);
     }
 
-    public ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType elementType, boolean useDirectIO) {
-        this(elementType, useDirectIO, false);
-    }
-
     /**
      * @param useDirectIO whether searches read the raw vectors with direct I/O (the field's {@code on_disk_rescore} option)
      * @param onDiskMerge whether merges use direct I/O for the raw vectors (the field's {@code on_disk_merge} option)
@@ -89,12 +85,10 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
     }
 
     /**
-     * A format whose merges write the raw vectors through the page cache even with {@code on_disk_merge}
-     * on. Plain HNSW needs this: right after a merge writes
-     * the merged raw vectors, it builds the graph from them by random access, and searches then score
-     * against the same file, so the file ends up in the page cache either way. Writing it with direct
-     * I/O would only make that read-back cold. Merge reads of the sources still use direct I/O.
-     * Searches read through the page cache too: plain HNSW has no {@code on_disk_rescore}.
+     * A format whose merges write the raw vectors through the page cache even with {@code on_disk_merge} on. Plain
+     * HNSW is the one format that declines the write side: it builds its graph by random access over the merged raw
+     * vectors as soon as the merge has written them, so a direct write would only make that read-back cold. Every
+     * other format keeps direct writes. Merge reads of the sources stay direct either way.
      */
     static ES93GenericFlatVectorsFormat withBufferedMergeWrites(DenseVectorFieldMapper.ElementType elementType, boolean onDiskMerge) {
         return new ES93GenericFlatVectorsFormat(elementType, false, onDiskMerge, false);

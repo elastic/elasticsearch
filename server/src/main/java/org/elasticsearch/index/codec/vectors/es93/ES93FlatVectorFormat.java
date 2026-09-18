@@ -43,11 +43,10 @@ public class ES93FlatVectorFormat extends KnnVectorsFormat {
         format = new ES93GenericFlatVectorsFormat();
     }
 
-    public ES93FlatVectorFormat(DenseVectorFieldMapper.ElementType elementType) {
-        this(elementType, false);
-    }
-
-    /** @param onDiskMerge whether merges write the raw vectors with direct I/O (the field's {@code on_disk_merge} option) */
+    /**
+     * @param onDiskMerge the field's {@code on_disk_merge} option. Unlike the sibling formats' second argument, this is
+     *                    not {@code useDirectIO}: the flat type has no {@code on_disk_rescore}
+     */
     public ES93FlatVectorFormat(DenseVectorFieldMapper.ElementType elementType, boolean onDiskMerge) {
         super(NAME);
         format = new ES93GenericFlatVectorsFormat(elementType, false, onDiskMerge);

@@ -55,7 +55,7 @@ public class ES94ScalarQuantizedVectorsFormatTests extends BaseQuantizedKnnVecto
     protected Codec getCodec() {
         if (format == null) {
             int bits = randomFrom(1, 2, 4, 7);
-            format = new ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, bits, false);
+            format = new ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, bits, false, false);
         }
         return TestUtil.alwaysKnnVectorsFormat(format);
     }
@@ -65,12 +65,12 @@ public class ES94ScalarQuantizedVectorsFormatTests extends BaseQuantizedKnnVecto
     }
 
     public void testToString() {
-        var format = new ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, 4, false);
+        var format = new ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, 4, false, false);
         String expected = "ES94ScalarQuantizedVectorsFormat(name=ES94ScalarQuantizedVectorsFormat, encoding=PACKED_NIBBLE, "
             + "flatVectorScorer="
             + ES94ScalarQuantizedVectorsFormat.flatVectorScorer
             + ", rawVectorFormat="
-            + new ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, false)
+            + new ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, false, false)
             + ")";
         assertThat(format.toString(), is(expected));
     }

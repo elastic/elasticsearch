@@ -108,7 +108,8 @@ public class ES93HnswBinaryQuantizedBFloat16VectorsFormatTests extends BaseQuant
             random().nextBoolean(),
             1,
             null,
-            0
+            0,
+            false
         );
         config.setCodec(alwaysKnnVectorsFormat(format));
         var matcher = expectVecOffHeap

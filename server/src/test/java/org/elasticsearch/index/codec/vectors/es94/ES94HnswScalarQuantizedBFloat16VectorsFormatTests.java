@@ -87,7 +87,8 @@ public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseQuant
             false,
             1,
             null,
-            0
+            0,
+            false
         );
         var config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format));
         try (Directory dir = newDirectory()) {

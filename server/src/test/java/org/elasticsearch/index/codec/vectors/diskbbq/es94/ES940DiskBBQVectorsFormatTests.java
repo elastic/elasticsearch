@@ -222,7 +222,8 @@ public class ES940DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
                 false,
                 DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                 0,
-                ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4
+                ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4,
+                false
             )
         );
         expectThrows(
@@ -238,7 +239,8 @@ public class ES940DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
                 false,
                 DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                 0,
-                ES940DiskBBQVectorsFormat.VERSION_CURRENT
+                ES940DiskBBQVectorsFormat.VERSION_CURRENT,
+                false
             )
         );
         expectThrows(
@@ -254,7 +256,8 @@ public class ES940DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
                 false,
                 DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                 0,
-                ES940DiskBBQVectorsFormat.VERSION_START
+                ES940DiskBBQVectorsFormat.VERSION_START,
+                false
             )
         );
         expectThrows(
@@ -270,7 +273,8 @@ public class ES940DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
                 false,
                 DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                 0,
-                ES940DiskBBQVectorsFormat.VERSION_CURRENT
+                ES940DiskBBQVectorsFormat.VERSION_CURRENT,
+                false
             )
         );
         // the on_disk_merge flag needs a version that records it in the meta

@@ -113,7 +113,7 @@ public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseQuantizedHnsw
                         + "flatVectorScorer="
                         + ES94ScalarQuantizedVectorsFormat.flatVectorScorer
                         + ", rawVectorFormat="
-                        + new ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, false)
+                        + new ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, false, false)
                         + "))"
                 )
             )
@@ -135,7 +135,8 @@ public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseQuantizedHnsw
             false,
             numMergeWorkers,
             service,
-            hnswGraphThreshold
+            hnswGraphThreshold,
+            false
         );
     }
 

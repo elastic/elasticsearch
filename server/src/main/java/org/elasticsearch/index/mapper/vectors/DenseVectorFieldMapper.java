@@ -2327,11 +2327,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     static class Int8FlatIndexOptions extends QuantizedIndexOptions {
         Int8FlatIndexOptions(RescoreVector rescoreVector, boolean onDiskMerge) {
-            super(VectorIndexType.INT8_FLAT, rescoreVector, onDiskMerge);
-        }
-
-        Int8FlatIndexOptions(RescoreVector rescoreVector, Float confidenceInterval) {
-            this(rescoreVector, confidenceInterval, false);
+            this(rescoreVector, null, onDiskMerge);
         }
 
         Int8FlatIndexOptions(RescoreVector rescoreVector, Float confidenceInterval, boolean onDiskMerge) {
@@ -2426,10 +2422,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final boolean onDiskRescore;
         private final int flatIndexThreshold;
 
-        public Int4HnswIndexOptions(int m, int efConstruction, boolean onDiskRescore, RescoreVector rescoreVector, int flatIndexThreshold) {
-            this(m, efConstruction, onDiskRescore, rescoreVector, flatIndexThreshold, false);
-        }
-
         public Int4HnswIndexOptions(
             int m,
             int efConstruction,
@@ -2439,17 +2431,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean onDiskMerge
         ) {
             this(m, efConstruction, onDiskRescore, rescoreVector, flatIndexThreshold, null, onDiskMerge);
-        }
-
-        public Int4HnswIndexOptions(
-            int m,
-            int efConstruction,
-            boolean onDiskRescore,
-            RescoreVector rescoreVector,
-            int flatIndexThreshold,
-            Float confidenceInterval
-        ) {
-            this(m, efConstruction, onDiskRescore, rescoreVector, flatIndexThreshold, confidenceInterval, false);
         }
 
         public Int4HnswIndexOptions(
@@ -2563,11 +2544,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     static class Int4FlatIndexOptions extends QuantizedIndexOptions {
         Int4FlatIndexOptions(RescoreVector rescoreVector, boolean onDiskMerge) {
-            super(VectorIndexType.INT4_FLAT, rescoreVector, onDiskMerge);
-        }
-
-        Int4FlatIndexOptions(RescoreVector rescoreVector, Float confidenceInterval) {
-            this(rescoreVector, confidenceInterval, false);
+            this(rescoreVector, null, onDiskMerge);
         }
 
         Int4FlatIndexOptions(RescoreVector rescoreVector, Float confidenceInterval, boolean onDiskMerge) {
@@ -2632,10 +2609,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final boolean onDiskRescore;
         private final int flatIndexThreshold;
 
-        public Int8HnswIndexOptions(int m, int efConstruction, boolean onDiskRescore, RescoreVector rescoreVector, int flatIndexThreshold) {
-            this(m, efConstruction, onDiskRescore, rescoreVector, flatIndexThreshold, false);
-        }
-
         public Int8HnswIndexOptions(
             int m,
             int efConstruction,
@@ -2645,17 +2618,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean onDiskMerge
         ) {
             this(m, efConstruction, onDiskRescore, rescoreVector, flatIndexThreshold, null, onDiskMerge);
-        }
-
-        public Int8HnswIndexOptions(
-            int m,
-            int efConstruction,
-            boolean onDiskRescore,
-            RescoreVector rescoreVector,
-            int flatIndexThreshold,
-            Float confidenceInterval
-        ) {
-            this(m, efConstruction, onDiskRescore, rescoreVector, flatIndexThreshold, confidenceInterval, false);
         }
 
         public Int8HnswIndexOptions(
@@ -2882,10 +2844,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final int efConstruction;
         private final boolean onDiskRescore;
         private final int flatIndexThreshold;
-
-        public BBQHnswIndexOptions(int m, int efConstruction, boolean onDiskRescore, RescoreVector rescoreVector, int flatIndexThreshold) {
-            this(m, efConstruction, onDiskRescore, rescoreVector, flatIndexThreshold, false);
-        }
 
         public BBQHnswIndexOptions(
             int m,
@@ -4489,7 +4447,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     elementType,
                     maxMergingWorkers,
                     mergingExecutorService,
-                    -1
+                    -1,
+                    false
                 );
             };
         } else {

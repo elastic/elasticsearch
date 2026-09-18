@@ -115,35 +115,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
             defaultFlatThreshold(vectorPerCluster),
             sliceField,
             IvfFlushConfigSource.empty(),
-            IvfMergeConfigResolver.useCodecDefault()
-        );
-    }
-
-    public ESNextDiskASHVectorsFormat(
-        IvfSegmentConfig.AshConfig ashConfig,
-        int vectorPerCluster,
-        int centroidsPerParentCluster,
-        DenseVectorFieldMapper.ElementType elementType,
-        boolean useDirectIO,
-        ExecutorService mergingExecutorService,
-        int maxMergingWorkers,
-        int flatVectorThreshold,
-        String sliceField,
-        IvfFlushConfigSource ivfFlushConfigSource,
-        IvfMergeConfigResolver ivfMergeConfigResolver
-    ) {
-        this(
-            ashConfig,
-            vectorPerCluster,
-            centroidsPerParentCluster,
-            elementType,
-            useDirectIO,
-            mergingExecutorService,
-            maxMergingWorkers,
-            flatVectorThreshold,
-            sliceField,
-            ivfFlushConfigSource,
-            ivfMergeConfigResolver,
+            IvfMergeConfigResolver.useCodecDefault(),
             false
         );
     }

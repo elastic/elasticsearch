@@ -163,7 +163,8 @@ public class PerFieldFormatSupplier {
             DenseVectorFieldMapper.ElementType.FLOAT,
             maxMergingWorkers,
             mergingExecutorService,
-            -1
+            -1,
+            false
         );
     }
 

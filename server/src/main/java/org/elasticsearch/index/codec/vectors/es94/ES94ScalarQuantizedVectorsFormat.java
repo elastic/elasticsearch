@@ -48,15 +48,11 @@ public class ES94ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     private final QuantizedByteVectorValues.ScalarEncoding encoding;
 
     public ES94ScalarQuantizedVectorsFormat() {
-        this(DenseVectorFieldMapper.ElementType.FLOAT, 7, false);
+        this(DenseVectorFieldMapper.ElementType.FLOAT, 7, false, false);
     }
 
     public ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType elementType) {
-        this(elementType, 7, false);
-    }
-
-    public ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType elementType, int bits, boolean useDirectIO) {
-        this(elementType, bits, useDirectIO, false);
+        this(elementType, 7, false, false);
     }
 
     /** @param onDiskMerge whether merges use direct I/O for the raw vectors (the field's {@code on_disk_merge} option) */

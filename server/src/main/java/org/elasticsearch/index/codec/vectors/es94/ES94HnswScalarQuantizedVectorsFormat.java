@@ -45,7 +45,7 @@ public class ES94HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
         boolean useDirectIO
     ) {
         super(NAME, maxConn, beamWidth, DEFAULT_NUM_MERGE_WORKER, null, HNSW_GRAPH_THRESHOLD);
-        flatVectorFormat = new ES94ScalarQuantizedVectorsFormat(elementType, bits, useDirectIO);
+        flatVectorFormat = new ES94ScalarQuantizedVectorsFormat(elementType, bits, useDirectIO, false);
     }
 
     public ES94HnswScalarQuantizedVectorsFormat(
@@ -58,21 +58,7 @@ public class ES94HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
         ExecutorService mergeExec
     ) {
         super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, HNSW_GRAPH_THRESHOLD);
-        flatVectorFormat = new ES94ScalarQuantizedVectorsFormat(elementType, bits, useDirectIO);
-    }
-
-    public ES94HnswScalarQuantizedVectorsFormat(
-        int maxConn,
-        int beamWidth,
-        DenseVectorFieldMapper.ElementType elementType,
-        int bits,
-        boolean useDirectIO,
-        int numMergeWorkers,
-        ExecutorService mergeExec,
-        int hnswGraphThreshold
-    ) {
-        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, resolveThreshold(hnswGraphThreshold, HNSW_GRAPH_THRESHOLD));
-        flatVectorFormat = new ES94ScalarQuantizedVectorsFormat(elementType, bits, useDirectIO);
+        flatVectorFormat = new ES94ScalarQuantizedVectorsFormat(elementType, bits, useDirectIO, false);
     }
 
     /** @param onDiskMerge whether merges use direct I/O for the raw vectors (the field's {@code on_disk_merge} option) */

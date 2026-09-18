@@ -130,7 +130,8 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
             DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
             defaultFlatThreshold(vectorPerCluster),
             IvfFlushConfigSource.empty(),
-            IvfMergeConfigResolver.useCodecDefault()
+            IvfMergeConfigResolver.useCodecDefault(),
+            false
         );
     }
 
@@ -157,7 +158,8 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
             preconditioningBlockDimension,
             defaultFlatThreshold(vectorPerCluster),
             IvfFlushConfigSource.empty(),
-            IvfMergeConfigResolver.useCodecDefault()
+            IvfMergeConfigResolver.useCodecDefault(),
+            false
         );
     }
 
@@ -185,46 +187,16 @@ public class ES950DiskBBQVectorsFormat extends KnnVectorsFormat {
             preconditioningBlockDimension,
             flatVectorThreshold,
             IvfFlushConfigSource.empty(),
-            IvfMergeConfigResolver.useCodecDefault()
+            IvfMergeConfigResolver.useCodecDefault(),
+            false
         );
     }
 
     /**
      * @param ivfFlushConfigSource optional per-field config on flush ({@code null} uses writer default)
      * @param ivfMergeConfigResolver optional merged config on merge ({@code null} uses writer default)
+     * @param onDiskMerge whether merges use direct I/O for the raw vectors (the field's {@code on_disk_merge} option)
      */
-    public ES950DiskBBQVectorsFormat(
-        QuantEncoding quantEncoding,
-        int vectorPerCluster,
-        int centroidsPerParentCluster,
-        DenseVectorFieldMapper.ElementType elementType,
-        boolean useDirectIO,
-        ExecutorService mergingExecutorService,
-        int maxMergingWorkers,
-        boolean doPrecondition,
-        int preconditioningBlockDimension,
-        int flatVectorThreshold,
-        IvfFlushConfigSource ivfFlushConfigSource,
-        IvfMergeConfigResolver ivfMergeConfigResolver
-    ) {
-        this(
-            quantEncoding,
-            vectorPerCluster,
-            centroidsPerParentCluster,
-            elementType,
-            useDirectIO,
-            mergingExecutorService,
-            maxMergingWorkers,
-            doPrecondition,
-            preconditioningBlockDimension,
-            flatVectorThreshold,
-            ivfFlushConfigSource,
-            ivfMergeConfigResolver,
-            false
-        );
-    }
-
-    /** @param onDiskMerge whether merges use direct I/O for the raw vectors (the field's {@code on_disk_merge} option) */
     public ES950DiskBBQVectorsFormat(
         QuantEncoding quantEncoding,
         int vectorPerCluster,

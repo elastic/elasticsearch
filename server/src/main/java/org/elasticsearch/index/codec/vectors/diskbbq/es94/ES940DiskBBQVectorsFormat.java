@@ -423,35 +423,7 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
             doPrecondition,
             preconditioningBlockDimension,
             flatVectorThreshold,
-            VERSION_CURRENT
-        );
-    }
-
-    public ES940DiskBBQVectorsFormat(
-        QuantEncoding quantEncoding,
-        int vectorPerCluster,
-        int centroidsPerParentCluster,
-        DenseVectorFieldMapper.ElementType elementType,
-        boolean useDirectIO,
-        ExecutorService mergingExecutorService,
-        int maxMergingWorkers,
-        boolean doPrecondition,
-        int preconditioningBlockDimension,
-        int flatVectorThreshold,
-        int writeVersion
-    ) {
-        this(
-            quantEncoding,
-            vectorPerCluster,
-            centroidsPerParentCluster,
-            elementType,
-            useDirectIO,
-            mergingExecutorService,
-            maxMergingWorkers,
-            doPrecondition,
-            preconditioningBlockDimension,
-            flatVectorThreshold,
-            writeVersion,
+            VERSION_CURRENT,
             false
         );
     }

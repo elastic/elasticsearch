@@ -72,7 +72,7 @@ public class ES93FlatVectorFormatTests extends BaseKnnVectorsFormatTestCase {
 
     @Override
     protected Codec getCodec() {
-        return TestUtil.alwaysKnnVectorsFormat(new ES93FlatVectorFormat(elementType));
+        return TestUtil.alwaysKnnVectorsFormat(new ES93FlatVectorFormat(elementType, false));
     }
 
     public void testSearchWithVisitedLimit() {

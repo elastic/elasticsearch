@@ -42,7 +42,8 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
             DenseVectorFieldMapper.ElementType.FLOAT,
             DEFAULT_NUM_MERGE_WORKER,
             null,
-            random().nextInt(1, 20)
+            random().nextInt(1, 20),
+            false
         );
     }
 
@@ -54,7 +55,8 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
             DenseVectorFieldMapper.ElementType.FLOAT,
             DEFAULT_NUM_MERGE_WORKER,
             null,
-            random().nextInt(1, 20)
+            random().nextInt(1, 20),
+            false
         );
     }
 
@@ -66,7 +68,8 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
             DenseVectorFieldMapper.ElementType.FLOAT,
             numMergeWorkers,
             service,
-            random().nextInt(1, 20)
+            random().nextInt(1, 20),
+            false
         );
     }
 
@@ -83,7 +86,8 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
             DenseVectorFieldMapper.ElementType.FLOAT,
             numMergeWorkers,
             service,
-            hnswGraphThreshold
+            hnswGraphThreshold,
+            false
         );
     }
 
@@ -132,7 +136,7 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
     public void testSimpleOffHeapSize() throws IOException {
         float[] vector = randomVector(random().nextInt(12, 500));
         // Use threshold=0 to ensure HNSW graph is always built
-        var format = new ES93HnswVectorsFormat(16, 100, DenseVectorFieldMapper.ElementType.FLOAT, 1, null, 0);
+        var format = new ES93HnswVectorsFormat(16, 100, DenseVectorFieldMapper.ElementType.FLOAT, 1, null, 0, false);
         IndexWriterConfig config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format));
         try (Directory dir = newDirectory()) {
             testSimpleOffHeapSize(

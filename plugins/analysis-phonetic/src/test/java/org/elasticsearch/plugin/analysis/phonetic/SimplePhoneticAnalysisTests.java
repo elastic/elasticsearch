@@ -26,6 +26,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.List;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -198,6 +199,12 @@ public class SimplePhoneticAnalysisTests extends ESTestCase {
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader("SCH-".repeat(200)));
         assertVariationCountIsBounded(filterFactory.create(tokenizer));
+    }
+
+    public void testKoelnerPhonetikGeneratePartsIsBounded() {
+        KoelnerPhonetik encoder = new KoelnerPhonetik();
+        List<String> parts = encoder.generateParts("AUN-".repeat(200));
+        assertThat(parts.size(), lessThanOrEqualTo(16));
     }
 
     public void testPhoneticTokenFilterKoelnerPhonetikBoundsPartialBudgetOvershoot() throws IOException {

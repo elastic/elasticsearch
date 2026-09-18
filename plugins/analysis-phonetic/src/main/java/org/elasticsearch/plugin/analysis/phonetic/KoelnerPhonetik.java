@@ -133,15 +133,30 @@ public class KoelnerPhonetik implements StringEncoder {
     }
 
     private List<String> partition(String str) {
+        List<String> parts = generateParts(str);
+        List<String> variations = new ArrayList<>();
+        // Share a single budget across all parts so the total variations for the whole token stay bounded,
+        // rather than allowing each part to independently produce up to MAX_VARIATIONS.
+        int remainingBudget = MAX_VARIATIONS;
+        for (int i = 0; i < parts.size() && remainingBudget > 0; i++) {
+            List<String> variation = getVariations(parts.get(i), remainingBudget);
+            variations.addAll(variation);
+            remainingBudget -= variation.size();
+        }
+        return variations;
+    }
+
+    // A token with n punctuation/whitespace-separated segments yields every contiguous run of segments as
+    // its own part, i.e. n(n+1)/2 parts. Stop generating parts once the shared MAX_VARIATIONS budget is
+    // reached so that count can't grow unbounded either, independent of the downstream variations budget in
+    // partition(); otherwise a token with many segments would still materialize a huge intermediate parts
+    // list even though the final variations count stays capped.
+    List<String> generateParts(String str) {
         List<String> parts = new ArrayList<>();
         parts.add(str.replaceAll("[^\\p{L}\\p{N}]", ""));
         if (primary == false) {
             List<String> tmpParts = new ArrayList<>(Arrays.asList(str.split("[\\p{Z}\\p{C}\\p{P}]")));
             int numberOfParts = tmpParts.size();
-
-            // A token with n punctuation/whitespace-separated segments yields every contiguous run of
-            // segments as its own part, i.e. n(n+1)/2 parts. Stop generating parts once the shared
-            // MAX_VARIATIONS budget below is reached so that count can't grow unbounded either.
             while (!tmpParts.isEmpty() && parts.size() < MAX_VARIATIONS) {
                 StringBuilder part = new StringBuilder();
                 for (int i = 0; i < tmpParts.size() && parts.size() < MAX_VARIATIONS; i++) {
@@ -153,16 +168,7 @@ public class KoelnerPhonetik implements StringEncoder {
                 tmpParts.removeFirst();
             }
         }
-        List<String> variations = new ArrayList<>();
-        // Share a single budget across all parts so the total variations for the whole token stay bounded,
-        // rather than allowing each part to independently produce up to MAX_VARIATIONS.
-        int remainingBudget = MAX_VARIATIONS;
-        for (int i = 0; i < parts.size() && remainingBudget > 0; i++) {
-            List<String> variation = getVariations(parts.get(i), remainingBudget);
-            variations.addAll(variation);
-            remainingBudget -= variation.size();
-        }
-        return variations;
+        return parts;
     }
 
     private List<String> getVariations(String str, int maxVariations) {

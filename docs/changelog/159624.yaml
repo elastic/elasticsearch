@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 159358
+pr: 159624
+summary: Fix type-conversion push-down past aggregate in `UnionAll`
+type: bug

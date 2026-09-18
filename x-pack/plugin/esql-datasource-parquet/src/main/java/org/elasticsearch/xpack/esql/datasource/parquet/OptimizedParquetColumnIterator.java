@@ -2289,7 +2289,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     static void abortExpiredPrefetches(RuntimeException asyncFailure, ArrayDeque<PendingPrefetch> remaining) {
         try {
             cancelPendingPrefetches(remaining);
-        } catch (Throwable cleanupFailure) {
+        } catch (RuntimeException | AssertionError cleanupFailure) {
             if (cleanupFailure != asyncFailure) {
                 asyncFailure.addSuppressed(cleanupFailure);
             }

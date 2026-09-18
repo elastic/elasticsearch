@@ -212,6 +212,7 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
         ExternalCredentialsExpiredException thrown = expectThrows(ExternalCredentialsExpiredException.class, obj::newStream);
         assertSame(expired, thrown.getCause());
+        assertThat(thrown.getMessage(), containsString("expired or invalid"));
         assertThat(thrown.getMessage(), containsString("Refresh the data source credentials"));
         assertThat(thrown.getMessage(), containsString("reading [" + PATH + "]"));
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(thrown));

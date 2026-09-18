@@ -197,6 +197,7 @@ public class S3StorageProviderFailureTests extends ESTestCase {
         try (StorageIterator iterator = provider.listObjects(PREFIX, true)) {
             ExternalCredentialsExpiredException thrown = expectThrows(ExternalCredentialsExpiredException.class, iterator::hasNext);
             assertSame(expired, thrown.getCause());
+            assertThat(thrown.getMessage(), containsString("expired or invalid"));
             assertThat(thrown.getMessage(), containsString("Refresh the data source credentials"));
             assertThat(thrown.getMessage(), containsString("listing objects"));
             assertEquals(RestStatus.BAD_REQUEST, thrown.status());

@@ -37,6 +37,9 @@ final class S3FailureDetail {
     /**
      * AWS session-token failures. Matched by error code only — a bare HTTP 400/403 is not expiry
      * (Hadoop's HEAD trap, malformed ranges, {@code AuthorizationHeaderMalformed}).
+     * {@code TokenRefreshRequired} is in this set because Standard already refuses the 400;
+     * minting a new {@code managed_identity}/{@code federated_identity} signature is a separate
+     * credential-refresh step, not a retry of the same signed GET.
      */
     private static final Set<String> CREDENTIALS_EXPIRED_CODES = Set.of("ExpiredToken", "InvalidToken", "TokenRefreshRequired");
 
@@ -66,7 +69,8 @@ final class S3FailureDetail {
         return code != null && CREDENTIALS_EXPIRED_CODES.contains(code);
     }
 
-    // action is the gerund after "Session credentials expired" ("reading [s3://…]", "listing objects…").
+    // action is the gerund after "Session credentials expired or invalid"
+    // ("reading [s3://…]", "listing objects…").
     @Nullable
     static ExternalCredentialsExpiredException expired(Throwable cause, String action) {
         S3Exception s3 = findCredentialsExpired(cause);
@@ -75,7 +79,7 @@ final class S3FailureDetail {
         }
         return new ExternalCredentialsExpiredException(
             cause,
-            "Session credentials expired {}. Refresh the data source credentials and re-run the query. ({})",
+            "Session credentials expired or invalid {}. Refresh the data source credentials and re-run the query. ({})",
             action,
             of(s3)
         );

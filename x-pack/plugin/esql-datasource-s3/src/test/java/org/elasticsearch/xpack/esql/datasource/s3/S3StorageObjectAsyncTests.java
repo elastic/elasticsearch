@@ -696,6 +696,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertEquals("expired session tokens must not be retried", 1, calls.get());
         assertThat(error.get(), instanceOf(ExternalCredentialsExpiredException.class));
+        assertThat(error.get().getMessage(), containsString("expired or invalid"));
         assertThat(error.get().getMessage(), containsString("Refresh the data source credentials"));
         assertThat(error.get().getMessage(), containsString(errorCode));
     }

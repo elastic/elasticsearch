@@ -978,8 +978,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             }
             return;
         }
-        // Expired/invalid session tokens cannot be retried with the same signature. Map immediately
-        // and skip the AWS Standard token refresh — same shape as RequestTimeTooSkewed above.
+        // Expired/invalid session tokens cannot be retried with the same SigV4 signature.
+        // Skip asyncRetryStrategy.refreshRetryToken (the Standard retry-quota token, not STS /
+        // IMDS credential refresh): Standard already refuses these 400s, and a second GET with the
+        // same cached identity cannot succeed. Same shape as RequestTimeTooSkewed above.
         if (S3FailureDetail.findCredentialsExpired(unwrapped) != null) {
             if (handle.tryCompleteListener()) {
                 counters.addRequest(System.nanoTime() - startNanos, 0L);

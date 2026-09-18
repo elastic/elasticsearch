@@ -30,6 +30,7 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.util.LongObjectPagedHashMap.Cursor;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchHit;
@@ -78,6 +79,9 @@ class TopHitsAggregator extends MetricsAggregator {
     // this must be mutable so it can be closed/replaced on each call to getLeafCollector
     private LongObjectPagedHashMap<LeafCollector> leafCollectors;
     private final boolean isNested;
+    private SearchExecutionContext forkedSearchExecutionContext;
+    private InnerHitsContext forkedInnerHitsContext;
+    private Thread fetchThread;
 
     TopHitsAggregator(
         SubSearchContext subSearchContext,
@@ -234,21 +238,10 @@ class TopHitsAggregator extends MetricsAggregator {
     }
 
     private FetchSearchResult runFetchPhase(int[] docIdsToLoad, IntConsumer memoryChecker) {
-        // Fork the search execution context for each slice, because the fetch phase does not support concurrent execution yet.
-        SearchExecutionContext searchExecutionContext = new SearchExecutionContext(subSearchContext.getSearchExecutionContext());
-        // When top_hits aggregation is inside a nested aggregation, do not inherit inner_hits from parent query.
-        // Query-level inner_hits operate at parent document scope, while nested aggregation top_hits operate
-        // at nested document scope within buckets. Inheriting inner_hits causes conflicting fetch contexts
-        // and fails when extracting nested documents by offset.
-        InnerHitsContext innerHitsContext;
-        if (isNested) {
-            innerHitsContext = new InnerHitsContext();
-        } else {
-            // InnerHitSubContext is not thread-safe, so we fork it as well to support concurrent execution
-            innerHitsContext = new InnerHitsContext(
-                getForkedInnerHits(subSearchContext.innerHits().getInnerHits(), searchExecutionContext)
-            );
-        }
+        forkFetchContextsIfNeeded();
+        final SearchExecutionContext searchExecutionContext = this.forkedSearchExecutionContext;
+        final InnerHitsContext innerHitsContext = this.forkedInnerHitsContext;
+        // Stays per bucket: it owns the FetchSearchResult the bucket's hits are published through.
         SubSearchContext fetchSubSearchContext = new SubSearchContext(subSearchContext) {
             @Override
             public SearchExecutionContext getSearchExecutionContext() {
@@ -263,6 +256,41 @@ class TopHitsAggregator extends MetricsAggregator {
 
         fetchSubSearchContext.fetchPhase().execute(fetchSubSearchContext, docIdsToLoad, null, memoryChecker);
         return fetchSubSearchContext.fetchResult();
+    }
+
+    /**
+     * Forks the fetch contexts once per aggregator instead of once per bucket. Buckets are fetched
+     * sequentially, and forking per bucket pinned a {@link SearchExecutionContext}, and the stored
+     * fields its lookup provider had loaded, for every bucket until the query context closed.
+     */
+    private void forkFetchContextsIfNeeded() {
+        if (forkedSearchExecutionContext != null) {
+            // Sharing the forked contexts is only safe while buckets are fetched sequentially on one thread, which
+            // post collection requires anyway because Lucene does not allow reading doc values from another thread.
+            assert fetchThread == Thread.currentThread()
+                : "forked fetch context shared across threads [" + fetchThread + "] and [" + Thread.currentThread() + "]";
+            return;
+        }
+        // Fork the search execution context for each slice, because the fetch phase does not support concurrent execution yet.
+        SearchExecutionContext searchExecutionContext = new SearchExecutionContext(subSearchContext.getSearchExecutionContext());
+        InnerHitsContext innerHitsContext;
+        // When top_hits aggregation is inside a nested aggregation, do not inherit inner_hits from parent query.
+        // Query-level inner_hits operate at parent document scope, while nested aggregation top_hits operate
+        // at nested document scope within buckets. Inheriting inner_hits causes conflicting fetch contexts
+        // and fails when extracting nested documents by offset.
+        if (isNested) {
+            innerHitsContext = new InnerHitsContext();
+        } else {
+            // InnerHitSubContext is not thread-safe, so we fork it as well to support concurrent execution
+            innerHitsContext = new InnerHitsContext(
+                getForkedInnerHits(subSearchContext.innerHits().getInnerHits(), searchExecutionContext)
+            );
+        }
+        if (Assertions.ENABLED) {
+            fetchThread = Thread.currentThread();
+        }
+        forkedInnerHitsContext = innerHitsContext;
+        forkedSearchExecutionContext = searchExecutionContext;
     }
 
     /**
@@ -313,14 +341,16 @@ class TopHitsAggregator extends MetricsAggregator {
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
-        List<Map<String, Object>> debug = new ArrayList<>();
-        for (ProfileResult result : fetchProfiles) {
-            Map<String, Object> resultDebug = new HashMap<>();
-            resultDebug.put("time", result.getTime());
-            resultDebug.put("breakdown", result.getTimeBreakdown());
-            debug.add(resultDebug);
+        if (fetchProfiles != null) {
+            List<Map<String, Object>> debug = new ArrayList<>();
+            for (ProfileResult result : fetchProfiles) {
+                Map<String, Object> resultDebug = new HashMap<>();
+                resultDebug.put("time", result.getTime());
+                resultDebug.put("breakdown", result.getTimeBreakdown());
+                debug.add(resultDebug);
+            }
+            add.accept("fetch_profile", debug);
         }
-        add.accept("fetch_profile", debug);
     }
 
     @Override

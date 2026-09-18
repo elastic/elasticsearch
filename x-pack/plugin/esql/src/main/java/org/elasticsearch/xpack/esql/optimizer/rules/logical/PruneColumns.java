@@ -298,25 +298,26 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
     // TODO: see ResolveUnmapped#patchMergePlan comment
     private static LogicalPlan pruneColumnsInMergePlan(MergePlan mergePlan, AttributeSet.Builder used) {
 
-        if (mergePlan instanceof UnionAll unionAll && PushDownUtils.isLeafUnionAll(unionAll)) {
-            // Direct-leaf UnionAll (heterogeneous FROM): prune ExternalRelation children so the
-            // format reader only loads the columns actually needed. EsRelation children are left
-            // intact — InsertFieldExtraction handles field-level extraction at execution time.
-            List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
-            boolean changed = false;
-            for (LogicalPlan child : unionAll.children()) {
-                LogicalPlan newChild = child instanceof ExternalRelation ext ? pruneColumnsInExternalRelation(ext, used) : child;
-                if (newChild != child) {
-                    changed = true;
+        if (mergePlan instanceof UnionAll unionAll) {
+            if (PushDownUtils.isLeafUnionAll(unionAll)) {
+                // Direct-leaf UnionAll (heterogeneous FROM): prune ExternalRelation children so the
+                // format reader only loads the columns actually needed. EsRelation children are left
+                // intact — InsertFieldExtraction handles field-level extraction at execution time.
+                List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
+                boolean changed = false;
+                for (LogicalPlan child : unionAll.children()) {
+                    LogicalPlan newChild = child instanceof ExternalRelation ext ? pruneColumnsInExternalRelation(ext, used) : child;
+                    if (newChild != child) {
+                        changed = true;
+                    }
+                    newChildren.add(newChild);
                 }
-                newChildren.add(newChild);
+                return changed ? unionAll.replaceChildren(newChildren) : unionAll;
+                // LOAD_ALL stamps $$unmapped_fields, which is not synthetic and is not referenced above the
+                // union, so dropping unused merge columns would drop it.
+            } else if (carriesUnmappedFieldsAttribute(unionAll)) {
+                return unionAll;
             }
-            return changed ? unionAll.replaceChildren(newChildren) : unionAll;
-        }
-        // LOAD_ALL stamps $$unmapped_fields, which is not synthetic and is not referenced above the
-        // union, so dropping unused merge columns would drop it.
-        if (mergePlan instanceof UnionAll unionAll && carriesUnmappedFieldsAttribute(unionAll)) {
-            return mergePlan;
         }
 
         // prune the output attributes of the merge based on usage from the rest of the plan

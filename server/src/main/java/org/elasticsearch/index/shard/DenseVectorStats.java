@@ -13,8 +13,8 @@ import org.apache.lucene.codecs.KnnVectorsReader;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.vectors.diskbbq.SegmentCalibrationParameters;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -37,9 +37,7 @@ import static org.elasticsearch.common.unit.ByteSizeValue.ofBytes;
  */
 public class DenseVectorStats implements Writeable, ToXContentFragment {
 
-    static final TransportVersion DENSE_VECTOR_AUTO_CALIBRATION_STATS = TransportVersion.fromName(
-        "dense_vector_auto_calibration_stats"
-    );
+    static final TransportVersion DENSE_VECTOR_AUTO_CALIBRATION_STATS = TransportVersion.fromName("dense_vector_auto_calibration_stats");
     private static final TransportVersion DENSE_VECTOR_OFF_HEAP_STATS = TransportVersion.fromName("dense_vector_off_heap_stats");
 
     private long valueCount = 0;

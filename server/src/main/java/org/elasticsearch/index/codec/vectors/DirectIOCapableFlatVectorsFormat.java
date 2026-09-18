@@ -13,15 +13,10 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.apache.lucene.store.FlushInfo;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.MergeInfo;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.index.codec.vectors.es818.DirectIOHint;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 
 import java.io.IOException;
-import java.util.Set;
 
 public abstract class DirectIOCapableFlatVectorsFormat extends AbstractFlatVectorsFormat {
     protected DirectIOCapableFlatVectorsFormat(String name) {
@@ -87,24 +82,22 @@ public abstract class DirectIOCapableFlatVectorsFormat extends AbstractFlatVecto
             state.directory,
             state.segmentInfo,
             state.fieldInfos,
-            new DirectIOContext(state.context.hints()),
+            DirectIOContext.searchRead(state.context.hints()),
             state.segmentSuffix
         );
     }
 
     /**
-     * the merge-side state with the direct I/O hint. MERGE here only selects the merge-sized direct I/O delegate in
-     * HybridDirectory; the reader is created from the search-time state, so the context carries no MergeInfo (see
-     * DirectIOContext#mergeInfo). A merge reads each source twice through this reader, once to verify its checksum
-     * and once to stream it; both stay direct on purpose, since verifying through the page cache would fault the
-     * whole source in, the eviction the option exists to avoid
+     * Returns the merge-side state with the direct I/O hint; see {@link DirectIOContext#mergeRead}. A merge reads each
+     * source at least twice through this reader (checksum, then stream; the bbq types stream it again), all direct on
+     * purpose: verifying through the page cache would fault the whole source in, the eviction the option exists to avoid.
      */
     private static SegmentReadState directIOMergeState(SegmentReadState state) {
         return new SegmentReadState(
             state.directory,
             state.segmentInfo,
             state.fieldInfos,
-            new DirectIOContext(IOContext.Context.MERGE, state.context.hints()),
+            DirectIOContext.mergeRead(state.context.hints()),
             state.segmentSuffix
         );
     }
@@ -129,7 +122,7 @@ public abstract class DirectIOCapableFlatVectorsFormat extends AbstractFlatVecto
      * the read side engages either way. Plain HNSW is the one format that declines it, see
      * {@code ES93GenericFlatVectorsFormat#withBufferedMergeWrites}.
      */
-    protected static SegmentWriteState directIOMergeWriteState(SegmentWriteState state) {
+    private static SegmentWriteState directIOMergeWriteState(SegmentWriteState state) {
         if (state.context.context() != IOContext.Context.MERGE || FsDirectoryFactory.isHybridFs(state.directory) == false) {
             return state;
         }
@@ -139,7 +132,7 @@ public abstract class DirectIOCapableFlatVectorsFormat extends AbstractFlatVecto
             state.segmentInfo,
             state.fieldInfos,
             state.segUpdates,
-            new DirectIOWriteContext(state.context),
+            DirectIOContext.mergeWrite(state.context),
             state.segmentSuffix
         );
         // copied by value: both are only set by Lucene for flushes, and this state is only ever
@@ -147,49 +140,5 @@ public abstract class DirectIOCapableFlatVectorsFormat extends AbstractFlatVecto
         directIOState.liveDocs = state.liveDocs;
         directIOState.delCountOnFlush = state.delCountOnFlush;
         return directIOState;
-    }
-
-    protected static class DirectIOContext implements IOContext {
-
-        private final Context context;
-        final Set<FileOpenHint> hints;
-
-        public DirectIOContext(Set<FileOpenHint> hints) {
-            this(Context.DEFAULT, hints);
-        }
-
-        public DirectIOContext(Context context, Set<FileOpenHint> hints) {
-            this.context = context;
-            // always add DirectIOHint to the hints given
-            this.hints = Sets.union(hints, Set.of(DirectIOHint.INSTANCE));
-        }
-
-        @Override
-        public Context context() {
-            return context;
-        }
-
-        // null on purpose: this context only selects the merge-sized direct I/O delegate in HybridDirectory,
-        // there is no merge to describe. Lucene's own DirectIODirectory#useDirectIO would dereference it;
-        // AlwaysDirectIODirectory overrides that method and never reads it
-        @Override
-        public MergeInfo mergeInfo() {
-            return null;
-        }
-
-        @Override
-        public FlushInfo flushInfo() {
-            return null;
-        }
-
-        @Override
-        public Set<FileOpenHint> hints() {
-            return hints;
-        }
-
-        @Override
-        public IOContext withHints(FileOpenHint... hints) {
-            return new DirectIOContext(context, Set.of(hints));
-        }
     }
 }

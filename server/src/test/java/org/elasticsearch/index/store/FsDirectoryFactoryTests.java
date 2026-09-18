@@ -29,7 +29,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.codec.vectors.DirectIOWriteContext;
+import org.elasticsearch.index.codec.vectors.DirectIOContext;
 import org.elasticsearch.index.codec.vectors.es818.DirectIOHint;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -206,7 +206,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
 
     /** A merge-context write of raw vectors with the direct I/O hint, as the codec issues it. */
     private static IOContext directIOMergeContext() {
-        return new DirectIOWriteContext(
+        return DirectIOContext.mergeWrite(
             IOContext.merge(new MergeInfo(randomIntBetween(1, 1000), randomLongBetween(1, 1 << 20), false, -1))
         );
     }

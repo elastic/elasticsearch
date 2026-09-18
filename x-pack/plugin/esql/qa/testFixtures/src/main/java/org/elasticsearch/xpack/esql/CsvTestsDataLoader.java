@@ -90,6 +90,32 @@ public class CsvTestsDataLoader {
         )
         .build();
 
+    /**
+     * Every field of mapping-all-types.json that all-types.csv actually carries data for, except {@code keyword}, which the
+     * {@code all_types_unmapped*} datasets keep mapped as an anchor. {@code semantic_text} and {@code dense_vector} stay mapped because
+     * the CSV has no column for either.
+     */
+    private static final Map<String, String> ALL_TYPES_UNMAPPED_FIELDS = removeFields(
+        "alias_integer",
+        "boolean",
+        "byte",
+        "constant_keyword-foo",
+        "date",
+        "date_nanos",
+        "double",
+        "float",
+        "half_float",
+        "integer",
+        "ip",
+        "long",
+        "scaled_float",
+        "short",
+        "text",
+        "unsigned_long",
+        "version",
+        "wildcard"
+    );
+
     public static final Map<String, TestDataset> CSV_DATASET = Stream.of(
         new TestDataset("employees", "mapping-default.json", "employees.csv").noSubfields(),
         new TestDataset("conv_from_keyword", "mapping-conv_from_keyword.json", "conv_from_keyword.csv"),
@@ -107,6 +133,14 @@ public class CsvTestsDataLoader {
         new TestDataset("all_types_no_short", "mapping-all-types.json", "all-types.csv").withTypeMapping(removeFields("short"))
             .withDynamic("false"),
         new TestDataset("all_types_short_as_long", "mapping-all-types.json", "all-types.csv").withTypeMapping(Map.of("short", "long")),
+        // all_types_unmapped* : the all_types index with every typed column dropped from the mapping so each ES type appears
+        // only as a _source key.
+        new TestDataset("all_types_unmapped", "mapping-all-types.json", "all-types.csv").withTypeMapping(ALL_TYPES_UNMAPPED_FIELDS)
+            .withDynamic("false"),
+        new TestDataset("all_types_unmapped", "mapping-all-types.json", "all-types.csv").withIndex("all_types_unmapped_synthetic")
+            .withTypeMapping(ALL_TYPES_UNMAPPED_FIELDS)
+            .withDynamic("false")
+            .withSetting("synthetic-source-settings.json"),
         new TestDataset("all_types_mv", "mapping-all-types.json", "all-types-mv.csv"),
         new TestDataset("hosts"),
         new TestDataset("hosts").withIndex("hosts_ip_is_kwd").withTypeMapping(Map.of("ip0", "keyword", "ip1", "keyword")),
@@ -215,6 +249,12 @@ public class CsvTestsDataLoader {
             "mapping-partial_mapping_sample_data.json",
             "partial_mapping_sample_data.csv",
             "synthetic-source-settings.json"
+        ),
+        new TestDataset(
+            "logsdb_partial_mapping",
+            "mapping-partial_mapping_sample_data.json",
+            "partial_mapping_sample_data.csv",
+            "logsdb-settings.json"
         ),
         new TestDataset("mv_sample_data"),
         new TestDataset("event_alerts"),

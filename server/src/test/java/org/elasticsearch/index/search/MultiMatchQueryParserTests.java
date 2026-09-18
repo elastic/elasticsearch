@@ -10,6 +10,7 @@
 package org.elasticsearch.index.search;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -151,8 +152,12 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
                 .toQuery(searchExecutionContext);
             try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
                 Query rewrittenQuery = searcher.rewrite(parsedQuery);
-                Query tq1 = new BoostQuery(new TermQuery(new Term("name.last", "banon")), 3);
-                Query tq2 = new BoostQuery(new TermQuery(new Term("name.first", "banon")), 2);
+                // Lucene 11 TermQuery.equals includes TermStates; CROSS_FIELDS rewrite
+                // attaches them via BlendedTermQuery.
+                Term last = new Term("name.last", "banon");
+                Term first = new Term("name.first", "banon");
+                Query tq1 = new BoostQuery(new TermQuery(last, TermStates.build(searcher, last, true)), 3);
+                Query tq2 = new BoostQuery(new TermQuery(first, TermStates.build(searcher, first, true)), 2);
                 Query expected = new DisjunctionMaxQuery(Arrays.asList(tq2, tq1), tieBreaker);
                 assertEquals(expected, rewrittenQuery);
             }

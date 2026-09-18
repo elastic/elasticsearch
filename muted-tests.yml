@@ -506,3 +506,5 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecStringIT
   method: test {csv-spec:string.base64DecodeMixedMvExpand}
   issue: https://github.com/elastic/elasticsearch/issues/159681
+- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
+  issue: https://github.com/elastic/elasticsearch/issues/159683

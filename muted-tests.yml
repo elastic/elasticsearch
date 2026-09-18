@@ -150,6 +150,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testHugeManyRepeat
   issue: https://github.com/elastic/elasticsearch/issues/159786
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
+  method: testEnrichExplosionManyMatches
+  issue: https://github.com/elastic/elasticsearch/issues/159787
 
 # Examples:
 #

@@ -123,23 +123,14 @@ public class DatasetRegistrationContractIT extends ESRestTestCase {
 
         ResponseException refused = expectThrows(
             ResponseException.class,
-            "["
-                + contractCase.setting()
-                + " = "
-                + contractCase.value()
-                + "] was accepted at registration. Either the validator stopped checking it, or it now "
+            contractCase.settings()
+                + " was accepted at registration. Either the validator stopped checking it, or it now "
                 + "defers to query time -- which is a contract change rather than a passing case.",
-            () -> DatasetRegistry.putDataset(
-                client(),
-                dataset,
-                SHARED_DS_NAME,
-                resource,
-                Map.of(contractCase.setting(), contractCase.value())
-            )
+            () -> DatasetRegistry.putDataset(client(), dataset, SHARED_DS_NAME, resource, Map.copyOf(contractCase.settings()))
         );
 
         assertThat(
-            "the refusal must be about the setting the case varied",
+            "the refusal must be about the settings the case varied",
             refused.getResponse().getStatusLine().getStatusCode(),
             equalTo(400)
         );

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.fixtures;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
@@ -29,7 +30,7 @@ public class RegistrationContractTests extends ESTestCase {
         Set<String> names = new HashSet<>();
         for (RegistrationContract.Case declared : cases) {
             assertTrue("case names are unique", names.add(declared.name()));
-            assertThat(declared.setting().isBlank(), equalTo(false));
+            assertThat("a case with no settings registers nothing", declared.settings().isEmpty(), equalTo(false));
             assertThat(declared.message().isBlank(), equalTo(false));
             assertThat(declared.emitter().isBlank(), equalTo(false));
             assertThat(declared.format().isBlank(), equalTo(false));
@@ -40,12 +41,11 @@ public class RegistrationContractTests extends ESTestCase {
      * A message that names no setting is the failure this file exists to prevent: it passes on a refusal
      * of something the case never varied. Pinning the shape stops a case being weakened to make it green.
      */
-    public void testEveryMessageNamesTheSettingItIsAbout() {
+    public void testEveryMessageNamesASettingTheCaseRegisters() {
         for (RegistrationContract.Case declared : RegistrationContract.get().cases()) {
-            assertThat(
-                "case [" + declared.name() + "] asserts a message that does not name [" + declared.setting() + "]",
-                declared.message(),
-                containsString(declared.setting())
+            assertTrue(
+                "case [" + declared.name() + "] asserts a message naming none of " + declared.settings().keySet(),
+                declared.settings().keySet().stream().anyMatch(declared.message()::contains)
             );
         }
     }
@@ -55,8 +55,7 @@ public class RegistrationContractTests extends ESTestCase {
         assertThat(contract.cases().size(), equalTo(1));
         RegistrationContract.Case only = contract.cases().get(0);
         assertThat(only.name(), equalTo("sample_negative"));
-        assertThat(only.setting(), equalTo("schema_sample_size"));
-        assertThat(only.value(), equalTo("-1"));
+        assertThat(only.settings(), equalTo(Map.of("schema_sample_size", "-1")));
         assertThat("the format defaults rather than being required of every case", only.format(), equalTo("csv"));
     }
 
@@ -86,7 +85,7 @@ public class RegistrationContractTests extends ESTestCase {
      * suite would register nothing, assert nothing, and pass.
      */
     public void testEveryRequiredFieldIsRequired() {
-        for (String attribute : new String[] { "setting", "value", "message", "emitter" }) {
+        for (String attribute : new String[] { "message", "emitter" }) {
             Properties props = wellFormed();
             props.remove("case.sample_negative." + attribute);
             Exception e = expectThrows(IllegalStateException.class, () -> RegistrationContract.parse(props));
@@ -110,10 +109,40 @@ public class RegistrationContractTests extends ESTestCase {
 
     private static Properties wellFormed() {
         Properties props = new Properties();
-        props.setProperty("case.sample_negative.setting", "schema_sample_size");
-        props.setProperty("case.sample_negative.value", "-1");
+        props.setProperty("case.sample_negative.settings.schema_sample_size", "-1");
         props.setProperty("case.sample_negative.message", "[schema_sample_size] must be between 1 and 20000, got [-1]");
         props.setProperty("case.sample_negative.emitter", "DataSourceValidationUtils.validateInt");
         return props;
+    }
+
+    /**
+     * The refusals worth having pin two settings that are each accepted alone. A contract of one
+     * setting per case cannot express one, so this pins that the shape survives.
+     */
+    public void testACaseMayRegisterMoreThanOneSetting() {
+        Properties props = new Properties();
+        props.setProperty("case.probe_budget.settings.split_probe_window", "64mb");
+        props.setProperty("case.probe_budget.settings.max_split_probes", "1000");
+        props.setProperty("case.probe_budget.message", "Invalid combination of [split_probe_window]");
+        props.setProperty("case.probe_budget.emitter", "FileSplitProvider.validateProbeBudget");
+        RegistrationContract.Case only = RegistrationContract.parse(props).cases().get(0);
+        assertThat(only.settings(), equalTo(Map.of("split_probe_window", "64mb", "max_split_probes", "1000")));
+    }
+
+    /** A case that registers nothing asserts nothing about registration. */
+    public void testACaseWithNoSettingsIsRejected() {
+        Properties props = new Properties();
+        props.setProperty("case.empty.message", "something");
+        props.setProperty("case.empty.emitter", "Somewhere.method");
+        Exception e = expectThrows(IllegalStateException.class, () -> RegistrationContract.parse(props));
+        assertThat(e.getMessage(), containsString("declares no settings"));
+    }
+
+    /** At least one declared case pins a combination, or the contract has lost its interesting half. */
+    public void testTheContractCarriesAtLeastOneCombination() {
+        assertTrue(
+            "no declared case registers more than one setting",
+            RegistrationContract.get().cases().stream().anyMatch(c -> c.settings().size() > 1)
+        );
     }
 }

@@ -539,6 +539,9 @@ public class FileDataSourceValidator implements DataSourceValidator {
         // query path uses, so a malformed setting is rejected at PUT time with the same message it
         // would produce at query time. Each parser reads the keys it owns from the settings map.
         // error_mode + max_errors + max_error_ratio (incl. mutual exclusion) via the owning policy parser.
+        // Registration refuses a bare budget (max_errors/max_error_ratio without error_mode) — the query
+        // path infers skip_row in that case but the inference must be made explicit at registration time.
+        validate(() -> ErrorPolicy.validateRegistrationBudget(settings), errors);
         validate(() -> ErrorPolicy.fromConfig(settings, ErrorPolicy.STRICT), errors);
         // partition_detection enum, plus the combinations in which one of the two active partition settings
         // (partition_detection, partition_path) would be silently ignored, via the owning parser.

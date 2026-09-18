@@ -16,6 +16,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -64,6 +65,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -95,6 +97,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
+import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
@@ -3943,6 +3946,29 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * With no Iceberg catalog registered (flag off or not installed), a single extensionless S3 object path
+     * with no {@code format} setting is not handed to a catalog: the resolver applies the standard file-format
+     * check and fails with the dataset-format error, not an Iceberg metadata error.
+     * <p>
+     * This pins the contract established by the Iceberg feature flag: removing the catalog as a claimant
+     * means extensionless paths fall through to file-format inference, which correctly rejects them as
+     * ambiguous rather than forwarding them to a catalog that would fail with a 400 for an unrelated reason.
+     */
+    public void testExtensionlessS3ObjectWithoutCatalogFailsWithFormatError() {
+        String path = "s3://bucket/data/my_table";
+        Map<String, List<Attribute>> schemasByPath = Map.of(path, List.of(attr("a", DataType.KEYWORD)));
+
+        Exception e = expectThrows(Exception.class, () -> resolveSingleFile(path, schemasByPath));
+
+        assertEquals("an extensionless path with no format is a client error", RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        assertThat(
+            "must fail with the dataset-format error, not an Iceberg metadata error",
+            e.getMessage(),
+            containsString(FormatNameResolver.ambiguousDatasetFormatMessage(path))
+        );
+    }
+
+    /**
      * A single-segment extension reports itself alone — the two-segment tail is for compound names only, and must not
      * drag a preceding dotted stem into the message.
      */
@@ -6277,6 +6303,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     private static class StubStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         private final Map<String, List<StorageEntry>> listingsByPrefix;
         private final Map<String, List<Attribute>> schemasByPath;
         // Non-null only when the wrapping provider wants to count metadata probes: it is passed to every
@@ -6413,6 +6444,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * to verify that the cache eliminates redundant loader invocations.
      */
     private static class CountingStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         final AtomicInteger listCallCount = new AtomicInteger();
         final AtomicInteger schemaCallCount = new AtomicInteger();
         // Counts the single-file metadata probe. Incremented by the object's lastModified() (the one caller
@@ -6473,6 +6509,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * conditions that caused #147371 (GCS/Azure fixtures, gRPC/Flight).
      */
     private static class NullMtimeStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         private final StubStorageProvider delegate;
 
         NullMtimeStorageProvider(Map<String, List<Attribute>> schemasByPath) {
@@ -6554,6 +6595,94 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("too wide a glob is the caller's mistake, not a server fault", RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
         assertThat(e.getMessage(), containsString("discovered too many files"));
         assertThat(e.getMessage(), containsString("esql.external.max_discovered_files"));
+    }
+
+    /**
+     * Production wires the listing caps through {@link ClusterSettings#initializeAndWatchIfRegistered} in
+     * {@code EsqlPlugin} and into the resolver as {@link IntSupplier}s. {@code clusterService.getSettings()} is
+     * the yml snapshot and would freeze the constructor-time value; this test is the proof the resolver itself
+     * moves: same instance, {@link ClusterSettings#applySettings}, a glob that fails at 2 succeeds at 10.
+     */
+    public void testDiscoveryCapsTrackClusterSettingsOnSameResolver() {
+        String prefix = "s3://bucket/data/";
+        List<StorageEntry> listing = new ArrayList<>();
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        for (int i = 0; i < 5; i++) {
+            String path = prefix + "part-" + i + ".parquet";
+            listing.add(entry(path, 100));
+            schemasByPath.put(path, List.of(attr("x", DataType.INTEGER)));
+        }
+
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.copyOf(Federation.settings(true)));
+        AtomicInteger maxDiscoveredFiles = new AtomicInteger();
+        AtomicInteger maxGlobExpansion = new AtomicInteger();
+        AtomicInteger maxListedObjects = new AtomicInteger();
+        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_DISCOVERED_FILES, maxDiscoveredFiles::set);
+        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_GLOB_EXPANSION, maxGlobExpansion::set);
+        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_LISTED_OBJECTS, maxListedObjects::set);
+
+        ExternalSourceResolver resolver = createResolver(
+            schemasByPath,
+            Map.of(prefix, listing),
+            Settings.EMPTY,
+            maxDiscoveredFiles::get,
+            maxGlobExpansion::get,
+            maxListedObjects::get
+        );
+
+        clusterSettings.applySettings(Settings.builder().put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 2).build());
+        PlainActionFuture<ExternalSourceResolution> fail = new PlainActionFuture<>();
+        resolver.resolve(List.of(prefix + "*.parquet"), Map.of(), fail);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, fail::actionGet);
+        assertThat(e.getMessage(), containsString("esql.external.max_discovered_files"));
+
+        clusterSettings.applySettings(Settings.builder().put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 10).build());
+        PlainActionFuture<ExternalSourceResolution> ok = new PlainActionFuture<>();
+        resolver.resolve(List.of(prefix + "*.parquet"), Map.of(), ok);
+        assertEquals(5, ok.actionGet().resolvedSource(prefix + "*.parquet").fileList().fileCount());
+    }
+
+    /**
+     * Listing cache keys omit the caps so a raise still hits. A later drop must not serve a FileList
+     * that would have been rejected at expand time; {@code cachedListing} re-checks the live kept-files
+     * cap on hit.
+     */
+    public void testCachedListingRespectsLoweredDiscoveredFilesCap() {
+        String prefix = "s3://bucket/data/";
+        List<StorageEntry> listing = new ArrayList<>();
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        for (int i = 0; i < 5; i++) {
+            String path = prefix + "part-" + i + ".parquet";
+            listing.add(entry(path, 100));
+            schemasByPath.put(path, List.of(attr("x", DataType.INTEGER)));
+        }
+
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.copyOf(Federation.settings(true)));
+        AtomicInteger maxDiscoveredFiles = new AtomicInteger();
+        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_DISCOVERED_FILES, maxDiscoveredFiles::set);
+        clusterSettings.applySettings(Settings.builder().put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 10).build());
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createResolver(
+                schemasByPath,
+                Map.of(prefix, listing),
+                Settings.EMPTY,
+                maxDiscoveredFiles::get,
+                null,
+                null,
+                cacheService
+            );
+
+            PlainActionFuture<ExternalSourceResolution> warm = new PlainActionFuture<>();
+            resolver.resolve(List.of(prefix + "*.parquet"), Map.of(), warm);
+            assertEquals(5, warm.actionGet().resolvedSource(prefix + "*.parquet").fileList().fileCount());
+
+            clusterSettings.applySettings(Settings.builder().put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 2).build());
+            PlainActionFuture<ExternalSourceResolution> fail = new PlainActionFuture<>();
+            resolver.resolve(List.of(prefix + "*.parquet"), Map.of(), fail);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, fail::actionGet);
+            assertThat(e.getMessage(), containsString("esql.external.max_discovered_files"));
+        }
     }
 
     /**
@@ -6643,6 +6772,29 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, List<StorageEntry>> listingsByPrefix,
         Settings settings
     ) {
+        return createResolver(schemasByPath, listingsByPrefix, settings, null, null, null);
+    }
+
+    private ExternalSourceResolver createResolver(
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, List<StorageEntry>> listingsByPrefix,
+        Settings settings,
+        @Nullable IntSupplier maxDiscoveredFiles,
+        @Nullable IntSupplier maxGlobExpansion,
+        @Nullable IntSupplier maxListedObjects
+    ) {
+        return createResolver(schemasByPath, listingsByPrefix, settings, maxDiscoveredFiles, maxGlobExpansion, maxListedObjects, null);
+    }
+
+    private ExternalSourceResolver createResolver(
+        Map<String, List<Attribute>> schemasByPath,
+        Map<String, List<StorageEntry>> listingsByPrefix,
+        Settings settings,
+        @Nullable IntSupplier maxDiscoveredFiles,
+        @Nullable IntSupplier maxGlobExpansion,
+        @Nullable IntSupplier maxListedObjects,
+        @Nullable ExternalSourceCacheService cacheService
+    ) {
         StubFormatReader formatReader = new StubFormatReader(schemasByPath);
         StubStorageProvider storageProvider = new StubStorageProvider(listingsByPrefix, schemasByPath);
 
@@ -6680,7 +6832,18 @@ public class ExternalSourceResolverTests extends ESTestCase {
             () -> false
         );
 
-        return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module, settings);
+        return new ExternalSourceResolver(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            module,
+            settings,
+            cacheService,
+            null,
+            ExternalSourceResolver.DEFAULT_METADATA_READ_CONCURRENCY,
+            null,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects
+        );
     }
 
     /**

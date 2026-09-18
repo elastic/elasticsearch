@@ -44,6 +44,9 @@ import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -55,6 +58,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -73,6 +77,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.containsString;
@@ -828,11 +833,55 @@ public class EsqlSessionTests extends ESTestCase {
     }
 
     /**
+     * Wiring test: dashboard-shaped {@code year == DATE_EXTRACT("YEAR", param)} must reach
+     * {@code ExternalSourceResolver#resolve} as a folded partition hint, without mutating the
+     * unresolved session plan.
+     */
+    public void testPreAnalyzeExternalSourcesForwardsFoldedDateExtractHints() {
+        String path = "s3://bucket/data/*.parquet";
+        long ts = Instant.parse("2026-07-13T00:00:00Z").toEpochMilli();
+        UnresolvedFunction extractYear = new UnresolvedFunction(
+            EMPTY,
+            "DATE_EXTRACT",
+            List.of(Literal.keyword(EMPTY, "YEAR"), new Literal(EMPTY, ts, DataType.DATETIME))
+        );
+        UnresolvedExternalRelation relation = new UnresolvedExternalRelation(EMPTY, Literal.keyword(EMPTY, path), Map.of());
+        LogicalPlan plan = new Filter(EMPTY, relation, new Equals(EMPTY, new UnresolvedAttribute(EMPTY, "year"), extractYear));
+
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> hints = captureFilterHints(plan, path);
+        assertNotNull(hints);
+        List<PartitionFilterHintExtractor.PartitionFilterHint> pathHints = hints.get(path);
+        assertNotNull(pathHints);
+        assertEquals(1, pathHints.size());
+        assertEquals("year", pathHints.get(0).columnName());
+        assertEquals(PartitionFilterHintExtractor.Operator.EQUALS, pathHints.get(0).operator());
+        assertEquals(List.of(2026L), pathHints.get(0).values());
+        assertTrue(
+            "session plan stays unresolved",
+            plan.anyMatch(n -> n instanceof Filter f && f.condition().anyMatch(UnresolvedFunction.class::isInstance))
+        );
+    }
+
+    /**
      * Drives {@code EsqlSession#preAnalyzeExternalSources} with a capturing {@link ExternalSourceResolver}
      * and returns the {@code pathsRequiringStats} argument it forwarded to {@code resolve(...)}.
      */
     private static Set<String> capturePathsRequiringStats(LogicalPlan plan, String path) {
-        AtomicReference<Set<String>> captured = new AtomicReference<>();
+        return captureExternalResolve(plan, path).pathsRequiringStats();
+    }
+
+    private static Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> captureFilterHints(LogicalPlan plan, String path) {
+        return captureExternalResolve(plan, path).filterHints();
+    }
+
+    private record CapturedExternalResolve(
+        Set<String> pathsRequiringStats,
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints
+    ) {}
+
+    private static CapturedExternalResolve captureExternalResolve(LogicalPlan plan, String path) {
+        AtomicReference<Set<String>> capturedStats = new AtomicReference<>();
+        AtomicReference<Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>>> capturedHints = new AtomicReference<>();
         AtomicBoolean resolveCalled = new AtomicBoolean();
         ExternalSourceResolver capturingResolver = new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, null) {
             @Override
@@ -845,7 +894,8 @@ public class EsqlSessionTests extends ESTestCase {
                 ActionListener<ExternalSourceResolution> listener
             ) {
                 resolveCalled.set(true);
-                captured.set(pathsRequiringStats);
+                capturedStats.set(pathsRequiringStats);
+                capturedHints.set(filterHints);
                 listener.onResponse(ExternalSourceResolution.EMPTY);
             }
         };
@@ -864,10 +914,10 @@ public class EsqlSessionTests extends ESTestCase {
         );
         EsqlSession.PreAnalysisResult result = new EsqlSession.PreAnalysisResult(Set.of(), Set.of());
         PlainActionFuture<EsqlSession.PreAnalysisResult> future = new PlainActionFuture<>();
-        EsqlSession.preAnalyzeExternalSources(capturingResolver, plan, preAnalysis, result, future);
+        EsqlSession.preAnalyzeExternalSources(capturingResolver, plan, preAnalysis, result, future, TEST_CFG, new EsqlFunctionRegistry());
         future.actionGet();
         assertTrue("resolve must be invoked when icebergPaths is non-empty", resolveCalled.get());
-        return captured.get();
+        return new CapturedExternalResolve(capturedStats.get(), capturedHints.get());
     }
 
     private static IndexResolution resolvedIndex(String indexName) {

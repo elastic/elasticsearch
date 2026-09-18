@@ -31,6 +31,44 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class UploadQueueControllerServiceTests extends ESTestCase {
+    /** Checks that expired decisions survive the middle range without changing engine throttling. */
+    public void testPreservesThrottleBetweenThresholds() {
+        var shardId = new ShardId(randomIndexName(), randomUUID(), 0);
+        long removalThreshold = randomLongBetween(1, 60_000);
+        long activationThreshold = randomLongBetween(removalThreshold + 2, 120_000);
+        long cooldown = randomFrom(0L, randomLongBetween(1, 60_000));
+        long now = activationThreshold + cooldown + 1;
+        var throttler = new MemorizingThrottler();
+        var calculator = new ThrottleCalculator(() -> now, throttler, MeterRegistry.NOOP);
+        var settings = new ThrottleSettings(
+            TimeValue.timeValueMillis(activationThreshold),
+            TimeValue.timeValueMillis(removalThreshold),
+            cooldown
+        );
+        var currentState = Map.of(shardId, ThrottleState.throttled(0, randomIntBetween(1, 10)));
+        var removedState = Map.of(shardId, ThrottleState.throttleRemoved(0));
+
+        long age = randomLongBetween(removalThreshold, activationThreshold);
+        var stats = new ShardCommitUploadStats() {
+            @Override
+            public ShardId shardId() {
+                return shardId;
+            }
+
+            @Override
+            public Long oldestCommitUploadStartTimeRelativeMillis() {
+                return now - age;
+            }
+        };
+
+        assertEquals(currentState, calculator.newState(currentState, Stream.of(stats), settings));
+        assertEquals(removedState, calculator.newState(removedState, Stream.of(stats), settings));
+        assertTrue(calculator.newState(Map.of(), Stream.of(stats), settings).isEmpty());
+        // Closed shards must still disappear from the rebuilt map.
+        assertTrue(calculator.newState(currentState, Stream.empty(), settings).isEmpty());
+        assertTrue(throttler.history.isEmpty());
+    }
+
     public void testThrottleAndRemoveSteadyState() {
         var shardId = new ShardId(randomIndexName(), randomUUID(), 0);
 

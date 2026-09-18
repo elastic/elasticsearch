@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.stateless.commits;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -30,23 +32,13 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
+import static org.elasticsearch.xpack.stateless.commits.UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_REMOVAL_THRESHOLD;
+import static org.elasticsearch.xpack.stateless.commits.UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_THRESHOLD;
+
 public class UploadQueueControllerServiceIT extends AbstractStatelessPluginIntegTestCase {
     public void testQueueControllerAppliesIndexThrottling() throws Exception {
         final var indexNode = startMasterAndIndexNode(
-            Settings.builder()
-                // We run it on demand.
-                .put(UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_ENABLED.getKey(), false)
-                // Enable throttling
-                .put(UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEXING_THROTTLING_ENABLED.getKey(), true)
-                // Always throttle.
-                .put(
-                    UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_THRESHOLD.getKey(),
-                    TimeValue.timeValueMillis(1)
-                )
-                .put(UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_COOLDOWN.getKey(), TimeValue.ZERO)
-                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofBytes(1))
-                // Disable caching of time values to make sure we make progress every time UploadQueueControllerService#runNow() is called.
-                .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), TimeValue.ZERO)
+            uploadThrottlingSettings()
                 // Block indexing completely on throttle to observe it reliably.
                 .put(IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE.getKey(), true)
                 .build()
@@ -59,34 +51,17 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
         // Block uploads to create a backlog.
         var uploadStarted = new CountDownLatch(1);
         var blockUploadLatch = new CountDownLatch(1);
-        setNodeRepositoryStrategy(indexNode, new StatelessMockRepositoryStrategy() {
-            @Override
-            public void blobContainerWriteBlobAtomic(
-                CheckedRunnable<IOException> originalRunnable,
-                OperationPurpose purpose,
-                String blobName,
-                InputStream inputStream,
-                long blobSize,
-                boolean failIfAlreadyExists
-            ) throws IOException {
-                uploadStarted.countDown();
-                safeAwait(blockUploadLatch);
-                super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
-            }
-        });
+        blockCommitUploads(indexNode, uploadStarted, blockUploadLatch);
 
         indexDocs(indexName, 1000);
         refresh(indexName);
         safeAwait(uploadStarted);
 
-        // Since the threshold for pending commit age is so low, we should pretty much immediately start throttling.
-        // But let's sync with node time to avoid flakiness.
+        // Wait longer than the 1 ms activation threshold before polling.
         var threadPool = internalCluster().getInstance(ThreadPool.class, indexNode);
         var currentTime = threadPool.relativeTimeInMillis();
 
-        while (threadPool.relativeTimeInMillis() <= currentTime) {
-            safeSleep(10);
-        }
+        assertBusy(() -> assertTrue(threadPool.relativeTimeInMillis() - currentTime > 1));
 
         var uploadQueueControllerService = internalCluster().getInstance(UploadQueueControllerService.class, indexNode);
         uploadQueueControllerService.runNow();
@@ -110,22 +85,72 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
         assertFalse(response.hasFailures());
     }
 
-    public void testQueueControllerEmitsIndexingThrottlingMetrics() throws Exception {
-        final var indexNode = startMasterAndIndexNode(
-            Settings.builder()
-                // We run it on demand.
-                .put(UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_ENABLED.getKey(), false)
-                // Always throttle.
-                .put(
-                    UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_THRESHOLD.getKey(),
-                    TimeValue.timeValueMillis(1)
-                )
-                .put(UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_COOLDOWN.getKey(), TimeValue.ZERO)
-                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofBytes(1))
-                // Disable caching of time values to make sure we make progress every time UploadQueueControllerService#runNow() is called.
-                .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), TimeValue.ZERO)
+    /** Checks that a poll between thresholds cannot strand a real shard's indexing throttle. */
+    public void testQueueControllerRemovesIndexThrottlingAfterAgeBetweenThresholds() throws Exception {
+        var indexNode = startMasterAndIndexNode(
+            uploadThrottlingSettings().put(
+                STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_REMOVAL_THRESHOLD.getKey(),
+                TimeValue.timeValueMillis(1)
+            )
+                // Make a stranded throttle observable as a blocked bulk request.
+                .put(IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE.getKey(), true)
                 .build()
         );
+        var indexName = randomIndexName();
+        createIndex(indexName, 1, 0);
+        ensureGreen(indexName);
+        var shard = findIndexShard(indexName);
+        var controller = internalCluster().getInstance(UploadQueueControllerService.class, indexNode);
+
+        // Block uploads to create a backlog.
+        var uploadStarted = new CountDownLatch(1);
+        var blockUploadLatch = new CountDownLatch(1);
+        blockCommitUploads(indexNode, uploadStarted, blockUploadLatch);
+
+        var bulkFuture = new PlainActionFuture<BulkResponse>();
+        boolean bulkSubmitted = false;
+        try {
+            indexDocs(indexName, 1);
+            refresh(indexName);
+            safeAwait(uploadStarted);
+            assertBusy(() -> {
+                controller.runNow();
+                assertTrue(shard.indexingStats().getTotal().isThrottled());
+            });
+            client().prepareBulk().add(client().prepareIndex(indexName).setSource(Map.of("field", "value"))).execute(bulkFuture);
+            bulkSubmitted = true;
+            assertThrows(ElasticsearchTimeoutException.class, () -> bulkFuture.actionGet(TimeValue.timeValueMillis(500)));
+
+            // Raise the throttle threshold so the pending upload's age falls between the two thresholds. Should stay throttled
+            updateClusterSettings(
+                Settings.builder().put(STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_THRESHOLD.getKey(), TimeValue.timeValueHours(1))
+            );
+            controller.runNow();
+            assertTrue(shard.indexingStats().getTotal().isThrottled());
+            assertFalse(bulkFuture.isDone());
+
+            // Once the queue drains, the controller must remove its throttle and unblock the bulk.
+            blockUploadLatch.countDown();
+            flush(indexName);
+            assertFalse(bulkFuture.isDone());
+            controller.runNow();
+            assertFalse("Throttle must be removed once uploads drain", shard.indexingStats().getTotal().isThrottled());
+            assertFalse(safeGet(bulkFuture).hasFailures());
+        } finally {
+            // Release blocked work even if an assertion fails.
+            blockUploadLatch.countDown();
+            if (shard.indexingStats().getTotal().isThrottled()) {
+                shard.deactivateThrottling();
+            }
+            updateClusterSettings(Settings.builder().putNull(STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_THRESHOLD.getKey()));
+            if (bulkSubmitted) {
+                safeGet(bulkFuture);
+            }
+        }
+    }
+
+    public void testQueueControllerEmitsIndexingThrottlingMetrics() throws Exception {
+        final var indexNode = startMasterAndIndexNode(uploadThrottlingSettings().build());
 
         final String indexName = randomIndexName();
         createIndex(indexName, 1, 0);
@@ -134,34 +159,17 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
         // Block uploads to create a backlog.
         var uploadStarted = new CountDownLatch(1);
         var blockUploadLatch = new CountDownLatch(1);
-        setNodeRepositoryStrategy(indexNode, new StatelessMockRepositoryStrategy() {
-            @Override
-            public void blobContainerWriteBlobAtomic(
-                CheckedRunnable<IOException> originalRunnable,
-                OperationPurpose purpose,
-                String blobName,
-                InputStream inputStream,
-                long blobSize,
-                boolean failIfAlreadyExists
-            ) throws IOException {
-                uploadStarted.countDown();
-                safeAwait(blockUploadLatch);
-                super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
-            }
-        });
+        blockCommitUploads(indexNode, uploadStarted, blockUploadLatch);
 
         indexDocs(indexName, 1000);
         refresh(indexName);
         safeAwait(uploadStarted);
 
-        // Since the threshold for pending commit age is so low, we should pretty much immediately start throttling.
-        // But let's sync with node time to avoid flakiness.
+        // Wait longer than the 1 ms activation threshold before polling.
         var threadPool = internalCluster().getInstance(ThreadPool.class, indexNode);
         var currentTime = threadPool.relativeTimeInMillis();
 
-        while (threadPool.relativeTimeInMillis() <= currentTime) {
-            safeSleep(10);
-        }
+        assertBusy(() -> assertTrue(threadPool.relativeTimeInMillis() - currentTime > 1));
 
         var uploadQueueControllerService = internalCluster().getInstance(UploadQueueControllerService.class, indexNode);
         uploadQueueControllerService.runNow();
@@ -197,6 +205,38 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
         );
         assertEquals(1, deactivateThrottleCounterMeasurements.size());
         assertEquals(1, deactivateThrottleCounterMeasurements.get(0).getLong());
+    }
+
+    private static Settings.Builder uploadThrottlingSettings() {
+        return Settings.builder()
+            // We run it on demand.
+            .put(UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_ENABLED.getKey(), false)
+            // Enable throttling
+            .put(UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEXING_THROTTLING_ENABLED.getKey(), true)
+            // Always throttle.
+            .put(STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_THRESHOLD.getKey(), TimeValue.timeValueMillis(1))
+            .put(UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_COOLDOWN.getKey(), TimeValue.ZERO)
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofBytes(1))
+            // Disable caching of time values to make sure we make progress every time UploadQueueControllerService#runNow() is called.
+            .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), TimeValue.ZERO);
+    }
+
+    private void blockCommitUploads(String indexNode, CountDownLatch uploadStarted, CountDownLatch releaseUpload) {
+        setNodeRepositoryStrategy(indexNode, new StatelessMockRepositoryStrategy() {
+            @Override
+            public void blobContainerWriteBlobAtomic(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                String blobName,
+                InputStream inputStream,
+                long blobSize,
+                boolean failIfAlreadyExists
+            ) throws IOException {
+                uploadStarted.countDown();
+                safeAwait(releaseUpload);
+                super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+            }
+        });
     }
 
     @Override

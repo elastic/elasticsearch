@@ -15,6 +15,7 @@ import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
@@ -85,6 +86,12 @@ public final class SyntheticIdField extends Field {
     public void setTokenStream(TokenStream tokenStream) {
         assert false : "this should never be called";
         throw new UnsupportedOperationException();
+    }
+
+    /** Whether {@code fieldInfos} says the segment holds a synthetic id, which is what the formats keyed on it check for. */
+    public static boolean hasSyntheticId(FieldInfos fieldInfos) {
+        var fieldInfo = fieldInfos.fieldInfo(NAME);
+        return fieldInfo != null && hasSyntheticIdAttributes(fieldInfo.attributes());
     }
 
     public static boolean hasSyntheticIdAttributes(Map<String, String> attributes) {

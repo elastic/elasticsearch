@@ -24,9 +24,8 @@ import java.util.TreeSet;
  *
  * <p>What is checked here:
  * <ul>
- *   <li>every declared {@code type} resolves to a type the external readers can actually produce
- *       (the {@link #DECLARABLE_TYPES} whitelist — declaring {@code geo_point}/{@code version}/etc. is rejected
- *       until the readers grow them);</li>
+ *   <li>every declared {@code type} is one of the {@link #DECLARABLE_TYPES} — {@code geo_point}/{@code version}/etc.
+ *       are rejected until the readers grow them, and {@code text} for the separate reason that field documents;</li>
  *   <li>under strict mode ({@code dynamic: false}) the {@code _id.path} column must be declared —
  *       nothing is inferred to satisfy it.</li>
  * </ul>
@@ -48,10 +47,14 @@ public final class DeclaredSchemaValidator {
      * unit ({@code datetime} = millis, {@code date_nanos} = nanos; see {@code DeclaredTypeCoercions}) — and a
      * string source parses with the column's declared {@code format} (else ISO nanos);
      * per-format narrowing stays deferred to read time like the rest of the set (see the class Javadoc).
+     *
+     * <p>{@code text} is absent for a different reason: a reader can produce it, but it is indistinguishable from
+     * {@code keyword} once read — every string arm is {@code case KEYWORD, TEXT} and no coercion separates them —
+     * and what it selects is a runtime-search behaviour whose analyzer a dataset mapping has no field to name. An
+     * analyzed column is built in the query with {@code TO_TEXT}, which takes the analyzer as an argument.
      */
     static final Set<DataType> DECLARABLE_TYPES = Set.of(
         DataType.KEYWORD,
-        DataType.TEXT,
         DataType.LONG,
         DataType.INTEGER,
         DataType.DOUBLE,
@@ -61,6 +64,10 @@ public final class DeclaredSchemaValidator {
         DataType.UNSIGNED_LONG,
         DataType.IP
     );
+
+    /** Appended when a column is declared {@code text}: the analyzer is an argument to {@code TO_TEXT}, not a mapping field. */
+    private static final String TEXT_ROUTE = "declare [keyword] and apply TO_TEXT in the query, with its [analyzer] option "
+        + "if the values need a non-standard analyzer";
 
     /**
      * The types a user may declare on a dataset mapping. Exposed so a format reader's tests can pin that the reader
@@ -119,7 +126,13 @@ public final class DeclaredSchemaValidator {
         DataType resolved = DataType.fromNameOrAlias(type);
         if (resolved == DataType.UNSUPPORTED || DECLARABLE_TYPES.contains(resolved) == false) {
             throw new IllegalArgumentException(
-                "unsupported declared type [" + type + "] for column [" + column + "]; supported types are " + supportedTypeNames()
+                "unsupported declared type ["
+                    + type
+                    + "] for column ["
+                    + column
+                    + "]; supported types are "
+                    + supportedTypeNames()
+                    + (resolved == DataType.TEXT ? "; " + TEXT_ROUTE : "")
             );
         }
     }

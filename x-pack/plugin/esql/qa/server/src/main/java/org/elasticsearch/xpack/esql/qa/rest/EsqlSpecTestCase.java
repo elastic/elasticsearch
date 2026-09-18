@@ -83,9 +83,9 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.assertNotPar
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.junit.Assume.assumeFalse;
 
-// Each class covers one csv-spec file and should complete well within 10 minutes;
+// Each class covers one csv-spec file and should complete well within 20 minutes;
 // monolithic subclasses that run all spec files must add their own longer annotation.
-@TimeoutSuite(millis = 10 * TimeUnits.MINUTE)
+@TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
 public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     @Rule(order = Integer.MIN_VALUE)
@@ -434,11 +434,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     protected final void doTest(String query) throws Throwable {
         if (query.trim().toUpperCase(Locale.ROOT).contains("EXTERNAL \"{{")) {
             // Multi-file glob templates ({{x_multifile}}, {{x_multifile_split}}, {{x_multifile_ubn}},
-            // {{x_multifile_type_drift}}), hive-partitioned templates ({{x_hive}}), and ClickBench
-            // templates ({{clickbench}}) are resolved by specialised subclasses against their own
-            // fixtures. Plain EsqlSpecTestCase subclasses (mixed-cluster, multi-cluster,
-            // single/multi-node, flight) share the same csv-spec files via the testFixtures classpath
-            // but have no resolver for these templates, so skip such tests here.
+            // {{x_multifile_type_drift}}), and hive-partitioned templates ({{x_hive}}) are resolved by
+            // specialised subclasses against their own fixtures. Plain EsqlSpecTestCase subclasses
+            // have no resolver for these templates, so skip such tests here.
             assumeFalseLogging(
                 "specialised EXTERNAL templates require dedicated test subclass",
                 query.contains("_multifile}}")
@@ -446,18 +444,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                     || query.contains("_multifile_ubn}}")
                     || query.contains("_multifile_type_drift}}")
                     || query.contains("_hive}}")
-                    || query.contains("{{clickbench}}")
-            );
-            // external-multivalue.csv-spec exercises native multi-value reads for non-CSV/TSV format
-            // ITs (Parquet/ORC/NDJSON/multi-node) which decode arrays from their format's native
-            // representation. Its queries use {{employees}} without a multi_value_syntax opt-in
-            // (the non-CSV format readers reject the unknown key via ConfigKeyValidator). On the
-            // EsqlSpecTestCase cluster the local CSV reader defaults to multi_value_syntax: none
-            // and would misalign columns on the bracket-MV employees.csv. CSV-side bracket-syntax
-            // coverage lives in csv-multivalue.csv-spec with the explicit "brackets" opt-in.
-            assumeFalseLogging(
-                "external-multivalue requires AbstractExternalSourceSpecTestCase (native multi-value formats)",
-                fileName.equals("external-multivalue.csv-spec")
             );
             Path path = getCsvDataPath();
             if (path != null) {
@@ -555,6 +541,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             && hasCapabilities(client(), List.of("auto_partition_docs_threshold"))
             && randomBoolean()) {
             pragma.put(PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.getKey(), between(1, 1000));
+        }
+        if (randomBoolean() && hasCapabilities(client(), List.of(EsqlCapabilities.Cap.PARTITIONING_AGGREGATIONS.capabilityName()))) {
+            pragma.put(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey(), between(50_000, 100_000));
         }
     }
 

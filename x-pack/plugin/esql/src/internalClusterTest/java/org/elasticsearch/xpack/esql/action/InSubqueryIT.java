@@ -31,10 +31,6 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class InSubqueryIT extends AbstractEsqlIntegTestCase {
 
-    private static void checkMultiColumnInSubquery() {
-        assumeTrue("Requires multi-column IN subquery support", EsqlCapabilities.Cap.WHERE_IN_MULTI_COLUMN_SUBQUERY.isEnabled());
-    }
-
     @Before
     public void setupIndices() {
         createAndPopulateIndex();
@@ -968,7 +964,6 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * Multi-column IN subquery with a request-level filter.
      */
     public void testMultiColumnInSubqueryWithTopLevelFilter() {
-        checkMultiColumnInSubquery();
         var request = syncEsqlQueryRequest("""
             FROM test
             | WHERE (id, color) IN (FROM test | WHERE color == "red" | KEEP id, color)
@@ -985,7 +980,6 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * Multi-column NOT IN subquery with a request-level filter.
      */
     public void testMultiColumnNotInSubqueryWithTopLevelFilter() {
-        checkMultiColumnInSubquery();
         var request = syncEsqlQueryRequest("""
             FROM test
             | WHERE (id, color) NOT IN (FROM test | WHERE color == "red" | KEEP id, color)
@@ -1004,7 +998,6 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * Forces the hash-join path for a two-column (id, color) IN subquery.
      */
     public void testMultiColumnInSubqueryHashJoinForced() {
-        checkMultiColumnInSubquery();
         assumeTrue("requires query pragmas", canUseQueryPragmas());
         try (var resp = run(syncEsqlQueryRequest("""
             FROM test
@@ -1020,7 +1013,6 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * Forces the hash-join path for a two-column NOT IN subquery.
      */
     public void testMultiColumnNotInSubqueryHashJoinForced() {
-        checkMultiColumnInSubquery();
         assumeTrue("requires query pragmas", canUseQueryPragmas());
         try (var resp = run(syncEsqlQueryRequest("""
             FROM test
@@ -1033,7 +1025,6 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMultiColumnInSubqueryHashJoinSelfJoin() {
-        checkMultiColumnInSubquery();
         assumeTrue("requires query pragmas", canUseQueryPragmas());
         try (var resp = run(syncEsqlQueryRequest("""
             FROM test
@@ -1052,7 +1043,6 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * NULL in a left-side key column prevents any match. Row id=7 has no color (null color).
      */
     public void testMultiColumnInSubqueryHashJoinNullInOneKeyColumn() {
-        checkMultiColumnInSubquery();
         assumeTrue("requires query pragmas", canUseQueryPragmas());
         client().prepareBulk()
             .add(new IndexRequest("test").id("7").source("id", 7))
@@ -1073,7 +1063,6 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * Empty multi-column subquery: (id, color) IN empty set → no rows (SEMI short-circuits to Filter(FALSE)).
      */
     public void testMultiColumnInSubqueryHashJoinEmptyResult() {
-        checkMultiColumnInSubquery();
         assumeTrue("requires query pragmas", canUseQueryPragmas());
         try (var resp = run(syncEsqlQueryRequest("""
             FROM test
@@ -1089,7 +1078,6 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * Empty multi-column subquery with NOT IN: (id, color) NOT IN empty set → all rows pass (ANTI short-circuits to Filter(TRUE)).
      */
     public void testMultiColumnNotInSubqueryHashJoinEmptyResult() {
-        checkMultiColumnInSubquery();
         assumeTrue("requires query pragmas", canUseQueryPragmas());
         try (var resp = run(syncEsqlQueryRequest("""
             FROM test
@@ -1105,7 +1093,6 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * Multi-column hash-join correctness across multiple shards.
      */
     public void testMultiColumnInSubqueryHashJoinMultiShardCorrectness() {
-        checkMultiColumnInSubquery();
         assumeTrue("requires query pragmas", canUseQueryPragmas());
         assertAcked(
             client().admin()
@@ -1137,7 +1124,6 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * take the hash-join path. Verifies successive {@code inlineData} calls don't interfere.
      */
     public void testMultiColumnNestedInSubqueryHashJoin() {
-        checkMultiColumnInSubquery();
         assumeTrue("requires query pragmas", canUseQueryPragmas());
         try (var resp = run(syncEsqlQueryRequest("""
             FROM test
@@ -1159,7 +1145,6 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * Parity check: filter path and hash-join path must produce identical results for a two-column (id, color) IN subquery.
      */
     public void testMultiColumnInSubqueryHashJoinAndFilterPathsAgree() {
-        checkMultiColumnInSubquery();
         assumeTrue("requires query pragmas", canUseQueryPragmas());
         String query = """
             FROM test
@@ -1180,7 +1165,6 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * Both filter and hash-join paths must agree for IN and NOT IN with null present in a key column.
      */
     public void testMultiColumnInSubqueryHashJoinAndFilterPathsAgreeWithNullKeyColumn() {
-        checkMultiColumnInSubquery();
         assumeTrue("requires query pragmas", canUseQueryPragmas());
         client().prepareBulk()
             .add(new IndexRequest("test").id("7").source("id", 7))
@@ -1217,7 +1201,6 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * the MV color folds to NULL via {@code MvSingleValueOrNull}, preventing any match on both paths.
      */
     public void testTopLevelMultiColumnInSubqueryMvLeftKeyParity() {
-        checkMultiColumnInSubquery();
         assumeTrue("requires query pragmas", canUseQueryPragmas());
         indexMultiValuedColorRow();
         String[] queries = new String[] {

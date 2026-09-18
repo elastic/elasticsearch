@@ -472,7 +472,7 @@ public class LuceneSourceOperator extends LuceneOperator {
 
     @Override
     public boolean isFinished() {
-        return doneCollecting || limiter.remaining() == 0;
+        return doneCollecting || (currentPagePos == 0 && limiter.remaining() == 0);
     }
 
     @Override
@@ -489,28 +489,35 @@ public class LuceneSourceOperator extends LuceneOperator {
         try {
             final LuceneScorer scorer = getCurrentOrLoadNextScorer();
             if (scorer == null) {
+                assert doneCollecting == false || currentPagePos == 0 : "finished with " + currentPagePos + " buffered docs";
                 return null;
-            }
-            if (minCompetitiveQuery != null) {
-                minCompetitiveQuery.update(scorer.shardContext(), scorer.leafReaderContext());
             }
             if (docIds == null) {
                 docIds = docIdsPool.getOrAllocate(maxPageSize);
             }
             final int remainingDocsStart = remainingDocs = limiter.remaining();
-            try {
-                scorer.scoreNextRange(
-                    leafCollector,
-                    scorer.leafReaderContext().reader().getLiveDocs(),
-                    // Note: if (maxPageSize - currentPagePos) is a small "remaining" interval, this could lead to slow collection with a
-                    // highly selective filter. Having a large "enough" difference between max- and minPageSize (and thus currentPagePos)
-                    // alleviates this issue.
-                    maxPageSize - currentPagePos
-                );
-            } catch (CollectionTerminatedException ex) {
-                // The leaf collector terminated the execution
+            if (remainingDocsStart == 0) {
+                // Another driver exhausted the shared limit; nothing left to collect, only the buffered docs to emit (see isFinished).
                 doneCollecting = true;
                 scorer.markAsDone();
+            } else {
+                if (minCompetitiveQuery != null) {
+                    minCompetitiveQuery.update(scorer.shardContext(), scorer.leafReaderContext());
+                }
+                try {
+                    scorer.scoreNextRange(
+                        leafCollector,
+                        scorer.leafReaderContext().reader().getLiveDocs(),
+                        // Note: if (maxPageSize - currentPagePos) is a small "remaining" interval, this could lead to slow collection with
+                        // a highly selective filter. Having a large "enough" difference between max- and minPageSize (and thus
+                        // currentPagePos) alleviates this issue.
+                        maxPageSize - currentPagePos
+                    );
+                } catch (CollectionTerminatedException ex) {
+                    // The leaf collector terminated the execution
+                    doneCollecting = true;
+                    scorer.markAsDone();
+                }
             }
             final int collectedDocs = remainingDocsStart - remainingDocs;
             final int discardedDocs = collectedDocs - limiter.tryAccumulateHits(collectedDocs);

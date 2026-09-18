@@ -1095,12 +1095,17 @@ public class InternalEngine extends Engine {
         } else {
             // load from index
             assert incrementIndexVersionLookup();
-            final boolean loadSeqNo = engineConfig.getIndexSettings().sequenceNumbersDisabled() == false;
+            // On sequence-number-disabled indices, PruningMergePolicy removes the _seq_no doc value of a document once it is fully
+            // replicated (its seq_no drops below minRetainedSeqNo). Allow missing seq no so a pruned _seq_no is read as UNASSIGNED_SEQ_NO
+            // rather than failing: a pruned document is older than any op that can still reach this path, so the op is correctly
+            // OP_NEWER. A retained _seq_no (a document that is not yet fully replicated) is still read and compared, so out-of-order
+            // stale writes are correctly rejected instead of overwriting a newer document.
+            final boolean allowMissingSeqNo = engineConfig.getIndexSettings().sequenceNumbersDisabled();
             try (Searcher searcher = acquireSearcher("load_seq_no", SearcherScope.INTERNAL)) {
                 final DocIdAndSeqNo docAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(
                     searcher.getIndexReader(),
                     op.uid(),
-                    loadSeqNo
+                    allowMissingSeqNo
                 );
                 if (docAndSeqNo == null) {
                     status = OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
@@ -1608,7 +1613,11 @@ public class InternalEngine extends Engine {
 
     private void processSubBatch(int subBatchIdx, int subBatchSize, EngineBatch engineBatch, IndexResult[] allResults) throws IOException {
         final IndexOperationBatch indexBatch = engineBatch.batch();
-        final IndexOperationBatch subBatch = indexBatch.slice(subBatchIdx, subBatchIdx + subBatchSize);
+        final IndexOperationBatch subBatch = indexBatch.slice(
+            subBatchIdx,
+            subBatchIdx + subBatchSize,
+            relativeTimeInNanosSupplier.getAsLong()
+        );
         final boolean fromTranslog = subBatch.origin().isFromTranslog();
         final IndexingStrategy[] plans = new IndexingStrategy[subBatchSize];
         // Tracks assigned sequence numbers; set in the seqNo-assignment loop below.
@@ -1785,8 +1794,6 @@ public class InternalEngine extends Engine {
                     localCheckpointTracker.markSeqNoAsPersisted(result.getSeqNo());
                 }
 
-                // subBatch.startTime() is the start time of the first sub-batch.
-                // The numerator below is the cumulative time which includes all sub batches before the current one
                 // TODO: Add a BatchResult which contains the item level results but has a top level took time
                 result.setTook((relativeTimeInNanosSupplier.getAsLong() - subBatch.startTime()) / subBatchSize);
                 result.freeze();

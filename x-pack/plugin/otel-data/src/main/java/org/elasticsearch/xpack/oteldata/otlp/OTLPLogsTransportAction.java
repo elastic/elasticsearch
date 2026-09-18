@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -53,8 +54,14 @@ public class OTLPLogsTransportAction extends AbstractOTLPTransportAction {
     public static final ActionType<OTLPActionResponse> TYPE = new ActionType<>(NAME);
 
     @Inject
-    public OTLPLogsTransportAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool, Client client) {
-        super(NAME, transportService, actionFilters, threadPool, client);
+    public OTLPLogsTransportAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ThreadPool threadPool,
+        Client client,
+        Settings settings
+    ) {
+        super(NAME, transportService, actionFilters, threadPool, client, settings);
     }
 
     @Override
@@ -64,6 +71,7 @@ public class OTLPLogsTransportAction extends AbstractOTLPTransportAction {
         LogDocumentBuilder logDocumentBuilder = new LogDocumentBuilder(byteStringAccessor);
         List<ResourceLogs> resourceLogsList = logsServiceRequest.getResourceLogsList();
         LogsProcessingContext context = new LogsProcessingContext();
+        long totalExpandedBytes = 0;
         for (int i = 0, resourceLogsListSize = resourceLogsList.size(); i < resourceLogsListSize; i++) {
             ResourceLogs resourceLogs = resourceLogsList.get(i);
             Resource resource = resourceLogs.getResource();
@@ -102,9 +110,9 @@ public class OTLPLogsTransportAction extends AbstractOTLPTransportAction {
                         if (Strings.hasLength(ingestPipeline)) {
                             indexRequest.setPipeline(ingestPipeline);
                         }
-                        bulkRequestBuilder.add(
-                            indexRequest.opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(xContentBuilder)
-                        );
+                        indexRequest.opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(xContentBuilder);
+                        totalExpandedBytes = accountExpandedContent(totalExpandedBytes, indexRequest);
+                        bulkRequestBuilder.add(indexRequest);
                     }
                 }
             }

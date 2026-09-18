@@ -8,6 +8,7 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -36,6 +37,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -102,6 +104,10 @@ public class MlJobSnapshotUpgradeIT extends AbstractXpackRollingUpgradeTestCase 
         if (isMixedCluster()) {
             assumeTrue("We should only test if old cluster is before new cluster", isOriginalClusterCurrent() == false);
             assumeTrue(
+                "Snapshot upgrade is rejected only when DiscoveryNodes min/max Version differ",
+                Version.fromString(getOldClusterVersion()).equals(Version.fromString(Build.current().version())) == false
+            );
+            assumeTrue(
                 "Older versions could not always reliably determine if we were in a mixed cluster state",
                 Version.fromString(getOldClusterVersion()).onOrAfter("9.3.0")
             );
@@ -138,9 +144,12 @@ public class MlJobSnapshotUpgradeIT extends AbstractXpackRollingUpgradeTestCase 
             .findFirst()
             .orElseThrow(() -> new ElasticsearchException("Not found snapshot other than " + currentSnapshot));
 
-        // Upgrade is rejected only while DiscoveryNodes reports distinct min/max versions.
+        // Upgrade is rejected only while DiscoveryNodes reports distinct min/max release versions.
         assertBusy(
-            () -> assertTrue("cluster should be mixed by node version before testing upgrade rejection", isMixedVersionCluster()),
+            () -> assertTrue(
+                "cluster should be mixed by node release version before testing upgrade rejection",
+                isMixedReleaseVersionCluster()
+            ),
             30,
             TimeUnit.SECONDS
         );
@@ -353,11 +362,9 @@ public class MlJobSnapshotUpgradeIT extends AbstractXpackRollingUpgradeTestCase 
         return jobsHolder.get();
     }
 
-    private boolean isMixedVersionCluster() throws IOException {
-        List<NodeInfo> nodes = NodeInfo.getAll(adminClient());
-        boolean hasOldVersionNode = nodes.stream().anyMatch(NodeInfo::isOriginalVersionCluster);
-        boolean hasUpgradedVersionNode = nodes.stream().anyMatch(NodeInfo::isUpgradedVersionCluster);
-        return hasOldVersionNode && hasUpgradedVersionNode;
+    private boolean isMixedReleaseVersionCluster() throws IOException {
+        var versions = NodeInfo.getAll(adminClient()).stream().map(n -> Version.fromString(n.version())).collect(Collectors.toSet());
+        return versions.size() > 1;
     }
 
     protected Response getJob(String jobId) throws IOException {

@@ -33,6 +33,7 @@ import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceSchema;
@@ -86,6 +87,22 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
     protected final void assertColumnarMatchesXContent(XContentBuilder mapping, Settings indexSettings, Batch... scenarios)
         throws IOException {
         final MapperService mapperService = createMapperService(indexSettings, mapping);
+        for (Batch scenario : scenarios) {
+            assertScenario(mapperService, scenario);
+        }
+    }
+
+    /**
+     * Like {@link #assertColumnarMatchesXContent(XContentBuilder, Settings, Batch...)} but with an explicit index version,
+     * for testing pre-gate BWC behaviour.
+     */
+    protected final void assertColumnarMatchesXContent(
+        IndexVersion indexVersion,
+        XContentBuilder mapping,
+        Settings indexSettings,
+        Batch... scenarios
+    ) throws IOException {
+        final MapperService mapperService = createMapperService(indexVersion, indexSettings, mapping);
         for (Batch scenario : scenarios) {
             assertScenario(mapperService, scenario);
         }

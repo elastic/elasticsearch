@@ -941,6 +941,39 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     /**
+     * In strictly columnar mode, keyword fields use binary doc values, but the 32766-byte ceiling is
+     * deliberately retained to keep values from becoming so large they degrade storage and scanning.
+     * A value longer than {@link IndexWriter#MAX_TERM_LENGTH} must still be rejected.
+     */
+    public void testKeywordFieldLongerThan32766InColumnarModeIsRejected() throws Exception {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "keyword")));
+        String longValue = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", longValue)))
+        );
+        assertThat(e.getCause().getMessage(), containsString("UTF8 encoding is longer than the max length"));
+    }
+
+    /**
+     * In strictly columnar mode, an array with values within {@link IndexWriter#MAX_TERM_LENGTH}
+     * must round-trip with array positions (including nulls) preserved.
+     */
+    public void testColumnarArrayOrderWithPositionsPreserved_keyword() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "keyword").endObject()))
+            .documentMapper();
+
+        String shortValue = randomAlphanumericOfLength(4);
+        // Use a value well within the limit to verify array-order preservation without hitting the ceiling.
+        String longValue = randomAlphanumericOfLength(500);
+        assertThat(
+            syntheticSource(mapper, b -> b.array("field", longValue, null, shortValue)),
+            containsString("\"field\":[\"" + longValue + "\",null,\"" + shortValue + "\"]")
+        );
+    }
+
+    /**
      * Test that we track the synthetic source if field is neither indexed nor has doc values nor stored
      */
     public void testSyntheticSourceForDisabledField() throws Exception {
@@ -1168,9 +1201,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     /**
-     * First value is parsed normally and is stored under the regular field. Second value exceeds {@code ignore_above} and would be written
-     * to the {@code field._original} fallback field. Enforcement fires at the document-level, so the multi-valued input is rejected
-     * regardless of which suffix the second write would have targeted.
+     * Both values go to the main column because {@code ignore_above} is a no-op in strictly columnar mode.
+     * The second value is still rejected by {@code multi_value=false} enforcement.
      */
     public void testMultiValueFalseRejectsNormalPlusIgnoreAboveFallback() throws IOException {
         DocumentMapper mapper = createColumnarModeDocumentMapper(
@@ -1189,8 +1221,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     /**
-     * Mirror of {@link #testMultiValueFalseRejectsNormalPlusIgnoreAboveFallback} with the order reversed: first value routes to the
-     * {@code field._original} fallback and the second indexes normally.
+     * Both values go to the main column because {@code ignore_above} is a no-op in strictly columnar mode.
+     * The second value is still rejected by {@code multi_value=false} enforcement.
      */
     public void testMultiValueFalseRejectsIgnoreAboveFallbackPlusNormal() throws IOException {
         DocumentMapper mapper = createColumnarModeDocumentMapper(
@@ -1209,10 +1241,77 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     /**
-     * Both values exceed {@code ignore_above}, so both would route to {@code field._original}. Enforcement throws on the second value.
+     * Both values exceed {@code ignore_above}, but the limit is a no-op in strictly columnar mode,
+     * so both go to the main column and the second is rejected by {@code multi_value=false}.
      */
     public void testMultiValueFalseRejectsTwoIgnoreAboveFallbacks() throws IOException {
         DocumentMapper mapper = createColumnarModeDocumentMapper(
+            fieldMapping(
+                b -> b.field("type", "keyword").field("ignore_above", 5).startObject("doc_values").field("multi_value", false).endObject()
+            )
+        );
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", randomAlphanumericOfLength(20), randomAlphanumericOfLength(20))))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
+        );
+    }
+
+    /**
+     * Pre-gate BWC: first value is indexed normally; second exceeds {@code ignore_above} and routes
+     * to {@code field._original}. The second write is still rejected by {@code multi_value=false}.
+     */
+    public void testMultiValueFalseRejectsNormalPlusIgnoreAboveFallback_preGate() throws IOException {
+        IndexVersion preGate = IndexVersionUtils.getPreviousVersion(IndexVersions.IGNORE_ABOVE_NO_OP_IN_COLUMNAR);
+        DocumentMapper mapper = createColumnarModeDocumentMapper(
+            preGate,
+            fieldMapping(
+                b -> b.field("type", "keyword").field("ignore_above", 5).startObject("doc_values").field("multi_value", false).endObject()
+            )
+        );
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", randomAlphanumericOfLength(3), randomAlphanumericOfLength(20))))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
+        );
+    }
+
+    /**
+     * Pre-gate BWC: first value exceeds {@code ignore_above} and routes to {@code field._original};
+     * second value indexes normally. The second write is still rejected by {@code multi_value=false}.
+     */
+    public void testMultiValueFalseRejectsIgnoreAboveFallbackPlusNormal_preGate() throws IOException {
+        IndexVersion preGate = IndexVersionUtils.getPreviousVersion(IndexVersions.IGNORE_ABOVE_NO_OP_IN_COLUMNAR);
+        DocumentMapper mapper = createColumnarModeDocumentMapper(
+            preGate,
+            fieldMapping(
+                b -> b.field("type", "keyword").field("ignore_above", 5).startObject("doc_values").field("multi_value", false).endObject()
+            )
+        );
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", randomAlphanumericOfLength(20), randomAlphanumericOfLength(3))))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
+        );
+    }
+
+    /**
+     * Pre-gate BWC: both values exceed {@code ignore_above} and would both route to {@code field._original}.
+     * Enforcement throws on the second write.
+     */
+    public void testMultiValueFalseRejectsTwoIgnoreAboveFallbacks_preGate() throws IOException {
+        IndexVersion preGate = IndexVersionUtils.getPreviousVersion(IndexVersions.IGNORE_ABOVE_NO_OP_IN_COLUMNAR);
+        DocumentMapper mapper = createColumnarModeDocumentMapper(
+            preGate,
             fieldMapping(
                 b -> b.field("type", "keyword").field("ignore_above", 5).startObject("doc_values").field("multi_value", false).endObject()
             )
@@ -1233,8 +1332,10 @@ public class KeywordFieldMapperTests extends MapperTestCase {
                 b -> b.field("type", "keyword").field("ignore_above", 5).startObject("doc_values").field("multi_value", false).endObject()
             )
         );
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(20))));
-        assertThat(doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())), equalTo(true));
+        String value = randomAlphanumericOfLength(20);
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", value)));
+        assertThat(doc.rootDoc().getFields("field").stream().anyMatch(f -> new BytesRef(value).equals(f.binaryValue())), equalTo(true));
+        assertThat(doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())), equalTo(false));
     }
 
     public void testMultiValueFalseAcceptsSingleNull() throws IOException {
@@ -1722,6 +1823,35 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         // then
         assertFalse(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField));
         assertTrue(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField));
+    }
+
+    /**
+     * Pre-gate BWC: on a columnar index created before {@link IndexVersions#IGNORE_ABOVE_NO_OP_IN_COLUMNAR},
+     * a value exceeding {@code ignore_above} must populate {@code _ignored} and write a fallback to
+     * {@code field._original} (binary doc values, matching the logsdb storage format).
+     */
+    public void testIgnoredFieldStoredInBinaryDocValuesForPreGateColumnarIndex() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.IGNORE_ABOVE_NO_OP_IN_COLUMNAR),
+            settings,
+            fieldMapping(b -> b.field("type", "keyword").field("ignore_above", 5))
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "valuetoolong")));
+
+        assertTrue(
+            "_ignored must contain 'field'",
+            doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue()))
+        );
+        assertFalse(
+            "field._original must not use stored fields in columnar mode",
+            doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField)
+        );
+        assertTrue(
+            "field._original must be written as binary doc values",
+            doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof MultiValuedBinaryDocValuesField)
+        );
     }
 
     @Override

@@ -1707,7 +1707,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             mappedFieldType.name() + KEYED_IGNORED_VALUES_FIELD_SUFFIX,
             mappedFieldType,
             builder.depthLimit.get(),
-            builder.ignoreAbove.get(),
+            ((RootFlattenedFieldType) mappedFieldType).ignoreAbove().limit(),
             builder.nullValue.get(),
             builder.usesBinaryDocValues,
             builder.hasRootDocValues(),
@@ -1952,6 +1952,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             // ~1.25x headroom for documents a little wider than the first.
             docBlob.grow(seedEstimate + (seedEstimate >> 2));
 
+            final boolean checkIgnoreAbove = fieldType().ignoreAbove().valuesPotentiallyIgnored();
+
             for (int doc = 0; doc < docCount; doc++) {
                 int slotCount = 0;
                 int pos = 0;
@@ -1966,7 +1968,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                             value = nullValueBytes;
                         }
                         if (value != null) {
-                            if (fieldType().ignoreAbove().isIgnored(value)) {
+                            if (checkIgnoreAbove && fieldType().ignoreAbove().isIgnored(value)) {
                                 throw new UnsupportedOperationException(
                                     "mapColumnGroupBatch: value for key ["
                                         + relativeKeys[k]
@@ -2010,6 +2012,23 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         }
     }
 
+    private IllegalArgumentException immenseKeyedValueException(String key, int valueLength) {
+        return new IllegalArgumentException(
+            "Flattened field ["
+                + fieldType().name()
+                + "] contains one immense field"
+                + " whose keyed encoding is longer than the allowed max length of "
+                + IndexWriter.MAX_TERM_LENGTH
+                + " bytes. Key length: "
+                + key.length()
+                + ", value length: "
+                + valueLength
+                + " for key starting with ["
+                + key.substring(0, Math.min(key.length(), 50))
+                + "]"
+        );
+    }
+
     // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
     private static EscfColumnBuilder mergeStringColumn() {
         EscfColumnBuilder b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
@@ -2032,24 +2051,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             }
         }
         return count;
-    }
-
-    /** Mirrors the row path's immense-keyed-value error in {@link FlattenedFieldParser}. */
-    private IllegalArgumentException immenseKeyedValueException(String key, int valueLength) {
-        return new IllegalArgumentException(
-            "Flattened field ["
-                + fieldType().name()
-                + "] contains one immense field"
-                + " whose keyed encoding is longer than the allowed max length of "
-                + IndexWriter.MAX_TERM_LENGTH
-                + " bytes. Key length: "
-                + key.length()
-                + ", value length: "
-                + valueLength
-                + " for key starting with ["
-                + key.substring(0, Math.min(key.length(), 50))
-                + "]"
-        );
     }
 
     /**

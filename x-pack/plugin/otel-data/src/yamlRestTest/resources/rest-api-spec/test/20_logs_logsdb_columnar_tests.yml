@@ -89,6 +89,9 @@ teardown:
   - match: { hits.hits.0.fields.error\.stack_trace: ["Exception in thread \"main\" java.lang.RuntimeException: Test exception\n at com.example.GenerateTrace.methodB(GenerateTrace.java:13)\n at com.example.GenerateTrace.methodA(GenerateTrace.java:9)\n at com.example.GenerateTrace.main(GenerateTrace.java:5)"] }
 ---
 "Long stacktrace":
+  - requires:
+      cluster_features: ["mapper.columnar.ignore_above_no_op"]
+      reason: "ignore_above is a no-op in logsdb_columnar from IGNORE_ABOVE_NO_OP_IN_COLUMNAR; _ignored is now empty for wildcard fields with the LOGSDB default of 8191"
   - do:
       bulk:
         index: logs-generic.otel-default
@@ -273,7 +276,7 @@ teardown:
         index: logs-generic.otel-default
   - length: { hits.hits: 1 }
   - exists: hits.hits.0._source.attributes\.exception\.stacktrace
-  - exists: hits.hits.0._ignored
+  - is_false: hits.hits.0._ignored
 ---
 "resource.attributes.host.name @timestamp should be used as sort fields":
   - do:

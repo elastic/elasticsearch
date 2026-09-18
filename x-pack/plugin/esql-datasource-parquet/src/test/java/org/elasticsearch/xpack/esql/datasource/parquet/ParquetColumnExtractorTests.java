@@ -441,17 +441,25 @@ public class ParquetColumnExtractorTests extends ESTestCase {
     }
 
     /**
-     * Production {@code LocalExecutionPlanner} passes every deferred name in one extract call.
-     * The prefetch path must still decode the readable sibling while null-filling the unsupported
-     * one; skipping stitch on the unresolved slot is what prevents
-     * {@code stitchAndGather}'s "missing decoded block" ISE.
+     * Production {@code SourceExtractors} always passes planner {@code targetTypes} and every
+     * deferred name in one extract call. The prefetch path must still decode the readable sibling
+     * while null-filling the unsupported one; skipping stitch on the unresolved slot is what
+     * prevents {@code stitchAndGather}'s "missing decoded block" ISE. Passing
+     * {@code INTEGER}/{@code UNSUPPORTED} (and the reverse order) pins that a reorder which
+     * dereferences {@code infos[c]} before the null-check cannot hide behind a {@code null}
+     * target array.
      */
     public void testExtractMixedResolvedAndUnsupported() throws IOException {
         byte[] data = writeIntAndUnsupportedListOfStructFile(10);
         StorageObject so = createStorageObject(data);
         try (ColumnExtractor extractor = newFullFileExtractor(so)) {
             long[] positions = { 0, 3, 9 };
-            Block[] blocks = extractor.extract(new String[] { "v", "outputs" }, null, positions, blockFactory);
+            Block[] blocks = extractor.extract(
+                new String[] { "v", "outputs" },
+                new DataType[] { DataType.INTEGER, DataType.UNSUPPORTED },
+                positions,
+                blockFactory
+            );
             try {
                 assertEquals(2, blocks.length);
                 IntBlock ints = (IntBlock) blocks[0];
@@ -465,7 +473,12 @@ public class ParquetColumnExtractorTests extends ESTestCase {
             }
             // Reverse column order so a regression that special-cases infos[0] == null and
             // null-fills the whole projection cannot hide behind {v, outputs}.
-            blocks = extractor.extract(new String[] { "outputs", "v" }, null, positions, blockFactory);
+            blocks = extractor.extract(
+                new String[] { "outputs", "v" },
+                new DataType[] { DataType.UNSUPPORTED, DataType.INTEGER },
+                positions,
+                blockFactory
+            );
             try {
                 assertEquals(2, blocks.length);
                 assertAllNull(blocks[0], positions.length);

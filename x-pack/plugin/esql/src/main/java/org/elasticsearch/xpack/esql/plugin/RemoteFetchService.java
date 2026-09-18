@@ -283,6 +283,11 @@ public final class RemoteFetchService {
 
         IsBlockedResult waitForCompletion();
 
+        /**
+         * Immutable snapshot of setup and server-driver profiling data for this target.
+         */
+        BidirectionalBatchExchangeClient.Profile profile();
+
         @Override
         default void close() {}
     }
@@ -535,6 +540,11 @@ public final class RemoteFetchService {
         }
 
         @Override
+        public BidirectionalBatchExchangeClient.Profile profile() {
+            return client.profile();
+        }
+
+        @Override
         public void close() {
             synchronized (lock) {
                 if (closed) {
@@ -651,6 +661,7 @@ public final class RemoteFetchService {
                 intermediate,
                 clusterService.getClusterName().value(),
                 releasable,
+                request.configuration().profile(),
                 listener
             );
             success = true;

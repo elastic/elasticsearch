@@ -150,6 +150,7 @@ public class ConcurrencyLimitedStorageProviderTests extends ESTestCase {
             assertEquals("Interrupted while acquiring a concurrency permit", thrown.getMessage());
             assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(thrown));
             assertFalse("an interrupt is not back-pressure and must not be retried", RetryPolicy.DEFAULT.isRetryable(thrown));
+            assertTrue("the caught interrupt must be preserved as the cause", thrown.getCause() instanceof InterruptedException);
             assertTrue("the interrupt status must be restored for the caller", Thread.currentThread().isInterrupted());
         } finally {
             Thread.interrupted();

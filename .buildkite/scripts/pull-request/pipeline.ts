@@ -5,6 +5,7 @@ import { execSync } from "child_process";
 
 import type { BuildkitePipeline, BuildkiteRetry, BuildkiteStep, EsPipeline, EsPipelineConfig } from "./types.ts";
 import { getBwcVersions, getSnapshotBwcVersions } from "./bwc-versions.ts";
+import { getLaterBranches } from "./later-branches.ts";
 
 // Auto-retry configuration for PR pipelines.
 // - exit_status "-1": Agent/infrastructure failures (2 retries)
@@ -146,6 +147,17 @@ export const generatePipelines = (
 
     let yaml = readFileSync(`${directory}/${file}`, "utf-8");
     yaml = yaml.replaceAll("$SNAPSHOT_BWC_VERSIONS", JSON.stringify(getSnapshotBwcVersions()));
+
+    if (yaml.includes("$FWC_LATER_BRANCHES")) {
+      const laterBranches = getLaterBranches(process.env["GITHUB_PR_TARGET_BRANCH"]);
+      if (laterBranches.length === 0) {
+        // Nothing is ahead of this branch, so there is nothing to test forward compatibility against.
+        // Also guards against an empty matrix dimension, which buildkite rejects.
+        continue;
+      }
+      yaml = yaml.replaceAll("$FWC_LATER_BRANCHES", JSON.stringify(laterBranches));
+    }
+
     const pipeline: EsPipeline = parse(yaml) || {};
 
     pipeline.config = { ...defaults.config, ...(pipeline.config || {}) };

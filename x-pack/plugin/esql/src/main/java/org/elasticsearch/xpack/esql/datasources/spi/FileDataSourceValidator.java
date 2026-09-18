@@ -190,13 +190,18 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * to the human-readable deprecation message. Supplied by the plugin via {@link #withDeprecatedDatasourceKey}.
      */
     private final Map<String, String> deprecatedDatasourceKeys;
+    /**
+     * Names of credential (secret) settings for this provider, used to filter them from the audit log body.
+     * Supplied by the plugin via {@link #withSecretFieldNames}.
+     */
+    private final Set<String> secretFieldNames;
 
     public FileDataSourceValidator(
         String type,
         BiFunction<Map<String, Object>, Set<String>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes
     ) {
-        this(type, configFactory, supportedSchemes, null, () -> false, () -> false, null, null, (r, e) -> {}, Set.of(), Map.of());
+        this(type, configFactory, supportedSchemes, null, () -> false, () -> false, null, null, (r, e) -> {}, Set.of(), Map.of(), Set.of());
     }
 
     private FileDataSourceValidator(
@@ -210,7 +215,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
         @Nullable FileDataSourceConfiguration.AuthMode fixedAuthMode,
         BiConsumer<String, ValidationException> resourceCheck,
         Set<String> additionalDatasetKeys,
-        Map<String, String> deprecatedDatasourceKeys
+        Map<String, String> deprecatedDatasourceKeys,
+        Set<String> secretFieldNames
     ) {
         this.type = type;
         this.configFactory = configFactory;
@@ -223,6 +229,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         this.resourceCheck = resourceCheck;
         this.additionalDatasetKeys = additionalDatasetKeys;
         this.deprecatedDatasourceKeys = deprecatedDatasourceKeys;
+        this.secretFieldNames = Set.copyOf(secretFieldNames);
     }
 
     /**
@@ -244,7 +251,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
             fixedAuthMode,
             resourceCheck,
             additionalDatasetKeys,
-            deprecatedDatasourceKeys
+            deprecatedDatasourceKeys,
+            secretFieldNames
         );
     }
 
@@ -265,7 +273,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
             fixedAuthMode,
             resourceCheck,
             additionalDatasetKeys,
-            deprecatedDatasourceKeys
+            deprecatedDatasourceKeys,
+            secretFieldNames
         );
     }
 
@@ -288,7 +297,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
             fixedAuthMode,
             resourceCheck,
             additionalDatasetKeys,
-            deprecatedDatasourceKeys
+            deprecatedDatasourceKeys,
+            secretFieldNames
         );
     }
 
@@ -309,7 +319,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
             fixedAuthMode,
             resourceCheck,
             additionalDatasetKeys,
-            deprecatedDatasourceKeys
+            deprecatedDatasourceKeys,
+            secretFieldNames
         );
     }
 
@@ -329,7 +340,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
             mode,
             resourceCheck,
             additionalDatasetKeys,
-            deprecatedDatasourceKeys
+            deprecatedDatasourceKeys,
+            secretFieldNames
         );
     }
 
@@ -351,7 +363,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
             fixedAuthMode,
             check,
             additionalDatasetKeys,
-            deprecatedDatasourceKeys
+            deprecatedDatasourceKeys,
+            secretFieldNames
         );
     }
 
@@ -372,7 +385,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
             fixedAuthMode,
             resourceCheck,
             Set.copyOf(keys),
-            deprecatedDatasourceKeys
+            deprecatedDatasourceKeys,
+            secretFieldNames
         );
     }
 
@@ -395,8 +409,41 @@ public class FileDataSourceValidator implements DataSourceValidator {
             fixedAuthMode,
             resourceCheck,
             additionalDatasetKeys,
-            Map.copyOf(merged)
+            Map.copyOf(merged),
+            secretFieldNames
         );
+    }
+
+    /**
+     * Returns a new validator that declares {@code names} as credential (secret) settings for this source type.
+     * The names are used by the REST layer to filter these values from the audit log body. Each name
+     * corresponds to a setting under the {@code settings} object of a data source PUT request.
+     * Replaces any previously declared secret field names; call once per validator.
+     * <p>
+     * The names must be kept in sync with the {@code secret(...)} field definitions in the matching
+     * {@code DataSourceConfiguration} subclass (e.g. {@code S3Configuration}, {@code GcsConfiguration}).
+     * Adding a new credential field to a configuration class requires a matching update here.
+     */
+    public FileDataSourceValidator withSecretFieldNames(Set<String> names) {
+        return new FileDataSourceValidator(
+            type,
+            configFactory,
+            supportedSchemes,
+            formatConfigKeyResolver,
+            managedIdentityEnabled,
+            federatedIdentityEnabled,
+            formatReaderRegistry,
+            fixedAuthMode,
+            resourceCheck,
+            additionalDatasetKeys,
+            deprecatedDatasourceKeys,
+            Set.copyOf(names)
+        );
+    }
+
+    @Override
+    public Set<String> secretSettingNames() {
+        return secretFieldNames;
     }
 
     @Override

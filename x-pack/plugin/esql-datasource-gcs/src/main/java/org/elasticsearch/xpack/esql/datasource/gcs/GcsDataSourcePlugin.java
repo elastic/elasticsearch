@@ -70,7 +70,9 @@ public class GcsDataSourcePlugin extends Plugin implements DataSourcePlugin {
         if (enabled() == false) {
             return Map.of();
         }
-        DataSourceValidator v = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, supportedSchemes());
+        DataSourceValidator v = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, supportedSchemes()).withSecretFieldNames(
+            Set.of("credentials", "access_token")
+        );
         return Map.of(v.type(), v);
     }
 }

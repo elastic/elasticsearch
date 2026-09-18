@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.hamcrest.Matcher;
@@ -455,6 +456,33 @@ public class QuerySettingsTests extends ESTestCase {
             () -> QuerySettingDef.string("x").withSnapshotOnly().withServerlessOnly().build()
         );
         assertThat(e.getMessage(), containsString("cannot be both snapshotOnly and serverlessOnly"));
+    }
+
+    public void testNoSettingDeclaresAppliesToBesideSinceOrServerlessOnly() throws IllegalAccessException {
+        // applies_to replaces the whole generated badge, so preview()/serverlessOnly()/since() are discarded when it
+        // is present. DocsV3Support throws on that pairing; this pins the corpus so the throw is never reached in CI
+        // by a real setting. It matters because the docs-assert gate compares the emitter against the committed file
+        // and would pass a badge that is wrong rather than merely stale.
+        for (Field field : QuerySettings.class.getDeclaredFields()) {
+            if (QuerySettingDef.class.isAssignableFrom(field.getType()) == false) {
+                continue;
+            }
+            Param param = field.getAnnotation(Param.class);
+            if (param == null || param.applies_to().isEmpty()) {
+                continue;
+            }
+            assertThat(
+                "[" + param.name() + "] declares applies_to, which carries the version, so since would never be read",
+                param.since(),
+                equalTo("")
+            );
+            QuerySettingDef<?> def = asInstanceOf(QuerySettingDef.class, field.get(null));
+            assertThat(
+                "[" + param.name() + "] declares applies_to, which would discard the stack: unavailable serverlessOnly needs",
+                def.serverlessOnly(),
+                is(false)
+            );
+        }
     }
 
     public void testBuildRejectsMissingStreamFormat() {

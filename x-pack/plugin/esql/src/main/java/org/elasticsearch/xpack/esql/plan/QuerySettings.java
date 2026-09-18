@@ -184,10 +184,10 @@ public final class QuerySettings {
     @Param(
         name = "wildcards_match_datasets",
         type = { "boolean" },
-        since = "9.6.0",
-        // Stated rather than derived: this setting belongs to Data Federation, and every page documenting that
-        // feature is stack: experimental / serverless: unavailable. Deriving it from preview() would instead claim
-        // the setting is available in preview on serverless, where the feature is not enabled at all.
+        // Stated rather than derived, and therefore without `since`: this setting belongs to Data Federation, and
+        // every page documenting that feature is stack: experimental / serverless: unavailable. Deriving it from
+        // preview() would instead claim the setting is available in preview on serverless, where the feature is not
+        // enabled at all. applies_to carries the version, so declaring since too is rejected by the renderer.
         applies_to = "stack: experimental 9.6+\nserverless: unavailable",
         description = "When enabled, a wildcard in `FROM` also matches registered datasets."
             + " Defaults to `false`, so a wildcard does not match a dataset and a dataset is reached by its"

@@ -1429,7 +1429,25 @@ public abstract class DocsV3Support {
             // the same attribute the function docs already read. A setting belonging to a feature with its own
             // documented availability says what that feature's pages say instead of reporting its own lifecycle.
             String declaredAppliesTo = param != null ? param.applies_to() : mapParam.applies_to();
+            String declaredSince = param != null ? param.since() : mapParam.since();
             if (declaredAppliesTo.isEmpty() == false) {
+                // The declared string replaces the whole block, so anything the block would otherwise have derived is
+                // silently discarded. Refuse the contradiction rather than publish a badge that drops it: a setting
+                // declaring applies_to beside serverlessOnly() would lose its "stack: unavailable" with no error, and
+                // the docs-assert gate cannot catch it because it compares the emitter against the committed file,
+                // which would carry the same wrong badge.
+                if (setting.serverlessOnly()) {
+                    throw new IllegalStateException(
+                        "Setting " + setting.name() + " declares applies_to and serverlessOnly; applies_to would discard"
+                            + " the stack: unavailable this setting needs. State both axes in applies_to, or drop it."
+                    );
+                }
+                if (declaredSince.isEmpty() == false) {
+                    throw new IllegalStateException(
+                        "Setting " + setting.name() + " declares both applies_to and since; applies_to carries the"
+                            + " version, so since would never be read and the two could drift. Drop since."
+                    );
+                }
                 builder.append(declaredAppliesTo).append("\n");
             } else {
                 builder.append("serverless: ");
@@ -1441,10 +1459,9 @@ public abstract class DocsV3Support {
                 } else {
                     builder.append("stack: ");
                     builder.append(setting.preview() ? "preview" : "ga");
-                    String since = param != null ? param.since() : mapParam.since();
-                    if (since.length() > 0) {
+                    if (declaredSince.isEmpty() == false) {
                         builder.append(" ");
-                        builder.append(since);
+                        builder.append(declaredSince);
                     }
                 }
                 builder.append("\n");

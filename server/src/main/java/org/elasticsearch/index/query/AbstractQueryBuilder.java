@@ -476,11 +476,20 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         if (v instanceof String s) return s.length() * 2L + 64L;
         if (v instanceof byte[] b) return b.length + 32L;
         if (v instanceof BytesRef b) return b.length + 64L;
-        if (v instanceof Map<?, ?> m) return 32L + m.size() * 48L + m.entrySet()
-            .stream()
-            .mapToLong(e -> estimateValue(e.getKey()) + estimateValue(e.getValue()))
-            .sum();
-        if (v instanceof Collection<?> c) return 32L + c.size() * 8L + c.stream().mapToLong(AbstractQueryBuilder::estimateValue).sum();
+        if (v instanceof Map<?, ?> m) {
+            long total = 32L + m.size() * 48L;
+            for (Map.Entry<?, ?> e : m.entrySet()) {
+                total += estimateValue(e.getKey()) + estimateValue(e.getValue());
+            }
+            return total;
+        }
+        if (v instanceof Collection<?> c) {
+            long total = 32L + c.size() * 8L;
+            for (Object item : c) {
+                total += estimateValue(item);
+            }
+            return total;
+        }
         if (v == null) return 0L;
         return 8L;
     }
@@ -521,7 +530,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     public static QueryBuilder parseTopLevelQuery(XContentParser parser, Consumer<String> queryNameConsumer, List<Releasable> trackTo)
         throws IOException {
         final CircuitBreaker breaker = queryParsingBreaker.get(); // snapshot once per call
-        final long[] totalCharged = { 0L };
+        final long[] totalCharged = breaker != null ? new long[1] : null;
         FilterXContentParser parserWrapper = new FilterXContentParserWrapper(parser) {
             int nestedDepth;
 

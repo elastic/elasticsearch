@@ -850,6 +850,7 @@ process where command_line regex "^.*?net.exe"
 "regexp":{"command_line":{"value":"^.*?net.exe",
 ;
 
+// TODO: LUCENE11 flags_value 65791 is ALL|DEPRECATED_COMPLEMENT; Lucene 11 ALL is 255 (#113465).
 regexSingleArgInsensitive
 process where command_line regex~ "^.*?net.exe"
 ;
@@ -862,6 +863,7 @@ process where command_line regex ("^.*?net.exe", "net\\.exe")
 "regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe"
 ;
 
+// TODO: LUCENE11 flags_value 65791 is ALL|DEPRECATED_COMPLEMENT; Lucene 11 ALL is 255 (#113465).
 regexMultiArgInsensitive
 process where command_line regex~ ("^.*?net.exe", "net\\.exe")
 ;
@@ -874,6 +876,7 @@ process where command_line regex ("^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\
 "regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+"
 ;
 
+// TODO: LUCENE11 flags_value 65791 is ALL|DEPRECATED_COMPLEMENT; Lucene 11 ALL is 255 (#113465).
 regexMultiMultiArgVariantInsensitive
 process where command_line regex~ ("^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\system32\\\\net1\\s+")
 ;

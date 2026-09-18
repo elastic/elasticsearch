@@ -40,6 +40,21 @@ public class AutomatonsTests extends ESTestCase {
         assertMismatch(patterns("/fo.*/", "ba*"), "zipfoo");
     }
 
+    public void testLuceneRegexComplement() throws Exception {
+        assertMatch(pattern("/~(notStr)/"), "other");
+        assertMismatch(pattern("/~(notStr)/"), "notStr");
+        assertMatch(pattern("/~(([.]|ilm-history-).*)/"), "logs-1");
+        assertMismatch(pattern("/~(([.]|ilm-history-).*)/"), ".hidden");
+        assertMismatch(pattern("/~(([.]|ilm-history-).*)/"), "ilm-history-3");
+        assertMatch(pattern("/metrics-.*&~(metrics-endpoint\\.metadata_current_default.*)/"), "metrics-cpu");
+        assertMismatch(
+            pattern("/metrics-.*&~(metrics-endpoint\\.metadata_current_default.*)/"),
+            "metrics-endpoint.metadata_current_default"
+        );
+        assertMatch(pattern("/@&~(\\.security.*)&~(\\.async-search.*)/"), "logs-1");
+        assertMismatch(pattern("/@&~(\\.security.*)&~(\\.async-search.*)/"), ".security-7");
+    }
+
     public void testPatternSingle() throws Exception {
         assertMatch(pattern("/.*st/"), "test");
         assertMatch(pattern("/t.*st/"), "test");

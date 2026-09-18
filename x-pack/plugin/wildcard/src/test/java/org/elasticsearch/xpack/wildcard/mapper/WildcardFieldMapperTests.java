@@ -372,6 +372,9 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         assertThat(td.totalHits.value(), equalTo(count));
     }
 
+    // TODO: LUCENE11 ~ is a literal; the random regex generator can emit @&~(doesnotexist.+)
+    // (old complement). Unmute when ES restores ~(X) via Operations.complement or that
+    // generator branch is removed (#113465).
     public void testSearchResultsVersusKeywordField() throws IOException {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER_7_10);

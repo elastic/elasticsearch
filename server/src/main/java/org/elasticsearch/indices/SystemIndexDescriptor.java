@@ -22,6 +22,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.RegexpComplement;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -801,13 +802,16 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, SystemResourc
         final String patternAsRegex = patternToRegex(pattern);
         final String aliasAsRegex = alias == null ? null : patternToRegex(alias);
 
-        final Automaton patternAutomaton = new RegExp(patternAsRegex, RegExp.ALL).toAutomaton();
+        // TODO: LUCENE11 stop-gap (#113465): rewrite system-index patterns so they do not use
+        // ~ (e.g. .fleet-actions~(-results*)), then compile with new RegExp(..., ALL) and
+        // delete RegexpComplement.
+        final Automaton patternAutomaton = RegexpComplement.toAutomaton(patternAsRegex, DEFAULT_DETERMINIZE_WORK_LIMIT);
 
         if (aliasAsRegex == null) {
             return patternAutomaton;
         }
 
-        final Automaton aliasAutomaton = new RegExp(aliasAsRegex, RegExp.ALL).toAutomaton();
+        final Automaton aliasAutomaton = RegexpComplement.toAutomaton(aliasAsRegex, DEFAULT_DETERMINIZE_WORK_LIMIT);
 
         return Operations.determinize(Operations.union(List.of(patternAutomaton, aliasAutomaton)), DEFAULT_DETERMINIZE_WORK_LIMIT);
     }

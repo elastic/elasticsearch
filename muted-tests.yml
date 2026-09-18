@@ -771,3 +771,31 @@ tests:
 - class: org.elasticsearch.index.store.FieldInfoCachingDirectoryTests
   method: testWeakReferenceReclaimsCanonical
   issue: https://github.com/elastic/elasticsearch/issues/159154
+# Lucene 11 ALL dropped DEPRECATED_COMPLEMENT (0x10000). Search/EQL/ES|QL still
+# serialize flags_value/syntaxFlags 65791; ~(X) in wildcard-field random regex
+# is the query path, not Automatons (#113465).
+- class: org.elasticsearch.xpack.wildcard.mapper.WildcardFieldMapperTests
+  method: testSearchResultsVersusKeywordField
+  issue: https://github.com/elastic/elasticsearch/issues/113465
+- class: org.elasticsearch.xpack.eql.planner.QueryTranslatorSpecTests
+  methods:
+    - test {regexSingleArgInsensitive}
+    - test {regexMultiArgInsensitive}
+    - test {regexMultiMultiArgVariantInsensitive}
+  issue: https://github.com/elastic/elasticsearch/issues/113465
+- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
+  methods:
+    - testPushDownLowerCaseChangeRLike
+    - testPushDownUpperCaseChangeRLike
+  issue: https://github.com/elastic/elasticsearch/issues/113465
+- class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesStringIT
+  methods:
+    - testRLike {WILDCARD}
+    - testCaseInsensitiveRLike {WILDCARD}
+    - testNotRLike {WILDCARD}
+    - testNotCaseInsensitiveRLike {WILDCARD}
+    - testOrNotRLike {WILDCARD}
+    - testOrNotCaseInsensitiveRLike {WILDCARD}
+    - testAndNotRLike {WILDCARD}
+    - testAndNotCaseInsensitiveRLike {WILDCARD}
+  issue: https://github.com/elastic/elasticsearch/issues/113465

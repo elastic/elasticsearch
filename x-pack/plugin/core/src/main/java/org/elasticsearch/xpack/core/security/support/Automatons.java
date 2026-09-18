@@ -12,11 +12,11 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.StatePair;
 import org.apache.lucene.util.automaton.Transition;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.lucene.RegexpComplement;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -292,7 +292,9 @@ public final class Automatons {
                 );
             }
             String regex = pattern.substring(1, pattern.length() - 1);
-            return Operations.determinize(new RegExp(regex, RegExp.ALL).toAutomaton(), DEFAULT_DETERMINIZE_WORK_LIMIT);
+            // TODO: LUCENE11 stop-gap (#113465): rewrite shipped /regex/ privileges so they
+            // do not use ~, then compile with new RegExp(regex, ALL) and delete RegexpComplement.
+            return Operations.determinize(RegexpComplement.toAutomaton(regex, maxDeterminizedStates), DEFAULT_DETERMINIZE_WORK_LIMIT);
         } else if (pattern.equals("*")) {
             return MATCH_ALL;
         } else {

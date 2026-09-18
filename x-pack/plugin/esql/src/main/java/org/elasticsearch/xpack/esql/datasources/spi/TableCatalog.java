@@ -63,7 +63,7 @@ public interface TableCatalog extends ExternalSourceFactory, Closeable {
         } catch (IOException e) {
             // Types the catalog's I/O failure as client-caused and keeps its diagnosis rather than replacing it with
             // a constant. Same rule as FileSourceFactory#resolveMetadata.
-            throw new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(location, e), e);
+            throw new IllegalArgumentException(ExternalFailures.rootDetail(e), e);
         }
     }
 

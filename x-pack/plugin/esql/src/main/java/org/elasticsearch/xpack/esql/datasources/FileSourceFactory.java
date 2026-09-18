@@ -386,14 +386,13 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
             StorageObject storageObject = provider.newObject(storagePath);
             if (storageObject.exists() == false) {
-                throw new IOException("File does not exist: " + location);
+                throw new IOException("External data file not found");
             }
             return reader.metadata(storageObject);
         } catch (IOException e) {
-            // The wrapper exists to type a storage/reader I/O failure as client-caused (400); it is not a place to
-            // say anything new. So it keeps the cause's own diagnosis instead of a constant naming only the path —
-            // see ExternalFailures#resolutionFailureMessage for why, and for when the path is prepended.
-            throw new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(location, e), e);
+            // The wrapper exists to type a storage/reader I/O failure as client-caused (400). It keeps the cause's
+            // own diagnosis; the path is omitted here and reinstated for authorised callers by mapResolveFailure.
+            throw new IllegalArgumentException(ExternalFailures.rootDetail(e), e);
         } finally {
             StorageProviderCache.closeLease(provider);
         }
@@ -444,8 +443,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
             } else {
                 storageObject = provider.newObject(storagePath);
                 if (storageObject.exists() == false) {
-                    IOException missing = new IOException("File does not exist: " + location);
-                    listener.onFailure(new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(location, missing), missing));
+                    IOException missing = new IOException("External data file not found");
+                    listener.onFailure(new IllegalArgumentException(ExternalFailures.rootDetail(missing), missing));
                     return;
                 }
             }
@@ -460,7 +459,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         }
         ActionListener<SourceMetadata> completion = listener.delegateResponse((l, e) -> {
             if (e instanceof IOException) {
-                l.onFailure(new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(location, e), e));
+                l.onFailure(new IllegalArgumentException(ExternalFailures.rootDetail(e), e));
             } else {
                 l.onFailure(e);
             }

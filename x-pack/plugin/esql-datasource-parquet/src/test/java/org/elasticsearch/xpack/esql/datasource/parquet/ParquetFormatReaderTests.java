@@ -1254,7 +1254,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             reader.metadataAsync(asyncObject, probePool, meta);
             Exception metaEx = expectThrows(Exception.class, () -> meta.actionGet(30, TimeUnit.SECONDS));
             assertThat(ExceptionsHelper.stackTrace(metaEx), containsString("Could not read"));
-            assertThat(ExceptionsHelper.stackTrace(metaEx), containsString("as a Parquet file"));
+            assertThat(ExceptionsHelper.stackTrace(metaEx), containsString("the Parquet file"));
             assertEquals(0, asyncReadCount.get());
             assertEquals(0, streamCount.get());
 
@@ -1293,7 +1293,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             reader.metadataAsync(asyncObject, probePool, meta);
             Exception metaEx = expectThrows(Exception.class, () -> meta.actionGet(30, TimeUnit.SECONDS));
             assertThat(ExceptionsHelper.stackTrace(metaEx), containsString("Could not read"));
-            assertThat(ExceptionsHelper.stackTrace(metaEx), containsString("as a Parquet file"));
+            assertThat(ExceptionsHelper.stackTrace(metaEx), containsString("the Parquet file"));
             assertEquals(0, streamCount.get());
 
             PlainActionFuture<List<RangeAwareFormatReader.SplitRange>> ranges = new PlainActionFuture<>();
@@ -2066,7 +2066,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             reader.metadataAsync(asyncObject, probePool, future);
             Exception ex = expectThrows(Exception.class, () -> future.actionGet(30, TimeUnit.SECONDS));
             assertThat(ExceptionsHelper.stackTrace(ex), containsString("Could not read"));
-            assertThat(ExceptionsHelper.stackTrace(ex), containsString("as a Parquet file"));
+            assertThat(ExceptionsHelper.stackTrace(ex), containsString("the Parquet file"));
             assertEquals("the tail prefetch must be attempted once", 1, asyncReadCount.get());
             assertEquals("short read must not open a stream", 0, streamCount.get());
         } finally {
@@ -4659,7 +4659,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertThat(
             ex.getMessage(),
             allOf(
-                containsString("Could not read [s3://bucket/path/file.parquet] as a Parquet file"),
+                containsString("Could not read the Parquet file"),
                 containsString("is not a Parquet file. Expected magic number at tail, but found [")
             )
         );
@@ -4671,10 +4671,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> reader.metadata(storageObject));
         assertThat(
             ex.getMessage(),
-            allOf(
-                containsString("Could not read [memory://empty.parquet] as a Parquet file:"),
-                containsString("is not a Parquet file (length is too low: 0)")
-            )
+            allOf(containsString("Could not read the Parquet file"), containsString("is not a Parquet file (length is too low: 0)"))
         );
     }
 
@@ -4756,9 +4753,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> ParquetFormatReader.validateFooterIntegrity("https://example.com/bad.parquet", schema, List.of(block))
+            () -> ParquetFormatReader.validateFooterIntegrity(schema, List.of(block))
         );
-        assertThat(ex.getMessage(), containsString("https://example.com/bad.parquet"));
         assertThat(ex.getMessage(), containsString("column [id] is declared required but row group reports 5 null(s)"));
     }
 
@@ -4786,7 +4782,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         block.setRowCount(100);
         block.addColumn(ccm);
 
-        ParquetFormatReader.validateFooterIntegrity("https://example.com/ok.parquet", schema, List.of(block));
+        ParquetFormatReader.validateFooterIntegrity(schema, List.of(block));
     }
 
     public void testValidateFooterIntegrityPassesForRequiredColumnWithZeroNulls() {
@@ -4813,7 +4809,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         block.setRowCount(100);
         block.addColumn(ccm);
 
-        ParquetFormatReader.validateFooterIntegrity("https://example.com/ok.parquet", schema, List.of(block));
+        ParquetFormatReader.validateFooterIntegrity(schema, List.of(block));
     }
 
     public void testValidParquetZeroRowsMetadata() throws Exception {

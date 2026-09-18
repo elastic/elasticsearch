@@ -82,9 +82,14 @@ public final class AnonymizationContext {
 
         @Override
         public String opaque(String text) {
-            // Free-form text (raw query DSL, sort/stats descriptors, external source paths) can embed
-            // identifiers in unpredictable positions; redact the whole fragment rather than risk a
-            // partial leak. The field stays in place so the plan shape is unchanged.
+            // Free-form text (raw query DSL, sort/stats descriptors) can embed identifiers in
+            // unpredictable positions; redact the whole fragment rather than risk a partial leak.
+            return "<redacted>";
+        }
+
+        @Override
+        public String location(String text) {
+            // Storage locations are always redacted under anonymization.
             return "<redacted>";
         }
     };

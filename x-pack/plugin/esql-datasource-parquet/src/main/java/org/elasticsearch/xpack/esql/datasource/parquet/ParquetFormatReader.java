@@ -836,13 +836,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         ParquetReadOptions options,
         ParquetMetadata cachedFooter
     ) throws IOException {
-        String uri = object.path().toString();
         try {
             return ParquetFileReader.open(inputFile, cachedFooter, options, inputFile.newStream());
         } catch (IOException e) {
-            throw ParquetReadFailures.wrap(e, "Could not read [" + uri + "] as a Parquet file");
+            throw ParquetReadFailures.wrap(e, "Could not read the Parquet file");
         } catch (RuntimeException e) {
-            throw rethrowStructuralFooterFailure(uri, e);
+            throw rethrowStructuralFooterFailure(e);
         }
     }
 
@@ -906,7 +905,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             // parquet-specific wrapping that the prior in-line readFooter path used. The returned
             // throwable is never an Error (already rethrown) so the Exception cast is safe.
             // Callers see the same exception shapes regardless of who won the load race.
-            throw newInvalidParquetFileException(object.path().toString(), (Exception) ParsedFooterCache.rethrowStructural(e));
+            throw newInvalidParquetFileException((Exception) ParsedFooterCache.rethrowStructural(e));
         }
     }
 
@@ -953,12 +952,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         return offsets;
     }
 
-    private static IllegalArgumentException newInvalidParquetFileException(String uri, Exception e) {
+    private static IllegalArgumentException newInvalidParquetFileException(Exception e) {
         String detail = e.getMessage();
         if (detail == null || detail.isEmpty()) {
             detail = e.getClass().getSimpleName();
         }
-        return new IllegalArgumentException("Could not read [" + uri + "] as a Parquet file: " + detail, e);
+        return new IllegalArgumentException("Could not read the Parquet file: " + detail, e);
     }
 
     /**
@@ -966,15 +965,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      * trips and other {@link ElasticsearchException}s must stay unwrapped so they remain HTTP 429
      * (or their own status) rather than becoming an invalid-file 400.
      */
-    private static RuntimeException rethrowStructuralFooterFailure(String uri, RuntimeException e) {
+    private static RuntimeException rethrowStructuralFooterFailure(RuntimeException e) {
         if (e instanceof CircuitBreakingException || e instanceof ElasticsearchException) {
             return e;
         }
-        return newInvalidParquetFileException(uri, e);
+        return newInvalidParquetFileException(e);
     }
 
-    private static IllegalArgumentException invalidParquet(String uri, String detail) {
-        return new IllegalArgumentException("Could not read [" + uri + "] as a Parquet file: " + detail);
+    private static IllegalArgumentException invalidParquet(String detail) {
+        return new IllegalArgumentException("Could not read the Parquet file: " + detail);
     }
 
     @Override
@@ -1000,7 +999,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      */
     private SourceMetadata buildFooterMetadata(StorageObject object, ParquetMetadata footer) {
         MessageType parquetSchema = footer.getFileMetaData().getSchema();
-        validateFooterIntegrity(object.path().toString(), parquetSchema, footer.getBlocks());
+        validateFooterIntegrity(parquetSchema, footer.getBlocks());
         List<Attribute> schema = convertParquetSchemaToAttributes(parquetSchema);
         SourceStatistics statistics = extractStatistics(footer.getBlocks(), schema, parquetSchema);
         return new SimpleSourceMetadata(schema, formatName(), object.path().toString(), statistics, null);
@@ -1061,7 +1060,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         }
 
         if (length < PARQUET_TRAILER_BYTES) {
-            listener.onFailure(invalidParquet(object.path().toString(), "is not a Parquet file (length is too low: " + length + ")"));
+            listener.onFailure(invalidParquet("is not a Parquet file (length is too low: " + length + ")"));
             return;
         }
 
@@ -1189,20 +1188,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
     /** {@code true} if {@code listener} was failed because the declared footer is invalid. */
     private boolean rejectDeclaredFooter(StorageObject object, long length, int footerLength, ActionListener<LoadedFooter> listener) {
         if (footerLength <= 0) {
-            listener.onFailure(invalidParquet(object.path().toString(), "is not a Parquet file. Expected magic number at tail"));
+            listener.onFailure(invalidParquet("is not a Parquet file. Expected magic number at tail"));
             return true;
         }
         long footerRegion = (long) footerLength + PARQUET_TRAILER_BYTES;
         if (footerRegion > Integer.MAX_VALUE || footerRegion > length) {
-            listener.onFailure(
-                invalidParquet(object.path().toString(), "footer length " + footerLength + " exceeds file length " + length)
-            );
+            listener.onFailure(invalidParquet("footer length " + footerLength + " exceeds file length " + length));
             return true;
         }
         if (footerRegion > maxFooterReadBytes) {
-            listener.onFailure(
-                invalidParquet(object.path().toString(), "footer length " + footerLength + " exceeds maximum " + maxFooterReadBytes)
-            );
+            listener.onFailure(invalidParquet("footer length " + footerLength + " exceeds maximum " + maxFooterReadBytes));
             return true;
         }
         return false;
@@ -1273,7 +1268,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
     private record ChargedFooterBytes(byte[] bytes, Releasable release, boolean reusedHeapArray) {}
 
     private static IllegalArgumentException invalidParquetShortRead(StorageObject object, int expected, int actual) {
-        return invalidParquet(object.path().toString(), "short read of footer: expected " + expected + " bytes, got " + actual);
+        return invalidParquet("short read of footer: expected " + expected + " bytes, got " + actual);
     }
 
     /**
@@ -1331,9 +1326,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             try {
                 footer = ParquetFileReader.readFooter(inputFile, options, stream);
             } catch (RuntimeException e) {
-                throw rethrowStructuralFooterFailure(object.path().toString(), e);
+                throw rethrowStructuralFooterFailure(e);
             }
-            validateFooterIntegrity(object.path().toString(), footer.getFileMetaData().getSchema(), footer.getBlocks());
+            validateFooterIntegrity(footer.getFileMetaData().getSchema(), footer.getBlocks());
             return footer;
         }
     }
@@ -1497,7 +1492,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      * in their row-group statistics. Such files pass parquet-mr footer parsing but produce
      * garbage or exceptions during data-page decoding.
      */
-    static void validateFooterIntegrity(String uri, MessageType schema, List<BlockMetaData> rowGroups) {
+    static void validateFooterIntegrity(MessageType schema, List<BlockMetaData> rowGroups) {
         for (BlockMetaData rowGroup : rowGroups) {
             for (ColumnChunkMetaData col : rowGroup.getColumns()) {
                 String[] path = col.getPath().toArray();
@@ -1506,9 +1501,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                     Statistics<?> stats = col.getStatistics();
                     if (stats != null && stats.getNumNulls() > 0) {
                         throw new IllegalArgumentException(
-                            "Could not read ["
-                                + uri
-                                + "] as a Parquet file: column ["
+                            "Could not read the Parquet file: column ["
                                 + col.getPath().toDotString()
                                 + "] is declared required but row group reports "
                                 + stats.getNumNulls()

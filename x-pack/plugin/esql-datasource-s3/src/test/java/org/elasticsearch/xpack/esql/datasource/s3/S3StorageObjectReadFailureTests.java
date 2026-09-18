@@ -206,7 +206,7 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
 
         S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
         IOException io = expectThrows(IOException.class, obj::newStream);
-        assertEquals("Object not found: " + PATH, io.getMessage());
+        assertEquals("External data object not found", io.getMessage());
         assertSame(missing, io.getCause());
     }
 

@@ -750,10 +750,7 @@ public class S3StorageProvider implements StorageProvider {
             if (unavailable != null) {
                 throw unavailable;
             }
-            throw new IOException(
-                "Failed to check existence of " + path + ": " + S3FailureDetail.of(e) + credentialHint() + regionHint(),
-                e
-            );
+            throw new IOException("Failed to check existence of external object: " + S3FailureDetail.of(e) + credentialHint() + regionHint(), e);
         }
     }
 
@@ -771,9 +768,7 @@ public class S3StorageProvider implements StorageProvider {
                 throw unavailable;
             }
             throw new IOException(
-                "Failed to check existence of "
-                    + path
-                    + " (HEAD denied, range GET also failed): "
+                "Failed to check existence of external object (HEAD denied, range GET also failed): "
                     + S3FailureDetail.of(e)
                     + credentialHint()
                     + regionHint(),
@@ -996,14 +991,10 @@ public class S3StorageProvider implements StorageProvider {
                     throw unavailable;
                 }
                 String msg = (e instanceof S3Exception s3e && s3e.statusCode() == 403)
-                    ? "Access denied listing objects in bucket ["
-                        + bucket
-                        + "] with prefix ["
-                        + prefix
-                        + "]. "
+                    ? "Access denied listing objects in the configured path. "
                         + "Verify that the configured credentials have s3:ListBucket permission on this bucket, "
                         + "or use exact file paths instead of glob patterns."
-                    : "Failed to list objects in bucket [" + bucket + "] with prefix [" + prefix + "]";
+                    : "Failed to list objects in the configured path";
                 throw new UncheckedIOException(new IOException(msg + ": " + S3FailureDetail.of(e) + regionHint, e));
             }
         }

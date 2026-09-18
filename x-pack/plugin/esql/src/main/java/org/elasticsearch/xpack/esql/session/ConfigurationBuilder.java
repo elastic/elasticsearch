@@ -36,6 +36,7 @@ public class ConfigurationBuilder {
     private boolean profile;
     private boolean allowPartialResults;
     private boolean explainOnly;
+    private boolean canSeeDatasetLocation;
     private Map<String, Map<String, Column>> tables;
     private long queryStartTimeNanos;
     private Map<String, String> viewQueries;
@@ -55,6 +56,7 @@ public class ConfigurationBuilder {
         profile = configuration.profile();
         allowPartialResults = configuration.allowPartialResults();
         explainOnly = configuration.explainOnly();
+        canSeeDatasetLocation = configuration.canSeeDatasetLocation();
         tables = configuration.tables();
         queryStartTimeNanos = configuration.queryStartTimeNanos();
         viewQueries = configuration.viewQueries();
@@ -125,6 +127,11 @@ public class ConfigurationBuilder {
         return this;
     }
 
+    public ConfigurationBuilder canSeeDatasetLocation(boolean canSeeDatasetLocation) {
+        this.canSeeDatasetLocation = canSeeDatasetLocation;
+        return this;
+    }
+
     public ConfigurationBuilder tables(Map<String, Map<String, Column>> tables) {
         this.tables = tables;
         return this;
@@ -169,7 +176,8 @@ public class ConfigurationBuilder {
             resultTruncationDefaultSizeTimeseries,
             resolvedSettings,
             viewQueries,
-            explainOnly
+            explainOnly,
+            canSeeDatasetLocation
         );
     }
 }

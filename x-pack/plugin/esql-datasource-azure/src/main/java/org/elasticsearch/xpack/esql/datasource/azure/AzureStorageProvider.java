@@ -510,7 +510,7 @@ public final class AzureStorageProvider implements StorageProvider {
             if (e instanceof BlobStorageException bse && bse.getStatusCode() == 403) {
                 return existsViaRangeGet(blobClient, path);
             }
-            throw new IOException("Failed to check existence of " + path + credentialHint(), e);
+            throw new IOException("Failed to check existence of external object" + credentialHint(), e);
         }
     }
 
@@ -522,7 +522,7 @@ public final class AzureStorageProvider implements StorageProvider {
                 return false;
             }
             throw new IOException(
-                "Failed to check existence of " + path + " (properties denied, range GET also failed)" + credentialHint(),
+                "Failed to check existence of external object (properties denied, range GET also failed)" + credentialHint(),
                 e
             );
         }
@@ -639,7 +639,7 @@ public final class AzureStorageProvider implements StorageProvider {
             return new ParsedPath(host, userInfo, pathStr);
         }
         if (pathStr.isEmpty()) {
-            throw new IllegalArgumentException("Invalid Azure path: container and blob name required: " + path);
+            throw new IllegalArgumentException("Invalid Azure path: container and blob name required");
         }
         int firstSlash = pathStr.indexOf(StoragePath.PATH_SEPARATOR);
         String container;
@@ -652,7 +652,7 @@ public final class AzureStorageProvider implements StorageProvider {
             blobName = pathStr.substring(firstSlash + 1);
         }
         if (container.isEmpty()) {
-            throw new IllegalArgumentException("Invalid Azure path: container is required: " + path);
+            throw new IllegalArgumentException("Invalid Azure path: container is required");
         }
         return new ParsedPath(host, container, blobName);
     }
@@ -715,12 +715,10 @@ public final class AzureStorageProvider implements StorageProvider {
                 return false;
             } catch (Exception e) {
                 String msg = (e instanceof BlobStorageException bse && bse.getStatusCode() == 403)
-                    ? "Access denied listing blobs in container ["
-                        + container
-                        + "]. "
+                    ? "Access denied listing blobs in the configured container. "
                         + "Verify that the configured credentials have listing permission on this container, "
                         + "or use exact file paths instead of glob patterns."
-                    : "Failed to list blobs in container [" + container + "]";
+                    : "Failed to list blobs in the configured container";
                 throw new RuntimeException(msg, e);
             }
         }

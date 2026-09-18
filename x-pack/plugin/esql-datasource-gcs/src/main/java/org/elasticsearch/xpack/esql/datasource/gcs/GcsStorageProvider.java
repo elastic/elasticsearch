@@ -264,7 +264,7 @@ public class GcsStorageProvider implements StorageProvider {
             if (e.getCode() == 403) {
                 return existsViaRead(bucket, objectName, path);
             }
-            throw new IOException("Failed to check existence of " + path + ": " + GcsFailureDetail.of(e) + credentialHint(), e);
+            throw new IOException("Failed to check existence of external data: " + GcsFailureDetail.of(e) + credentialHint(), e);
         }
     }
 
@@ -276,9 +276,7 @@ public class GcsStorageProvider implements StorageProvider {
                 return false;
             }
             throw new IOException(
-                "Failed to check existence of "
-                    + path
-                    + " (metadata denied, read also failed): "
+                "Failed to check existence of external data (metadata denied, read also failed): "
                     + GcsFailureDetail.of(e)
                     + credentialHint(),
                 e
@@ -424,14 +422,10 @@ public class GcsStorageProvider implements StorageProvider {
                 currentIterator = page.iterateAll().iterator();
             } catch (Exception e) {
                 String msg = (e instanceof StorageException se && se.getCode() == 403)
-                    ? "Access denied listing objects in bucket ["
-                        + bucket
-                        + "] with prefix ["
-                        + prefix
-                        + "]. "
+                    ? "Access denied listing objects in the configured path. "
                         + "Verify that the configured credentials have storage.objects.list permission, "
                         + "or use exact file paths instead of glob patterns."
-                    : "Failed to list objects in bucket [" + bucket + "] with prefix [" + prefix + "]";
+                    : "Failed to list objects in the configured path";
                 throw new UncheckedIOException(new IOException(msg, e));
             }
         }

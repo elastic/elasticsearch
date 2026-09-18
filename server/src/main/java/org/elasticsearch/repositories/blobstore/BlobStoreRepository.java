@@ -154,8 +154,8 @@ import java.nio.file.NoSuchFileException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -3847,7 +3847,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis(), shardSnapshotResult);
                 // Hand the updated shard snapshots to whoever is observing, while they are still in memory. Deliberately after the shard
                 // snapshot has succeeded, so nothing is recorded for a snapshot that did not complete.
-                notifyShardSnapshotFilesUpdated(context.indexId(), shardId.id(), indexGeneration, updatedBlobStoreIndexShardSnapshots);
+                notifyShardSnapshotFilesUpdated(
+                    context.indexId(),
+                    shardId.id(),
+                    indexGeneration,
+                    updatedBlobStoreIndexShardSnapshots
+                );
                 context.onResponse(shardSnapshotResult);
             }, e -> {
                 try {

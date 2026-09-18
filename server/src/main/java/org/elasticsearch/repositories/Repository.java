@@ -338,12 +338,12 @@ public interface Repository extends LifecycleComponent {
      * as these are expected to be called on the cluster state applier thread (which must not block) if a repository is removed from the
      * cluster. This method is intended to be called on node shutdown instead as a means to ensure no repository operations are leaked.
      */
-       /**
-        * Supplies the observer notified as this repository's shard snapshots change, so that a deployment can track what they occupy without
-        * paying to find out afterwards. Set once, before the repository is started.
-        * <p>
-        * Does nothing by default: only repositories that maintain per-shard file listings have anything to report.
-        */
+    /**
+     * Supplies the observer notified as this repository's shard snapshots change, so that a deployment can track what they occupy without
+     * paying to find out afterwards. Set once, before the repository is started.
+     * <p>
+     * Does nothing by default: only repositories that maintain per-shard file listings have anything to report.
+     */
     default void setShardSnapshotFilesObserver(ShardSnapshotFilesObserver observer) {}
 
     void awaitIdle();

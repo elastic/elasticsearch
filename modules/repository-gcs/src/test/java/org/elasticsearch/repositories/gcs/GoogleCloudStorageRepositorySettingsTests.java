@@ -27,6 +27,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.InvalidRepository;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.ShardSnapshotFilesObserver;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
@@ -75,7 +76,8 @@ public class GoogleCloudStorageRepositorySettingsTests extends ESTestCase {
             repositoryServiceThreadPool,
             client,
             List.of(),
-            SnapshotMetrics.NOOP
+            SnapshotMetrics.NOOP,
+            ShardSnapshotFilesObserver.NOOP
         );
         repositoryServiceClusterService.start();
         repositoriesService.start();

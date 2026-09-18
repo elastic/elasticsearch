@@ -101,6 +101,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1770,6 +1771,31 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 )
             );
         assertThat(sourceLoadersBuilt.get(), equalTo(1));
+    }
+
+    public void testSourceLoaderCacheKeyIgnoresMutationOfInputSet() throws IOException {
+        initMapping();
+        AtomicInteger sourceLoadersBuilt = new AtomicInteger();
+        ValuesSourceReaderOperator operator = (ValuesSourceReaderOperator) new ValuesSourceReaderOperator.Factory(
+            ByteSizeValue.ofGb(1),
+            List.of(fieldInfo(mapperService.fieldType("source_text"), ElementType.BYTES_REF)),
+            new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, sourcePaths -> {
+                sourceLoadersBuilt.incrementAndGet();
+                return SourceLoader.FROM_STORED_SOURCE;
+            }, STORED_FIELDS_SEQUENTIAL_PROPORTIONS)),
+            randomBoolean(),
+            0,
+            randomDoubleBetween(0.1, 10.0, true),
+            docSequenceBytesRefFieldThreshold(),
+            () -> 0L
+        ).get(driverContext());
+        Set<String> paths = new HashSet<>();
+        paths.add("a");
+        operator.sourceLoader(0, paths);
+        paths.add("mutated");
+        operator.sourceLoader(0, Set.of("a"));
+        assertThat(sourceLoadersBuilt.get(), equalTo(1));
+        operator.close();
     }
 
     public void testSourceLoadProfileCounters() throws IOException {

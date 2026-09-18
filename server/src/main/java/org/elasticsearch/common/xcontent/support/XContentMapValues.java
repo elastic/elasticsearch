@@ -276,8 +276,8 @@ public class XContentMapValues {
      */
     public static Function<Map<String, Object>, Map<String, Object>> filter(String[] includes, String[] excludes) {
         CharacterRunAutomaton matchAllAutomaton = new CharacterRunAutomaton(Automata.makeAnyString());
-        CharacterRunAutomaton include = compileAutomaton(includes, matchAllAutomaton);
-        CharacterRunAutomaton exclude = compileAutomaton(excludes, new CharacterRunAutomaton(Automata.makeEmpty()));
+        CharacterRunAutomaton include = compileAutomaton(includes, matchAllAutomaton, "include field");
+        CharacterRunAutomaton exclude = compileAutomaton(excludes, new CharacterRunAutomaton(Automata.makeEmpty()), "exclude field");
 
         // NOTE: We cannot use Operations.minus because of the special case that
         // we want all sub properties to match as soon as an object matches
@@ -286,6 +286,10 @@ public class XContentMapValues {
     }
 
     public static CharacterRunAutomaton compileAutomaton(String[] patterns, CharacterRunAutomaton defaultValue) {
+        return compileAutomaton(patterns, defaultValue, "field");
+    }
+
+    public static CharacterRunAutomaton compileAutomaton(String[] patterns, CharacterRunAutomaton defaultValue, String kind) {
         if (patterns == null || patterns.length == 0) {
             return defaultValue;
         }
@@ -295,7 +299,7 @@ public class XContentMapValues {
             aut = Operations.determinize(makeMatchDotsInFieldNames(aut), MAX_DETERMINIZED_STATES);
         } catch (TooComplexToDeterminizeException e) {
             throw new IllegalArgumentException(
-                "Unable to filter _source: [" + patterns.length + "] field patterns are too complex to compile into an automaton",
+                "[" + patterns.length + "] " + kind + " patterns are too complex to compile into an automaton",
                 e
             );
         }

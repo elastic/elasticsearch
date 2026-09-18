@@ -60,7 +60,8 @@ public class SourceFilterDeterminizeLimitTests extends MapperServiceTestCase {
     public void testCompilationStillReportsUndeterminizablePatternsAsABadRequest() {
         SourceFilter filter = new SourceFilter(patterns(40, "*group_N.field*"), null);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> filter.filterMap(Source.empty(null)));
-        assertThat(e.getMessage(), containsString("too complex"));
+        assertThat(e.getMessage(), containsString("Unable to filter _source"));
+        assertThat(e.getMessage(), containsString("include field patterns"));
         assertThat(e.getCause(), instanceOf(TooComplexToDeterminizeException.class));
         assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
     }

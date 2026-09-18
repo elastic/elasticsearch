@@ -469,9 +469,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     /** Reuses a source loader while the shard and requested source paths remain unchanged. */
     SourceLoader sourceLoader(int shard, Set<String> sourcePaths) {
         if (shard != sourceLoaderShard || sourcePaths.equals(sourceLoaderPaths) == false) {
-            sourceLoader = shardContexts.get(shard).newSourceLoader().apply(sourcePaths);
+            sourceLoaderPaths = Set.copyOf(sourcePaths);
             sourceLoaderShard = shard;
-            sourceLoaderPaths = sourcePaths;
+            sourceLoader = shardContexts.get(shard).newSourceLoader().apply(sourceLoaderPaths);
         }
         return sourceLoader;
     }

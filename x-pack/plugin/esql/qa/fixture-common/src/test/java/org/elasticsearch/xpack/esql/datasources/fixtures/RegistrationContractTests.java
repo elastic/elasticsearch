@@ -74,7 +74,7 @@ public class RegistrationContractTests extends ESTestCase {
     /** A refusal never runs a query, so declaring one says the case was half-converted from the other kind. */
     public void testARefusedCaseMayNotDeclareAQuery() {
         Properties props = wellFormed();
-        props.setProperty("case.sample_negative.query", "FROM %s | LIMIT 1");
+        props.setProperty("case.dataset.setting.sample.negative.query", "FROM %s | LIMIT 1");
         Exception e = expectThrows(IllegalStateException.class, () -> RegistrationContract.parse(props));
         assertThat(e.getMessage(), containsString("would never run"));
     }
@@ -82,7 +82,7 @@ public class RegistrationContractTests extends ESTestCase {
     /** An unknown outcome is a typo that would otherwise silently fall back to the refusal kind. */
     public void testAnUnknownOutcomeIsRejected() {
         Properties props = wellFormed();
-        props.setProperty("case.sample_negative.outcome", "maybe");
+        props.setProperty("case.dataset.setting.sample.negative.outcome", "maybe");
         Exception e = expectThrows(IllegalStateException.class, () -> RegistrationContract.parse(props));
         assertThat(e.getMessage(), containsString("unknown outcome [maybe]"));
     }
@@ -97,21 +97,21 @@ public class RegistrationContractTests extends ESTestCase {
         RegistrationContract contract = RegistrationContract.parse(wellFormed());
         assertThat(contract.cases().size(), equalTo(1));
         RegistrationContract.Case only = contract.cases().get(0);
-        assertThat(only.name(), equalTo("sample_negative"));
+        assertThat(only.name(), equalTo("dataset.setting.sample.negative"));
         assertThat(only.settings(), equalTo(Map.of("schema_sample_size", "-1")));
         assertThat("the format defaults rather than being required of every case", only.format(), equalTo("csv"));
     }
 
     public void testAnExplicitFormatOverridesTheDefault() {
         Properties props = wellFormed();
-        props.setProperty("case.sample_negative.format", "ndjson");
+        props.setProperty("case.dataset.setting.sample.negative.format", "ndjson");
         assertThat(RegistrationContract.parse(props).cases().get(0).format(), equalTo("ndjson"));
     }
 
     /** An unknown attribute is a typo, and a typo silently drops the assertion the line was meant to make. */
     public void testAnUnknownAttributeIsRejected() {
         Properties props = wellFormed();
-        props.setProperty("case.sample_negative.mesage", "typo");
+        props.setProperty("case.dataset.setting.sample.negative.mesage", "typo");
         Exception e = expectThrows(IllegalStateException.class, () -> RegistrationContract.parse(props));
         assertThat(e.getMessage(), containsString("unknown attribute [mesage]"));
     }
@@ -130,7 +130,7 @@ public class RegistrationContractTests extends ESTestCase {
     public void testEveryRequiredFieldIsRequired() {
         for (String attribute : new String[] { "message", "emitter" }) {
             Properties props = wellFormed();
-            props.remove("case.sample_negative." + attribute);
+            props.remove("case.dataset.setting.sample.negative." + attribute);
             Exception e = expectThrows(IllegalStateException.class, () -> RegistrationContract.parse(props));
             assertThat(e.getMessage(), containsString("declares no [" + attribute + "]"));
         }
@@ -139,7 +139,7 @@ public class RegistrationContractTests extends ESTestCase {
     /** A blank value is the same missing declaration as an absent one, and reads as deliberate. */
     public void testABlankFieldIsRefusedLikeAnAbsentOne() {
         Properties props = wellFormed();
-        props.setProperty("case.sample_negative.message", "   ");
+        props.setProperty("case.dataset.setting.sample.negative.message", "   ");
         Exception e = expectThrows(IllegalStateException.class, () -> RegistrationContract.parse(props));
         assertThat(e.getMessage(), containsString("declares no [message]"));
     }
@@ -152,9 +152,9 @@ public class RegistrationContractTests extends ESTestCase {
 
     private static Properties wellFormed() {
         Properties props = new Properties();
-        props.setProperty("case.sample_negative.settings.schema_sample_size", "-1");
-        props.setProperty("case.sample_negative.message", "[schema_sample_size] must be between 1 and 20000, got [-1]");
-        props.setProperty("case.sample_negative.emitter", "DataSourceValidationUtils.validateInt");
+        props.setProperty("case.dataset.setting.sample.negative.settings.schema_sample_size", "-1");
+        props.setProperty("case.dataset.setting.sample.negative.message", "[schema_sample_size] must be between 1 and 20000, got [-1]");
+        props.setProperty("case.dataset.setting.sample.negative.emitter", "DataSourceValidationUtils.validateInt");
         return props;
     }
 
@@ -164,10 +164,10 @@ public class RegistrationContractTests extends ESTestCase {
      */
     public void testACaseMayRegisterMoreThanOneSetting() {
         Properties props = new Properties();
-        props.setProperty("case.probe_budget.settings.split_probe_window", "64mb");
-        props.setProperty("case.probe_budget.settings.max_split_probes", "1000");
-        props.setProperty("case.probe_budget.message", "Invalid combination of [split_probe_window]");
-        props.setProperty("case.probe_budget.emitter", "FileSplitProvider.validateProbeBudget");
+        props.setProperty("case.dataset.combination.probe_budget.settings.split_probe_window", "64mb");
+        props.setProperty("case.dataset.combination.probe_budget.settings.max_split_probes", "1000");
+        props.setProperty("case.dataset.combination.probe_budget.message", "Invalid combination of [split_probe_window]");
+        props.setProperty("case.dataset.combination.probe_budget.emitter", "FileSplitProvider.validateProbeBudget");
         RegistrationContract.Case only = RegistrationContract.parse(props).cases().get(0);
         assertThat(only.settings(), equalTo(Map.of("split_probe_window", "64mb", "max_split_probes", "1000")));
     }
@@ -175,8 +175,8 @@ public class RegistrationContractTests extends ESTestCase {
     /** A case that registers nothing asserts nothing about registration. */
     public void testACaseWithNoSettingsIsRejected() {
         Properties props = new Properties();
-        props.setProperty("case.empty.message", "something");
-        props.setProperty("case.empty.emitter", "Somewhere.method");
+        props.setProperty("case.dataset.setting.empty.message", "something");
+        props.setProperty("case.dataset.setting.empty.emitter", "Somewhere.method");
         Exception e = expectThrows(IllegalStateException.class, () -> RegistrationContract.parse(props));
         assertThat(e.getMessage(), containsString("declares no settings"));
     }
@@ -196,11 +196,11 @@ public class RegistrationContractTests extends ESTestCase {
      */
     public void testABlockedCaseMustCiteTheIssueThatWillUnblockIt() {
         Properties props = wellFormed();
-        props.setProperty("case.sample_negative.blocked_by", "it is broken");
+        props.setProperty("case.dataset.setting.sample.negative.blocked_by", "it is broken");
         Exception e = expectThrows(IllegalStateException.class, () -> RegistrationContract.parse(props));
         assertThat(e.getMessage(), containsString("cites no issue"));
 
-        props.setProperty("case.sample_negative.blocked_by", "elastic/esql-planning#1999");
+        props.setProperty("case.dataset.setting.sample.negative.blocked_by", "elastic/esql-planning#1999");
         assertThat(RegistrationContract.parse(props).cases().get(0).blocked(), equalTo(true));
     }
 
@@ -222,7 +222,7 @@ public class RegistrationContractTests extends ESTestCase {
      */
     public void testACaseMayAssertASubstringIsAbsent() {
         Properties props = wellFormed();
-        props.setProperty("case.sample_negative.absent", "unknown setting");
+        props.setProperty("case.dataset.setting.sample.negative.absent", "unknown setting");
         assertThat(RegistrationContract.parse(props).cases().get(0).absent(), equalTo("unknown setting"));
         assertThat("absent is optional", RegistrationContract.parse(wellFormed()).cases().get(0).absent(), nullValue());
     }
@@ -234,9 +234,9 @@ public class RegistrationContractTests extends ESTestCase {
     public void testTheResourceFormIsDeclaredAndValidated() {
         Properties props = wellFormed();
         assertThat("uri by default", RegistrationContract.parse(props).cases().get(0).rawPath(), equalTo(false));
-        props.setProperty("case.sample_negative.resource_form", "path");
+        props.setProperty("case.dataset.setting.sample.negative.resource_form", "path");
         assertThat(RegistrationContract.parse(props).cases().get(0).rawPath(), equalTo(true));
-        props.setProperty("case.sample_negative.resource_form", "sideways");
+        props.setProperty("case.dataset.setting.sample.negative.resource_form", "sideways");
         Exception e = expectThrows(IllegalStateException.class, () -> RegistrationContract.parse(props));
         assertThat(e.getMessage(), containsString("expected [uri] or [path]"));
     }

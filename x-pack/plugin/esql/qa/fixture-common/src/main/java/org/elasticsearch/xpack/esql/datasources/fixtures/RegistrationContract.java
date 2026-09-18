@@ -22,7 +22,7 @@ import java.util.TreeSet;
 import java.util.regex.Pattern;
 
 /**
- * What the dataset registration endpoint must refuse, read from {@code registration-contract.properties}.
+ * What the dataset registration endpoint must refuse, read from {@code dataset-registration-cases.properties}.
  *
  * <p>Separate from {@link FixtureDimensions} because the claims are a different shape. A dimension is
  * something to CROSS: the contract records which pairs are worth generating together, and the crossing
@@ -41,7 +41,7 @@ import java.util.regex.Pattern;
  */
 public final class RegistrationContract {
 
-    private static final String RESOURCE = "registration-contract.properties";
+    private static final String RESOURCE = "dataset-registration-cases.properties";
     private static final String DEFAULT_FORMAT = "csv";
     private static final String DEFAULT_QUERY = "FROM %s | LIMIT 1";
     private static final String SETTINGS_PREFIX = "settings.";
@@ -160,13 +160,11 @@ public final class RegistrationContract {
             if (key.startsWith("case.") == false) {
                 throw new IllegalStateException("unknown key [" + key + "] in [" + RESOURCE + "]; expected 'case.<name>.<attribute>'");
             }
-            String rest = key.substring("case.".length());
-            int dot = rest.indexOf('.');
-            if (dot < 0) {
-                throw new IllegalStateException("malformed key [" + key + "]; expected 'case.<name>.<attribute>'");
-            }
-            String name = rest.substring(0, dot);
-            String attribute = rest.substring(dot + 1);
+            // Split from the RIGHT. A case name is a dotted path -- dataset.setting.skip_rows.negative --
+            // so the first dot is part of the name, not the boundary. Splitting left put the whole
+            // hierarchy into the attribute and every namespaced case read as one case called "dataset".
+            String name = nameOf(key);
+            String attribute = key.substring("case.".length() + name.length() + 1);
             // settings.<key> is the one attribute that takes a qualifier, because a case may pin more
             // than one setting: the interesting refusals at registration are combinations that are each
             // valid alone, and a contract of one setting per case cannot express one.
@@ -251,6 +249,29 @@ public final class RegistrationContract {
             throw new IllegalStateException("[" + RESOURCE + "] declares no cases; an empty contract asserts nothing and passes");
         }
         return new RegistrationContract(parsed);
+    }
+
+    /**
+     * The case name inside a key, which is everything between {@code case.} and the attribute.
+     *
+     * <p>Names are dotted paths so the corpus can be read by subject rather than as one flat list:
+     * {@code dataset.setting.skip_rows.negative} sits beside its siblings and apart from
+     * {@code dataset.combination.probe_budget_exceeded}. The attribute is therefore the LAST segment,
+     * except for {@code settings.<key>}, where the key being registered is itself the last segment and
+     * the attribute is the two together.
+     */
+    private static String nameOf(String key) {
+        String rest = key.substring("case.".length());
+        int last = rest.lastIndexOf('.');
+        if (last < 0) {
+            throw new IllegalStateException("malformed key [" + key + "]; expected 'case.<name>.<attribute>'");
+        }
+        String head = rest.substring(0, last);
+        int previous = head.lastIndexOf('.');
+        if (previous >= 0 && head.substring(previous + 1).equals("settings")) {
+            return head.substring(0, previous);
+        }
+        return head;
     }
 
     private static String required(Properties props, String name, String attribute) {

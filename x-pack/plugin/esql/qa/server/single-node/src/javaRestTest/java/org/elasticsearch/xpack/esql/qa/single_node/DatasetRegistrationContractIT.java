@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.not;
  * hypothetical: the case list here includes two values of one setting whose refusals come from
  * different branches, a parse and a range check, which a status-only assertion cannot tell apart.
  *
- * <p>The cases come from {@code registration-contract.properties} rather than from this file, so adding
+ * <p>The cases come from {@code dataset-registration-cases.properties} rather than from this file, so adding
  * one is a line of declaration and the messages sit together where they can be re-read against the
  * components that emit them. Each case names the emitting symbol for exactly that reason.
  */
@@ -121,7 +121,7 @@ public class DatasetRegistrationContractIT extends ESRestTestCase {
             "blocked on " + contractCase.blockedBy() + " -- this case asserts behaviour the product does not have yet",
             contractCase.blocked()
         );
-        String dataset = "contract_" + contractCase.name();
+        String dataset = datasetNameFor(contractCase);
         // toUri(), not toString(): the endpoint requires a file:// URI, and a bare path is refused for
         // THAT rather than for the setting -- a 400 either way, which is what makes the message the
         // assertion. It also decides the case: the format is resolved from the resource's extension, and
@@ -153,7 +153,7 @@ public class DatasetRegistrationContractIT extends ESRestTestCase {
             "refused, but not for the declared reason -- a status-only check would have passed here. "
                 + "The message is emitted by ["
                 + contractCase.emitter()
-                + "]; if it moved, update registration-contract.properties from the code rather than the other way round.",
+                + "]; if it moved, update dataset-registration-cases.properties from the code rather than the other way round.",
             refused.getMessage(),
             containsString(contractCase.message())
         );
@@ -177,7 +177,7 @@ public class DatasetRegistrationContractIT extends ESRestTestCase {
             "blocked on " + contractCase.blockedBy() + " -- this case asserts behaviour the product does not have yet",
             contractCase.blocked()
         );
-        String dataset = "contract_" + contractCase.name();
+        String dataset = datasetNameFor(contractCase);
         String resource = resourceFor(contractCase);
 
         DatasetRegistry.putDataset(client(), dataset, SHARED_DS_NAME, resource, Map.copyOf(contractCase.settings()));
@@ -195,10 +195,21 @@ public class DatasetRegistrationContractIT extends ESRestTestCase {
         assertThat(
             "the query failed, but not for the declared reason. The message is emitted by ["
                 + contractCase.emitter()
-                + "]; if it moved, update registration-contract.properties from the code rather than the other way round.",
+                + "]; if it moved, update dataset-registration-cases.properties from the code rather than the other way round.",
             failed.getMessage(),
             containsString(contractCase.message())
         );
+    }
+
+    /**
+     * A dataset name derived from the case name.
+     *
+     * <p>Case names are dotted paths and dataset names are not, so the separators are folded. The case
+     * name still shows through, because a dataset left behind by a failing run has to say which case
+     * created it.
+     */
+    private static String datasetNameFor(RegistrationContract.Case declared) {
+        return "contract_" + declared.name().replace('.', '_');
     }
 
     /**

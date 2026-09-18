@@ -155,8 +155,21 @@ public class KoelnerPhonetik implements StringEncoder {
         List<String> parts = new ArrayList<>();
         parts.add(str.replaceAll("[^\\p{L}\\p{N}]", ""));
         if (primary == false) {
-            List<String> tmpParts = new ArrayList<>(Arrays.asList(str.split("[\\p{Z}\\p{C}\\p{P}]")));
-            int numberOfParts = tmpParts.size();
+            // Cap String.split() at MAX_VARIATIONS + 1 segments instead of splitting the whole token
+            // unbounded: without a limit, split() allocates a String and array/list slot per segment before
+            // the cap above ever gets a chance to apply, so a punctuation-heavy token with many segments
+            // would still force an allocation proportional to its segment count. The "+ 1" is a single extra
+            // slot used only to detect whether more segments exist beyond what we keep; per String.split's
+            // documented limit behavior, that slot may itself hold more than one unsplit trailing segment,
+            // but either way its mere presence means our kept batch isn't the token's complete segment list.
+            String[] rawParts = str.split("[\\p{Z}\\p{C}\\p{P}]", MAX_VARIATIONS + 1);
+            boolean moreSegmentsExist = rawParts.length > MAX_VARIATIONS;
+            int keptCount = moreSegmentsExist ? MAX_VARIATIONS : rawParts.length;
+            List<String> tmpParts = new ArrayList<>(Arrays.asList(rawParts).subList(0, keptCount));
+            // If more segments exist beyond what we kept, use a numberOfParts the loop below can never reach,
+            // since the "skip the final full-string concatenation" check it's used for only applies to the
+            // token's true last segment, which isn't in our truncated batch.
+            int numberOfParts = moreSegmentsExist ? Integer.MAX_VALUE : tmpParts.size();
             while (!tmpParts.isEmpty() && parts.size() < MAX_VARIATIONS) {
                 StringBuilder part = new StringBuilder();
                 for (int i = 0; i < tmpParts.size() && parts.size() < MAX_VARIATIONS; i++) {

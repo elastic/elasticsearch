@@ -108,6 +108,7 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
         out.writeNamedWriteableCollection(fields);
         out.writeNamedWriteable(filter);
         if (out.getTransportVersion().supports(WINDOW_INTERVAL)) {

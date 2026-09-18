@@ -145,6 +145,8 @@ public class ReplaceStatsFilteredOrNullAggWithEval extends OptimizerRules.Optimi
         if (aggFunction instanceof AnyNullIsNull || mapNullToValue(aggFunction) != null) {
             return aggFunction.fields().stream().anyMatch(field -> DataType.isNull(field.dataType()));
         }
+        // Instead of the allowlist [First, Last], this could benefit from a marker
+        // interface `FirstNullIsNull` or similar (comparable to `AnyNullIsNull`).
         if (aggFunction instanceof First || aggFunction instanceof Last) {
             return DataType.isNull(aggFunction.fields().getFirst().dataType());
         }

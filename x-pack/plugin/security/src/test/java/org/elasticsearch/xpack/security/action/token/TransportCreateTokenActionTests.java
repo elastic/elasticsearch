@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.action.token;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequestBuilder;
@@ -445,8 +444,9 @@ public class TransportCreateTokenActionTests extends ESTestCase {
 
         PlainActionFuture<CreateTokenResponse> future = new PlainActionFuture<>();
         action.doExecute(null, createTokenRequest, future);
-        final ElasticsearchException e = expectThrows(ElasticsearchException.class, future::actionGet);
+        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("OAuth2 token creation is not supported for service accounts"));
+        assertThat(e.status(), is(RestStatus.BAD_REQUEST));
     }
 
     public void testUserManagedServiceAccountGrantCreatesTokenWithoutRefreshToken() throws Exception {

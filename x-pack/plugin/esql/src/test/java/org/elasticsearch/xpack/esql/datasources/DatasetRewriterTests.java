@@ -892,12 +892,34 @@ public class DatasetRewriterTests extends ESTestCase {
         );
     }
 
+    public void testDateMathPatternMatchingARegisteredDatasetIsReachedWhenWildcardsMatchDatasetsOff() {
+        // Positive control for the sibling above. That test's assertFalse cannot tell "resolved the date math and
+        // found no dataset of that name" from "never resolved it at all": if isWildcardOrExclusion treated <...> as a
+        // wildcard, exactNames would skip it and the assertion would still pass. Registering a dataset under the name
+        // the same static produces makes the two distinguishable -- this returns true only if the pre-check really
+        // evaluates the expression. (Both resolutions read the clock microseconds apart, so they agree except across
+        // a UTC midnight.)
+        String resolved = IndexNameExpressionResolver.resolveDateMathExpression("<logs-{now/d}>");
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset(resolved, new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of(resolved, dataset));
+
+        assertTrue(
+            "the pre-check must evaluate the date math rather than skip it as a wildcard",
+            DatasetRewriter.anyPatternCouldMatchDataset(List.of("<logs-{now/d}>"), Set.of(resolved), false)
+        );
+        assertThat(
+            "and the relation must then be rewritten to reach that dataset",
+            rewriteWildcardsDisabled(relationOf("<logs-{now/d}>"), project),
+            instanceOf(UnresolvedExternalRelation.class)
+        );
+    }
+
     public void testLiteralPatternMatchingDatasetWithDateSuffixRewrites() {
         // A literal pattern that exactly matches a registered dataset whose name happens to contain
         // a date suffix should be rewritten to UnresolvedExternalRelation. This is the literal-match
         // case (no `<...>` expansion); the no-match date-math case is covered by
-        // testDateMathPatternReachesSlowPath above. A real date-math match-case would require pinning
-        // the resolver's clock, which the rewriter does not expose for tests.
+        // testDateMathPatternReachesSlowPath above, and the match case by the positive control directly above this.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset dataset = new Dataset("logs-2026-05-05", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs-2026-05-05", dataset));

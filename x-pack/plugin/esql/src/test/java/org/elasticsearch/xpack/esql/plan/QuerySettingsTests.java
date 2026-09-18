@@ -480,12 +480,7 @@ public class QuerySettingsTests extends ESTestCase {
         );
         assertThat(e.getMessage(), containsString("does not state the stack axis"));
 
-        DocsV3Support.SettingsDocsSupport.checkAppliesToIsSelfSufficient(
-            "some_setting",
-            "serverless: ga\nstack: unavailable",
-            true,
-            ""
-        );
+        DocsV3Support.SettingsDocsSupport.checkAppliesToIsSelfSufficient("some_setting", "serverless: ga\nstack: unavailable", true, "");
     }
 
     public void testEverySettingSatisfiesTheAppliesToRule() throws IllegalAccessException {

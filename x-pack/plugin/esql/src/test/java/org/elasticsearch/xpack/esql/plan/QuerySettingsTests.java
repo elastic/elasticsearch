@@ -471,15 +471,24 @@ public class QuerySettingsTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("declares both applies_to and since"));
     }
 
-    public void testAppliesToRefusesServerlessOnlyOnlyWhenItOmitsTheStackAxis() {
-        // serverlessOnly is functional -- QuerySettings gates resolution on it -- so the remedy is to state the stack
-        // axis, never to drop the flag. A declaration that states both axes is therefore accepted.
-        IllegalStateException e = expectThrows(
+    public void testAppliesToRefusesServerlessOnlyUnlessTheStackAxisSaysUnavailable() {
+        // serverlessOnly is functional -- applicableIn drops the setting when isServerless is false -- so the remedy is
+        // to state stack: unavailable, never to drop the flag.
+        IllegalStateException omitted = expectThrows(
             IllegalStateException.class,
             () -> DocsV3Support.SettingsDocsSupport.checkAppliesToIsSelfSufficient("some_setting", "serverless: ga", true, "")
         );
-        assertThat(e.getMessage(), containsString("does not state the stack axis"));
+        assertThat(omitted.getMessage(), containsString("does not state stack: unavailable"));
 
+        // Naming the axis is not enough: a stack value that contradicts applicableIn is the badge this rule exists to
+        // stop, and a predicate that only looked for "stack:" would publish it.
+        IllegalStateException contradicted = expectThrows(
+            IllegalStateException.class,
+            () -> DocsV3Support.SettingsDocsSupport.checkAppliesToIsSelfSufficient("some_setting", "serverless: ga\nstack: ga", true, "")
+        );
+        assertThat(contradicted.getMessage(), containsString("does not state stack: unavailable"));
+
+        // The accepting arm, proven by a call that returns: the axis states what applicableIn does.
         DocsV3Support.SettingsDocsSupport.checkAppliesToIsSelfSufficient("some_setting", "serverless: ga\nstack: unavailable", true, "");
     }
 

@@ -1560,14 +1560,15 @@ public abstract class DocsV3Support {
             if (appliesTo.isEmpty()) {
                 return;
             }
-            // serverlessOnly is functional, not documentation -- QuerySettings gates resolution on it -- so the fix is
-            // to state the stack axis in applies_to, never to drop the flag.
-            if (serverlessOnly && appliesTo.contains("stack:") == false) {
+            // serverlessOnly is functional, not documentation -- QuerySettings.applicableIn drops the setting when
+            // isServerless is false -- so the fix is to state stack: unavailable in applies_to, never to drop the flag.
+            // Testing that the axis is merely mentioned would accept stack: ga, which contradicts that gate.
+            if (serverlessOnly && appliesTo.contains("stack: unavailable") == false) {
                 throw new IllegalStateException(
                     "Setting ["
                         + name
-                        + "] is serverlessOnly but its applies_to does not state the stack axis, so the"
-                        + " stack: unavailable the badge would otherwise derive is lost. State stack: unavailable in applies_to."
+                        + "] is serverlessOnly but its applies_to does not state stack: unavailable, so the badge"
+                        + " would claim an availability on stack that QuerySettings refuses. State stack: unavailable in applies_to."
                 );
             }
             if (since.isEmpty() == false) {

@@ -2,7 +2,7 @@
 navigation_title: "Quickstart"
 description: "Step-by-step tutorial for setting up ES|QL Data Federation with a public S3 bucket, creating a dataset, and running your first federated query."
 applies_to:
-  stack: experimental =9.5
+  stack: experimental 9.5+
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -593,6 +593,8 @@ curl -X POST "${ELASTICSEARCH_URL}/_bulk" \
 ::::
 
 Now query both sources together. `FROM` resolves each name independently, whether it is an index, data stream, alias, [{{esql}} view](esql-views.md), or dataset. Use `METADATA _name` to see where each row came from:
+
+{applies_to}`stack: experimental 9.6+` `_name` is available from 9.6. On 9.5, use `METADATA _index`, which returns the dataset name for dataset rows in that version.
 
 ::::{tab-set}
 :group: surface

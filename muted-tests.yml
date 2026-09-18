@@ -132,6 +132,9 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=search.highlight/50_synthetic_source/keyword multi fvh}
   issue: https://github.com/elastic/elasticsearch/issues/159448
+- class: org.elasticsearch.xpack.inference.InferenceRestIT
+  method: test {p0=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
+  issue: https://github.com/elastic/elasticsearch/issues/159673
 
 # Examples:
 #

@@ -147,6 +147,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testHugeToBase64
   issue: https://github.com/elastic/elasticsearch/issues/159785
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
+  method: testHugeManyRepeat
+  issue: https://github.com/elastic/elasticsearch/issues/159786
 
 # Examples:
 #

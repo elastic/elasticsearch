@@ -90,8 +90,42 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
         @Nullable EndpointMetadata.ModelIdentity modelIdentity,
         @Nullable String fingerprint,
         List<EndpointMetadata.EndpointRegion> regions,
-        boolean deniedByRegionPolicy
+        boolean deniedByRegionPolicy,
+        @Nullable EndpointMetadata.Capabilities capabilities
     ) {
+
+        public AuthorizedEndpoint(
+            String id,
+            String modelName,
+            TaskTypeObject taskType,
+            String status,
+            @Nullable List<String> properties,
+            String releaseDate,
+            @Nullable String endOfLifeDate,
+            @Nullable Configuration configuration,
+            @Nullable EndpointMetadata.Display display,
+            @Nullable EndpointMetadata.ModelIdentity modelIdentity,
+            @Nullable String fingerprint,
+            List<EndpointMetadata.EndpointRegion> regions,
+            boolean deniedByRegionPolicy
+        ) {
+            this(
+                id,
+                modelName,
+                taskType,
+                status,
+                properties,
+                releaseDate,
+                endOfLifeDate,
+                configuration,
+                display,
+                modelIdentity,
+                fingerprint,
+                regions,
+                deniedByRegionPolicy,
+                null
+            );
+        }
 
         public static final String RELEASE_DATE = "release_date";
         public static final String END_OF_LIFE_DATE = "end_of_life_date";
@@ -107,6 +141,7 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
         private static final String FINGERPRINT = "fingerprint";
         private static final String REGIONS = "regions";
         private static final String DENIED_BY_REGION_POLICY = "denied_by_region_policy";
+        private static final String CAPABILITIES = "capabilities";
 
         @SuppressWarnings("unchecked")
         public static ConstructingObjectParser<AuthorizedEndpoint, Void> AUTHORIZED_ENDPOINT_PARSER = new ConstructingObjectParser<>(
@@ -125,7 +160,8 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
                 (EndpointMetadata.ModelIdentity) args[9],
                 (String) args[10],
                 args[11] != null ? (List<EndpointMetadata.EndpointRegion>) args[11] : List.of(),
-                args[12] != null && (Boolean) args[12]
+                args[12] != null && (Boolean) args[12],
+                (EndpointMetadata.Capabilities) args[13]
             )
         );
 
@@ -155,6 +191,26 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
                 new ParseField(REGIONS)
             );
             AUTHORIZED_ENDPOINT_PARSER.declareBoolean(optionalConstructorArg(), new ParseField(DENIED_BY_REGION_POLICY));
+            AUTHORIZED_ENDPOINT_PARSER.declareObject(
+                optionalConstructorArg(),
+                (p, c) -> parseCapabilitiesLeniently(p),
+                new ParseField(CAPABILITIES)
+            );
+        }
+
+        private static EndpointMetadata.Capabilities parseCapabilitiesLeniently(XContentParser parser) {
+            try {
+                return EndpointMetadata.Capabilities.parse(parser);
+            } catch (Exception e) {
+                logger.info(
+                    Strings.format(
+                        "Failed to parse the [%s] field from the Elastic Inference Service " + "authorization response; ignoring it",
+                        CAPABILITIES
+                    ),
+                    e
+                );
+                return null;
+            }
         }
     }
 

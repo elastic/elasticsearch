@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.parser;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.StatusHeuristic;
+import org.elasticsearch.inference.completion.Reasoning.ReasoningEffort;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.xpack.inference.common.parser.DateParser;
 import org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils;
@@ -18,7 +19,13 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
+import static org.elasticsearch.inference.metadata.EndpointMetadata.CAPABILITIES_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.Capabilities.CONTEXT_WINDOW_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.Capabilities.REASONING_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.ContextWindow.MAX_INPUT_TOKENS_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.ContextWindow.MAX_OUTPUT_TOKENS_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.DENIED_BY_REGION_POLICY_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.DISPLAY_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Display.MODEL_CREATOR_FIELD;
@@ -42,6 +49,8 @@ import static org.elasticsearch.inference.metadata.EndpointMetadata.ModelIdentit
 import static org.elasticsearch.inference.metadata.EndpointMetadata.ModelIdentity.TIER_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.ModelIdentity.VERSION_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.REGIONS_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.ReasoningCapability.DEFAULT_EFFORT_LEVEL_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.ReasoningCapability.SUPPORTED_EFFORT_LEVELS_FIELD_NAME;
 import static org.elasticsearch.xpack.inference.common.parser.EnumParser.extractEnum;
 import static org.elasticsearch.xpack.inference.common.parser.NumberParser.extractLong;
 import static org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils.isMapNullOrEmpty;
@@ -85,8 +94,18 @@ public final class EndpointMetadataParser {
             metadataMap,
             pathToKey(METADATA_FIELD_NAME, DENIED_BY_REGION_POLICY_FIELD_NAME)
         );
+        var capabilitiesMap = ServiceUtils.removeFromMap(metadataMap, CAPABILITIES_FIELD_NAME);
+        var capabilities = capabilitiesFromMap(capabilitiesMap, pathToKey(METADATA_FIELD_NAME, CAPABILITIES_FIELD_NAME));
 
-        var endpointMetadata = new EndpointMetadata(modelIdentity, heuristics, internal, display, regions, deniedByRegionPolicy);
+        var endpointMetadata = new EndpointMetadata(
+            modelIdentity,
+            heuristics,
+            internal,
+            display,
+            regions,
+            deniedByRegionPolicy,
+            capabilities
+        );
         return EndpointMetadata.EMPTY_INSTANCE.equals(endpointMetadata) ? EndpointMetadata.EMPTY_INSTANCE : endpointMetadata;
     }
 
@@ -194,6 +213,73 @@ public final class EndpointMetadataParser {
         }
         var value = ObjectParserUtils.removeAsType(map, DENIED_BY_REGION_POLICY_FIELD_NAME, root, Boolean.class);
         return value == null ? false : value;
+    }
+
+    /**
+     * Parse {@link EndpointMetadata.Capabilities} from the capabilities sub-map.
+     * Returns {@link EndpointMetadata.Capabilities#EMPTY_INSTANCE} if the map is null or empty.
+     */
+    static EndpointMetadata.Capabilities capabilitiesFromMap(@Nullable Map<String, Object> map, String root) {
+        if (isMapNullOrEmpty(map)) {
+            return EndpointMetadata.Capabilities.EMPTY_INSTANCE;
+        }
+        var reasoningMap = ServiceUtils.removeFromMap(map, REASONING_FIELD_NAME);
+        var contextWindowMap = ServiceUtils.removeFromMap(map, CONTEXT_WINDOW_FIELD_NAME);
+
+        var reasoning = reasoningCapabilityFromMap(reasoningMap, pathToKey(root, REASONING_FIELD_NAME));
+        var contextWindow = contextWindowFromMap(contextWindowMap, pathToKey(root, CONTEXT_WINDOW_FIELD_NAME));
+
+        if (reasoning == null && contextWindow == null) {
+            return EndpointMetadata.Capabilities.EMPTY_INSTANCE;
+        }
+        return new EndpointMetadata.Capabilities(reasoning, contextWindow);
+    }
+
+    /**
+     * Parse {@link EndpointMetadata.ReasoningCapability} from the reasoning sub-map.
+     * Returns {@code null} if the map is null or empty.
+     */
+    @Nullable
+    static EndpointMetadata.ReasoningCapability reasoningCapabilityFromMap(@Nullable Map<String, Object> map, String root) {
+        if (isMapNullOrEmpty(map)) {
+            return null;
+        }
+        var levelStrings = extractStringList(map, SUPPORTED_EFFORT_LEVELS_FIELD_NAME, root, List.of());
+        var levels = levelStrings.stream().flatMap(s -> {
+            try {
+                return Stream.of(ReasoningEffort.fromString(s));
+            } catch (Exception ignored) {
+                return Stream.empty();
+            }
+        }).toList();
+
+        var defaultLevelString = ObjectParserUtils.removeAsType(map, DEFAULT_EFFORT_LEVEL_FIELD_NAME, root, String.class);
+        ReasoningEffort defaultLevel = null;
+        if (defaultLevelString != null) {
+            try {
+                defaultLevel = ReasoningEffort.fromString(defaultLevelString);
+            } catch (Exception ignored) {}
+        }
+
+        return new EndpointMetadata.ReasoningCapability(levels, defaultLevel);
+    }
+
+    /**
+     * Parse {@link EndpointMetadata.ContextWindow} from the context_window sub-map.
+     * Returns {@code null} if the map is null or empty.
+     */
+    @Nullable
+    static EndpointMetadata.ContextWindow contextWindowFromMap(@Nullable Map<String, Object> map, String root) {
+        if (isMapNullOrEmpty(map)) {
+            return null;
+        }
+        var maxInputTokens = ObjectParserUtils.removeAsType(map, MAX_INPUT_TOKENS_FIELD_NAME, root, Integer.class);
+        var maxOutputTokens = ObjectParserUtils.removeAsType(map, MAX_OUTPUT_TOKENS_FIELD_NAME, root, Integer.class);
+
+        if (maxInputTokens == null && maxOutputTokens == null) {
+            return null;
+        }
+        return new EndpointMetadata.ContextWindow(maxInputTokens, maxOutputTokens);
     }
 
     /**

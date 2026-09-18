@@ -52,6 +52,7 @@ import static org.elasticsearch.xpack.inference.services.elastic.authorization.E
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -1374,6 +1375,74 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends EST
             response.authorizedEndpoints().get(0).modelIdentity(),
             is(new EndpointMetadata.ModelIdentity("elastic", "rainbow-sprinkles", "rainbow_tier", "rainbow_version"))
         );
+    }
+
+    public void testParse_ParsesCapabilities() throws IOException {
+        var json = Strings.format("""
+            {
+              "inference_endpoints": [
+                {
+                  "id": "test-model",
+                  "model_name": "test-model",
+                  "task_types": { "eis": "%s", "elasticsearch": "chat_completion" },
+                  "status": "ga",
+                  "release_date": "2025-01-01",
+                  "regions": [],
+                  "capabilities": {
+                    "reasoning": {
+                      "supported_effort_levels": ["high", "medium", "low", "none"],
+                      "default_effort_level": "medium"
+                    },
+                    "context_window": {
+                      "max_input_tokens": 1050000,
+                      "max_output_tokens": 128000
+                    }
+                  }
+                }
+              ]
+            }
+            """, EIS_CHAT_PATH);
+
+        var response = parse(json);
+        var capabilities = response.authorizedEndpoints().get(0).capabilities();
+
+        assertThat(
+            capabilities.reasoning().supportedEffortLevels(),
+            is(List.of(ReasoningEffort.HIGH, ReasoningEffort.MEDIUM, ReasoningEffort.LOW, ReasoningEffort.NONE))
+        );
+        assertThat(capabilities.reasoning().defaultEffortLevel(), is(ReasoningEffort.MEDIUM));
+        assertThat(capabilities.contextWindow().maxInputTokens(), is(1050000));
+        assertThat(capabilities.contextWindow().maxOutputTokens(), is(128000));
+    }
+
+    public void testParse_CapabilitiesWithUnknownEffortLevel_FiltersUnknownValues() throws IOException {
+        var json = Strings.format("""
+            {
+              "inference_endpoints": [
+                {
+                  "id": "test-model",
+                  "model_name": "test-model",
+                  "task_types": { "eis": "%s", "elasticsearch": "chat_completion" },
+                  "status": "ga",
+                  "release_date": "2025-01-01",
+                  "regions": [],
+                  "capabilities": {
+                    "reasoning": {
+                      "supported_effort_levels": ["max", "high"],
+                      "default_effort_level": "max"
+                    }
+                  }
+                }
+              ]
+            }
+            """, EIS_CHAT_PATH);
+
+        var response = parse(json);
+        assertThat(response.authorizedEndpoints().size(), is(1));
+
+        var capabilities = response.authorizedEndpoints().get(0).capabilities();
+        assertThat(capabilities.reasoning().supportedEffortLevels(), is(List.of(ReasoningEffort.HIGH)));
+        assertThat(capabilities.reasoning().defaultEffortLevel(), nullValue());
     }
 
     private ElasticInferenceServiceAuthorizationResponseEntity parse(String json) throws IOException {

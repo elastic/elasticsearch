@@ -1907,4 +1907,66 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
 
         assertThat(auth.getEndpoints(Set.of(id)).get(0), is(expectedEndpoint));
     }
+
+    public void testCreatesEndpointMetadataWithCapabilities() {
+        var id = "id1";
+        var name = "model1";
+        var url = "base_url";
+        var capabilities = new EndpointMetadata.Capabilities(
+            new EndpointMetadata.ReasoningCapability(
+                List.of(ReasoningEffort.HIGH, ReasoningEffort.MEDIUM, ReasoningEffort.LOW, ReasoningEffort.NONE),
+                ReasoningEffort.HIGH
+            ),
+            new EndpointMetadata.ContextWindow(1050000, 128000)
+        );
+
+        var response = new ElasticInferenceServiceAuthorizationResponseEntity(
+            List.of(
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    id,
+                    name,
+                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
+                    STATUS_GA,
+                    null,
+                    TEST_RELEASE_DATE,
+                    TEST_END_OF_LIFE_DATE,
+                    null,
+                    null,
+                    null,
+                    null,
+                    List.of(),
+                    false,
+                    capabilities
+                )
+            ),
+            Set.of()
+        );
+
+        var auth = ElasticInferenceServiceAuthorizationModel.of(response, url, FULLY_UPGRADED_COMPAT_SERVICE);
+        assertTrue(auth.isAuthorized());
+
+        var expectedEndpoint = new ElasticInferenceServiceCompletionModel(
+            id,
+            TaskType.CHAT_COMPLETION,
+            new ElasticInferenceServiceCompletionServiceSettings(name),
+            new ElasticInferenceServiceComponents(url),
+            new EndpointMetadata(
+                EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
+                new EndpointMetadata.Heuristics(
+                    List.of(),
+                    StatusHeuristic.fromString(STATUS_GA),
+                    TEST_RELEASE_DATE_PARSED,
+                    TEST_END_OF_LIFE_DATE_PARSED
+                ),
+                new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
+                EndpointMetadata.Display.EMPTY_INSTANCE,
+                List.of(),
+                false,
+                capabilities
+            ),
+            ElasticInferenceServiceChatCompletionTaskSettings.EMPTY
+        );
+
+        assertThat(auth.getEndpoints(Set.of(id)).get(0), is(expectedEndpoint));
+    }
 }

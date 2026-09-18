@@ -53,7 +53,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Every construct the translator attempts, run against a mapped index and a dataset holding the same rows: per-field
- * constructs on every column in every bool context, fieldless ones once per context. {@code text} and {@code version}
+ * constructs on every column in every bool context, the rest — {@code match_all}, {@code match_none}, the
+ * {@code multi_match} forms and an unsupported clause beside a {@code term} — once per context. {@code text} and {@code version}
  * are not in the fixture; {@code RequestFilterGoldenTests} pins those.
  *
  * <p>Two properties on every filter: the dataset returns everything the index returns, and where the whole filter

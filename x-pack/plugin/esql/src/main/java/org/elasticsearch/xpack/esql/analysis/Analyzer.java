@@ -221,6 +221,7 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -1380,7 +1381,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
 
-            return p.withResolvedFields(resolvedFields, DenseVector.generatedAttributesFor(p.source(), resolvedFields));
+            return p.withResolvedFields(resolvedFields, DenseVector.generatedAttributesFor(p.source(), resolvedFields, p.naming()));
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {
@@ -4397,13 +4398,35 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // The parent plans that reference these attributes need to be updated accordingly.
             List<Attribute> updatedUnionAllOutput = new ArrayList<>();
 
+            // Build the child→parent map once, using identity comparison so that two structurally-equal
+            // but distinct plan node instances are never collapsed into the same entry.
+            Map<LogicalPlan, LogicalPlan> parentOf = new IdentityHashMap<>();
+            plan.forEachDown(LogicalPlan.class, p -> {
+                for (LogicalPlan child : p.children()) {
+                    parentOf.put(child, p);
+                }
+            });
+
+            // Pre-build a lookup from each UnionAll's output-attribute-id set to the original instance.
+            // transformUp hands back a *rebuilt* outer UnionAll when an inner one changes; we need the
+            // original instance to perform a valid IdentityHashMap lookup in parentOf.
+            Map<Set<NameId>, UnionAll> originalUnionAllByOutputIds = new HashMap<>();
+            plan.forEachDown(UnionAll.class, ua -> {
+                Set<NameId> ids = ua.output().stream().map(Attribute::id).collect(Collectors.toSet());
+                originalUnionAllByOutputIds.put(ids, ua);
+            });
+
             // First push down the conversion functions into the UnionAll branches
-            LogicalPlan planWithConvertFunctionsPushedDown = plan.transformUp(
-                UnionAll.class,
-                unionAll -> unionAll.childrenResolved()
-                    ? maybePushDownConvertFunctions(unionAll, plan, convertFunctionsToAttributes, context)
-                    : unionAll
-            );
+            LogicalPlan planWithConvertFunctionsPushedDown = plan.transformUp(UnionAll.class, unionAll -> {
+                if (unionAll.childrenResolved() == false) {
+                    return unionAll;
+                }
+                // transformUp may hand us a rebuilt instance (when a nested UnionAll changed its output).
+                // Find the original by matching output attribute ids to get a valid IdentityHashMap entry.
+                Set<NameId> outputIds = unionAll.output().stream().map(Attribute::id).collect(Collectors.toSet());
+                UnionAll originalUnionAll = originalUnionAllByOutputIds.getOrDefault(outputIds, unionAll);
+                return maybePushDownConvertFunctions(unionAll, originalUnionAll, parentOf, convertFunctionsToAttributes, context);
+            });
 
             // Carry over the synthetic convert-function attributes added to UnionAll output through Project above it.
             if (convertFunctionsToAttributes.isEmpty() == false) {
@@ -4440,12 +4463,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          */
         private static LogicalPlan maybePushDownConvertFunctions(
             UnionAll unionAll,
-            LogicalPlan plan,
+            UnionAll originalUnionAll,
+            Map<LogicalPlan, LogicalPlan> parentOf,
             Map<AbstractConvertFunction, Attribute> convertFunctionsToAttributes,
             AnalyzerContext context
         ) {
-            // Collect all conversion functions that convert the UnionAll outputs to a different type
-            Map<String, Set<AbstractConvertFunction>> oldOutputToConvertFunctions = collectConvertFunctions(unionAll, plan);
+            // Collect all conversion functions that convert the UnionAll outputs to a different type.
+            // Uses the original UnionAll instance for IdentityHashMap lookup correctness.
+            Map<String, Set<AbstractConvertFunction>> oldOutputToConvertFunctions = collectConvertFunctions(originalUnionAll, parentOf);
 
             if (oldOutputToConvertFunctions.isEmpty()) { // nothing to push down
                 return unionAll;
@@ -4515,19 +4540,44 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         /**
          * Collect all conversion functions in the plan that convert the unionAll outputs to a different type,
          * the keys are the name of the old/existing attributes in the unionAll output, the values are all the conversion functions.
+         * <p>
+         * Walks <em>upward</em> from the {@code UnionAll} using a pre-built child→parent map (identity-keyed),
+         * visiting only nodes on the direct path from the {@code UnionAll} to the root. Stops after visiting
+         * the first {@link Aggregate}: grouping keys preserve their identifiers through an aggregation, so a
+         * conversion sitting above the aggregation would falsely match a union output attribute by name and id
+         * even though it reads aggregate output rather than a union branch column. The sibling rule
+         * {@link ResolveUnionTypes} carries the same guard via its {@code isAfterAggregate} flag.
+         * <p>
+         * Expressions inside the {@code Aggregate} itself (e.g. aggregate arguments) are collected before the
+         * walk stops — those DO reference union branch columns and are valid to push down.
+         *
+         * @param unionAll   the original {@code UnionAll} instance (identity key in {@code parentOf})
+         * @param parentOf   child→parent map built from the original plan with {@link IdentityHashMap}
          */
-        private static Map<String, Set<AbstractConvertFunction>> collectConvertFunctions(UnionAll unionAll, LogicalPlan plan) {
+        private static Map<String, Set<AbstractConvertFunction>> collectConvertFunctions(
+            UnionAll unionAll,
+            Map<LogicalPlan, LogicalPlan> parentOf
+        ) {
             Map<String, Set<AbstractConvertFunction>> convertFunctions = new HashMap<>();
-            plan.forEachExpressionDown(AbstractConvertFunction.class, f -> {
-                if (f.field() instanceof Attribute attr) {
-                    // get the attribute from the UnionAll output by name and id
-                    unionAll.output()
-                        .stream()
-                        .filter(a -> a.name().equals(attr.name()) && a.id() == attr.id())
-                        .findFirst()
-                        .ifPresent(unionAllAttr -> convertFunctions.computeIfAbsent(attr.name(), k -> new HashSet<>()).add(f));
+            LogicalPlan current = parentOf.get(unionAll);
+            while (current != null) {
+                current.forEachExpression(AbstractConvertFunction.class, f -> {
+                    if (f.field() instanceof Attribute attr) {
+                        // get the attribute from the UnionAll output by name and id
+                        unionAll.output()
+                            .stream()
+                            .filter(a -> a.name().equals(attr.name()) && a.id() == attr.id())
+                            .findFirst()
+                            .ifPresent(unionAllAttr -> convertFunctions.computeIfAbsent(attr.name(), k -> new HashSet<>()).add(f));
+                    }
+                });
+                if (current instanceof Aggregate) {
+                    // Parent plans see aggregate output, not union branch columns, even when a grouping key
+                    // preserves the same name and id. Stop here, as ResolveUnionTypes does for its isAfterAggregate guard.
+                    break;
                 }
-            });
+                current = parentOf.get(current);
+            }
             return convertFunctions;
         }
 
@@ -4632,21 +4682,41 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (convertFunctionsToAttributes.isEmpty()) {
                 return plan;
             }
-            return plan.transformExpressionsUp(AbstractConvertFunction.class, convertFunction -> {
-                if (convertFunction.field() instanceof Attribute attr) {
-                    for (Map.Entry<AbstractConvertFunction, Attribute> entry : convertFunctionsToAttributes.entrySet()) {
-                        AbstractConvertFunction candidate = entry.getKey();
-                        Attribute replacement = entry.getValue();
-                        if (candidate == convertFunction
-                            && candidate.field() instanceof Attribute candidateAttr
-                            && candidateAttr.id() == attr.id()) {
-                            // Make sure to match by attribute id, as ReferenceAttribute with the same name
-                            // but with different id might be considered equal
-                            return replacement;
+            // Process each plan node separately so we can gate replacement on whether the synthetic
+            // attribute is actually produced by the node's direct children. This prevents replacing a
+            // conversion that sits *above* an Aggregate (e.g. EVAL g = TO_STRING(gender) above STATS):
+            // the replacement attribute lives in the UnionAll output but is not propagated through the
+            // Aggregate output, so replacing above the Aggregate would introduce an unreachable reference.
+            //
+            // Match by equality, not identity: the same conversion can occur several times in the plan
+            // (e.g. twice in one WHERE), while collectConvertFunctions dedupes them into a single pushed-down
+            // entry. An occurrence that's left unreplaced would be re-pushed-down on every pass, preventing
+            // the Resolution batch from converging.
+            return plan.transformUp(LogicalPlan.class, node -> {
+                Set<NameId> childOutputIds = node.children()
+                    .stream()
+                    .flatMap(c -> c.output().stream())
+                    .map(Attribute::id)
+                    .collect(Collectors.toSet());
+                return node.transformExpressionsOnlyUp(AbstractConvertFunction.class, convertFunction -> {
+                    if (convertFunction.field() instanceof Attribute attr) {
+                        for (Map.Entry<AbstractConvertFunction, Attribute> entry : convertFunctionsToAttributes.entrySet()) {
+                            AbstractConvertFunction candidate = entry.getKey();
+                            Attribute replacement = entry.getValue();
+                            if (candidate.equals(convertFunction)
+                                && candidate.field() instanceof Attribute candidateAttr
+                                && candidateAttr.id() == attr.id()
+                            // Make sure to match by attribute id, as ReferenceAttribute with the same
+                            // name but a different id might be considered equal.
+                            // Only replace when the replacement attribute flows from a direct child:
+                            // it is in the UnionAll output, so it must have been carried to this level.
+                                && childOutputIds.contains(replacement.id())) {
+                                return replacement;
+                            }
                         }
                     }
-                }
-                return convertFunction;
+                    return convertFunction;
+                });
             });
         }
 

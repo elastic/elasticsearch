@@ -57,4 +57,16 @@ public interface SourceBatch extends Releasable, Accountable {
      * Estimates the bytes this batch contributes to the Lucene indexing buffer.
      */
     int estimatedBytes();
+
+    /**
+     * Returns {@code true} if every present row in column {@code columnIndex} is either absent, JSON
+     * {@code null}, or an empty object ({@code {}}). When {@code true}, the column carries no indexable
+     * value and can be safely ignored during batch mapper resolution.
+     *
+     * <p>The default implementation returns {@code false} (conservative: treat as non-empty). Format-aware
+     * implementations override this to inspect column data directly.
+     */
+    default boolean isEmptyObjectColumn(int columnIndex) {
+        return false;
+    }
 }

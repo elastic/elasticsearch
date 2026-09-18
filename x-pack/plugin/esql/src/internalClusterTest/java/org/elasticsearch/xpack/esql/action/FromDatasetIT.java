@@ -20,6 +20,7 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.View;
@@ -33,10 +34,13 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -68,6 +72,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -170,132 +175,11 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * Names every dataset a {@code testXxx} body PUTs via the raw {@link PutDatasetAction} (our tests carry declared
-     * mappings, which the base {@code registerDataset} helper does not model). New tests must register their dataset
-     * name here so the SUITE-scoped cluster doesn't carry state across methods — {@link #cleanupRawDatasets} deletes
-     * them (the base {@code cleanupRegistry} only tears down datasets created through its own helpers).
+     * File-backed {@code local} data source so PUT goes through {@code FileDataSourceValidator}
+     * and materializes omitted {@code schema_resolution} as {@code first_file_wins}. The {@code test}
+     * validator used by {@code local_ds} is a pass-through and stores a missing key (legacy hydrate).
      */
-    private static final Set<String> CREATED_DATASETS = Set.of(
-        "employees",
-        "employees_alt",
-        "logs_dataset",
-        "events_hive",
-        "employees_external",
-        "employees_mixed",
-        "stats_ds",
-        "employees_strict",
-        "employees_nonstrict",
-        "employees_strict_multi",
-        "employees_nonstrict_multi",
-        "employees_rename_strict",
-        "employees_headerless_strict",
-        "employees_headerless_dynamic",
-        "employees_absent_warn",
-        "employees_parity_strict",
-        "employees_parity_dynamic",
-        "employees_order_strict",
-        "employees_order_dynamic",
-        "employees_rename_nonstrict",
-        "employees_rename_keep",
-        "employees_ndjson_rename_strict",
-        "employees_ndjson_rename_nonstrict",
-        "employees_parquet_rename",
-        "employees_rename_multi",
-        "employees_swap",
-        "employees_id_from_col",
-        "employees_id_bad_path",
-        "employees_id_renamed",
-        "employees_strict_hive",
-        "employees_strict_hive_collide",
-        "employees_parquet_type_conflict",
-        "employees_strict_wrong_order",
-        "logs_csv_strict",
-        "logs_csv_nonstrict",
-        "logs_csv_filelevel",
-        "logs_csv_iso",
-        "logs_parquet_format",
-        "logs_ndjson",
-        "logs_csv_rename",
-        "logs_csv_gz",
-        "logs_csv_gz_strict",
-        "logs_tsv_gz_strict",
-        "logs_ndjson_gz_strict",
-        "logs_csv_gz_strict_multi",
-        "logs_parquet_strict_format",
-        "logs_noext_strict",
-        "logs_noext_parquet_strict",
-        "logs_noext_parquet_strict_sr",
-        "employees_extensionless",
-        "logs_id_partition",
-        "logs_partition_collide_nonstrict",
-        "logs_partition_collide_none",
-        "logs_partition_collide_path",
-        "employees_strict_coerce",
-        "employees_strict_uncoercible",
-        "employees_strict_coerce_multi",
-        "employees_int_to_long",
-        "employees_declared_narrow",
-        "logs_parquet_string_date",
-        "coerced_long_to_double",
-        "logs_csv_equiv",
-        "logs_parquet_equiv",
-        "long_csv_equiv",
-        "long_parquet_equiv",
-        "typed_strings_parquet",
-        "empty_string_double",
-        "logs_deferred_coerce",
-        "logs_bad_date_token",
-        "logs_bad_date_failfast",
-        "logs_csv_bad_date_failfast",
-        "logs_ndjson_bad_date_failfast",
-        "logs_ndjson_bad_date_permissive",
-        "employees_divergent_multi",
-        "tsv_declared_type",
-        "tsv_declared_date",
-        "tsv_declared_rename",
-        "mapped_ds_for_view",
-        "mapped_ds_for_subquery",
-        "ndjson_mv_coerce",
-        "logs_ts_declared_long",
-        "logs_date_inferred",
-        "rp_micros",
-        "rp_nanos",
-        "rp_millis",
-        "rp_bare_s",
-        "rp_bare_ms",
-        "rp_date",
-        "rpn_bare_ns",
-        "rpn_bare_s",
-        "rpn_micros",
-        "rp_prune_s",
-        "rpn_prune_s",
-        "scale_diff_a",
-        "scale_diff_b",
-        "scale_diff_c",
-        "scale_diff_d",
-        "scale_diff_e",
-        "scale_diff_f",
-        "scale_diff_g",
-        "scale_xdecl_seconds",
-        "scale_xdecl_millis",
-        "cb_inferred",
-        "cb_nonstrict",
-        "cb_strict",
-        "cb_ndjson_inferred",
-        "cb_ndjson_nonstrict",
-        "cb_ndjson_strict",
-        "epoch_ovf_pq_null",
-        "epoch_ovf_pq_skip",
-        "epoch_ovf_pq_fail",
-        "epoch_ovf_csv_null",
-        "epoch_ovf_csv_skip",
-        "epoch_ovf_csv_fail",
-        "epoch_ovf_nj_null",
-        "epoch_ovf_nj_skip",
-        "epoch_ovf_nj_fail",
-        "employees_parquet_absent_warn",
-        "employees_ndjson_absent_warn"
-    );
+    private static final String FILE_DS = "file_ds";
 
     /**
      * Names every {@code testXxx} body creates via {@link PutViewAction}. As with datasets, the SUITE-scoped
@@ -307,7 +191,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void cleanupViews() throws Exception {
         for (String view : CREATED_VIEWS) {
             try {
-                client().execute(DeleteViewAction.INSTANCE, deleteViewRequest(view)).get(30, java.util.concurrent.TimeUnit.SECONDS);
+                client().execute(DeleteViewAction.INSTANCE, deleteViewRequest(view)).actionGet(30, SECONDS);
             } catch (ResourceNotFoundException ignored) {
                 // already deleted by the test itself
             } catch (Exception e) {
@@ -317,29 +201,30 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * Tears down the datasets our tests create through the raw {@link PutDatasetAction} (they carry declared mappings,
-     * which the base {@code registerDataset} helper does not model, so they are not in the base registry). The base
-     * {@code cleanupRegistry} runs alongside this and clears anything created through its own helpers; a distinct name
-     * keeps both from overriding each other.
+     * Tears down every dataset in cluster state, not just those the base {@code registerDataset} helper recorded: tests
+     * here PUT through the raw {@link PutDatasetAction} (declared mappings the helper does not model), and a
+     * hand-maintained allowlist of their names kept drifting, leaking datasets into a later {@code FROM logs_*} on this
+     * SUITE-scoped cluster. A distinct name keeps this from overriding the base {@code cleanupRegistry}.
      */
     @After
     public void cleanupRawDatasets() throws Exception {
-        for (String ds : CREATED_DATASETS) {
+        GetDatasetAction.Request allDatasets = new GetDatasetAction.Request(TIMEOUT);
+        allDatasets.indices("*");
+        for (Dataset ds : client().execute(GetDatasetAction.INSTANCE, allDatasets).get(30, SECONDS).getDatasets()) {
             try {
-                client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(ds)).get(30, java.util.concurrent.TimeUnit.SECONDS);
+                client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(ds.name())).actionGet(30, SECONDS);
+            } catch (Exception e) {
+                logger.warn("dataset cleanup [{}] failed", ds.name(), e);
+            }
+        }
+        for (String dataSource : List.of("local_ds", FILE_DS)) {
+            try {
+                client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dataSource)).actionGet(30, SECONDS);
             } catch (ResourceNotFoundException ignored) {
                 // already deleted by the test itself
             } catch (Exception e) {
-                logger.warn("dataset cleanup [{}] failed", ds, e);
+                logger.warn("data source cleanup [{}] failed", dataSource, e);
             }
-        }
-        try {
-            client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest("local_ds"))
-                .get(30, java.util.concurrent.TimeUnit.SECONDS);
-        } catch (ResourceNotFoundException ignored) {
-            // already deleted by the test itself
-        } catch (Exception e) {
-            logger.warn("data source cleanup [local_ds] failed", e);
         }
     }
 
@@ -1526,11 +1411,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void testStrictDatasetWithUnknowableFormatFailsCleanlyNotNpe() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
-        // A strict dataset over an extensionless path with no `format` setting cannot resolve a reader. Strict now
-        // derives the sourceType through the registry (FormatNameResolver.resolveFormatName -> byExtension), which fails
-        // loud at resolution with a clean IllegalArgumentException — the shared unreadable-object message, which
-        // names the object, why it cannot be read, and the [format] remedy — propagated unwrapped as a 4xx,
-        // never an NPE-wrapped 500.
+        // A strict dataset over an extensionless path with no `format` setting cannot resolve a reader. The
+        // pattern implies zero formats, so resolution fails with the shared "set [format]" message — never
+        // an NPE-wrapped 500.
         Path noExt = createTempFile("dataset-noext-", "");
         Files.writeString(noExt, "id\n1\n");
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
@@ -1555,9 +1438,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM logs_noext_strict | LIMIT 1"), TIMEOUT).close());
         assertThat(e.getMessage(), not(containsString("NullPointerException")));
-        assertThat(e.getMessage(), containsString("Cannot determine how to read"));
-        assertThat(e.getMessage(), containsString("no file extension"));
-        assertThat(e.getMessage(), containsString("[format]"));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage(noExt.toUri().toString())));
     }
 
     /**
@@ -3010,6 +2891,26 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         return baos.toByteArray();
     }
 
+    private byte[] int32FixtureBytes(String column, int... values) throws IOException {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT32).named(column).named("test");
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (int value : values) {
+                Group g = factory.newGroup();
+                g.add(column, value);
+                writer.write(g);
+            }
+        }
+        return baos.toByteArray();
+    }
+
     private byte[] dateFixtureBytes(int... days) throws IOException {
         MessageType schema = MessageTypeParser.parseMessageType("message logs { required int32 d (DATE); }");
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -3352,6 +3253,74 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             // micros -> millis: the .456 microsecond remainder truncates away
             assertThat(rows.get(0).get(0), equalTo(1704067200_123L));
         }
+    }
+
+    /**
+     * {@code TIMESTAMP(MICROS)} infers as {@code date_nanos}. A {@code TO_DATETIME} literal is the other date
+     * type, so reader prune and stats fold decline; {@code FilterExec} still keeps the matching row.
+     */
+    public void testDatetimeLiteralFiltersInferredTimestampMicros() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path parquet = createTempDir().resolve("ts_micros.parquet");
+        Files.write(parquet, timestampMicrosFixtureBytes(1767312000_000_000L));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "mixed_ts_inferred",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    null
+                )
+            )
+        );
+        String iso = "2026-01-02T00:00:00Z";
+        assertQ(
+            "matching date_nanos literal",
+            "FROM mixed_ts_inferred | WHERE ts == TO_DATE_NANOS(\"" + iso + "\") | STATS c = COUNT(*)",
+            1L
+        );
+        assertQ("datetime equals", "FROM mixed_ts_inferred | WHERE ts == TO_DATETIME(\"" + iso + "\") | STATS c = COUNT(*)", 1L);
+        assertQ("datetime lte", "FROM mixed_ts_inferred | WHERE ts <= TO_DATETIME(\"" + iso + "\") | STATS c = COUNT(*)", 1L);
+        assertQ("datetime in", "FROM mixed_ts_inferred | WHERE ts IN (TO_DATETIME(\"" + iso + "\")) | STATS c = COUNT(*)", 1L);
+        assertQ(
+            "datetime range",
+            "FROM mixed_ts_inferred | WHERE ts >= TO_DATETIME(\"2026-01-01T00:00:00Z\") AND ts <= TO_DATETIME(\"2026-01-03T00:00:00Z\")"
+                + " | STATS c = COUNT(*)",
+            1L
+        );
+    }
+
+    /**
+     * An inferred {@code integer} compared to a {@code double} or {@code long} literal must stay in
+     * {@code FilterExec}; a column-typed bound would drop the matching row.
+     */
+    public void testNumericLiteralFiltersInferredInteger() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path parquet = createTempDir().resolve("id.parquet");
+        Files.write(parquet, int32FixtureBytes("i", 5));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "mixed_int_inferred",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    null
+                )
+            )
+        );
+        assertQ("integer lt double", "FROM mixed_int_inferred | WHERE i < 5.5 | STATS c = COUNT(*)", 1L);
+        assertQ("integer lte long", "FROM mixed_int_inferred | WHERE i <= 3000000000 | STATS c = COUNT(*)", 1L);
+        assertQ("integer in int and double", "FROM mixed_int_inferred | WHERE i IN (5, 5.5) | STATS c = COUNT(*)", 1L);
     }
 
     /** Declares {@code {ts: date, format: <the composite>}} over one dataset and asserts ts recovers EPOCH_SECOND_MILLIS. */
@@ -5678,7 +5647,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     "local_ds",
                     root.toUri() + "**/*.csv",
                     null,
-                    new HashMap<>(Map.of("format", "csv", "hive_partitioning", true)),
+                    new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
                     mapping
                 )
             )
@@ -5766,7 +5735,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     "local_ds",
                     root.toUri() + "**/*.csv",
                     null,
-                    new HashMap<>(Map.of("format", "csv", "hive_partitioning", true)),
+                    new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
                     mapping
                 )
             )
@@ -5794,7 +5763,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     "local_ds",
                     root.toUri() + "**/*.csv",
                     null,
-                    new HashMap<>(Map.of("format", "csv", "hive_partitioning", true)),
+                    new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
                     pathMapping
                 )
             )
@@ -5831,7 +5800,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     "local_ds",
                     root.toUri() + "**/*.csv",
                     null,
-                    new HashMap<>(Map.of("format", "csv", "hive_partitioning", true)),
+                    new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
                     strictMapping
                 )
             )
@@ -5869,7 +5838,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     "local_ds",
                     root.toUri() + "**/*.csv",
                     null,
-                    new HashMap<>(Map.of("format", "csv", "hive_partitioning", true)),
+                    new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
                     collidingMapping
                 )
             )
@@ -5979,6 +5948,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
     private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
         return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings));
+    }
+
+    private static PutDataSourceAction.Request putLocalFileDataSourceRequest() {
+        return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, FILE_DS, "local", null, new HashMap<>());
     }
 
     /**
@@ -6211,5 +6184,433 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void testDeclaredUnsignedLongReadsFromNdjson() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         assertDeclaredUnsignedLongReadsFullMagnitude("ul_ndjson", ndjsonUnsignedLongFixture, "ndjson");
+    }
+
+    public void testFirstFileWinsWarmAggregateMatchesTheScanOnDivergentColumnTypes() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        putFirstFileWinsGlob("drift_pq_type_ffw", dir);
+
+        // The INTEGER anchor cannot represent part-b's LONG, so that file's x is read as null.
+        // Parquet emits a SkipWarnings summary plus one per-column detail; the file path is a temp URI.
+        List<String> warnings = collectWarningsContaining("FROM drift_pq_type_ffw | KEEP x | SORT x", "incompatible with planner type");
+        assertThat(warnings, hasSize(2));
+        assertThat(
+            warnings,
+            hasItem(containsString("has columns whose on-disk type is incompatible with planner type; they are returned as null"))
+        );
+        assertThat(warnings, hasItem(containsString("part-b.parquet")));
+        assertThat(warnings, hasItem(containsString("Column [x] in file [")));
+        assertThat(
+            warnings,
+            hasItem(containsString("has type [LONG] incompatible with planner type [INTEGER]; returning nulls for this column"))
+        );
+        assertThat(columnValues("FROM drift_pq_type_ffw | KEEP x | SORT x"), containsInAnyOrder(1, 2, null, null));
+        assertThat(firstRowOf("FROM drift_pq_type_ffw | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        assertThat(firstRowOf("FROM drift_pq_type_ffw | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        assertThat(documentsReadBy("FROM drift_pq_type_ffw | STATS c = COUNT(x)"), equalTo(0L));
+        assertThat(
+            firstRowOf("FROM drift_pq_type_ffw | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
+            equalTo(List.of(1, 2, 2L))
+        );
+        assertThat(firstRowOf("FROM drift_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(List.of(1, 2, 2L)));
+        assertThat(documentsReadBy("FROM drift_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
+        assertThat(firstRowOf("FROM drift_pq_type_ffw | KEEP x | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        assertThat(
+            firstRowOf("FROM drift_pq_type_ffw | KEEP x | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
+            equalTo(List.of(1, 2, 2L))
+        );
+        assertThat(documentsReadBy("FROM drift_pq_type_ffw | KEEP x | STATS c = COUNT(x)"), equalTo(0L));
+    }
+
+    public void testFirstFileWinsColdIsNullCountMatchesTheScanOnDivergentColumnTypes() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, List<Object>> actual = new LinkedHashMap<>();
+        Map<String, List<Object>> expected = new LinkedHashMap<>();
+        for (String aggregation : List.of("STATS c = COUNT(*)", "STATS c = COUNT(*) BY k = 1 | KEEP c")) {
+            Path dir = createTempDir();
+            writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+            writeParquet(
+                dir.resolve("part-b.parquet"),
+                "message m { required int64 x; }",
+                2,
+                1024,
+                (g, i) -> g.add("x", i == 0 ? -10L : 20L)
+            );
+            putFirstFileWinsGlob("drift_pq_cold_null_count_ffw", dir);
+
+            // Each query gets new file paths so neither schema nor footer caches can be warmed by another query.
+            actual.put(aggregation, columnValues("FROM drift_pq_cold_null_count_ffw | WHERE x IS NULL | " + aggregation));
+            List<Object> scan = columnValues("FROM drift_pq_cold_null_count_ffw | KEEP x | SORT x");
+            assertThat(scan, containsInAnyOrder(1, 2, null, null));
+            expected.put(aggregation, List.of(scan.stream().filter(Objects::isNull).count()));
+        }
+        assertThat(actual, equalTo(expected));
+    }
+
+    public void testFirstFileWinsColdInlineStatsMatchesTheScanOnDivergentColumnTypes() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        putFirstFileWinsGlob("drift_pq_cold_inline_ffw", dir);
+
+        List<List<Object>> rows;
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    "FROM drift_pq_cold_inline_ffw | INLINE STATS c = COUNT(x), mn = MIN(x), mx = MAX(x) | KEEP x, c, mn, mx"
+                ),
+                TIMEOUT
+            )
+        ) {
+            rows = getValuesList(response);
+        }
+        assertThat(rows.stream().map(row -> row.getFirst()).toList(), containsInAnyOrder(1, 2, null, null));
+        for (List<Object> row : rows) {
+            assertThat("cold INLINE STATS rows: " + rows, row.subList(1, 4), equalTo(List.of(2L, 1, 2)));
+        }
+    }
+
+    public void testFirstFileWinsWarmAggregateKeepsWideningFileValues() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        putFirstFileWinsGlob("widen_pq_type_ffw", dir);
+
+        assertThat(columnValues("FROM widen_pq_type_ffw | KEEP x | SORT x"), containsInAnyOrder(-10L, 1L, 2L, 20L));
+        assertThat(
+            firstRowOf("FROM widen_pq_type_ffw | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
+            equalTo(List.of(-10L, 20L, 4L))
+        );
+        assertThat(firstRowOf("FROM widen_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(List.of(-10L, 20L, 4L)));
+        // A detection that keys on "the types differ" rather than "the anchor cannot represent the file's type"
+        // would drop this to a scan.
+        assertThat(documentsReadBy("FROM widen_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
+    }
+
+    public void testPutOmittingSchemaResolutionStoresFirstFileWinsAndNoOpPutComparesEqual() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putLocalFileDataSourceRequest()));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("format", "parquet");
+        settings.put("file_sort_by", "name");
+        PutDatasetAction.Request put = putDatasetRequest("omit_schema_put_get", FILE_DS, StoragePath.fileUri(dir) + "/*.parquet", settings);
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, put));
+        Dataset first = getDataset("omit_schema_put_get");
+        assertThat(first.settings().get("schema_resolution"), equalTo("first_file_wins"));
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, put));
+        Dataset second = getDataset("omit_schema_put_get");
+        assertThat(second, equalTo(first));
+        assertThat(second.settings().get("schema_resolution"), equalTo("first_file_wins"));
+    }
+
+    public void testOmittedSchemaResolutionWarmAggregateMatchesTheScanOnDivergentColumnTypes() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putLocalFileDataSourceRequest()));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        putOmittedSchemaResolutionGlob("drift_pq_type_default", dir);
+
+        List<String> scanWarnings = collectWarningsContaining(
+            "FROM drift_pq_type_default | KEEP x | SORT x",
+            "incompatible with planner type"
+        );
+        assertThat(scanWarnings, not(empty()));
+        assertThat(firstRowOf("FROM drift_pq_type_default | KEEP x | SORT x"), equalTo(List.of(1)));
+        assertThat(firstRowOf("FROM drift_pq_type_default | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        assertThat(firstRowOf("FROM drift_pq_type_default | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        assertThat(documentsReadBy("FROM drift_pq_type_default | STATS c = COUNT(x)"), equalTo(0L));
+        assertThat(
+            firstRowOf("FROM drift_pq_type_default | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
+            equalTo(List.of(1, 2, 2L))
+        );
+        assertThat(firstRowOf("FROM drift_pq_type_default | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(List.of(1, 2, 2L)));
+        assertThat(documentsReadBy("FROM drift_pq_type_default | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
+    }
+
+    public void testOmittedSchemaResolutionWarmAggregateKeepsWideningFileValues() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putLocalFileDataSourceRequest()));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        putOmittedSchemaResolutionGlob("widen_pq_type_default", dir);
+
+        assertThat(firstRowOf("FROM widen_pq_type_default | KEEP x | SORT x"), equalTo(List.of(-10L)));
+        assertThat(
+            firstRowOf("FROM widen_pq_type_default | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
+            equalTo(List.of(-10L, 20L, 4L))
+        );
+        assertThat(
+            firstRowOf("FROM widen_pq_type_default | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
+            equalTo(List.of(-10L, 20L, 4L))
+        );
+        assertThat(documentsReadBy("FROM widen_pq_type_default | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
+    }
+
+    /**
+     * Pass-through TestValidator stores a missing {@code schema_resolution} key. Query hydrate is
+     * {@code union_by_name}: INT32 and INT64 widen, {@code COUNT(x)=4}.
+     */
+    public void testLegacyMissingKeyHydratesUnionByNameOnDivergentColumnTypes() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("format", "parquet");
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("drift_pq_type_legacy", "local_ds", StoragePath.fileUri(dir) + "/*.parquet", settings)
+            )
+        );
+
+        assertThat(firstRowOf("FROM drift_pq_type_legacy | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(4L)));
+        assertThat(firstRowOf("FROM drift_pq_type_legacy | STATS c = COUNT(x)"), equalTo(List.of(4L)));
+    }
+
+    /**
+     * {@code DatasetService.putDataset} equals-short-circuit does not keep a legacy omit-key
+     * document. Re-PUT of that body through {@code FileDataSourceValidator} stores
+     * {@code first_file_wins} and query results follow the new rail.
+     */
+    public void testRePutLegacyOmitKeyThroughFileDsStoresFirstFileWins() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putLocalFileDataSourceRequest()));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        String resource = StoragePath.fileUri(dir) + "/*.parquet";
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("format", "parquet");
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest("re_put_legacy_omit", "local_ds", resource, settings)));
+        Dataset first = getDataset("re_put_legacy_omit");
+        assertThat(first.settings().get("schema_resolution"), nullValue());
+        assertThat(firstRowOf("FROM re_put_legacy_omit | STATS c = COUNT(x)"), equalTo(List.of(4L)));
+
+        // Name order so INT32 part-a is the FFW donor; DirectoryStream list order is not name order.
+        settings.put("file_sort_by", "name");
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest("re_put_legacy_omit", FILE_DS, resource, settings)));
+        Dataset second = getDataset("re_put_legacy_omit");
+        assertThat(second.settings().get("schema_resolution"), equalTo("first_file_wins"));
+        assertThat(firstRowOf("FROM re_put_legacy_omit | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+    }
+
+    public void testUnionByNameWarmAggregateWidensDivergentColumnTypes() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("format", "parquet");
+        settings.put("schema_resolution", "union_by_name");
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("drift_pq_type_ubn", "local_ds", StoragePath.fileUri(dir) + "/*.parquet", settings)
+            )
+        );
+
+        assertThat(firstRowOf("FROM drift_pq_type_ubn | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(4L)));
+        assertThat(firstRowOf("FROM drift_pq_type_ubn | STATS c = COUNT(x)"), equalTo(List.of(4L)));
+    }
+
+    public void testFirstFileWinsTextWarmCountMatchesTheScanOnDivergentColumnTypes() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("part-a.csv"), "x\n1\n2\n");
+        Files.writeString(dir.resolve("part-b.csv"), "x\n3000000000\n4000000000\n");
+        putFirstFileWinsGlob("drift_csv_type_ffw", dir, "csv", Map.of("error_mode", "null_field"));
+
+        // Text harvests describe each file's own schema, so COUNT cannot fold and must scan.
+        assertThat(columnValues("FROM drift_csv_type_ffw | KEEP x | SORT x"), containsInAnyOrder(1, 2, null, null));
+        assertThat(firstRowOf("FROM drift_csv_type_ffw | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        try (var response = run(syncEsqlQueryRequest("FROM drift_csv_type_ffw | STATS c = COUNT(x)"), TIMEOUT)) {
+            assertThat(getValuesList(response).get(0), equalTo(List.of(2L)));
+            assertThat(response.documentsFound(), equalTo(4L));
+        }
+    }
+
+    public void testFirstFileWinsWarmMinMaxMatchesTheScanOnUnsignedLongPlusLong() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeInt64Parquet(dir.resolve("part-a.parquet"), true, 1L, 2L);
+        writeInt64Parquet(dir.resolve("part-b.parquet"), false, 0L, 200L);
+        putFirstFileWinsGlob("ul_pq_type_ffw", dir);
+
+        // Unsigned extrema use a different representation than a signed harvest; MIN/MAX must
+        // answer over the coerced domain, not mix the two. 0, 1, 2, 200.
+        List<Object> expectedUl = firstRowOf("FROM ul_pq_type_ffw | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)");
+        assertThat(expectedUl.get(0).toString(), equalTo("0"));
+        assertThat(expectedUl.get(1).toString(), equalTo("200"));
+        assertThat(expectedUl.get(2), equalTo(4L));
+        assertThat(firstRowOf("FROM ul_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(expectedUl));
+        assertThat(documentsReadBy("FROM ul_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
+        assertThat(firstRowOf("FROM ul_pq_type_ffw | KEEP x | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(expectedUl));
+        assertThat(documentsReadBy("FROM ul_pq_type_ffw | KEEP x | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
+    }
+
+    public void testFirstFileWinsMinMaxWithAllNullDoubleAnchorAndUnsignedLongFile() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { optional double x; }", 2, 1024, (g, i) -> {});
+        writeInt64Parquet(dir.resolve("part-b.parquet"), true, 1L, 2L);
+        putFirstFileWinsGlob("double_ul_ffw", dir);
+
+        String aggregates = "STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)";
+        List<Object> expected = List.of(1.0, 2.0, 2L);
+        assertThat(firstRowOf("FROM double_ul_ffw | WHERE x IS NOT NULL | " + aggregates), equalTo(expected));
+        assertThat(firstRowOf("FROM double_ul_ffw | " + aggregates), equalTo(expected));
+        // Encoded unsigned extrema are not doubles, so MIN/MAX scan; COUNT stays warm.
+        assertThat(documentsReadBy("FROM double_ul_ffw | " + aggregates), equalTo(4L));
+        assertThat(firstRowOf("FROM double_ul_ffw | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        assertThat(documentsReadBy("FROM double_ul_ffw | STATS c = COUNT(x)"), equalTo(0L));
+    }
+
+    public void testFirstFileWinsUnsignedEncodeFailureScansToMatchTheScan() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeInt64Parquet(dir.resolve("part-a.parquet"), true, 1L, 2L);
+        writeInt64Parquet(dir.resolve("part-b.parquet"), false, -10L, 200L);
+        // null_field is required, not incidental: -10 cannot be coerced into the UINT_64 anchor's domain, and
+        // under the default strict policy the scan FAILS the query rather than nulling the cell, so there would
+        // be no scan answer to compare the warm one against.
+        putFirstFileWinsGlob("ul_pq_neg_ffw", dir, "parquet", Map.of("error_mode", "null_field"));
+
+        // -10 is out of the unsigned_long domain, so the fold cannot encode that file's extrema.
+        List<Object> scan = firstRowOf("FROM ul_pq_neg_ffw | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)");
+        assertThat(scan.get(0).toString(), equalTo("1"));
+        assertThat(scan.get(1).toString(), equalTo("200"));
+        assertThat(scan.get(2), equalTo(3L));
+        assertThat(firstRowOf("FROM ul_pq_neg_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(scan));
+        assertThat(firstRowOf("FROM ul_pq_neg_ffw | STATS c = COUNT(x)"), equalTo(List.of(3L)));
+        assertThat(documentsReadBy("FROM ul_pq_neg_ffw | STATS c = COUNT(x)"), equalTo(4L));
+    }
+
+    public void testFirstFileWinsDeclaredIntegerMatchesTheScanOnDivergentColumnTypes() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of("x", new DatasetFieldMapping("integer", null)))
+        );
+        putFirstFileWinsGlob("drift_pq_declared_ffw", dir, "parquet", Map.of(), mapping);
+
+        // A declared integer licenses per-value coerce, so COUNT/MIN/MAX scan instead of all-nulling.
+        assertThat(columnValues("FROM drift_pq_declared_ffw | KEEP x | SORT x"), containsInAnyOrder(-10, 1, 2, 20));
+        assertThat(firstRowOf("FROM drift_pq_declared_ffw | STATS c = COUNT(x)"), equalTo(List.of(4L)));
+        assertThat(firstRowOf("FROM drift_pq_declared_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(List.of(-10, 20, 4L)));
+        assertThat(documentsReadBy("FROM drift_pq_declared_ffw | STATS c = COUNT(x)"), equalTo(4L));
+    }
+
+    private long documentsReadBy(String query) {
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            return response.documentsFound();
+        }
+    }
+
+    private void putFirstFileWinsGlob(String dataset, Path dir) {
+        putFirstFileWinsGlob(dataset, dir, "parquet", Map.of());
+    }
+
+    private void putOmittedSchemaResolutionGlob(String dataset, Path dir) {
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("format", "parquet");
+        settings.put("file_sort_by", "name");
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(dataset, FILE_DS, StoragePath.fileUri(dir) + "/*.parquet", settings)
+            )
+        );
+    }
+
+    private Dataset getDataset(String name) throws Exception {
+        GetDatasetAction.Request req = new GetDatasetAction.Request(TIMEOUT);
+        req.indices(name);
+        GetDatasetAction.Response resp = client().execute(GetDatasetAction.INSTANCE, req).get();
+        assertThat(resp.getDatasets(), hasSize(1));
+        return resp.getDatasets().iterator().next();
+    }
+
+    private static void writeInt64Parquet(Path target, boolean unsigned, long... values) throws IOException {
+        MessageType schema;
+        if (unsigned) {
+            schema = Types.buildMessage()
+                .required(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.intType(64, false))
+                .named("x")
+                .named("m");
+        } else {
+            schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("x").named("m");
+        }
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withRowGroupSize(1024L)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (long value : values) {
+                writer.write(factory.newGroup().append("x", value));
+            }
+        }
+        Files.write(target, baos.toByteArray());
+    }
+
+    private void putFirstFileWinsGlob(String dataset, Path dir, String format, Map<String, Object> extra) {
+        putFirstFileWinsGlob(dataset, dir, format, extra, null);
+    }
+
+    private void putFirstFileWinsGlob(
+        String dataset,
+        Path dir,
+        String format,
+        Map<String, Object> extra,
+        @Nullable DatasetMapping mapping
+    ) {
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("format", format);
+        settings.put("schema_resolution", "first_file_wins");
+        settings.put("file_sort_by", "name");
+        settings.putAll(extra);
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    dataset,
+                    "local_ds",
+                    StoragePath.fileUri(dir) + "/*." + format,
+                    null,
+                    settings,
+                    mapping
+                )
+            )
+        );
+    }
+
+    private List<Object> firstRowOf(String query) {
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.isEmpty(), equalTo(false));
+            return rows.get(0);
+        }
+    }
+
+    private List<Object> columnValues(String query) {
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            return getValuesList(response).stream().map(row -> row.get(0)).toList();
+        }
     }
 }

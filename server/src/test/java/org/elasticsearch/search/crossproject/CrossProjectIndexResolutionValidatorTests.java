@@ -13,13 +13,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.ResolvedIndexExpressions;
-import org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException;
-import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.RemoteTransportException;
 import org.junit.Before;
 
 import java.util.LinkedHashMap;
@@ -28,13 +25,11 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -43,7 +38,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
     private boolean useProjectRouting;
 
     @Before
-    public void initProjectRouting() throws Exception {
+    public void initProjectRouting() {
         useProjectRouting = randomBoolean();
     }
 
@@ -1773,97 +1768,6 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         );
         assertNotNull(e);
         assertThat(e.getMessage(), equalTo("no such index [P1:logs]"));
-    }
-
-    public void testRemoteViewNotSupportedExceptionFromLinkedProject() {
-        ResolvedIndexExpressions local = flatExpressionWithRemoteFanout("my-view", "P1:my-view");
-        Map<String, Exception> remoteExceptions = Map.of(
-            "P1",
-            new RemoteTransportException("test failure", new RemoteViewNotSupportedException(List.of("P1:my-view")))
-        );
-
-        var e = CrossProjectIndexResolutionValidator.validate(
-            randomBoolean() ? getStrictIgnoreUnavailable() : getLenientIndicesOptions(),
-            useProjectRouting ? "_alias:*" : null,
-            local,
-            Map.of(),
-            remoteExceptions
-        );
-        assertThat(e, instanceOf(RemoteResourceNotSupportedException.class));
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "ES|QL queries with remote views are not supported. Matched [P1:my-view]."
-                    + " Remove them from the query pattern or exclude them with [P1:-my-view] if matched by a wildcard."
-            )
-        );
-        assertThat(e.getMetadata("es.esql.view.names"), equalTo(List.of("P1:my-view")));
-    }
-
-    public void testRemoteResourceNotSupportedExceptionAggregatesMultipleViewsAcrossLinkedProjects() {
-        ResolvedIndexExpressions local = flatExpressionWithRemoteFanout("logs-*", "P1:logs-*", "P2:logs-*");
-        Map<String, Exception> remoteExceptions = Map.of(
-            "P1",
-            new RemoteTransportException("test failure", new RemoteViewNotSupportedException(List.of("P1:view-1"))),
-            "P2",
-            new RemoteTransportException("test failure", new RemoteViewNotSupportedException(List.of("P2:view-2")))
-        );
-
-        var e = CrossProjectIndexResolutionValidator.validate(
-            randomBoolean() ? getStrictIgnoreUnavailable() : getLenientIndicesOptions(),
-            useProjectRouting ? "_alias:*" : null,
-            local,
-            Map.of(),
-            remoteExceptions
-        );
-        assertThat(e, instanceOf(RemoteResourceNotSupportedException.class));
-        assertThat(e.getMessage(), containsString("ES|QL queries with remote views are not supported."));
-        assertThat(e.getMetadata("es.esql.view.names"), containsInAnyOrder("P1:view-1", "P2:view-2"));
-    }
-
-    /**
-     * The linked-project counterpart of the defensive aggregate case. Nothing can send one carrying datasets now that
-     * no request asks a project to resolve them, but the branch exists, so its views half must still fail the query,
-     * its datasets half must be dropped, and a dataset list on its own must make no difference to the outcome.
-     */
-    public void testAggregateExceptionFromAnOlderLinkedProjectKeepsViewsAndDropsDatasets() {
-        ResolvedIndexExpressions local = flatExpressionWithRemoteFanout("logs-*", "P1:logs-*");
-        Map<String, Exception> remoteExceptions = Map.of(
-            "P1",
-            new RemoteTransportException(
-                "test failure",
-                new RemoteResourceNotSupportedException(List.of("P1:my-view"), List.of("P1:my-dataset"))
-            )
-        );
-
-        var e = CrossProjectIndexResolutionValidator.validate(
-            randomBoolean() ? getStrictIgnoreUnavailable() : getLenientIndicesOptions(),
-            useProjectRouting ? "_alias:*" : null,
-            local,
-            Map.of(),
-            remoteExceptions
-        );
-        assertThat(e, instanceOf(RemoteResourceNotSupportedException.class));
-        assertThat(e.getMessage(), containsString("ES|QL queries with remote views are not supported."));
-        assertThat(e.getMessage(), not(containsString("datasets")));
-        assertThat(e.getMetadata("es.esql.view.names"), equalTo(List.of("P1:my-view")));
-
-        // Datasets alone carry nothing to act on, so they must not change the outcome. The control is an unrelated
-        // remote failure from the same project rather than no exception at all: the project still has to count as
-        // having answered with a failure, or the validator takes a different path entirely and trips its own assertion
-        // about cluster exclusions. What the outcome then is depends on whether the expression resolved locally, which
-        // the fixture randomises; the property under test is that the dataset list makes no difference to it.
-        Map<String, Exception> datasetsOnly = Map.of(
-            "P1",
-            new RemoteTransportException("test failure", new RemoteResourceNotSupportedException(List.of(), List.of("P1:my-dataset")))
-        );
-        Map<String, Exception> namesNoAbstraction = Map.of("P1", new RemoteTransportException("test failure", new IllegalStateException()));
-        var options = randomBoolean() ? getStrictIgnoreUnavailable() : getLenientIndicesOptions();
-        String routing = useProjectRouting ? "_alias:*" : null;
-        var withDatasets = CrossProjectIndexResolutionValidator.validate(options, routing, local, Map.of(), datasetsOnly);
-        var withNeither = CrossProjectIndexResolutionValidator.validate(options, routing, local, Map.of(), namesNoAbstraction);
-        assertThat(describe(withDatasets), equalTo(describe(withNeither)));
-        assertThat(describe(withDatasets), not(containsString("my-dataset")));
     }
 
     /** An exception as its type plus message, or {@code "none"}, so two outcomes can be compared as one value. */

@@ -35,7 +35,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 @LuceneTestCase.SuppressFileSystems(value = "HandleLimitFS") // we sometimes have >2048 open files
 public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
 
-    public void testSearchWithRandomDisconnects() throws Exception {
+    public void testSearchWithRandomDisconnects() throws InterruptedException, ExecutionException {
         // make sure we have a couple data nodes
         int minDataNodes = randomIntBetween(3, 7);
         internalCluster().ensureAtLeastNumDataNodes(minDataNodes);

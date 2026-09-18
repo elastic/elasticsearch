@@ -93,14 +93,34 @@ public class ES93BinaryQuantizedVectorsFormat extends AbstractFlatVectorsFormat 
     private static final ES818BinaryFlatVectorsScorer scorer = new ES818BinaryFlatVectorsScorer(ES93GenericFlatVectorScorer.INSTANCE);
 
     private final ES93GenericFlatVectorsFormat rawFormat;
+    private final boolean mergeQueryDataForGraphBuild;
+    private final int mergeQueryDataGraphThreshold;
 
     public ES93BinaryQuantizedVectorsFormat() {
         this(DenseVectorFieldMapper.ElementType.FLOAT, false);
     }
 
     public ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType elementType, boolean useDirectIO) {
+        this(elementType, useDirectIO, false, 0);
+    }
+
+    /**
+     * @param mergeQueryDataForGraphBuild {@code true} when this flat format backs an HNSW format, whose merges
+     *     build a graph over the merged vectors. The writer then produces the merge scorer's query-side
+     *     records in its own pass, so the graph build does not read the merged raw vectors back.
+     * @param mergeQueryDataGraphThreshold that HNSW format's graph threshold, which decides whether a merge
+     *     of a given size builds a graph at all
+     */
+    public ES93BinaryQuantizedVectorsFormat(
+        DenseVectorFieldMapper.ElementType elementType,
+        boolean useDirectIO,
+        boolean mergeQueryDataForGraphBuild,
+        int mergeQueryDataGraphThreshold
+    ) {
         super(NAME);
         rawFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO);
+        this.mergeQueryDataForGraphBuild = mergeQueryDataForGraphBuild;
+        this.mergeQueryDataGraphThreshold = mergeQueryDataGraphThreshold;
     }
 
     @Override
@@ -110,7 +130,13 @@ public class ES93BinaryQuantizedVectorsFormat extends AbstractFlatVectorsFormat 
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new ES818BinaryQuantizedVectorsWriter(scorer, rawFormat.fieldsWriter(state), state);
+        return new ES818BinaryQuantizedVectorsWriter(
+            scorer,
+            rawFormat.fieldsWriter(state),
+            state,
+            mergeQueryDataForGraphBuild,
+            mergeQueryDataGraphThreshold
+        );
     }
 
     @Override

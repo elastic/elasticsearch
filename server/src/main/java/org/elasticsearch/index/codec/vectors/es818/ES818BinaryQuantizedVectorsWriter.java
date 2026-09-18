@@ -42,9 +42,11 @@ import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.VectorUtil;
+import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.es816.BinaryQuantizer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -72,6 +74,14 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
     private final IndexOutput meta, binarizedVectorData;
     private final FlatVectorsWriter rawVectorDelegate;
     private final ES818BinaryFlatVectorsScorer vectorsScorer;
+    // Whether an HNSW graph build follows a merge, and the graph threshold it applies. The graph build's
+    // merge scorer consumes the query-side records this writer can produce alongside the index-side ones.
+    private final boolean mergeQueryDataForGraphBuild;
+    private final int mergeQueryDataGraphThreshold;
+    // Query-side files this writer created for the current merge. Once finish() has run they belong to
+    // the reader the graph build opens; if the merge aborts before that, close() deletes them.
+    private final List<String> mergeQueriesWritten = new ArrayList<>();
+    private boolean mergeQueriesHandedOff;
     private boolean finished;
 
     /**
@@ -79,15 +89,35 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
      *
      * @param vectorsScorer the scorer to use for scoring vectors
      */
-    @SuppressWarnings("this-escape")
     public ES818BinaryQuantizedVectorsWriter(
         ES818BinaryFlatVectorsScorer vectorsScorer,
         FlatVectorsWriter rawVectorDelegate,
         SegmentWriteState state
     ) throws IOException {
+        this(vectorsScorer, rawVectorDelegate, state, false, 0);
+    }
+
+    /**
+     * @param mergeQueryDataForGraphBuild whether an HNSW graph build follows a merge. If so, a merge that is
+     *     expected to build a graph also writes the query-side records its merge scorer needs, in the same
+     *     pass as the index-side records, for
+     *     {@link ES818BinaryQuantizedVectorsReader#getRandomVectorScorerSupplierForMerge} to pick up.
+     * @param mergeQueryDataGraphThreshold that build's graph threshold (see {@code hnswGraphThreshold} in
+     *     {@code Lucene99HnswVectorsWriter}), which decides whether a merge of a given size builds a graph
+     */
+    @SuppressWarnings("this-escape")
+    public ES818BinaryQuantizedVectorsWriter(
+        ES818BinaryFlatVectorsScorer vectorsScorer,
+        FlatVectorsWriter rawVectorDelegate,
+        SegmentWriteState state,
+        boolean mergeQueryDataForGraphBuild,
+        int mergeQueryDataGraphThreshold
+    ) throws IOException {
         super(vectorsScorer);
         this.vectorsScorer = vectorsScorer;
         this.segmentWriteState = state;
+        this.mergeQueryDataForGraphBuild = mergeQueryDataForGraphBuild;
+        this.mergeQueryDataGraphThreshold = mergeQueryDataGraphThreshold;
         String metaFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
             state.segmentSuffix,
@@ -310,6 +340,10 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         if (binarizedVectorData != null) {
             CodecUtil.writeFooter(binarizedVectorData);
         }
+        // From here on the query-side files belong to the reader the graph build opens (Lucene calls
+        // finish() and close() back to back before opening it). A merge that aborts earlier never gets
+        // here, and close() deletes them.
+        mergeQueriesHandedOff = true;
     }
 
     @Override
@@ -328,13 +362,19 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             if (fieldInfo.getVectorSimilarityFunction() == COSINE) {
                 floatVectorValues = new NormalizedFloatVectorValues(floatVectorValues);
             }
-            BinarizedFloatVectorValues binarizedVectorValues = new BinarizedFloatVectorValues(
-                floatVectorValues,
-                new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction()),
-                centroid
-            );
+            OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
             long vectorDataOffset = binarizedVectorData.alignFilePointer(Float.BYTES);
-            DocsWithFieldSet docsWithField = writeBinarizedVectorData(binarizedVectorData, binarizedVectorValues);
+            DocsWithFieldSet docsWithField;
+            if (graphBuildFollows(vectorCount)) {
+                // One pass over the merged vectors writes both the index-side records and the query-side
+                // records the graph build's merge scorer needs, so the merged raw vectors are never read back.
+                docsWithField = writeBinarizedVectorAndMergeQueryData(fieldInfo, floatVectorValues, quantizer, centroid);
+            } else {
+                docsWithField = writeBinarizedVectorData(
+                    binarizedVectorData,
+                    new BinarizedFloatVectorValues(floatVectorValues, quantizer, centroid)
+                );
+            }
             long vectorDataLength = binarizedVectorData.getFilePointer() - vectorDataOffset;
             float centroidDp = docsWithField.cardinality() > 0 ? ESVectorUtil.dotProduct(centroid, centroid) : 0;
             writeMeta(
@@ -357,20 +397,144 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             // write vector
             byte[] binaryValue = binarizedByteVectorValues.vectorValue(iterator.index());
             output.writeBytes(binaryValue, binaryValue.length);
-            OptimizedScalarQuantizer.QuantizationResult corrections = binarizedByteVectorValues.getCorrectiveTerms(iterator.index());
-            output.writeInt(Float.floatToIntBits(corrections.lowerInterval()));
-            output.writeInt(Float.floatToIntBits(corrections.upperInterval()));
-            output.writeInt(Float.floatToIntBits(corrections.additionalCorrection()));
-            assert corrections.quantizedComponentSum() >= 0 && corrections.quantizedComponentSum() <= 0xffff;
-            output.writeShort((short) corrections.quantizedComponentSum());
+            writeCorrectiveTerms(output, binarizedByteVectorValues.getCorrectiveTerms(iterator.index()));
             docsWithField.add(docV);
         }
         return docsWithField;
     }
 
+    /**
+     * Writes the merged vectors' 1-bit index-side records to the quantized vector data file and, in the same
+     * pass over the same float vectors, their 4-bit query-side records to a file with a fixed name for this
+     * segment, format suffix and field. {@link ES818BinaryQuantizedVectorsReader#getRandomVectorScorerSupplierForMerge}
+     * opens that file to score the graph build instead of reading the merged raw vectors back. Both record
+     * layouts are shared with the flush-time writer and with merges that build no graph.
+     */
+    private DocsWithFieldSet writeBinarizedVectorAndMergeQueryData(
+        FieldInfo fieldInfo,
+        FloatVectorValues floatVectorValues,
+        OptimizedScalarQuantizer quantizer,
+        float[] centroid
+    ) throws IOException {
+        int dimension = floatVectorValues.dimension();
+        int discretizedDims = BQVectorUtils.discretize(dimension, 64);
+        float[] scratch = new float[dimension];
+        int[] indexQuantized = new int[dimension];
+        byte[] indexPacked = new byte[discretizedDims / 8];
+        int[] queryQuantized = new int[dimension];
+        byte[] queryPacked = new byte[(discretizedDims / 8) * BinaryQuantizer.B_QUERY];
+        int[][] quantized = new int[][] { indexQuantized, queryQuantized };
+        byte[] bits = new byte[] { INDEX_BITS, BinaryQuantizer.B_QUERY };
+        DocsWithFieldSet docsWithField = new DocsWithFieldSet();
+        // A fixed name, so the reader of this segment can open it without listing the directory. A stale
+        // file of that name is not expected (IndexWriter deletes a failed merge's files); if one exists,
+        // createOutput fails here and the merge fails loudly rather than consuming it.
+        String queriesName = mergeQueriesTempName(segmentWriteState.segmentInfo.name, segmentWriteState.segmentSuffix, fieldInfo.number);
+        IndexOutput queries = segmentWriteState.directory.createOutput(queriesName, segmentWriteState.context);
+        mergeQueriesWritten.add(queriesName);
+        try (queries) {
+            // The header ties the file to this segment: the reader accepts only a file whose segment id and
+            // suffix match, and treats anything else of that name as corrupt.
+            CodecUtil.writeIndexHeader(
+                queries,
+                MERGE_QUERIES_CODEC_NAME,
+                ES818BinaryQuantizedVectorsFormat.VERSION_CURRENT,
+                segmentWriteState.segmentInfo.getId(),
+                segmentWriteState.segmentSuffix
+            );
+            KnnVectorValues.DocIndexIterator iterator = floatVectorValues.iterator();
+            for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {
+                // one centering pass over the vector serves both quantizations
+                OptimizedScalarQuantizer.QuantizationResult[] results = quantizer.multiScalarQuantize(
+                    floatVectorValues.vectorValue(iterator.index()),
+                    scratch,
+                    quantized,
+                    bits,
+                    centroid
+                );
+                writeIndexRecord(binarizedVectorData, indexQuantized, indexPacked, results[0]);
+                writeQueryRecord(queries, queryQuantized, queryPacked, results[1]);
+                docsWithField.add(docV);
+            }
+            CodecUtil.writeFooter(queries);
+        } catch (Throwable t) {
+            IOUtils.deleteFilesIgnoringExceptions(segmentWriteState.directory, queriesName);
+            throw t;
+        }
+        return docsWithField;
+    }
+
+    /** Whether a merge of {@code vectorCount} vectors goes on to build an HNSW graph, as {@code Lucene99HnswVectorsWriter} decides it. */
+    private boolean graphBuildFollows(int vectorCount) {
+        if (mergeQueryDataForGraphBuild == false || vectorCount <= 0) {
+            return false;
+        }
+        if (mergeQueryDataGraphThreshold <= 0) {
+            return true;
+        }
+        int expectedVisitedNodes = HnswGraphSearcher.expectedVisitedNodes(mergeQueryDataGraphThreshold, vectorCount);
+        return vectorCount > expectedVisitedNodes && expectedVisitedNodes > 0;
+    }
+
+    /** The 1-bit index-side record: packed bits, then the corrective terms. */
+    static void writeIndexRecord(
+        IndexOutput output,
+        int[] quantized,
+        byte[] packed,
+        OptimizedScalarQuantizer.QuantizationResult corrections
+    ) throws IOException {
+        ESVectorUtil.pack1BitValues(quantized, packed);
+        output.writeBytes(packed, packed.length);
+        writeCorrectiveTerms(output, corrections);
+    }
+
+    /** The 4-bit query-side record: strided nibbles, then the corrective terms. */
+    static void writeQueryRecord(
+        IndexOutput output,
+        int[] quantized,
+        byte[] packed,
+        OptimizedScalarQuantizer.QuantizationResult corrections
+    ) throws IOException {
+        ESVectorUtil.stride4BitValues(quantized, packed);
+        output.writeBytes(packed, packed.length);
+        writeCorrectiveTerms(output, corrections);
+    }
+
+    static void writeCorrectiveTerms(IndexOutput output, OptimizedScalarQuantizer.QuantizationResult corrections) throws IOException {
+        output.writeInt(Float.floatToIntBits(corrections.lowerInterval()));
+        output.writeInt(Float.floatToIntBits(corrections.upperInterval()));
+        output.writeInt(Float.floatToIntBits(corrections.additionalCorrection()));
+        assert corrections.quantizedComponentSum() >= 0 && corrections.quantizedComponentSum() <= 0xffff;
+        output.writeShort((short) corrections.quantizedComponentSum());
+    }
+
+    static final byte INDEX_BITS = 1;
+
+    /** Segment-suffix component of the query-side temp file a merge writes: {@code <segment>_<suffix>_bbqmq<field>.tmp}. */
+    static final String MERGE_QUERIES_TEMP_SUFFIX = "bbqmq";
+
+    /** Codec name in the query-side temp file's index header, which also carries the segment id and suffix. */
+    static final String MERGE_QUERIES_CODEC_NAME = "ES818BinaryQuantizedVectorsFormatMergeQueries";
+
+    /** The fixed name of the query-side temp file for a field of a segment being merged. */
+    static String mergeQueriesTempName(String segmentName, String segmentSuffix, int fieldNumber) {
+        String suffix = MERGE_QUERIES_TEMP_SUFFIX + fieldNumber;
+        return IndexFileNames.segmentFileName(segmentName, segmentSuffix.isEmpty() ? suffix : segmentSuffix + "_" + suffix, "tmp");
+    }
+
     @Override
     public void close() throws IOException {
-        IOUtils.close(meta, binarizedVectorData, rawVectorDelegate);
+        try {
+            IOUtils.close(meta, binarizedVectorData, rawVectorDelegate);
+        } finally {
+            // A merge that aborts before finish() (another field's merge failed, or the merge was
+            // cancelled) never opens the reader that would own these files, and IndexWriter only deletes
+            // a failed merge's files once the merge has registered them, which has not happened yet.
+            // Delete them here.
+            if (mergeQueriesHandedOff == false && mergeQueriesWritten.isEmpty() == false) {
+                IOUtils.deleteFilesIgnoringExceptions(segmentWriteState.directory, mergeQueriesWritten);
+            }
+        }
     }
 
     static float[] getCentroid(KnnVectorsReader vectorsReader, String fieldName) {

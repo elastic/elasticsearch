@@ -69,9 +69,11 @@ public class ExecutableSearchTransform extends ExecutableTransform<SearchTransfo
                 client,
                 TransportSearchAction.TYPE,
                 searchRequest,
-                ActionListener.runAfter(ActionListener.wrap(subscribable::onResponse, subscribable::onFailure), () -> {
-                    if (searchRequest.source() != null) searchRequest.source().close();
-                })
+                ActionListener.runAfter(ActionListener.wrap(r -> {
+                    // mustIncRef because the transport uses respondAndRelease, which decRefs after onResponse returns.
+                    r.mustIncRef();
+                    subscribable.onResponse(r);
+                }, subscribable::onFailure), () -> { if (searchRequest.source() != null) searchRequest.source().close(); })
             );
             PlainActionFuture<SearchResponse> future = new PlainActionFuture<>();
             subscribable.addListener(future);

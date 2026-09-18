@@ -110,7 +110,7 @@ public class SearchInputTests extends ESTestCase {
         );
         doAnswer(invocation -> {
             ActionListener<SearchResponse> listener = invocation.getArgument(2);
-            listener.onResponse(searchResponse);
+            ActionListener.respondAndRelease(listener, searchResponse);
             return null;
         }).when(client).execute(any(), requestCaptor.capture(), any());
 
@@ -153,7 +153,7 @@ public class SearchInputTests extends ESTestCase {
         );
         doAnswer(invocation -> {
             ActionListener<SearchResponse> listener = invocation.getArgument(2);
-            listener.onResponse(searchResponse);
+            ActionListener.respondAndRelease(listener, searchResponse);
             return null;
         }).when(client).execute(any(), requestCaptor.capture(), any());
 
@@ -210,7 +210,7 @@ public class SearchInputTests extends ESTestCase {
         );
         doAnswer(invocation -> {
             ActionListener<SearchResponse> listener = invocation.getArgument(2);
-            listener.onResponse(searchResponse);
+            ActionListener.respondAndRelease(listener, searchResponse);
             return null;
         }).when(client).execute(any(), requestCaptor.capture(), any());
 

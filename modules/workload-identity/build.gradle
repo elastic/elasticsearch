@@ -30,18 +30,22 @@ configurations {
 dependencies {
   spi project('spi')
 
-  // Apache HttpComponents 4.x is the transport for the workload-identity-issuer mTLS connection.
+  // Apache HttpComponents 5.x is the transport for the workload-identity-issuer mTLS connection.
   // We declare these libraries directly rather than going through :client:rest because we do not
   // use the LLRC's RestClient API; pulling :client:rest in just for its transitive Apache HC chain
   // would put the published REST client on our runtime classpath for no functional reason.
-  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
-  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
-  api "commons-codec:commons-codec:${versions.commonscodec}"
-  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "org.apache.httpcomponents.client5:httpclient5:${versions.httpclient5}"
+  api "org.apache.httpcomponents.core5:httpcore5:${versions.httpcore5}"
+  api "org.apache.httpcomponents.core5:httpcore5-h2:${versions.httpcore5}"
 
   api project(":libs:ssl-config")
+
+  // httpclient5 calls LoggerFactory.getLogger() in static initializers, making slf4j-api a
+  // hard runtime dependency even though Maven marks it optional. slf4j-nop discards HC5's wire
+  // logs silently; this module uses ES-native logging for all its own diagnostics.
+  // See also: repository-hdfs, which uses the same pattern for the same reason.
+  runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
 }
 
 esplugin.bundleSpec.into("spi") {
@@ -49,21 +53,22 @@ esplugin.bundleSpec.into("spi") {
 }
 
 tasks.withType(AbstractDependenciesTask).configureEach {
-  mapping from: /httpcore|httpcore-nio|httpasyncclient/, to: 'httpclient'
+  mapping from: /httpcore5|httpcore5-h2/, to: 'httpclient5'
+  mapping from: /slf4j-.*/, to: 'slf4j'
 }
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
-    // commons-logging optional logging backends; not present at runtime.
-    'org.apache.avalon.framework.logger.Logger',
-    'org.apache.log.Hierarchy',
-    'org.apache.log.Logger',
-    'org.apache.log4j.Level',
-    'org.apache.log4j.Logger',
-    'org.apache.log4j.Priority',
-    // commons-logging optional servlet shims; not present at runtime.
-    'javax.servlet.ServletContextEvent',
-    'javax.servlet.ServletContextListener',
+    // httpclient5 optional integrations not present at runtime.
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+    'com.aayushatharva.brotli4j.encoder.EncoderJNI$Operation',
+    'com.aayushatharva.brotli4j.encoder.EncoderJNI$Wrapper',
+    'com.github.luben.zstd.ZstdDecompressCtx',
+    'com.github.luben.zstd.ZstdDirectBufferCompressingStream',
+    'org.apache.commons.compress.compressors.CompressorStreamFactory',
+    'org.conscrypt.Conscrypt',
   )
 }
 

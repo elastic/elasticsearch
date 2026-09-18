@@ -9,113 +9,131 @@
 
 package org.elasticsearch.workloadidentity;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.nio.conn.ManagedNHttpClientConnection;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
-import org.apache.http.nio.reactor.IOSession;
-import org.apache.http.protocol.BasicHttpContext;
-import org.apache.http.protocol.HttpContext;
-import org.apache.http.protocol.HttpCoreContext;
+import org.apache.hc.client5.http.protocol.HttpClientContext;
+import org.apache.hc.client5.http.ssl.DefaultClientTlsStrategy;
+import org.apache.hc.core5.http.ConnectionReuseStrategy;
+import org.apache.hc.core5.http.HttpRequest;
+import org.apache.hc.core5.http.HttpResponse;
 import org.elasticsearch.test.ESTestCase;
 
+import javax.net.ssl.SSLSession;
+
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class RotationAwareReuseStrategyTests extends ESTestCase {
 
-    public void testFallbackVetoesReuseRegardlessOfEpoch() {
-        final ReloadableSchemeIoSessionStrategy wrapper = new ReloadableSchemeIoSessionStrategy();
-        final RotationAwareReuseStrategy strategy = new RotationAwareReuseStrategy(wrapper, (response, context) -> false);
-
-        // Even with a context that would otherwise pass (matching epoch), the fallback's veto
-        // wins. This protects HC's framing-level guarantees: Connection: close, HTTP/1.0
-        // without explicit keep-alive, etc.
-        final HttpContext context = contextWithStampedConnection(wrapper.currentEpoch());
-
-        assertFalse(strategy.keepAlive(mock(HttpResponse.class), context));
+    private static HttpClientContext contextWithSession(SSLSession session) {
+        final HttpClientContext ctx = HttpClientContext.create();
+        ctx.setSSLSession(session);
+        return ctx;
     }
 
-    public void testMatchingEpochKeepsConnectionAlive() {
-        final ReloadableSchemeIoSessionStrategy wrapper = new ReloadableSchemeIoSessionStrategy();
-        final RotationAwareReuseStrategy strategy = new RotationAwareReuseStrategy(wrapper, (response, context) -> true);
-
-        wrapper.setDelegate(mock(SSLIOSessionStrategy.class)); // epoch -> 1
-        final HttpContext context = contextWithStampedConnection(wrapper.currentEpoch());
-
-        assertTrue("connection stamped at current epoch must be reused", strategy.keepAlive(mock(HttpResponse.class), context));
+    private static ConnectionReuseStrategy allowingFallback() {
+        final ConnectionReuseStrategy fallback = mock(ConnectionReuseStrategy.class);
+        when(fallback.keepAlive(any(), any(), any())).thenReturn(true);
+        return fallback;
     }
 
-    public void testStaleEpochClosesConnection() {
-        final ReloadableSchemeIoSessionStrategy wrapper = new ReloadableSchemeIoSessionStrategy();
-        final RotationAwareReuseStrategy strategy = new RotationAwareReuseStrategy(wrapper, (response, context) -> true);
+    public void testFallbackDecisionRespected() {
+        final ConnectionReuseStrategy fallback = mock(ConnectionReuseStrategy.class);
+        when(fallback.keepAlive(any(), any(), any())).thenReturn(false);
+        final ReloadableTlsStrategy tlsStrategy = new ReloadableTlsStrategy();
+        final RotationAwareReuseStrategy strategy = new RotationAwareReuseStrategy(tlsStrategy, fallback);
 
-        // Stamp the connection at the construction-time epoch (0), then advance the wrapper to
-        // simulate a rotation that happened while the request was in flight.
-        final HttpContext context = contextWithStampedConnection(wrapper.currentEpoch());
-        wrapper.setDelegate(mock(SSLIOSessionStrategy.class)); // epoch -> 1
-
-        assertFalse(
-            "connection stamped at a pre-rotation epoch must be closed even when the fallback would reuse it",
-            strategy.keepAlive(mock(HttpResponse.class), context)
-        );
+        final HttpClientContext context = HttpClientContext.create();
+        assertFalse(strategy.keepAlive(mock(HttpRequest.class), mock(HttpResponse.class), context));
+        // Must not read SSL state when fallback already rejected
+        verify(fallback).keepAlive(any(), any(), any());
     }
 
-    public void testMissingManagedConnectionAttributeKeepsAliveByDefault() {
-        final ReloadableSchemeIoSessionStrategy wrapper = new ReloadableSchemeIoSessionStrategy();
-        final RotationAwareReuseStrategy strategy = new RotationAwareReuseStrategy(wrapper, (response, context) -> true);
+    public void testKeepsAliveWhenNoSSLSession() {
+        final ReloadableTlsStrategy tlsStrategy = new ReloadableTlsStrategy();
+        final RotationAwareReuseStrategy strategy = new RotationAwareReuseStrategy(tlsStrategy, allowingFallback());
 
-        // A context without HTTP_CONNECTION should never happen for a real exchange, but the
-        // strategy must not be the one that breaks reuse when HC's contract is unmet.
-        assertTrue(strategy.keepAlive(mock(HttpResponse.class), new BasicHttpContext()));
+        final HttpClientContext context = HttpClientContext.create();
+        assertTrue(strategy.keepAlive(mock(HttpRequest.class), mock(HttpResponse.class), context));
     }
 
-    public void testUnstampedConnectionKeepsAliveByDefault() {
-        final ReloadableSchemeIoSessionStrategy wrapper = new ReloadableSchemeIoSessionStrategy();
-        final RotationAwareReuseStrategy strategy = new RotationAwareReuseStrategy(wrapper, (response, context) -> true);
+    public void testKeepsAliveWhenNoStamp() {
+        final ReloadableTlsStrategy tlsStrategy = new ReloadableTlsStrategy();
+        final RotationAwareReuseStrategy strategy = new RotationAwareReuseStrategy(tlsStrategy, allowingFallback());
 
-        // A connection that we did not stamp (e.g. plain HTTP, or somehow upgraded via a path
-        // that bypassed our wrapper) must be left to the fallback's judgment, which here says
-        // "reuse". This strategy's job is rotation-aware retirement, not connection policing.
-        final ManagedNHttpClientConnection conn = mock(ManagedNHttpClientConnection.class);
-        final IOSession session = mock(IOSession.class);
-        when(conn.getIOSession()).thenReturn(session);
-        when(session.getAttribute(ReloadableSchemeIoSessionStrategy.ROTATION_EPOCH_ATTR)).thenReturn(null);
+        final SSLSession session = mock(SSLSession.class);
+        when(session.getValue(ReloadableTlsStrategy.SESSION_KEY)).thenReturn(null);
 
-        final HttpContext context = new BasicHttpContext();
-        context.setAttribute(HttpCoreContext.HTTP_CONNECTION, conn);
-
-        assertTrue(strategy.keepAlive(mock(HttpResponse.class), context));
+        assertTrue(strategy.keepAlive(mock(HttpRequest.class), mock(HttpResponse.class), contextWithSession(session)));
     }
 
-    public void testStampAttributeOfWrongTypeKeepsAliveByDefault() {
-        final ReloadableSchemeIoSessionStrategy wrapper = new ReloadableSchemeIoSessionStrategy();
-        final RotationAwareReuseStrategy strategy = new RotationAwareReuseStrategy(wrapper, (response, context) -> true);
+    public void testKeepsAliveWhenStampMatchesCurrentEpoch() {
+        final ReloadableTlsStrategy tlsStrategy = new ReloadableTlsStrategy();
+        tlsStrategy.setDelegate(mock(DefaultClientTlsStrategy.class));
+        final int epoch = tlsStrategy.currentEpoch();
 
-        final ManagedNHttpClientConnection conn = mock(ManagedNHttpClientConnection.class);
-        final IOSession session = mock(IOSession.class);
-        when(conn.getIOSession()).thenReturn(session);
-        // Defensive: the attribute key is package-shared, but in principle some other component
-        // could write a non-Integer there. We must not throw and must not disrupt reuse.
-        when(session.getAttribute(ReloadableSchemeIoSessionStrategy.ROTATION_EPOCH_ATTR)).thenReturn("not-an-integer");
+        final SSLSession session = mock(SSLSession.class);
+        when(session.getValue(ReloadableTlsStrategy.SESSION_KEY)).thenReturn(epoch);
 
-        final HttpContext context = new BasicHttpContext();
-        context.setAttribute(HttpCoreContext.HTTP_CONNECTION, conn);
-
-        assertTrue(strategy.keepAlive(mock(HttpResponse.class), context));
+        final RotationAwareReuseStrategy strategy = new RotationAwareReuseStrategy(tlsStrategy, allowingFallback());
+        assertTrue(strategy.keepAlive(mock(HttpRequest.class), mock(HttpResponse.class), contextWithSession(session)));
     }
 
-    /**
-     * Build an {@link HttpContext} carrying a mocked {@link ManagedNHttpClientConnection} whose
-     * {@link IOSession} reports {@code stampedEpoch} for
-     * {@link ReloadableSchemeIoSessionStrategy#ROTATION_EPOCH_ATTR}.
-     */
-    private static HttpContext contextWithStampedConnection(int stampedEpoch) {
-        final ManagedNHttpClientConnection conn = mock(ManagedNHttpClientConnection.class);
-        final IOSession session = mock(IOSession.class);
-        when(conn.getIOSession()).thenReturn(session);
-        when(session.getAttribute(ReloadableSchemeIoSessionStrategy.ROTATION_EPOCH_ATTR)).thenReturn(stampedEpoch);
-        final HttpContext context = new BasicHttpContext();
-        context.setAttribute(HttpCoreContext.HTTP_CONNECTION, conn);
-        return context;
+    public void testRetiresWhenStampIsStale() {
+        final ReloadableTlsStrategy tlsStrategy = new ReloadableTlsStrategy();
+        tlsStrategy.setDelegate(mock(DefaultClientTlsStrategy.class));
+        final int staleEpoch = tlsStrategy.currentEpoch();
+        tlsStrategy.setDelegate(mock(DefaultClientTlsStrategy.class));
+
+        final SSLSession session = mock(SSLSession.class);
+        when(session.getValue(ReloadableTlsStrategy.SESSION_KEY)).thenReturn(staleEpoch);
+
+        final RotationAwareReuseStrategy strategy = new RotationAwareReuseStrategy(tlsStrategy, allowingFallback());
+        assertFalse(strategy.keepAlive(mock(HttpRequest.class), mock(HttpResponse.class), contextWithSession(session)));
+    }
+
+    public void testRetiresAfterDelegateSwap() {
+        final ReloadableTlsStrategy tlsStrategy = new ReloadableTlsStrategy();
+        tlsStrategy.setDelegate(mock(DefaultClientTlsStrategy.class));
+        final int epochA = tlsStrategy.currentEpoch();
+
+        final SSLSession session = mock(SSLSession.class);
+        when(session.getValue(ReloadableTlsStrategy.SESSION_KEY)).thenReturn(epochA);
+
+        final RotationAwareReuseStrategy strategy = new RotationAwareReuseStrategy(tlsStrategy, allowingFallback());
+
+        // Before rotation: connection is alive
+        assertTrue(strategy.keepAlive(mock(HttpRequest.class), mock(HttpResponse.class), contextWithSession(session)));
+
+        // Rotate — epoch advances
+        tlsStrategy.setDelegate(mock(DefaultClientTlsStrategy.class));
+
+        // After rotation: connection stamped with old epoch is stale
+        assertFalse(strategy.keepAlive(mock(HttpRequest.class), mock(HttpResponse.class), contextWithSession(session)));
+    }
+
+    public void testNonIntegerStampAtSessionKeyKeepsAlive() {
+        final ReloadableTlsStrategy tlsStrategy = new ReloadableTlsStrategy();
+        tlsStrategy.setDelegate(mock(DefaultClientTlsStrategy.class));
+        final RotationAwareReuseStrategy strategy = new RotationAwareReuseStrategy(tlsStrategy, allowingFallback());
+
+        final SSLSession session = mock(SSLSession.class);
+        when(session.getValue(ReloadableTlsStrategy.SESSION_KEY)).thenReturn("not-an-integer");
+
+        assertTrue(strategy.keepAlive(mock(HttpRequest.class), mock(HttpResponse.class), contextWithSession(session)));
+    }
+
+    public void testNoSSLSessionVerification() {
+        final ConnectionReuseStrategy fallback = mock(ConnectionReuseStrategy.class);
+        when(fallback.keepAlive(any(), any(), any())).thenReturn(false);
+        final ReloadableTlsStrategy tlsStrategy = new ReloadableTlsStrategy();
+        final RotationAwareReuseStrategy strategy = new RotationAwareReuseStrategy(tlsStrategy, fallback);
+
+        final SSLSession session = mock(SSLSession.class);
+        strategy.keepAlive(mock(HttpRequest.class), mock(HttpResponse.class), contextWithSession(session));
+
+        // SSLSession must not be queried when fallback already returns false
+        verify(session, never()).getValue(any());
     }
 }

@@ -17,7 +17,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 
 import java.io.IOException;
@@ -57,17 +56,13 @@ public class RestGetComponentTemplateAction extends BaseRestHandler {
 
         final boolean implicitAll = getRequest.name() == null;
 
-        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
-            GetComponentTemplateAction.INSTANCE,
-            getRequest,
-            new RestChunkedToXContentListener<>(channel) {
-                @Override
-                protected RestStatus getRestStatus(GetComponentTemplateAction.Response response) {
-                    final boolean templateExists = response.getComponentTemplates().isEmpty() == false;
-                    return (templateExists || implicitAll) ? OK : NOT_FOUND;
-                }
+        return channel -> client.execute(GetComponentTemplateAction.INSTANCE, getRequest, new RestChunkedToXContentListener<>(channel) {
+            @Override
+            protected RestStatus getRestStatus(GetComponentTemplateAction.Response response) {
+                final boolean templateExists = response.getComponentTemplates().isEmpty() == false;
+                return (templateExists || implicitAll) ? OK : NOT_FOUND;
             }
-        );
+        });
     }
 
     @Override

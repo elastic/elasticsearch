@@ -17,7 +17,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 
 import java.io.IOException;
@@ -56,7 +55,7 @@ public class RestGetComposableIndexTemplateAction extends BaseRestHandler {
         getRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         final boolean implicitAll = getRequest.name() == null;
 
-        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
+        return channel -> client.execute(
             GetComposableIndexTemplateAction.INSTANCE,
             getRequest,
             new RestChunkedToXContentListener<>(channel) {

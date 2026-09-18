@@ -2,8 +2,8 @@
 
 ### `wildcards_match_datasets` [esql-wildcards_match_datasets]
 ```{applies_to}
-stack: experimental 9.6+
 serverless: unavailable
+stack: experimental 9.6+
 ```
 When enabled, a wildcard in `FROM` also matches registered datasets. Defaults to `false`, so a wildcard does not match a dataset and a dataset is reached by its exact name. Other abstractions a wildcard matches are unaffected.
 

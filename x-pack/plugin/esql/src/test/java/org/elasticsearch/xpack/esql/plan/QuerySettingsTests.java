@@ -463,7 +463,7 @@ public class QuerySettingsTests extends ESTestCase {
         // is present. DocsV3Support throws on that pairing; this pins the corpus so the throw is never reached in CI
         // by a real setting. It matters because the docs-assert gate compares the emitter against the committed file
         // and would pass a badge that is wrong rather than merely stale.
-        for (Field field : QuerySettings.class.getDeclaredFields()) {
+        for (Field field : QuerySettings.class.getFields()) {
             if (QuerySettingDef.class.isAssignableFrom(field.getType()) == false) {
                 continue;
             }

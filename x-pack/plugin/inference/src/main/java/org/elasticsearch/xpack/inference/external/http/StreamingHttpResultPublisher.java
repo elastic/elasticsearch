@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
+import org.apache.http.ConnectionClosedException;
 import org.apache.http.HttpResponse;
 import org.apache.http.nio.ContentDecoder;
 import org.apache.http.nio.IOControl;
@@ -50,6 +51,8 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
 
     private final AtomicBoolean isDone = new AtomicBoolean(false);
     private final AtomicBoolean subscriptionCanceled = new AtomicBoolean(false);
+
+    private volatile boolean responseFullyReceived = false;
 
     private final SimpleInputBuffer inputBuffer = new SimpleInputBuffer(4096);
     private final DataPublisher publisher;
@@ -100,18 +103,15 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
     }
 
     @Override
-    public void responseCompleted(HttpContext httpContext) {}
+    public void responseCompleted(HttpContext httpContext) {
+        responseFullyReceived = true;
+    }
 
     // called when Apache is failing the response
     @Override
     public void failed(Exception e) {
         if (this.isDone.compareAndSet(false, true)) {
-            if (listenerCalled.compareAndSet(false, true)) {
-                listener.onFailure(e);
-            } else {
-                exception = e;
-                publisher.onError(e);
-            }
+            failStream(e);
         }
     }
 
@@ -119,7 +119,24 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
     @Override
     public void close() {
         if (isDone.compareAndSet(false, true)) {
-            publisher.onComplete();
+            if (responseFullyReceived) {
+                publisher.onComplete();
+            } else if (exception == null) {
+                // The exchange was torn down (cancelled, aborted, or the connection closed) before Apache signaled
+                // responseCompleted, and consumeContent() did not already report a cause. Completing the stream here
+                // would silently truncate the response, so fail it instead.
+                failStream(new ConnectionClosedException("Stream closed before the response was fully received"));
+            }
+            // else: consumeContent() already set exception and forwarded it via publisher.onError(); don't overwrite.
+        }
+    }
+
+    private void failStream(Exception e) {
+        exception = e;
+        if (listenerCalled.compareAndSet(false, true)) {
+            listener.onFailure(e);
+        } else {
+            publisher.onError(e);
         }
     }
 
@@ -178,7 +195,7 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
                 backpressure.subtractBytesAndMaybeUnpause(nextBytes.length);
                 downstream.onNext(nextBytes);
             }
-            if (pendingRequests.get() > 0 && contentQueue.isEmpty() && completed) {
+            if (pendingRequests.get() > 0 && completed && contentQueue.isEmpty()) {
                 pendingRequests.decrementAndGet();
                 downstream.onComplete();
             }

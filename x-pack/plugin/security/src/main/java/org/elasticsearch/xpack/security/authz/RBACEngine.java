@@ -451,7 +451,7 @@ public class RBACEngine implements AuthorizationEngine {
         IndicesRequest request,
         ShardId shardId,
         IndicesAccessControl accessControl,
-        ProjectMetadata metadata
+        Metadata metadata
     ) {
         var shardIdAccessPermissions = accessControl.getIndexPermissions(shardId.getIndexName());
         if (shardIdAccessPermissions == null) {

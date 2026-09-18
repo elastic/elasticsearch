@@ -136,7 +136,8 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
                 randomBoolean(),
                 metricType,
                 meta,
-                randomBoolean() ? null : randomFrom("standard", "default", "english", "my_analyzer")
+                randomBoolean() ? null : randomFrom("standard", "default", "english", "my_analyzer"),
+                randomIntBetween(0, 1000)
             );
             fieldCaps.put(field, fieldCap);
         }

@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -32,7 +33,11 @@ public class TextEsField extends EsField {
     // on a node that also reports that field. Public for tests.
     public static final TransportVersion FIELD_CAPS_INDEX_ANALYZER = TransportVersion.fromName("field_caps_index_analyzer");
 
+    /** {@link TextFieldMapper.Defaults#POSITION_INCREMENT_GAP}, used when {@link #analyzerName} is {@code null}. */
+    public static final int DEFAULT_POSITION_INCREMENT_GAP = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
+
     private final @Nullable String analyzerName;
+    private final int positionIncrementGap;
 
     public TextEsField(
         String name,
@@ -44,11 +49,6 @@ public class TextEsField extends EsField {
         this(name, properties, hasDocValues, isAlias, timeSeriesFieldType, null);
     }
 
-    /**
-     * @param analyzerName the analyzer the field is indexed with, as reported by field-caps. {@code null} if the
-     *                     field has none, the indices behind the pattern disagree, or a remote predates
-     *                     {@link #FIELD_CAPS_INDEX_ANALYZER}. HIGHLIGHT treats {@code null} as {@code standard}.
-     */
     public TextEsField(
         String name,
         Map<String, EsField> properties,
@@ -57,8 +57,26 @@ public class TextEsField extends EsField {
         TimeSeriesFieldType timeSeriesFieldType,
         @Nullable String analyzerName
     ) {
+        this(name, properties, hasDocValues, isAlias, timeSeriesFieldType, analyzerName, DEFAULT_POSITION_INCREMENT_GAP);
+    }
+
+    /**
+     * @param analyzerName index analyzer from field-caps, or {@code null} if unknown, disagreeing, or from an older node
+     * @param positionIncrementGap mapping gap; pinned to {@link #DEFAULT_POSITION_INCREMENT_GAP} when {@code analyzerName}
+     *                     is {@code null}
+     */
+    public TextEsField(
+        String name,
+        Map<String, EsField> properties,
+        boolean hasDocValues,
+        boolean isAlias,
+        TimeSeriesFieldType timeSeriesFieldType,
+        @Nullable String analyzerName,
+        int positionIncrementGap
+    ) {
         super(name, TEXT, properties, hasDocValues, isAlias, timeSeriesFieldType);
         this.analyzerName = analyzerName;
+        this.positionIncrementGap = analyzerName == null ? DEFAULT_POSITION_INCREMENT_GAP : positionIncrementGap;
     }
 
     protected TextEsField(StreamInput in) throws IOException {
@@ -68,13 +86,22 @@ public class TextEsField extends EsField {
             in.readBoolean(),
             in.readBoolean(),
             readTimeSeriesFieldType(in),
-            in.getTransportVersion().supports(FIELD_CAPS_INDEX_ANALYZER) ? in.readOptionalString() : null
+            in.getTransportVersion().supports(FIELD_CAPS_INDEX_ANALYZER) ? in.readOptionalString() : null,
+            in.getTransportVersion().supports(FIELD_CAPS_INDEX_ANALYZER) ? in.readVInt() : DEFAULT_POSITION_INCREMENT_GAP
         );
     }
 
     @Override
     public EsField withProperties(Map<String, EsField> newProperties) {
-        return new TextEsField(getName(), newProperties, isAggregatable(), isAlias(), getTimeSeriesFieldType(), analyzerName);
+        return new TextEsField(
+            getName(),
+            newProperties,
+            isAggregatable(),
+            isAlias(),
+            getTimeSeriesFieldType(),
+            analyzerName,
+            positionIncrementGap
+        );
     }
 
     @Override
@@ -86,6 +113,8 @@ public class TextEsField extends EsField {
         writeTimeSeriesFieldType(out);
         if (out.getTransportVersion().supports(FIELD_CAPS_INDEX_ANALYZER)) {
             out.writeOptionalString(analyzerName);
+            // StreamInput ctor reads this before it can skip on a null name.
+            out.writeVInt(positionIncrementGap);
         }
     }
 
@@ -94,6 +123,11 @@ public class TextEsField extends EsField {
      */
     public String analyzerName() {
         return analyzerName;
+    }
+
+    /** Mapping {@code position_increment_gap}, or {@link #DEFAULT_POSITION_INCREMENT_GAP} when {@link #analyzerName()} is null. */
+    public int positionIncrementGap() {
+        return positionIncrementGap;
     }
 
     public String getWriteableName(TransportVersion transportVersion) {
@@ -156,11 +190,11 @@ public class TextEsField extends EsField {
             return false;
         }
         TextEsField that = (TextEsField) o;
-        return Objects.equals(analyzerName, that.analyzerName);
+        return positionIncrementGap == that.positionIncrementGap && Objects.equals(analyzerName, that.analyzerName);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), analyzerName);
+        return Objects.hash(super.hashCode(), analyzerName, positionIncrementGap);
     }
 }

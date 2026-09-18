@@ -54,7 +54,9 @@ public final class HighlightAnalyzers {
         }
         if (field instanceof FieldAttribute fa && fa.field() instanceof TextEsField text && text.analyzerName() != null) {
             try {
-                return PlannerUtils.resolveAnalyzer(text.analyzerName(), analysisRegistry);
+                NamedAnalyzer resolved = PlannerUtils.resolveAnalyzer(text.analyzerName(), analysisRegistry);
+                int gap = text.positionIncrementGap();
+                return resolved.getPositionIncrementGap(resolved.name()) == gap ? resolved : new NamedAnalyzer(resolved, gap);
             } catch (InvalidArgumentException e) {
                 // index.analysis name this node cannot build. Fail open to standard. The name came from the mapping,
                 // not the query.

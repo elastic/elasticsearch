@@ -213,6 +213,7 @@ class FieldCapabilitiesFetcher {
             if ((includeEmptyFields || ft.fieldHasValue(fieldInfos))
                 && (fieldPredicate.test(ft.name()) || context.isMetadataField(ft.name()))
                 && (filter == null || filter.test(ft))) {
+                NamedAnalyzer indexAnalyzer = indexAnalyzer(mappingLookup, ft, configuredAnalyzerNames);
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,
                     ft.familyTypeName(),
@@ -223,7 +224,10 @@ class FieldCapabilitiesFetcher {
                     isTimeSeriesIndex ? ft.isDimension() : false,
                     isTimeSeriesIndex ? ft.getMetricType() : null,
                     ft.meta(),
-                    indexAnalyzerName(mappingLookup, ft, configuredAnalyzerNames)
+                    indexAnalyzer == null ? null : indexAnalyzer.name(),
+                    indexAnalyzer == null
+                        ? TextFieldMapper.Defaults.POSITION_INCREMENT_GAP
+                        : indexAnalyzer.getPositionIncrementGap(ft.name())
                 );
                 responseMap.put(field, fieldCap);
             } else {
@@ -255,7 +259,8 @@ class FieldCapabilitiesFetcher {
                             false,
                             null,
                             Map.of(),
-                            null
+                            null,
+                            TextFieldMapper.Defaults.POSITION_INCREMENT_GAP
                         );
                         responseMap.put(parentField, fieldCap);
                     }
@@ -267,25 +272,24 @@ class FieldCapabilitiesFetcher {
     }
 
     /**
-     * Name of the analyzer a text field is indexed with, or {@code null} for anything that is not text.
-     * ES|QL HIGHLIGHT re-analyzes field values on the coordinator, so it cannot look this up from a shard.
+     * Index-time analyzer of a text field, or {@code null} for anything that is not text. ES|QL HIGHLIGHT
+     * re-analyzes field values on the coordinator, so it cannot look this up from a shard.
      *
      * <p>A name bound under {@code index.analysis} (in {@code configuredAnalyzerNames}) is index-local, even
      * when it collides with a built-in name such as {@code english}: the coordinator only resolves node-level
-     * analyzers by name, so it would build a different analyzer than this index. Drop the name in that case so
+     * analyzers by name, so it would build a different analyzer than this index. Drop it in that case so
      * HIGHLIGHT falls back to {@code standard}, as it already does for any index-local analyzer it cannot rebuild.
      */
     @Nullable
-    private static String indexAnalyzerName(MappingLookup mappingLookup, MappedFieldType ft, Set<String> configuredAnalyzerNames) {
+    private static NamedAnalyzer indexAnalyzer(MappingLookup mappingLookup, MappedFieldType ft, Set<String> configuredAnalyzerNames) {
         if (TextFieldMapper.CONTENT_TYPE.equals(ft.familyTypeName()) == false) {
             return null;
         }
         NamedAnalyzer analyzer = mappingLookup.indexAnalyzer(ft.name(), unused -> null);
-        if (analyzer == null) {
+        if (analyzer == null || configuredAnalyzerNames.contains(analyzer.name())) {
             return null;
         }
-        String name = analyzer.name();
-        return configuredAnalyzerNames.contains(name) ? null : name;
+        return analyzer;
     }
 
     /**

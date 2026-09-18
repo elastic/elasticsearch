@@ -1122,17 +1122,20 @@ public final class IndexSettings {
     }
 
     /**
-     * Controls whether the ColumNAR doc values codec is used for a given index, as an explicit opt-in.
-     * Defaults to {@code false}. This setting is only registered while the {@code columnar_codec} feature
-     * flag is enabled, so a release build without the flag does not expose it; the full gating is enforced
-     * in {@code ColumnarDocValuesFormatSelector}.
+     * Controls whether the ColumNAR doc values codec is used for a given index.
+     * Defaults to {@code true} for indices created at or after
+     * {@link IndexVersions#COLUMNAR_CODEC_ENABLED_BY_DEFAULT_FF}; {@code false} for older indices,
+     * preserving backward compatibility with segments written before the codec was the default.
+     * This setting is only registered while the {@code columnar_codec} feature flag is enabled,
+     * so a release build without the flag does not expose it; the full gating is enforced in
+     * {@code ColumnarDocValuesFormatSelector}.
      */
-    public static final Setting<Boolean> COLUMNAR_CODEC_ENABLED_SETTING = Setting.boolSetting(
-        "index.columnar_codec.enabled",
-        false,
-        Property.IndexScope,
-        Property.Final
-    );
+    public static final Setting<Boolean> COLUMNAR_CODEC_ENABLED_SETTING = Setting.boolSetting("index.columnar_codec.enabled", settings -> {
+        if (settings == null) {
+            return Boolean.FALSE.toString();
+        }
+        return Boolean.toString(SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.COLUMNAR_CODEC_ENABLED_BY_DEFAULT_FF));
+    }, Property.IndexScope, Property.Final);
 
     /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.

@@ -1721,7 +1721,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolver.isAnchorPinnedFirstFileWins(
                 GLOB,
                 ffw,
-                DeclaredReadSpec.of(Map.of(), null, Map.of(), Set.of(), SchemaProvenance.DECLARED)
+                DeclaredReadSpec.of(Map.of(), Map.of(), Set.of(), SchemaProvenance.DECLARED)
             )
         );
     }
@@ -1744,13 +1744,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
     public void testPinnedColumnsOfUnknownFirstFileWinsUsesPhysicalNamesAfterRename() {
         ExternalSchema overlaid = new ExternalSchema(List.of(attr("y", DataType.INTEGER)));
         SchemaReconciliation.FileSchemaInfo unknown = new SchemaReconciliation.FileSchemaInfo(overlaid, null, null);
-        DeclaredReadSpec renamed = DeclaredReadSpec.of(Map.of("y", "x"), null, Map.of(), Set.of(), SchemaProvenance.INFERRED);
+        DeclaredReadSpec renamed = DeclaredReadSpec.of(Map.of("y", "x"), Map.of(), Set.of(), SchemaProvenance.INFERRED);
         assertEquals(Set.of("x"), ExternalSourceResolver.pinnedColumnsOf(unknown, true, renamed));
     }
 
     public void testPinnedColumnsOfKnownTypesUsesPhysicalNamesAfterRename() {
         ExternalSchema overlaid = new ExternalSchema(List.of(attr("y", DataType.INTEGER)));
-        DeclaredReadSpec renamed = DeclaredReadSpec.of(Map.of("y", "x"), null, Map.of(), Set.of("y"));
+        DeclaredReadSpec renamed = DeclaredReadSpec.of(Map.of("y", "x"), Map.of(), Set.of("y"));
         SchemaReconciliation.FileSchemaInfo pinned = new SchemaReconciliation.FileSchemaInfo(
             overlaid,
             null,

@@ -225,8 +225,8 @@ public class FileSplitProvider implements SplitProvider {
      * zstd-indexed frame groups). Text readers anchor {@code _rowPosition} as
      * {@code splitStartByte + decompressed-bytes-consumed}; a compressed anchor plus a
      * decompressed delta is a value on no axis — not split-invariant and collision-prone across
-     * splits — so the dispatcher must not compose {@code _id} from these splits (it null-splices
-     * the {@code _rowPosition} slot instead).
+     * splits — so the dispatcher must not surface {@code _file.record_ref} from these splits (it
+     * null-splices the {@code _rowPosition} slot instead).
      */
     static final String COMPRESSED_OFFSET_SPLIT_KEY = "_compressed_offset_split";
 
@@ -580,7 +580,7 @@ public class FileSplitProvider implements SplitProvider {
 
             if (filterHints.isEmpty() == false) {
                 Map<String, Object> filterValues = overlayPerFileConstants
-                    ? discoveryFilterValues(partitionValues, context.datasetName(), fileList, i, metadataColumnNames)
+                    ? discoveryFilterValues(partitionValues, metadataColumnNames)
                     : partitionValues;
                 if (filterValues.isEmpty() == false && matchesPartitionFilters(filterValues, filterHints) == false) {
                     certifiedSkips++;
@@ -590,7 +590,10 @@ public class FileSplitProvider implements SplitProvider {
                     Set<String> fileColumnNames = new LinkedHashSet<>(fileSchemaInfo.fileSchema().names());
                     fileColumnNames.addAll(filterValues.keySet());
                     fileColumnNames.addAll(metadataColumnNames);
-                    addPerRowComposedColumnNames(fileColumnNames);
+                    // _file.record_ref is composed per row, so it is present on every file whatever the
+                    // file schema lists. The standard names are per-file constants and reach
+                    // fileColumnNames through filterValues above, when bound as metadata.
+                    fileColumnNames.add(FileMetadataColumns.RECORD_REF);
                     if (skipIfFilterOnMissingColumns(filterHints, fileColumnNames)) {
                         certifiedSkips++;
                         continue;
@@ -2854,22 +2857,15 @@ public class FileSplitProvider implements SplitProvider {
 
     /**
      * Hive partitions and {@code _file.*} listing values plus the engine-materialised per-file
-     * constants ({@code _index}, {@code _version}, and the all-null standard names). Used only for
-     * discovery filter evaluation; the {@link FileTask} carries hive + {@code _file.*} only.
+     * constants (the all-null standard names). Used only for discovery filter evaluation; the
+     * {@link FileTask} carries hive + {@code _file.*} only.
      * Only names bound as metadata in the relation's output receive constants, matching the
      * reader. Data columns retain their physical values or missing-column null-fill.
      */
-    private static Map<String, Object> discoveryFilterValues(
-        Map<String, Object> partitionValues,
-        @Nullable String datasetName,
-        FileList fileList,
-        int index,
-        Set<String> metadataColumnNames
-    ) {
+    private static Map<String, Object> discoveryFilterValues(Map<String, Object> partitionValues, Set<String> metadataColumnNames) {
         Map<String, Object> filterValues = new HashMap<>(partitionValues.size() + ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.size());
         filterValues.putAll(partitionValues);
-        for (Map.Entry<String, Object> constant : ExternalMetadataColumns.extractPerFileConstants(datasetName, fileList, index)
-            .entrySet()) {
+        for (Map.Entry<String, Object> constant : ExternalMetadataColumns.extractPerFileConstants().entrySet()) {
             if (metadataColumnNames.contains(constant.getKey())) {
                 filterValues.put(constant.getKey(), constant.getValue());
             }
@@ -2888,17 +2884,6 @@ public class FileSplitProvider implements SplitProvider {
             }
         }
         return false;
-    }
-
-    /**
-     * Per-row names have no constant for {@link #matchesPartitionFilters}. Conservatively leave
-     * their predicates to the reader: {@code _file.record_ref} can be materialized by name even
-     * when its output attribute is data-bound, so physical absence alone cannot certify a skip.
-     */
-    private static void addPerRowComposedColumnNames(Set<String> fileColumnNames) {
-        fileColumnNames.add(FileMetadataColumns.RECORD_REF);
-        fileColumnNames.add(ExternalMetadataColumns.ID);
-        fileColumnNames.add(ExternalMetadataColumns.SOURCE);
     }
 
     /**

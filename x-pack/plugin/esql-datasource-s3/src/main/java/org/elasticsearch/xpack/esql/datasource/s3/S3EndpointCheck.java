@@ -132,7 +132,10 @@ final class S3EndpointCheck {
             for (String label : STS_SERVICE_LABELS) {
                 stsHosts.add(label + "." + id + "." + suffix);
             }
-            // The historical spelling, still resolvable and still in customer configuration.
+            // The historical spelling, which S3 still answers to where it was configured years ago. It is
+            // generated for every region rather than for the regions that serve it, so the set holds some
+            // names that resolve to nothing — each still under a suffix AWS controls, which is the property
+            // the rule rests on.
             s3Hosts.add(S3_SERVICE + "-" + id + "." + suffix);
             s3Tails.add("." + S3_SERVICE + "." + id + ".vpce." + suffix);
             stsTails.add("." + STS_SERVICE + "." + id + ".vpce." + suffix);

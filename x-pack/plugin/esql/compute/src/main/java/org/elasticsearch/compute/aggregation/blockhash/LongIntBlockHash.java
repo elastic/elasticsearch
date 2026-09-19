@@ -25,6 +25,7 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeLong;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.swisshash.BytesLongPartitionedHash;
 import org.elasticsearch.swisshash.LongLongSwissHash;
 
 import java.util.List;
@@ -44,7 +45,7 @@ public final class LongIntBlockHash extends PartitionedBlockHash {
     private final long[] batchKeys2;
     final int[] batchIds;
     // defaults to false, switch to true if we ever see input blocks
-    private boolean seenBlocks = false;
+    boolean seenBlocks = false;
 
     public LongIntBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize, boolean reverseOutput) {
         super(blockFactory);
@@ -147,9 +148,9 @@ public final class LongIntBlockHash extends PartitionedBlockHash {
      * longValue, null      -> longValue, INT_NULL_MASK
      * null, null           -> 0, LONG_NULL_MASK | INT_NULL_MASK
      */
-    static final long LONG_NULL_MASK = 0x00F0_0000_0000_0000L;
-    static final long INT_NULL_MASK = 0x000F_0000_0000_0000L;
-    static final long WIDEN = 0xFFFFFFFFL;
+    static final long LONG_NULL_MASK = BytesLongPartitionedHash.LONG_NULL_MASK;
+    static final long INT_NULL_MASK = BytesLongPartitionedHash.INT_NULL_MASK;
+    static final long WIDEN = BytesLongPartitionedHash.WIDEN;
 
     private class AddBlockWork extends AddPage {
         final LongBlock longBlock;
@@ -575,7 +576,7 @@ public final class LongIntBlockHash extends PartitionedBlockHash {
         hash.clear();
     }
 
-    private record PartitionedHashKeysWithSeenBlocks(PartitionedHashKeys delegate, boolean seenBlocks) implements PartitionedHashKeys {
+    record PartitionedHashKeysWithSeenBlocks(PartitionedHashKeys delegate, boolean seenBlocks) implements PartitionedHashKeys {
         @Override
         public int keysInPartition(int partition) {
             return delegate.keysInPartition(partition);

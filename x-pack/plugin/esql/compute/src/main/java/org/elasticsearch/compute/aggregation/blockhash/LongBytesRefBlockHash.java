@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -27,7 +28,9 @@ import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.swisshash.BytesLongPartitionedHash;
 import org.elasticsearch.swisshash.BytesRefSwissHash;
+import org.elasticsearch.swisshash.LongLongSwissHash;
 
 import java.util.Arrays;
 import java.util.List;
@@ -35,7 +38,7 @@ import java.util.List;
 /**
  * A specialized {@link BlockHash} for the two-key {@code (LONG, BYTES_REF)} (or {@code (BYTES_REF, LONG)})
  */
-public final class LongBytesRefBlockHash extends BlockHash {
+public final class LongBytesRefBlockHash extends PartitionedBlockHash {
     private final int longChannel;
     private final int bytesChannel;
     private final BytesRefHashTable bytesHash;
@@ -408,5 +411,33 @@ public final class LongBytesRefBlockHash extends BlockHash {
                 return builder.build();
             }
         }
+    }
+
+    @Override
+    public void clear() {
+        bytesHash.clear();
+        longIntHash.clear();
+    }
+
+    private BytesLongPartitionedHash partitioner() {
+        if (longIntHash.hash instanceof LongLongSwissHash == false || bytesHash instanceof BytesRefSwissHash == false) {
+            throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
+        }
+        return new BytesLongPartitionedHash((BytesRefSwissHash) bytesHash, (LongLongSwissHash) longIntHash.hash);
+    }
+
+    @Override
+    public PartitionedHashKeys splitPartition(CircuitBreaker breaker, PartitionSplitter partitionSplitter) {
+        return new LongIntBlockHash.PartitionedHashKeysWithSeenBlocks(
+            partitioner().splitPartition(breaker, partitionSplitter),
+            longIntHash.seenBlocks
+        );
+    }
+
+    @Override
+    public boolean combinePartition(PartitionedHashKeys keys, int partitionIndex, int[] resultIds) {
+        LongIntBlockHash.PartitionedHashKeysWithSeenBlocks withSeen = (LongIntBlockHash.PartitionedHashKeysWithSeenBlocks) keys;
+        longIntHash.seenBlocks |= withSeen.seenBlocks();
+        return partitioner().combinePartition(withSeen.delegate(), partitionIndex, resultIds);
     }
 }

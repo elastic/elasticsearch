@@ -851,6 +851,14 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
 
     @Override
     public PartitionedHashKeys splitPartition(CircuitBreaker breaker, PartitionSplitter partitionSplitter) {
+        return splitPartition(breaker, null, partitionSplitter);
+    }
+
+    interface Key2Partitioner {
+        int partition(long key2);
+    }
+
+    LongLongPartitionedHashKeys splitPartition(CircuitBreaker breaker, Key2Partitioner partitioner, PartitionSplitter partitionSplitter) {
         final int[] batchPartitionCounts = new int[NUM_PARTITIONS];
         final short[] shiftedIds = new short[PARTITION_WRITE_BATCH * NUM_PARTITIONS];
         int batchStart = 0;
@@ -866,11 +874,17 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
                     keyPage = keyPages[++pageIndex];
                     indexInPage = 0;
                 }
-                final long key1 = (long) LONG_HANDLE.get(keyPage, indexInPage);
-                final long key2 = (long) LONG_HANDLE.get(keyPage, indexInPage + Long.BYTES);
+                final int p;
+                if (partitioner != null) {
+                    final long key2 = (long) LONG_HANDLE.get(keyPage, indexInPage + Long.BYTES);
+                    p = partitioner.partition(key2);
+                } else {
+                    final long key1 = (long) LONG_HANDLE.get(keyPage, indexInPage);
+                    final long key2 = (long) LONG_HANDLE.get(keyPage, indexInPage + Long.BYTES);
+                    p = partition(hash(key1, key2));
+                }
                 indexInPage += KEY_SIZE;
-                final long hash64 = hash(key1, key2);
-                final int p = partition(hash64);
+                assert p >= 0 && p < NUM_PARTITIONS : p;
                 if (batchPartitionCounts[p] == PARTITION_WRITE_BATCH) {
                     partitionedKeys.splitKeys(breaker, keyPages, batchStart, shiftedIds, batchPartitionCounts);
                     partitionSplitter.split(batchStart, shiftedIds, id - batchStart, batchPartitionCounts, partitionOffsets);

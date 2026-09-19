@@ -1077,24 +1077,20 @@ groups:long | total:long
 ;
 
 // -- Wildcard / pattern interaction with virtual columns --
-// `KEEP *` and implicit projections do NOT expand virtual `_file.*` columns: users must request
-// them by name or via an explicit pattern. `KEEP _file*` *does* match through pattern resolution
-// (ExternalMetadataAttribute.synthetic == false), so the user can opt in pattern-style.
+// `KEEP *` keeps METADATA-bound ExternalMetadataAttribute columns. `KEEP _file*` matches through
+// pattern resolution (ExternalMetadataAttribute.synthetic == false).
 
-fileMetadataWildcardKeepExcludesVirtualColumns
+fileMetadataWildcardKeepIncludesRequestedColumns
 required_capability: external_source_file_metadata_columns
 dataset: employees_no_mv: "{{employees_no_mv}}"
 
-// `KEEP *` does not expand the _file.* metadata columns brought into scope via METADATA — metadata
-// columns must be named explicitly — so the wildcard returns data columns only. Demonstrated
-// indirectly: the query still returns 100 rows with the data columns present.
 FROM employees_no_mv METADATA _file.size
 | KEEP *
-| WHERE salary > 0
-| STATS count = COUNT(*);
+| KEEP `_file.size`
+| STATS distinct_sizes = COUNT_DISTINCT(`_file.size`);
 
-count:long
-100
+distinct_sizes:long
+1
 ;
 
 fileMetadataKeepExplicitPatternMatches

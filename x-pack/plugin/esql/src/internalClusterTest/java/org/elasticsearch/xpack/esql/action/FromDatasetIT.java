@@ -5929,6 +5929,56 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    public void testFromDatasetKeepStarIncludesMetadataId() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _id | KEEP * | LIMIT 1"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat(names, hasItem("_id"));
+            assertThat(names, hasItem("emp_no"));
+        }
+    }
+
+    public void testFromTwoDatasetsKeepStarIncludesMetadataIdBothOrders() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        registerDataset("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
+
+        for (String query : List.of(
+            "FROM employees, employees_alt METADATA _id | KEEP * | LIMIT 1",
+            "FROM employees_alt, employees METADATA _id | KEEP * | LIMIT 1"
+        )) {
+            try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+                List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+                assertThat(query + " columns: " + names, names, hasItem("_id"));
+                assertThat(query + " columns: " + names, names, hasItem("emp_no"));
+            }
+        }
+    }
+
+    public void testFromMixedIndexAndDatasetKeepStarIncludesMetadataIdBothOrders() throws Exception {
+        assertAcked(
+            client().admin().indices().prepareCreate("metadata_idx").setMapping("emp_no", "type=integer", "first_name", "type=keyword")
+        );
+        prepareIndex("metadata_idx").setSource(Map.of("emp_no", 100, "first_name", "Zoe")).get();
+        client().admin().indices().prepareRefresh("metadata_idx").get();
+
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        for (String query : List.of(
+            "FROM metadata_idx, employees METADATA _id | KEEP * | LIMIT 1",
+            "FROM employees, metadata_idx METADATA _id | KEEP * | LIMIT 1"
+        )) {
+            try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+                List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+                assertThat(query + " columns: " + names, names, hasItem("_id"));
+                assertThat(query + " columns: " + names, names, hasItem("emp_no"));
+            }
+        }
+    }
+
     /** Walks the cause chain and asserts a message fragment appears somewhere in it. */
     private static void assertCauseMessageContains(Throwable throwable, String fragment) {
         Throwable cause = throwable;

@@ -1025,16 +1025,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
         Map<String, Object> config = options != null ? foldOptionLiterals(options.keyFoldedMap()) : Map.of();
 
-        // TEMPORARY SHIM — delete when the inline EXTERNAL command is retired in favour of
-        // FROM <dataset>. External metadata is otherwise purely request-driven: a column appears
-        // only when the user names it in a METADATA clause (the FROM path) and surfaces only when
-        // KEEP'd by name. The legacy EXTERNAL command has no METADATA clause, so to preserve its
-        // historical behaviour (_file.* resolvable in WHERE / STATS BY / KEEP) we inject the
-        // _file.* names as if the user had written `METADATA _file.path, _file.name, ...`.
+        // TEMPORARY SHIM: delete when the inline EXTERNAL command is retired in favour of
+        // FROM <dataset>. External metadata is otherwise request-driven: a column appears only
+        // when the user names it in a METADATA clause (the FROM path). That path surfaces the
+        // column in default output and in KEEP *. The legacy EXTERNAL command has no METADATA
+        // clause, so to preserve its historical behaviour (_file.* resolvable in WHERE / STATS BY
+        // / KEEP) we inject the _file.* names as if the user had written
+        // `METADATA _file.path, _file.name, ...`.
         // ResolveExternalRelations.bindMetadataFields binds them to ExternalMetadataAttributes; the
-        // surfacing rule still hides them from default output unless explicitly KEEP'd. The schema
-        // auto-attach that used to glue _file.* onto every external source is gone (it leaked the
-        // columns through DROP / wildcard).
+        // EXTERNAL surfacing rule still hides them from default output unless a Keep lists them.
+        // There is no schema auto-attach of _file.* on every external source: that leaked
+        // columns through DROP / wildcard.
         List<NamedExpression> metadataFields = new ArrayList<>(FileMetadataColumns.NAMES.size());
         for (String name : FileMetadataColumns.NAMES) {
             // _file.record_ref is a FROM-only, request-driven column (it drives _id and forces the

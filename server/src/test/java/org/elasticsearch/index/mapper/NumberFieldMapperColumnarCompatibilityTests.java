@@ -513,13 +513,65 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
 
     public void testHalfFloatField_stored() throws IOException {
         final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        final String idB = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_B);
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject("@timestamp").field("type", "date").endObject();
             b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.startObject(FIELD).field("type", "half_float").field("store", true).endObject();
         }),
             tsdbSettings(),
-            batch("half_float stored", 1L, doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":1.5}"))
+            batch(
+                "half_float stored",
+                1L,
+                doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":1.5}"),
+                doc(idB, ST_ROUTING, ST_TSID, 2L, "{\"@timestamp\":" + ST_TS_B + ",\"f\":2.718281828}")
+            )
+        );
+    }
+
+    public void testHalfFloatField_storedLongColumn() throws IOException {
+        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "half_float").field("store", true).endObject();
+        }),
+            tsdbSettings(),
+            batch("half_float stored long column", 1L, doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":4097}"))
+        );
+    }
+
+    public void testHalfFloatField_storedStringColumn() throws IOException {
+        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "half_float").field("store", true).endObject();
+        }),
+            tsdbSettings(),
+            batch(
+                "half_float stored string column",
+                1L,
+                doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":\"2.718281828\"}")
+            )
+        );
+    }
+
+    public void testHalfFloatField_storedEmptyStringUsesNullValue() throws IOException {
+        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        final String idB = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_B);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "half_float").field("store", true).field("null_value", 0.1).endObject();
+        }),
+            tsdbSettings(),
+            batch(
+                "half_float stored empty string null_value",
+                1L,
+                doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":\"2.718281828\"}"),
+                doc(idB, ST_ROUTING, ST_TSID, 2L, "{\"@timestamp\":" + ST_TS_B + ",\"f\":\"\"}")
+            )
         );
     }
 

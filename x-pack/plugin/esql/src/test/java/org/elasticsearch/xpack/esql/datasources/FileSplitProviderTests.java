@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -66,6 +67,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
@@ -618,17 +620,53 @@ public class FileSplitProviderTests extends ESTestCase {
         );
     }
 
-    public void testOrderedBoundIsUnknownExactlyOnTheBound() {
-        // mv_greater / mv_less default to a strict bound and mv_in_range to an inclusive one; the matcher reads
-        // neither, so it answers only where the answer cannot depend on it.
-        assertNull(FileSplitProvider.evaluateFilter(new MvGreater(SRC, fieldAttr("year"), intLiteral(2022)), Map.of("year", 2022)));
-        assertNull(FileSplitProvider.evaluateFilter(new MvLess(SRC, fieldAttr("year"), intLiteral(2022)), Map.of("year", 2022)));
-        assertNull(
+    public void testOrderedBoundUsesItsDefaultWhenNoOptionsAreSet() {
+        // mv_in_range defaults to inclusive and mv_greater / mv_less to strict, so with no options a value exactly on
+        // the bound has a definite answer. This is the shape every DSL range on an integer column arrives in.
+        assertEquals(
+            Boolean.TRUE,
             FileSplitProvider.evaluateFilter(
                 new MvInRange(SRC, fieldAttr("year"), intLiteral(2022), intLiteral(2024)),
                 Map.of("year", 2022)
             )
         );
+        assertEquals(
+            Boolean.TRUE,
+            FileSplitProvider.evaluateFilter(
+                new MvInRange(SRC, fieldAttr("year"), intLiteral(2020), intLiteral(2022)),
+                Map.of("year", 2022)
+            )
+        );
+        assertEquals(
+            Boolean.FALSE,
+            FileSplitProvider.evaluateFilter(new MvGreater(SRC, fieldAttr("year"), intLiteral(2022)), Map.of("year", 2022))
+        );
+        assertEquals(
+            Boolean.FALSE,
+            FileSplitProvider.evaluateFilter(new MvLess(SRC, fieldAttr("year"), intLiteral(2022)), Map.of("year", 2022))
+        );
+    }
+
+    public void testOrderedBoundIsUnknownWhenOptionsAreSet() {
+        // Options override the default and the matcher does not parse them, so a value on the bound stays unknown —
+        // and is kept. Off the bound the answer does not depend on inclusivity, so it is still definite.
+        Expression includeBound = new MapExpression(
+            SRC,
+            List.of(Literal.keyword(SRC, MvCompare.INCLUDE_BOUND), new Literal(SRC, true, DataType.BOOLEAN))
+        );
+        Expression greater = new MvGreater(SRC, fieldAttr("year"), intLiteral(2022), includeBound);
+        assertNull(FileSplitProvider.evaluateFilter(greater, Map.of("year", 2022)));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(greater, Map.of("year", 2023)));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(greater, Map.of("year", 2021)));
+    }
+
+    public void testNotOverDslIntegerRangePrunesThePartitionOnTheBound() {
+        // must_not range year > 2024 translates (integralRange) to NOT mv_in_range(year, 2025, INT_MAX) with no
+        // options. The year=2025 file sits exactly on the lower bound: every row is inside the range, so every row fails
+        // the negation, and the file must be pruned. Answering unknown on the bound would keep it for nothing.
+        Expression filter = new Not(SRC, new MvInRange(SRC, fieldAttr("year"), intLiteral(2025), intLiteral(Integer.MAX_VALUE)));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2025)));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2024)));
     }
 
     public void testNotOverStrictMvGreaterKeepsTheFileSittingOnTheBound() {

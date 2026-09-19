@@ -3034,8 +3034,8 @@ public class FileSplitProvider implements SplitProvider {
             }
             // The multivalue comparison functions — what the out-of-band request filter translates into. A partition
             // value is a single value, so each reads exactly as its scalar sibling does, with two differences handled
-            // in the helpers below: they are one-directional (field OP literal only), and the ordered forms do not
-            // read their bound inclusivity, so they answer unknown exactly on the bound.
+            // in the helpers below: they are one-directional (field OP literal only), and the ordered forms answer a
+            // value exactly on the bound from their default inclusivity, or unknown when options override it.
             case MvContains mvContains -> evaluateMvLeaf(
                 mvContains.left(),
                 mvContains.right(),
@@ -3043,12 +3043,25 @@ public class FileSplitProvider implements SplitProvider {
                 PartitionValueMatcher::compareEquals
             );
             case MvIntersects mvIntersects -> evaluateMvIntersects(mvIntersects, partitionValues);
-            case MvInRange mvInRange -> nullableAnd(
-                evaluateMvLeaf(mvInRange.field(), mvInRange.lower(), partitionValues, FileSplitProvider::above),
-                evaluateMvLeaf(mvInRange.field(), mvInRange.upper(), partitionValues, FileSplitProvider::below)
+            case MvInRange mvInRange -> {
+                Boolean onBound = onTheBound(mvInRange.options(), true);
+                yield nullableAnd(
+                    evaluateMvLeaf(mvInRange.field(), mvInRange.lower(), partitionValues, (v, b) -> above(v, b, onBound)),
+                    evaluateMvLeaf(mvInRange.field(), mvInRange.upper(), partitionValues, (v, b) -> below(v, b, onBound))
+                );
+            }
+            case MvGreater mvGreater -> evaluateMvLeaf(
+                mvGreater.field(),
+                mvGreater.bound(),
+                partitionValues,
+                (v, b) -> above(v, b, onTheBound(mvGreater.options(), false))
             );
-            case MvGreater mvGreater -> evaluateMvLeaf(mvGreater.field(), mvGreater.bound(), partitionValues, FileSplitProvider::above);
-            case MvLess mvLess -> evaluateMvLeaf(mvLess.field(), mvLess.bound(), partitionValues, FileSplitProvider::below);
+            case MvLess mvLess -> evaluateMvLeaf(
+                mvLess.field(),
+                mvLess.bound(),
+                partitionValues,
+                (v, b) -> below(v, b, onTheBound(mvLess.options(), false))
+            );
             case And and -> nullableAnd(evaluateFilter(and.left(), partitionValues), evaluateFilter(and.right(), partitionValues));
             case Or or -> nullableOr(evaluateFilter(or.left(), partitionValues), evaluateFilter(or.right(), partitionValues));
             case Not not -> nullableNot(evaluateFilter(not.field(), partitionValues));
@@ -3167,21 +3180,31 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * TRUE strictly above {@code bound}, FALSE strictly below, <em>unknown exactly on it</em>. The ordered multivalue
-     * functions carry their bound inclusivity as an option, and {@code mv_greater} / {@code mv_less} default to strict
-     * while {@code mv_in_range} defaults to inclusive. Rather than read it, answer only where it cannot matter. Treating
-     * the bound as inclusive instead would be wrong, not merely loose: {@code NOT mv_greater(p, 5)} over a file with
-     * {@code p = 5} is true for every row, and an inclusive {@code 5 >= 5} negates to false and prunes that file.
+     * What an ordered multivalue function answers for a value lying exactly on its bound. The inclusivity is an option
+     * — {@code mv_in_range} defaults to inclusive, {@code mv_greater} / {@code mv_less} to strict — and when no options
+     * were given, the default is the answer. That is not an edge case: a DSL {@code range} on an integer column always
+     * arrives as an optionless {@code mv_in_range} with its bounds already made inclusive, and integer range bounds land
+     * on partition values constantly ({@code year >= 2025} over {@code year=2025}). With options present the answer is
+     * left unknown rather than parse them here.
+     * <p>
+     * Guessing instead would be wrong rather than loose: {@code NOT mv_greater(year, 2022)} is true for every row of a
+     * {@code year=2022} file because the bound is strict, and reading it as inclusive negates {@code 2022 >= 2022} to
+     * false and prunes that file.
      */
-    private static Boolean above(Object value, Object bound) {
-        int cmp = PartitionValueMatcher.compareValues(value, bound);
-        return cmp > 0 ? Boolean.TRUE : cmp < 0 ? Boolean.FALSE : null;
+    private static Boolean onTheBound(Expression options, boolean defaultInclusive) {
+        return options == null ? defaultInclusive : null;
     }
 
-    /** TRUE strictly below {@code bound}, FALSE strictly above, unknown exactly on it — see {@link #above}. */
-    private static Boolean below(Object value, Object bound) {
+    /** TRUE strictly above {@code bound}, FALSE strictly below, {@code onBound} exactly on it. */
+    private static Boolean above(Object value, Object bound, Boolean onBound) {
         int cmp = PartitionValueMatcher.compareValues(value, bound);
-        return cmp < 0 ? Boolean.TRUE : cmp > 0 ? Boolean.FALSE : null;
+        return cmp > 0 ? Boolean.TRUE : cmp < 0 ? Boolean.FALSE : onBound;
+    }
+
+    /** TRUE strictly below {@code bound}, FALSE strictly above, {@code onBound} exactly on it. */
+    private static Boolean below(Object value, Object bound, Boolean onBound) {
+        int cmp = PartitionValueMatcher.compareValues(value, bound);
+        return cmp < 0 ? Boolean.TRUE : cmp > 0 ? Boolean.FALSE : onBound;
     }
 
     private static String extractColumnName(Expression expr) {

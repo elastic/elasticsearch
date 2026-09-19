@@ -25,6 +25,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.ShardGeneration;
+import org.elasticsearch.repositories.ShardSnapshotFilesObserver;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.snapshots.Snapshot;
@@ -76,7 +77,8 @@ public class TransportSnapshotsStatusActionTests extends ESTestCase {
             threadPool,
             nodeClient,
             List.of(),
-            SnapshotMetrics.NOOP
+            SnapshotMetrics.NOOP,
+            ShardSnapshotFilesObserver.NOOP
         );
         action = new TransportSnapshotsStatusAction(
             transportService,

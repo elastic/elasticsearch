@@ -48,6 +48,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryDeprecationInfo;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.ShardSnapshotFilesObserver;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.VerifyNodeRepositoryCoordinationAction;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
@@ -130,7 +131,8 @@ public class S3RepositoryTests extends ESTestCase {
             threadPool,
             client,
             List.of(),
-            SnapshotMetrics.NOOP
+            SnapshotMetrics.NOOP,
+            ShardSnapshotFilesObserver.NOOP
         );
         clusterService.start();
         repositoriesService.start();

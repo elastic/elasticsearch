@@ -72,6 +72,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.ShardSnapshotFilesObserver;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
@@ -405,7 +406,8 @@ public class FakeStatelessNode implements Closeable {
             threadPool,
             client,
             List.of(),
-            SnapshotMetrics.NOOP
+            SnapshotMetrics.NOOP,
+            ShardSnapshotFilesObserver.NOOP
         );
     }
 

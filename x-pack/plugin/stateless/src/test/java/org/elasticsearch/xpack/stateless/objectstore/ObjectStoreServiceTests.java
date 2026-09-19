@@ -63,6 +63,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.ShardSnapshotFilesObserver;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -831,7 +832,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         } else {
                             return createFsRepository(xContentRegistry, projectId, metadata);
                         }
-                    }), Map.of(), threadPool, client, List.of(), SnapshotMetrics.NOOP);
+                    }), Map.of(), threadPool, client, List.of(), SnapshotMetrics.NOOP, ShardSnapshotFilesObserver.NOOP);
                 }
             }
         ) {

@@ -295,24 +295,27 @@ public class IvfAutoCalibration {
                 reader = perField.getFieldReader(fieldInfo.name);
             }
             if (reader instanceof CalibrationAwareReader car) {
-                QuantEncoding enc = car.getQuantEncoding(fieldInfo);
-                if (Float.isNaN(car.getOversampleFactor(fieldInfo)) || enc == null) {
-                    continue;
+                switch (car.getCalibrationParameters(fieldInfo)) {
+                    case SegmentCalibrationParameters.Osq osq -> {
+                        if (osq.calibrated() == false) {
+                            continue;
+                        }
+                        long vectors = liveVectorCount(reader, fieldInfo, mergeState.liveDocs[i]);
+                        if (vectors == 0) {
+                            continue;
+                        }
+                        calibratedSegments++;
+                        EncodingStats stats = byEncoding.computeIfAbsent(osq.encoding(), e -> new EncodingStats());
+                        stats.vectors += vectors;
+                        stats.oversampleWeightedSum += (double) osq.oversample() * vectors;
+                        if (osq.precondition()) {
+                            stats.preconditionTrueVectors += vectors;
+                        } else {
+                            stats.preconditionFalseVectors += vectors;
+                        }
+                        totalVectors += vectors;
+                    }
                 }
-                long vectors = liveVectorCount(reader, fieldInfo, mergeState.liveDocs[i]);
-                if (vectors == 0) {
-                    continue;
-                }
-                calibratedSegments++;
-                EncodingStats stats = byEncoding.computeIfAbsent(enc, e -> new EncodingStats());
-                stats.vectors += vectors;
-                stats.oversampleWeightedSum += (double) car.getOversampleFactor(fieldInfo) * vectors;
-                if (car.shouldPrecondition(fieldInfo)) {
-                    stats.preconditionTrueVectors += vectors;
-                } else {
-                    stats.preconditionFalseVectors += vectors;
-                }
-                totalVectors += vectors;
             }
         }
 

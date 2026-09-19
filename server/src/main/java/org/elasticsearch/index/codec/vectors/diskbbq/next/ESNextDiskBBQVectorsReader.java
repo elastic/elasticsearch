@@ -38,6 +38,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
+import org.elasticsearch.index.codec.vectors.diskbbq.SegmentCalibrationParameters;
 import org.elasticsearch.index.codec.vectors.diskbbq.SlicedBlockRange;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.search.vectors.BulkKnnCollector;
@@ -118,25 +119,16 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
     }
 
     @Override
-    public float getOversampleFactor(FieldInfo fieldInfo) {
+    public SegmentCalibrationParameters getCalibrationParameters(FieldInfo fieldInfo) {
         final NextFieldEntry e = fields.get(fieldInfo.number);
-        if (e == null) {
-            return IvfAutoCalibration.NO_CALIBRATED_OVERSAMPLE;
+        if (e == null || e.quantEncoding() == null) {
+            return new SegmentCalibrationParameters.Osq(null, false, IvfAutoCalibration.NO_CALIBRATED_OVERSAMPLE);
         }
-        float r = e.rescoreOversample();
-        return Float.isFinite(r) ? r : IvfAutoCalibration.NO_CALIBRATED_OVERSAMPLE;
-    }
-
-    @Override
-    public boolean shouldPrecondition(FieldInfo fieldInfo) {
-        final NextFieldEntry e = fields.get(fieldInfo.number);
-        return e != null && e.preconditionerLength() > 0;
-    }
-
-    @Override
-    public QuantEncoding getQuantEncoding(FieldInfo fieldInfo) {
-        final NextFieldEntry e = fields.get(fieldInfo.number);
-        return e == null ? null : e.quantEncoding();
+        float oversample = e.rescoreOversample();
+        if (Float.isFinite(oversample) == false) {
+            oversample = IvfAutoCalibration.NO_CALIBRATED_OVERSAMPLE;
+        }
+        return new SegmentCalibrationParameters.Osq(e.quantEncoding(), e.preconditionerLength() > 0, oversample);
     }
 
     @Override

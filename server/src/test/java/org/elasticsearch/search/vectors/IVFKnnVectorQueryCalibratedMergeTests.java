@@ -17,6 +17,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextRescoreOversampleTestFixture;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -198,8 +199,10 @@ public class IVFKnnVectorQueryCalibratedMergeTests extends ESTestCase {
                 )
             ) {
                 assertThat(reader.leaves(), hasSize(2));
-                boolean p0 = ESNextRescoreOversampleTestFixture.persistedPreconditionOnLeaf(reader.leaves().get(0).reader());
-                boolean p1 = ESNextRescoreOversampleTestFixture.persistedPreconditionOnLeaf(reader.leaves().get(1).reader());
+                IvfSegmentConfig cfg0 = ESNextRescoreOversampleTestFixture.readPersistedSegmentConfig(reader.leaves().get(0).reader());
+                IvfSegmentConfig cfg1 = ESNextRescoreOversampleTestFixture.readPersistedSegmentConfig(reader.leaves().get(1).reader());
+                boolean p0 = cfg0 != null && cfg0.usePrecondition();
+                boolean p1 = cfg1 != null && cfg1.usePrecondition();
                 // the two segments must genuinely disagree, otherwise the regression path is not exercised
                 assertNotEquals(p0, p1);
 

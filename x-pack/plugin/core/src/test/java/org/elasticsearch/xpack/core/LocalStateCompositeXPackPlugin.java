@@ -180,6 +180,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
 
     @Override
     protected void setLicenseState(XPackLicenseState licenseState) {
+        super.setLicenseState(licenseState);
         this.licenseState = licenseState;
     }
 

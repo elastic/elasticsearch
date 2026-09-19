@@ -1501,48 +1501,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertFalse("No more scheduled tasks", taskQueue.hasAnyTasks());
     }
 
-    public void testGateCurrentBlockedDuration() throws Exception {
-        final var taskQueue = new DeterministicTaskQueue();
-        final var gateDecision = new AtomicReference<>(RecoveryGate.Decision.RUN);
-        try (
-            var service = new ThrottlingRecoveryService(
-                taskQueue.getThreadPool(),
-                DefaultProjectResolver.INSTANCE,
-                newClusterService(Integer.MAX_VALUE),
-                RecoverySchedulingListener.NOOP,
-                new RecoveryGateMonitor(() -> List.of(gateDecision::get), taskQueue.getThreadPool(), clusterSettingsWithGatesEnabled())
-            )
-        ) {
-            service.start();
-            assertThat(service.currentBlockedTimeMillis(), equalTo(0L));
-            int blocks = randomInt(10);
-            for (int i = 0; i <= blocks; i++) {
-                gateDecision.set(RecoveryGate.Decision.block("test", "test block"));
-                service.enqueue(
-                    ProjectId.DEFAULT,
-                    RecoveryListener.NOOP,
-                    mockIndexShard(newRecoveryState(), UUIDs.randomBase64UUID(), stats),
-                    newIndexMetadata(),
-                    listener -> listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
-                );
-                taskQueue.runAllRunnableTasks();
-                assertThat(service.currentBlockedTimeMillis(), equalTo(0L));
-
-                final long blockedSince = taskQueue.getCurrentTimeMillis();
-                final long elapsed = randomLongBetween(1, 5000);
-                taskQueue.runTasksUpToTimeInOrder(blockedSince + elapsed);
-                assertThat(service.currentBlockedTimeMillis(), equalTo(elapsed));
-                taskQueue.runTasksUpToTimeInOrder(blockedSince + 2 * elapsed);
-                assertThat(service.currentBlockedTimeMillis(), equalTo(2 * elapsed));
-
-                gateDecision.set(RecoveryGate.Decision.RUN);
-                taskQueue.runAllTasksInTimeOrder();
-                // Do not observe the duration between blocks: the next read must still reflect only the new block.
-            }
-            assertThat(service.currentBlockedTimeMillis(), equalTo(0L));
-        }
-    }
-
     /// The gating escape hatch: dynamically disabling the recovery gates must release recoveries held by a gate that never
     /// unblocks by itself, via the next periodic recheck.
     public void testDisablingGatesReleasesBlockedRecoveries() {

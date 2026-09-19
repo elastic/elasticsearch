@@ -11,6 +11,7 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -76,8 +77,12 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     private final LongCounter recoveryGateBlockedMetric;
     private final LongHistogram recoveryGateBlockedDurationMetric;
     private final LongAsyncGauge recoveryGateBlockedCurrentDurationMetric;
+    private final LongSupplier relativeTimeInMillis;
+    private volatile @Nullable Long gateBlockedSinceRelativeMillis;
 
-    public RecoveryMetricsCollector(TelemetryProvider telemetryProvider, LongSupplier currentBlockedTimeMillis) {
+    /// @param relativeTimeInMillis supplies monotonic relative time in milliseconds for measuring the current block
+    public RecoveryMetricsCollector(TelemetryProvider telemetryProvider, LongSupplier relativeTimeInMillis) {
+        this.relativeTimeInMillis = relativeTimeInMillis;
         final MeterRegistry meterRegistry = telemetryProvider.getMeterRegistry();
         shardRecoveryTotalMetric = meterRegistry.registerLongCounter(
             RECOVERY_TOTAL_COUNT_METRIC,
@@ -160,7 +165,10 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
             RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC,
             "Elapsed time recovery dispatch has been blocked by recovery gates, or zero when unblocked",
             "ms",
-            () -> new LongWithAttributes(currentBlockedTimeMillis.getAsLong())
+            () -> {
+                final Long blockedSince = gateBlockedSinceRelativeMillis;
+                return new LongWithAttributes(blockedSince == null ? 0L : relativeTimeInMillis.getAsLong() - blockedSince);
+            }
         );
     }
 
@@ -295,19 +303,21 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
 
     @Override
     public void onRecoveriesBlocked(String gateName) {
+        gateBlockedSinceRelativeMillis = relativeTimeInMillis.getAsLong();
         recoveryGateBlockedCurrentMetric.set(1L);
         recoveryGateBlockedMetric.incrementBy(1, Map.of(RECOVERY_GATE_NAME_ATTRIBUTE_KEY, gateName));
     }
 
     @Override
     public void onRecoveriesUnblocked(long blockedTimeMillis) {
+        gateBlockedSinceRelativeMillis = null;
         recoveryGateBlockedCurrentMetric.set(0L);
         recoveryGateBlockedDurationMetric.record(blockedTimeMillis);
     }
 
     @Override
     public void close() {
-        // Only the asynchronous gauge is closeable; the synchronous counters and histograms need no cleanup.
+        // Only the asynchronous gauges are closeable; the synchronous counters and histograms need no cleanup.
         Releasables.close(recoveryGateBlockedCurrentMetric.gauge()::close, recoveryGateBlockedCurrentDurationMetric::close);
     }
 

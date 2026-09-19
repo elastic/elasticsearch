@@ -334,12 +334,6 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         return blockedState.get();
     }
 
-    /// Returns the elapsed time in the current dispatch-blocking episode, or zero when dispatch is not blocked.
-    public long currentBlockedTimeMillis() {
-        final BlockedState state = blockedState.get();
-        return state == null ? 0L : threadPool.relativeTimeInMillis() - state.sinceRelativeMillis();
-    }
-
     @Override
     protected void doStop() {
         assert isClosed(); // state change happens-before this line: all recoveries are discarded here or rejected during enqueue, no leaks

@@ -1422,7 +1422,7 @@ class NodeConstruction {
             final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);
             final RecoveryMetricsCollector recoveryMetricsCollector = new RecoveryMetricsCollector(
                 telemetryProvider,
-                throttlingRecoveryService::currentBlockedTimeMillis
+                threadPool.relativeTimeInMillisSupplier()
             );
             recoverySchedulingListeners.addListener(recoveryMetricsCollector);
             final PeerRecoverySourceService peerRecovery = new PeerRecoverySourceService(

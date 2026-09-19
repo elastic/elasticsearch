@@ -30,10 +30,9 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
 
     public void testRecordsRecoveryGateMetrics() {
         final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
-        final var currentBlockedTimeMillis = new AtomicLong();
         final RecoveryMetricsCollector collector = new RecoveryMetricsCollector(
             telemetryPlugin.getTelemetryProvider(Settings.EMPTY),
-            currentBlockedTimeMillis::get
+            () -> 0L
         );
         final String gateName = randomIdentifier();
         final String secondGateName = randomValueOtherThan(gateName, ESTestCase::randomIdentifier);
@@ -43,25 +42,15 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
         assertThat(telemetryPlugin.getLongCounterMeasurement(RECOVERY_GATE_BLOCKED_TOTAL_METRIC), empty());
         assertThat(telemetryPlugin.getLongHistogramMeasurement(RECOVERY_GATE_BLOCKED_DURATION_METRIC), empty());
         assertBlockedCurrentMetric(telemetryPlugin, 0L);
-        assertCurrentBlockedDurationMetric(telemetryPlugin, 0L);
 
         collector.onRecoveriesBlocked(gateName);
         assertBlockedCurrentMetric(telemetryPlugin, 1L);
-        currentBlockedTimeMillis.set(blockedTimeMillis);
-        assertCurrentBlockedDurationMetric(telemetryPlugin, blockedTimeMillis);
-        assertThat(telemetryPlugin.getLongHistogramMeasurement(RECOVERY_GATE_BLOCKED_DURATION_METRIC), empty());
         collector.onRecoveriesUnblocked(blockedTimeMillis);
-        currentBlockedTimeMillis.set(0L);
         assertBlockedCurrentMetric(telemetryPlugin, 0L);
-        assertCurrentBlockedDurationMetric(telemetryPlugin, 0L);
         collector.onRecoveriesBlocked(secondGateName);
-        currentBlockedTimeMillis.set(secondBlockedTimeMillis);
         assertBlockedCurrentMetric(telemetryPlugin, 1L);
-        assertCurrentBlockedDurationMetric(telemetryPlugin, secondBlockedTimeMillis);
         collector.onRecoveriesUnblocked(secondBlockedTimeMillis);
-        currentBlockedTimeMillis.set(0L);
         assertBlockedCurrentMetric(telemetryPlugin, 0L);
-        assertCurrentBlockedDurationMetric(telemetryPlugin, 0L);
 
         final var blockedMeasurements = telemetryPlugin.getLongCounterMeasurement(RECOVERY_GATE_BLOCKED_TOTAL_METRIC);
         assertThat(blockedMeasurements, hasSize(2));
@@ -78,6 +67,30 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
         assertFalse(
             telemetryPlugin.getRegisteredMetrics(InstrumentType.LONG_ASYNC_GAUGE).contains(RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC)
         );
+    }
+
+    public void testCurrentBlockedDurationMetric() {
+        final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
+        final var relativeTimeMillis = new AtomicLong(randomFrom(0L, randomLongBetween(-60_000, -1), randomLongBetween(1, 60_000)));
+        try (var collector = new RecoveryMetricsCollector(telemetryPlugin.getTelemetryProvider(Settings.EMPTY), relativeTimeMillis::get)) {
+            assertCurrentBlockedDurationMetric(telemetryPlugin, 0L);
+            int blocks = randomInt(10);
+            for (int i = 0; i < blocks; i++) {
+                collector.onRecoveriesBlocked(randomIdentifier());
+                assertCurrentBlockedDurationMetric(telemetryPlugin, 0L);
+
+                final long elapsed = randomLongBetween(1, 60_000);
+                relativeTimeMillis.addAndGet(elapsed);
+                assertCurrentBlockedDurationMetric(telemetryPlugin, elapsed);
+                relativeTimeMillis.addAndGet(elapsed);
+                assertCurrentBlockedDurationMetric(telemetryPlugin, 2 * elapsed);
+
+                collector.onRecoveriesUnblocked(2 * elapsed);
+                relativeTimeMillis.addAndGet(randomLongBetween(1, 60_000));
+                // Do not collect between blocks: the next observation must still reflect only the new block.
+            }
+            assertCurrentBlockedDurationMetric(telemetryPlugin, 0L);
+        }
     }
 
     private static void assertBlockedCurrentMetric(TestTelemetryPlugin telemetryPlugin, long expected) {

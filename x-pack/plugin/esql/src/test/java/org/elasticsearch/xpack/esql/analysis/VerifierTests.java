@@ -4961,7 +4961,7 @@ public class VerifierTests extends AnalyzerTestCase {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         supportsHighlightImplicit(defaultAnalyzer()).error(
             "FROM test | HIGHLIGHT",
-            allOf(containsString("HIGHLIGHT requires a query"), not(containsString("preceding full-text WHERE")))
+            containsString("HIGHLIGHT requires a query or a preceding full-text WHERE")
         );
     }
 
@@ -4994,6 +4994,7 @@ public class VerifierTests extends AnalyzerTestCase {
                 not(containsString("found no text or keyword fields to highlight"))
             )
         );
+        supportsHighlightImplicit(fullText()).query("FROM test | WHERE MATCH(title, \"fox\") AND MATCH(id, 1) | HIGHLIGHT");
     }
 
     public void testNotUnsupportedQueryReportsStructuralErrorNotEmptyOn() {
@@ -5022,6 +5023,36 @@ public class VerifierTests extends AnalyzerTestCase {
         supportsHighlightImplicit(fullText()).query("FROM test | HIGHLIGHT MATCH(title, \"fox\") AND NOT QSTR(\"body:bar\")");
     }
 
+    public void testHighlightImplicitQueryMustTargetOnField() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | WHERE MATCH(title, \"x\") | HIGHLIGHT ON body",
+            allOf(containsString("derived its query from a preceding WHERE"), containsString("title"), containsString("body"))
+        );
+        supportsHighlightImplicit(fullText()).query(
+            "FROM test | WHERE QSTR(\"fox\", {\"default_field\": \"body\"}) AND MATCH(title, \"fox\") | HIGHLIGHT ON title"
+        );
+    }
+
+    public void testHighlightQueryAnalyzerMustMatchValuesOrWith() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT",
+            containsString("HIGHLIGHT query analyzer [whitespace] does not match the values analyzer [standard]")
+        );
+        supportsHighlightImplicit(fullText()).query(
+            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT WITH { \"analyzer\": \"whitespace\" }"
+        );
+    }
+
+    public void testHighlightImplicitDerivedQueryFailureIsFramedAsDerived() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        supportsHighlightImplicit(fullText()).error(
+            "FROM test | WHERE KQL(\"title: (fox\") | HIGHLIGHT ON title",
+            allOf(containsString("Invalid query derived from WHERE for HIGHLIGHT:"), not(containsString("Invalid query [")))
+        );
+    }
+
     public void testHighlightImplicitRejectedOnOlderTransportVersion() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         defaultAnalyzer().minimumTransportVersion(Highlight.ESQL_HIGHLIGHT)
@@ -5029,6 +5060,12 @@ public class VerifierTests extends AnalyzerTestCase {
                 "FROM test | HIGHLIGHT \"search\"",
                 containsString("HIGHLIGHT with a derived query or field list is not supported on every participating node")
             );
+        fullText().minimumTransportVersion(Highlight.ESQL_HIGHLIGHT)
+            .error(
+                "FROM test | WHERE MATCH(title, \"fox\") | HIGHLIGHT ON title",
+                containsString("HIGHLIGHT with a derived query or field list is not supported on every participating node")
+            );
+        supportsHighlight(fullText()).query("FROM test | HIGHLIGHT \"fox\" ON title");
     }
 
     public void testHighlightRejectsInvalidOptionEnums() {
@@ -5092,8 +5129,6 @@ public class VerifierTests extends AnalyzerTestCase {
         supportsHighlight(fullText()).query("FROM test | HIGHLIGHT KQL(\"title: fox\") ON title");
         supportsHighlight(fullText()).query("FROM test | HIGHLIGHT KQL(\"title: fox\") OR MATCH(title, \"dog\") ON title");
         supportsHighlight(defaultAnalyzer()).query("FROM test | HIGHLIGHT \"search\" ON first_name WITH { \"analyzer\": \"standard\" }");
-        // A full-text function's analyzer option resolves when it names the highlight analyzer, which the runtime
-        // context registers under its own name.
         supportsHighlight(fullText()).query(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title WITH { \"analyzer\": \"whitespace\" }"
         );
@@ -5101,7 +5136,10 @@ public class VerifierTests extends AnalyzerTestCase {
             "FROM test | HIGHLIGHT MATCH_PHRASE(title, \"quick fox\", {\"analyzer\": \"whitespace\"}) ON title"
                 + " WITH { \"analyzer\": \"whitespace\" }"
         );
-        // The default analyzer is registered as "standard", so nested full-text functions can select it by name.
+        supportsHighlight(fullText()).query(
+            "FROM test | EVAL t = to_text(concat(title, body), {\"analyzer\": \"whitespace\"})"
+                + " | HIGHLIGHT MATCH(t, \"fox\", {\"analyzer\": \"whitespace\"}) ON t"
+        );
         supportsHighlight(fullText()).query("FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title");
         supportsHighlight(fullText()).query(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title WITH { \"analyzer\": \"standard\" }"
@@ -5142,14 +5180,11 @@ public class VerifierTests extends AnalyzerTestCase {
             "FROM test | HIGHLIGHT \"fox AND\" ON first_name WITH { \"analyzer\": \"whitespace\" }",
             containsString("Invalid query [fox AND] in HIGHLIGHT:")
         );
-        // Do not report a query error when its analyzer is unknown.
+        // Unknown analyzer: skip the query error. Non-string analyzer: keep both.
         supportsHighlight(defaultAnalyzer()).error(
             "FROM test | HIGHLIGHT \"fox AND\" ON first_name WITH { \"analyzer\": \"not_a_real_analyzer\" }",
             allOf(containsString("[not_a_real_analyzer] is not a registered analyzer"), not(containsString("Invalid query")))
         );
-        // A non-string analyzer value is reported by option validation, and the query is still validated against the
-        // default analyzer so its error surfaces alongside it. Contrast with the unknown-but-valid-string analyzer case
-        // above, which returns early and suppresses the query error.
         supportsHighlight(defaultAnalyzer()).error(
             "FROM test | HIGHLIGHT \"fox AND\" ON first_name WITH { \"analyzer\": 123 }",
             allOf(containsString("Option [analyzer] must be a string"), containsString("Invalid query [fox AND]"))
@@ -5181,14 +5216,18 @@ public class VerifierTests extends AnalyzerTestCase {
             "FROM test | HIGHLIGHT category > 5 ON title",
             containsString("HIGHLIGHT query must be a full-text function (MATCH, MATCH_PHRASE, QSTR, KQL) or a boolean combination of them")
         );
-        // A nested full-text function must use the same analyzer as HIGHLIGHT.
-        supportsHighlight(fullText()).error(
-            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title",
-            allOf(containsString("in HIGHLIGHT:"), containsString("[match] analyzer [whitespace] not found"))
-        );
         supportsHighlight(fullText()).error(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title WITH { \"analyzer\": \"keyword\" }",
-            allOf(containsString("in HIGHLIGHT:"), containsString("[match] analyzer [whitespace] not found"))
+            containsString("HIGHLIGHT WITH analyzer [keyword] does not match analyzer [whitespace] specified by the query")
+        );
+        supportsHighlight(fullText()).error(
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title",
+            containsString("HIGHLIGHT query analyzer [whitespace] does not match the values analyzer [standard]")
+        );
+        supportsHighlight(fullText()).error(
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"english\"}) OR"
+                + " MATCH(body, \"bar\", {\"analyzer\": \"whitespace\"}) ON title, body",
+            containsString("HIGHLIGHT full-text functions use different analyzers [english, whitespace]")
         );
         supportsHighlight(fullText()).error(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\") ON body",
@@ -5202,7 +5241,6 @@ public class VerifierTests extends AnalyzerTestCase {
             "FROM test | HIGHLIGHT QSTR(\"fox\", {\"default_field\": \"title\"}) ON body",
             containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
         );
-        // Reject field references outside ON while translating the query.
         supportsHighlight(fullText()).error(
             "FROM test | HIGHLIGHT \"title:fox\" ON body",
             allOf(containsString("in HIGHLIGHT:"), containsString("field [title] is not one of the searchable fields [body]"))
@@ -5215,7 +5253,6 @@ public class VerifierTests extends AnalyzerTestCase {
             "FROM test | HIGHLIGHT KQL(\"title: fox\") ON body",
             allOf(containsString("in HIGHLIGHT:"), containsString("field [title] is not one of the searchable fields [body]"))
         );
-        // Report the first field outside ON.
         supportsHighlight(fullText()).error(
             "FROM test | HIGHLIGHT \"body:fox OR tags:dog\" ON title",
             allOf(containsString("in HIGHLIGHT:"), containsString("field [body] is not one of the searchable fields [title]"))
@@ -5224,7 +5261,6 @@ public class VerifierTests extends AnalyzerTestCase {
             "FROM test | HIGHLIGHT QSTR(\"body:fox OR tags:dog\") ON title",
             allOf(containsString("in HIGHLIGHT:"), containsString("field [body] is not one of the searchable fields [title]"))
         );
-        // KQL syntax is checked while building the query.
         supportsHighlight(fullText()).error("FROM test | HIGHLIGHT KQL(\"title: (fox\") ON title", containsString("in HIGHLIGHT:"));
         supportsHighlight(fullText()).error(
             "FROM test | STATS c = COUNT(*) | HIGHLIGHT MATCH(title, \"fox\") ON title",

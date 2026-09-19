@@ -41,8 +41,10 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherMultiGeoPointIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.LatLonPointIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.docvalues.LongToBytesRefBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.GeoGridFromDocValuesBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
@@ -548,7 +550,27 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
 
         @Override
+        public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
+            // Geo-grid cell ids are computed from the encoded doc value, whatever the extract preference asks for the point itself.
+            return hasDocValues() && config instanceof BlockLoaderFunctionConfig.GeoGrid;
+        }
+
+        @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            BlockLoaderFunctionConfig config = blContext.blockLoaderFunctionConfig();
+            if (config != null) {
+                // supportsBlockLoaderConfig gates which configs are accepted, so anything else here is a programming error
+                if (hasDocValues() == false) {
+                    throw new UnsupportedOperationException("function fusing only supported for doc values");
+                }
+                return switch (config.function()) {
+                    case ST_GEOHASH, ST_GEOTILE, ST_GEOHEX -> new GeoGridFromDocValuesBlockLoader(
+                        name(),
+                        (BlockLoaderFunctionConfig.GeoGrid) config
+                    );
+                    default -> throw new UnsupportedOperationException("unknown fusion config [" + config.function() + "]");
+                };
+            }
             // load from doc values
             if (hasDocValues()) {
                 if (blContext.fieldExtractPreference() == DOC_VALUES) {

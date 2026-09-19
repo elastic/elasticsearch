@@ -1,0 +1,5 @@
+area: "ES|QL"
+issues: []
+pr: 159459
+summary: Optimize geo-grid functions by fusing them into `geo_point` block-loading
+type: enhancement

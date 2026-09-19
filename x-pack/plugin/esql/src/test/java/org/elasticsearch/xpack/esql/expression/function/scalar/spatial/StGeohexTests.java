@@ -26,6 +26,7 @@ import org.elasticsearch.h3.CellBoundary;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.h3.LatLng;
 import org.elasticsearch.license.License;
+import org.elasticsearch.xpack.esql.common.spatial.GeoShapeDocValues;
 import org.elasticsearch.xpack.esql.common.spatial.H3CartesianUtil;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;

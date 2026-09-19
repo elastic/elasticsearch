@@ -16,23 +16,31 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
+import org.elasticsearch.xpack.esql.common.spatial.GeoShapeDocValues;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -47,12 +55,21 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
  * Spatial functions that take one spatial argument, one parameter and one optional bounds can inherit from this class.
  * Obvious choices are: StGeohash, StGeotile and StGeohex.
  */
-public abstract class SpatialGridFunction extends SpatialDocValuesFunction implements OptionalArgument, LicenseAware {
+public abstract class SpatialGridFunction extends SpatialDocValuesFunction
+    implements
+        OptionalArgument,
+        LicenseAware,
+        BlockLoaderExpression {
     /**
      * Maximum number of grid cells that a single geo_shape value may intersect. When a shape intersects more
      * cells than this limit the result is silently truncated to a partial list; the evaluator additionally
      * emits an ES|QL warning so the user knows the output is incomplete. Mirrors the
      * 10 000-document convention used elsewhere in Elasticsearch to give operators a familiar threshold.
+     * <p>
+     * For {@code geo_point} and {@code geo_shape} fields with doc values the function is fused into field loading, see
+     * {@link #tryPushToFieldLoading}, so the geometry is never materialised and any {@code STATS} on top runs on
+     * the loaded cell ids directly.
+     * </p>
      * <p>
      * TODO: for the common pattern {@code BY ST_GEOHEX(shape, precision)} the query planner could rewrite
      *       the scalar function to a dedicated geo-grid aggregator (like the spatial plugin's
@@ -208,6 +225,80 @@ public abstract class SpatialGridFunction extends SpatialDocValuesFunction imple
 
     public Expression bounds() {
         return bounds;
+    }
+
+    /**
+     * Fuses this function into the loading of a {@code geo_point} or {@code geo_shape} field so the cells are computed
+     * straight from the doc values and the geometry is never read from {@code _source} nor materialised as a block. See
+     * {@link BlockLoaderExpression} for the general mechanism. Only grids over a mapped field with doc values, a constant
+     * in-range precision and, if present, constant envelope bounds qualify. Null or invalid bounds keep using the
+     * evaluator so that it reports them. Shapes are tiled with the same algorithm as the evaluator, including the
+     * {@link #MAX_GRID_CELLS} truncation and its warning; the one difference is that the doc value holds the union of a
+     * document's shapes, so a cell shared by two shapes of a multi-valued field is loaded once instead of twice.
+     */
+    @Override
+    public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
+        if (spatialField instanceof FieldAttribute field
+            && (field.dataType() == GEO_POINT || field.dataType() == GEO_SHAPE)
+            && parameter instanceof Literal literal
+            && literal.value() instanceof Integer precision
+            && stats.hasDocValues(field.fieldName())) {
+            GeoBoundingBox bbox = null;
+            if (bounds != null) {
+                if (bounds instanceof Literal boundsLiteral && boundsLiteral.value() instanceof BytesRef wkb) {
+                    try {
+                        bbox = asGeoBoundingBox(wkb);
+                    } catch (IllegalArgumentException e) {
+                        return null;
+                    }
+                } else {
+                    return null;
+                }
+            }
+            BlockLoaderFunctionConfig.GeoGrid config = blockLoaderConfig(precision, bbox);
+            if (config != null) {
+                return new PushedBlockLoaderExpression(field, config);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The block loader configuration for this grid type at the given precision, restricted to {@code bounds} when not
+     * null, or {@code null} if the precision is out of range, in which case the evaluator is left to report the error.
+     */
+    protected abstract BlockLoaderFunctionConfig.GeoGrid blockLoaderConfig(int precision, @Nullable GeoBoundingBox bounds);
+
+    /** Computes the cells of a shape for {@link #shapeTilers}, reporting truncation through the consumer. */
+    @FunctionalInterface
+    protected interface ShapeCells {
+        List<Long> compute(GeoShapeDocValues shape, Consumer<String> onTruncation) throws IOException;
+    }
+
+    /**
+     * Builds the shape tiler factory for a block loader config so that fused loading of a {@code geo_shape} field behaves
+     * exactly like evaluating the function on the loaded shape: a single point is encoded with the point encoder rather
+     * than tiled, which matters at cell boundaries, and everything else runs the evaluator's tiling algorithm on the
+     * stored triangle tree, including truncation and its warning.
+     */
+    protected static BlockLoaderFunctionConfig.GeoGridShapeTilerFactory shapeTilers(
+        Supplier<BlockLoaderFunctionConfig.GeoGridEncoder> encoders,
+        Supplier<ShapeCells> shapeCellsSupplier
+    ) {
+        return warnings -> {
+            Consumer<String> onTruncation = warnings == null ? message -> {} : warnings::registerWarning;
+            BlockLoaderFunctionConfig.GeoGridEncoder encoder = encoders.get();
+            // Created per reader, like the encoder, since the geohex tiler keeps scratch state
+            ShapeCells shapeCells = shapeCellsSupplier.get();
+            return encoded -> {
+                GeoShapeDocValues shape = GeoShapeDocValues.fromDocValue(encoded);
+                if (shape.isSinglePoint()) {
+                    long cell = encoder.encode(shape.centroidLon(), shape.centroidLat());
+                    return cell < 0 ? List.of() : List.of(cell);
+                }
+                return shapeCells.compute(shape, onTruncation);
+            };
+        };
     }
 
     @Override

@@ -21,10 +21,13 @@ import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashBoundedPredicate;
+import org.elasticsearch.xpack.esql.common.spatial.GeoShapeDocValues;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -44,6 +47,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
@@ -70,7 +74,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
         private final int precision;
         private final GeoHashBoundedPredicate bounds;
 
-        private GeoHashBoundedGrid(int precision, GeoBoundingBox bbox) {
+        GeoHashBoundedGrid(int precision, GeoBoundingBox bbox) {
             this.precision = checkPrecisionRange(precision);
             this.bounds = new GeoHashBoundedPredicate(precision, bbox);
         }
@@ -122,6 +126,34 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
             );
         }
         return precision;
+    }
+
+    @Override
+    protected BlockLoaderFunctionConfig.GeoGrid blockLoaderConfig(int precision, @Nullable GeoBoundingBox bounds) {
+        if (precision < 1 || precision > Geohash.PRECISION) {
+            return null;
+        }
+        Supplier<BlockLoaderFunctionConfig.GeoGridEncoder> encoders;
+        if (bounds == null) {
+            encoders = () -> (lon, lat) -> Geohash.longEncode(lon, lat, precision);
+        } else {
+            // The bounded grid keeps scratch state, so build one per encoder; it returns -1 for a point outside the bounds
+            encoders = () -> {
+                GeoHashBoundedGrid grid = new GeoHashBoundedGrid(precision, bounds);
+                return (lon, lat) -> grid.calculateGridId(new Point(lon, lat));
+            };
+        }
+        BlockLoaderFunctionConfig.GeoGridShapeTilerFactory shapeTilers = shapeTilers(
+            encoders,
+            () -> (shape, onTruncation) -> computeGeohashCells(shape, precision, bounds, onTruncation)
+        );
+        return new BlockLoaderFunctionConfig.GeoGrid(
+            BlockLoaderFunctionConfig.Function.ST_GEOHASH,
+            precision,
+            bounds,
+            encoders,
+            shapeTilers
+        );
     }
 
     @FunctionInfo(
@@ -340,11 +372,19 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
      */
     static List<Long> computeGeohashCells(BytesRef wkb, int precision, GeoBoundingBox bbox, Consumer<String> onTruncation)
         throws IOException {
-        GeoShapeDocValues shape = GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER);
+        return computeGeohashCells(GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER), precision, bbox, onTruncation);
+    }
+
+    /**
+     * Same as {@link #computeGeohashCells(BytesRef, int, GeoBoundingBox, Consumer)} but on a triangle tree that is already
+     * available, such as the doc value of a {@code geo_shape} field when the function is fused into field loading.
+     */
+    static List<Long> computeGeohashCells(GeoShapeDocValues shape, int precision, GeoBoundingBox bbox, Consumer<String> onTruncation)
+        throws IOException {
         GeoHashBoundedPredicate predicate = (bbox == null || bbox.isUnbounded()) ? null : new GeoHashBoundedPredicate(precision, bbox);
         List<Long> cells = new ArrayList<>();
-        long dX = (long) Math.ceil((shape.maxLon - shape.minLon) / Geohash.lonWidthInDegrees(precision));
-        long dY = (long) Math.ceil((shape.maxLat - shape.minLat) / Geohash.latHeightInDegrees(precision));
+        long dX = (long) Math.ceil((shape.maxLon() - shape.minLon()) / Geohash.lonWidthInDegrees(precision));
+        long dY = (long) Math.ceil((shape.maxLat() - shape.minLat()) / Geohash.latHeightInDegrees(precision));
         if (dX * dY <= 32L * precision) {
             geohashBruteForceScan(shape, precision, predicate, cells, onTruncation);
         } else {
@@ -365,18 +405,18 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper, A
         List<Long> cells,
         Consumer<String> onTruncation
     ) throws IOException {
-        final String stop = Geohash.stringEncode(shape.maxLon, shape.maxLat, precision);
+        final String stop = Geohash.stringEncode(shape.maxLon(), shape.maxLat(), precision);
         String firstInRow = null;
         String lastInRow = null;
         outer: do {
             lastInRow = (lastInRow == null)
-                ? Geohash.stringEncode(shape.maxLon, shape.minLat, precision)
+                ? Geohash.stringEncode(shape.maxLon(), shape.minLat(), precision)
                 : Geohash.getNeighbor(lastInRow, precision, 0, 1);
             String current = null;
             do {
                 if (current == null) {
                     firstInRow = (firstInRow == null)
-                        ? Geohash.stringEncode(shape.minLon, shape.minLat, precision)
+                        ? Geohash.stringEncode(shape.minLon(), shape.minLat(), precision)
                         : Geohash.getNeighbor(firstInRow, precision, 0, 1);
                     current = firstInRow;
                 } else {

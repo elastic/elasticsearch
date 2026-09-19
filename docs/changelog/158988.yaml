@@ -1,5 +1,5 @@
 pr: 158988
-summary: "ESQL:DS: Dataset metadata columns return null instead of synthetic values; _class and _name identify a row's source"
+summary: "ES|QL|DS: Datasets answer index metadata columns with null, and add `_class` and `_name`"
 area: ES|QL
 type: enhancement
 issues: []

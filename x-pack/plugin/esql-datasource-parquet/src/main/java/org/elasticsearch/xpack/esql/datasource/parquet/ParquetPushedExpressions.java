@@ -43,6 +43,11 @@ import org.elasticsearch.xpack.esql.datasources.pushdown.WildcardLikeShape;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
@@ -344,6 +349,69 @@ final class ParquetPushedExpressions {
         }
         if (expr instanceof Range range && range.value() instanceof NamedExpression ne) {
             return translateRange(ne.name(), ne.dataType(), range, schema, formats);
+        }
+        // ---- multivalue comparison functions -------------------------------------------------
+        // Each is an any-value existential, so the bound is its scalar sibling's. These feed the STATISTICS path
+        // only. They are deliberately absent from evaluateExpression and collectColumnNames: the late-materialization
+        // row evaluator keeps a position only when getValueCount(i) == 1, which is right for `f == v` and wrong for
+        // mv_contains(f, v) — it would drop genuinely matching multivalued rows before FilterExec ever sees them.
+        // An unrecognised shape there returns null, meaning "all rows survive", so leaving them out is safe by
+        // construction rather than by omission.
+        if (expr instanceof MvContains mvContains && mvContains.left() instanceof NamedExpression ne) {
+            Object value = literalValueOf(mvContains.right());
+            if (value == null || value instanceof List) {
+                return null; // a list-valued mv_contains is "contains all of these" — not the equality bound
+            }
+            return buildPredicate(ne.name(), ne.dataType(), value, PredicateOp.EQ, schema, formats);
+        }
+        if (expr instanceof MvIntersects mvIntersects && mvIntersects.left() instanceof NamedExpression ne) {
+            // The value set arrives as ONE list-valued Literal, unlike In, which carries a list of literals.
+            Object value = literalValueOf(mvIntersects.right());
+            List<Object> rawValues = new ArrayList<>();
+            if (value instanceof List<?> values) {
+                for (Object v : values) {
+                    if (v != null) {
+                        rawValues.add(v);
+                    }
+                }
+            } else if (value != null) {
+                rawValues.add(value);
+            }
+            return rawValues.isEmpty() ? null : translateRawIn(ne.name(), ne.dataType(), rawValues, schema, formats);
+        }
+        if (expr instanceof MvInRange mvInRange && mvInRange.field() instanceof NamedExpression ne) {
+            // Both bounds pushed INCLUSIVE regardless of the include_lower / include_upper options: a closed interval
+            // is a superset of a half-open one, so it prunes strictly fewer units and never drops a matching row,
+            // and the retained FilterExec computes the exact answer.
+            FilterPredicate lowerBound = buildPredicate(
+                ne.name(),
+                ne.dataType(),
+                literalValueOf(mvInRange.lower()),
+                PredicateOp.GTE,
+                schema,
+                formats
+            );
+            FilterPredicate upperBound = buildPredicate(
+                ne.name(),
+                ne.dataType(),
+                literalValueOf(mvInRange.upper()),
+                PredicateOp.LTE,
+                schema,
+                formats
+            );
+            // Mirrors translateRange: if either bound declines, the whole range declines.
+            if (lowerBound != null && upperBound != null) {
+                return FilterApi.and(lowerBound, upperBound);
+            }
+            return null;
+        }
+        if (expr instanceof MvGreater mvGreater && mvGreater.field() instanceof NamedExpression ne) {
+            Object bound = literalValueOf(mvGreater.bound());
+            return bound == null ? null : buildPredicate(ne.name(), ne.dataType(), bound, PredicateOp.GTE, schema, formats);
+        }
+        if (expr instanceof MvLess mvLess && mvLess.field() instanceof NamedExpression ne) {
+            Object bound = literalValueOf(mvLess.bound());
+            return bound == null ? null : buildPredicate(ne.name(), ne.dataType(), bound, PredicateOp.LTE, schema, formats);
         }
         if (expr instanceof And and) {
             // For AND, dropping an arm produces a LOOSER predicate (one that admits at least
@@ -1039,6 +1107,21 @@ final class ParquetPushedExpressions {
         if (rawValues.isEmpty()) {
             return null;
         }
+        return translateRawIn(columnName, dataType, rawValues, schema, formats);
+    }
+
+    /**
+     * The value-set half of {@link #translateIn}, callable with raw values. {@code In} carries a list of literal
+     * expressions; {@code mv_intersects} carries a single list-valued literal, so it unpacks and calls this directly
+     * rather than rebuilding expressions to satisfy a signature.
+     */
+    private FilterPredicate translateRawIn(
+        String columnName,
+        DataType dataType,
+        List<Object> rawValues,
+        MessageType schema,
+        Map<String, String> formats
+    ) {
         return switch (dataType) {
             case INTEGER -> translateIntIn(columnName, rawValues, schema);
             case LONG -> translateLongIn(columnName, rawValues, schema);

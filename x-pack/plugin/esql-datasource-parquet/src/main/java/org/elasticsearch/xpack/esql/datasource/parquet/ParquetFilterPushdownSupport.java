@@ -14,6 +14,12 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
@@ -248,6 +254,29 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
             }
             return PushdownPredicates.isRange(range, TYPE_SUPPORTED);
         }
+        // The multivalue comparison functions are any-value existentials, so each carries the same statistics bound as
+        // its scalar sibling and pushes as RECHECK: canPush returns RECHECK for anything isFullyEvaluable rejects, and
+        // that is the LIKE family only. The exact predicate stays in the retained FilterExec.
+        if (expr instanceof MvContains mvContains) {
+            return PushdownPredicates.isMvContains(mvContains, TYPE_SUPPORTED);
+        }
+        if (expr instanceof MvIntersects mvIntersects) {
+            return PushdownPredicates.isMvIntersects(mvIntersects, TYPE_SUPPORTED);
+        }
+        if (expr instanceof MvInRange mvInRange) {
+            // BooleanColumn doesn't implement SupportsLtGt — ordered bounds decline, exactly as Range does above
+            if (declinesOrderedBoolean(mvInRange.field())) {
+                return false;
+            }
+            return PushdownPredicates.isMvInRange(mvInRange, TYPE_SUPPORTED);
+        }
+        if (expr instanceof MvGreater || expr instanceof MvLess) {
+            MvCompare mvCompare = (MvCompare) expr;
+            if (declinesOrderedBoolean(mvCompare.field())) {
+                return false;
+            }
+            return PushdownPredicates.isMvCompare(mvCompare, TYPE_SUPPORTED);
+        }
         if (expr instanceof And and) {
             return canConvert(and.left()) || canConvert(and.right());
         }
@@ -285,5 +314,10 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
                 && wl.pattern() != null;
         }
         return false;
+    }
+
+    /** BooleanColumn implements SupportsEqNotEq but not SupportsLtGt, so an ordered bound on it cannot be built. */
+    private static boolean declinesOrderedBoolean(Expression field) {
+        return field instanceof NamedExpression ne && ne.dataType() == DataType.BOOLEAN;
     }
 }

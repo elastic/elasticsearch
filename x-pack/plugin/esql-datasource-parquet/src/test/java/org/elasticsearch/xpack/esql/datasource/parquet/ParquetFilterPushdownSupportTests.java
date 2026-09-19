@@ -38,6 +38,12 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import java.time.ZoneOffset;
 import java.util.List;
 
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
+
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ParquetFilterPushdownSupportTests extends ESTestCase {
@@ -1185,6 +1191,77 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
         assertFalse(result.pushedExpressions().contains(colCol));
         assertTrue(result.remainder().contains(colCol));
         assertTrue(result.remainder().contains(intEq));
+    }
+
+    // --- multivalue comparison functions ---
+    // The shapes the out-of-band request filter translates into. Each pushes as RECHECK: the pruning bound is its
+    // scalar sibling's, and the exact predicate stays in the remainder for the retained FilterExec. hasPushedFilter()
+    // is what makes these gates rather than decoration — it is false if canConvert declines, and a filter that never
+    // pushes is trivially correct.
+
+    public void testMvContainsPushedAsRecheck() {
+        Expression filter = new MvContains(Source.EMPTY, attr("status", DataType.LONG), longLit(200L));
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertTrue(result.pushedExpressions().contains(filter));
+        assertEquals(1, result.remainder().size());
+        assertTrue(result.remainder().contains(filter));
+    }
+
+    public void testMvIntersectsPushedAsRecheck() {
+        Literal values = new Literal(Source.EMPTY, List.of(new BytesRef("alpha"), new BytesRef("beta")), DataType.KEYWORD);
+        Expression filter = new MvIntersects(Source.EMPTY, attr("category", DataType.KEYWORD), values);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(1, result.remainder().size());
+    }
+
+    public void testMvInRangePushedAsRecheck() {
+        Expression filter = new MvInRange(Source.EMPTY, attr("@timestamp", DataType.DATETIME), datetimeLit(1000L), datetimeLit(2000L));
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(1, result.remainder().size());
+    }
+
+    public void testMvGreaterAndMvLessPushedAsRecheck() {
+        Expression greater = new MvGreater(Source.EMPTY, attr("id", DataType.LONG), longLit(100L));
+        Expression less = new MvLess(Source.EMPTY, attr("id", DataType.LONG), longLit(400L));
+
+        assertTrue(support.pushFilters(List.of(greater)).hasPushedFilter());
+        assertTrue(support.pushFilters(List.of(less)).hasPushedFilter());
+    }
+
+    public void testMvInRangeOnBooleanNotPushed() {
+        // BooleanColumn implements SupportsEqNotEq but not SupportsLtGt, so an ordered bound cannot be built —
+        // the same decline Range already makes.
+        Expression filter = new MvInRange(Source.EMPTY, attr("flag", DataType.BOOLEAN), boolLit(false), boolLit(true));
+
+        assertFalse(support.pushFilters(List.of(filter)).hasPushedFilter());
+    }
+
+    public void testMvContainsOnBooleanPushed() {
+        // Equality on a boolean is fine — only the ordered forms decline.
+        Expression filter = new MvContains(Source.EMPTY, attr("flag", DataType.BOOLEAN), boolLit(true));
+
+        assertTrue(support.pushFilters(List.of(filter)).hasPushedFilter());
+    }
+
+    public void testMvContainsOnVirtualColumnNotPushed() {
+        Expression filter = new MvContains(Source.EMPTY, virtualAttr("_file.name", DataType.KEYWORD), keywordLit("a.parquet"));
+
+        assertFalse(support.pushFilters(List.of(filter)).hasPushedFilter());
+    }
+
+    public void testMvContainsWithMismatchedDateLiteralNotPushed() {
+        Expression filter = new MvContains(Source.EMPTY, attr("@timestamp", DataType.DATETIME), dateNanosLit(1000L));
+
+        assertFalse(support.pushFilters(List.of(filter)).hasPushedFilter());
     }
 
     // --- helpers ---

@@ -138,15 +138,15 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
             """;
 
         // Three sources; the inner UnionAll is a merge segment, not a leaf.
-        planSubquery(query, Settings.builder().put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), 3).build());
+        planSubquery(query, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 3).build());
         VerificationException e = expectThrows(
             VerificationException.class,
-            () -> planSubquery(query, Settings.builder().put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), 2).build())
+            () -> planSubquery(query, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 2).build())
         );
         assertThat(
             e.getMessage(),
             containsString(
-                "query resolved to 3 branches in total, exceeding the limit of 2 set by the [max_query_branches] query pragma. "
+                "query resolved to 3 branches in total, exceeding the limit of 2 set by the [max_branch_count] query pragma. "
                     + "Reduce the number of sources"
             )
         );
@@ -155,10 +155,10 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
             FROM test, (FROM test, (FROM test, (FROM languages)))
             | STATS c = COUNT(*)
             """;
-        planSubquery(threeDeep, Settings.builder().put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), 4).build());
+        planSubquery(threeDeep, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 4).build());
         e = expectThrows(
             VerificationException.class,
-            () -> planSubquery(threeDeep, Settings.builder().put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), 3).build())
+            () -> planSubquery(threeDeep, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 3).build())
         );
         assertThat(e.getMessage(), containsString("query resolved to 4 branches in total, exceeding the limit of 3"));
     }
@@ -168,7 +168,7 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
         planSubquery("""
             FROM test
             | WHERE emp_no > 10000
-            """, Settings.builder().put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), 1).build());
+            """, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 1).build());
     }
 
     public void testTotalBranchCountDoesNotCountLookupJoinAsLeaf() {
@@ -179,10 +179,10 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
             | LOOKUP JOIN languages_lookup ON language_code
             """;
 
-        planSubquery(query, Settings.builder().put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), 2).build());
+        planSubquery(query, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 2).build());
         VerificationException e = expectThrows(
             VerificationException.class,
-            () -> planSubquery(query, Settings.builder().put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), 1).build())
+            () -> planSubquery(query, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 1).build())
         );
         assertThat(e.getMessage(), containsString("query resolved to 2 branches in total, exceeding the limit of 1"));
     }
@@ -194,10 +194,10 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
             | ENRICH languages_idx ON first_name
             """;
 
-        planSubquery(query, Settings.builder().put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), 2).build());
+        planSubquery(query, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 2).build());
         VerificationException e = expectThrows(
             VerificationException.class,
-            () -> planSubquery(query, Settings.builder().put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), 1).build())
+            () -> planSubquery(query, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 1).build())
         );
         assertThat(e.getMessage(), containsString("query resolved to 2 branches in total, exceeding the limit of 1"));
     }
@@ -206,10 +206,10 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
         assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         String query = "FROM view_0, view_1, test";
 
-        planSubquery(viewAnalyzer(), query, Settings.builder().put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), 3).build());
+        planSubquery(viewAnalyzer(), query, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 3).build());
         VerificationException e = expectThrows(
             VerificationException.class,
-            () -> planSubquery(viewAnalyzer(), query, Settings.builder().put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), 2).build())
+            () -> planSubquery(viewAnalyzer(), query, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 2).build())
         );
         assertThat(e.getMessage(), containsString("query resolved to 3 branches in total, exceeding the limit of 2"));
     }
@@ -220,20 +220,20 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
             FROM test, (FROM test), (FROM languages)
             | STATS c = COUNT(*)
             """;
-        planSubquery(flat, Settings.builder().put(QueryPragmas.MAX_QUERY_BRANCH_LEVELS.getKey(), 1).build());
+        planSubquery(flat, Settings.builder().put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 1).build());
 
         String nested = """
             FROM test, (FROM test, (FROM test, (FROM languages)))
             | STATS c = COUNT(*)
             """;
 
-        planSubquery(nested, Settings.builder().put(QueryPragmas.MAX_QUERY_BRANCH_LEVELS.getKey(), 3).build());
+        planSubquery(nested, Settings.builder().put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 3).build());
         VerificationException e = expectThrows(
             VerificationException.class,
-            () -> planSubquery(nested, Settings.builder().put(QueryPragmas.MAX_QUERY_BRANCH_LEVELS.getKey(), 2).build())
+            () -> planSubquery(nested, Settings.builder().put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 2).build())
         );
         assertThat(e.getMessage(), containsString("query resolved to 3 nested union levels, exceeding the limit of 2"));
-        assertThat(e.getMessage(), containsString("[max_query_branch_levels] query pragma"));
+        assertThat(e.getMessage(), containsString("[max_branch_level] query pragma"));
         assertThat(e.getMessage(), containsString("Reduce the nesting of sources"));
     }
 
@@ -242,7 +242,7 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
         planSubquery("""
             FROM test
             | WHERE emp_no > 10000
-            """, Settings.builder().put(QueryPragmas.MAX_QUERY_BRANCH_LEVELS.getKey(), 1).build());
+            """, Settings.builder().put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 1).build());
     }
 
     public void testBothNestedSubqueryLimitsAtOrBeyondLimit() {
@@ -252,20 +252,20 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
             | STATS c = COUNT(*)
             """;
         Settings atLimit = Settings.builder()
-            .put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), 4)
-            .put(QueryPragmas.MAX_QUERY_BRANCH_LEVELS.getKey(), 3)
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 4)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 3)
             .build();
         Settings beyondBranchLimit = Settings.builder()
-            .put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), 3)
-            .put(QueryPragmas.MAX_QUERY_BRANCH_LEVELS.getKey(), 3)
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 3)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 3)
             .build();
         Settings beyondNestingLimit = Settings.builder()
-            .put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), 4)
-            .put(QueryPragmas.MAX_QUERY_BRANCH_LEVELS.getKey(), 2)
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 4)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 2)
             .build();
         Settings beyondBothLimits = Settings.builder()
-            .put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), 3)
-            .put(QueryPragmas.MAX_QUERY_BRANCH_LEVELS.getKey(), 2)
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 3)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 2)
             .build();
 
         planSubquery(query, atLimit);
@@ -287,20 +287,20 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
             | WHERE emp_no IN (FROM view_0, view_1 | KEEP emp_no)
             """;
         Settings atLimit = Settings.builder()
-            .put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), 3)
-            .put(QueryPragmas.MAX_QUERY_BRANCH_LEVELS.getKey(), 2)
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 3)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 2)
             .build();
         Settings beyondBranchLimit = Settings.builder()
-            .put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), 2)
-            .put(QueryPragmas.MAX_QUERY_BRANCH_LEVELS.getKey(), 2)
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 2)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 2)
             .build();
         Settings beyondNestingLimit = Settings.builder()
-            .put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), 3)
-            .put(QueryPragmas.MAX_QUERY_BRANCH_LEVELS.getKey(), 1)
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 3)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 1)
             .build();
         Settings beyondBothLimits = Settings.builder()
-            .put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), 2)
-            .put(QueryPragmas.MAX_QUERY_BRANCH_LEVELS.getKey(), 1)
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 2)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 1)
             .build();
 
         planSubquery(viewAnalyzer(), query, atLimit);
@@ -356,12 +356,12 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
               )
             """;
         Settings atLimit = Settings.builder()
-            .put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), 4)
-            .put(QueryPragmas.MAX_QUERY_BRANCH_LEVELS.getKey(), 2)
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 4)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 2)
             .build();
         Settings beyondBothLimits = Settings.builder()
-            .put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), 2)
-            .put(QueryPragmas.MAX_QUERY_BRANCH_LEVELS.getKey(), 1)
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 2)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 1)
             .build();
 
         planSubquery(query, atLimit);
@@ -374,20 +374,20 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
 
     private void assertNestedSubqueryLimits(String query, TestAnalyzer analyzer, int branches, int levels) {
         Settings atLimit = Settings.builder()
-            .put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), branches)
-            .put(QueryPragmas.MAX_QUERY_BRANCH_LEVELS.getKey(), levels)
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), branches)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), levels)
             .build();
         Settings beyondBranchLimit = Settings.builder()
-            .put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), branches - 1)
-            .put(QueryPragmas.MAX_QUERY_BRANCH_LEVELS.getKey(), levels)
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), branches - 1)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), levels)
             .build();
         Settings beyondNestingLimit = Settings.builder()
-            .put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), branches)
-            .put(QueryPragmas.MAX_QUERY_BRANCH_LEVELS.getKey(), levels - 1)
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), branches)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), levels - 1)
             .build();
         Settings beyondBothLimits = Settings.builder()
-            .put(QueryPragmas.MAX_QUERY_BRANCHES.getKey(), branches - 1)
-            .put(QueryPragmas.MAX_QUERY_BRANCH_LEVELS.getKey(), levels - 1)
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), branches - 1)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), levels - 1)
             .build();
 
         planSubquery(analyzer, query, atLimit);

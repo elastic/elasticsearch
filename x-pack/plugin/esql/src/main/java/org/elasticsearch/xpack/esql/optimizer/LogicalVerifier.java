@@ -38,7 +38,7 @@ public final class LogicalVerifier extends PostOptimizationPhasePlanVerifier<Log
         Failures failures = verify(optimizedPlan, expectedOutputAttributes);
         // These limits need complete main-query and IN-subquery plans, so they live here rather than in {@link #checkPlanConsistency}.
         if (failures.hasFailures() == false && EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled()) {
-            UnionAll.checkNestedSubqueryLimits(optimizedPlan, pragmas.maxQueryBranches(), pragmas.maxQueryBranchLevels(), failures);
+            UnionAll.checkNestedSubqueryLimits(optimizedPlan, pragmas.maxBranchCount(), pragmas.maxBranchLevel(), failures);
         }
         return failures;
     }

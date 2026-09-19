@@ -50,6 +50,12 @@ public class HeapAttackNestedSubqueryIT extends HeapAttackTestCase {
 
     private static final int NESTED_LEAVES = nestedLeafCount(NESTED_LEVELS, BRANCHES_PER_LEVEL);
 
+    /**
+     * Stateful nested trees have {@link #NESTED_LEAVES} leaves (27), above the default  {@code max_branch_count} of 20. Raise the pragma
+     * on stateful only so those queries can run. Serverless keeps the default and is otherwise unchanged.
+     */
+    private static final int STATEFUL_MAX_BRANCH_COUNT = 30;
+
     private record NestedShape(int levels, int branches) {}
 
     @Before
@@ -254,15 +260,25 @@ public class HeapAttackNestedSubqueryIT extends HeapAttackTestCase {
         return leaves;
     }
 
-    private static String endQuery() {
+    private static String endQuery() throws IOException {
         return endQuery(null);
     }
 
-    private static String endQuery(Integer branchParallelDegree) {
-        if (branchParallelDegree != null) {
-            return " \", \"pragma\": {\"branch_parallel_degree\": " + branchParallelDegree + "}}";
+    private static String endQuery(Integer branchParallelDegree) throws IOException {
+        if (isServerless()) {
+            if (branchParallelDegree != null) {
+                return " \", \"pragma\": {\"branch_parallel_degree\": " + branchParallelDegree + "}}";
+            }
+            return " \"}";
         }
-        return " \"}";
+        if (branchParallelDegree != null) {
+            return " \", \"pragma\": {\"branch_parallel_degree\": "
+                + branchParallelDegree
+                + ", \"max_branch_count\": "
+                + STATEFUL_MAX_BRANCH_COUNT
+                + "}}";
+        }
+        return " \", \"pragma\": {\"max_branch_count\": " + STATEFUL_MAX_BRANCH_COUNT + "}}";
     }
 
     private static Integer serverlessExecuteBranchSequentially() throws IOException {

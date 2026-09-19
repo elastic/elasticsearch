@@ -188,7 +188,7 @@ public class UnionAll extends MergePlan implements PostOptimizationPlanVerificat
     }
 
     /**
-     * Rejects a query whose leaf branches exceed {@code maxBranches}, the {@link QueryPragmas#MAX_QUERY_BRANCHES} query pragma.
+     * Rejects a query whose leaf branches exceed {@code maxBranches}, the {@link QueryPragmas#MAX_BRANCH_COUNT} query pragma.
      * <p>
      * Only producer leaves are counted — {@link UnionAll} nodes themselves are coordinator merge segments, not branches, and are
      * bounded separately by the maximum nesting-level check. Each leaf becomes a data node query (or a coordinator-local source), so
@@ -213,14 +213,14 @@ public class UnionAll extends MergePlan implements PostOptimizationPlanVerificat
                     + "or split this into multiple queries.",
                 stats.leaves(),
                 maxBranches,
-                QueryPragmas.MAX_QUERY_BRANCHES.getKey()
+                QueryPragmas.MAX_BRANCH_COUNT.getKey()
             )
         );
     }
 
     /**
      * Rejects a query whose {@link UnionAll}s nest deeper than {@code maxLevels}, the
-     * {@link QueryPragmas#MAX_QUERY_BRANCH_LEVELS} query pragma.
+     * {@link QueryPragmas#MAX_BRANCH_LEVEL} query pragma.
      * <p>
      * Each nested union becomes a coordinator merge segment that is wired before any leaf runs, so the depth is what a
      * single request commits the coordinator to on the merge-segment stack. {@link #checkTotalBranchCount} bounds how
@@ -244,7 +244,7 @@ public class UnionAll extends MergePlan implements PostOptimizationPlanVerificat
                     + "or split this into multiple queries.",
                 stats.depth(),
                 maxLevels,
-                QueryPragmas.MAX_QUERY_BRANCH_LEVELS.getKey()
+                QueryPragmas.MAX_BRANCH_LEVEL.getKey()
             )
         );
     }

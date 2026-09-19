@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
@@ -2117,9 +2118,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
                             if (EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled()) {
                                 // Validate max_query_branches limit
                                 Failures maxBranchFailures = new Failures();
-                                int maxQueryBranches = org.elasticsearch.xpack.esql.plugin.QueryPragmas.MAX_QUERY_BRANCHES.getDefault(
-                                    Settings.EMPTY
-                                );
+                                int maxQueryBranches = QueryPragmas.MAX_BRANCH_COUNT.getDefault(Settings.EMPTY);
                                 UnionAll.checkNestedSubqueryLimits(result, maxQueryBranches, Integer.MAX_VALUE, maxBranchFailures);
 
                                 int expectedLeaves = nesting * (branching - 1) + 1;
@@ -2138,7 +2137,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
                                         "nesting=" + nesting + ", branching=" + branching,
                                         maxBranchFailures.failures().toString(),
                                         containsString(
-                                            "exceeding the limit of " + maxQueryBranches + " set by the [max_query_branches] query pragma"
+                                            "exceeding the limit of " + maxQueryBranches + " set by the [max_branch_count] query pragma"
                                         )
                                     );
                                 } else {

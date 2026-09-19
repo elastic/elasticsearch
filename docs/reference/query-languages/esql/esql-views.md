@@ -288,6 +288,6 @@ For a detailed comparison of views, subqueries, and `FORK`, refer to [Combine an
 
 ## Related pages
 
-* [ES|QL subqueries](/reference/query-languages/esql/esql-subquery.md): nest queries inside other queries, either in `FROM` or `WHERE`.
+* [ES|QL subqueries](/reference/query-languages/esql/esql-subquery.md): nest queries inside other queries, in `FROM` or with `IN` / `NOT IN`.
 * [`FROM` command](/reference/query-languages/esql/commands/from.md): full reference for index expressions, where view names are used.
 * [Query multiple indices](/reference/query-languages/esql/esql-multi-index.md): how index patterns, wildcards, and date math combine sources in a single `FROM`.

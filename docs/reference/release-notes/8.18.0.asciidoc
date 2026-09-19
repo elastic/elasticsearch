@@ -498,3 +498,27 @@ As a workaround, you can temporarily patch the policy using a JVM option:
      -Des.entitlements.policy.x-pack-core=dmVyc2lvbnM6CiAgLSA4LjE4LjAKICAtIDkuMC4wCnBvbGljeToKICB1bmJvdW5kaWQubGRhcHNkazoKICAgIC0gc2V0X2h0dHBzX2Nvbm5lY3Rpb25fcHJvcGVydGllcwogICAgLSBvdXRib3VuZF9uZXR3b3Jr
 +
 For information about editing your JVM settings, refer to <<set-jvm-options>>.
+
+Vector Search::
+* Vector search performance can degrade on Ubuntu 24.04 when Multi-Gen LRU (MGLRU) is enabled.
+{es} 8.18.0 can experience significant vector search slowdowns and delayed Lucene index merges. Ubuntu 24.04 enables MGLRU by default. An interaction between MGLRU and Lucene's read advice behavior in affected Elasticsearch versions can result in excessive major page faults and I/O activity during vector operations. See {es-issue}124499[#124499].
++
+The fix is included in 8.18.1 ({es-pull}126308[#126308]). Upgrade to 8.18.1 or later.
++
+If you cannot upgrade immediately, temporarily disable MGLRU on affected Ubuntu 24.04 hosts:
++
+--
+[source,bash]
+----
+sudo sh -c 'echo n > /sys/kernel/mm/lru_gen/enabled'
+----
+--
++
+After you upgrade, re-enable MGLRU:
++
+--
+[source,bash]
+----
+sudo sh -c 'echo y > /sys/kernel/mm/lru_gen/enabled'
+----
+--

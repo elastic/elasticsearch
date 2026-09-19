@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 import org.elasticsearch.xpack.esql.datasources.pushdown.StringPrefixUtils;
 import org.elasticsearch.xpack.esql.datasources.pushdown.WildcardLikeShape;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
@@ -242,11 +243,13 @@ final class ParquetPushedExpressions {
      * are excluded from this check on purpose — their downstream {@code FilterExec} still
      * re-applies them, masking the shortcut's over-inclusion.
      *
-     * <p>Today the canConvert-but-not-translatable expressions are the LIKE-family predicates
-     * {@link WildcardLike}, {@code Contains}, {@code EndsWith} and any {@code Not} over them —
+     * <p>Today the canConvert-but-not-translatable expressions that matter here are the LIKE-family
+     * predicates {@link WildcardLike}, {@code Contains}, {@code EndsWith} and any {@code Not} over them —
      * none representable as a Parquet {@link FilterPredicate}. {@link StartsWith} and its
      * negation both translate (bare → prefix range; negated → {@code FilterApi.not(range)}).
-     * All YES-eligible LIKE-family conjuncts that land here are untranslatable.
+     * All YES-eligible LIKE-family conjuncts that land here are untranslatable. A {@code Not} over a
+     * multivalue comparison function is untranslatable too, but it is RECHECK rather than YES, so the
+     * rule above already excludes it and its {@code FilterExec} still re-applies it.
      *
      * <p>YES is determined here by {@link ParquetFilterPushdownSupport#isFullyEvaluable(Expression)}
      * rather than the full {@code canPush} check. The full check additionally probes
@@ -352,11 +355,12 @@ final class ParquetPushedExpressions {
         }
         // ---- multivalue comparison functions -------------------------------------------------
         // Each is an any-value existential, so the bound is its scalar sibling's. These feed the STATISTICS path
-        // only. They are deliberately absent from evaluateExpression and collectColumnNames: the late-materialization
-        // row evaluator keeps a position only when getValueCount(i) == 1, which is right for `f == v` and wrong for
-        // mv_contains(f, v) — it would drop genuinely matching multivalued rows before FilterExec ever sees them.
-        // An unrecognised shape there returns null, meaning "all rows survive", so leaving them out is safe by
-        // construction rather than by omission.
+        // only: they are deliberately absent from evaluateExpression, because the late-materialization row evaluator
+        // keeps a position only when getValueCount(i) == 1 — right for `f == v`, wrong for mv_contains(f, v), where it
+        // would drop genuinely matching multivalued rows before FilterExec ever sees them. An unrecognised shape there
+        // returns null, meaning "all rows survive", so the omission is safe by construction. They ARE collected by
+        // collectColumnNames: being unevaluable row-by-row is not the same as not being a predicate column, and that
+        // set also drives the dictionary and bloom pre-warm and the per-column materialization accounting.
         if (expr instanceof MvContains mvContains && mvContains.left() instanceof NamedExpression ne) {
             Object value = literalValueOf(mvContains.right());
             if (value == null || value instanceof List) {
@@ -1396,6 +1400,12 @@ final class ParquetPushedExpressions {
             collectColumnNames(or.right(), names);
         } else if (expr instanceof Not not) {
             collectColumnNames(not.field(), names);
+        } else if ((expr instanceof MvContains || expr instanceof MvIntersects) && expr.children().get(0) instanceof NamedExpression ne) {
+            names.add(ne.name());
+        } else if (expr instanceof MvInRange mvInRange && mvInRange.field() instanceof NamedExpression ne) {
+            names.add(ne.name());
+        } else if (expr instanceof MvCompare mvCompare && mvCompare.field() instanceof NamedExpression ne) {
+            names.add(ne.name());
         } else if (expr instanceof StartsWith sw && sw.singleValueField() instanceof NamedExpression ne) {
             names.add(ne.name());
         } else if (expr instanceof Contains c && c.singleValueField() instanceof NamedExpression ne) {

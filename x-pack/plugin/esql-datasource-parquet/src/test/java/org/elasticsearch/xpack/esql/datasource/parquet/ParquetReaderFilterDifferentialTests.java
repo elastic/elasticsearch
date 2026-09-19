@@ -269,8 +269,9 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     }
 
     public void testNotOverMvContainsDoesNotPush() throws IOException {
-        // mv_ is absent from isExactlyTranslatable, so the Not branch returns null and nothing is pushed. A
-        // superset under negation is an under-match, and a pruned row group has no FilterExec safety net.
+        // mv_ is absent from isExactlyTranslatable, so the Not branch builds no FilterPredicate. The conjunct is
+        // still pushed as RECHECK and still evaluated by the retained filter — what is absent is the statistics
+        // predicate. A superset under negation is an under-match, and a pruned row group has no safety net.
         runDifferential(new Not(Source.EMPTY, mvContains(STATUS, 200L, DataType.LONG)));
     }
 

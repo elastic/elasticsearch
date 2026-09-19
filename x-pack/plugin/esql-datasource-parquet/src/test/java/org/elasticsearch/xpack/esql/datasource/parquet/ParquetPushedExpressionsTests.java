@@ -24,6 +24,11 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
@@ -2485,6 +2490,97 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
         assertNotNull(fp);
         assertThat(fp.toString(), containsString("flat"));
+    }
+
+    // --- multivalue comparison functions: each must build the SAME predicate as its scalar sibling ---
+    // Asserting against the sibling rather than against a literal string is what makes these fail if an arm is
+    // removed or returns null: the sibling's predicate is non-null by construction, so "no predicate" cannot pass.
+
+    public void testMvContainsBuildsTheEqualsPredicate() {
+        MessageType schema = Types.buildMessage().required(INT64).named("id").named("test");
+        FilterPredicate sibling = predicateFor(schema, eq("id", DataType.LONG, 7L));
+        FilterPredicate mv = predicateFor(schema, new MvContains(Source.EMPTY, attr("id", DataType.LONG), lit(7L, DataType.LONG)));
+        assertNotNull("mv_contains must build a predicate", mv);
+        assertEquals(sibling.toString(), mv.toString());
+    }
+
+    public void testMvIntersectsBuildsTheInPredicate() {
+        MessageType schema = Types.buildMessage().required(INT64).named("id").named("test");
+        Expression in = new In(Source.EMPTY, attr("id", DataType.LONG), List.of(lit(7L, DataType.LONG), lit(9L, DataType.LONG)));
+        FilterPredicate sibling = predicateFor(schema, in);
+        Literal set = new Literal(Source.EMPTY, List.of(7L, 9L), DataType.LONG);
+        FilterPredicate mv = predicateFor(schema, new MvIntersects(Source.EMPTY, attr("id", DataType.LONG), set));
+        assertNotNull("mv_intersects must build a predicate", mv);
+        assertEquals(sibling.toString(), mv.toString());
+    }
+
+    public void testMvInRangeBuildsTheRangePredicate() {
+        MessageType schema = Types.buildMessage().required(INT64).named("id").named("test");
+        Expression range = new Range(
+            Source.EMPTY,
+            attr("id", DataType.LONG),
+            lit(3L, DataType.LONG),
+            true,
+            lit(8L, DataType.LONG),
+            true,
+            ZoneOffset.UTC
+        );
+        FilterPredicate sibling = predicateFor(schema, range);
+        FilterPredicate mv = predicateFor(
+            schema,
+            new MvInRange(Source.EMPTY, attr("id", DataType.LONG), lit(3L, DataType.LONG), lit(8L, DataType.LONG))
+        );
+        assertNotNull("mv_in_range must build a predicate", mv);
+        assertEquals(sibling.toString(), mv.toString());
+    }
+
+    public void testMvGreaterBuildsTheInclusiveLowerBound() {
+        MessageType schema = Types.buildMessage().required(INT64).named("id").named("test");
+        FilterPredicate sibling = predicateFor(
+            schema,
+            new GreaterThanOrEqual(Source.EMPTY, attr("id", DataType.LONG), lit(5L, DataType.LONG), null)
+        );
+        FilterPredicate mv = predicateFor(schema, new MvGreater(Source.EMPTY, attr("id", DataType.LONG), lit(5L, DataType.LONG)));
+        assertNotNull("mv_greater must build a predicate", mv);
+        assertEquals("the bound is pushed inclusive, a superset of the strict default", sibling.toString(), mv.toString());
+    }
+
+    public void testMvLessBuildsTheInclusiveUpperBound() {
+        MessageType schema = Types.buildMessage().required(INT64).named("id").named("test");
+        FilterPredicate sibling = predicateFor(
+            schema,
+            new LessThanOrEqual(Source.EMPTY, attr("id", DataType.LONG), lit(5L, DataType.LONG), null)
+        );
+        FilterPredicate mv = predicateFor(schema, new MvLess(Source.EMPTY, attr("id", DataType.LONG), lit(5L, DataType.LONG)));
+        assertNotNull("mv_less must build a predicate", mv);
+        assertEquals(sibling.toString(), mv.toString());
+    }
+
+    public void testNotOverMvContainsBuildsNoPredicate() {
+        MessageType schema = Types.buildMessage().required(INT64).named("id").named("test");
+        Expression negated = new Not(Source.EMPTY, new MvContains(Source.EMPTY, attr("id", DataType.LONG), lit(7L, DataType.LONG)));
+        assertNull("a superset under NOT is an under-match, and a pruned row group has no safety net", predicateFor(schema, negated));
+    }
+
+    public void testListValuedMvContainsBuildsNoPredicate() {
+        MessageType schema = Types.buildMessage().required(INT64).named("id").named("test");
+        Literal list = new Literal(Source.EMPTY, List.of(7L, 9L), DataType.LONG);
+        assertNull(predicateFor(schema, new MvContains(Source.EMPTY, attr("id", DataType.LONG), list)));
+    }
+
+    public void testMvContainsOverAListColumnBuildsNoPredicate() {
+        // resolveNestedPrimitive declines a group, so no statistics predicate is minted over a LIST column.
+        assertNull(
+            predicateFor(
+                stringListSchema(),
+                new MvContains(Source.EMPTY, attr("tags", DataType.KEYWORD), lit(new BytesRef("a"), DataType.KEYWORD))
+            )
+        );
+    }
+
+    /** The predicate {@code expr} alone would push, or {@code null} when it declines. */
+    private static FilterPredicate predicateFor(MessageType schema, Expression expr) {
+        return new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
     }
 
     private static Expression eq(String name, DataType type, Object value) {

@@ -133,9 +133,11 @@ public final class PushdownPredicates {
             return (range.lower().foldable() == false || isAgreeingPushdownLiteral(range.value().dataType(), range.lower()))
                 && (range.upper().foldable() == false || isAgreeingPushdownLiteral(range.value().dataType(), range.upper()));
         }
-        if ((expr instanceof MvContains || expr instanceof MvIntersects) && expr.children().get(0) instanceof NamedExpression field) {
-            Expression literal = expr.children().get(1);
-            return literal.foldable() == false || isAgreeingPushdownLiteral(field.dataType(), literal);
+        if (expr instanceof MvContains mvContains) {
+            return leafLiteralAgrees(mvContains.left(), mvContains.right());
+        }
+        if (expr instanceof MvIntersects mvIntersects) {
+            return leafLiteralAgrees(mvIntersects.left(), mvIntersects.right());
         }
         if (expr instanceof MvInRange mvInRange && mvInRange.field() instanceof NamedExpression field) {
             return (mvInRange.lower().foldable() == false || isAgreeingPushdownLiteral(field.dataType(), mvInRange.lower()))
@@ -335,8 +337,8 @@ public final class PushdownPredicates {
             && typeSupported.test(ne.dataType())
             && mv.lower().foldable()
             && mv.upper().foldable()
-            && literalValueOf(mv.lower()) != null
-            && literalValueOf(mv.upper()) != null
+            && isScalarBound(mv.lower())
+            && isScalarBound(mv.upper())
             && isAgreeingPushdownLiteral(ne.dataType(), mv.lower())
             && isAgreeingPushdownLiteral(ne.dataType(), mv.upper());
     }
@@ -355,7 +357,26 @@ public final class PushdownPredicates {
             && isVirtualColumn(ne) == false
             && typeSupported.test(ne.dataType())
             && mv.bound().foldable()
-            && literalValueOf(mv.bound()) != null
+            && isScalarBound(mv.bound())
             && isAgreeingPushdownLiteral(ne.dataType(), mv.bound());
+    }
+
+    /**
+     * A single non-null value. An ordered bound may be written as a list — {@code mv_in_range} and {@code MvCompare}
+     * both type-resolve a list literal of the field's type — and a list is not a bound any statistics comparison can
+     * use, so it declines here rather than reaching a builder that would cast it to a number. {@code isMvContains}
+     * declines a list for its own reason: it is a different predicate, not a malformed one.
+     */
+    private static boolean isScalarBound(Expression bound) {
+        Object value = literalValueOf(bound);
+        return value != null && value instanceof List == false;
+    }
+
+    /** An {@code mv_} leaf's literal agrees with its field, or the leaf is not a field-and-literal shape at all. */
+    private static boolean leafLiteralAgrees(Expression field, Expression literal) {
+        if (field instanceof NamedExpression named && literal.foldable()) {
+            return isAgreeingPushdownLiteral(named.dataType(), literal);
+        }
+        return true;
     }
 }

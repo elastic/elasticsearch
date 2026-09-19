@@ -48,6 +48,15 @@ public class ExternalRequestFilterRowGroupPruningIT extends AbstractExternalData
     private static final int TS_STEP = 10;
     private static final String[] REGIONS = { "US", "EU", "AP" };
 
+    /**
+     * Region is assigned in contiguous blocks rather than round-robin, so a row group holds one region. With every
+     * row group holding all three, a wrongly pushed predicate on region would prune nothing and the tests that pin it
+     * to prune nothing could not fail.
+     */
+    private static String regionOf(long id) {
+        return REGIONS[(int) (id * REGIONS.length / ROWS)];
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
         return List.of(ParquetDataSourcePlugin.class);
@@ -81,11 +90,12 @@ public class ExternalRequestFilterRowGroupPruningIT extends AbstractExternalData
     public void testMustNotKeepsEveryRowGroup() throws Exception {
         // Under a negation the multivalue forms are not pushed at all: the pruning bound is a superset, and a superset
         // under NOT is an under-match that no retained filter can undo, because the rows were never read. So the scan
-        // must be total while the answer stays exact.
+        // must be total while the answer stays exact. Region is clustered, so a wrongly pushed NOT(region == "EU")
+        // would skip the EU row groups and this would fail on the counters as well as on the rows.
         String dataset = registerSortedDataset("rg_mustnot");
         List<Long> expected = new ArrayList<>();
         for (long id = 0; id < ROWS; id++) {
-            if (REGIONS[(int) (id % REGIONS.length)].equals("EU") == false) {
+            if (regionOf(id).equals("EU") == false) {
                 expected.add(id);
             }
         }
@@ -99,7 +109,7 @@ public class ExternalRequestFilterRowGroupPruningIT extends AbstractExternalData
         String dataset = registerSortedDataset("rg_ci");
         List<Long> expected = new ArrayList<>();
         for (long id = 0; id < ROWS; id++) {
-            if (REGIONS[(int) (id % REGIONS.length)].equals("EU")) {
+            if (regionOf(id).equals("EU")) {
                 expected.add(id);
             }
         }
@@ -108,19 +118,19 @@ public class ExternalRequestFilterRowGroupPruningIT extends AbstractExternalData
     }
 
     public void testTimeRangeAndedWithATermStillSkipsRowGroups() throws Exception {
-        // The shape that matters in practice: a time range plus a filter pill. The term arm cannot prune on this
-        // fixture (every row group holds all three regions), so the range arm must carry the pruning.
+        // The shape that matters in practice: a time range plus a filter pill. The window is chosen to overlap the
+        // EU block so both arms select something and the result is non-empty.
         String dataset = registerSortedDataset("rg_and");
         List<Long> expected = new ArrayList<>();
-        for (long id : idsWithTsBetween(0, 1000)) {
-            if (REGIONS[(int) (id % REGIONS.length)].equals("EU")) {
+        for (long id : idsWithTsBetween(1670, 2670)) {
+            if (regionOf(id).equals("EU")) {
                 expected.add(id);
             }
         }
         Pruning status = runAndReadStatus(
             dataset,
             QueryBuilders.boolQuery()
-                .filter(QueryBuilders.rangeQuery("ts").gte(0).lte(1000))
+                .filter(QueryBuilders.rangeQuery("ts").gte(1670).lte(2670))
                 .filter(QueryBuilders.termQuery("region", "EU")),
             expected
         );
@@ -203,7 +213,7 @@ public class ExternalRequestFilterRowGroupPruningIT extends AbstractExternalData
             (group, i) -> {
                 group.add("id", (long) i);
                 group.add("ts", (long) i * TS_STEP);
-                group.add("region", REGIONS[i % REGIONS.length]);
+                group.add("region", regionOf(i));
             }
         );
         return registerDataset(name, StoragePath.fileUri(file), Map.of());

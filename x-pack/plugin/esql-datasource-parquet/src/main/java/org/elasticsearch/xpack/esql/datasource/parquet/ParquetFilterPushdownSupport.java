@@ -264,7 +264,9 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
             return PushdownPredicates.isMvIntersects(mvIntersects, TYPE_SUPPORTED);
         }
         if (expr instanceof MvInRange mvInRange) {
-            // BooleanColumn doesn't implement SupportsLtGt — ordered bounds decline, exactly as Range does above
+            // BooleanColumn doesn't implement SupportsLtGt, so an ordered bound on one cannot be built. Unreachable
+            // through the analyzer — MvInRange.isSupportedRangeType already excludes BOOLEAN — and kept for the same
+            // reason the Range arm above keeps its own boolean check.
             if (declinesOrderedBoolean(mvInRange.field())) {
                 return false;
             }

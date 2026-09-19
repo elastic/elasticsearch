@@ -670,9 +670,10 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     public void testNotOverStrictMvGreaterKeepsTheFileSittingOnTheBound() {
-        // The reason the ordered forms are unknown on the bound rather than inclusive. NOT mv_greater(year, 2022) is
-        // TRUE for every row of a year=2022 file, because the bound is strict by default. Evaluating the bound as
-        // inclusive would give 2022 >= 2022 = true, negate it to false, and prune a file whose every row matches.
+        // The reason the ordered forms read their default inclusivity rather than assuming one. NOT mv_greater(year,
+        // 2022) is TRUE for every row of a year=2022 file, because the bound is strict by default: on-bound is a
+        // definite FALSE, which negates to TRUE. Assuming an inclusive bound would give 2022 >= 2022 = true, negate to
+        // false, and prune a file whose every row matches.
         Expression filter = new Not(SRC, new MvGreater(SRC, fieldAttr("year"), intLiteral(2022)));
         assertNotEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2022)));
         assertTrue(FileSplitProvider.matchesPartitionFilters(Map.of("year", 2022), List.of(filter)));

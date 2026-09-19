@@ -309,6 +309,11 @@ public final class PromqlFunctionDefinition {
     public static final PromqlParamInfo SCALAR = PromqlParamInfo.child("s", PromqlDataType.SCALAR, "Scalar value.");
     public static final PromqlParamInfo QUANTILE = PromqlParamInfo.of("φ", PromqlDataType.SCALAR, "Quantile value (0 ≤ φ ≤ 1).");
     public static final PromqlParamInfo K = PromqlParamInfo.of("k", PromqlDataType.SCALAR, "Number of series to keep.");
+    public static final PromqlParamInfo RATIO = PromqlParamInfo.of(
+        "r",
+        PromqlDataType.SCALAR,
+        "Ratio of series to keep (-1 ≤ r ≤ 1); the absolute value selects the share, " + "a negative r inverts the selection."
+    );
     public static final PromqlParamInfo TO_NEAREST = PromqlParamInfo.optional(
         "to_nearest",
         PromqlDataType.SCALAR,
@@ -664,6 +669,23 @@ public final class PromqlFunctionDefinition {
             this.arity = PromqlFunctionArity.TWO;
             this.builder = (source, target, ctx, extraParams) -> null;
             this.params = List.of(paramInfo, INSTANT_VECTOR);
+            return this;
+        }
+
+        /**
+         * Across-series reduction that retains an approximate ratio of elements via hash sampling.
+         * Like the metadata-manipulation functions this is not lowered through the generic {@link FunctionBuilder}:
+         * the translator builds the {@link org.elasticsearch.xpack.esql.plan.logical.LimitRatioBy} node directly
+         * (see {@code TranslatePromqlToEsqlPlan}), since it needs the collapsed child plan and its groupings,
+         * which the {@link PromqlFunctionRegistry.PromqlContext} does not carry.
+         */
+        public PromqlFunctionDefinition.Builder acrossSeriesBinaryRatioReduce(PromqlParamInfo ratioParam) {
+            this.functionType = FunctionType.ACROSS_SERIES_REDUCTION;
+            this.arity = PromqlFunctionArity.TWO;
+            this.builder = (source, target, ctx, extraParams) -> {
+                throw new UnsupportedOperationException("limit_ratio is translated directly, not built via the generic function builder");
+            };
+            this.params = List.of(ratioParam, INSTANT_VECTOR);
             return this;
         }
 

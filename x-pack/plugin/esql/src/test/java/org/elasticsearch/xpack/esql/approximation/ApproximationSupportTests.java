@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
+import org.elasticsearch.xpack.esql.plan.logical.LimitRatioBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
@@ -218,6 +219,9 @@ public class ApproximationSupportTests extends ESTestCase {
         ResolvingProject.class,
         SemiJoin.class,
         SparklineGenerateEmptyBuckets.class,
+
+        // PromQL across-series reduction with its own streaming operator; not approximable.
+        LimitRatioBy.class,
 
         // internals
         PackDims.class,

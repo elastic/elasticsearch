@@ -1,0 +1,1 @@
+PROMQL index=k8s step=1h result=(limit_ratio(0.5, network.bytes_in) by (pod))

@@ -9,6 +9,9 @@
 :::{include} ../count.md
 :::
 
+:::{include} ../limit_ratio.md
+:::
+
 :::{include} ../limitk.md
 :::
 

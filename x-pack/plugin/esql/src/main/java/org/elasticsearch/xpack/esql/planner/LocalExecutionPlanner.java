@@ -42,6 +42,7 @@ import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.GroupedLimitOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
+import org.elasticsearch.compute.operator.HashRatioLimitOperator;
 import org.elasticsearch.compute.operator.HighlightConfig;
 import org.elasticsearch.compute.operator.HighlightOperator;
 import org.elasticsearch.compute.operator.InsertEmptyBucketsOperator;
@@ -191,6 +192,7 @@ import org.elasticsearch.xpack.esql.plan.physical.InsertEmptyBucketsExec;
 import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitRatioByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
@@ -433,6 +435,8 @@ public class LocalExecutionPlanner {
             return planInsertEmptyBuckets(insertEmptyBuckets, context);
         } else if (node instanceof LimitByExec limitBy) {
             return planLimitBy(limitBy, context);
+        } else if (node instanceof LimitRatioByExec limitRatioBy) {
+            return planLimitRatioBy(limitRatioBy, context);
         } else if (node instanceof LimitExec limit) {
             return planLimit(limit, context);
         } else if (node instanceof MvExpandExec mvExpand) {
@@ -2487,6 +2491,26 @@ public class LocalExecutionPlanner {
             elementTypes.add(PlannerUtils.toElementType(inverse.get(channel).type()));
         }
         return source.with(new GroupedLimitOperator.Factory(limitValue, groupKeys, elementTypes), source.layout);
+    }
+
+    private PhysicalOperation planLimitRatioBy(LimitRatioByExec limitRatioBy, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(limitRatioBy.child(), context);
+        // The ratio and key carriers are validated up front: at analysis (ResolvePromqlFunctions) for user
+        // input and by post-optimization verification (LimitRatioBy) for translator output. Planning only
+        // resolves the already-validated key channels: the groupings without the leading step bucket.
+        double ratioValue = ((Number) limitRatioBy.ratio().fold(context.foldCtx)).doubleValue();
+        Layout layout = source.layout;
+        List<Integer> keyChannels = limitRatioBy.groupings()
+            .subList(1, limitRatioBy.groupings().size())
+            .stream()
+            .map(g -> getAttributeChannel(g, layout, "LIMIT RATIO BY expression must be an attribute"))
+            .toList();
+        List<Layout.ChannelSet> inverse = layout.inverse();
+        List<ElementType> elementTypes = new ArrayList<>(layout.numberOfChannels());
+        for (int channel = 0; channel < inverse.size(); channel++) {
+            elementTypes.add(PlannerUtils.toElementType(inverse.get(channel).type()));
+        }
+        return source.with(new HashRatioLimitOperator.Factory(ratioValue, keyChannels, elementTypes), source.layout);
     }
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {

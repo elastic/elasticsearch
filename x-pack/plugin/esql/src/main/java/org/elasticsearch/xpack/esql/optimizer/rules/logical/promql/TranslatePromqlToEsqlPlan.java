@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LimitRatioBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
@@ -432,9 +433,10 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         }
 
         /**
-         * Translates an {@link AcrossSeriesReduction} ({@code topk}/{@code bottomk}): collapse the child to one row
-         * per series, then rank and keep the top {@code k}. A {@code by} clause only partitions the ranking; it does
-         * not change output header.
+         * Translates an {@link AcrossSeriesReduction} ({@code topk}/{@code bottomk}/{@code limitk}/{@code limit_ratio}):
+         * collapses the child to one row per series, then keeps rows within each step and partition: ranked by value
+         * for the order-statistic functions, or an approximate ratio for {@code limit_ratio}.
+         * A {@code by} clause only partitions the reduction; it does not change the output header.
          */
         private IntermediateResult doTranslateAcrossSeriesReduction(AcrossSeriesReduction plan) {
             if (plan.grouping() == WITHOUT) {
@@ -458,7 +460,9 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             IntermediateResult aggregated = childResult.kind().afterInitialAggregation
                 ? regroup(childResult, header, false, childResult.value())
                 : collapse(childResult, header, childResult.value());
-            LogicalPlan result = emitTopNBy(plan, aggregated, partitions, promqlCtx);
+            LogicalPlan result = plan.definition() == PromqlBuiltinFunctionDefinitions.LIMIT_RATIO
+                ? emitLimitRatioBy(plan, aggregated, partitions)
+                : emitTopNBy(plan, aggregated, partitions, promqlCtx);
             return aggregated.with(result, aggregated.header(), aggregated.value());
         }
 
@@ -469,6 +473,66 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             List<String> partitions,
             PromqlContext promqlContext
         ) {
+            ReductionGrouping grouping = reductionGrouping(reduction, table, partitions);
+            var order = (Order) reduction.buildEsqlFunction(table.value(), promqlContext);
+            return new TopNBy(
+                reduction.source(),
+                grouping.plan(),
+                order != null ? List.of(order) : List.of(),
+                new ToInteger(reduction.source(), reduction.parameters().getFirst()),
+                grouping.groupings()
+            );
+        }
+
+        /**
+         * Keeps an approximate {@code ratio} of the already-collapsed per-series rows within each step and partition.
+         * Unlike the order-statistic reductions this is not a {@link TopNBy}: the kept subset is selected by hashing
+         * the field key in {@link LimitRatioBy}, so no sort order is built.
+         */
+        private LogicalPlan emitLimitRatioBy(AcrossSeriesReduction reduction, IntermediateResult table, List<String> partitions) {
+            ReductionGrouping grouping = reductionGrouping(reduction, table, partitions);
+            // The sampling key is the groupings without the step bucket: the concrete grouping columns
+            // from below. At series grain that is the _timeseries blob; over an aggregated input the rows
+            // are groups, so their own grain labels are the key (for example pod groups for limit_ratio
+            // over sum by, even when the outer reduction is bare). With no key columns every row shares
+            // one identity, so a single-series result is kept or dropped deterministically.
+            List<Expression> key = new ArrayList<>(grouping.groupings());
+            Attribute series = grouping.plan().output().stream().filter(MetadataAttribute::isTimeSeriesAttribute).findFirst().orElse(null);
+            if (series != null) {
+                addIfMissing(key, series);
+            } else {
+                // No series blob: the rows are groups. Their identity is the concrete grouping
+                // underneath -- packed label sets when the header packs labels away (for example
+                // sum without), else the grain label columns. Packings hold only dimensions, never
+                // the step, so the identity is stable across steps.
+                for (Set<String> skip : finestFirst(table.header().skips())) {
+                    Attribute packing = table.packed(skip);
+                    if (packing != null) {
+                        addIfMissing(key, packing);
+                    }
+                }
+                for (String label : table.header().labels()) {
+                    Attribute carrier = table.label(label);
+                    // Guaranteed by emitRegroup, which resolves every header label (null-filling missing ones).
+                    assert carrier != null : "invariant: grouping label [" + label + "] must be carried by the input";
+                    addIfMissing(key, carrier);
+                }
+            }
+            return new LimitRatioBy(reduction.source(), grouping.plan(), reduction.parameters().getFirst(), key);
+        }
+
+        private static void addIfMissing(List<Expression> key, Attribute carrier) {
+            if (key.stream().noneMatch(e -> e instanceof Attribute a && a.id().equals(carrier.id()))) {
+                key.add(carrier);
+            }
+        }
+
+        /**
+         * The grouping a reduction keeps rows within: the step bucket plus one carrier per {@code by} partition label.
+         * A partition label absent from every series ranks as one partition, like Prometheus, via a null-carrying
+         * {@link Eval} over the collapsed table.
+         */
+        private ReductionGrouping reductionGrouping(AcrossSeriesReduction reduction, IntermediateResult table, List<String> partitions) {
             var groupings = new ArrayList<Expression>();
             groupings.add(table.step());
             LogicalPlan plan = table.plan();
@@ -487,15 +551,10 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                     plan = new Eval(cmd.source(), plan, nulls);
                 }
             }
-            var order = (Order) reduction.buildEsqlFunction(table.value(), promqlContext);
-            return new TopNBy(
-                reduction.source(),
-                plan,
-                order != null ? List.of(order) : List.of(),
-                new ToInteger(reduction.source(), reduction.parameters().getFirst()),
-                groupings
-            );
+            return new ReductionGrouping(plan, groupings);
         }
+
+        private record ReductionGrouping(LogicalPlan plan, List<Expression> groupings) {}
 
         /**
          * The initial aggregate: a raw table collapsed to one row per step and header column by the innermost

@@ -101,6 +101,25 @@ public class PromqlBuiltinFunctionDefinitions {
         .name("limitk");
 
     /**
+     * {@code limit_ratio(r, v)} keeps each series iff its field-key hash falls below {@code r},
+     * like Prometheus. The kept subset is stable within a process lifetime; no per-group state.
+     */
+    public static final PromqlFunctionDefinition LIMIT_RATIO = PromqlFunctionDefinition.def()
+        .acrossSeriesBinaryRatioReduce(PromqlFunctionDefinition.RATIO)
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description("Returns a ratio `r` of the series from the input vector, keeping their full label set.")
+        .example("limit_ratio(0.5, http_requests_total)")
+        .stack(PromqlFunctionDefinition.STACK_GA_9_6)
+        .differenceFromPrometheus(
+            "Series are kept by hashing our internal field key rather than the Prometheus label serialization, "
+                + "so the kept subset has the same statistical properties but is generally a different subset than "
+                + "the one Prometheus keeps. The subset is stable within a process lifetime but varies across "
+                + "node restarts, unlike Prometheus where it is stable. `by` is a membership no-op as in "
+                + "Prometheus. A `without` grouping clause is not yet supported."
+        )
+        .name("limit_ratio");
+
+    /**
      * {@code label_replace(v, dst_label, replacement, src_label, regex)} matches {@code regex} (fully anchored) against the
      * value of {@code src_label} and, on a match, sets {@code dst_label} to the expanded {@code replacement}. It manipulates
      * only labels/identity, never sample values, so it has no ES|QL function to build: it resolves into a dedicated node and

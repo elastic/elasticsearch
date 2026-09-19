@@ -118,6 +118,7 @@ public class PromqlFunctionRegistry {
         PromqlBuiltinFunctionDefinitions.TOPK,
         PromqlBuiltinFunctionDefinitions.BOTTOMK,
         PromqlBuiltinFunctionDefinitions.LIMITK,
+        PromqlBuiltinFunctionDefinitions.LIMIT_RATIO,
         //
         PromqlBuiltinFunctionDefinitions.LABEL_REPLACE,
         PromqlBuiltinFunctionDefinitions.LABEL_JOIN,
@@ -181,9 +182,6 @@ public class PromqlFunctionRegistry {
         }
     }
 
-    /**
-     * Carries the PromQL evaluation context needed by function builders to construct ES|QL expressions.
-     */
     public record PromqlContext(Expression timestamp, Expression window, Expression step, Configuration configuration) {}
 
     // PromQL function names not yet implemented
@@ -192,10 +190,6 @@ public class PromqlFunctionRegistry {
         // Across-series aggregations (not yet available in ESQL)
         "group",
         "count_values",
-        // Ratio-based series sampling: requires knowing per-group cardinality at plan time to compute
-        // ceil(r * count), which is not available without a two-phase execution plan or new primitives.
-        "limit_ratio",
-
         // Range vector functions (not yet implemented)
         "changes",
         // Prometheus 3.x replacement for holt_winters; requires smoothing factors applied over a range vector.
@@ -264,13 +258,24 @@ public class PromqlFunctionRegistry {
         }
     }
 
+    /**
+     * Builds the ES|QL expression for scalar, aggregate, and value-transformation functions.
+     * Reductions lowered to plan nodes ({@code limit_ratio}) and functions translated directly must go through
+     * {@code PromqlFunctionCall#buildEsqlFunction} or the translator instead; calling this method for them trips
+     * the assertion below, since which builder a function uses is fixed statically and never depends on user input.
+     */
     public Expression buildEsqlFunction(String name, Source source, Expression target, PromqlContext ctx, List<Expression> extraParams) {
         checkFunction(source, name);
         PromqlFunctionDefinition metadata = functionMetadata(name);
         try {
-            return metadata.esqlBuilder().build(source, target, ctx, extraParams);
+            Object built = metadata.esqlBuilder().build(source, target, ctx, extraParams);
+            assert built instanceof Expression : "Function [" + name + "] is not lowered to an expression";
+            return (Expression) built;
+        } catch (ParsingException e) {
+            throw e;
         } catch (Exception e) {
-            throw new ParsingException(source, "Error building ESQL function for [{}]: {}", name, e.getMessage());
+            String message = e.getMessage() != null ? e.getMessage() : e.toString();
+            throw new ParsingException(source, "Error building ESQL function for [{}]: {}", name, message);
         }
     }
 }

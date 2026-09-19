@@ -1,0 +1,74 @@
+// Tests for the PromQL limit_ratio() function.
+//
+// limit_ratio(r, v) keeps each series iff its sampling offset is below r, like Prometheus.
+// The offset is derived from a hash of the sampling key -- the groupings without the step
+// bucket (the _timeseries blob at series grain, the concrete group columns over aggregated
+// inputs). The absolute value of r selects the share; a negative r inverts the selection,
+// keeping offsets at or above 1 + r. Out-of-range ratios need no clamping (r > 1 and r < -1
+// keep everything), r=0 keeps nothing, and NaN is rejected.
+//
+// Only seed-independent outcomes are pinned here: the kept subset for fractional ratios is
+// stable within a process lifetime but varies across node restarts (unlike Prometheus, where
+// it is stable), so fractional cases are covered at unit level where the hash seed is fixed.
+// See the function docs for the recorded divergence.
+//
+// The k8s prod cluster has three pods: pod=one (947), pod=two (10277), pod=three (9969).
+
+// r=1.0: every series is kept unconditionally.
+limit_ratio_r_one
+required_capability: promql_command_v0
+required_capability: promql_limit_ratio
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(limit_ratio(1.0, network.total_bytes_in{cluster="prod"}))
+| SORT result;
+
+result:double | step:datetime            | _timeseries:keyword
+947.0         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+10277.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+;
+
+// r=0.0: no offset is below 0.0, so no series is kept.
+limit_ratio_r_zero
+required_capability: promql_command_v0
+required_capability: promql_limit_ratio
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(limit_ratio(0.0, network.total_bytes_in{cluster="prod"}))
+| SORT result;
+
+result:double | step:datetime | _timeseries:keyword
+;
+
+// r=-1.0: every offset is at or above 0.0, so every series is kept unconditionally.
+limit_ratio_r_minus_one
+required_capability: promql_command_v0
+required_capability: promql_limit_ratio
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(limit_ratio(-1.0, network.total_bytes_in{cluster="prod"}))
+| SORT result;
+
+result:double | step:datetime            | _timeseries:keyword
+947.0         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+10277.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+;
+
+// `by (pod)` with r=1.0 returns every series; full identity is preserved.
+limit_ratio_by_grouping
+required_capability: promql_command_v0
+required_capability: promql_limit_ratio
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(limit_ratio(1.0, network.total_bytes_in) by (pod))
+| SORT result;
+
+result:double | step:datetime            | _timeseries:keyword
+947.0         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+5187.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+6637.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+7286.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+7403.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+8568.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+9969.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+10277.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+10797.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+;

@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
+import org.elasticsearch.xpack.esql.plan.logical.LimitRatioBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitRatioByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
@@ -184,6 +186,11 @@ public class Mapper {
         if (unary instanceof LimitBy limitBy) {
             mappedChild = addExchangeForFragment(limitBy, mappedChild);
             return new LimitByExec(limitBy.source(), mappedChild, limitBy.limitPerGroup(), limitBy.groupings(), null);
+        }
+
+        if (unary instanceof LimitRatioBy limitRatioBy) {
+            mappedChild = addExchangeForFragment(limitRatioBy, mappedChild);
+            return new LimitRatioByExec(limitRatioBy.source(), mappedChild, limitRatioBy.ratio(), limitRatioBy.groupings());
         }
 
         if (unary instanceof TopN topN) {

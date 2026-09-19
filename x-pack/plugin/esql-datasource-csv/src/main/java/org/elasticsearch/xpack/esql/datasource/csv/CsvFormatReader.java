@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.InstrumentedFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
@@ -258,7 +259,7 @@ import java.util.function.Consumer;
  * <p>Works with any {@link org.elasticsearch.xpack.esql.datasources.spi.StorageProvider}
  * (HTTP, S3, local filesystem).
  */
-public class CsvFormatReader implements SegmentableFormatReader {
+public class CsvFormatReader implements SegmentableFormatReader, InstrumentedFormatReader {
 
     /**
      * The schema-sampling default this reader applies when the setting is absent, surfaced from
@@ -613,9 +614,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * As above, but adopting an existing counters instance rather than starting fresh ones. Used by the per-file
-     * withers: the operator snapshots its status envelope from the factory's shared reader, so a per-file copy that
-     * started its own counters would accumulate where nobody reads, and the reported figures would be zero.
+     * Primary copy constructor: preserves all fields and either shares ({@code sharedCounters != null})
+     * or mints ({@code sharedCounters == null}) a counter struct. Every {@code with*} wither passes
+     * {@code this.counters} here so the base reader's snapshot observes everything any fork recorded.
+     * Only {@link #withFreshCounters()} passes {@code null} to allocate a fresh struct.
      */
     private CsvFormatReader(
         BlockFactory blockFactory,
@@ -653,6 +655,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /**
      * Returns a copy of this reader with the direct-to-block read path toggled. Threaded from the
      * {@code esql.external.csv.direct_block.enabled} node setting at reader-construction time.
+     * <p>
+     * Note: {@code CsvDataSourcePlugin} calls this on the registry's root reader before publishing
+     * it. The resulting reader inherits the root's (fresh) counters struct — harmless, since the
+     * root itself will never accumulate reads.
      */
     public CsvFormatReader withDirectBlockEnabled(boolean enabled) {
         if (enabled == directBlockEnabled) {
@@ -671,6 +677,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             enabled,
             declaredDateFormats,
             declaredProvenanceBinding,
+            counters,
             configWarnings
         );
     }
@@ -1042,6 +1049,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             declaredDateFormats,
             declaredProvenanceBinding,
+            counters,
             configWarnings
         );
     }
@@ -1061,6 +1069,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             declaredDateFormats,
             declaredProvenanceBinding,
+            counters,
             configWarnings
         );
     }
@@ -1083,6 +1092,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             declaredDateFormats,
             binding,
+            counters,
             configWarnings
         );
     }
@@ -1231,6 +1241,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             physicalNameToPattern,
             declaredProvenanceBinding,
+            counters,
             configWarnings
         );
     }
@@ -1240,9 +1251,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if (newReadConfig == null || newReadConfig.equals(readConfig)) {
             return this;
         }
-        // Shares this reader's counters. The status envelope is snapshotted from the factory's shared reader, but
-        // this wither runs at the per-file seam, so the copy is the instance that actually reads. Starting fresh
-        // counters leaves the reported read time at zero for every query — telemetry goes quiet, not the data.
+        // Shares this reader's counters: every wither propagates the same struct so the base reader's
+        // statusSnapshot() observes reads from any derived copy. The mint (fresh struct) happens only
+        // once per operator in AsyncExternalSourceOperatorFactory.get(DriverContext).
         return new CsvFormatReader(
             blockFactory,
             options,
@@ -1257,6 +1268,34 @@ public class CsvFormatReader implements SegmentableFormatReader {
             declaredDateFormats,
             declaredProvenanceBinding,
             counters,
+            configWarnings
+        );
+    }
+
+    /**
+     * Returns a copy of this reader backed by a fresh {@link CsvReaderCounters} struct while
+     * preserving all other fields. Called once per {@code AsyncExternalSourceOperatorFactory.get(DriverContext)}
+     * invocation so each parallel driver accumulates into its own counter.
+     * <p>
+     * This is the <em>only</em> place a new counter struct is allocated for a derived reader;
+     * every other {@code with*} wither forwards {@code this.counters}.
+     */
+    @Override
+    public CsvFormatReader withFreshCounters() {
+        return new CsvFormatReader(
+            blockFactory,
+            options,
+            format,
+            extensions,
+            resolvedSchema,
+            schemaSampleSize,
+            effectivePolicy,
+            canonicalConfig,
+            readConfig,
+            directBlockEnabled,
+            declaredDateFormats,
+            declaredProvenanceBinding,
+            null,
             configWarnings
         );
     }
@@ -1291,6 +1330,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             result.directBlockEnabled,
             result.declaredDateFormats,
             result.declaredProvenanceBinding,
+            result.counters,
             parsedOptions.configWarnings()
         );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);

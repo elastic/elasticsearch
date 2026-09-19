@@ -168,6 +168,43 @@ public class OrcFormatReaderTests extends ESTestCase {
         assertEquals("3 data rows drained from the file", 3L, after.rowsEmitted());
     }
 
+    /**
+     * Pins the operator-mint isolation half of elastic/esql-planning#1803: {@code factory.get()}
+     * calls {@link OrcFormatReader#withFreshCounters()} once per operator, so two mints from the
+     * same registry base own independent counter structs. Sibling-parity with
+     * {@code CsvFormatReaderStatusSnapshotTests#testSiblingQueryReadersDoNotShareCounters}.
+     */
+    public void testSiblingQueryReadersDoNotShareCounters() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("id", TypeDescription.createLong())
+            .addField("name", TypeDescription.createString());
+
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 3;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            BytesColumnVector nameCol = (BytesColumnVector) batch.cols[1];
+            for (int i = 0; i < 3; i++) {
+                idCol.vector[i] = i;
+                nameCol.setVal(i, ("row-" + i).getBytes(StandardCharsets.UTF_8));
+            }
+        });
+        StorageObject storageObject = createStorageObject(orcData);
+
+        OrcFormatReader base = new OrcFormatReader(blockFactory);
+        OrcFormatReader first = base.withFreshCounters();
+        OrcFormatReader second = base.withFreshCounters();
+
+        try (CloseableIterator<Page> iterator = first.read(storageObject, null, 1024)) {
+            while (iterator.hasNext()) {
+                iterator.next().releaseBlocks();
+            }
+        }
+
+        assertTrue("the minted reader that read must report its own work", first.statusSnapshot().rowsEmitted() > 0);
+        assertEquals("a sibling minted reader must not see it", 0L, second.statusSnapshot().rowsEmitted());
+        assertEquals("nor may it reach the registry's shared reader", 0L, base.statusSnapshot().rowsEmitted());
+    }
+
     public void testReadSchemaFromSimpleOrc() throws Exception {
         TypeDescription schema = TypeDescription.createStruct()
             .addField("id", TypeDescription.createLong())

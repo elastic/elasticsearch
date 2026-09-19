@@ -31,12 +31,11 @@ import java.util.Map;
  * read drains a CSV file. Complements {@link CsvReaderCountersTests} (which exercises the counter
  * struct in isolation) by exercising the full FormatReader → batch-iterator wiring.
  * <p>
- * The last two pin the COUNTER LIFETIME in both directions, mirroring the NDJSON suite. CSV has the correct
- * shape today — only {@link CsvFormatReader#withReadConfig} shares its parent's counters — and these exist to
- * keep it: the chain's root is the node-lifetime reader the format registry hands out, so a wither that shares
- * above the per-query seam mixes concurrent queries' telemetry, while a fork at the per-file seam leaves the
- * reader that reads reporting into a copy nobody snapshots. Neither is observable from a single drained reader,
- * which is why both assert on a SECOND live copy.
+ * The last two pin the COUNTER LIFETIME invariant: every ordinary wither preserves the parent's counter struct,
+ * and {@link CsvFormatReader#withFreshCounters()} is the only method that mints a new one. The operator factory
+ * calls it once per {@code factory.get(DriverContext)} invocation, so two operators from the same factory own
+ * two isolated counter structs. Only tests using {@code withFreshCounters()} demonstrate isolation; tests using
+ * ordinary withers demonstrate sharing.
  */
 public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
 
@@ -77,14 +76,15 @@ public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
     }
 
     public void testSiblingQueryReadersDoNotShareCounters() throws IOException {
+        // Simulate two operator mints from the same factory: factory.get() calls withFreshCounters() once per operator.
         CsvFormatReader base = new CsvFormatReader(blockFactory);
-        CsvFormatReader first = (CsvFormatReader) base.withConfigTrackingConsumedKeys(Map.of("delimiter", ",")).value();
-        CsvFormatReader second = (CsvFormatReader) base.withConfigTrackingConsumedKeys(Map.of("delimiter", ",")).value();
+        CsvFormatReader first = base.withFreshCounters();
+        CsvFormatReader second = base.withFreshCounters();
 
         drain(first);
 
-        assertTrue("the reader that read must report its own work", first.statusSnapshot().rowsEmitted() > 0);
-        assertEquals("a sibling query's reader must not see it", 0L, second.statusSnapshot().rowsEmitted());
+        assertTrue("the minted reader that read must report its own work", first.statusSnapshot().rowsEmitted() > 0);
+        assertEquals("a sibling minted reader must not see it", 0L, second.statusSnapshot().rowsEmitted());
         assertEquals("nor may it reach the registry's shared reader", 0L, base.statusSnapshot().rowsEmitted());
     }
 

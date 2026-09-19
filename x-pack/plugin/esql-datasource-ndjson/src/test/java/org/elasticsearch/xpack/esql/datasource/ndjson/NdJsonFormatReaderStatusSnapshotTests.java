@@ -30,12 +30,13 @@ import java.util.Map;
  * read drains an NDJSON file. Complements {@link NdJsonReaderCountersTests} (which exercises the
  * counter struct in isolation) by exercising the full FormatReader → iterator → decoder wiring.
  * <p>
- * It also pins the COUNTER LIFETIME, from both directions. The chain's root is the node-lifetime reader the
- * format registry hands out, so a wither that shares its parent's counters shares them for the life of the node:
- * sharing above the per-query seam mixes every concurrent query's telemetry into one set, and NOT sharing at the
- * per-file seam leaves the reader that reads reporting into a copy nobody snapshots. Both are silent — the
- * counters are write-only telemetry — so only a test with two live copies can tell the two apart, which is why
- * the pins below assert an untouched sibling is still ZERO rather than only that a drained reader is non-zero.
+ * It also pins the COUNTER LIFETIME invariant: every ordinary wither ({@code withSchema},
+ * {@code withDeclaredDateFormats}, {@code withReadConfig}, …) preserves the parent's counter struct.
+ * {@link NdJsonFormatReader#withFreshCounters()} is the only method that mints a new struct, and the
+ * operator factory is its only caller — once per {@code factory.get(DriverContext)} invocation. Two
+ * operators from the same factory therefore own two isolated counter structs, so Σ across all operators
+ * in a query equals the query total. Only tests using {@code withFreshCounters()} demonstrate isolation;
+ * tests using ordinary withers demonstrate sharing.
  */
 public class NdJsonFormatReaderStatusSnapshotTests extends ESTestCase {
 
@@ -75,35 +76,46 @@ public class NdJsonFormatReaderStatusSnapshotTests extends ESTestCase {
     }
 
     public void testSiblingQueryReadersDoNotShareCounters() throws IOException {
+        // Simulate two operator mints from the same factory: factory.get() calls withFreshCounters() once per operator.
         var base = new NdJsonFormatReader(null, blockFactory);
-        var first = (NdJsonFormatReader) base.withConfigTrackingConsumedKeys(Map.of("schema_sample_size", 64)).value();
-        var second = (NdJsonFormatReader) base.withConfigTrackingConsumedKeys(Map.of("schema_sample_size", 64)).value();
+        var first = base.withFreshCounters();
+        var second = base.withFreshCounters();
 
         drain(first);
 
-        assertTrue("the reader that read must report its own work", first.statusSnapshot().rowsEmitted() > 0);
-        assertEquals("a sibling query's reader must not see it", 0L, second.statusSnapshot().rowsEmitted());
+        assertTrue("the minted reader that read must report its own work", first.statusSnapshot().rowsEmitted() > 0);
+        assertEquals("a sibling minted reader must not see it", 0L, second.statusSnapshot().rowsEmitted());
         assertEquals("nor may it reach the registry's shared reader", 0L, base.statusSnapshot().rowsEmitted());
     }
 
-    public void testQueryLevelSchemaWitherDoesNotLeakIntoTheSharedReader() throws IOException {
-        var base = new NdJsonFormatReader(null, blockFactory);
-        var scoped = base.withSchema(SCHEMA);
+    public void testWithinScopeSchemaWitherSharesCounters() throws IOException {
+        // Within one operator scope, withSchema preserves the parent's counter struct — no fresh mint.
+        var minted = new NdJsonFormatReader(null, blockFactory).withFreshCounters();
+        var scoped = minted.withSchema(SCHEMA);
 
         drain(scoped);
 
         assertTrue(scoped.statusSnapshot().rowsEmitted() > 0);
-        assertEquals("withSchema resolves per query, so it must fork", 0L, base.statusSnapshot().rowsEmitted());
+        assertEquals(
+            "withSchema shares counters within the operator scope: minted reader observes the work scoped reader did",
+            scoped.statusSnapshot().rowsEmitted(),
+            minted.statusSnapshot().rowsEmitted()
+        );
     }
 
-    public void testQueryLevelDateFormatWitherDoesNotLeakIntoTheSharedReader() throws IOException {
-        var base = new NdJsonFormatReader(null, blockFactory);
-        var scoped = base.withDeclaredDateFormats(Map.of("b", "yyyy-MM-dd"));
+    public void testWithinScopeDateFormatWitherSharesCounters() throws IOException {
+        // Within one operator scope, withDeclaredDateFormats preserves the parent's counter struct — no fresh mint.
+        var minted = new NdJsonFormatReader(null, blockFactory).withFreshCounters();
+        var scoped = minted.withDeclaredDateFormats(Map.of("b", "yyyy-MM-dd"));
 
         drain(scoped);
 
         assertTrue(scoped.statusSnapshot().rowsEmitted() > 0);
-        assertEquals("declared date formats resolve per query, so this wither must fork too", 0L, base.statusSnapshot().rowsEmitted());
+        assertEquals(
+            "withDeclaredDateFormats shares counters within the operator scope: minted reader observes the work scoped reader did",
+            scoped.statusSnapshot().rowsEmitted(),
+            minted.statusSnapshot().rowsEmitted()
+        );
     }
 
     public void testPerFileReadConfigCopyReportsThroughItsParent() throws IOException {

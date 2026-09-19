@@ -335,9 +335,9 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
     /**
      * Verifies that successive queries against the same CSV dataset do not accumulate
-     * {@code read_cpu_nanos} across query boundaries, and that the registry singleton's counters
-     * remain zero. CSV uses the parallel-parse path; {@code freshCounters()} gives each split an
-     * isolated counter instance.
+     * {@code read_cpu_nanos} across query boundaries. Each query gets its own
+     * {@link org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceBuffer}, which owns the
+     * {@code ExternalReadCounters} that back {@code read_cpu_nanos}.
      */
     public void testCsvReadNanosIsolatedBetweenQueries() throws Exception {
         assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
@@ -362,10 +362,9 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
 
     /**
      * Verifies that successive queries against the same Parquet dataset do not accumulate
-     * {@code read_nanos} or {@code read_cpu_nanos} across query boundaries. Before the fix, the
-     * {@code FormatReaderRegistry} singleton's counters accumulated across queries, so
-     * Q_N.read_nanos ≈ N * Q_1.read_nanos. After the fix, each query calls {@code freshCounters()}
-     * and gets an isolated counter instance.
+     * {@code read_nanos} or {@code read_cpu_nanos} across query boundaries. Each query gets its own
+     * {@link org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceBuffer}, which owns the
+     * {@code ExternalReadCounters} that back {@code read_nanos} and {@code read_cpu_nanos}.
      *
      * <p>The assertion {@code Q_10 < 5 * Q_1} catches the geometric growth from accumulation
      * (Q_10 ≈ 10 * Q_1) while tolerating normal timing variance (up to 5×).

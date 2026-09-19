@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
+import org.elasticsearch.xpack.esql.datasources.spi.InstrumentedFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -31,7 +32,7 @@ import java.util.Set;
  * {@link DecompressingStorageObject} before delegating to the inner reader.
  * Used for compound extensions like .csv.gz or .ndjson.gz.
  */
-final class CompressionDelegatingFormatReader implements FormatReader {
+final class CompressionDelegatingFormatReader implements FormatReader, InstrumentedFormatReader {
 
     private final FormatReader inner;
     private final DecompressionCodec codec;
@@ -153,6 +154,19 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     @Override
     public FormatReaderStatus statusSnapshot() {
         return inner.statusSnapshot();
+    }
+
+    /**
+     * Forwards to the inner reader's {@link InstrumentedFormatReader#withFreshCounters()} when the inner
+     * implements the interface, always returning a fresh wrapper so {@code operatorReader != factoryReader}.
+     * When the inner has no counters, the fresh wrapper still delegates to the same inner — no counter
+     * isolation is needed since there is nothing to isolate — but the distinct wrapper object upholds
+     * the invariant that each operator owns a separate reader instance.
+     */
+    @Override
+    public FormatReader withFreshCounters() {
+        FormatReader fresh = InstrumentedFormatReader.freshCounters(inner);
+        return new CompressionDelegatingFormatReader(fresh, codec);
     }
 
     FormatReader unwrap() {

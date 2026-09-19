@@ -29,10 +29,9 @@ import java.util.concurrent.atomic.LongAdder;
  * {@code row_groups_in_file}), row-group filter ({@code row_groups_total}, {@code row_groups_kept}),
  * page index ({@code page_index_used}, {@code rows_in_kept_row_groups}, {@code rows_after_page_index}),
  * late materialization ({@code late_materialization_enabled},
- * {@code late_materialization_used}, {@code predicate_columns}),
- * aggregate ({@code read_nanos}) — producer-thread time across open, row-group transitions
- * (prefetch wait, filtering), and per-batch decode/decompress — and a typed per-column map under
- * {@code columns}.
+ * {@code late_materialization_used}, {@code predicate_columns}), rows emitted ({@code rows_emitted}),
+ * footer cache ({@code footer_cache_hits}, {@code footer_cache_misses}), and a typed per-column map
+ * under {@code columns}.
  * <p>
  * The mutable / immutable split mirrors the {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetricsCounters}
  * pattern. {@link LongAdder} is preferred over {@code AtomicLong} because async read-path
@@ -65,8 +64,6 @@ public final class ParquetReaderCounters {
 
     // Aggregate
     private final LongAdder rowsEmitted = new LongAdder();
-    private final LongAdder totalReadNanos = new LongAdder();
-    private final LongAdder totalReadCpuNanos = new LongAdder();
 
     // Footer cache (reader-shared ParsedFooterCache)
     private final LongAdder footerCacheHits = new LongAdder();
@@ -136,18 +133,6 @@ public final class ParquetReaderCounters {
     public void addRowsEmitted(long delta) {
         if (delta > 0) {
             rowsEmitted.add(delta);
-        }
-    }
-
-    public void addTotalReadNanos(long nanos) {
-        if (nanos > 0) {
-            totalReadNanos.add(nanos);
-        }
-    }
-
-    public void addTotalReadCpuNanos(long nanos) {
-        if (nanos > 0) {
-            totalReadCpuNanos.add(nanos);
         }
     }
 

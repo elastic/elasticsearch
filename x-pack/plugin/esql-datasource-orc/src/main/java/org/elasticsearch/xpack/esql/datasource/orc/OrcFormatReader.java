@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.InstrumentedFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
@@ -123,7 +124,7 @@ import java.util.function.IntConsumer;
  *   <li>Stripe-level split parallelism for multi-stripe files</li>
  * </ul>
  */
-public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatReader, DynamicThresholdAware {
+public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatReader, DynamicThresholdAware, InstrumentedFormatReader {
 
     private static final Logger LOGGER = LogManager.getLogger(OrcFormatReader.class);
 
@@ -168,7 +169,10 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     private final BlockFactory blockFactory;
     private final SearchArgument pushedFilter;
     private final OrcPushedExpressions pushedExpressions;
-    private final OrcReaderCounters counters = new OrcReaderCounters();
+    // Reader-level counters surfaced via {@link #statusSnapshot()}. Shared across all wither-derived
+    // copies: every {@code with*} method forwards this field so the base reader's snapshot observes
+    // everything any derived copy recorded. Only {@link #withFreshCounters()} mints a new struct.
+    private final OrcReaderCounters counters;
     private final DynamicThreshold dynamicThreshold;
     /** Declared per-column date parse patterns (physical name &rarr; pattern); see {@link #withDeclaredDateFormats}. */
     private final Map<String, String> declaredDateFormats;
@@ -221,6 +225,39 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         ParsedFooterCache<OrcTail> parsedFooters,
         FooterByteCache footerBytes
     ) {
+        this(
+            blockFactory,
+            pushedFilter,
+            pushedExpressions,
+            dynamicThreshold,
+            declaredDateFormats,
+            declaredTypeColumns,
+            parsedFooters,
+            footerBytes,
+            null
+        );
+    }
+
+    /**
+     * Primary copy constructor: preserves all fields and either shares ({@code sharedCounters != null})
+     * or mints ({@code sharedCounters == null}) a counter struct. Every {@code with*} wither passes
+     * {@code this.counters} here so the base reader's snapshot observes everything any fork recorded.
+     * Only {@link #withFreshCounters()} passes {@code null} to allocate a fresh struct.
+     * <p>
+     * The node-shared footer caches are always forwarded — never reallocated per copy — so the
+     * per-operator mint does not multiply their heap footprint.
+     */
+    private OrcFormatReader(
+        BlockFactory blockFactory,
+        SearchArgument pushedFilter,
+        OrcPushedExpressions pushedExpressions,
+        DynamicThreshold dynamicThreshold,
+        Map<String, String> declaredDateFormats,
+        Set<String> declaredTypeColumns,
+        ParsedFooterCache<OrcTail> parsedFooters,
+        FooterByteCache footerBytes,
+        @Nullable OrcReaderCounters sharedCounters
+    ) {
         this.blockFactory = blockFactory;
         this.pushedFilter = pushedFilter;
         this.pushedExpressions = pushedExpressions;
@@ -229,6 +266,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         this.declaredTypeColumns = declaredTypeColumns;
         this.parsedFooters = parsedFooters;
         this.footerBytes = footerBytes;
+        this.counters = sharedCounters != null ? sharedCounters : new OrcReaderCounters();
     }
 
     @Override
@@ -245,7 +283,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 declaredDateFormats,
                 declaredTypeColumns,
                 parsedFooters,
-                footerBytes
+                footerBytes,
+                counters
             );
         }
         if (pushedFilter instanceof SearchArgument sarg) {
@@ -257,7 +296,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 declaredDateFormats,
                 declaredTypeColumns,
                 parsedFooters,
-                footerBytes
+                footerBytes,
+                counters
             );
         }
         if (pushedFilter instanceof OrcPushedExpressions exprs) {
@@ -269,7 +309,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 declaredDateFormats,
                 declaredTypeColumns,
                 parsedFooters,
-                footerBytes
+                footerBytes,
+                counters
             );
         }
         return this;
@@ -285,7 +326,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             declaredDateFormats,
             declaredTypeColumns,
             parsedFooters,
-            footerBytes
+            footerBytes,
+            counters
         );
     }
 
@@ -308,7 +350,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             Map.copyOf(physicalNameToPattern),
             declaredTypeColumns,
             parsedFooters,
-            footerBytes
+            footerBytes,
+            counters
         );
     }
 
@@ -332,7 +375,32 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             declaredDateFormats,
             Set.copyOf(physicalDeclaredColumns),
             parsedFooters,
-            footerBytes
+            footerBytes,
+            counters
+        );
+    }
+
+    /**
+     * Returns a copy of this reader backed by a fresh {@link OrcReaderCounters} struct while
+     * sharing all node-scoped caches (footer caches). Called once per
+     * {@code AsyncExternalSourceOperatorFactory.get(DriverContext)} invocation so each parallel
+     * driver accumulates into its own counter, while the node-wide cache budget is unchanged.
+     * <p>
+     * This is the <em>only</em> place a new counter struct is allocated for a derived reader;
+     * every other {@code with*} wither forwards {@code this.counters}.
+     */
+    @Override
+    public OrcFormatReader withFreshCounters() {
+        return new OrcFormatReader(
+            blockFactory,
+            pushedFilter,
+            pushedExpressions,
+            dynamicThreshold,
+            declaredDateFormats,
+            declaredTypeColumns,
+            parsedFooters,
+            footerBytes,
+            null
         );
     }
 

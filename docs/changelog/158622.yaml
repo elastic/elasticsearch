@@ -1,0 +1,6 @@
+pr: 158622
+summary: Match `_source` filter patterns without an automaton when the patterns cannot be determinized
+area: ES|QL
+type: bug
+issues:
+ - 142554

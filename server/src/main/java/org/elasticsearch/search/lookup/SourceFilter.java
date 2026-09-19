@@ -14,6 +14,7 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -44,6 +45,11 @@ public final class SourceFilter {
     private final String[] excludes;
     private CharacterRunAutomaton includeAut;
     private CharacterRunAutomaton excludeAut;
+    private boolean includesUncompilable;
+    private boolean excludesUncompilable;
+    private IllegalArgumentException includesCompileException;
+    private IllegalArgumentException excludesCompileException;
+    private int pathFilteredCount;
 
     /**
      * Construct a new filter based on a list of includes and excludes
@@ -81,11 +87,12 @@ public final class SourceFilter {
         if (includes.length == 0) {
             return false;
         }
-        if (includeAut == null) {
-            includeAut = XContentMapValues.compileAutomaton(includes, new CharacterRunAutomaton(Automata.makeAnyString()));
+        CharacterRunAutomaton aut = compileIncludes();
+        if (aut == null) {
+            return matchesPathOrAncestor(includes, fullPath);
         }
-        int state = step(includeAut, fullPath, 0);
-        return state != -1 && includeAut.isAccept(state);
+        int state = step(aut, fullPath, 0);
+        return state != -1 && aut.isAccept(state);
     }
 
     /**
@@ -96,28 +103,102 @@ public final class SourceFilter {
      * @return {@code true} if the path should be filtered out, {@code false} otherwise.
      */
     public boolean isPathFiltered(String fullPath, boolean isObject) {
+        pathFilteredCount++;
         final boolean included;
         if (includes.length > 0) {
-            if (includeAut == null) {
-                includeAut = XContentMapValues.compileAutomaton(includes, new CharacterRunAutomaton(Automata.makeAnyString()));
+            CharacterRunAutomaton aut = compileIncludes();
+            if (aut == null) {
+                // Object semantics ("could any pattern match a descendant?") are not needed by the
+                // vector-walk callers, which pass isObject=false. Callers that pass true keep today's
+                // behaviour, now as a 400 instead of a 500.
+                if (isObject) {
+                    throw includesCompileException;
+                }
+                included = matchesPathOrAncestor(includes, fullPath);
+            } else {
+                int state = step(aut, fullPath, 0);
+                included = state != -1 && (isObject || aut.isAccept(state));
             }
-            int state = step(includeAut, fullPath, 0);
-            included = state != -1 && (isObject || includeAut.isAccept(state));
         } else {
             included = true;
         }
 
         if (excludes.length > 0) {
-            if (excludeAut == null) {
-                excludeAut = XContentMapValues.compileAutomaton(excludes, new CharacterRunAutomaton(Automata.makeEmpty()));
-            }
-            int state = step(excludeAut, fullPath, 0);
-            if (state != -1 && excludeAut.isAccept(state)) {
-                return true;
+            CharacterRunAutomaton aut = compileExcludes();
+            if (aut == null) {
+                if (isObject) {
+                    throw excludesCompileException;
+                }
+                if (matchesPathOrAncestor(excludes, fullPath)) {
+                    return true;
+                }
+            } else {
+                int state = step(aut, fullPath, 0);
+                if (state != -1 && aut.isAccept(state)) {
+                    return true;
+                }
             }
         }
 
         return included == false;
+    }
+
+    private CharacterRunAutomaton compileIncludes() {
+        if (includeAut != null) {
+            return includeAut;
+        }
+        if (includesUncompilable) {
+            return null;
+        }
+        try {
+            includeAut = XContentMapValues.compileAutomaton(includes, new CharacterRunAutomaton(Automata.makeAnyString()));
+            return includeAut;
+        } catch (IllegalArgumentException e) {
+            includesUncompilable = true;
+            includesCompileException = e;
+            return null;
+        }
+    }
+
+    private CharacterRunAutomaton compileExcludes() {
+        if (excludeAut != null) {
+            return excludeAut;
+        }
+        if (excludesUncompilable) {
+            return null;
+        }
+        try {
+            excludeAut = XContentMapValues.compileAutomaton(excludes, new CharacterRunAutomaton(Automata.makeEmpty()));
+            return excludeAut;
+        } catch (IllegalArgumentException e) {
+            excludesUncompilable = true;
+            excludesCompileException = e;
+            return null;
+        }
+    }
+
+    /**
+     * The language accepted by the compiled automaton plus its {@code ("" | "." .*)} tail, restricted
+     * to leaf paths.
+     */
+    private static boolean matchesPathOrAncestor(String[] patterns, String fullPath) {
+        if (patterns.length == 0) {
+            return false;
+        }
+        if (Regex.simpleMatch(patterns, fullPath)) {
+            return true;
+        }
+        for (int dot = fullPath.indexOf('.'); dot >= 0; dot = fullPath.indexOf('.', dot + 1)) {
+            if (Regex.simpleMatch(patterns, fullPath.substring(0, dot))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Package-private for tests that assert the synthetic-vectors walk does not probe every mapper. */
+    int pathFilteredCount() {
+        return pathFilteredCount;
     }
 
     private static int step(CharacterRunAutomaton automaton, String key, int state) {

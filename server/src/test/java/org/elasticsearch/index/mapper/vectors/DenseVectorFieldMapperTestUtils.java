@@ -41,30 +41,34 @@ public class DenseVectorFieldMapperTestUtils {
     }
 
     public static int getEmbeddingLength(DenseVectorFieldMapper.ElementType elementType, int dimensions) {
-        return switch (elementType) {
-            case FLOAT, BFLOAT16, BYTE -> dimensions;
-            case BIT -> {
-                assert dimensions % Byte.SIZE == 0;
-                yield dimensions / Byte.SIZE;
-            }
-        };
+        return elementType.vectorLength(dimensions);
     }
 
     public static int randomCompatibleDimensions(DenseVectorFieldMapper.ElementType elementType, int max) {
+        return randomCompatibleDimensions(elementType, 1, max);
+    }
+
+    public static int randomCompatibleDimensions(DenseVectorFieldMapper.ElementType elementType, int min, int max) {
+        if (min < 1) {
+            throw new IllegalArgumentException("min must be >= 1");
+        }
         if (max < 1) {
-            throw new IllegalArgumentException("max must be at least 1");
+            throw new IllegalArgumentException("max must be >= 1");
+        }
+        if (max < min) {
+            throw new IllegalArgumentException("max must be >= min");
         }
 
         return switch (elementType) {
-            case FLOAT, BFLOAT16, BYTE -> RandomNumbers.randomIntBetween(random(), 1, max);
+            case FLOAT, BFLOAT16, BYTE -> RandomNumbers.randomIntBetween(random(), min, max);
             case BIT -> {
                 if (max < 8) {
-                    throw new IllegalArgumentException("max must be at least 8 for bit vectors");
+                    throw new IllegalArgumentException("max must be >= 8 for bit vectors");
                 }
 
                 // Generate a random dimension count that is a multiple of 8
                 int maxEmbeddingLength = max / 8;
-                yield RandomNumbers.randomIntBetween(random(), 1, maxEmbeddingLength) * 8;
+                yield RandomNumbers.randomIntBetween(random(), min, maxEmbeddingLength) * 8;
             }
         };
     }

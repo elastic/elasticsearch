@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 159603
+summary: Add `array` and `binary` vector formats to `dense_vector` field
+type: enhancement

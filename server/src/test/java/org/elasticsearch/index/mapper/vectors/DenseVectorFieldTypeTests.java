@@ -34,7 +34,6 @@ import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -312,14 +311,6 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         assertEquals(DocValueFormat.BINARY, bfloat16Ft.docValueFormat("binary", null));
         expectThrows(IllegalArgumentException.class, () -> bfloat16Ft.docValueFormat("base64", null));
         expectThrows(IllegalArgumentException.class, () -> bfloat16Ft.docValueFormat("bogus", null));
-    }
-
-    public void testFetchSourceValue() throws IOException {
-        DenseVectorFieldType fft = createFloatFieldType();
-        List<Double> vector = List.of(0.0, 1.0, 2.0, 3.0, 4.0, 6.0);
-        assertEquals(vector, fetchSourceValue(fft, vector));
-        DenseVectorFieldType bft = createByteFieldType();
-        assertEquals(vector, fetchSourceValue(bft, vector));
     }
 
     public void testCreateNestedKnnQuery() {

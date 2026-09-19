@@ -1881,6 +1881,69 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
     }
 
+    private record InvalidEncodedVector(String encoded, String expectedMessage) {}
+
+    private static List<InvalidEncodedVector> invalidEncodedVectors(ElementType elementType, int dims) {
+        return switch (elementType) {
+            case BYTE, BIT -> List.of(
+                // Not valid base64 and not valid hex
+                new InvalidEncodedVector("garbage!", "value must be a valid base64 or hex string"),
+                // Valid hex of wrong length; also valid base64 but wrong length — hex message wins
+                new InvalidEncodedVector(
+                    "807f0a0b",
+                    "hex-decoded vector has a different number of dimensions [" + elementType.dims(4) + "] than the expected [" + dims + "]"
+                ),
+                // Valid base64 of wrong byte count; leading '/' is not a hex digit so not misread as hex
+                new InvalidEncodedVector(
+                    "/wAAAA==",
+                    "Base64 decoded vector byte length [4] does not match the expected length of ["
+                        + elementType.vectorLength(dims)
+                        + "] for dimension count ["
+                        + dims
+                        + "]"
+                )
+            );
+            case FLOAT, BFLOAT16 -> List.of(
+                // Not valid base64; hex is disabled for float fields
+                new InvalidEncodedVector("not-valid-base64!!!", "value must be a valid base64 string"),
+                // '807f0a' is hex-looking but hex is disabled; Java decodes it as base64 to 4 bytes (not 12 or 6)
+                new InvalidEncodedVector(
+                    "807f0a",
+                    "Base64 decoded vector byte length [4] does not match the expected length of [12] or [6] for dimension count ["
+                        + dims
+                        + "]"
+                ),
+                // Valid base64 of 8 bytes; accepted lengths are 12 (float32) or 6 (bfloat16)
+                new InvalidEncodedVector(
+                    "PczMzT5MzM0=",
+                    "Base64 decoded vector byte length [8] does not match the expected length of [12] or [6] for dimension count ["
+                        + dims
+                        + "]"
+                )
+            );
+        };
+    }
+
+    public void testDocumentsWithInvalidEncodedVectors() throws Exception {
+        for (ElementType elementType : List.of(ElementType.BYTE, ElementType.BIT, ElementType.FLOAT, ElementType.BFLOAT16)) {
+            int dims = elementType.dims(3);
+            DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("dims", dims);
+                b.field("element_type", elementType);
+                b.field("index", true);
+                b.field("similarity", "l2_norm");
+            }));
+            for (InvalidEncodedVector invalid : invalidEncodedVectors(elementType, dims)) {
+                DocumentParsingException e = expectThrows(
+                    DocumentParsingException.class,
+                    () -> mapper.parse(source(b -> b.field("field", invalid.encoded())))
+                );
+                assertThat(e.getCause().getMessage(), containsString(invalid.expectedMessage()));
+            }
+        }
+    }
+
     public void testCosineDenseVectorValues() throws IOException {
         final int dims = randomIntBetween(64, 2048);
         VectorSimilarity similarity = VectorSimilarity.COSINE;

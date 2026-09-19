@@ -216,7 +216,7 @@ The following settings are available for `s3` data sources:
 | Setting | Required | Description |
 |---|---|---|
 | `endpoint` | No | Optional Amazon S3 endpoint override. Must be an absolute `https` URL naming a supported AWS S3 endpoint, for example `https://s3.us-east-1.amazonaws.com`. Omit to resolve the endpoint from the region, which is the recommended configuration. See [S3 endpoint requirements](#s3-endpoint-requirements). {applies_to}`stack: experimental 9.6+` |
-| `addressing_style` {applies_to}`stack: experimental 9.6+` | No | URL addressing style. `auto` (default) uses path-style when `endpoint` is set and SDK-default otherwise. `path` always uses path-style. `virtual_hosted` lets the SDK decide (bare-IP endpoints fall back to path-style). Use `virtual_hosted` for a dual-stack or VPC interface endpoint that requires virtual-hosted addressing. |
+| `addressing_style` {applies_to}`stack: experimental 9.6+` | No | URL addressing style. `auto` (default) uses path-style when `endpoint` is set and SDK-default otherwise. `path` always uses path-style. `virtual_hosted` lets the SDK decide (bare-IP endpoints fall back to path-style). Because `auto` resolves to path-style whenever `endpoint` is set, set `virtual_hosted` if reads through a VPC interface endpoint fail with an addressing error. |
 
 $$$s3-endpoint-requirements$$$
 ::::{dropdown} S3 endpoint requirements

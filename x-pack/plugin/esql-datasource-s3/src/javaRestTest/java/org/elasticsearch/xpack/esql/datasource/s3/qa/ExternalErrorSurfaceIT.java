@@ -291,6 +291,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("put s3 data source with anonymous auth plus credentials", 400),
         entry("put s3 data source with an access key and no secret key", 400),
         entry("put s3 data source with a malformed endpoint", 400),
+        entry("put s3 data source with an endpoint that is not an AWS host", 400),
         entry("get an unknown data source", 404),
         entry("delete an unknown data source", 404),
         entry("delete a data source that still has datasets", 409),
@@ -365,6 +366,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("put s3 data source with anonymous auth plus credentials", "validation_exception"),
         entry("put s3 data source with an access key and no secret key", "validation_exception"),
         entry("put s3 data source with a malformed endpoint", "validation_exception"),
+        entry("put s3 data source with an endpoint that is not an AWS host", "validation_exception"),
         entry("get an unknown data source", "resource_not_found_exception"),
         entry("delete an unknown data source", "resource_not_found_exception"),
         entry("delete a data source that still has datasets", "status_exception"),
@@ -985,6 +987,18 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
             () -> putDataSource(
                 "bad_endpoint_ds",
                 Map.of("access_key", "k", "secret_key", "s", "region", "us-east-1", "endpoint", "not a url")
+            )
+        );
+        // A well-formed https URL that the host rule refuses. The Java-level cases live in
+        // S3DataSourceValidatorTests; this one records what the REST layer returns for the same refusal,
+        // which is the surface a user actually sees.
+        crudProbe(
+            "data_source_crud",
+            "put s3 data source with an endpoint that is not an AWS host",
+            "name the setting and say the host is not a supported AWS S3 endpoint",
+            () -> putDataSource(
+                "foreign_endpoint_ds",
+                Map.of("access_key", "k", "secret_key", "s", "region", "us-east-1", "endpoint", "https://storage.example.com")
             )
         );
         crudProbe(

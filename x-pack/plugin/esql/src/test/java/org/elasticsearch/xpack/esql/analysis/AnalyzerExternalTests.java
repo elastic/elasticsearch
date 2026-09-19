@@ -530,7 +530,9 @@ public class AnalyzerExternalTests extends ESTestCase {
         LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
             TEST_PARSER.parseQuery(query),
             datasetProject(resource),
-            TestIndexNameExpressionResolver.newInstance()
+            TestIndexNameExpressionResolver.newInstance(),
+            // These cases name their datasets exactly, which reaches them at the wildcards_match_datasets default.
+            false
         );
         return testAnalyzer.buildAnalyzer().analyze(rewritten);
     }

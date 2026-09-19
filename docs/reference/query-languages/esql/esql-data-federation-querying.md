@@ -81,6 +81,17 @@ When sources have different schemas, columns that do not exist in a given source
 
 {applies_to}`stack: experimental 9.6+` `_index` does not answer this question on a dataset. It names an index, and a dataset is not one, so it returns `null` for dataset rows. In earlier versions it returned the dataset name.
 
+{applies_to}`stack: experimental 9.6+` By default, a wildcard does not match datasets. `FROM speedtest_data` reads the dataset, while `FROM speedtest*` resolves to indices, data streams, aliases, and views only. Registering a dataset therefore does not change what an existing wildcard query reads.
+
+To let wildcards discover datasets, enable the `wildcards_match_datasets` query setting:
+
+```esql
+SET wildcards_match_datasets = true;
+FROM speedtest*
+```
+
+You can also send it in the `_query` request body as `"settings": {"wildcards_match_datasets": true}`, or change the cluster-wide default with [`esql.query.settings.wildcards_match_datasets`](esql-data-federation-cluster-settings.md#query-defaults). A value set in the query overrides the request body, which overrides the cluster default.
+
 ## Use metadata columns
 
 [Metadata columns](/reference/query-languages/esql/esql-metadata-fields.md) are available using the `METADATA` directive:

@@ -273,6 +273,11 @@ public class TransformIndexerStateTests extends ESTestCase {
         }
 
         @Override
+        boolean destinationIndexExists() {
+            return true;
+        }
+
+        @Override
         protected void doMaybeRefreshCloudToken(TransformConfig priorConfig, TransformConfig newConfig, ActionListener<Void> listener) {
             listener.onResponse(null);
         }
@@ -384,6 +389,11 @@ public class TransformIndexerStateTests extends ESTestCase {
         @Override
         void doMaybeCreateDestIndex(Map<String, String> deducedDestIndexMappings, ActionListener<Boolean> listener) {
             listener.onResponse(null);
+        }
+
+        @Override
+        boolean destinationIndexExists() {
+            return true;
         }
 
         @Override

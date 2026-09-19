@@ -271,6 +271,11 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         }
 
         @Override
+        boolean destinationIndexExists() {
+            return true;
+        }
+
+        @Override
         protected void persistState(TransformState state, ActionListener<Void> listener) {
             listener.onResponse(null);
         }

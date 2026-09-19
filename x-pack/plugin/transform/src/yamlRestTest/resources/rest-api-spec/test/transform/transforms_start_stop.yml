@@ -119,6 +119,20 @@ teardown:
   - match: { acknowledged: true }
 
 ---
+"Test start transform without waiting for completion":
+  - do:
+      transform.start_transform:
+        transform_id: "airline-transform-start-stop"
+        wait_for_completion: false
+  - match: { acknowledged: true }
+
+  # The running task performs validation and destination-index creation, so the transform eventually reaches a running state.
+  - do:
+      transform.get_transform_stats:
+        transform_id: "airline-transform-start-stop"
+  - match: { count: 1 }
+
+---
 "Test start missing transform":
   - do:
       catch: missing

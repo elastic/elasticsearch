@@ -45,8 +45,9 @@ public class RestStartTransformAction extends BaseRestHandler {
         Instant from = fromAsString != null ? parseDateOrThrow(fromAsString, TransformField.FROM, System::currentTimeMillis) : null;
         TimeValue initialDelay = restRequest.paramAsTime(TransformField.INITIAL_DELAY.getPreferredName(), null);
         TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
+        boolean waitForCompletion = restRequest.paramAsBoolean(TransformField.WAIT_FOR_COMPLETION.getPreferredName(), true);
 
-        StartTransformAction.Request request = new StartTransformAction.Request(id, from, initialDelay, timeout);
+        StartTransformAction.Request request = new StartTransformAction.Request(id, from, initialDelay, timeout, waitForCompletion);
         return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
             StartTransformAction.INSTANCE,
             request,

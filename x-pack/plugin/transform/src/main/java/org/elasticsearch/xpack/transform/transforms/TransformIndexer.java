@@ -194,6 +194,14 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     abstract void doMaybeCreateDestIndex(Map<String, String> deducedDestIndexMappings, ActionListener<Boolean> listener);
 
     /**
+     * Whether the configured destination index currently exists. Used on the first run to decide whether the
+     * running task must validate and create it — the case for a non-blocking {@code _start}, which defers that
+     * work from the coordinating node to the task (a blocking {@code _start} creates the index up front, so it
+     * already exists here).
+     */
+    abstract boolean destinationIndexExists();
+
+    /**
      * Hook invoked from the continuous-config-reload path on {@link #onStart} whenever a new
      * {@link TransformConfig} is loaded from the index. Subclasses use this to detect changes
      * to the cross-project cloud credential (via {@link TransformConfig#getCredentialId()}) and
@@ -384,10 +392,13 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         var deducedDestIndexMappings = new SetOnce<Map<String, String>>();
 
         // if the unattended transform had not created the destination index yet, or if the destination index was deleted for any
-        // type of transform during the last run, then we try to create the destination index.
+        // type of transform during the last run, or if this is the first run of a non-blocking start that deferred index
+        // creation to the task, then we try to create the destination index.
         // This is important to create the destination index explicitly before indexing documents. Otherwise, the destination
         // index aliases may be missing.
-        var shouldMaybeCreateDestIndex = isFirstUnattendedRun() || context.shouldRecreateDestinationIndex();
+        var shouldMaybeCreateDestIndex = isFirstUnattendedRun()
+            || context.shouldRecreateDestinationIndex()
+            || isFirstRunWithMissingDestIndex();
 
         ActionListener<Map<String, String>> fieldMappingsListener = ActionListener.wrap(destIndexMappings -> {
             if (destIndexMappings.isEmpty() == false) {
@@ -493,6 +504,15 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
      */
     private boolean isFirstUnattendedRun() {
         return context.getCheckpoint() == 0 && TransformEffectiveSettings.isUnattended(transformConfig.getSettings());
+    }
+
+    /**
+     * Returns true on the first run when the destination index does not yet exist. A blocking {@code _start}
+     * validates and creates the destination index before the task starts, so it exists here; a non-blocking
+     * {@code _start} defers that work to the task, so the index is missing and must be created now.
+     */
+    private boolean isFirstRunWithMissingDestIndex() {
+        return context.getCheckpoint() == 0 && destinationIndexExists() == false;
     }
 
     protected void initializeFunction() {

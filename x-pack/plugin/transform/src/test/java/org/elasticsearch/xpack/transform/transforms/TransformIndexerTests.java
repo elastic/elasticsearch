@@ -282,6 +282,11 @@ public class TransformIndexerTests extends ESTestCase {
         }
 
         @Override
+        boolean destinationIndexExists() {
+            return true;
+        }
+
+        @Override
         protected void doMaybeRefreshCloudToken(TransformConfig priorConfig, TransformConfig newConfig, ActionListener<Void> listener) {
             listener.onResponse(null);
         }

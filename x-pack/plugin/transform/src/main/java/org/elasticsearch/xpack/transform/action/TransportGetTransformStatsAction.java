@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction.Req
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.NodeAttributes;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
@@ -328,8 +329,28 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                         statsForTransformsWithoutTasks.stream().map(TransformStoredDoc::getId).collect(Collectors.toSet())
                     );
 
-                    // Transforms that have not been started and have no state or stats.
-                    transformsWithoutTasks.forEach(transformId -> allStateAndStats.add(TransformStats.initialStats(transformId)));
+                    // Transforms that have not been started and have no state or stats. A transform whose task exists
+                    // but could not yet be assigned to a node (e.g. a non-blocking _start) surfaces as WAITING with the
+                    // allocation explanation, rather than STOPPED, even though it has no stored doc yet.
+                    final ProjectMetadata projectForWaiting = projectResolver.getProjectMetadata(clusterState);
+                    transformsWithoutTasks.forEach(transformId -> {
+                        if (transformsWaitingForAssignment.contains(transformId)) {
+                            Assignment assignment = TransformNodes.getAssignment(transformId, projectForWaiting);
+                            allStateAndStats.add(
+                                new TransformStats(
+                                    transformId,
+                                    TransformStats.State.WAITING,
+                                    assignment.getExplanation(),
+                                    null,
+                                    new TransformIndexerStats(),
+                                    TransformCheckpointingInfo.EMPTY,
+                                    TransformHealthChecker.checkUnassignedTransform(transformId, projectForWaiting, null)
+                                )
+                            );
+                        } else {
+                            allStateAndStats.add(TransformStats.initialStats(transformId));
+                        }
+                    });
 
                     // Any transform in collection could NOT have a task, so, even though the list is initially sorted
                     // it can easily become arbitrarily ordered based on which transforms don't have a task or stats docs

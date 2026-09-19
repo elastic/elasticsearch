@@ -360,6 +360,17 @@ class ClientTransformIndexer extends TransformIndexer {
         );
     }
 
+    @Override
+    boolean destinationIndexExists() {
+        // Mirrors the existence check in TransformIndex#createDestinationIndex: resolve the configured destination
+        // against the current cluster state; no concrete indices means it has not been created yet.
+        return indexNameExpressionResolver.concreteIndexNames(
+            clusterService.state(),
+            IndicesOptions.lenientExpandOpen(),
+            transformConfig.getDestination().getIndex()
+        ).length > 0;
+    }
+
     void validate(ActionListener<ValidateTransformAction.Response> listener) {
         // Runtime validation runs the same source "test query" as the indexer search, so it must run under the same stored
         // cloud credential; otherwise a cross-project source fails the test query with FORBIDDEN ("no cloud credential in

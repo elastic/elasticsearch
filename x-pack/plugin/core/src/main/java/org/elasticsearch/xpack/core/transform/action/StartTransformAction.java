@@ -49,10 +49,15 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
     public static class Request extends AcknowledgedRequest<Request> implements Releasable {
 
         private static final TransportVersion TRANSFORM_START_INITIAL_DELAY = TransportVersion.fromName("transform_start_initial_delay");
+        private static final TransportVersion TRANSFORM_START_WAIT_FOR_COMPLETION = TransportVersion.fromName(
+            "transform_start_wait_for_completion"
+        );
 
         private final String id;
         private final Instant from;
         private final TimeValue initialDelay;
+
+        private final boolean waitForCompletion;
 
         // Caller's UIAM cloud credential carried on the request so it survives coordinator -> master
         // transport, where the AUTHENTICATING_CLOUD_TOKEN_THREAD_CONTEXT transient is no longer present.
@@ -60,14 +65,19 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
         private CloudCredential cloudCredential;
 
         public Request(String id, Instant from, TimeValue timeout) {
-            this(id, from, null, timeout);
+            this(id, from, null, timeout, true);
         }
 
         public Request(String id, Instant from, TimeValue initialDelay, TimeValue timeout) {
+            this(id, from, initialDelay, timeout, true);
+        }
+
+        public Request(String id, Instant from, TimeValue initialDelay, TimeValue timeout, boolean waitForCompletion) {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, timeout);
             this.id = ExceptionsHelper.requireNonNull(id, TransformField.ID.getPreferredName());
             this.from = from;
             this.initialDelay = initialDelay;
+            this.waitForCompletion = waitForCompletion;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -83,6 +93,11 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
                 initialDelay = in.readOptionalTimeValue();
             } else {
                 initialDelay = null;
+            }
+            if (in.getTransportVersion().supports(TRANSFORM_START_WAIT_FOR_COMPLETION)) {
+                waitForCompletion = in.readBoolean();
+            } else {
+                waitForCompletion = true;
             }
         }
 
@@ -115,6 +130,10 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
             return initialDelay;
         }
 
+        public boolean waitForCompletion() {
+            return waitForCompletion;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
@@ -133,6 +152,16 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
                     RestStatus.BAD_REQUEST
                 );
             }
+            if (out.getTransportVersion().supports(TRANSFORM_START_WAIT_FOR_COMPLETION)) {
+                out.writeBoolean(waitForCompletion);
+            } else if (waitForCompletion == false) {
+                throw new ElasticsearchStatusException(
+                    "Cannot send a _start request with ["
+                        + TransformField.WAIT_FOR_COMPLETION.getPreferredName()
+                        + "] set to false to an outdated node. Please upgrade the node and try again.",
+                    RestStatus.BAD_REQUEST
+                );
+            }
         }
 
         @Override
@@ -144,7 +173,7 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
             // cloudCredential is intentionally excluded: request-scoped secret carrier, not logical identity.
-            return Objects.hash(ackTimeout(), id, from, initialDelay);
+            return Objects.hash(ackTimeout(), id, from, initialDelay, waitForCompletion);
         }
 
         @Override
@@ -161,6 +190,7 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
             return Objects.equals(id, other.id)
                 && Objects.equals(from, other.from)
                 && Objects.equals(initialDelay, other.initialDelay)
+                && waitForCompletion == other.waitForCompletion
                 && ackTimeout().equals(other.ackTimeout());
         }
 

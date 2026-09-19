@@ -1,0 +1,6 @@
+area: Transform
+issues:
+ - 140681
+pr: 159762
+summary: Wait_for_completion on `_start`
+type: bug

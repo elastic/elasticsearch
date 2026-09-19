@@ -294,7 +294,7 @@ public final class PushdownPredicates {
 
     /**
      * {@code mv_intersects(f, [v...])} is true when some value of {@code f} is in the set — the {@code IN} bound. The
-     * value set arrives as a <em>single</em> list-valued {@link org.elasticsearch.xpack.esql.core.expression.Literal},
+     * value set arrives as a <em>single</em> list-valued {@code Literal},
      * not as a list of literals the way {@link In} carries one, so a caller reads it with {@code literalValueOf} and
      * unpacks rather than iterating children.
      */

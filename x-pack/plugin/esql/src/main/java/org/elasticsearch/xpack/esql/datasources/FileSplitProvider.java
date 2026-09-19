@@ -49,6 +49,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.datasources.utils.BoundedParallelGather;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -3027,6 +3032,23 @@ public class FileSplitProvider implements SplitProvider {
                 }
                 yield partitionValues.get(columnName) != null;
             }
+            // The multivalue comparison functions — what the out-of-band request filter translates into. A partition
+            // value is a single value, so each reads exactly as its scalar sibling does, with two differences handled
+            // in the helpers below: they are one-directional (field OP literal only), and the ordered forms do not
+            // read their bound inclusivity, so they answer unknown exactly on the bound.
+            case MvContains mvContains -> evaluateMvLeaf(
+                mvContains.left(),
+                mvContains.right(),
+                partitionValues,
+                PartitionValueMatcher::compareEquals
+            );
+            case MvIntersects mvIntersects -> evaluateMvIntersects(mvIntersects, partitionValues);
+            case MvInRange mvInRange -> nullableAnd(
+                evaluateMvLeaf(mvInRange.field(), mvInRange.lower(), partitionValues, FileSplitProvider::above),
+                evaluateMvLeaf(mvInRange.field(), mvInRange.upper(), partitionValues, FileSplitProvider::below)
+            );
+            case MvGreater mvGreater -> evaluateMvLeaf(mvGreater.field(), mvGreater.bound(), partitionValues, FileSplitProvider::above);
+            case MvLess mvLess -> evaluateMvLeaf(mvLess.field(), mvLess.bound(), partitionValues, FileSplitProvider::below);
             case And and -> nullableAnd(evaluateFilter(and.left(), partitionValues), evaluateFilter(and.right(), partitionValues));
             case Or or -> nullableOr(evaluateFilter(or.left(), partitionValues), evaluateFilter(or.right(), partitionValues));
             case Not not -> nullableNot(evaluateFilter(not.field(), partitionValues));
@@ -3083,6 +3105,83 @@ public class FileSplitProvider implements SplitProvider {
             return partitionValue != null ? comparator.apply(literalValue, partitionValue) : null;
         }
         return null;
+    }
+
+    /**
+     * {@code field OP literal} for a multivalue comparison function, and only that way round. A binary comparison is
+     * symmetric under operand swap, which is why {@link #evaluateComparison} also tries {@code literal OP column}; these
+     * are not — {@code mv_contains(literal, column)} asks whether the column's values are a subset of the literal's,
+     * a different predicate — so a literal on the left is unknown rather than evaluated. So is a field that is not a
+     * plain column: a case-insensitive DSL term arrives as {@code mv_contains(TO_LOWER(p), lowered)}, and partition
+     * values hold the original case, so {@link #extractColumnName} returning null for it is what keeps that file.
+     * <p>
+     * A null partition value is unknown here, where the function itself would answer false (it reads a null as the
+     * empty set). Unknown is strictly less informative than the true answer, and the connectives below are monotone in
+     * that ordering, so the difference can only keep a file the exact answer would prune — never prune one it would
+     * keep, under {@code Not} included.
+     */
+    private static Boolean evaluateMvLeaf(
+        Expression field,
+        Expression literal,
+        Map<String, Object> partitionValues,
+        BiFunction<Object, Object, Boolean> comparator
+    ) {
+        String columnName = extractColumnName(field);
+        Object literalValue = extractLiteralValue(literal);
+        // A list-valued literal is "contains all of these", not the scalar bound.
+        if (columnName == null
+            || literalValue == null
+            || literalValue instanceof List
+            || partitionValues.containsKey(columnName) == false) {
+            return null;
+        }
+        Object partitionValue = partitionValues.get(columnName);
+        return partitionValue != null ? comparator.apply(partitionValue, literalValue) : null;
+    }
+
+    /**
+     * {@code mv_intersects(p, [v...])}: the partition value is in the set. The set arrives as a single list-valued
+     * literal, not the list of literals {@code In} carries. A set with no non-null member is unknown rather than false.
+     */
+    private static Boolean evaluateMvIntersects(MvIntersects mvIntersects, Map<String, Object> partitionValues) {
+        String columnName = extractColumnName(mvIntersects.left());
+        Object literalValue = extractLiteralValue(mvIntersects.right());
+        if (columnName == null || literalValue == null || partitionValues.containsKey(columnName) == false) {
+            return null;
+        }
+        Object partitionValue = partitionValues.get(columnName);
+        if (partitionValue == null) {
+            return null;
+        }
+        List<?> values = literalValue instanceof List<?> list ? list : List.of(literalValue);
+        boolean sawValue = false;
+        for (Object value : values) {
+            if (value != null) {
+                sawValue = true;
+                if (PartitionValueMatcher.compareEquals(partitionValue, value)) {
+                    return true;
+                }
+            }
+        }
+        return sawValue ? false : null;
+    }
+
+    /**
+     * TRUE strictly above {@code bound}, FALSE strictly below, <em>unknown exactly on it</em>. The ordered multivalue
+     * functions carry their bound inclusivity as an option, and {@code mv_greater} / {@code mv_less} default to strict
+     * while {@code mv_in_range} defaults to inclusive. Rather than read it, answer only where it cannot matter. Treating
+     * the bound as inclusive instead would be wrong, not merely loose: {@code NOT mv_greater(p, 5)} over a file with
+     * {@code p = 5} is true for every row, and an inclusive {@code 5 >= 5} negates to false and prunes that file.
+     */
+    private static Boolean above(Object value, Object bound) {
+        int cmp = PartitionValueMatcher.compareValues(value, bound);
+        return cmp > 0 ? Boolean.TRUE : cmp < 0 ? Boolean.FALSE : null;
+    }
+
+    /** TRUE strictly below {@code bound}, FALSE strictly above, unknown exactly on it — see {@link #above}. */
+    private static Boolean below(Object value, Object bound) {
+        int cmp = PartitionValueMatcher.compareValues(value, bound);
+        return cmp < 0 ? Boolean.TRUE : cmp > 0 ? Boolean.FALSE : null;
     }
 
     private static String extractColumnName(Expression expr) {

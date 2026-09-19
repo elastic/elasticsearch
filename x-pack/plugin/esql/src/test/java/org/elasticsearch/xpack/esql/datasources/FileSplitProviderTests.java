@@ -66,6 +66,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -106,6 +112,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
@@ -561,6 +568,113 @@ public class FileSplitProviderTests extends ESTestCase {
         List<ExternalSplit> splits = provider.discoverSplits(ctx).splits();
 
         assertEquals(2, splits.size());
+    }
+
+    // --- multivalue comparison functions: what the out-of-band request filter translates into ---
+
+    public void testMvContainsPrunesNonMatchingPartition() {
+        Expression filter = new MvContains(SRC, fieldAttr("year"), intLiteral(2024));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2024)));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2023)));
+    }
+
+    public void testMvIntersectsPrunesPartitionOutsideTheSet() {
+        Literal set = new Literal(SRC, List.of(2023, 2024), DataType.INTEGER);
+        Expression filter = new MvIntersects(SRC, fieldAttr("year"), set);
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2024)));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2022)));
+    }
+
+    public void testMvIntersectsWithNoNonNullMemberIsUnknown() {
+        Literal allNull = new Literal(SRC, Arrays.asList(null, null), DataType.INTEGER);
+        assertNull(FileSplitProvider.evaluateFilter(new MvIntersects(SRC, fieldAttr("year"), allNull), Map.of("year", 2024)));
+    }
+
+    public void testMvInRangePrunesPartitionOutsideTheRange() {
+        // A DSL range on an integer partition column (typically year=) becomes mv_in_range, so this is file pruning
+        // for a range, not only for term / terms.
+        Expression filter = new MvInRange(SRC, fieldAttr("year"), intLiteral(2020), intLiteral(2022));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2021)));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2019)));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2023)));
+    }
+
+    public void testMvGreaterAndMvLessPruneTheFarSide() {
+        assertEquals(
+            Boolean.FALSE,
+            FileSplitProvider.evaluateFilter(new MvGreater(SRC, fieldAttr("year"), intLiteral(2022)), Map.of("year", 2021))
+        );
+        assertEquals(
+            Boolean.TRUE,
+            FileSplitProvider.evaluateFilter(new MvGreater(SRC, fieldAttr("year"), intLiteral(2022)), Map.of("year", 2023))
+        );
+        assertEquals(
+            Boolean.FALSE,
+            FileSplitProvider.evaluateFilter(new MvLess(SRC, fieldAttr("year"), intLiteral(2022)), Map.of("year", 2023))
+        );
+        assertEquals(
+            Boolean.TRUE,
+            FileSplitProvider.evaluateFilter(new MvLess(SRC, fieldAttr("year"), intLiteral(2022)), Map.of("year", 2021))
+        );
+    }
+
+    public void testOrderedBoundIsUnknownExactlyOnTheBound() {
+        // mv_greater / mv_less default to a strict bound and mv_in_range to an inclusive one; the matcher reads
+        // neither, so it answers only where the answer cannot depend on it.
+        assertNull(FileSplitProvider.evaluateFilter(new MvGreater(SRC, fieldAttr("year"), intLiteral(2022)), Map.of("year", 2022)));
+        assertNull(FileSplitProvider.evaluateFilter(new MvLess(SRC, fieldAttr("year"), intLiteral(2022)), Map.of("year", 2022)));
+        assertNull(
+            FileSplitProvider.evaluateFilter(
+                new MvInRange(SRC, fieldAttr("year"), intLiteral(2022), intLiteral(2024)),
+                Map.of("year", 2022)
+            )
+        );
+    }
+
+    public void testNotOverStrictMvGreaterKeepsTheFileSittingOnTheBound() {
+        // The reason the ordered forms are unknown on the bound rather than inclusive. NOT mv_greater(year, 2022) is
+        // TRUE for every row of a year=2022 file, because the bound is strict by default. Evaluating the bound as
+        // inclusive would give 2022 >= 2022 = true, negate it to false, and prune a file whose every row matches.
+        Expression filter = new Not(SRC, new MvGreater(SRC, fieldAttr("year"), intLiteral(2022)));
+        assertNotEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2022)));
+        assertTrue(FileSplitProvider.matchesPartitionFilters(Map.of("year", 2022), List.of(filter)));
+    }
+
+    public void testNotOverMvContainsIsExactOnASinglePartitionValue() {
+        // A partition value is single, so mv_contains is exact there and its negation prunes the equal partition.
+        Expression filter = new Not(SRC, new MvContains(SRC, fieldAttr("year"), intLiteral(2024)));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2024)));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(filter, Map.of("year", 2023)));
+    }
+
+    public void testCaseInsensitiveMvContainsKeepsEveryFile() {
+        // mv_contains(TO_LOWER(p), lowered) is how a case_insensitive DSL term arrives. Partition values hold the
+        // original case, so it must never prune.
+        FieldAttribute region = new FieldAttribute(
+            SRC,
+            "region",
+            new EsField("region", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        Expression filter = new MvContains(SRC, new ToLower(SRC, region, TEST_CFG), new Literal(SRC, new BytesRef("eu"), DataType.KEYWORD));
+        assertNull(FileSplitProvider.evaluateFilter(filter, Map.of("region", "EU")));
+        assertNull(FileSplitProvider.evaluateFilter(filter, Map.of("region", "US")));
+    }
+
+    public void testMvContainsWithLiteralOnTheLeftIsUnknown() {
+        // mv_contains(literal, column) asks whether the column's values are a subset of the literal's — not the
+        // swapped form of mv_contains(column, literal). The matcher must not evaluate it as if it were.
+        Expression filter = new MvContains(SRC, intLiteral(2024), fieldAttr("year"));
+        assertNull(FileSplitProvider.evaluateFilter(filter, Map.of("year", 2023)));
+    }
+
+    public void testMvContainsOnNullPartitionValueIsUnknown() {
+        Map<String, Object> nullYear = new HashMap<>();
+        nullYear.put("year", null);
+        assertNull(FileSplitProvider.evaluateFilter(new MvContains(SRC, fieldAttr("year"), intLiteral(2024)), nullYear));
+    }
+
+    public void testMvContainsOnNonPartitionColumnDoesNotPrune() {
+        assertNull(FileSplitProvider.evaluateFilter(new MvContains(SRC, fieldAttr("status"), intLiteral(200)), Map.of("year", 2024)));
     }
 
     public void testMatchesPartitionFiltersAllMatch() {

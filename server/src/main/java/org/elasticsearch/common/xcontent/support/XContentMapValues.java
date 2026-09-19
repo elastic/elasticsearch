@@ -13,6 +13,7 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
@@ -288,8 +289,16 @@ public class XContentMapValues {
         if (patterns == null || patterns.length == 0) {
             return defaultValue;
         }
-        var aut = Regex.simpleMatchToAutomaton(patterns);
-        aut = Operations.determinize(makeMatchDotsInFieldNames(aut), MAX_DETERMINIZED_STATES);
+        // Determinize after appending the tail so this method's limit applies.
+        var aut = Regex.simpleMatchToNonDeterminizedAutomaton(patterns);
+        try {
+            aut = Operations.determinize(makeMatchDotsInFieldNames(aut), MAX_DETERMINIZED_STATES);
+        } catch (TooComplexToDeterminizeException e) {
+            throw new IllegalArgumentException(
+                "Unable to filter _source: [" + patterns.length + "] field patterns are too complex to compile into an automaton",
+                e
+            );
+        }
         return new CharacterRunAutomaton(aut);
     }
 

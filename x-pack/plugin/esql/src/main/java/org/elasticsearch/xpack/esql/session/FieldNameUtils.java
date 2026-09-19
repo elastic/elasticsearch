@@ -310,12 +310,7 @@ public class FieldNameUtils {
                 breakEarly.set(true);
                 return;
             } else if (p instanceof Highlight highlight && highlight.fields().isEmpty()) {
-                // A no-ON HIGHLIGHT derives its targets from the child's text/keyword columns during analysis, so its
-                // own references() (the ON fields) are empty here. Collect the concrete fields the query names so a
-                // downstream KEEP highlight_x still requests them from field-caps. A query that names no concrete field
-                // (a literal, KQL, QSTR, a negative clause, or an unrecognised shape) may match through any column:
-                // unless its subtree already narrows the schema (e.g. an upstream KEEP), request everything - same as
-                // Enrich / Dedup / UnresolvedStar. ON * keeps a non-empty field list and is handled above.
+                // No-ON HIGHLIGHT has empty references(); collect query field names, or all fields if the query cannot be narrowed.
                 boolean narrowed = highlight.query() != null && collectHighlightQueryReferences(highlight.query(), referencesBuilder.get());
                 if (narrowed == false && highlight.anyMatch(sub -> shouldCollectReferencedFields(sub, inlinestatsAggs)) == false) {
                     projectAll.set(true);
@@ -494,14 +489,8 @@ public class FieldNameUtils {
     }
 
     /**
-     * Mirrors {@link org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport#deriveFields} at parse time,
-     * where the HIGHLIGHT query is still unresolved. Adds the references of the concrete fields the query names to
-     * {@code refs} and returns {@code true}, or returns {@code false} when the query cannot be narrowed to specific
-     * fields - a literal, {@code KQL}, {@code QSTR}, a negative clause, or any unrecognised shape - and its no-ON
-     * HIGHLIGHT therefore targets every text/keyword column. Callers treat {@code false} as "request all fields".
-     * <p>
-     * The {@code :} operator parses to a concrete {@link Match} even before analysis, whereas the {@code MATCH(...)} /
-     * {@code MATCH_PHRASE(...)} call forms are still {@link UnresolvedFunction}s here, so both are handled.
+     * Parse-time mirror of {@link org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport#deriveFields}.
+     * {@code MATCH(...)} / {@code MATCH_PHRASE(...)} are still {@link UnresolvedFunction}s here; {@code :} is already {@link Match}.
      */
     private static boolean collectHighlightQueryReferences(Expression query, AttributeSet.Builder refs) {
         switch (query) {
@@ -524,7 +513,7 @@ public class FieldNameUtils {
                 }
                 return false;
             }
-            // A literal, KQL, QSTR, a negative clause, or any other shape may match through any column - request all.
+            // Literal, KQL, QSTR, or negative: may match any column.
             default -> {
                 return false;
             }

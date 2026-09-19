@@ -279,32 +279,6 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                 groupingIds.add(ne.id());
             }
         }
-        // TBucket/TStep surrogates assert timestamp bounds (explicit from/to or request filter).
-        // Translation runs before postAnalysisVerification, so skip translation when bounds are
-        // missing and let verification report it instead of failing on the invariant.
-        Holder<Boolean> missingBounds = new Holder<>(Boolean.FALSE);
-        Consumer<NamedExpression> checkBounds = e -> {
-            for (Expression child : e.children()) {
-                if (child instanceof TBucket tbucket
-                    && aggregate.timestamp().semanticEquals(tbucket.timestamp())
-                    && tbucket.needsTimestampBounds()) {
-                    missingBounds.set(Boolean.TRUE);
-                } else if (child instanceof TStep tstep
-                    && aggregate.timestamp().semanticEquals(tstep.timestamp())
-                    && tstep.needsTimestampBounds()) {
-                        missingBounds.set(Boolean.TRUE);
-                    }
-            }
-        };
-        aggregate.child().forEachExpressionUp(NamedExpression.class, e -> {
-            if (groupingIds.contains(e.id())) {
-                checkBounds.accept(e);
-            }
-        });
-        aggregate.groupings().stream().filter(NamedExpression.class::isInstance).map(NamedExpression.class::cast).forEach(checkBounds);
-        if (missingBounds.get()) {
-            return inputAggregate;
-        }
         aggregate.child().forEachExpressionUp(NamedExpression.class, e -> {
             if (groupingIds.contains(e.id())) {
                 extractTimeBucket.accept(e);

@@ -231,7 +231,7 @@ Accepted endpoint forms, in every AWS partition:
 A regional endpoint must name a region that the Elasticsearch version you are running knows about. A region added by AWS after that release is rejected until you upgrade, or until a node permits its host with the setting described below.
 
 :::{note}
-The global endpoint names no region. Setting any `endpoint` turns off cross-region redirection, so `https://s3.amazonaws.com` reaches buckets in `us-east-1` and fails for buckets in other regions. Omit `endpoint` instead: the region then comes from the dataset and every region is reachable.
+The global endpoint names no region. Setting any `endpoint` pins the host: cross-region redirection is off and a cross-region redirect is not followed, so `https://s3.amazonaws.com` reaches buckets in `us-east-1` and fails for buckets in other regions rather than being sent elsewhere. Omit `endpoint` instead: the region then comes from the dataset and every region is reachable.
 :::
 
 If reads through one of these fail with an addressing error, set `addressing_style: virtual_hosted`; the default resolves to path-style whenever `endpoint` is set.

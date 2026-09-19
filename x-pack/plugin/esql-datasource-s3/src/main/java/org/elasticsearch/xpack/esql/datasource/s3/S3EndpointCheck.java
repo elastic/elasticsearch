@@ -41,8 +41,9 @@ import java.util.function.Predicate;
  * against a generated tail, leaving only the id and its optional prefix to be read from the name.
  *
  * <p>The two global endpoints, {@code s3.amazonaws.com} and {@code sts.amazonaws.com}, are admitted as
- * literals. They name no region, so they reach a {@code us-east-1} bucket and fail loudly for any other,
- * because the cross-region redirect S3 answers with is not followed. Everywhere else a region must follow the
+ * literals. They name no region, so they reach a {@code us-east-1} bucket and fail for any other rather
+ * than being sent elsewhere: the cross-region redirect S3 answers with is not followed, and the one-shot
+ * region-discovery retry re-signs against the same endpoint. Everywhere else a region must follow the
  * service label, and that is load-bearing: without it a bucket anyone can create named {@code sts-anything}
  * answers to {@code sts-anything.s3.us-east-1.amazonaws.com} and would be admitted. Every other AWS endpoint
  * family is refused — see {@link #S3_SERVICE_LABELS}.

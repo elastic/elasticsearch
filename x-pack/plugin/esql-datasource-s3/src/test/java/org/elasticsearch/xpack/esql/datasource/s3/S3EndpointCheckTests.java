@@ -44,7 +44,7 @@ public class S3EndpointCheckTests extends ESTestCase {
 
     /**
      * Asks the SDK's own resolver where each FIPS, dual-stack and transfer-acceleration combination resolves
-     * to, over one region per partition plus three more in {@code aws}, and requires the rule to answer for
+     * to, over one region per partition plus two more in {@code aws}, and requires the rule to answer for
      * each destination the way the permitted set says it should: accept it when the resolver named a region
      * in the host, refuse it when it did not. Every partition is covered; a further region inside one adds no
      * host shape the rule treats differently. A rule written against a single literal suffix cannot pass.

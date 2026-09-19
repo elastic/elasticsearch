@@ -79,6 +79,11 @@ public class IvfAutoCalibration {
     public static final int MIN_VECTORS_FOR_CALIBRATION = 10_000;
 
     /**
+     * Doc-bit ceiling that leaves every candidate encoding available, i.e. no effective cap.
+     */
+    public static final int UNCAPPED_MAX_DOC_BITS = 7;
+
+    /**
      * Minimum fraction of total docs that must agree on a single encoding to skip re-calibration
      * when input segments disagree.
      */
@@ -180,6 +185,7 @@ public class IvfAutoCalibration {
     private final int blockDimension;
     private final double targetRecall;
     private final int k;
+    private final int maxDocBits;
 
     public IvfAutoCalibration(int vectorsPerCluster) {
         this(vectorsPerCluster, ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION);
@@ -190,20 +196,29 @@ public class IvfAutoCalibration {
     }
 
     public IvfAutoCalibration(int vectorsPerCluster, int blockDimension, double targetRecall, int k) {
+        this(vectorsPerCluster, blockDimension, targetRecall, k, UNCAPPED_MAX_DOC_BITS);
+    }
+
+    public IvfAutoCalibration(int vectorsPerCluster, int blockDimension, double targetRecall, int k, int maxDocBits) {
+        if (maxDocBits < 1) {
+            throw new IllegalArgumentException("maxDocBits must be at least 1");
+        }
         this.vectorsPerCluster = vectorsPerCluster;
         this.blockDimension = blockDimension;
         this.targetRecall = targetRecall;
         this.k = k;
+        this.maxDocBits = maxDocBits;
     }
 
     /**
      * Returns an {@link IvfMergeConfigResolver} that runs merge-time auto-calibration for the given cluster size.
      */
     public static IvfMergeConfigResolver mergeConfigResolver(int vectorsPerCluster) {
-        return (fieldInfo, mergeState, codecDefault) -> new IvfAutoCalibration(vectorsPerCluster).resolve(
-            fieldInfo,
-            mergeState,
-            codecDefault
+        return mergeConfigResolver(
+            vectorsPerCluster,
+            ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+            DEFAULT_TARGET_RECALL,
+            DEFAULT_K
         );
     }
 
@@ -251,6 +266,16 @@ public class IvfAutoCalibration {
             logger.warn("calibration failed on merge, falling back to codec default encoding", e);
             return codecDefault;
         }
+    }
+
+    static IvfMergeConfigResolver mergeConfigResolver(int vectorsPerCluster, int blockDimension, double targetRecall, int k) {
+        return (fieldInfo, mergeState, codecDefault) -> new IvfAutoCalibration(
+            vectorsPerCluster,
+            blockDimension,
+            targetRecall,
+            k,
+            maxDocBitsFrom(codecDefault)
+        ).resolve(fieldInfo, mergeState, codecDefault);
     }
 
     /**
@@ -336,6 +361,16 @@ public class IvfAutoCalibration {
 
         // oversample and precondition are derived from the winning encoding's segments
         QuantEncoding bestEncoding = best.getKey();
+        if (bestEncoding.bits() > maxDocBits) {
+            // The mapping ceiling can be lowered after the input segments were written. Recalibrate rather than clamp,
+            // so the oversample stays consistent with the encoding actually written.
+            logger.debug(
+                "Merge calibration: reusable encoding [{}] exceeds the doc-bit ceiling [{}], re-calibrating",
+                bestEncoding,
+                maxDocBits
+            );
+            return null;
+        }
         EncodingStats bestStats = best.getValue();
         float avgOversample = (float) (bestStats.oversampleWeightedSum / bestStats.vectors);
         boolean doPreconditionResult = bestStats.preconditionTrueVectors > bestStats.preconditionFalseVectors;
@@ -361,6 +396,14 @@ public class IvfAutoCalibration {
         double oversampleWeightedSum;
         long preconditionTrueVectors;
         long preconditionFalseVectors;
+    }
+
+    private static int maxDocBitsFrom(IvfSegmentConfig codecDefault) {
+        if (codecDefault.quantConfig() instanceof IvfSegmentConfig.OsqConfig osq) {
+            return osq.encoding().bits();
+        }
+
+        throw new IllegalStateException("Unsupported quant config [" + codecDefault.quantConfig().getClass().getSimpleName() + "]");
     }
 
     /**
@@ -602,10 +645,10 @@ public class IvfAutoCalibration {
     }
 
     /**
-     * Sweeps every {@code (encoding, rerank-depth, precondition)} triple in ascending cost order and returns the
-     * first configuration whose predicted recall meets {@link #targetRecall}, or the best-effort configuration if
-     * none does. The two calibration paths differ only in how the quantization error std is obtained, which is
-     * supplied by {@code errorStdProvider}.
+     * Sweeps every {@code (encoding, rerank-depth, precondition)} triple at or below {@link #maxDocBits} in ascending
+     * cost order and returns the first configuration whose predicted recall meets {@link #targetRecall}, or the
+     * best-effort configuration if none does. The two calibration paths differ only in how the quantization error std
+     * is obtained, which is supplied by {@code errorStdProvider}.
      * <p>
      * The cost model ({@link #DOC_BITS_WEIGHT} × dbits + {@link #RERANK_COST_WEIGHT} × rerankDepth) guarantees
      * that all entries for a given doc-bit level are exhausted before any entry at a higher doc-bit level is
@@ -627,6 +670,9 @@ public class IvfAutoCalibration {
         boolean[] preconditionValues = new boolean[] { false, true };
 
         for (CalibrationSweep sweep : COST_ORDERED_SWEEPS) {
+            if (sweep.candidate().dbits() > maxDocBits) {
+                break;
+            }
             CandidateEncoding candidate = sweep.candidate();
             int rerankVal = ExpectedRecall.rerankN(k, sweep.rerankDepth());
             float oversample = (float) sweep.rerankDepth();

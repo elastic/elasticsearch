@@ -142,7 +142,10 @@ public final class StreamingParallelParsingCoordinator {
             null,
             -1L,
             StripeColumnScope.PROJECTED,
-            WarningSinks.NONE
+            WarningSinks.NONE,
+            StreamingSegmentatorAdmission.unbounded(),
+            new NoopCircuitBreaker("streaming-parse-test"),
+            ExternalReadCounters.NOOP
         );
     }
 
@@ -173,54 +176,14 @@ public final class StreamingParallelParsingCoordinator {
      * coordinator reconciler can union the chunks under the real file key (see
      * {@link ParallelParsingCoordinator}).
      * <p>
-     * {@code partialResultsWarningSink} receives a single client-visible message if a non-strict
-     * {@link ErrorPolicy} truncates the read at a {@code external_max_record_size} cap-hit — a genuine partial-
-     * results signal. Production passes {@link AsyncExternalSourceBuffer#recordWarning} so the operator
-     * can re-emit it on the driver thread (the segmentator runs on a forked worker whose response
-     * headers never reach the client — see #835). Pass {@code null} to fall back to a direct
-     * {@link HeaderWarning} on the current thread (tests, benchmarks).
-     */
-    public static CloseableIterator<Page> parallelRead(
-        SegmentableFormatReader reader,
-        InputStream decompressedStream,
-        @Nullable StorageObject storageObject,
-        List<String> projectedColumns,
-        int batchSize,
-        int parallelism,
-        Executor executor,
-        ErrorPolicy errorPolicy,
-        @Nullable List<Attribute> readSchema,
-        long baseFileOffset,
-        int maxRecordBytes,
-        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
-        long statsStripeSize,
-        StripeColumnScope statsColumnScope,
-        @Nullable Consumer<String> partialResultsWarningSink,
-        StreamingSegmentatorAdmission admission
-    ) throws IOException {
-        return parallelRead(
-            reader,
-            decompressedStream,
-            storageObject,
-            projectedColumns,
-            batchSize,
-            parallelism,
-            executor,
-            errorPolicy,
-            readSchema,
-            baseFileOffset,
-            maxRecordBytes,
-            captureSink,
-            statsStripeSize,
-            statsColumnScope,
-            new WarningSinks(partialResultsWarningSink, null)
-        );
-    }
-
-    /**
-     * As the above, plus {@code warningSinks.informationalWarningSink()} — see {@link WarningSinks}'
-     * Javadoc. Kept as a separate overload so the many existing truncation-focused callers (tests,
-     * benchmarks) that don't care about generic per-format warnings are unaffected.
+     * {@link WarningSinks#partialResultsWarningSink()} receives a single client-visible message if a
+     * non-strict {@link ErrorPolicy} truncates the read at a {@code external_max_record_size} cap-hit — a
+     * genuine partial-results signal. Production passes {@link AsyncExternalSourceBuffer#recordWarning} so
+     * the operator can re-emit it on the driver thread (the segmentator runs on a forked worker whose
+     * response headers never reach the client — see #835). Pass {@link WarningSinks#NONE} to fall back to a
+     * direct {@link HeaderWarning} on the current thread (tests, benchmarks).
+     * {@link WarningSinks#informationalWarningSink()} carries generic per-format diagnostic messages;
+     * truncation-focused callers that do not need it may pass {@link WarningSinks#NONE}.
      * <p>
      * Supplies an {@link StreamingSegmentatorAdmission#unbounded()} controller: the segmentator is
      * dispatched immediately, matching the pre-admission behavior. Retained for tests and benchmarks
@@ -261,7 +224,8 @@ public final class StreamingParallelParsingCoordinator {
             statsColumnScope,
             warningSinks,
             StreamingSegmentatorAdmission.unbounded(),
-            new NoopCircuitBreaker("streaming-parse-test")
+            new NoopCircuitBreaker("streaming-parse-test"),
+            ExternalReadCounters.NOOP
         );
     }
 
@@ -289,7 +253,8 @@ public final class StreamingParallelParsingCoordinator {
         StripeColumnScope statsColumnScope,
         WarningSinks warningSinks,
         StreamingSegmentatorAdmission admission,
-        CircuitBreaker breaker
+        CircuitBreaker breaker,
+        ExternalReadCounters readCounters
     ) throws IOException {
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -338,7 +303,8 @@ public final class StreamingParallelParsingCoordinator {
             statsColumnScope,
             warningSinks,
             admission,
-            breaker
+            breaker,
+            readCounters
         );
     }
 
@@ -493,6 +459,9 @@ public final class StreamingParallelParsingCoordinator {
          */
         private final InputStream decompressedStream;
         private final AtomicBoolean streamClosed = new AtomicBoolean(false);
+        private final ExternalReadCounters readCounters;
+        /** The reader as supplied by the caller; {@link #reader} may be swapped by {@link #bindInferredSchema}. */
+        private final SegmentableFormatReader originalReader;
 
         /**
          * Convenience overload for tests/benchmarks that supplies an {@link StreamingSegmentatorAdmission#unbounded()}
@@ -533,7 +502,8 @@ public final class StreamingParallelParsingCoordinator {
                 statsColumnScope,
                 warningSinks,
                 StreamingSegmentatorAdmission.unbounded(),
-                new NoopCircuitBreaker("streaming-parse-test")
+                new NoopCircuitBreaker("streaming-parse-test"),
+                ExternalReadCounters.NOOP
             );
         }
 
@@ -554,10 +524,12 @@ public final class StreamingParallelParsingCoordinator {
             StripeColumnScope statsColumnScope,
             WarningSinks warningSinks,
             StreamingSegmentatorAdmission admission,
-            CircuitBreaker breaker
+            CircuitBreaker breaker,
+            ExternalReadCounters readCounters
         ) {
             this.admission = admission;
             this.breaker = breaker;
+            this.originalReader = reader;
             this.reader = reader;
             this.storageObject = storageObject;
             this.projectedColumns = projectedColumns;
@@ -598,12 +570,25 @@ public final class StreamingParallelParsingCoordinator {
             this.tasksOutstanding = new AtomicInteger(1);
 
             this.decompressedStream = decompressedStream;
+            this.readCounters = readCounters;
 
             // Gate the segmentator through the node-level admission controller so it is handed to the pool only when
             // a thread will remain free for its parser tasks; a rejection is surfaced through the firstError /
             // signalReady path. Tests that run on an isolated, generously-sized pool pass an unbounded controller,
             // which dispatches immediately (see StreamingSegmentatorAdmission#unbounded).
-            Runnable segmentatorTask = () -> runSegmentator(this.decompressedStream, this.chunkSize);
+            Runnable segmentatorTask = () -> {
+                try {
+                    readCounters.meteredCpu(() -> runSegmentator(this.decompressedStream, this.chunkSize), false);
+                } finally {
+                    // No POISON-to-parkers fan-out anymore: parser tasks are one-shot (one per chunk)
+                    // and exit on their own after processing. Segmentator's done; decrement and signal
+                    // so the consumer wakes if it's the last task standing (EOF condition is
+                    // currentChunk >= chunksDispatched && tasksOutstanding == 0).
+                    if (tasksOutstanding.decrementAndGet() == 0) {
+                        signalReady();
+                    }
+                }
+            };
             admission.submit(segmentatorTask, executor, this::onSegmentatorLaunchRejected);
         }
 
@@ -869,13 +854,6 @@ public final class StreamingParallelParsingCoordinator {
                 signalReady();
             } finally {
                 closeStream();
-                // No POISON-to-parkers fan-out anymore: parser tasks are one-shot (one per chunk)
-                // and exit on their own after processing. Segmentator's done; decrement and signal
-                // so the consumer wakes if it's the last task standing (EOF condition is
-                // currentChunk >= chunksDispatched && tasksOutstanding == 0).
-                if (tasksOutstanding.decrementAndGet() == 0) {
-                    signalReady();
-                }
             }
         }
 
@@ -1031,6 +1009,7 @@ public final class StreamingParallelParsingCoordinator {
                 }
                 int queueSlot = chunk.index % pageQueueRingSize;
                 queue = pageQueues[queueSlot];
+                var finalQueue = queue;
                 ByteArrayStorageObject chunkObj = chunkStorageObject(chunk.index, chunk.buffer, 0, chunk.length);
                 // - firstSplit: only chunk 0 carries the file's leading bytes (header for CSV).
                 // - lastSplit: every chunk is aligned to a record boundary by the segmentator, so
@@ -1072,16 +1051,7 @@ public final class StreamingParallelParsingCoordinator {
                 // query's sink. The reader now stamps stripe addressing itself, so the sink no longer
                 // carries a coverage.
                 ExternalStatsCapture.Handle bound = captureSink != null ? ExternalStatsCapture.bind(captureSink) : () -> {};
-                try (bound) {
-                    try (CloseableIterator<Page> pages = reader.read(chunkObj, ctx)) {
-                        while (pages.hasNext()) {
-                            if (firstError.get() != null || closed.get()) {
-                                break;
-                            }
-                            putPageAndSignal(queue, pages.next());
-                        }
-                    }
-                }
+                readCounters.meteredCpu((() -> pagesReadLoop(bound, chunkObj, ctx, finalQueue)));
             } catch (Exception e) {
                 firstError.compareAndSet(null, e);
                 signalReady();
@@ -1094,6 +1064,24 @@ public final class StreamingParallelParsingCoordinator {
                 }
                 if (tasksOutstanding.decrementAndGet() == 0) {
                     signalReady();
+                }
+            }
+        }
+
+        private void pagesReadLoop(
+            ExternalStatsCapture.Handle bound,
+            ByteArrayStorageObject chunkObj,
+            FormatReadContext ctx,
+            ArrayBlockingQueue<Page> queue
+        ) throws IOException, InterruptedException {
+            try (bound) {
+                try (CloseableIterator<Page> pages = reader.read(chunkObj, ctx)) {
+                    while (pages.hasNext()) {
+                        if (firstError.get() != null || closed.get()) {
+                            break;
+                        }
+                        putPageAndSignal(queue, pages.next());
+                    }
                 }
             }
         }

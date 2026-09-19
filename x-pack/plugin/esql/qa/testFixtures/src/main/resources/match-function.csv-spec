@@ -1234,6 +1234,86 @@ content:text
 [This is a brown dog, extra]
 ;
 
+// The LIMIT keeps only the six lowest book_no, of which just 1463 and 2130 mention Tolkien. Book 2301 does too but
+// is cut by the LIMIT, so a filter wrongly evaluated before it would return three rows instead of two.
+matchOnRuntimeTextAfterLimit
+
+required_capability: match_function
+required_capability: fn_match_runtime_anywhere
+
+FROM books
+| SORT book_no
+| LIMIT 6
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien")
+| KEEP book_no, title
+;
+
+book_no:keyword | title:text
+1463            | Realms of Tolkien: Images of Middle-earth
+2130            | The J. R. R. Tolkien Audio Collection
+;
+
+matchOnRuntimeTextAfterStats
+
+required_capability: match_function
+required_capability: fn_match_runtime_anywhere
+
+FROM books
+| STATS max_year = max(year) BY book_no
+| EVAL b = to_text(book_no)
+| WHERE match(b, "2130")
+| KEEP book_no, max_year
+;
+
+book_no:keyword | max_year:integer
+2130            | 2002
+;
+
+// Grouping on a constant makes LIMIT ... BY keep the same six lowest book_no as matchOnRuntimeTextAfterLimit, so the
+// window stays predictable. Book 2301 mentions Tolkien too but falls outside it, and would come back if the filter
+// were evaluated before the breaker.
+matchOnRuntimeTextAfterLimitBy
+
+required_capability: match_function
+required_capability: esql_limit_by
+required_capability: fn_match_runtime_anywhere
+
+FROM books
+| SORT book_no
+| EVAL g = 1
+| LIMIT 6 BY g
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien")
+| KEEP book_no
+| SORT book_no
+;
+
+book_no:keyword
+1463
+2130
+;
+
+// DEDUP compares whole rows, so only book_no is kept going into it - a text column is not something to group on.
+matchOnRuntimeTextAfterDedup
+
+required_capability: match_function
+required_capability: dedup_command
+required_capability: fn_match_runtime_anywhere
+
+FROM books
+| SORT book_no
+| LIMIT 6
+| KEEP book_no
+| DEDUP
+| EVAL b = to_text(book_no)
+| WHERE match(b, "2130")
+;
+
+book_no:keyword | b:text
+2130            | 2130
+;
+
 matchOnRuntimeKeyword
 
 required_capability: match_function
@@ -1987,6 +2067,79 @@ phrase:keyword
 The Quick Brown Fox
 ;
 
+matchOnToTextOverIndexedKeywordFieldIsAnalyzed
+required_capability: match_function
+required_capability: fn_match_to_text_on_indexed_field_fix
+
+// https://github.com/elastic/elasticsearch/issues/159265: TO_TEXT written inline over a normal mapped keyword field
+// must still be matched as analyzed text - the same lowercase-insensitive result the plain (already-text) `author`
+// field gives, matched in matchWithField.
+FROM books
+| WHERE MATCH(TO_TEXT(author.keyword), "faulkner")
+| KEEP book_no, author
+| SORT book_no
+| LIMIT 5
+;
+
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchOnToTextOverIndexedKeywordFieldViaEvalAlias
+required_capability: match_function
+required_capability: fn_match_to_text_on_indexed_field_fix
+
+// The EVAL-alias form of matchOnToTextOverIndexedKeywordFieldIsAnalyzed must agree with the inline form (above).
+FROM books
+| EVAL a = TO_TEXT(author.keyword)
+| WHERE MATCH(a, "faulkner")
+| KEEP book_no, author
+| SORT book_no
+| LIMIT 5
+;
+
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchOnToStringOverIndexedTextFieldIsExact
+required_capability: match_function
+required_capability: fn_match_to_string_on_indexed_field_fix
+
+// Mirror-image bug of matchOnToTextOverIndexedKeywordFieldIsAnalyzed: TO_STRING over a normal
+// mapped text field (author, not a computed/runtime expression) must be matched as exact, unanalyzed
+// keyword text - "Faulkner" is never the WHOLE value of any author (always part of a full name or a list),
+// so nothing should match, unlike the analyzed match "author:Faulkner" gives elsewhere in this file.
+FROM books
+| WHERE MATCH(TO_STRING(author), "Faulkner")
+| KEEP book_no, author
+;
+
+book_no:keyword | author:text
+;
+
+matchOnToStringOverIndexedTextFieldViaEvalAlias
+required_capability: match_function
+required_capability: fn_match_to_string_on_indexed_field_fix
+
+// The EVAL-alias form of matchOnToStringOverIndexedTextFieldIsExact must agree with the inline form (above).
+FROM books
+| EVAL a = TO_STRING(author)
+| WHERE MATCH(a, "Faulkner")
+| KEEP book_no, author
+;
+
+book_no:keyword | author:text
+;
+
 matchOnRuntimeLongWithStringQueryMultiValueAndNull
 required_capability: match_function
 required_capability: fn_match_runtime_filter
@@ -2270,28 +2423,111 @@ book_no:keyword | new_title:text
 7140            | TITLE: The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
 ;
 
+// The values analyzer of a runtime text column is declared through TO_TEXT's analyzer option; match's own
+// analyzer option covers the query string only and defaults to the values analyzer. This change shipped
+// with fn_to_text_analyzer, so that capability gates the query-only semantics too.
+
 matchOnRuntimeTextWithWhitespaceAnalyzer
 required_capability: match_function
-required_capability: fn_match_runtime_analyzer
+required_capability: fn_to_text_analyzer
 
-// the whitespace analyzer does not lowercase, unlike the standard analyzer
-ROW content = to_text(["the Fox jumped", "the fox jumped"])
+// the whitespace analyzer, declared as the values analyzer, does not lowercase; the query analyzer defaults to it
+ROW content = to_text(["the Fox jumped", "the fox jumped"], {"analyzer": "whitespace"})
 | MV_EXPAND content
-| WHERE match(content, "Fox", {"analyzer": "whitespace"})
+| WHERE match(content, "Fox")
 ;
 
 content:text
 the Fox jumped
 ;
 
+matchOnRuntimeTextAfterForkHonorsValuesAnalyzer
+required_capability: match_function
+required_capability: fn_to_text_analyzer
+required_capability: fork_v9
+required_capability: fn_match_runtime_anywhere
+
+// the values analyzer declared below FORK has to survive the merge into its output. Whitespace does not lowercase,
+// so only the capitalised row matches; losing the declaration would fall back to standard and match both rows.
+ROW content = to_text(["the Fox jumped", "the fox jumped"], {"analyzer": "whitespace"})
+| MV_EXPAND content
+| FORK (WHERE true)
+       (WHERE true)
+| WHERE match(content, "Fox")
+| KEEP content, _fork
+| SORT _fork
+;
+
+content:text   | _fork:keyword
+the Fox jumped | fork1
+the Fox jumped | fork2
+;
+
+// Two unrelated retrieval strategies merged - Tolkien's own books, and every edition of one Faulkner novel - then
+// filtered on the merged title column. The branches share no rows, and the filter is on an axis neither of them
+// searched, so a row survives independently of why it was retrieved.
+//
+// Declaring the values analyzer is what makes that last filter legal: TO_TEXT rejects the analyzer option on an
+// index-mapped field, but the merged column is no longer index-mapped. The top-N in each branch is also what keeps the
+// filter above the merge - with no pipeline breaker it would be pushed into the branches and search the index instead.
+//
+// The three Unvanquished editions differ only in the case of their titles, so they show exactly what the whitespace
+// analyzer does: it lowercases neither side, so 4977 and 8077 match "The" while 4724, titled "THE UNVANQUISHED",
+// does not. Under the standard analyzer all three would match.
+matchOnMappedTextAfterForkWithDeclaredAnalyzer
+required_capability: match_function
+required_capability: fn_to_text_analyzer
+required_capability: fork_v9
+required_capability: fn_match_runtime_anywhere
+
+FROM books
+| FORK (WHERE match(author, "Tolkien") | SORT book_no | LIMIT 5)
+       (WHERE match(title, "unvanquished") | SORT book_no | LIMIT 3)
+| EVAL t = to_text(title, {"analyzer": "whitespace"})
+| WHERE match(t, "The")
+| KEEP _fork, book_no, author, title
+| SORT _fork, book_no
+;
+
+_fork:keyword | book_no:keyword | author:text                                      | title:text
+fork1         | 2130            | [Christopher Tolkien, John Ronald Reuel Tolkien] | The J. R. R. Tolkien Audio Collection
+fork1         | 2675            | J.R.R. Tolkien                                   | The Lord of the Rings - Boxed Set
+fork1         | 2714            | J. R. R. Tolkien                                 | Return of the King Being the Third Part of The Lord of the Rings
+fork2         | 4977            | William Faulkner                                 | The Unvanquished
+fork2         | 8077            | William Faulkner                                 | The unvanquished
+;
+
+// The same merge with a lowercase term selects a different set of rows, which is the proof that the declared
+// analyzer is in force: under the standard analyzer "the" and "The" would both match every row above. Here only
+// the two titles carrying a lowercase "the" as a whole token come back, and the Faulkner branch drops out entirely.
+matchOnMappedTextAfterForkWithDeclaredAnalyzerIsCaseSensitive
+required_capability: match_function
+required_capability: fn_to_text_analyzer
+required_capability: fork_v9
+required_capability: fn_match_runtime_anywhere
+
+FROM books
+| FORK (WHERE match(author, "Tolkien") | SORT book_no | LIMIT 5)
+       (WHERE match(title, "unvanquished") | SORT book_no | LIMIT 3)
+| EVAL t = to_text(title, {"analyzer": "whitespace"})
+| WHERE match(t, "the")
+| KEEP _fork, book_no, author, title
+| SORT _fork, book_no
+;
+
+_fork:keyword | book_no:keyword | author:text      | title:text
+fork1         | 2675            | J.R.R. Tolkien   | The Lord of the Rings - Boxed Set
+fork1         | 2714            | J. R. R. Tolkien | Return of the King Being the Third Part of The Lord of the Rings
+;
+
 matchOnRuntimeTextWithKeywordAnalyzer
 required_capability: match_function
-required_capability: fn_match_runtime_analyzer
+required_capability: fn_to_text_analyzer
 
 // the keyword analyzer emits the whole value as a single token
-ROW content = to_text(["brown fox", "a brown fox"])
+ROW content = to_text(["brown fox", "a brown fox"], {"analyzer": "keyword"})
 | MV_EXPAND content
-| WHERE match(content, "brown fox", {"analyzer": "keyword"})
+| WHERE match(content, "brown fox")
 ;
 
 content:text
@@ -2300,25 +2536,55 @@ brown fox
 
 matchOnRuntimeTextWithEnglishAnalyzer
 required_capability: match_function
-required_capability: fn_match_runtime_analyzer
+required_capability: fn_to_text_analyzer
 
-// the english analyzer stems both the query and the values: "running" matches "runs"
-ROW content = to_text(["he runs daily", "she walks daily"])
+// the english analyzer stems both the values and (by default) the query: "running" matches "runs"
+ROW content = to_text(["he runs daily", "she walks daily"], {"analyzer": "english"})
 | MV_EXPAND content
-| WHERE match(content, "running", {"analyzer": "english"})
+| WHERE match(content, "running")
 ;
 
 content:text
 he runs daily
 ;
 
+matchQueryAnalyzerAppliesToQueryStringOnly
+required_capability: match_function
+required_capability: fn_to_text_analyzer
+
+// match's analyzer option keeps the query's "Fox" uppercase while the values stay standard-analyzed
+// (lowercased), so the case-mismatched query matches nothing
+ROW content = to_text(["the Fox jumped", "the fox jumped"])
+| MV_EXPAND content
+| WHERE match(content, "Fox", {"analyzer": "whitespace"})
+;
+
+content:text
+;
+
+matchQueryAnalyzerOverridesValuesAnalyzerQuerySide
+required_capability: match_function
+required_capability: fn_to_text_analyzer
+
+// values keep their case under the declared whitespace analyzer; the standard query analyzer lowercases
+// "FOX", like search_analyzer overriding the query side on an indexed field
+ROW content = to_text(["fox jumped", "Fox jumped"], {"analyzer": "whitespace"})
+| MV_EXPAND content
+| WHERE match(content, "FOX", {"analyzer": "standard"})
+;
+
+content:text
+fox jumped
+;
+
 matchOnRuntimeTextWithAnalyzerAndOperator
 required_capability: match_function
-required_capability: fn_match_runtime_analyzer
+required_capability: fn_match_runtime_options
+required_capability: fn_to_text_analyzer
 
-ROW content = to_text(["Quick brown Fox", "quick brown fox", "Quick brown dog"])
+ROW content = to_text(["Quick brown Fox", "quick brown fox", "Quick brown dog"], {"analyzer": "whitespace"})
 | MV_EXPAND content
-| WHERE match(content, "Quick Fox", {"analyzer": "whitespace", "operator": "AND"})
+| WHERE match(content, "Quick Fox", {"operator": "AND"})
 ;
 
 content:text
@@ -2327,16 +2593,48 @@ Quick brown Fox
 
 matchOnRuntimeTextWithIndexAndKeywordAnalyzer
 required_capability: match_function
-required_capability: fn_match_runtime_analyzer
+required_capability: fn_to_text_analyzer
 
 FROM books
-| EVAL new_title = to_text(concat("TITLE: ", title))
-| WHERE match(new_title, "TITLE: The Lord of the Rings - Boxed Set", {"analyzer": "keyword"})
+| EVAL new_title = to_text(concat("TITLE: ", title), {"analyzer": "keyword"})
+| WHERE match(new_title, "TITLE: The Lord of the Rings - Boxed Set")
 | KEEP book_no, new_title
 ;
 
 book_no:keyword | new_title:text
 2675            | TITLE: The Lord of the Rings - Boxed Set
+;
+
+matchOnRenamedRuntimeTextWithAnalyzer
+required_capability: match_function
+required_capability: fn_to_text_analyzer
+
+// valuesAnalyzer carries through RENAME: the whitespace analyzer (case-sensitive) is still active after renaming
+ROW content = to_text(["the Fox jumped", "the fox jumped"], {"analyzer": "whitespace"})
+| MV_EXPAND content
+| RENAME content AS body
+| WHERE match(body, "Fox")
+;
+
+body:text
+the Fox jumped
+;
+
+matchOnRuntimeTextWithAnalyzerAndScore
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: fn_to_text_analyzer
+
+// keyword analyzer: the declared values analyzer is active on the scoring path — only the exact-string match scores
+FROM books METADATA _score
+| EVAL new_title = to_text(concat("TITLE: ", title), {"analyzer": "keyword"})
+| WHERE match(new_title, "TITLE: The Lord of the Rings - Boxed Set")
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+2675            | 1.0
 ;
 
 matchOnRuntimeTextWithScore
@@ -2357,6 +2655,26 @@ book_no:keyword | _score:double
 1463            | 1.0
 2130            | 1.0
 2301            | 1.0
+;
+
+matchOnRuntimeTextAfterLimitWithScore
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_anywhere
+
+// The LIMIT puts this filter on the coordinator, which has no shard contexts. Runtime scoring does not need one,
+// so the matched term still scores its point there.
+FROM books METADATA _score
+| SORT book_no
+| LIMIT 6
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien")
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 1.0
+2130            | 1.0
 ;
 
 matchOnRuntimeTextMultipleTermsWithScore
@@ -2428,4 +2746,174 @@ book_no:keyword | scored:boolean
 1211            | true
 1463            | true
 1985            | true
+;
+
+matchAfterInlineStats
+required_capability: match_function
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS max_year = MAX(year)
+| WHERE MATCH(author, "Faulkner")
+| KEEP book_no, max_year
+| SORT book_no
+;
+
+book_no:keyword | max_year:integer
+2378            | 2022
+2713            | 2022
+2847            | 2022
+2883            | 2022
+3293            | 2022
+3535            | 2022
+3870            | 2022
+4502            | 2022
+4724            | 2022
+4977            | 2022
+5119            | 2022
+5404            | 2022
+5578            | 2022
+6151            | 2022
+7381            | 2022
+8077            | 2022
+8423            | 2022
+9896            | 2022
+;
+
+matchAfterGroupedInlineStats
+required_capability: match_function
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS max_year_for_publisher = MAX(year) BY publisher
+| WHERE MATCH(author, "Faulkner") AND max_year_for_publisher >= 2000
+| KEEP book_no, year, publisher, max_year_for_publisher
+| SORT book_no
+;
+
+book_no:keyword | year:integer | publisher:text               | max_year_for_publisher:integer
+2378            | 2002         | University of Illinois Press | 2002
+2713            | 1995         | Vintage                      | 2011
+2883            | 2005         | Vintage Books                | 2005
+3293            | 2004         | New Leaf Publishing Group    | 2004
+3535            | 2003         | Barrons Juveniles            | 2003
+4724            | 2011         | Vintage                      | 2011
+4977            | 2011         | Vintage                      | 2011
+5119            | 2011         | Vintage                      | 2011
+5404            | 2011         | Vintage                      | 2011
+5578            | 1991         | Vintage                      | 2011
+6151            | 2003         | Dutton Childrens Books       | 2003
+7381            | 2003         | Red Wheel/Weiser             | 2003
+8077            | 2011         | Vintage                      | 2011
+;
+
+notMatchAfterInlineStats
+required_capability: match_function
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS max_year = MAX(year)
+| WHERE NOT MATCH(author, "Faulkner")
+| STATS count = COUNT(*) BY max_year
+;
+
+count:long | max_year:integer
+61         | 2022
+;
+
+matchNotPushableAfterInlineStats
+required_capability: match_function
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS max_year = MAX(year)
+| WHERE MATCH(author, "Faulkner") OR LENGTH(title) < 5
+| KEEP book_no, max_year
+| SORT book_no
+;
+
+book_no:keyword | max_year:integer
+2378            | 2022
+2713            | 2022
+2847            | 2022
+2883            | 2022
+3293            | 2022
+3535            | 2022
+3870            | 2022
+4502            | 2022
+4724            | 2022
+4977            | 2022
+5119            | 2022
+5404            | 2022
+5578            | 2022
+6151            | 2022
+7381            | 2022
+8077            | 2022
+8423            | 2022
+9896            | 2022
+;
+
+matchAfterMultipleInlineStats
+required_capability: match_function
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS max_year = MAX(year)
+| INLINE STATS min_year = MIN(year)
+| WHERE MATCH(author, "Faulkner")
+| KEEP book_no, max_year, min_year
+| SORT book_no
+;
+
+book_no:keyword | max_year:integer | min_year:integer
+2378            | 2022             | 1969
+2713            | 2022             | 1969
+2847            | 2022             | 1969
+2883            | 2022             | 1969
+3293            | 2022             | 1969
+3535            | 2022             | 1969
+3870            | 2022             | 1969
+4502            | 2022             | 1969
+4724            | 2022             | 1969
+4977            | 2022             | 1969
+5119            | 2022             | 1969
+5404            | 2022             | 1969
+5578            | 2022             | 1969
+6151            | 2022             | 1969
+7381            | 2022             | 1969
+8077            | 2022             | 1969
+8423            | 2022             | 1969
+9896            | 2022             | 1969
+;
+
+matchAfterInlineStatsWithAggregateExpression
+required_capability: match_function
+required_capability: full_text_functions_after_inline_stats
+
+FROM books
+| INLINE STATS next_year = MAX(year) + 1
+| WHERE MATCH(author, "Faulkner")
+| KEEP book_no, next_year
+| SORT book_no
+;
+
+book_no:keyword | next_year:integer
+2378            | 2023
+2713            | 2023
+2847            | 2023
+2883            | 2023
+3293            | 2023
+3535            | 2023
+3870            | 2023
+4502            | 2023
+4724            | 2023
+4977            | 2023
+5119            | 2023
+5404            | 2023
+5578            | 2023
+6151            | 2023
+7381            | 2023
+8077            | 2023
+8423            | 2023
+9896            | 2023
 ;

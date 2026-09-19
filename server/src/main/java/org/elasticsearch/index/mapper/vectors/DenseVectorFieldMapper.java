@@ -225,9 +225,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     /**
      * Selectivity threshold above which a filtered knn query is routed through the post-filter
-     * pipeline (HNSW runs unfiltered, the filter is applied to the raw candidate set, retrying
-     * with seeded entry points if {@code k} is not collected). Below this threshold the query
-     * stays on the pre-filter path. The default is {@link PostFilterKnnQuery#DEFAULT_POST_FILTERING_THRESHOLD}.
+     * pipeline: the vector search runs unfiltered, the filter is applied to the raw candidate set, and a
+     * single retry round runs if the candidate pool is not filled (HNSW seeds that retry from its
+     * round-0 matches; IVF just excludes the docs it already saw). Below this threshold the query stays
+     * on the pre-filter path. Applies to both HNSW and {@code bbq_disk} (IVF) fields. The default
+     * is {@link PostFilterKnnQuery#DEFAULT_POST_FILTERING_THRESHOLD}.
      */
     public static final Setting<Float> POST_FILTER_SELECTIVITY_THRESHOLD = new Setting<>(
         "index.dense_vector.post_filter_selectivity_threshold",
@@ -351,7 +353,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
             this.vectorsFormatProviders = vectorsFormatProviders;
             this.postFilterSelectivityThreshold = postFilterSelectivityThreshold;
-            final ElementType defaultElementType = this.indexMode == IndexMode.VECTORDB_DOCUMENT ? ElementType.BFLOAT16 : ElementType.FLOAT;
+            final ElementType defaultElementType = this.indexMode.isVectorDb() ? ElementType.BFLOAT16 : ElementType.FLOAT;
             this.elementType = new Parameter<>("element_type", false, () -> defaultElementType, (n, c, o) -> {
                 ElementType elementType = namesToElementType.get((String) o);
                 if (elementType == null) {
@@ -361,7 +363,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 return elementType;
             }, m -> toType(m).fieldType().element.elementType(), XContentBuilder::field, Objects::toString);
-            if (this.indexMode == IndexMode.VECTORDB_DOCUMENT) {
+            if (this.indexMode.isVectorDb()) {
                 this.elementType.alwaysSerialize();
             }
             // This is defined as updatable because it can be updated once, from [null] to a valid dim size,
@@ -400,7 +402,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             final boolean defaultBBQDisk = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_DISK);
             this.indexed = Parameter.indexParam(
                 m -> toType(m).fieldType().indexed,
-                indexedByDefaultVersionCheck && indexDisabledByDefault == false
+                indexedByDefaultVersionCheck && (indexDisabledByDefault == false || this.indexMode.isSearchOptimizedColumnar())
             );
             if (indexedByDefaultVersionCheck) {
                 // Only serialize on newer index versions to prevent breaking existing indices when upgrading
@@ -593,7 +595,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             // Validate again here because the dimensions or element type could have been set programmatically,
             // which affects index option validity
             validate();
-            boolean isExcludeSourceVectorsFinal = context.isSourceSynthetic() == false && indexed.getValue() && isExcludeSourceVectors;
+            boolean isExcludeSourceVectorsFinal = isExcludeSourceVectors && (context.isSourceStored() || context.isSourceColumnarStored());
             return new DenseVectorFieldMapper(
                 leafName(),
                 new DenseVectorFieldType(
@@ -808,6 +810,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public abstract void readAndWriteValue(ByteBuffer byteBuffer, XContentBuilder b) throws IOException;
 
+        /**
+         * Reads a single element from {@code byteBuffer}, advancing its position, and returns it boxed. Used to rebuild a
+         * vector held in binary doc values as a list.
+         */
+        public abstract Number readValue(ByteBuffer byteBuffer);
+
         abstract IndexFieldData.Builder fielddataBuilder(DenseVectorFieldType denseVectorFieldType, FieldDataContext fieldDataContext);
 
         abstract void parseKnnVectorAndIndex(DocumentParserContext context, DenseVectorFieldMapper fieldMapper) throws IOException;
@@ -929,6 +937,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public void readAndWriteValue(ByteBuffer byteBuffer, XContentBuilder b) throws IOException {
             b.value(byteBuffer.get());
+        }
+
+        @Override
+        public Number readValue(ByteBuffer byteBuffer) {
+            return byteBuffer.get();
         }
 
         private KnnByteVectorField createKnnVectorField(String name, byte[] vector, VectorSimilarityFunction function) {
@@ -1264,6 +1277,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             b.value(byteBuffer.getFloat());
         }
 
+        @Override
+        public Number readValue(ByteBuffer byteBuffer) {
+            return byteBuffer.getFloat();
+        }
+
         private KnnFloatVectorField createKnnVectorField(String name, float[] vector, VectorSimilarityFunction function) {
             if (vector == null) {
                 throw new IllegalArgumentException("vector value must not be null");
@@ -1539,6 +1557,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public void readAndWriteValue(ByteBuffer byteBuffer, XContentBuilder b) throws IOException {
             b.value(BFloat16.bFloat16ToFloat(byteBuffer.getShort()));
+        }
+
+        @Override
+        public Number readValue(ByteBuffer byteBuffer) {
+            return BFloat16.bFloat16ToFloat(byteBuffer.getShort());
         }
 
         @Override
@@ -2337,11 +2360,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         void doXContentFragment(XContentBuilder builder, Params params) throws IOException {
             builder.field("type", type);
-            if (rescoreVector != null) {
-                rescoreVector.toXContent(builder, params);
-            }
             if (confidenceInterval != null) {
                 builder.field("confidence_interval", confidenceInterval);
+            }
+            if (rescoreVector != null) {
+                rescoreVector.toXContent(builder, params);
             }
         }
 
@@ -2560,11 +2583,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         void doXContentFragment(XContentBuilder builder, Params params) throws IOException {
             builder.field("type", type);
-            if (rescoreVector != null) {
-                rescoreVector.toXContent(builder, params);
-            }
             if (confidenceInterval != null) {
                 builder.field("confidence_interval", confidenceInterval);
+            }
+            if (rescoreVector != null) {
+                rescoreVector.toXContent(builder, params);
             }
         }
 
@@ -3730,6 +3753,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             };
         }
 
+        private boolean canPostFilter(Query filter) {
+            return filter != null && postFilterSelectivityThreshold < 1.0f;
+        }
+
         private boolean needsRescore(Float rescoreOversample) {
             return rescoreOversample != null && rescoreOversample > 0 && isQuantized();
         }
@@ -3775,7 +3802,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     )
                     : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, cachedFilter, searchStrategy, hnswEarlyTermination);
             }
-            if (filter != null && postFilterSelectivityThreshold < 1.0f && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
+            if (canPostFilter(filter) && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
                 knnQuery = new PostFilterKnnQuery(pfknnQuery, filter, k, name(), parentFilter, postFilterSelectivityThreshold);
             }
             if (similarityThreshold != null) {
@@ -3802,14 +3829,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean sliceEnabled,
             @Nullable String sliceRouting
         ) {
-            int adjustedK = k;
+            int adjustedKForRescoring = k;
+            int adjustedNumCandsForRescoring = numCands;
             // By default utilize the quantized oversample if configured
             // allow the user provided at query time overwrite
             Float oversample = effectiveOversample(queryOversample);
             boolean rescore = needsRescore(oversample);
             if (rescore) {
-                adjustedK = Math.min((int) Math.ceil(k * oversample), OVERSAMPLE_LIMIT);
-                numCands = Math.max(adjustedK, numCands);
+                adjustedKForRescoring = Math.min((int) Math.ceil(k * oversample), OVERSAMPLE_LIMIT);
+                adjustedNumCandsForRescoring = Math.max(adjustedKForRescoring, numCands);
             }
             // Pre-filter consumers eagerly materialize the filter into a bitset, so we
             // force the cache wrapper. PostFilterKnnQuery gets the raw filter because it evaluates the
@@ -3823,6 +3851,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
                 float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
                 if (bbqIndexOptions.autoCalibrate) {
+                    // Rescoring happens inside the IVF query itself (AbstractIVFKnnVectorQuery#rewrite ->
+                    // #getAutoRescoreQuery), or, when post-filtering, after the filter via #finalizeTopK.
                     rescore = false;
                 }
                 float mappingOversample = bbqIndexOptions.rescoreVector != null
@@ -3881,19 +3911,27 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         name(),
                         queryVector,
                         cachedFilter,
-                        k,
-                        numCands,
+                        adjustedKForRescoring,
+                        adjustedNumCandsForRescoring,
                         parentFilter,
                         searchStrategy,
                         hnswEarlyTermination
                     )
-                    : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, cachedFilter, searchStrategy, hnswEarlyTermination);
+                    : new ESKnnByteVectorQuery(
+                        name(),
+                        queryVector,
+                        adjustedKForRescoring,
+                        adjustedNumCandsForRescoring,
+                        cachedFilter,
+                        searchStrategy,
+                        hnswEarlyTermination
+                    );
             }
-            if (filter != null && postFilterSelectivityThreshold < 1.0f && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
+            if (canPostFilter(filter) && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
                 knnQuery = new PostFilterKnnQuery(pfknnQuery, filter, k, name(), parentFilter, postFilterSelectivityThreshold);
             }
             if (rescore) {
-                knnQuery = RescoreKnnVectorQuery.fromInnerQuery(name(), queryVector, k, adjustedK, knnQuery);
+                knnQuery = RescoreKnnVectorQuery.fromInnerQuery(name(), queryVector, k, adjustedKForRescoring, knnQuery);
             }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
@@ -3919,15 +3957,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean sliceEnabled,
             @Nullable String sliceRouting
         ) {
-            int adjustedK = k;
+            int adjustedKForRescoring = k;
+            int adjustedNumCandsForRescoring = numCands;
             // By default utilize the quantized oversample is configured
             // allow the user provided at query time overwrite
             Float oversample = effectiveOversample(queryOversample);
             boolean rescore = needsRescore(oversample);
             if (rescore) {
                 // Will get k * oversample for rescoring, and get the top k
-                adjustedK = Math.min((int) Math.ceil(k * oversample), OVERSAMPLE_LIMIT);
-                numCands = Math.max(adjustedK, numCands);
+                adjustedKForRescoring = Math.min((int) Math.ceil(k * oversample), OVERSAMPLE_LIMIT);
+                adjustedNumCandsForRescoring = Math.max(adjustedKForRescoring, numCands);
             }
             Query cachedFilter = filter == null ? null : new CachingEnableFilterQuery(filter);
             Query knnQuery;
@@ -3938,7 +3977,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
                 float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
                 if (bbqIndexOptions.autoCalibrate) {
-                    // perform rescore internally within AbstractIVFKnnVectorQuery#getAutoRescoreQuery
+                    // Rescoring happens inside the IVF query itself (AbstractIVFKnnVectorQuery#rewrite ->
+                    // #getAutoRescoreQuery), or, when post-filtering, after the filter via #finalizeTopK.
                     rescore = false;
                 }
                 float mappingOversample = bbqIndexOptions.rescoreVector != null
@@ -3997,8 +4037,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         name(),
                         queryVector,
                         cachedFilter,
-                        adjustedK,
-                        numCands,
+                        adjustedKForRescoring,
+                        adjustedNumCandsForRescoring,
                         parentFilter,
                         knnSearchStrategy,
                         hnswEarlyTermination
@@ -4006,18 +4046,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     : new ESKnnFloatVectorQuery(
                         name(),
                         queryVector,
-                        adjustedK,
-                        numCands,
+                        adjustedKForRescoring,
+                        adjustedNumCandsForRescoring,
                         cachedFilter,
                         knnSearchStrategy,
                         hnswEarlyTermination
                     );
             }
-            if (filter != null && postFilterSelectivityThreshold < 1.0f && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
-                knnQuery = new PostFilterKnnQuery(pfknnQuery, filter, adjustedK, name(), parentFilter, postFilterSelectivityThreshold);
+            if (canPostFilter(filter) && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
+                knnQuery = new PostFilterKnnQuery(pfknnQuery, filter, k, name(), parentFilter, postFilterSelectivityThreshold);
             }
             if (rescore) {
-                knnQuery = RescoreKnnVectorQuery.fromInnerQuery(name(), queryVector, k, adjustedK, knnQuery);
+                knnQuery = RescoreKnnVectorQuery.fromInnerQuery(name(), queryVector, k, adjustedKForRescoring, knnQuery);
             }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
@@ -4497,14 +4537,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
-        if (excludeSourceVectors) {
+        if (excludeSourceVectors == false) {
+            return null;
+        }
+        // Recreate the loader for each leaf so that different segments can be searched concurrently. It has to match where
+        // the vector lives: the vector index when the field is indexed, binary doc values otherwise.
+        if (fieldType().indexed) {
             return new SyntheticVectorsPatchFieldLoader<>(
-                // Recreate the object for each leaf so that different segments can be searched concurrently.
                 () -> new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity),
                 IndexedSyntheticFieldLoader::copyVectorAsList
             );
         }
-        return null;
+        return new SyntheticVectorsPatchFieldLoader<>(
+            () -> new DocValuesSyntheticFieldLoader(indexCreatedVersion),
+            DocValuesSyntheticFieldLoader::copyVectorAsList
+        );
     }
 
     @Override
@@ -4678,16 +4725,35 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return;
             }
             b.startArray(leafName());
-            BytesRef ref = values.binaryValue();
-            ByteBuffer byteBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
-            if (indexCreatedVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
-                byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
-            }
+            ByteBuffer byteBuffer = byteBuffer();
             int dims = fieldType().element.elementType() == ElementType.BIT ? fieldType().dims / Byte.SIZE : fieldType().dims;
             for (int dim = 0; dim < dims; dim++) {
                 fieldType().element.readAndWriteValue(byteBuffer, b);
             }
             b.endArray();
+        }
+
+        private ByteBuffer byteBuffer() throws IOException {
+            BytesRef ref = values.binaryValue();
+            ByteBuffer byteBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
+            if (indexCreatedVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
+                byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
+            }
+            return byteBuffer;
+        }
+
+        /**
+         * Rebuilds the vector from its binary doc value as a list, mirroring {@link #write}.
+         */
+        private List<?> copyVectorAsList() throws IOException {
+            assert hasValue : "vector is null";
+            ByteBuffer byteBuffer = byteBuffer();
+            int dims = fieldType().element.elementType() == ElementType.BIT ? fieldType().dims / Byte.SIZE : fieldType().dims;
+            List<Number> copyList = new ArrayList<>(dims);
+            for (int dim = 0; dim < dims; dim++) {
+                copyList.add(fieldType().element.readValue(byteBuffer));
+            }
+            return copyList;
         }
 
         @Override

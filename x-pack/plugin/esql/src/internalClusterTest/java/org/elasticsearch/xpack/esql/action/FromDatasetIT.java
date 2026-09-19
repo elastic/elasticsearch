@@ -20,6 +20,7 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.View;
@@ -33,10 +34,13 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -51,7 +55,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -68,6 +71,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -76,6 +80,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -170,130 +175,11 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * Names every dataset a {@code testXxx} body PUTs via the raw {@link PutDatasetAction} (our tests carry declared
-     * mappings, which the base {@code registerDataset} helper does not model). New tests must register their dataset
-     * name here so the SUITE-scoped cluster doesn't carry state across methods — {@link #cleanupRawDatasets} deletes
-     * them (the base {@code cleanupRegistry} only tears down datasets created through its own helpers).
+     * File-backed {@code local} data source so PUT goes through {@code FileDataSourceValidator}
+     * and materializes omitted {@code schema_resolution} as {@code first_file_wins}. The {@code test}
+     * validator used by {@code local_ds} is a pass-through and stores a missing key (legacy hydrate).
      */
-    private static final Set<String> CREATED_DATASETS = Set.of(
-        "employees",
-        "employees_alt",
-        "logs_dataset",
-        "events_hive",
-        "employees_external",
-        "employees_mixed",
-        "stats_ds",
-        "employees_strict",
-        "employees_nonstrict",
-        "employees_strict_multi",
-        "employees_nonstrict_multi",
-        "employees_rename_strict",
-        "employees_headerless_strict",
-        "employees_headerless_dynamic",
-        "employees_absent_warn",
-        "employees_parity_strict",
-        "employees_parity_dynamic",
-        "employees_order_strict",
-        "employees_order_dynamic",
-        "employees_rename_nonstrict",
-        "employees_rename_keep",
-        "employees_ndjson_rename_strict",
-        "employees_ndjson_rename_nonstrict",
-        "employees_parquet_rename",
-        "employees_rename_multi",
-        "employees_swap",
-        "employees_id_from_col",
-        "employees_id_bad_path",
-        "employees_id_renamed",
-        "employees_strict_hive",
-        "employees_strict_hive_collide",
-        "employees_parquet_type_conflict",
-        "employees_strict_wrong_order",
-        "logs_csv_strict",
-        "logs_csv_nonstrict",
-        "logs_csv_filelevel",
-        "logs_csv_iso",
-        "logs_parquet_format",
-        "logs_ndjson",
-        "logs_csv_rename",
-        "logs_csv_gz",
-        "logs_csv_gz_strict",
-        "logs_tsv_gz_strict",
-        "logs_ndjson_gz_strict",
-        "logs_csv_gz_strict_multi",
-        "logs_parquet_strict_format",
-        "logs_noext_strict",
-        "employees_extensionless",
-        "logs_id_partition",
-        "logs_partition_collide_nonstrict",
-        "logs_partition_collide_none",
-        "logs_partition_collide_path",
-        "employees_strict_coerce",
-        "employees_strict_uncoercible",
-        "employees_strict_coerce_multi",
-        "employees_int_to_long",
-        "employees_declared_narrow",
-        "logs_parquet_string_date",
-        "coerced_long_to_double",
-        "logs_csv_equiv",
-        "logs_parquet_equiv",
-        "long_csv_equiv",
-        "long_parquet_equiv",
-        "typed_strings_parquet",
-        "empty_string_double",
-        "logs_deferred_coerce",
-        "logs_bad_date_token",
-        "logs_bad_date_failfast",
-        "logs_csv_bad_date_failfast",
-        "logs_ndjson_bad_date_failfast",
-        "logs_ndjson_bad_date_permissive",
-        "employees_divergent_multi",
-        "tsv_declared_type",
-        "tsv_declared_date",
-        "tsv_declared_rename",
-        "mapped_ds_for_view",
-        "mapped_ds_for_subquery",
-        "ndjson_mv_coerce",
-        "logs_ts_declared_long",
-        "logs_date_inferred",
-        "rp_micros",
-        "rp_nanos",
-        "rp_millis",
-        "rp_bare_s",
-        "rp_bare_ms",
-        "rp_date",
-        "rpn_bare_ns",
-        "rpn_bare_s",
-        "rpn_micros",
-        "rp_prune_s",
-        "rpn_prune_s",
-        "scale_diff_a",
-        "scale_diff_b",
-        "scale_diff_c",
-        "scale_diff_d",
-        "scale_diff_e",
-        "scale_diff_f",
-        "scale_diff_g",
-        "scale_xdecl_seconds",
-        "scale_xdecl_millis",
-        "cb_inferred",
-        "cb_nonstrict",
-        "cb_strict",
-        "cb_ndjson_inferred",
-        "cb_ndjson_nonstrict",
-        "cb_ndjson_strict",
-        "epoch_ovf_pq_null",
-        "epoch_ovf_pq_skip",
-        "epoch_ovf_pq_fail",
-        "epoch_ovf_csv_null",
-        "epoch_ovf_csv_skip",
-        "epoch_ovf_csv_fail",
-        "epoch_ovf_nj_null",
-        "epoch_ovf_nj_skip",
-        "epoch_ovf_nj_fail",
-        "employees_parquet_absent_warn",
-        "employees_ndjson_absent_warn"
-    );
+    private static final String FILE_DS = "file_ds";
 
     /**
      * Names every {@code testXxx} body creates via {@link PutViewAction}. As with datasets, the SUITE-scoped
@@ -305,7 +191,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void cleanupViews() throws Exception {
         for (String view : CREATED_VIEWS) {
             try {
-                client().execute(DeleteViewAction.INSTANCE, deleteViewRequest(view)).get(30, java.util.concurrent.TimeUnit.SECONDS);
+                client().execute(DeleteViewAction.INSTANCE, deleteViewRequest(view)).actionGet(30, SECONDS);
             } catch (ResourceNotFoundException ignored) {
                 // already deleted by the test itself
             } catch (Exception e) {
@@ -315,29 +201,30 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * Tears down the datasets our tests create through the raw {@link PutDatasetAction} (they carry declared mappings,
-     * which the base {@code registerDataset} helper does not model, so they are not in the base registry). The base
-     * {@code cleanupRegistry} runs alongside this and clears anything created through its own helpers; a distinct name
-     * keeps both from overriding each other.
+     * Tears down every dataset in cluster state, not just those the base {@code registerDataset} helper recorded: tests
+     * here PUT through the raw {@link PutDatasetAction} (declared mappings the helper does not model), and a
+     * hand-maintained allowlist of their names kept drifting, leaking datasets into a later {@code FROM logs_*} on this
+     * SUITE-scoped cluster. A distinct name keeps this from overriding the base {@code cleanupRegistry}.
      */
     @After
     public void cleanupRawDatasets() throws Exception {
-        for (String ds : CREATED_DATASETS) {
+        GetDatasetAction.Request allDatasets = new GetDatasetAction.Request(TIMEOUT);
+        allDatasets.indices("*");
+        for (Dataset ds : client().execute(GetDatasetAction.INSTANCE, allDatasets).get(30, SECONDS).getDatasets()) {
             try {
-                client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(ds)).get(30, java.util.concurrent.TimeUnit.SECONDS);
+                client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(ds.name())).actionGet(30, SECONDS);
+            } catch (Exception e) {
+                logger.warn("dataset cleanup [{}] failed", ds.name(), e);
+            }
+        }
+        for (String dataSource : List.of("local_ds", FILE_DS)) {
+            try {
+                client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dataSource)).actionGet(30, SECONDS);
             } catch (ResourceNotFoundException ignored) {
                 // already deleted by the test itself
             } catch (Exception e) {
-                logger.warn("dataset cleanup [{}] failed", ds, e);
+                logger.warn("data source cleanup [{}] failed", dataSource, e);
             }
-        }
-        try {
-            client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest("local_ds"))
-                .get(30, java.util.concurrent.TimeUnit.SECONDS);
-        } catch (ResourceNotFoundException ignored) {
-            // already deleted by the test itself
-        } catch (Exception e) {
-            logger.warn("data source cleanup [local_ds] failed", e);
         }
     }
 
@@ -628,6 +515,61 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows.get(1).get(1).toString(), equalTo("Bob"));
             assertThat(rows.get(2).get(0), equalTo(3));
             assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
+        }
+    }
+
+    /**
+     * The route to an analyzed column over a dataset: declare the column keyword, convert in the query, and name the
+     * analyzer as an argument. This is what the rejection message points a user at, so it is pinned end to end.
+     */
+    public void testToTextOverDeclaredKeywordGivesAnAnalyzedColumn() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        Path docs = createTempDir().resolve("docs.csv");
+        Files.writeString(docs, String.join("\n", "id,msg", "1,The quick brown fox", "2,lazy dogs sleeping") + "\n");
+
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("integer", null));
+        properties.put("msg", new DatasetFieldMapping("keyword", null));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "docs_kw",
+                    "local_ds",
+                    docs.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties))
+                )
+            )
+        );
+
+        // Without the conversion the column is compared whole, so a two-term query matches nothing.
+        try (var response = run(syncEsqlQueryRequest("FROM docs_kw | WHERE MATCH(msg, \"quick fox\") | KEEP id"), TIMEOUT)) {
+            assertThat(getValuesList(response), hasSize(0));
+        }
+        // Converted, it is analyzed: both query terms hit the first row.
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM docs_kw | EVAL t = TO_TEXT(msg) | WHERE MATCH(t, \"quick fox\") | KEEP id"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1))));
+        }
+        // The analyzer is an argument here; a dataset mapping has no field for one.
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    "FROM docs_kw | EVAL t = TO_TEXT(msg, {\"analyzer\": \"standard\"}) | WHERE MATCH(t, \"quick fox\") | KEEP id"
+                ),
+                TIMEOUT
+            )
+        ) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1))));
         }
     }
 
@@ -1469,11 +1411,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void testStrictDatasetWithUnknowableFormatFailsCleanlyNotNpe() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
-        // A strict dataset over an extensionless path with no `format` setting cannot resolve a reader. Strict now
-        // derives the sourceType through the registry (FormatNameResolver.resolveFormatName -> byExtension), which fails
-        // loud at resolution with a clean IllegalArgumentException — the shared unreadable-object message, which
-        // names the object, why it cannot be read, and the [format] remedy — propagated unwrapped as a 4xx,
-        // never an NPE-wrapped 500.
+        // A strict dataset over an extensionless path with no `format` setting cannot resolve a reader. The
+        // pattern implies zero formats, so resolution fails with the shared "set [format]" message — never
+        // an NPE-wrapped 500.
         Path noExt = createTempFile("dataset-noext-", "");
         Files.writeString(noExt, "id\n1\n");
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
@@ -1498,9 +1438,79 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM logs_noext_strict | LIMIT 1"), TIMEOUT).close());
         assertThat(e.getMessage(), not(containsString("NullPointerException")));
-        assertThat(e.getMessage(), containsString("Cannot determine how to read"));
-        assertThat(e.getMessage(), containsString("no file extension"));
-        assertThat(e.getMessage(), containsString("[format]"));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage(noExt.toUri().toString())));
+    }
+
+    /**
+     * Strict dataset over an extensionless Parquet file with an explicit {@code format=parquet} setting must succeed.
+     * Contrast with {@link #testStrictDatasetWithUnknowableFormatFailsCleanlyNotNpe}: that case has no format setting
+     * (format truly unknown). This case has the setting — the file factory picks it up via the explicit format and reads
+     * the file correctly. The companion S3 regression (Iceberg wrapper mis-routing on extensionless S3 paths) is covered
+     * by the unit test {@code DataSourceModuleTests#testLazyTableCatalogWrapperDeclinesExplicitRegisteredFormat}.
+     */
+    public void testStrictParquetWithExtensionlessFileAndExplicitFormat() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        // Write a 3-row Parquet fixture to a path with no file extension.
+        Path noExt = createTempDir().resolve("employees");
+        writeParquet(noExt, 3, 1000);
+
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("long", null));
+        properties.put("name", new DatasetFieldMapping("keyword", null));
+        properties.put("value", new DatasetFieldMapping("integer", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "logs_noext_parquet_strict",
+                    "local_ds",
+                    noExt.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+
+        // Cold query (schema cache empty for a fresh dataset) must succeed.
+        try (var response = run(syncEsqlQueryRequest("FROM logs_noext_parquet_strict | SORT id | LIMIT 5"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(0L));
+            assertThat(rows.get(1).get(0), equalTo(1L));
+            assertThat(rows.get(2).get(0), equalTo(2L));
+        }
+
+        // Companion: same extensionless file, same strict mapping, but schema_resolution also present in settings.
+        // schema_resolution is another dataset-level key the Iceberg catalog's validateConfig would reject as unknown;
+        // verifying it works cold confirms the factory-routing fix covers all dataset settings, not just format.
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "logs_noext_parquet_strict_sr",
+                    "local_ds",
+                    noExt.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet", "schema_resolution", "first_file_wins")),
+                    mapping
+                )
+            )
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM logs_noext_parquet_strict_sr | SORT id | LIMIT 5"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(0L));
+            assertThat(rows.get(1).get(0), equalTo(1L));
+            assertThat(rows.get(2).get(0), equalTo(2L));
+        }
     }
 
     public void testNdJsonRenameStrictReadsByPhysicalJsonKey() throws Exception {
@@ -2881,6 +2891,26 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         return baos.toByteArray();
     }
 
+    private byte[] int32FixtureBytes(String column, int... values) throws IOException {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT32).named(column).named("test");
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (int value : values) {
+                Group g = factory.newGroup();
+                g.add(column, value);
+                writer.write(g);
+            }
+        }
+        return baos.toByteArray();
+    }
+
     private byte[] dateFixtureBytes(int... days) throws IOException {
         MessageType schema = MessageTypeParser.parseMessageType("message logs { required int32 d (DATE); }");
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -3223,6 +3253,74 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             // micros -> millis: the .456 microsecond remainder truncates away
             assertThat(rows.get(0).get(0), equalTo(1704067200_123L));
         }
+    }
+
+    /**
+     * {@code TIMESTAMP(MICROS)} infers as {@code date_nanos}. A {@code TO_DATETIME} literal is the other date
+     * type, so reader prune and stats fold decline; {@code FilterExec} still keeps the matching row.
+     */
+    public void testDatetimeLiteralFiltersInferredTimestampMicros() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path parquet = createTempDir().resolve("ts_micros.parquet");
+        Files.write(parquet, timestampMicrosFixtureBytes(1767312000_000_000L));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "mixed_ts_inferred",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    null
+                )
+            )
+        );
+        String iso = "2026-01-02T00:00:00Z";
+        assertQ(
+            "matching date_nanos literal",
+            "FROM mixed_ts_inferred | WHERE ts == TO_DATE_NANOS(\"" + iso + "\") | STATS c = COUNT(*)",
+            1L
+        );
+        assertQ("datetime equals", "FROM mixed_ts_inferred | WHERE ts == TO_DATETIME(\"" + iso + "\") | STATS c = COUNT(*)", 1L);
+        assertQ("datetime lte", "FROM mixed_ts_inferred | WHERE ts <= TO_DATETIME(\"" + iso + "\") | STATS c = COUNT(*)", 1L);
+        assertQ("datetime in", "FROM mixed_ts_inferred | WHERE ts IN (TO_DATETIME(\"" + iso + "\")) | STATS c = COUNT(*)", 1L);
+        assertQ(
+            "datetime range",
+            "FROM mixed_ts_inferred | WHERE ts >= TO_DATETIME(\"2026-01-01T00:00:00Z\") AND ts <= TO_DATETIME(\"2026-01-03T00:00:00Z\")"
+                + " | STATS c = COUNT(*)",
+            1L
+        );
+    }
+
+    /**
+     * An inferred {@code integer} compared to a {@code double} or {@code long} literal must stay in
+     * {@code FilterExec}; a column-typed bound would drop the matching row.
+     */
+    public void testNumericLiteralFiltersInferredInteger() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path parquet = createTempDir().resolve("id.parquet");
+        Files.write(parquet, int32FixtureBytes("i", 5));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "mixed_int_inferred",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    null
+                )
+            )
+        );
+        assertQ("integer lt double", "FROM mixed_int_inferred | WHERE i < 5.5 | STATS c = COUNT(*)", 1L);
+        assertQ("integer lte long", "FROM mixed_int_inferred | WHERE i <= 3000000000 | STATS c = COUNT(*)", 1L);
+        assertQ("integer in int and double", "FROM mixed_int_inferred | WHERE i IN (5, 5.5) | STATS c = COUNT(*)", 1L);
     }
 
     /** Declares {@code {ts: date, format: <the composite>}} over one dataset and asserts ts recovers EPOCH_SECOND_MILLIS. */
@@ -4939,8 +5037,18 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
         registerDataset("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
 
-        // employees + employees_alt = 3 + 2 = 5
+        // Off (the default): the wildcard reaches neither dataset. Every part of the pattern carries a
+        // wildcard, so no concrete index was requested and the query is an empty success rather than an error.
         try (var response = run(syncEsqlQueryRequest("FROM employees* | STATS c = COUNT(*)"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(0L));
+        }
+
+        // On: employees + employees_alt = 3 + 2 = 5
+        try (
+            var response = run(syncEsqlQueryRequest("SET wildcards_match_datasets = true; FROM employees* | STATS c = COUNT(*)"), TIMEOUT)
+        ) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
             assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(5L));
@@ -4952,39 +5060,58 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
         registerDataset("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
 
-        // employees* matches both, exclusion of employees_alt leaves only employees (3 rows)
-        try (var response = run(syncEsqlQueryRequest("FROM employees*,-employees_alt | STATS c = COUNT(*)"), TIMEOUT)) {
+        // Off (the default): the wildcard reaches neither dataset. Unlike the bare-wildcard case, the
+        // exclusion carries no wildcard of its own, so a concrete index counts as requested and a pattern
+        // matching nothing is fatal rather than empty.
+        Exception e = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest("FROM employees*,-employees_alt | STATS c = COUNT(*)"), TIMEOUT).close()
+        );
+        assertThat(e.getMessage(), containsString("Unknown index [employees*,-employees_alt]"));
+
+        // On: employees* matches both, exclusion of employees_alt leaves only employees (3 rows)
+        try (
+            var response = run(
+                syncEsqlQueryRequest("SET wildcards_match_datasets = true; FROM employees*,-employees_alt | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
             assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(3L));
         }
     }
 
-    public void testFromDatasetIndexMetadataReturnsDatasetName() throws Exception {
-        // Standard metadata fields are accepted on datasets. For the FROM <dataset> path, _index
-        // resolves to the user-facing dataset name (not the underlying resource path) for every
-        // row, matching the "_index is the dataset name" contract.
+    public void testFromDatasetNameMetadataReturnsDatasetNameAndIndexIsNull() throws Exception {
+        // Standard metadata fields are accepted on datasets. _index names an index and a dataset is not
+        // one, so it binds and answers SQL NULL; _name is the column that resolves to the user-facing
+        // dataset name (not the underlying resource path) for every row.
         registerDataSource("local_ds", Map.of());
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
-        // METADATA surfaces _index with no KEEP; it resolves to the dataset name.
-        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _index | SORT emp_no | LIMIT 10"), TIMEOUT)) {
+        // METADATA surfaces both with no KEEP.
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _index, _name | SORT emp_no | LIMIT 10"), TIMEOUT)) {
             List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
             assertThat("_index must surface without KEEP; got " + names, names, hasItem("_index"));
-            int idx = names.indexOf("_index");
+            assertThat("_name must surface without KEEP; got " + names, names, hasItem("_name"));
+            int indexIdx = names.indexOf("_index");
+            int nameIdx = names.indexOf("_name");
 
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
             for (List<Object> row : rows) {
-                assertThat(row.get(idx).toString(), equalTo("employees"));
+                assertThat("_index is null on a dataset", row.get(indexIdx), nullValue());
+                assertThat(row.get(nameIdx).toString(), equalTo("employees"));
             }
         }
     }
 
     public void testHivePartitionClaimingReservedNameIsRenamedAndSpecWins() throws Exception {
         // Standard metadata names are dedicated: a Hive layout claiming /_index=.../ cannot
-        // redefine METADATA _index. End-to-end pin for the rename: _index carries the dataset
-        // name for every row, while the layout's value stays queryable under _partition._index.
+        // redefine METADATA _index. End-to-end pin for the rename: _index keeps the engine's own
+        // answer for every row — SQL NULL on a dataset — while the layout's value stays queryable
+        // under _partition._index. NULL winning is the point: not even the only value on offer can
+        // claim a reserved name.
         Path root = createTempDir();
         Path alpha = Files.createDirectories(root.resolve("_index=alpha"));
         Files.writeString(alpha.resolve("part1.csv"), "emp_no:integer,first_name:keyword\n1,Alice\n2,Bob\n");
@@ -5007,7 +5134,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows, hasSize(3));
             String[] expectedPartition = { "alpha", "alpha", "beta" };
             for (int i = 0; i < rows.size(); i++) {
-                assertThat("spec-defined _index must carry the dataset name", rows.get(i).get(indexIdx).toString(), equalTo("events_hive"));
+                assertThat("the engine's _index must win over the layout's", rows.get(i).get(indexIdx), nullValue());
                 assertThat(
                     "layout value stays queryable under the rename",
                     rows.get(i).get(partitionIdx).toString(),
@@ -5017,77 +5144,71 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testFromDatasetIdMetadataIsOpaqueAndRecordRefCarriesByteOffset() throws Exception {
-        // End-to-end proof of the _id composition path on a non-Parquet format (CSV). The CSV reader
-        // emits each record's file-global byte offset on the _rowPosition channel (splitStartByte +
-        // bytes consumed up to the record's first character), matching NDJSON's shape so the value
-        // is identical regardless of split layout. The raw token stays observable through
-        // _file.record_ref; _id itself is the opaque (location, mtime, token) hash via
-        // ExternalRowIdentity — fixed 32-char base64url, no path leak. The fixture writes
-        // "emp_no:integer,first_name:keyword\n1,Alice\n2,Bob\n3,Carol\n", so the three sorted rows
-        // sit at byte offsets 34, 42, 48 (header 34 bytes; "1,Alice\n" 8 bytes; "2,Bob\n" 6 bytes).
+    public void testFromDatasetRecordRefCarriesByteOffset() throws Exception {
+        // The CSV reader emits each record's file-global byte offset on the _rowPosition channel
+        // (splitStartByte + bytes consumed up to the record's first character), matching NDJSON's shape so the
+        // value is identical regardless of split layout. _file.record_ref surfaces that raw token. The fixture
+        // writes "emp_no:integer,first_name:keyword\n1,Alice\n2,Bob\n3,Carol\n", so the three sorted rows sit
+        // at byte offsets 34, 42, 48 (header 34 bytes; "1,Alice\n" 8 bytes; "2,Bob\n" 6 bytes).
         registerDataSource("local_ds", Map.of());
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
-        // No KEEP: METADATA _id, _file.record_ref surfaces both on their own; columns found by name.
-        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _id, _file.record_ref | SORT emp_no | LIMIT 10"), TIMEOUT)) {
+        // No KEEP: METADATA _file.record_ref surfaces on its own; the column is found by name.
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _file.record_ref | SORT emp_no | LIMIT 10"), TIMEOUT)) {
             List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
-            assertThat("_id must surface without KEEP, got " + names, names, hasItem("_id"));
             assertThat("_file.record_ref must surface without KEEP, got " + names, names, hasItem("_file.record_ref"));
-            int idIdx = names.indexOf("_id");
             int refIdx = names.indexOf("_file.record_ref");
 
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
 
             long[] expectedOffsets = { 34, 42, 48 };
-            Set<String> distinctIds = new HashSet<>();
             for (int i = 0; i < rows.size(); i++) {
-                String id = rows.get(i).get(idIdx).toString();
-                assertTrue("rendered _id [" + id + "] must be fixed-length base64url", id.matches("[A-Za-z0-9_-]{32}"));
-                assertThat("storage location must not leak into _id [" + id + "]", id, not(containsString("employees")));
-                distinctIds.add(id);
                 assertThat(
                     "file-global byte offset for row " + i,
                     ((Number) rows.get(i).get(refIdx)).longValue(),
                     equalTo(expectedOffsets[i])
                 );
             }
-            assertThat("all _id values are distinct", distinctIds, hasSize(3));
         }
     }
 
     public void testFromDatasetStandardMetadataNeverFails() throws Exception {
-        // Standing contract: every standard metadata name is accepted, returning a value or SQL NULL,
-        // but never an error. _index carries the dataset name; _version carries the file mtime; the
-        // rest (no relevance scoring, no per-row _ignored, etc.) come back as NULL columns. None may
-        // be dropped and none may crash the query.
+        // Standing contract: every metadata name a dataset can answer returns a value or SQL NULL, never an
+        // error. All nine come back as NULL columns. Pinned per format in
+        // AbstractExternalMetadataMatrixIT#testAllStandardMetadataColumnsPinned.
         registerDataSource("local_ds", Map.of());
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
         // _tier (DataTierFieldMapper.NAME) is snapshot-only in MetadataAttribute.ATTRIBUTES_MAP;
-        // omit it so the query is valid in non-snapshot builds. _score, _tsid, _size, _ignored,
-        // _index_mode have no value on external rows and must render as NULL columns rather than
-        // being dropped or erroring.
-        String query = "FROM employees METADATA _index, _version, _ignored, _index_mode, _tsid, _size, _score "
+        // omit it so the query is valid in non-snapshot builds. Every other standard name has no
+        // value on an external row and must render as a NULL column rather than being dropped or
+        // erroring — a file carries no document identity, version or stored source either, and no
+        // scorer is wired over an external relation, so nothing populates _score.
+        String query = "FROM employees METADATA _index, _id, _version, _source, _ignored, _index_mode, _tsid, _size, _score "
             + "| SORT emp_no "
-            + "| KEEP emp_no, _index, _version, _ignored, _index_mode, _tsid, _size, _score "
+            + "| KEEP emp_no, _index, _id, _version, _source, _ignored, _index_mode, _tsid, _size, _score "
             + "| LIMIT 10";
 
         try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
             List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
-            assertThat(names, equalTo(List.of("emp_no", "_index", "_version", "_ignored", "_index_mode", "_tsid", "_size", "_score")));
+            assertThat(
+                names,
+                equalTo(List.of("emp_no", "_index", "_id", "_version", "_source", "_ignored", "_index_mode", "_tsid", "_size", "_score"))
+            );
 
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
             for (List<Object> row : rows) {
-                assertThat("_index is the dataset name", row.get(1).toString(), equalTo("employees"));
-                // _ignored, _index_mode, _tsid, _size, _score have no external value: NULL.
-                assertThat("_ignored is null on external rows", row.get(3), org.hamcrest.Matchers.nullValue());
-                assertThat("_index_mode is null on external rows", row.get(4), org.hamcrest.Matchers.nullValue());
-                assertThat("_tsid is null on external rows", row.get(5), org.hamcrest.Matchers.nullValue());
-                assertThat("_size is null on external rows", row.get(6), org.hamcrest.Matchers.nullValue());
-                assertThat("_score is null on external rows", row.get(7), org.hamcrest.Matchers.nullValue());
+                assertThat("_index is null on external rows", row.get(1), nullValue());
+                assertThat("_id is null on external rows", row.get(2), nullValue());
+                assertThat("_version is null on external rows", row.get(3), nullValue());
+                assertThat("_source is null on external rows", row.get(4), nullValue());
+                assertThat("_ignored is null on external rows", row.get(5), nullValue());
+                assertThat("_index_mode is null on external rows", row.get(6), nullValue());
+                assertThat("_tsid is null on external rows", row.get(7), nullValue());
+                assertThat("_size is null on external rows", row.get(8), nullValue());
+                assertThat("_score is null on external rows", row.get(9), nullValue());
             }
         }
     }
@@ -5101,8 +5222,15 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         registerDataSource("local_ds", Map.of());
         registerDataset("logs_dataset", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
-        // logs_* expands to logs_index (empty) + logs_dataset (3 rows) = 3 total
+        // Off (the default): logs_* reaches logs_index only, which is empty.
         try (var response = run(syncEsqlQueryRequest("FROM logs_* | STATS c = COUNT(*)"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(0L));
+        }
+
+        // On: logs_* expands to logs_index (empty) + logs_dataset (3 rows) = 3 total
+        try (var response = run(syncEsqlQueryRequest("SET wildcards_match_datasets = true; FROM logs_* | STATS c = COUNT(*)"), TIMEOUT)) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
             assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(3L));
@@ -5401,171 +5529,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * A dataset that declares {@code mappings._id.path = first_name} stamps each row's {@code _id} from the
-     * {@code first_name} column's value. Asserted three ways against the same dataset: (1) {@code _id} equals the
-     * column's value when the id column IS projected via {@code KEEP}; (2) {@code _id} still equals the column's value
-     * when the id column is NOT projected (the reader pins it into its projection, then the top-level Project drops it
-     * from the user's output); (3) a query WITHOUT {@code METADATA _id} returns the plain rows unchanged (the synthetic
-     * path is untouched).
-     */
-    public void testIdFromColumn() throws Exception {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-
-        // Non-strict declaration whose only knob is _id.path = first_name (a keyword column). The columns keep their
-        // inferred names/types; _id is stamped from first_name's value.
-        DatasetMapping mapping = new DatasetMapping(
-            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, new LinkedHashMap<>(), "first_name")
-        );
-
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                new PutDatasetAction.Request(
-                    TIMEOUT,
-                    TIMEOUT,
-                    "employees_id_from_col",
-                    "local_ds",
-                    csvFixture.toUri().toString(),
-                    null,
-                    new HashMap<>(Map.of("format", "csv")),
-                    mapping
-                )
-            )
-        );
-
-        // (1) _id equals first_name when the id column IS projected.
-        try (
-            var response = run(
-                syncEsqlQueryRequest("FROM employees_id_from_col METADATA _id | KEEP _id, first_name | SORT first_name | LIMIT 10"),
-                TIMEOUT
-            )
-        ) {
-            List<? extends ColumnInfo> columns = response.columns();
-            int idIdx = columns.stream().map(ColumnInfo::name).toList().indexOf("_id");
-            int nameIdx = columns.stream().map(ColumnInfo::name).toList().indexOf("first_name");
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(3));
-            for (List<Object> row : rows) {
-                assertThat("_id is stamped from the first_name column", row.get(idIdx), equalTo(row.get(nameIdx)));
-            }
-            assertThat(rows.get(0).get(nameIdx).toString(), equalTo("Alice"));
-        }
-
-        // (2) _id STILL equals first_name when the id column is NOT projected — the reader pins first_name into its
-        // read projection, and the top-level Project drops it from the user's output.
-        try (
-            var response = run(
-                syncEsqlQueryRequest("FROM employees_id_from_col METADATA _id | KEEP _id, emp_no | SORT emp_no | LIMIT 10"),
-                TIMEOUT
-            )
-        ) {
-            List<? extends ColumnInfo> columns = response.columns();
-            assertThat(columns.stream().map(ColumnInfo::name).toList(), equalTo(List.of("_id", "emp_no")));
-            int idIdx = columns.stream().map(ColumnInfo::name).toList().indexOf("_id");
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(3));
-            // emp_no 1,2,3 map to Alice,Bob,Carol per the fixture.
-            assertThat(rows.get(0).get(idIdx).toString(), equalTo("Alice"));
-            assertThat(rows.get(1).get(idIdx).toString(), equalTo("Bob"));
-            assertThat(rows.get(2).get(idIdx).toString(), equalTo("Carol"));
-        }
-
-        // (3) WITHOUT METADATA _id the plain rows come back unchanged — the synthetic-_id machinery never runs.
-        try (var response = run(syncEsqlQueryRequest("FROM employees_id_from_col | SORT emp_no | LIMIT 10"), TIMEOUT)) {
-            List<? extends ColumnInfo> columns = response.columns();
-            assertThat(columns.stream().map(ColumnInfo::name).toList(), equalTo(List.of("emp_no", "first_name")));
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(3));
-            assertThat(rows.get(0).get(0), equalTo(1));
-            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
-            assertThat(rows.get(2).get(0), equalTo(3));
-            assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
-        }
-    }
-
-    public void testIdFromRenamedColumn() throws Exception {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        // The id-source is a LOGICAL name: declare uid as a rename of the physical first_name column and point
-        // _id.path at the logical uid. The whole chain (pin, projection, reader translation, stamp) must stay in
-        // logical space — _id equals the renamed column's values.
-        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("uid", new DatasetFieldMapping("keyword", "first_name"));
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties, "uid"));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                new PutDatasetAction.Request(
-                    TIMEOUT,
-                    TIMEOUT,
-                    "employees_id_renamed",
-                    "local_ds",
-                    csvFixture.toUri().toString(),
-                    null,
-                    new HashMap<>(Map.of("format", "csv")),
-                    mapping
-                )
-            )
-        );
-        try (
-            var response = run(
-                syncEsqlQueryRequest("FROM employees_id_renamed METADATA _id | KEEP _id, uid | SORT uid | LIMIT 10"),
-                TIMEOUT
-            )
-        ) {
-            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
-            int idIdx = names.indexOf("_id");
-            int uidIdx = names.indexOf("uid");
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(3));
-            for (List<Object> row : rows) {
-                assertThat("_id is stamped from the renamed column", row.get(idIdx), equalTo(row.get(uidIdx)));
-            }
-            assertThat(rows.get(0).get(uidIdx).toString(), equalTo("Alice"));
-        }
-    }
-
-    public void testIdPathOnPartitionColumnRejected() throws Exception {
-        // _id.path naming a partition column is rejected loudly: a partition value is a path-derived constant surfaced
-        // as a plain data-looking column, but the reader classifies it in the partition branch and never stamps _id from
-        // it — pointing _id there would silently yield null ids for every row.
-        Path root = createTempDir();
-        Path east = Files.createDirectories(root.resolve("region=east"));
-        Files.writeString(east.resolve("part1.csv"), "emp_no:integer,first_name:keyword\n1,Alice\n2,Bob\n");
-
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
-        props.put("emp_no", new DatasetFieldMapping("integer", null));
-        props.put("first_name", new DatasetFieldMapping("keyword", null));
-        // Non-strict, _id.path = region (the partition key). PUT accepts (non-strict defers the id-column existence
-        // check); the reject fires at query time when _id is actually requested.
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, props, "region"));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                new PutDatasetAction.Request(
-                    TIMEOUT,
-                    TIMEOUT,
-                    "logs_id_partition",
-                    "local_ds",
-                    root.toUri() + "**/*.csv",
-                    null,
-                    new HashMap<>(Map.of("format", "csv", "hive_partitioning", true)),
-                    mapping
-                )
-            )
-        );
-
-        Exception e = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM logs_id_partition METADATA _id | KEEP _id | LIMIT 1"), TIMEOUT).close()
-        );
-        assertThat(e.getMessage(), containsString("[_id]"));
-        assertThat(e.getMessage(), containsString("region"));
-        // Pin the partition branch specifically, not the sibling "no such column exists" reject (both embed [_id]+path).
-        assertThat(e.getMessage(), containsString("not a data column"));
-    }
-
-    /**
      * The declared-schema face of the partition-detection settings defect. A declared column colliding with a path-derived
      * partition key is rejected ({@link #testNonStrictPartitionKeyCollisionRejected}), and on main
      * {@code partition_detection: none} could not avoid that rejection because the setting never reached the read
@@ -5637,7 +5600,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     "local_ds",
                     root.toUri() + "**/*.csv",
                     null,
-                    new HashMap<>(Map.of("format", "csv", "hive_partitioning", true)),
+                    new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
                     mapping
                 )
             )
@@ -5665,7 +5628,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     "local_ds",
                     root.toUri() + "**/*.csv",
                     null,
-                    new HashMap<>(Map.of("format", "csv", "hive_partitioning", true)),
+                    new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
                     pathMapping
                 )
             )
@@ -5702,7 +5665,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     "local_ds",
                     root.toUri() + "**/*.csv",
                     null,
-                    new HashMap<>(Map.of("format", "csv", "hive_partitioning", true)),
+                    new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
                     strictMapping
                 )
             )
@@ -5740,7 +5703,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     "local_ds",
                     root.toUri() + "**/*.csv",
                     null,
-                    new HashMap<>(Map.of("format", "csv", "hive_partitioning", true)),
+                    new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
                     collidingMapping
                 )
             )
@@ -5752,49 +5715,13 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat(e.getMessage(), containsString("collides with a partition column"));
     }
 
-    public void testIdFromMissingColumnRejectedOnlyWhenIdRequested() throws Exception {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        // Non-strict declaration whose _id.path names a column that exists in NO file — a typo, or the files lost it.
-        // PUT accepts it (non-strict defers the existence check to query time; the files may not exist yet at PUT).
-        DatasetMapping mapping = new DatasetMapping(
-            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, new LinkedHashMap<>(), "no_such_column")
-        );
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                new PutDatasetAction.Request(
-                    TIMEOUT,
-                    TIMEOUT,
-                    "employees_id_bad_path",
-                    "local_ds",
-                    csvFixture.toUri().toString(),
-                    null,
-                    new HashMap<>(Map.of("format", "csv")),
-                    mapping
-                )
-            )
-        );
-
-        // Asking for _id fails loudly at analysis — never a silently-null id column.
-        Exception e = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM employees_id_bad_path METADATA _id | KEEP _id, emp_no | LIMIT 5"), TIMEOUT).close()
-        );
-        assertThat(e.getMessage(), containsString("no_such_column"));
-        assertThat(e.getMessage(), containsString("_id"));
-
-        // Not asking for _id is moot — the bad _id.path is like any other unread column; the query works.
-        try (var response = run(syncEsqlQueryRequest("FROM employees_id_bad_path | SORT emp_no | LIMIT 5"), TIMEOUT)) {
-            assertThat(getValuesList(response), hasSize(3));
-        }
-    }
-
     public void testFromMixedIndexAndDatasetMetadataBindsOnBothHalves() throws Exception {
         // METADATA on a heterogeneous FROM must bind on BOTH branches and strip neither. The plan-global metadata
         // strip in Analyzer.planWithoutSyntheticAttributes fires only on the legacy EXTERNAL command's nameless leaf
         // (an ExternalRelation whose datasetName() == null — the gate added in #149796); a FROM <dataset> leaf always
         // carries a dataset name and the index leaf is a regular relation, so neither half matches the gate. This
-        // asserts the dataset's _index survives the union (resolving to the dataset name) alongside the index's own.
+        // asserts that _index and _id both bind on both halves — the index's own value on one, SQL NULL on the other,
+        // since a dataset is neither an index nor a document store.
         assertAcked(
             client().admin().indices().prepareCreate("metadata_idx").setMapping("emp_no", "type=integer", "first_name", "type=keyword")
         );
@@ -5805,29 +5732,40 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
         // 3 dataset rows (emp_no 1,2,3) + 1 index row (emp_no 100); SORT makes the per-row _index assertion deterministic.
-        // No explicit KEEP _index: METADATA surfaces unconditionally on the FROM path, so a regression that broadened the
-        // strip gate to fire when a FROM <dataset> leaf is present would drop _index from the union output entirely and
-        // fail hasItem("_index"). An explicit KEEP _index would mask exactly that regression — it lands in Analyzer's
+        // No explicit KEEP: METADATA surfaces unconditionally on the FROM path, so a regression that broadened the
+        // strip gate to fire when a FROM <dataset> leaf is present would drop the metadata columns from the union output
+        // entirely and fail hasItem. An explicit KEEP would mask exactly that regression — it lands in Analyzer's
         // explicitlyKept set and is never stripped.
-        try (var response = run(syncEsqlQueryRequest("FROM metadata_idx, employees METADATA _index | SORT emp_no | LIMIT 10"), TIMEOUT)) {
+        //
+        // _id rides along because it is the name that carries a value on one half and SQL NULL on the other: a
+        // refusal on the dataset half would make a mixed FROM depend on which sources it names.
+        try (
+            var response = run(syncEsqlQueryRequest("FROM metadata_idx, employees METADATA _index, _id | SORT emp_no | LIMIT 10"), TIMEOUT)
+        ) {
             List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
             assertThat("_index must bind on the heterogeneous union; got " + names, names, hasItem("_index"));
+            assertThat("_id must bind on the heterogeneous union; got " + names, names, hasItem("_id"));
             int indexCol = names.indexOf("_index");
+            int idCol = names.indexOf("_id");
             int empNoCol = names.indexOf("emp_no");
 
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(4));
             // Dataset rows (emp_no 1,2,3) sort ahead of the index row (100). The dataset half is not stripped: its rows
-            // carry _index = the dataset name; the index row carries its own _index. emp_no is asserted per row so the
-            // ordering this relies on stays self-evident if the fixtures ever change.
+            // carry a null _index, the index row carries its own. emp_no is asserted per row so the ordering this
+            // relies on stays self-evident if the fixtures ever change.
             assertThat(((Number) rows.get(0).get(empNoCol)).intValue(), equalTo(1));
-            assertThat(rows.get(0).get(indexCol).toString(), equalTo("employees"));
+            assertThat("dataset row is not an index", rows.get(0).get(indexCol), nullValue());
+            assertThat("dataset row carries no document identity", rows.get(0).get(idCol), nullValue());
             assertThat(((Number) rows.get(1).get(empNoCol)).intValue(), equalTo(2));
-            assertThat(rows.get(1).get(indexCol).toString(), equalTo("employees"));
+            assertThat("dataset row is not an index", rows.get(1).get(indexCol), nullValue());
+            assertThat("dataset row carries no document identity", rows.get(1).get(idCol), nullValue());
             assertThat(((Number) rows.get(2).get(empNoCol)).intValue(), equalTo(3));
-            assertThat(rows.get(2).get(indexCol).toString(), equalTo("employees"));
+            assertThat("dataset row is not an index", rows.get(2).get(indexCol), nullValue());
+            assertThat("dataset row carries no document identity", rows.get(2).get(idCol), nullValue());
             assertThat(((Number) rows.get(3).get(empNoCol)).intValue(), equalTo(100));
             assertThat(rows.get(3).get(indexCol).toString(), equalTo("metadata_idx"));
+            assertThat("index row keeps its document identity", rows.get(3).get(idCol), notNullValue());
         }
     }
 
@@ -5837,7 +5775,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         while (cause != null && (cause.getMessage() == null || cause.getMessage().contains(fragment) == false)) {
             cause = cause.getCause();
         }
-        assertThat("error chain should contain message fragment [" + fragment + "]", cause, org.hamcrest.Matchers.notNullValue());
+        assertThat("error chain should contain message fragment [" + fragment + "]", cause, notNullValue());
     }
 
     private static PutViewAction.Request putViewRequest(String name, String query) {
@@ -5850,6 +5788,161 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
     private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
         return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings));
+    }
+
+    private static PutDataSourceAction.Request putLocalFileDataSourceRequest() {
+        return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, FILE_DS, "local", null, new HashMap<>());
+    }
+
+    /**
+     * A marker and a sidecar in an otherwise clean prefix used to fail the whole query. They are excluded by
+     * default now, and a {@code _}-prefixed Hive partition directory in the same tree still resolves — the two
+     * halves of the default that a single glob list could not express together.
+     *
+     * <p>The resource is {@code **}{@code /*} rather than {@code **}{@code /*.csv} deliberately: under the
+     * narrower glob the marker and the sidecar never match in the first place, so the assertion would hold with
+     * exclusion stubbed out entirely and would prove nothing.
+     */
+    public void testDefaultExclusionsSkipMarkersAndKeepPartitionDirectories() throws Exception {
+        Path root = createTempDir();
+        Path partition = Files.createDirectories(root.resolve("_dept=alpha"));
+        Files.writeString(partition.resolve("part1.csv"), "emp_no:integer,name:keyword\n1,Alice\n");
+        Files.writeString(root.resolve("_SUCCESS"), "");
+        Files.writeString(root.resolve(".part1.csv.crc"), "junk");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("logs_default_exclusions", "local_ds", root.toUri() + "**/*", Map.of("format", "csv"))
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM logs_default_exclusions | KEEP name | LIMIT 5"), TIMEOUT)) {
+            assertEquals("the marker and sidecar must not reach the reader", 1, getValuesList(response).size());
+        }
+    }
+
+    /**
+     * Exclusion runs before schema reconciliation, so it must fix the marker problem under BOTH resolution
+     * strategies. They fail differently without it — {@code union_by_name} opens every listed file and aborts the
+     * resolve on the first unclaimable one, while {@code first_file_wins} can pass planning and fail later on a
+     * data node — so a fix that only covered one would look green on half the datasets in the wild.
+     */
+    public void testDefaultExclusionsHoldUnderBothSchemaResolutions() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        for (String resolution : List.of("union_by_name", "first_file_wins")) {
+            Path root = createTempDir();
+            Files.writeString(root.resolve("part1.csv"), "emp_no:integer,name:keyword\n1,Alice\n");
+            Files.writeString(root.resolve("part2.csv"), "emp_no:integer,name:keyword\n2,Bob\n");
+            // Sorts ahead of both data files, so under first_file_wins it would anchor the schema if it survived.
+            Files.writeString(root.resolve("_SUCCESS"), "");
+
+            String dataset = "logs_resolution_" + resolution;
+            assertAcked(
+                client().execute(
+                    PutDatasetAction.INSTANCE,
+                    putDatasetRequest(dataset, "local_ds", root.toUri() + "*", Map.of("format", "csv", "schema_resolution", resolution))
+                )
+            );
+
+            try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | KEEP name | SORT name | LIMIT 5"), TIMEOUT)) {
+                List<String> names = getValuesList(response).stream().map(r -> (String) r.get(0)).toList();
+                assertEquals("both data files must resolve under " + resolution, List.of("Alice", "Bob"), names);
+            }
+        }
+    }
+
+    /**
+     * The defect this whole exclusion design exists to remove. Under {@code partition_detection: template} the
+     * directories are bare values rather than {@code key=value}, so a value beginning with {@code _} had nothing to
+     * distinguish it from a Spark marker: the old default matched every path segment and dropped the whole
+     * partition, silently, along with its rows. The default now matches only the file name, which a partition value
+     * can never be, so the question cannot arise under any detection mode.
+     */
+    public void testTemplatePartitionValueStartingWithUnderscoreSurvives() throws Exception {
+        Path root = createTempDir();
+        Path underscore = Files.createDirectories(root.resolve("_foo"));
+        Files.writeString(underscore.resolve("part1.csv"), "emp_no:integer,name:keyword\n1,Alice\n");
+        Path ordinary = Files.createDirectories(root.resolve("bar"));
+        Files.writeString(ordinary.resolve("part1.csv"), "emp_no:integer,name:keyword\n2,Bob\n");
+        // A marker inside the underscore-named partition, to show the leaf rule still does its job in there.
+        Files.writeString(underscore.resolve("_SUCCESS"), "");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(
+                    "logs_template_underscore",
+                    "local_ds",
+                    root.toUri() + "*/*",
+                    Map.of("format", "csv", "partition_detection", "template", "partition_path", "{dept}")
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM logs_template_underscore | KEEP name | SORT name | LIMIT 5"), TIMEOUT)) {
+            List<String> names = getValuesList(response).stream().map(r -> (String) r.get(0)).toList();
+            assertEquals("the _foo partition must not disappear", List.of("Alice", "Bob"), names);
+        }
+    }
+
+    /**
+     * The gap this feature closes: an object that no convention covers — a README beside the data — fails the
+     * query on main with no way out short of moving the file. Naming it in {@code file_exclusions} resolves it.
+     */
+    public void testCustomExclusionSkipsAnObjectNoConventionCovers() throws Exception {
+        Path root = createTempDir();
+        Files.writeString(root.resolve("part1.csv"), "emp_no:integer,name:keyword\n1,Alice\n");
+        Files.writeString(root.resolve("README.md"), "not data");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(
+                    "logs_custom_exclusions",
+                    "local_ds",
+                    root.toUri() + "*",
+                    Map.of("format", "csv", "file_exclusions", List.of("_*", ".*", "README.md"))
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM logs_custom_exclusions | KEEP name | LIMIT 5"), TIMEOUT)) {
+            assertEquals(1, getValuesList(response).size());
+        }
+    }
+
+    /**
+     * An empty {@code file_exclusions} list turns name-based exclusion off, so the marker reaches the reader again
+     * and the query fails the way it did before any of this existed. This is the escape hatch, and it has to
+     * actually change what is listed rather than merely be accepted at registration. It does not restore directory
+     * placeholder keys, which are skipped as listing normalization regardless of any setting.
+     */
+    public void testEmptyExclusionListRestoresTheRawListing() throws Exception {
+        Path root = createTempDir();
+        Files.writeString(root.resolve("part1.csv"), "emp_no:integer,name:keyword\n1,Alice\n");
+        Files.writeString(root.resolve("_SUCCESS"), "");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(
+                    "logs_no_exclusions",
+                    "local_ds",
+                    root.toUri() + "*",
+                    Map.of("format", "csv", "file_exclusions", List.of())
+                )
+            )
+        );
+
+        Exception e = expectThrows(Exception.class, () -> {
+            try (var ignored = run(syncEsqlQueryRequest("FROM logs_no_exclusions | LIMIT 5"), TIMEOUT)) {}
+        });
+        assertThat("the marker must reach the reader and fail loudly", e.getMessage() + e.getCause(), containsString("_SUCCESS"));
     }
 
     private static PutDatasetAction.Request putDatasetRequest(
@@ -5931,5 +6024,433 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void testDeclaredUnsignedLongReadsFromNdjson() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         assertDeclaredUnsignedLongReadsFullMagnitude("ul_ndjson", ndjsonUnsignedLongFixture, "ndjson");
+    }
+
+    public void testFirstFileWinsWarmAggregateMatchesTheScanOnDivergentColumnTypes() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        putFirstFileWinsGlob("drift_pq_type_ffw", dir);
+
+        // The INTEGER anchor cannot represent part-b's LONG, so that file's x is read as null.
+        // Parquet emits a SkipWarnings summary plus one per-column detail; the file path is a temp URI.
+        List<String> warnings = collectWarningsContaining("FROM drift_pq_type_ffw | KEEP x | SORT x", "incompatible with planner type");
+        assertThat(warnings, hasSize(2));
+        assertThat(
+            warnings,
+            hasItem(containsString("has columns whose on-disk type is incompatible with planner type; they are returned as null"))
+        );
+        assertThat(warnings, hasItem(containsString("part-b.parquet")));
+        assertThat(warnings, hasItem(containsString("Column [x] in file [")));
+        assertThat(
+            warnings,
+            hasItem(containsString("has type [LONG] incompatible with planner type [INTEGER]; returning nulls for this column"))
+        );
+        assertThat(columnValues("FROM drift_pq_type_ffw | KEEP x | SORT x"), containsInAnyOrder(1, 2, null, null));
+        assertThat(firstRowOf("FROM drift_pq_type_ffw | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        assertThat(firstRowOf("FROM drift_pq_type_ffw | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        assertThat(documentsReadBy("FROM drift_pq_type_ffw | STATS c = COUNT(x)"), equalTo(0L));
+        assertThat(
+            firstRowOf("FROM drift_pq_type_ffw | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
+            equalTo(List.of(1, 2, 2L))
+        );
+        assertThat(firstRowOf("FROM drift_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(List.of(1, 2, 2L)));
+        assertThat(documentsReadBy("FROM drift_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
+        assertThat(firstRowOf("FROM drift_pq_type_ffw | KEEP x | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        assertThat(
+            firstRowOf("FROM drift_pq_type_ffw | KEEP x | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
+            equalTo(List.of(1, 2, 2L))
+        );
+        assertThat(documentsReadBy("FROM drift_pq_type_ffw | KEEP x | STATS c = COUNT(x)"), equalTo(0L));
+    }
+
+    public void testFirstFileWinsColdIsNullCountMatchesTheScanOnDivergentColumnTypes() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, List<Object>> actual = new LinkedHashMap<>();
+        Map<String, List<Object>> expected = new LinkedHashMap<>();
+        for (String aggregation : List.of("STATS c = COUNT(*)", "STATS c = COUNT(*) BY k = 1 | KEEP c")) {
+            Path dir = createTempDir();
+            writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+            writeParquet(
+                dir.resolve("part-b.parquet"),
+                "message m { required int64 x; }",
+                2,
+                1024,
+                (g, i) -> g.add("x", i == 0 ? -10L : 20L)
+            );
+            putFirstFileWinsGlob("drift_pq_cold_null_count_ffw", dir);
+
+            // Each query gets new file paths so neither schema nor footer caches can be warmed by another query.
+            actual.put(aggregation, columnValues("FROM drift_pq_cold_null_count_ffw | WHERE x IS NULL | " + aggregation));
+            List<Object> scan = columnValues("FROM drift_pq_cold_null_count_ffw | KEEP x | SORT x");
+            assertThat(scan, containsInAnyOrder(1, 2, null, null));
+            expected.put(aggregation, List.of(scan.stream().filter(Objects::isNull).count()));
+        }
+        assertThat(actual, equalTo(expected));
+    }
+
+    public void testFirstFileWinsColdInlineStatsMatchesTheScanOnDivergentColumnTypes() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        putFirstFileWinsGlob("drift_pq_cold_inline_ffw", dir);
+
+        List<List<Object>> rows;
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    "FROM drift_pq_cold_inline_ffw | INLINE STATS c = COUNT(x), mn = MIN(x), mx = MAX(x) | KEEP x, c, mn, mx"
+                ),
+                TIMEOUT
+            )
+        ) {
+            rows = getValuesList(response);
+        }
+        assertThat(rows.stream().map(row -> row.getFirst()).toList(), containsInAnyOrder(1, 2, null, null));
+        for (List<Object> row : rows) {
+            assertThat("cold INLINE STATS rows: " + rows, row.subList(1, 4), equalTo(List.of(2L, 1, 2)));
+        }
+    }
+
+    public void testFirstFileWinsWarmAggregateKeepsWideningFileValues() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        putFirstFileWinsGlob("widen_pq_type_ffw", dir);
+
+        assertThat(columnValues("FROM widen_pq_type_ffw | KEEP x | SORT x"), containsInAnyOrder(-10L, 1L, 2L, 20L));
+        assertThat(
+            firstRowOf("FROM widen_pq_type_ffw | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
+            equalTo(List.of(-10L, 20L, 4L))
+        );
+        assertThat(firstRowOf("FROM widen_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(List.of(-10L, 20L, 4L)));
+        // A detection that keys on "the types differ" rather than "the anchor cannot represent the file's type"
+        // would drop this to a scan.
+        assertThat(documentsReadBy("FROM widen_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
+    }
+
+    public void testPutOmittingSchemaResolutionStoresFirstFileWinsAndNoOpPutComparesEqual() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putLocalFileDataSourceRequest()));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("format", "parquet");
+        settings.put("file_sort_by", "name");
+        PutDatasetAction.Request put = putDatasetRequest("omit_schema_put_get", FILE_DS, StoragePath.fileUri(dir) + "/*.parquet", settings);
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, put));
+        Dataset first = getDataset("omit_schema_put_get");
+        assertThat(first.settings().get("schema_resolution"), equalTo("first_file_wins"));
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, put));
+        Dataset second = getDataset("omit_schema_put_get");
+        assertThat(second, equalTo(first));
+        assertThat(second.settings().get("schema_resolution"), equalTo("first_file_wins"));
+    }
+
+    public void testOmittedSchemaResolutionWarmAggregateMatchesTheScanOnDivergentColumnTypes() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putLocalFileDataSourceRequest()));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        putOmittedSchemaResolutionGlob("drift_pq_type_default", dir);
+
+        List<String> scanWarnings = collectWarningsContaining(
+            "FROM drift_pq_type_default | KEEP x | SORT x",
+            "incompatible with planner type"
+        );
+        assertThat(scanWarnings, not(empty()));
+        assertThat(firstRowOf("FROM drift_pq_type_default | KEEP x | SORT x"), equalTo(List.of(1)));
+        assertThat(firstRowOf("FROM drift_pq_type_default | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        assertThat(firstRowOf("FROM drift_pq_type_default | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        assertThat(documentsReadBy("FROM drift_pq_type_default | STATS c = COUNT(x)"), equalTo(0L));
+        assertThat(
+            firstRowOf("FROM drift_pq_type_default | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
+            equalTo(List.of(1, 2, 2L))
+        );
+        assertThat(firstRowOf("FROM drift_pq_type_default | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(List.of(1, 2, 2L)));
+        assertThat(documentsReadBy("FROM drift_pq_type_default | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
+    }
+
+    public void testOmittedSchemaResolutionWarmAggregateKeepsWideningFileValues() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putLocalFileDataSourceRequest()));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        putOmittedSchemaResolutionGlob("widen_pq_type_default", dir);
+
+        assertThat(firstRowOf("FROM widen_pq_type_default | KEEP x | SORT x"), equalTo(List.of(-10L)));
+        assertThat(
+            firstRowOf("FROM widen_pq_type_default | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
+            equalTo(List.of(-10L, 20L, 4L))
+        );
+        assertThat(
+            firstRowOf("FROM widen_pq_type_default | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"),
+            equalTo(List.of(-10L, 20L, 4L))
+        );
+        assertThat(documentsReadBy("FROM widen_pq_type_default | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
+    }
+
+    /**
+     * Pass-through TestValidator stores a missing {@code schema_resolution} key. Query hydrate is
+     * {@code union_by_name}: INT32 and INT64 widen, {@code COUNT(x)=4}.
+     */
+    public void testLegacyMissingKeyHydratesUnionByNameOnDivergentColumnTypes() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("format", "parquet");
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("drift_pq_type_legacy", "local_ds", StoragePath.fileUri(dir) + "/*.parquet", settings)
+            )
+        );
+
+        assertThat(firstRowOf("FROM drift_pq_type_legacy | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(4L)));
+        assertThat(firstRowOf("FROM drift_pq_type_legacy | STATS c = COUNT(x)"), equalTo(List.of(4L)));
+    }
+
+    /**
+     * {@code DatasetService.putDataset} equals-short-circuit does not keep a legacy omit-key
+     * document. Re-PUT of that body through {@code FileDataSourceValidator} stores
+     * {@code first_file_wins} and query results follow the new rail.
+     */
+    public void testRePutLegacyOmitKeyThroughFileDsStoresFirstFileWins() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putLocalFileDataSourceRequest()));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        String resource = StoragePath.fileUri(dir) + "/*.parquet";
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("format", "parquet");
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest("re_put_legacy_omit", "local_ds", resource, settings)));
+        Dataset first = getDataset("re_put_legacy_omit");
+        assertThat(first.settings().get("schema_resolution"), nullValue());
+        assertThat(firstRowOf("FROM re_put_legacy_omit | STATS c = COUNT(x)"), equalTo(List.of(4L)));
+
+        // Name order so INT32 part-a is the FFW donor; DirectoryStream list order is not name order.
+        settings.put("file_sort_by", "name");
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest("re_put_legacy_omit", FILE_DS, resource, settings)));
+        Dataset second = getDataset("re_put_legacy_omit");
+        assertThat(second.settings().get("schema_resolution"), equalTo("first_file_wins"));
+        assertThat(firstRowOf("FROM re_put_legacy_omit | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+    }
+
+    public void testUnionByNameWarmAggregateWidensDivergentColumnTypes() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("format", "parquet");
+        settings.put("schema_resolution", "union_by_name");
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("drift_pq_type_ubn", "local_ds", StoragePath.fileUri(dir) + "/*.parquet", settings)
+            )
+        );
+
+        assertThat(firstRowOf("FROM drift_pq_type_ubn | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(4L)));
+        assertThat(firstRowOf("FROM drift_pq_type_ubn | STATS c = COUNT(x)"), equalTo(List.of(4L)));
+    }
+
+    public void testFirstFileWinsTextWarmCountMatchesTheScanOnDivergentColumnTypes() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("part-a.csv"), "x\n1\n2\n");
+        Files.writeString(dir.resolve("part-b.csv"), "x\n3000000000\n4000000000\n");
+        putFirstFileWinsGlob("drift_csv_type_ffw", dir, "csv", Map.of("error_mode", "null_field"));
+
+        // Text harvests describe each file's own schema, so COUNT cannot fold and must scan.
+        assertThat(columnValues("FROM drift_csv_type_ffw | KEEP x | SORT x"), containsInAnyOrder(1, 2, null, null));
+        assertThat(firstRowOf("FROM drift_csv_type_ffw | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        try (var response = run(syncEsqlQueryRequest("FROM drift_csv_type_ffw | STATS c = COUNT(x)"), TIMEOUT)) {
+            assertThat(getValuesList(response).get(0), equalTo(List.of(2L)));
+            assertThat(response.documentsFound(), equalTo(4L));
+        }
+    }
+
+    public void testFirstFileWinsWarmMinMaxMatchesTheScanOnUnsignedLongPlusLong() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeInt64Parquet(dir.resolve("part-a.parquet"), true, 1L, 2L);
+        writeInt64Parquet(dir.resolve("part-b.parquet"), false, 0L, 200L);
+        putFirstFileWinsGlob("ul_pq_type_ffw", dir);
+
+        // Unsigned extrema use a different representation than a signed harvest; MIN/MAX must
+        // answer over the coerced domain, not mix the two. 0, 1, 2, 200.
+        List<Object> expectedUl = firstRowOf("FROM ul_pq_type_ffw | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)");
+        assertThat(expectedUl.get(0).toString(), equalTo("0"));
+        assertThat(expectedUl.get(1).toString(), equalTo("200"));
+        assertThat(expectedUl.get(2), equalTo(4L));
+        assertThat(firstRowOf("FROM ul_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(expectedUl));
+        assertThat(documentsReadBy("FROM ul_pq_type_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
+        assertThat(firstRowOf("FROM ul_pq_type_ffw | KEEP x | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(expectedUl));
+        assertThat(documentsReadBy("FROM ul_pq_type_ffw | KEEP x | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(0L));
+    }
+
+    public void testFirstFileWinsMinMaxWithAllNullDoubleAnchorAndUnsignedLongFile() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { optional double x; }", 2, 1024, (g, i) -> {});
+        writeInt64Parquet(dir.resolve("part-b.parquet"), true, 1L, 2L);
+        putFirstFileWinsGlob("double_ul_ffw", dir);
+
+        String aggregates = "STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)";
+        List<Object> expected = List.of(1.0, 2.0, 2L);
+        assertThat(firstRowOf("FROM double_ul_ffw | WHERE x IS NOT NULL | " + aggregates), equalTo(expected));
+        assertThat(firstRowOf("FROM double_ul_ffw | " + aggregates), equalTo(expected));
+        // Encoded unsigned extrema are not doubles, so MIN/MAX scan; COUNT stays warm.
+        assertThat(documentsReadBy("FROM double_ul_ffw | " + aggregates), equalTo(4L));
+        assertThat(firstRowOf("FROM double_ul_ffw | STATS c = COUNT(x)"), equalTo(List.of(2L)));
+        assertThat(documentsReadBy("FROM double_ul_ffw | STATS c = COUNT(x)"), equalTo(0L));
+    }
+
+    public void testFirstFileWinsUnsignedEncodeFailureScansToMatchTheScan() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeInt64Parquet(dir.resolve("part-a.parquet"), true, 1L, 2L);
+        writeInt64Parquet(dir.resolve("part-b.parquet"), false, -10L, 200L);
+        // null_field is required, not incidental: -10 cannot be coerced into the UINT_64 anchor's domain, and
+        // under the default strict policy the scan FAILS the query rather than nulling the cell, so there would
+        // be no scan answer to compare the warm one against.
+        putFirstFileWinsGlob("ul_pq_neg_ffw", dir, "parquet", Map.of("error_mode", "null_field"));
+
+        // -10 is out of the unsigned_long domain, so the fold cannot encode that file's extrema.
+        List<Object> scan = firstRowOf("FROM ul_pq_neg_ffw | WHERE x IS NOT NULL | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)");
+        assertThat(scan.get(0).toString(), equalTo("1"));
+        assertThat(scan.get(1).toString(), equalTo("200"));
+        assertThat(scan.get(2), equalTo(3L));
+        assertThat(firstRowOf("FROM ul_pq_neg_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(scan));
+        assertThat(firstRowOf("FROM ul_pq_neg_ffw | STATS c = COUNT(x)"), equalTo(List.of(3L)));
+        assertThat(documentsReadBy("FROM ul_pq_neg_ffw | STATS c = COUNT(x)"), equalTo(4L));
+    }
+
+    public void testFirstFileWinsDeclaredIntegerMatchesTheScanOnDivergentColumnTypes() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("part-a.parquet"), "message m { required int32 x; }", 2, 1024, (g, i) -> g.add("x", i + 1));
+        writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
+        DatasetMapping mapping = new DatasetMapping(
+            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, Map.of("x", new DatasetFieldMapping("integer", null)))
+        );
+        putFirstFileWinsGlob("drift_pq_declared_ffw", dir, "parquet", Map.of(), mapping);
+
+        // A declared integer licenses per-value coerce, so COUNT/MIN/MAX scan instead of all-nulling.
+        assertThat(columnValues("FROM drift_pq_declared_ffw | KEEP x | SORT x"), containsInAnyOrder(-10, 1, 2, 20));
+        assertThat(firstRowOf("FROM drift_pq_declared_ffw | STATS c = COUNT(x)"), equalTo(List.of(4L)));
+        assertThat(firstRowOf("FROM drift_pq_declared_ffw | STATS mn = MIN(x), mx = MAX(x), c = COUNT(x)"), equalTo(List.of(-10, 20, 4L)));
+        assertThat(documentsReadBy("FROM drift_pq_declared_ffw | STATS c = COUNT(x)"), equalTo(4L));
+    }
+
+    private long documentsReadBy(String query) {
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            return response.documentsFound();
+        }
+    }
+
+    private void putFirstFileWinsGlob(String dataset, Path dir) {
+        putFirstFileWinsGlob(dataset, dir, "parquet", Map.of());
+    }
+
+    private void putOmittedSchemaResolutionGlob(String dataset, Path dir) {
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("format", "parquet");
+        settings.put("file_sort_by", "name");
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(dataset, FILE_DS, StoragePath.fileUri(dir) + "/*.parquet", settings)
+            )
+        );
+    }
+
+    private Dataset getDataset(String name) throws Exception {
+        GetDatasetAction.Request req = new GetDatasetAction.Request(TIMEOUT);
+        req.indices(name);
+        GetDatasetAction.Response resp = client().execute(GetDatasetAction.INSTANCE, req).get();
+        assertThat(resp.getDatasets(), hasSize(1));
+        return resp.getDatasets().iterator().next();
+    }
+
+    private static void writeInt64Parquet(Path target, boolean unsigned, long... values) throws IOException {
+        MessageType schema;
+        if (unsigned) {
+            schema = Types.buildMessage()
+                .required(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.intType(64, false))
+                .named("x")
+                .named("m");
+        } else {
+            schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("x").named("m");
+        }
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withRowGroupSize(1024L)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (long value : values) {
+                writer.write(factory.newGroup().append("x", value));
+            }
+        }
+        Files.write(target, baos.toByteArray());
+    }
+
+    private void putFirstFileWinsGlob(String dataset, Path dir, String format, Map<String, Object> extra) {
+        putFirstFileWinsGlob(dataset, dir, format, extra, null);
+    }
+
+    private void putFirstFileWinsGlob(
+        String dataset,
+        Path dir,
+        String format,
+        Map<String, Object> extra,
+        @Nullable DatasetMapping mapping
+    ) {
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("format", format);
+        settings.put("schema_resolution", "first_file_wins");
+        settings.put("file_sort_by", "name");
+        settings.putAll(extra);
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    dataset,
+                    "local_ds",
+                    StoragePath.fileUri(dir) + "/*." + format,
+                    null,
+                    settings,
+                    mapping
+                )
+            )
+        );
+    }
+
+    private List<Object> firstRowOf(String query) {
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.isEmpty(), equalTo(false));
+            return rows.get(0);
+        }
+    }
+
+    private List<Object> columnValues(String query) {
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            return getValuesList(response).stream().map(row -> row.get(0)).toList();
+        }
     }
 }

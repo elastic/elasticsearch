@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -80,6 +82,10 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
+
+    public PruneColumnsTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     public void testPruneUnusedEval() {
         var plan = plan("""
@@ -2569,10 +2575,10 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(Expressions.names(prunedExt.output()), contains("col_a"));
     }
 
-    public void testExternalRelationKeepsAllDataColumnsWhenSourceConsumed() {
-        // When _source survives downstream, the synthesizer needs every file-resident data column
-        // at compose time — pruning them would render `{}`. Project only _source over (col_a,
-        // col_b, col_c, _source); pin must keep all four.
+    public void testExternalRelationPrunesDataColumnsWhenOnlySourceConsumed() {
+        // _source is a constant null block on a dataset — a file carries no stored source — so nothing
+        // is read from the file to answer it. Project only _source over (col_a, col_b, col_c, _source);
+        // the three data columns are pruned and the reader loads none of them.
         Attribute colA = extAttr("col_a", KEYWORD);
         Attribute colB = extAttr("col_b", LONG);
         Attribute colC = extAttr("col_c", INTEGER);
@@ -2584,13 +2590,13 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
         var project = as(result, Project.class);
         var prunedExt = as(project.child(), ExternalRelation.class);
-        assertThat(prunedExt.output(), hasSize(4));
-        assertThat(Expressions.names(prunedExt.output()), contains("col_a", "col_b", "col_c", "_source"));
+        assertThat(prunedExt.output(), hasSize(1));
+        assertThat(Expressions.names(prunedExt.output()), contains("_source"));
     }
 
     public void testExternalRelationStillPrunesWhenSourceBoundButUnused() {
-        // _source is bound but the user drops it without ever reading. Pin should NOT fire (no
-        // over-retention); _source itself is pruned along with col_b and col_c.
+        // _source is bound but the user drops it without ever reading; it is pruned along with col_b
+        // and col_c.
         Attribute colA = extAttr("col_a", KEYWORD);
         Attribute colB = extAttr("col_b", LONG);
         Attribute colC = extAttr("col_c", INTEGER);
@@ -3148,5 +3154,174 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
     private static MetadataAttribute tsidField() {
         return new MetadataAttribute(EMPTY, MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, false);
+    }
+
+    private static DenseVector onlyDenseVector(LogicalPlan plan) {
+        var nodes = plan.collect(p -> p instanceof DenseVector);
+        assertThat("expected exactly one DenseVector node", nodes, hasSize(1));
+        return (DenseVector) nodes.getFirst();
+    }
+
+    /**
+     * The unused generated column and its input field are pruned. Checks the delta explicitly: the analyzed node embeds
+     * both {@code keyword} and {@code text}; after pruning only {@code keyword} (whose generated column is kept) remains,
+     * proving {@code text} and its embedding were actually dropped.
+     *
+     * Before pruning:
+     * {@snippet lang="text":
+     * Limit[1000[INTEGER],false,false]
+     * \_Project[[keyword_dense_vector{r}#27]]
+     *   \_DENSE_VECTOR[...,[keyword{f}#18, text{f}#22],[keyword_dense_vector{r}#27, text_dense_vector{r}#28],...]
+     *     \_EsRelation[types][...]
+     * }
+     *
+     * After pruning:
+     * {@snippet lang="text":
+     * Limit[1000[INTEGER],false,false]
+     * \_Project[[keyword_dense_vector{r}#27]]
+     *   \_DENSE_VECTOR[...,[keyword{f}#18],[keyword_dense_vector{r}#27],...]
+     *     \_EsRelation[types][...]
+     * }
+     */
+    public void testDenseVectorPrunesUnusedGeneratedColumn() {
+        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+        var query = """
+            from types
+            | dense_vector keyword, text WITH { "inference_id" : "text-embedding-inference-id" }
+            | keep keyword_dense_vector
+            """;
+        var analyzedPlan = typesAnalyzer().query(query);
+
+        // before pruning: both fields are embedded
+        {
+            var limit = as(analyzedPlan, Limit.class);
+            var project = as(limit.child(), Project.class);
+            assertThat(Expressions.names(project.projections()), contains("keyword_dense_vector"));
+            var denseVector = as(project.child(), DenseVector.class);
+            assertThat(Expressions.names(denseVector.fields()), contains("keyword", "text"));
+            assertThat(Expressions.names(denseVector.generatedAttributes()), contains("keyword_dense_vector", "text_dense_vector"));
+        }
+
+        // after pruning: only the used field survives; text and its embedding are dropped
+        {
+            LogicalPlan pruned = new PruneColumns().apply(analyzedPlan);
+            var limit = as(pruned, Limit.class);
+            var project = as(limit.child(), Project.class);
+            assertThat(Expressions.names(project.projections()), contains("keyword_dense_vector"));
+            var denseVector = as(project.child(), DenseVector.class);
+            assertThat(Expressions.names(denseVector.fields()), contains("keyword"));
+            assertThat(Expressions.names(denseVector.generatedAttributes()), contains("keyword_dense_vector"));
+        }
+    }
+
+    /**
+     * When none of the generated columns are used, the whole DENSE_VECTOR node is removed.
+     */
+    public void testDenseVectorNodeRemovedWhenNoGeneratedColumnUsed() {
+        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+        var query = """
+            from types
+            | dense_vector keyword, text WITH { "inference_id" : "text-embedding-inference-id" }
+            | keep integer
+            """;
+        var analyzedPlan = typesAnalyzer().query(query);
+        assertTrue("DenseVector present before pruning", analyzedPlan.anyMatch(p -> p instanceof DenseVector));
+
+        LogicalPlan pruned = new PruneColumns().apply(analyzedPlan);
+        assertFalse("DenseVector node should be removed", pruned.anyMatch(p -> p instanceof DenseVector));
+    }
+
+    /**
+     * When every generated column is used, the node is left unchanged.
+     */
+    public void testDenseVectorUnchangedWhenAllGeneratedColumnsUsed() {
+        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+        var query = """
+            from types
+            | dense_vector keyword, text WITH { "inference_id" : "text-embedding-inference-id" }
+            | keep keyword_dense_vector, text_dense_vector
+            """;
+        DenseVector dv = onlyDenseVector(new PruneColumns().apply(typesAnalyzer().query(query)));
+        assertThat(Expressions.names(dv.fields()), contains("keyword", "text"));
+        assertThat(Expressions.names(dv.generatedAttributes()), contains("keyword_dense_vector", "text_dense_vector"));
+    }
+
+    /**
+     * With three embedded fields and two used generated columns, only the unused middle field is pruned.
+     */
+    public void testDenseVectorPrunesMiddleFieldOnly() {
+        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+        var query = """
+            from types
+            | eval a = keyword, b = keyword, c = keyword
+            | dense_vector a, b, c WITH { "inference_id" : "text-embedding-inference-id" }
+            | keep a_dense_vector, c_dense_vector
+            """;
+        var analyzedPlan = typesAnalyzer().query(query);
+        assertThat(Expressions.names(onlyDenseVector(analyzedPlan).fields()), contains("a", "b", "c"));
+
+        DenseVector dv = onlyDenseVector(new PruneColumns().apply(analyzedPlan));
+        assertThat(Expressions.names(dv.fields()), contains("a", "c"));
+        assertThat(Expressions.names(dv.generatedAttributes()), contains("a_dense_vector", "c_dense_vector"));
+    }
+
+    /**
+     * Chained DENSE_VECTOR clauses prune independently: dropping the second clause's output removes that clause while the
+     * first clause survives.
+     */
+    public void testChainedDenseVectorClausesPruneIndependently() {
+        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+        var query = """
+            from types
+            | dense_vector keyword WITH { "inference_id" : "text-embedding-inference-id" }
+            | dense_vector text WITH { "inference_id" : "text-embedding-inference-id" }
+            | keep keyword_dense_vector
+            """;
+        var analyzedPlan = typesAnalyzer().query(query);
+        assertThat("two clauses before pruning", analyzedPlan.collect(p -> p instanceof DenseVector), hasSize(2));
+
+        LogicalPlan pruned = new PruneColumns().apply(analyzedPlan);
+        DenseVector dv = onlyDenseVector(pruned); // exactly one survives
+        assertThat(Expressions.names(dv.fields()), contains("keyword"));
+        assertThat(Expressions.names(dv.generatedAttributes()), contains("keyword_dense_vector"));
+    }
+
+    /**
+     * Pruning commutes with a preceding filter: a WHERE before DENSE_VECTOR still prunes the unused field.
+     */
+    public void testDenseVectorPruneWithFilter() {
+        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+        var query = """
+            from types
+            | where integer > 0
+            | dense_vector keyword, text WITH { "inference_id" : "text-embedding-inference-id" }
+            | keep keyword_dense_vector
+            """;
+        DenseVector dv = onlyDenseVector(new PruneColumns().apply(typesAnalyzer().query(query)));
+        assertThat(Expressions.names(dv.fields()), contains("keyword"));
+        assertThat(Expressions.names(dv.generatedAttributes()), contains("keyword_dense_vector"));
+    }
+
+    /**
+     * Pruning distinguishes generated columns by attribute identity, not name. Two chained clauses produce different
+     * generated columns; only the second is used, so the first clause is removed and the second survives — the surviving
+     * clause is not confused by the earlier, dropped one.
+     */
+    public void testDenseVectorPruneKeepsUsedClauseAcrossChain() {
+        assumeTrue("DENSE_VECTOR is snapshot-only", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+        var query = """
+            from types
+            | dense_vector keyword WITH { "inference_id" : "text-embedding-inference-id" }
+            | eval keyword_copy = keyword
+            | dense_vector keyword_copy WITH { "inference_id" : "text-embedding-inference-id" }
+            | keep keyword_copy_dense_vector
+            """;
+        var analyzedPlan = typesAnalyzer().query(query);
+        assertThat("two clauses before pruning", analyzedPlan.collect(p -> p instanceof DenseVector), hasSize(2));
+
+        // only the used (second) clause survives, embedding keyword_copy
+        DenseVector dv = onlyDenseVector(new PruneColumns().apply(analyzedPlan));
+        assertThat(Expressions.names(dv.fields()), contains("keyword_copy"));
+        assertThat(Expressions.names(dv.generatedAttributes()), contains("keyword_copy_dense_vector"));
     }
 }

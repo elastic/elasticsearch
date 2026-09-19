@@ -84,12 +84,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     private final boolean merging;
     private final long[] skipIndexJumpLengthPerLevel;
     private static final int DEFAULT_NUMERIC_BLOCK_SHIFT = 7;
-    /**
-     * matchCost for the numeric range {@link TwoPhaseIterator} returned by {@code tryRangeIterator}.
-     * Confirming a doc may decompress a numeric block, but that cost amortizes over the whole block,
-     * so per-doc confirmation is cheap; this matches Lucene's own numeric range two-phase convention.
-     */
-    private static final float RANGE_ITERATOR_MATCH_COST = 2f;
     private final TSDBDocValuesFormatConfig formatConfig;
     private final DocOffsetsCodec.Decoder docOffsetsDecoder;
     private final NumericBlockCodec numericCodec;
@@ -564,6 +558,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 public DocIdSetIterator tryTermEqualIterator(BytesRef term) throws IOException {
                     return decoder.termEqualTwoPhase(entry.numCompressedBlocks, term, maxDoc);
                 }
+
+                @Override
+                RawBinaryBlock rawSingleValueBlock(int minUncompressedLength) throws IOException {
+                    return decoder.rawSingleValueBlock(doc, entry.numCompressedBlocks, entry.compression, minUncompressedLength);
+                }
             };
         } else {
             // sparse
@@ -599,6 +598,12 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 int getLength() throws IOException {
                     return decoder.decodeLength(disi.index(), entry.numCompressedBlocks);
+                }
+
+                @Override
+                RawBinaryBlock rawSingleValueBlock(int minUncompressedLength) throws IOException {
+                    // Sparse readers index by ordinal (disi.index()), not by doc id.
+                    return decoder.rawSingleValueBlock(disi.index(), entry.numCompressedBlocks, entry.compression, minUncompressedLength);
                 }
             };
         }
@@ -980,12 +985,96 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             }
             return requiredBufferSize;
         }
+
+        // Probe state for raw-block handoff during merge, deliberately separate from the decode
+        // cursor. INVARIANT: rawSingleValueBlock() mutates only these fields and reads only through
+        // rawBlockInput. It never touches lastBlockId, startDocNumForBlock, limitDocNumForBlock,
+        // uncompressedDocStarts, uncompressedBlock, or compressedData, so callers may safely
+        // interleave it with decode() in ascending doc order.
+        //
+        // Do NOT route this through findAndUpdateBlock: that method advances startDocNumForBlock /
+        // limitDocNumForBlock to block B while leaving lastBlockId pointing at block A. The fast
+        // path in findAndUpdateBlock (docNumber < limitDocNumForBlock && lastBlockId >= 0) would
+        // then hand block A back to a subsequent decode() call for a doc in B — silently returning
+        // the wrong bytes, without triggering any assertion because idxInBlock is computed from the
+        // updated start/limit. Setting lastBlockId = -1 as a workaround instead would force
+        // binarySearch from 0 on every subsequent doc. A private probe cursor avoids the problem
+        // entirely and costs one binary search per block transition, the same frequency as decode's.
+        private IndexInput rawBlockInput; // lazily cloned on first handoff; disjoint from compressedData and readAhead
+        private final int[] rawOffsets = new int[2];
+        private long probeBlockId = -1;
+        private int probeStartDoc = -1;
+        private int probeLimitDoc = -1;
+
+        /**
+         * Returns a {@link RawBinaryBlock} for the block containing {@code docNumber}, if that
+         * block holds exactly one document and its uncompressed length meets the minimum, or
+         * {@code null} otherwise. Driven in ascending doc order by the merge loop.
+         *
+         * <p>Uses a dedicated clone of {@code compressedData} ({@code rawBlockInput}) so the
+         * read does not disturb {@code compressedData}'s position, which must stay immediately
+         * after the most recently decoded block's offsets for {@link #decompressValues} to work.
+         * Similarly, {@code readAhead} is left untouched because it is
+         * {@link #computeMultipleBlockBufferSize}'s scratch and the payload is consumed by the
+         * caller after this method returns.
+         */
+        RawBinaryBlock rawSingleValueBlock(int docNumber, int numBlocks, BinaryDVCompressionMode compression, int minUncompressedLength)
+            throws IOException {
+            if (probeBlockId < 0 || docNumber >= probeLimitDoc) {
+                probeBlockId = findBlock(docNumber, numBlocks, Math.max(probeBlockId, 0));
+                probeStartDoc = (int) docOffsets.get(probeBlockId);
+                probeLimitDoc = (int) docOffsets.get(probeBlockId + 1);
+            }
+            assert docNumber >= probeStartDoc : "rawSingleValueBlock probe must be driven in ascending doc order";
+            if (probeLimitDoc - probeStartDoc != 1) {
+                // Block is shared with other documents; the payload is not copyable alone.
+                return null;
+            }
+            if (rawBlockInput == null) {
+                // Lazily clone a dedicated input disjoint from compressedData (whose position is a
+                // precondition of decompressValues) and from readAhead (bulk-sizing scratch).
+                rawBlockInput = compressedData.clone();
+            }
+            rawBlockInput.seek(addresses.get(probeBlockId));
+            var header = BinaryDVCompressionMode.BlockHeader.fromByte(rawBlockInput.readByte());
+            int uncompressedLength = rawBlockInput.readVInt();
+            if (uncompressedLength == 0 || uncompressedLength < minUncompressedLength) {
+                // Zero-length: compress() writes nothing and decompress() never reads the payload,
+                // so the bytes after the vInt here are the (unread) offsets — the payloadLength
+                // formula below would be wrong. Too-small: let the writer repack for better ratio.
+                return null;
+            }
+            // Step past the encoded offsets so rawBlockInput is positioned at the payload start.
+            // rawOffsets[0] stays 0 (encode's delta-loop starts from index 1).
+            docOffsetsDecoder.decode(rawOffsets, 1, rawBlockInput);
+            assert rawOffsets[1] == uncompressedLength : "decoded offset mismatch";
+            long payloadLength = addresses.get(probeBlockId + 1) - rawBlockInput.getFilePointer();
+            assert payloadLength > 0;
+            assert header.isCompressed() || payloadLength == uncompressedLength : "uncompressed block payload length mismatch";
+            return new RawBinaryBlock(compression, header.isCompressed(), uncompressedLength, rawBlockInput, payloadLength);
+        }
+
     }
 
     public abstract static class TSDBBinaryDocValues extends BinaryDocValues
         implements
             BlockLoader.OptionalColumnAtATimeReader,
-            BlockLoader.OptionalLengthReader {}
+            BlockLoader.OptionalLengthReader {
+
+        /**
+         * Returns the raw compressed block backing the value this iterator is currently positioned
+         * on, if that block holds exactly this one doc and its uncompressed length is at least
+         * {@code minUncompressedLength} bytes — so it can be copied verbatim into the merge target
+         * without decompressing it. Returns {@code null} when the value must be decoded (multi-doc
+         * block, too small, or this reader does not support raw handoff).
+         *
+         * <p>Contract: this call does not disturb the reader's decode state. Callers may interleave
+         * it freely with {@link #binaryValue()} on the same instance, in ascending doc order.
+         */
+        RawBinaryBlock rawSingleValueBlock(int minUncompressedLength) throws IOException {
+            return null;
+        }
+    }
 
     abstract static class DenseBinaryDocValues extends TSDBBinaryDocValues {
 
@@ -1261,6 +1350,12 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         return new BaseSortedDocValues(entry) {
 
             @Override
+            public RandomAccessNumericValues tryRandomAccess() throws IOException {
+                // A sorted column holds its ordinals on a numeric column.
+                return ords instanceof RandomAccessNumericValues.Provider provider ? provider.tryRandomAccess() : null;
+            }
+
+            @Override
             public int ordValue() throws IOException {
                 return (int) ords.longValue();
             }
@@ -1378,7 +1473,13 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     public abstract class BaseSortedDocValues extends SortedDocValues
         implements
             BlockLoader.OptionalColumnAtATimeReader,
-            PartitionedDocValues {
+            PartitionedDocValues,
+            RandomAccessNumericValues.Provider {
+
+        @Override
+        public RandomAccessNumericValues tryRandomAccess() throws IOException {
+            return null;
+        }
 
         final SortedEntry entry;
         final TermsEnum termsEnum;
@@ -1452,9 +1553,14 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     public abstract static class BaseDenseNumericValues extends NumericDocValues
         implements
             BlockLoader.OptionalColumnAtATimeReader,
-            BlockLoader.OptionalNumericRangeReader {
+            RandomAccessNumericValues.Provider {
         private final int maxDoc;
         protected int doc = -1;
+
+        @Override
+        public RandomAccessNumericValues tryRandomAccess() throws IOException {
+            return null;
+        }
 
         BaseDenseNumericValues(int maxDoc) {
             this.maxDoc = maxDoc;
@@ -2458,6 +2564,19 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 private final BlockDecoder decoder = blockDecoder(entry, maxOrd);
                 private long currentBlockIndex = -1;
                 private final long[] currentBlock = new long[numericBlockSize];
+                private final FixedBitSet matches = new FixedBitSet(numericBlockSize);
+                // Its own NumericValues, so random access does not evict the iterator's decoded block.
+                private RandomAccessNumericValues randomAccess;
+
+                @Override
+                public RandomAccessNumericValues tryRandomAccess() throws IOException {
+                    if (randomAccess == null) {
+                        final NumericValues values = getValues(entry, maxOrd);
+                        randomAccess = values::advance;
+                    }
+                    return randomAccess;
+                }
+
                 private long lookaheadBlockIndex = -1;
                 private long[] lookaheadBlock;
                 private IndexInput lookaheadData = null;
@@ -2480,6 +2599,39 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     currentBlockIndex = blockIndex;
                     decoder.decode(valuesData, currentBlock);
                     return currentBlock[blockInIndex];
+                }
+
+                @Override
+                public void rangeIntoBitSet(int fromDoc, int toDoc, long minValue, long maxValue, FixedBitSet bitSet, int offset)
+                    throws IOException {
+                    toDoc = Math.min(toDoc, maxDoc);
+                    if (fromDoc >= toDoc) {
+                        return;
+                    }
+                    final int firstBlock = fromDoc >>> numericBlockShift;
+                    final int lastBlock = (toDoc - 1) >>> numericBlockShift;
+                    for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
+                        loadRangeBitmaskForBlock(blockId, minValue, maxValue, matches);
+                        final int firstInBlock = blockId == firstBlock ? fromDoc & numericBlockMask : 0;
+                        final int lastInBlock = blockId == lastBlock ? (toDoc - 1) & numericBlockMask : numericBlockMask;
+                        // shift by blockBase to matching bitSet's coordinate space
+                        final int blockBase = (blockId << numericBlockShift) - offset;
+                        matches.forEach(firstInBlock, lastInBlock + 1, blockBase, bitSet::set);
+                    }
+                }
+
+                private void loadRangeBitmaskForBlock(int blockIndex, long lowerValue, long upperValue, FixedBitSet matches)
+                    throws IOException {
+                    if (blockIndex != currentBlockIndex) {
+                        assert blockIndex > currentBlockIndex : blockIndex + " < " + currentBlockIndex;
+                        if (currentBlockIndex + 1 != blockIndex) {
+                            valuesData.seek(indexReader.get(blockIndex));
+                        }
+                        currentBlockIndex = blockIndex;
+                        decoder.decode(valuesData, currentBlock);
+                    }
+                    matches.clear();
+                    ESVectorUtil.inRangeBitmask(currentBlock, lowerValue, upperValue, matches.getBits());
                 }
 
                 @Override
@@ -2551,211 +2703,6 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                         lookaheadBlockIndex = blockIndex;
                     }
                     return lookaheadBlock[valueIndex];
-                }
-
-                @Override
-                public DocIdSetIterator tryRangeIterator(long lowerValue, long upperValue) throws IOException {
-                    // Real TwoPhaseIterator over a cheap DocIdSetIterator.all approximation. This is what
-                    // lets ESQL run DataPartitioning.DOC here: a plain DocIdSetIterator matches eagerly in
-                    // advance(min), so a slice [min, max) with no match scans past max (and every slice
-                    // repeats it). The two-phase form makes advance(min) O(1) and confines block decoding
-                    // to intoBitSet(upTo), which ConstantScoreBulkScorer caps at the slice's max.
-                    //
-                    // intoBitSet / docIDRunEnd still carry the dense bulk scan (bitSet.set(start, end+1)
-                    // for all-in-range skipper blocks). They are overridable since Lucene 10.5
-                    // (apache/lucene#16177); consumers reach them via TwoPhaseIterator.unwrap, not the
-                    // returned DISI wrapper. matches()/intoBitSet are skipper-aware; partial-overlap
-                    // blocks decode and scan the SIMD bitmask.
-                    // Use a fresh instance: it shares decode state with the outer reader.
-
-                    DocValuesSkipper skipper = fieldInfo != null && fieldInfo.docValuesSkipIndexType() == DocValuesSkipIndexType.RANGE
-                        ? getSkipper(fieldInfo)
-                        : null;
-                    final FixedBitSet matches = new FixedBitSet(numericBlockSize);
-                    final DocIdSetIterator approximation = DocIdSetIterator.all(maxDoc);
-                    if (skipper != null) {
-                        // Skips at two levels: skipper blocks (coarse min/max range check), then
-                        // per-numeric-block SIMD bitmasks via inRangeBitmask.
-                        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(approximation) {
-                            @Override
-                            public boolean matches() throws IOException {
-                                final int doc = approximation.docID();
-                                if (skipper.maxDocID(0) < doc) {
-                                    skipper.advance(doc);
-                                }
-                                long minVal = skipper.minValue(0);
-                                long maxVal = skipper.maxValue(0);
-                                if (lowerValue <= minVal && maxVal <= upperValue) {
-                                    // Entire skipper block is in range: confirm without decoding values.
-                                    return true;
-                                }
-                                if (minVal > upperValue || maxVal < lowerValue) {
-                                    // No overlap.
-                                    return false;
-                                }
-                                // Partial overlap: decode the numeric block and check the SIMD bitmask bit.
-                                loadRangeBitmaskForBlock(doc >>> numericBlockShift, lowerValue, upperValue, matches);
-                                return matches.get(doc & numericBlockMask);
-                            }
-
-                            @Override
-                            public float matchCost() {
-                                return RANGE_ITERATOR_MATCH_COST;
-                            }
-
-                            @Override
-                            public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
-                                int doc = approximation.docID();
-                                while (doc < upTo) {
-                                    if (skipper.maxDocID(0) < doc) {
-                                        skipper.advance(doc);
-                                        if (skipper.maxDocID(0) == NO_MORE_DOCS) {
-                                            approximation.advance(maxDoc);
-                                            return;
-                                        }
-                                    }
-                                    int firstDocInSkipper = Math.max(doc, skipper.minDocID(0));
-                                    // Cap at upTo-1 so we never write bits past the caller's window.
-                                    int lastDocInSkipper = Math.min(skipper.maxDocID(0), upTo - 1);
-                                    long minVal = skipper.minValue(0);
-                                    long maxVal = skipper.maxValue(0);
-                                    if (lowerValue <= minVal && maxVal <= upperValue) {
-                                        // All docs in the (clipped) skipper block match, bulk set them without decoding.
-                                        bitSet.set(firstDocInSkipper - offset, lastDocInSkipper + 1 - offset);
-                                    } else if (minVal <= upperValue && lowerValue <= maxVal) {
-                                        // Partial overlap: scan SIMD bitmask for each numeric block.
-                                        int firstBlock = firstDocInSkipper >>> numericBlockShift;
-                                        int lastBlock = lastDocInSkipper >>> numericBlockShift;
-                                        for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
-                                            loadRangeBitmaskForBlock(blockId, lowerValue, upperValue, matches);
-                                            int firstInBlock = blockId == firstBlock ? firstDocInSkipper & numericBlockMask : 0;
-                                            int lastInBlock = blockId == lastBlock ? lastDocInSkipper & numericBlockMask : numericBlockMask;
-                                            // shift by blockBase to matching bitSet's coordinate space
-                                            int blockBase = (blockId << numericBlockShift) - offset;
-                                            matches.forEach(firstInBlock, lastInBlock + 1, blockBase, bitSet::set);
-                                        }
-                                    }
-                                    // No overlap, all-in-range, or partial overlap: advance past this skipper block.
-                                    doc = lastDocInSkipper + 1;
-                                }
-                                // Honor the intoBitSet contract: leave the approximation at the first
-                                // candidate doc >= upTo (matches() then filters non-matching candidates).
-                                if (approximation.docID() < upTo) {
-                                    approximation.advance(upTo);
-                                }
-                            }
-
-                            @Override
-                            public int docIDRunEnd() throws IOException {
-                                final int doc = approximation.docID();
-                                if (skipper.maxDocID(0) < doc) {
-                                    skipper.advance(doc);
-                                }
-                                // Whole skipper block in range: every doc matches, so the run extends to the block end.
-                                if (lowerValue <= skipper.minValue(0) && skipper.maxValue(0) <= upperValue) {
-                                    return skipper.maxDocID(0) + 1;
-                                }
-                                // Partial block: only extend a run from a confirmed match. docIDRunEnd() may be called
-                                // on an unconfirmed candidate (e.g. DenseConjunctionBulkScorer), so never claim a run
-                                // from a non-matching doc.
-                                int blockId = doc >>> numericBlockShift;
-                                if (currentBlockIndex == blockId && matches.get(doc & numericBlockMask)) {
-                                    int firstClearBit = nextClearBit((doc & numericBlockMask) + 1, matches);
-                                    return Math.min((blockId << numericBlockShift) + firstClearBit, maxDoc);
-                                }
-                                return doc;
-                            }
-                        });
-                    } else {
-                        // No skipper: scan SIMD bitmasks for every numeric block directly.
-                        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(approximation) {
-                            @Override
-                            public boolean matches() throws IOException {
-                                final int doc = approximation.docID();
-                                loadRangeBitmaskForBlock(doc >>> numericBlockShift, lowerValue, upperValue, matches);
-                                return matches.get(doc & numericBlockMask);
-                            }
-
-                            @Override
-                            public float matchCost() {
-                                return RANGE_ITERATOR_MATCH_COST;
-                            }
-
-                            @Override
-                            public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
-                                int doc = approximation.docID();
-                                upTo = Math.min(upTo, maxDoc);
-                                if (doc >= upTo) {
-                                    return;
-                                }
-                                int firstBlock = doc >>> numericBlockShift;
-                                int lastBlock = (upTo - 1) >>> numericBlockShift;
-                                for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
-                                    loadRangeBitmaskForBlock(blockId, lowerValue, upperValue, matches);
-                                    int firstInBlock = blockId == firstBlock ? doc & numericBlockMask : 0;
-                                    int lastInBlock = blockId == lastBlock ? (upTo - 1) & numericBlockMask : numericBlockMask;
-                                    // shift by blockBase to matching bitSet's coordinate space
-                                    int blockBase = (blockId << numericBlockShift) - offset;
-                                    matches.forEach(firstInBlock, lastInBlock + 1, blockBase, bitSet::set);
-                                }
-                                // Honor the intoBitSet contract: leave the approximation at the first
-                                // candidate doc >= upTo (matches() then filters non-matching candidates).
-                                approximation.advance(upTo);
-                            }
-
-                            @Override
-                            public int docIDRunEnd() throws IOException {
-                                final int doc = approximation.docID();
-                                // Only extend a run from a confirmed match. docIDRunEnd() may be called on an
-                                // unconfirmed candidate (e.g. DenseConjunctionBulkScorer), so never claim a run
-                                // from a non-matching doc.
-                                int blockId = doc >>> numericBlockShift;
-                                if (currentBlockIndex == blockId && matches.get(doc & numericBlockMask)) {
-                                    int firstClearBit = nextClearBit((doc & numericBlockMask) + 1, matches);
-                                    return Math.min((blockId << numericBlockShift) + firstClearBit, maxDoc);
-                                }
-                                return doc;
-                            }
-                        });
-                    }
-                }
-
-                private void loadRangeBitmaskForBlock(int blockIndex, long lowerValue, long upperValue, FixedBitSet matches)
-                    throws IOException {
-                    if (blockIndex != currentBlockIndex) {
-                        // load block
-                        assert blockIndex > currentBlockIndex : blockIndex + " < " + currentBlockIndex;
-                        if (currentBlockIndex + 1 != blockIndex) {
-                            valuesData.seek(indexReader.get(blockIndex));
-                        }
-                        decoder.decode(valuesData, currentBlock);
-                        currentBlockIndex = blockIndex;
-
-                        // run query and set matches bitset
-                        matches.clear();
-                        ESVectorUtil.inRangeBitmask(currentBlock, lowerValue, upperValue, matches.getBits());
-                    }
-                }
-
-                // Equivalent to FixedBitSet.nextSetBit but for 0-bits (clear bits).
-                private static int nextClearBit(int from, FixedBitSet matches) {
-                    long[] bits = matches.getBits();
-                    int wordIdx = from >>> 6;
-                    if (wordIdx >= bits.length) {
-                        return matches.length();
-                    }
-                    // Invert and right-shift to isolate clear bits at or after `from`.
-                    long word = ~bits[wordIdx] >>> (from & 63);
-                    if (word != 0) {
-                        return from + Long.numberOfTrailingZeros(word);
-                    }
-                    for (int i = wordIdx + 1; i < bits.length; i++) {
-                        word = ~bits[i];
-                        if (word != 0) {
-                            return (i << 6) + Long.numberOfTrailingZeros(word);
-                        }
-                    }
-                    return matches.length();
                 }
 
                 @Override

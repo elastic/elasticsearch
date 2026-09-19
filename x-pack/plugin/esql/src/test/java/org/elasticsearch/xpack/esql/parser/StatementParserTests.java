@@ -1247,7 +1247,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightOnFields() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title, body");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.prefix(), equalTo("highlight_"));
@@ -1262,7 +1261,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRequiresQueryAndOnClause() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         // Query and ON are currently required by grammar.
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT"));
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\""));
@@ -1270,7 +1268,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightCustomPrefix() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT prefix = \"h_\" MATCH(title, \"x\") ON title, body");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.prefix(), equalTo("h_"));
@@ -1280,7 +1277,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightEmptyPrefixParses() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         // Empty prefix overwrites the source column name.
         LogicalPlan plan = query("FROM foo | HIGHLIGHT prefix = \"\" \"elasticsearch\" ON content");
         Highlight highlight = as(plan, Highlight.class);
@@ -1290,7 +1286,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightFieldNamedPrefix() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON prefix");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.prefix(), equalTo("highlight_"));
@@ -1308,7 +1303,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRejectsUnknownModifier() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("Invalid modifier [bogus] in HIGHLIGHT, expected [prefix]"),
@@ -1317,7 +1311,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightWithOptions() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query(
             "FROM foo | HIGHLIGHT \"elasticsearch\" ON title WITH { \"fragment_size\": 150, \"number_of_fragments\": 2 }"
         );
@@ -1327,7 +1320,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightAcceptsAllOptions() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("""
             FROM foo | HIGHLIGHT "elasticsearch" ON title WITH {
               "pre_tags": ["<b>"], "post_tags": ["</b>"], "encoder": "html",
@@ -1339,7 +1331,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRejectsUnknownOption() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("Invalid option [bogus] in HIGHLIGHT"),
@@ -1348,7 +1339,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRejectsMapOptionValue() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         expectThrows(
             ParsingException.class,
             containsString("Invalid value for option [pre_tags] in HIGHLIGHT, expected a constant, found [{ \"tag\": \"<b>\" }]"),
@@ -1357,7 +1347,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightAcceptsFunctionQuery() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("FROM foo | HIGHLIGHT MATCH(title, \"x\") ON title");
         Highlight highlight = as(plan, Highlight.class);
         UnresolvedFunction match = as(highlight.query(), UnresolvedFunction.class);
@@ -1367,7 +1356,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightTerminatesInsideFork() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         LogicalPlan plan = query("""
             FROM foo
             | FORK ( HIGHLIGHT MATCH(title, "x") ON title )
@@ -1381,17 +1369,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testHighlightRejectsWildcardFields() {
-        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON *"));
-    }
-
-    public void testHighlightNotInReleaseBuild() {
-        assumeFalse("only runs on release build", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
-        expectThrows(
-            ParsingException.class,
-            containsString("mismatched input 'HIGHLIGHT'"),
-            () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title")
-        );
     }
 
     public void testBasicSortCommand() {
@@ -4558,6 +4536,78 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(plan.timeout(), equalTo(TimeValue.timeValueSeconds(30)));
     }
 
+    public void testDenseVectorType() {
+        assumeDenseVectorCommandEnabled();
+        var text = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"type\" : \"text\" }"),
+            DenseVector.class
+        );
+        assertThat(text.inputType(), equalTo(org.elasticsearch.inference.DataType.TEXT));
+
+        var image = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"type\" : \"image\" }"),
+            DenseVector.class
+        );
+        assertThat(image.inputType(), equalTo(org.elasticsearch.inference.DataType.IMAGE));
+    }
+
+    public void testDenseVectorTypeIsCaseInsensitive() {
+        assumeDenseVectorCommandEnabled();
+        for (String value : List.of("image", "IMAGE", "Image", "iMaGe")) {
+            var plan = as(
+                processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"type\" : \"" + value + "\" }"),
+                DenseVector.class
+            );
+            assertThat(plan.inputType(), equalTo(org.elasticsearch.inference.DataType.IMAGE));
+        }
+    }
+
+    public void testDenseVectorDefaultType() {
+        assumeDenseVectorCommandEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.inputType(), equalTo(org.elasticsearch.inference.DataType.TEXT));
+    }
+
+    /**
+     * The fallback endpoints embed text, so an image input has nothing to fall back to and must name an endpoint.
+     */
+    public void testDenseVectorImageRequiresInferenceId() {
+        assumeDenseVectorCommandEnabled();
+        expectError(
+            "FROM books | DENSE_VECTOR title WITH { \"type\" : \"image\" }",
+            "Option [type] with value [image] in DENSE_VECTOR requires option [inference_id]"
+        );
+    }
+
+    /**
+     * A cluster-level default is an administrator naming an endpoint, so it satisfies an image input the same way {@code WITH}
+     * does. Whether that endpoint is multimodal is checked during analysis.
+     */
+    public void testDenseVectorImageAcceptsClusterDefaultInferenceId() {
+        assumeDenseVectorCommandEnabled();
+        Settings settings = Settings.builder()
+            .put(InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.getKey(), "cluster-default-id")
+            .build();
+        var plan = as(
+            processingCommand("DENSE_VECTOR title WITH { \"type\" : \"image\" }", new QueryParams(), settings),
+            DenseVector.class
+        );
+        assertThat(plan.inferenceId(), equalTo(literalString("cluster-default-id")));
+        assertThat(plan.inputType(), equalTo(org.elasticsearch.inference.DataType.IMAGE));
+    }
+
+    public void testDenseVectorInvalidType() {
+        assumeDenseVectorCommandEnabled();
+        expectError(
+            "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"type\" : \"audio\" }",
+            "Invalid value [audio] for option [type] in DENSE_VECTOR, expected one of [text, image]"
+        );
+        expectError(
+            "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"type\" : \"nonsense\" }",
+            "Invalid value [nonsense] for option [type] in DENSE_VECTOR, expected one of [text, image]"
+        );
+    }
+
     public void testDenseVectorDefaultTimeout() {
         assumeDenseVectorCommandEnabled();
         // When no timeout option is given, the plan carries a null timeout; the inference layer then applies its
@@ -4571,6 +4621,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // No WITH: falls through to the built-in default endpoint.
         var plan = as(processingCommand("DENSE_VECTOR title"), DenseVector.class);
         assertThat(plan.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+        assertTrue(plan.inferenceIdIsFallback());
     }
 
     public void testDenseVectorEmptyOptionsUsesDefaultInferenceId() {
@@ -4578,6 +4629,21 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // Empty WITH: still falls through to the built-in default endpoint.
         var plan = as(processingCommand("DENSE_VECTOR title WITH { }"), DenseVector.class);
         assertThat(plan.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+        assertTrue(plan.inferenceIdIsFallback());
+    }
+
+    /**
+     * Naming the built-in default endpoint explicitly yields the same {@code inferenceId} as omitting the option, so the id alone
+     * cannot distinguish the two; only {@code inferenceIdIsFallback} does.
+     */
+    public void testDenseVectorExplicitBuiltInInferenceIdIsNotFallback() {
+        assumeDenseVectorCommandEnabled();
+        var plan = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \".multilingual-e5-small-elasticsearch\" }"),
+            DenseVector.class
+        );
+        assertThat(plan.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+        assertFalse(plan.inferenceIdIsFallback());
     }
 
     public void testDenseVectorClusterDefaultInferenceId() {
@@ -4588,6 +4654,21 @@ public class StatementParserTests extends AbstractStatementParserTests {
             .build();
         var plan = as(processingCommand("DENSE_VECTOR title", new QueryParams(), settings), DenseVector.class);
         assertThat(plan.inferenceId(), equalTo(literalString("cluster-default-id")));
+        assertFalse(plan.inferenceIdIsFallback());
+    }
+
+    /**
+     * A cluster-level default that happens to name the built-in default endpoint is still an administrator's choice, not a
+     * fallback.
+     */
+    public void testDenseVectorClusterDefaultNamingBuiltInIsNotFallback() {
+        assumeDenseVectorCommandEnabled();
+        Settings settings = Settings.builder()
+            .put(InferenceSettings.DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING.getKey(), ".multilingual-e5-small-elasticsearch")
+            .build();
+        var plan = as(processingCommand("DENSE_VECTOR title", new QueryParams(), settings), DenseVector.class);
+        assertThat(plan.inferenceId(), equalTo(literalString(".multilingual-e5-small-elasticsearch")));
+        assertFalse(plan.inferenceIdIsFallback());
     }
 
     public void testDenseVectorBlankClusterDefaultInferenceIdIsRejected() {
@@ -4617,6 +4698,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             DenseVector.class
         );
         assertThat(plan.inferenceId(), equalTo(literalString("with-id")));
+        assertFalse(plan.inferenceIdIsFallback());
     }
 
     public void testDenseVectorRowLimitOverride() {
@@ -4644,7 +4726,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assumeDenseVectorCommandEnabled();
         expectError(
             "FROM foo* | DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"foo\" : 3 }",
-            "Invalid option [foo] in DENSE_VECTOR, expected one of [[inference_id, timeout]]"
+            "Invalid option [foo] in DENSE_VECTOR, expected one of [[inference_id, timeout, type]]"
         );
     }
 
@@ -4674,7 +4756,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testDenseVectorMissingFieldList() {
         assumeDenseVectorCommandEnabled();
-        expectError("FROM foo* | DENSE_VECTOR WITH { \"inference_id\" : \"my-id\" }", "mismatched input 'WITH' expecting {");
+        expectError("FROM foo* | DENSE_VECTOR WITH { \"inference_id\" : \"my-id\" }", "DENSE_VECTOR requires at least one input field");
+        expectError("FROM foo* | DENSE_VECTOR", "DENSE_VECTOR requires at least one input field");
+        expectError("FROM foo* | DENSE_VECTOR vec =", "DENSE_VECTOR requires at least one input field");
     }
 
     public void testDenseVectorWithPositionalParameters() {
@@ -4697,6 +4781,234 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"))));
         assertThat(plan.inferenceId(), equalTo(literalString("my-id")));
+    }
+
+    private static void assumeDenseVectorNamingEnabled() {
+        assumeTrue("DENSE_VECTOR naming requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND_V3.isEnabled());
+    }
+
+    public void testDenseVectorDefaultNaming() {
+        assumeDenseVectorNamingEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR title, author WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.DEFAULT));
+        assertThat(plan.naming().nameFor(attribute("title")), equalTo("title_dense_vector"));
+    }
+
+    public void testDenseVectorExplicitOutputName() {
+        assumeDenseVectorNamingEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR vec = title WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.explicit("vec")));
+        assertThat(plan.naming().nameFor(attribute("title")), equalTo("vec"));
+    }
+
+    public void testDenseVectorSuffixOverMultipleFields() {
+        assumeDenseVectorNamingEnabled();
+        var plan = as(
+            processingCommand("DENSE_VECTOR suffix = \"_dv\" ON title, author WITH { \"inference_id\" : \"my-id\" }"),
+            DenseVector.class
+        );
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"), attribute("author"))));
+        assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.suffixed("_dv")));
+        assertThat(plan.naming().nameFor(attribute("title")), equalTo("title_dv"));
+        assertThat(plan.naming().nameFor(attribute("author")), equalTo("author_dv"));
+    }
+
+    public void testDenseVectorSuffixOverSingleField() {
+        assumeDenseVectorNamingEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR suffix = \"_dv\" ON title WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(plan.naming().nameFor(attribute("title")), equalTo("title_dv"));
+    }
+
+    public void testDenseVectorSuffixKeywordIsCaseInsensitive() {
+        assumeDenseVectorNamingEnabled();
+        for (String keyword : List.of("suffix", "SUFFIX", "Suffix", "sUfFiX")) {
+            var plan = as(
+                processingCommand("DENSE_VECTOR " + keyword + " = \"_dv\" ON title WITH { \"inference_id\" : \"my-id\" }"),
+                DenseVector.class
+            );
+            assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.suffixed("_dv")));
+        }
+    }
+
+    /**
+     * {@code suffix} is a contextual keyword, never reserved: only a string closed by {@code ON} starts a suffix clause, so an
+     * identifier after {@code =} is an ordinary output name and the word stays usable as a column name everywhere else.
+     */
+    public void testDenseVectorSuffixIsNotAReservedWord() {
+        assumeDenseVectorNamingEnabled();
+        var asOutputName = as(processingCommand("DENSE_VECTOR suffix = title WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(asOutputName.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(asOutputName.naming(), equalTo(DenseVector.OutputNaming.explicit("suffix")));
+
+        var asInputField = as(processingCommand("DENSE_VECTOR vec = suffix WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(asInputField.fields(), equalToIgnoringIds(List.of(attribute("suffix"))));
+        assertThat(asInputField.naming(), equalTo(DenseVector.OutputNaming.explicit("vec")));
+
+        var bare = as(processingCommand("DENSE_VECTOR suffix WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(bare.fields(), equalToIgnoringIds(List.of(attribute("suffix"))));
+        assertThat(bare.naming(), equalTo(DenseVector.OutputNaming.DEFAULT));
+
+        var inList = as(processingCommand("DENSE_VECTOR suffix, title WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(inList.fields(), equalToIgnoringIds(List.of(attribute("suffix"), attribute("title"))));
+        assertThat(inList.naming(), equalTo(DenseVector.OutputNaming.DEFAULT));
+    }
+
+    public void testDenseVectorQuotedOutputName() {
+        assumeDenseVectorNamingEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR `weird name` = title WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.explicit("weird name")));
+    }
+
+    public void testDenseVectorNamingWithChainedClauses() {
+        assumeDenseVectorNamingEnabled();
+        var outer = as(
+            processingCommand(
+                "DENSE_VECTOR vec = title WITH { \"inference_id\" : \"endpoint-a\" } "
+                    + "| DENSE_VECTOR suffix = \"_dv\" ON author WITH { \"inference_id\" : \"endpoint-b\" }"
+            ),
+            DenseVector.class
+        );
+        assertThat(outer.naming(), equalTo(DenseVector.OutputNaming.suffixed("_dv")));
+        assertThat(as(outer.child(), DenseVector.class).naming(), equalTo(DenseVector.OutputNaming.explicit("vec")));
+    }
+
+    public void testDenseVectorNamingCombinedWithOptions() {
+        assumeDenseVectorNamingEnabled();
+        var plan = as(
+            processingCommand("DENSE_VECTOR vec = title WITH { \"inference_id\" : \"my-id\", \"timeout\" : \"30s\", \"type\" : \"text\" }"),
+            DenseVector.class
+        );
+        assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.explicit("vec")));
+        assertThat(plan.inferenceId(), equalTo(literalString("my-id")));
+        assertThat(plan.timeout(), equalTo(TimeValue.timeValueSeconds(30)));
+    }
+
+    public void testDenseVectorInvalidSuffixKeyword() {
+        assumeDenseVectorNamingEnabled();
+        expectError(
+            "FROM books | DENSE_VECTOR prefix = \"_dv\" ON title WITH { \"inference_id\" : \"my-id\" }",
+            "Invalid modifier [prefix] in DENSE_VECTOR, expected [suffix]"
+        );
+    }
+
+    public void testDenseVectorExplicitNameRejectsMultipleFields() {
+        assumeDenseVectorNamingEnabled();
+        expectError(
+            "FROM books | DENSE_VECTOR vec = title, author WITH { \"inference_id\" : \"my-id\" }",
+            "Naming a single output column with [=] in DENSE_VECTOR requires exactly one input field, found [2]"
+        );
+    }
+
+    public void testDenseVectorSuffixRequiresOn() {
+        assumeDenseVectorNamingEnabled();
+        expectError("FROM books | DENSE_VECTOR suffix = \"_dv\" title", "Missing [ON] after [suffix = \"_dv\"] in DENSE_VECTOR");
+        expectError("FROM books | DENSE_VECTOR suffix = \"_dv\"", "Missing [ON] after [suffix = \"_dv\"] in DENSE_VECTOR");
+    }
+
+    /**
+     * A whitespace-only suffix is rejected alongside the empty one: it would produce a column differing from its input only by
+     * trailing spaces. Mirrors {@code esql.command.dense_vector.default_inference_id}, which rejects blank-but-non-empty.
+     */
+    public void testBlankSuffixRejected() {
+        assumeDenseVectorNamingEnabled();
+        for (String suffix : List.of("", " ", "   ", "\t")) {
+            expectError(
+                "FROM books | DENSE_VECTOR suffix = \"" + suffix + "\" ON title WITH { \"inference_id\" : \"my-id\" }",
+                "Option [suffix] in DENSE_VECTOR must not be blank"
+            );
+        }
+    }
+
+    /**
+     * {@code qualifiedName} reaches {@code parameter} through {@code identifierOrParameter}, so a parameter can name the output;
+     * {@code string} is {@code QUOTED_STRING} only, so a suffix cannot be parameterised. Pinned because the asymmetry surprises.
+     */
+    public void testDenseVectorNamingWithParameters() {
+        assumeDenseVectorNamingEnabled();
+        var params = new QueryParams(List.of(paramAsIdentifier("name", "vec")));
+        var plan = as(
+            TEST_PARSER.parseQuery("row a = 1 | DENSE_VECTOR ?name = title WITH { \"inference_id\" : \"my-id\" }", params),
+            DenseVector.class
+        );
+        assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.explicit("vec")));
+
+        // A parameter is a qualifiedName, so this reads as the target form naming `suffix` from field `?s`; the trailing ON is
+        // then unexpected, which is how a parameterised suffix fails.
+        expectError("FROM books | DENSE_VECTOR suffix = ?s ON title", "mismatched input 'ON'");
+    }
+
+    /** {@code visitIdentifier} unquotes, so a backticked keyword still starts the suffix clause. Same as HIGHLIGHT's prefix. */
+    public void testDenseVectorQuotedSuffixKeyword() {
+        assumeDenseVectorNamingEnabled();
+        var plan = as(
+            processingCommand("DENSE_VECTOR `suffix` = \"_dv\" ON title WITH { \"inference_id\" : \"my-id\" }"),
+            DenseVector.class
+        );
+        assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.suffixed("_dv")));
+    }
+
+    public void testDenseVectorNonStringSuffixRejected() {
+        assumeDenseVectorNamingEnabled();
+        expectError("FROM books | DENSE_VECTOR suffix = 3 ON title", "mismatched input '3'");
+    }
+
+    /** Wildcards stay unsupported in the field list whichever naming form introduces it. */
+    public void testDenseVectorWildcardNotSupportedWithNaming() {
+        assumeDenseVectorNamingEnabled();
+        expectError("FROM books | DENSE_VECTOR vec = titl*", "extraneous input '*'");
+        expectError("FROM books | DENSE_VECTOR suffix = \"_dv\" ON titl*", "extraneous input '*'");
+    }
+
+    /**
+     * A literal is not accepted as input. {@code name = "text"} shares its head with the suffix clause, so the grammar carries a
+     * dedicated alternative for it purely to let the builder report the literal rather than a missing {@code ON}.
+     */
+    public void testDenseVectorLiteralInputNotSupported() {
+        assumeDenseVectorNamingEnabled();
+        expectError(
+            "FROM books | DENSE_VECTOR vec = \"some text\"",
+            "DENSE_VECTOR input must be a field name, found string literal [\"some text\"]"
+        );
+        expectError(
+            "FROM books | DENSE_VECTOR vec = \"some text\" WITH { \"inference_id\" : \"my-id\" }",
+            "DENSE_VECTOR input must be a field name, found string literal [\"some text\"]"
+        );
+        expectError(
+            "FROM books | DENSE_VECTOR \"some text\"",
+            "DENSE_VECTOR input must be a field name, found string literal [\"some text\"]"
+        );
+    }
+
+    /**
+     * A qualifier identifies where a column came from, so it is meaningful on the input side and is carried through to the
+     * attribute. Only the output name rejects it, since that name is being defined rather than referenced.
+     */
+    public void testDenseVectorInputAcceptsQualifiers() {
+        assumeDenseVectorNamingEnabled();
+        assumeTrue("Requires qualifier support", EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled());
+        var plan = as(processingCommand("DENSE_VECTOR vec = [idx].[title] WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.fields(), hasSize(1));
+        UnresolvedAttribute field = as(plan.fields().get(0), UnresolvedAttribute.class);
+        assertThat(field.qualifier(), equalTo("idx"));
+        assertThat(field.name(), equalTo("title"));
+        assertThat(plan.naming(), equalTo(DenseVector.OutputNaming.explicit("vec")));
+    }
+
+    public void testDenseVectorOutputNameRejectsQualifiers() {
+        assumeDenseVectorNamingEnabled();
+        assumeTrue("Requires qualifier support", EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled());
+        expectError(
+            "FROM books | DENSE_VECTOR [idx].[vec] = title WITH { \"inference_id\" : \"my-id\" }",
+            "Qualified names are not supported in field definitions, found [[idx].[vec]]"
+        );
+    }
+
+    public void testDenseVectorNamingMissingOperands() {
+        assumeDenseVectorNamingEnabled();
+        expectError("FROM books | DENSE_VECTOR vec = ", "DENSE_VECTOR requires at least one input field");
+        expectError("FROM books | DENSE_VECTOR suffix = \"_dv\" ON ", "DENSE_VECTOR requires at least one input field");
     }
 
     public void testSample() {

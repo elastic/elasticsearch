@@ -1042,37 +1042,6 @@ public class ComputeService {
         ActionListener<Result> listener,
         Supplier<ExchangeSink> exchangeSinkSupplier,
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
-        PlanTimeProfile planTimeProfile
-    ) {
-        executePlan(
-            sessionId,
-            rootTask,
-            flags,
-            physicalPlan,
-            configuration,
-            foldContext,
-            execInfo,
-            profileQualifier,
-            listener,
-            exchangeSinkSupplier,
-            initialClusterStatuses,
-            planTimeProfile,
-            () -> {}
-        );
-    }
-
-    public void executePlan(
-        String sessionId,
-        CancellableTask rootTask,
-        EsqlFlags flags,
-        PhysicalPlan physicalPlan,
-        Configuration configuration,
-        FoldContext foldContext,
-        EsqlExecutionInfo execInfo,
-        String profileQualifier,
-        ActionListener<Result> listener,
-        Supplier<ExchangeSink> exchangeSinkSupplier,
-        Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
         PlanTimeProfile planTimeProfile,
         Runnable warnIndexCoordinatorOnce
     ) {

@@ -61,7 +61,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
-import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -78,6 +77,7 @@ import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardMetrics;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.NonNegativeScoresSimilarity;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -269,7 +269,7 @@ public class IndexModuleTests extends ESTestCase {
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP,
+            ShardMetrics.NOOP,
             StoreMetrics.NOOP_HOLDER
         );
         module.setReaderWrapper(s -> new Wrapper());
@@ -301,7 +301,7 @@ public class IndexModuleTests extends ESTestCase {
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP,
+            ShardMetrics.NOOP,
             StoreMetrics.NOOP_HOLDER
         );
 
@@ -331,7 +331,7 @@ public class IndexModuleTests extends ESTestCase {
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP,
+            ShardMetrics.NOOP,
             StoreMetrics.NOOP_HOLDER
         );
 
@@ -714,7 +714,7 @@ public class IndexModuleTests extends ESTestCase {
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP,
+            ShardMetrics.NOOP,
             StoreMetrics.NOOP_HOLDER
         );
 
@@ -744,7 +744,7 @@ public class IndexModuleTests extends ESTestCase {
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP,
+            ShardMetrics.NOOP,
             StoreMetrics.NOOP_HOLDER
         );
 
@@ -859,7 +859,7 @@ public class IndexModuleTests extends ESTestCase {
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP,
+            ShardMetrics.NOOP,
             StoreMetrics.NOOP_HOLDER
         );
     }

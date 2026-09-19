@@ -654,15 +654,21 @@ public class AzureBlobStore implements BlobStore {
      * something later reads the blob and fails a Lucene checksum - by which time the shard cannot be recovered
      * without losing the writes that followed.
      *
-     * <p>This costs one extra pass over the source, and that pass is required rather than merely convenient. The
-     * header travels ahead of the body, so the digest has to be known before the first byte is sent and cannot be
-     * accumulated from the upload's own read. Nor can it be taken from the buffers the upload emits: those are the
-     * bytes we believe we are sending, and a fault downstream of them is precisely what this is here to catch. Do
-     * not fold this into the read that feeds the {@link Flux} - it would leave the header in place and the
-     * protection gone.
+     * <p>This costs one extra pass over the source, and that pass is forced by the shape of an HTTP request rather
+     * than chosen. {@code Content-MD5} is a request header, so the digest must be on the wire before the first byte
+     * of the body, while a digest accumulated as the body streams is only known once the body has gone. Folding it
+     * into the read that feeds the {@link Flux} would produce the same value from the same bytes; it simply would
+     * not produce it in time.
+     *
+     * <p>What must not be done is to take the digest from the {@link ByteBuffer}s the upload emits, tempting though
+     * it is to digest them on their way past. Those are the bytes we believe we are sending, and a fault downstream
+     * of the read is the thing this exists to catch, so the header would agree with the corruption and the request
+     * would be accepted. That refactor leaves the header in place and every test green with the protection gone.
      *
      * <p>The provider hands out an independent stream per call, so the two passes agree only if the source is
-     * stable. It is, for the compound commits this exists to protect: they are frozen before upload.
+     * stable. It is, for the compound commits this exists to protect: they are frozen before upload. There is no
+     * cheaper variant available here: Azure would also accept {@code x-ms-content-crc64}, but the SDK does not
+     * expose it on these options.
      */
     private static byte[] contentMd5(BlobContainer.BlobMultiPartInputStreamProvider provider, long offset, long length) throws IOException {
         final MessageDigest digest = MessageDigests.md5();

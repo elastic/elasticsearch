@@ -9,6 +9,9 @@ The generator handles the following:
   - Various configurations for filtering/activating steps based on labels, changed files, etc. See below.
   - Replacing `$SNAPSHOT_BWC_VERSIONS` in pipelines with an array of versions from `.ci/snapshotBwcVersions`
   - Duplicating any step with `bwc_template: true` for each BWC version in `.ci/bwcVersions`
+  - Replacing `$FWC_LATER_BRANCHES` in pipelines with the development branches ahead of the pull
+    request's target branch, read from `branches.json` on `main`. A pipeline using this placeholder is
+    dropped entirely when nothing is ahead of the target branch, since an empty matrix dimension is invalid.
 
 [Bun](https://bun.sh/) is used to test and run the TypeScript. It's an alternative JavaScript runtime that natively handles TypeScript.
 

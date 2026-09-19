@@ -84,8 +84,16 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
             )
         );
 
-        telemetry.collect();
+        assertBusy(() -> {
+            // retry in case the gate is just be blocked and duration is 0ms
+            telemetry.collect();
+            assertThat(
+                getLastLongGaugeValue(RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC, telemetry),
+                greaterThan(0L)
+            );
+        });
         assertThat(getLastLongGaugeValue(RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_METRIC, telemetry), equalTo(1L));
+        assertThat(telemetry.getLongHistogramMeasurement(RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_DURATION_METRIC), empty());
         final List<Measurement> blockCount = telemetry.getLongCounterMeasurement(
             RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_TOTAL_METRIC
         );
@@ -120,6 +128,7 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
 
         telemetry.collect();
         assertThat(getLastLongGaugeValue(RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_METRIC, telemetry), equalTo(0L));
+        assertThat(getLastLongGaugeValue(RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC, telemetry), equalTo(0L));
         assertThat(
             getLastDoubleGaugeValue(EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_PERCENTAGE_METRIC, telemetry),
             greaterThan(0.0)

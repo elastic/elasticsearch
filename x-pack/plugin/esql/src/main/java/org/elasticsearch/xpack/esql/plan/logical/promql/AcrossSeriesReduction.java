@@ -74,6 +74,12 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
     }
 
     @Override
+    public boolean dropsMetricName() {
+        // input series pass through unchanged, name included
+        return false;
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (super.equals(o)) {
             AcrossSeriesReduction that = (AcrossSeriesReduction) o;

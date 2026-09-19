@@ -62,6 +62,12 @@ public final class ValueTransformationFunction extends PromqlFunctionCall {
     }
 
     @Override
+    public boolean dropsMetricName() {
+        // Element-wise transformations (abs, ceil, ...) drop the metric name like every other PromQL function.
+        return true;
+    }
+
+    @Override
     public boolean isIdentityTransparent() {
         return true;
     }

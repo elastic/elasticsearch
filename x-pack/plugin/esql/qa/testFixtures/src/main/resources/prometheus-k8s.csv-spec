@@ -50,8 +50,7 @@ network.cost:double | step:datetime            | _timeseries:keyword
 10.875              | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.cost"",""cluster"":""qa"",""pod"":""three""}}"
 ;
 
-// Fails until the translator drops the metric name here, as Prometheus does.
-bare_count_over_time_with_tbucket_outputs_dimensions_promql-Ignore
+bare_count_over_time_with_tbucket_outputs_dimensions_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
@@ -94,8 +93,7 @@ network.cost:double | step:datetime            | _timeseries:keyword
 10.875              | 2024-05-10T01:00:00.000Z | "{""labels"":{""__name__"":""network.cost"",""cluster"":""qa"",""pod"":""three""}}"
 ;
 
-// Fails until the translator drops the metric name here, as Prometheus does.
-bare_avg_over_time_with_tbucket_outputs_dimensions_promql-Ignore
+bare_avg_over_time_with_tbucket_outputs_dimensions_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
@@ -117,8 +115,7 @@ avg:double         | step:datetime            | _timeseries:keyword
 8.375              | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}}"
 ;
 
-// Fails until the translator drops the metric name here, as Prometheus does.
-bare_sum_over_time_with_tbucket_outputs_dimensions_promql-Ignore
+bare_sum_over_time_with_tbucket_outputs_dimensions_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
@@ -140,8 +137,7 @@ sum:double | step:datetime            | _timeseries:keyword
 210.625    | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""qa"",""pod"":""one""}}"
 ;
 
-// Fails until the translator drops the metric name here, as Prometheus does.
-bare_rate_with_tbucket_outputs_dimensions_promql-Ignore
+bare_rate_with_tbucket_outputs_dimensions_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_displaying_ts_dimensions_in_metrics_group_by_all

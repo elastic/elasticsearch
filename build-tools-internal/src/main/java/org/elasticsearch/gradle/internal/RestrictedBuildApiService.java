@@ -29,34 +29,19 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         ListMultimap<Class<?>, String> map = ArrayListMultimap.create(1, 200);
         // Projects that apply LegacyRestTestBasePlugin directly via the legacy-yaml-rest-test or legacy-java-rest-test plugins.
         map.put(LegacyRestTestBasePlugin.class, ":docs");
-        map.put(LegacyRestTestBasePlugin.class, ":qa:ccs-rolling-upgrade-remote-cluster");
-        map.put(LegacyRestTestBasePlugin.class, ":qa:mixed-cluster");
-        map.put(LegacyRestTestBasePlugin.class, ":qa:multi-cluster-search");
-        map.put(LegacyRestTestBasePlugin.class, ":qa:rolling-upgrade-legacy");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ent-search");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:repository-old-versions");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:rolling-upgrade-legacy");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:rolling-upgrade-basic");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:rolling-upgrade-multi-cluster");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:xpack-prefix-rest-compat");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ent-search:qa:rest");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:eql:qa:ccs-rolling-upgrade");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:eql:qa:mixed-node");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ml:qa:multi-cluster-tests-with-security");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ml:qa:single-node-tests");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:shutdown:qa:multi-node");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:snapshot-repo-test-kit:qa:rest");
 
         // Projects that apply LegacyRestTestBasePlugin transitively via the standalone-rest-test plugin.
         map.put(LegacyRestTestBasePlugin.class, ":qa:mixed-cluster");
+        map.put(LegacyRestTestBasePlugin.class, ":qa:multi-cluster-search");
         map.put(LegacyRestTestBasePlugin.class, ":qa:rolling-upgrade-legacy");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:rolling-upgrade");
+        map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:rolling-upgrade-legacy");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:rolling-upgrade-basic");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:eql:qa:ccs-rolling-upgrade");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:shutdown:qa:rolling-upgrade");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:transform:qa:multi-cluster-tests-with-security");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:transform:qa:multi-node-tests");
-
         return map;
     }
 

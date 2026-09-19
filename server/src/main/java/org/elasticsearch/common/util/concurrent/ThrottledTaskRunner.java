@@ -11,8 +11,10 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.concurrent.Executor;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.common.Strings.format;
 
@@ -20,6 +22,26 @@ public class ThrottledTaskRunner extends AbstractThrottledTaskRunner<ActionListe
     // a simple AbstractThrottledTaskRunner which fixes the task type and uses a regular FIFO blocking queue.
     public ThrottledTaskRunner(String name, int maxRunningTasks, Executor executor) {
         super(name, maxRunningTasks, executor, ConcurrentCollections.newBlockingQueue());
+    }
+
+    // a simple **instrumented* AbstractThrottledTaskRunner which fixes the task type and uses a regular FIFO blocking queue.
+    public ThrottledTaskRunner(
+        String name,
+        int maxRunningTasks,
+        Executor executor,
+        MeterRegistry meterRegistry,
+        String metricName,
+        LongSupplier relativeTimeNanosProvider
+    ) {
+        super(
+            name,
+            maxRunningTasks,
+            executor,
+            ConcurrentCollections.newBlockingQueue(),
+            meterRegistry,
+            metricName,
+            relativeTimeNanosProvider
+        );
     }
 
     /**

@@ -1154,6 +1154,38 @@ public class DatasetRewriterTests extends ESTestCase {
      * Rewrite with every registered dataset authorized — the unsecured-cluster behavior. Wildcard-dataset matching is
      * forced on so the wildcard cases reach their datasets regardless of the production default, which is off.
      */
+    public void testEveryGeneratorPatternShapeReachesADatasetOnlyByItsExactName() {
+        // Replaces coverage the generative suite used to give at the shipping default. EsqlQueryGenerator.indexPattern
+        // builds a target as either the exact name or name.substring(0, randomIntBetween(0, len)) + "*", so about half
+        // its targets were wildcards over a dataset name. GenerativeIT test {feature:PARQUET_DATASET} is muted on main
+        // (issue #156789, a pre-existing flake), which removed that fuzzing for the default mode. Walking every prefix
+        // length covers the same shapes exhaustively rather than by chance, including the degenerate "*".
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset ds = new Dataset("logs_dataset", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_dataset", ds));
+        Set<String> authorized = Set.of("logs_dataset");
+
+        String name = "logs_dataset";
+        for (int prefix = 0; prefix <= name.length(); prefix++) {
+            String pattern = name.substring(0, prefix) + "*";
+            assertThat(
+                "wildcard [" + pattern + "] must not reach the dataset when wildcards_match_datasets is off",
+                resolve(pattern, project, authorized, false).resolvedExternalDatasets(),
+                equalTo(Set.of())
+            );
+            // Positive control: the same pattern does reach it with the setting on, so the assertion above is about the
+            // setting rather than about the pattern never having matched.
+            assertThat(
+                "wildcard [" + pattern + "] must reach the dataset when wildcards_match_datasets is on",
+                resolve(pattern, project, authorized, true).resolvedExternalDatasets(),
+                equalTo(Set.of("logs_dataset"))
+            );
+        }
+
+        // The other arm the generator produced: the exact name, which is how a dataset is reached at the default.
+        assertThat(resolve(name, project, authorized, false).resolvedExternalDatasets(), equalTo(Set.of("logs_dataset")));
+    }
+
     private static LogicalPlan rewrite(LogicalPlan parsed, ProjectMetadata project) {
         return DatasetRewriter.rewriteUnsecured(parsed, project, RESOLVER, true);
     }

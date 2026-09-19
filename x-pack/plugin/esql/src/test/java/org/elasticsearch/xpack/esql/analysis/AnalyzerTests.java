@@ -6680,25 +6680,26 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
-     * An implicit HIGHLIGHT does not copy a WHERE analyzer into WITH options. Covers one leaf, disagreeing
-     * leaves on different fields, two analyzers on the same field, and leaves in separate WHERE commands.
+     * An implicit HIGHLIGHT does not copy a WHERE or mapping analyzer into WITH options.
+     * Mixed leaf analyzers are rejected by verification, not patched by synthesizing WITH.
      */
     public void testHighlightNeverSynthesizesLeafAnalyzerIntoOptions() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         for (String query : List.of(
             "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"standard\"}) | HIGHLIGHT ON first_name",
-            "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT",
-            "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"whitespace\"})"
-                + " AND MATCH(last_name, \"y\", {\"analyzer\": \"simple\"}) | HIGHLIGHT",
-            "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"whitespace\"})"
-                + " OR MATCH(first_name, \"y\", {\"analyzer\": \"simple\"}) | HIGHLIGHT",
-            "FROM test | WHERE MATCH(first_name, \"x\", {\"analyzer\": \"whitespace\"})"
-                + " | WHERE MATCH(last_name, \"y\", {\"analyzer\": \"simple\"}) | HIGHLIGHT ON first_name"
+            "FROM test | WHERE MATCH(first_name, \"x\") | HIGHLIGHT"
         )) {
             Highlight highlight = soleHighlight(supportsHighlight(basic()).query(query));
             assertTrue(query, highlight.implicitQuery());
             assertNull(query, highlight.options());
         }
+        Highlight mapped = soleHighlight(
+            supportsHighlight(analyzer().addIndex("books_english", "mapping-books_english.json")).query(
+                "FROM books_english | WHERE MATCH(title, \"ring\") | HIGHLIGHT ON title"
+            )
+        );
+        assertTrue(mapped.implicitQuery());
+        assertNull(mapped.options());
     }
 
     public void testHighlightAnalyzerOnUnsupportedShapeDoesNotBorrow() {

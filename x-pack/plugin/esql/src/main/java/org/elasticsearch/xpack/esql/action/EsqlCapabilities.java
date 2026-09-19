@@ -3752,7 +3752,7 @@ public class EsqlCapabilities {
 
         /**
          * HIGHLIGHT tokenizes each mapped text field with its index analyzer, and each TO_TEXT column with its
-         * declared analyzer. A full-text function's {@code analyzer} option tokenizes only that function's query terms.
+         * declared analyzer. Query leaf analyzers, WITH, and those values analyzers must name one analyzer.
          */
         HIGHLIGHT_MAPPING_ANALYZER,
 

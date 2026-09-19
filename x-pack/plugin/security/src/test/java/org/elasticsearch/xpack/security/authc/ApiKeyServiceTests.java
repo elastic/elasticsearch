@@ -3337,6 +3337,9 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertThat(restoredApiKeyMetadata, equalTo(apiKeyMetadata));
         }
 
+        // the returned value from getApiKeyMetadata is the identical object on subsequent invocations
+        assertThat(restoredApiKeyMetadata, sameInstance(ApiKeyService.getApiKeyMetadata(apiKeyAuthentication)));
+
         final Authentication authentication = AuthenticationTests.randomAuthentication(
             AuthenticationTests.randomUser(),
             AuthenticationTests.randomRealmRef(randomBoolean()),

@@ -5046,6 +5046,22 @@ public class VerifierTests extends AnalyzerTestCase {
         );
     }
 
+    public void testHighlightMappingAnalyzerAgreesWithQueryWithoutWith() {
+        assumeHighlightImplicitQueryAndFieldsEnabled();
+        TestAnalyzer booksEnglish = supportsHighlightImplicit(
+            analyzer().addIndex("books_english", "mapping-books_english.json").stripErrorPrefix(true)
+        );
+        booksEnglish.query("FROM books_english | WHERE MATCH(title, \"ring\") | HIGHLIGHT ON title");
+        booksEnglish.error(
+            "FROM books_english | WHERE MATCH(title, \"ring\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT ON title",
+            containsString("HIGHLIGHT query analyzer [whitespace] does not match the values analyzer [english]")
+        );
+        booksEnglish.error(
+            "FROM books_english | HIGHLIGHT \"ring\" ON title, publisher",
+            containsString("HIGHLIGHT ON fields use different values analyzers")
+        );
+    }
+
     public void testHighlightImplicitDerivedQueryFailureIsFramedAsDerived() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         supportsHighlightImplicit(fullText()).error(
@@ -5329,9 +5345,9 @@ public class VerifierTests extends AnalyzerTestCase {
             containsString("HIGHLIGHT query analyzer [whitespace] does not match the values analyzer [standard]")
         );
         supportsHighlight(fullText()).error(
-            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"english\"}) OR"
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"simple\"}) OR"
                 + " MATCH(body, \"bar\", {\"analyzer\": \"whitespace\"}) ON title, body",
-            containsString("HIGHLIGHT full-text functions use different analyzers [english, whitespace]")
+            containsString("HIGHLIGHT full-text functions use different analyzers [simple, whitespace]")
         );
         supportsHighlight(fullText()).error(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\") ON body",

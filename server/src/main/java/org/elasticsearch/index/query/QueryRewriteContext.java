@@ -396,6 +396,9 @@ public class QueryRewriteContext {
         if (allowedFields != null && false == allowedFields.test(name)) {
             return null;
         }
+        if (isInternalSliceField(name)) {
+            return null;
+        }
         final String fieldName = resolveSliceAlias(name);
         MappedFieldType fieldType = runtimeMappings.get(fieldName);
         return fieldType == null ? mappingLookup.getFieldType(fieldName) : fieldType;
@@ -585,8 +588,9 @@ public class QueryRewriteContext {
         if (isSliceFieldAlias(pattern)) {
             return Set.of(SliceIndexing.FIELD_NAME);
         }
-        if (isRoutingHiddenBySlice(pattern)) {
-            // A slice-enabled index hides _routing from field retrieval; it is fetched as _slice instead.
+        if (isRoutingHiddenBySlice(pattern) || isInternalSliceField(pattern)) {
+            // A slice-enabled index hides _routing from field retrieval (it is fetched as _slice instead) and never
+            // exposes its internal sort key and hash fields.
             return Set.of();
         }
         Set<String> matches;
@@ -609,6 +613,12 @@ public class QueryRewriteContext {
                 }
             }
         }
+        if (isSliceFieldAliasEnabled()
+            && (matches.contains(SliceIndexing.SLICE_KEY_FIELD_NAME) || matches.contains(SliceIndexing.SLICE_HASH_FIELD_NAME))) {
+            matches = new HashSet<>(matches);
+            matches.remove(SliceIndexing.SLICE_KEY_FIELD_NAME);
+            matches.remove(SliceIndexing.SLICE_HASH_FIELD_NAME);
+        }
         // If the field is not allowed, behave as if it is not mapped
         return allowedFields == null ? matches : matches.stream().filter(allowedFields).collect(Collectors.toSet());
     }
@@ -623,6 +633,15 @@ public class QueryRewriteContext {
      */
     protected final boolean isRoutingHiddenBySlice(String fieldName) {
         return isSliceFieldAliasEnabled() && RoutingFieldMapper.NAME.equals(fieldName);
+    }
+
+    /**
+     * {@code _slice_key} and {@code _slice_hash} exist only for the slice layout (index sort and segment pruning). Their
+     * encoded values mean nothing to users, so they are never resolvable by name on a slice-enabled index.
+     */
+    protected final boolean isInternalSliceField(String fieldName) {
+        return isSliceFieldAliasEnabled()
+            && (SliceIndexing.SLICE_KEY_FIELD_NAME.equals(fieldName) || SliceIndexing.SLICE_HASH_FIELD_NAME.equals(fieldName));
     }
 
     private boolean isSliceFieldAliasEnabled() {

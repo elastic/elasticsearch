@@ -23,6 +23,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.SliceKeyFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -307,14 +308,21 @@ public final class IndexSortConfig {
         if (IndexSettings.SLICE_ENABLED.get(settings) && INDEX_SORT_FIELD_SETTING.exists(settings)) {
             List<String> fields = settings.getAsList(INDEX_SORT_FIELD_SETTING.getKey());
             for (String field : fields) {
-                if (field.equals(RoutingFieldMapper.NAME) || field.equals(SliceIndexing.FIELD_NAME)) {
+                if (field.equals(RoutingFieldMapper.NAME)
+                    || field.equals(SliceIndexing.FIELD_NAME)
+                    || field.equals(SliceIndexing.SLICE_KEY_FIELD_NAME)
+                    || field.equals(SliceIndexing.SLICE_HASH_FIELD_NAME)) {
                     throw new IllegalArgumentException(
                         "setting ["
                             + INDEX_SORT_FIELD_SETTING.getKey()
                             + "] must not contain ["
                             + RoutingFieldMapper.NAME
-                            + "] or ["
+                            + "], ["
                             + SliceIndexing.FIELD_NAME
+                            + "], ["
+                            + SliceIndexing.SLICE_KEY_FIELD_NAME
+                            + "] or ["
+                            + SliceIndexing.SLICE_HASH_FIELD_NAME
                             + "] when ["
                             + IndexSettings.SLICE_ENABLED.getKey()
                             + "] is true"
@@ -356,7 +364,7 @@ public final class IndexSortConfig {
         List<MultiValueMode> modes = new ArrayList<>(INDEX_SORT_MODE_SETTING.get(settings));
         List<String> missingValues = new ArrayList<>(INDEX_SORT_MISSING_SETTING.get(settings));
         if (indexSettings.isSliceEnabled()) {
-            prependSliceRoutingSort(fields, orders, modes, missingValues);
+            prependSliceKeySort(fields, orders, modes, missingValues);
         }
         sortSpecs = fields.stream().map(FieldSortSpec::new).toArray(FieldSortSpec[]::new);
         for (int i = 0; i < sortSpecs.length; i++) {
@@ -370,13 +378,17 @@ public final class IndexSortConfig {
         }
     }
 
-    private static void prependSliceRoutingSort(
+    /**
+     * Slice-enabled indices are sorted on the hash-prefixed slice key first, ascending with missing values (tombstones)
+     * last, so every slice occupies a contiguous doc-id range laid out by hash prefix.
+     */
+    private static void prependSliceKeySort(
         List<String> fields,
         List<SortOrder> orders,
         List<MultiValueMode> modes,
         List<String> missingValues
     ) {
-        fields.addFirst(RoutingFieldMapper.NAME);
+        fields.addFirst(SliceIndexing.SLICE_KEY_FIELD_NAME);
         orders.addFirst(SortOrder.ASC);
         modes.addFirst(MultiValueMode.MIN);
         missingValues.addFirst("_last");
@@ -419,10 +431,10 @@ public final class IndexSortConfig {
             FieldSortSpec sortSpec = sortSpecs[i];
             // This is only necessary because of the logic of "{}" empty mappings.
             // metadata fields are not eagerly loaded as mapped fields, so if we have slice enabled, and no mapped fields, we get an empty
-            // lookup and must handle this weird edge case.
+            // lookup and must resolve the slice key field type directly.
             final MappedFieldType ft = Optional.ofNullable(fieldTypeLookup.apply(sortSpec.field))
                 .orElseGet(
-                    () -> sliceEnabled && RoutingFieldMapper.NAME.equals(sortSpec.field) ? RoutingFieldMapper.DOC_VALUES_FIELD_TYPE : null
+                    () -> sliceEnabled && SliceIndexing.SLICE_KEY_FIELD_NAME.equals(sortSpec.field) ? SliceKeyFieldMapper.FIELD_TYPE : null
                 );
             if (ft == null) {
                 String err = "unknown index sort field:[" + sortSpec.field + "]";

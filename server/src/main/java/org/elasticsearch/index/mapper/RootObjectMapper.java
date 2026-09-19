@@ -771,10 +771,10 @@ public class RootObjectMapper extends ObjectMapper {
     @Override
     protected void validateSubField(Mapper mapper, MappingLookup mappers) {
         namespaceValidator.validateNamespace(subobjects(), mapper.leafName());
-        if (sliceEnabled && SliceIndexing.FIELD_NAME.equals(mapper.leafName())) {
+        if (sliceEnabled && SliceIndexing.isReservedFieldName(mapper.leafName())) {
             throw new IllegalArgumentException(
                 "["
-                    + SliceIndexing.FIELD_NAME
+                    + mapper.leafName()
                     + "] is a reserved field name and cannot be used when ["
                     + IndexSettings.SLICE_ENABLED.getKey()
                     + "] is true"

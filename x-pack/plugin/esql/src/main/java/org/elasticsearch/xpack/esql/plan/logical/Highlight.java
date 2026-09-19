@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
+import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightAnalyzers;
 import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 import org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -40,7 +41,9 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
@@ -339,14 +342,17 @@ public class Highlight extends UnaryPlan
     @Override
     public void postAnalysisVerification(AnalysisRegistry analysisRegistry, Failures failures) {
         postAnalysisVerification(failures);
-
+        if (query == null || query.resolved() == false || fields.isEmpty()) {
+            return;
+        }
         String commandAnalyzerName;
         try {
-            commandAnalyzerName = commandAnalyzerName();
+            commandAnalyzerName = analyzerOptionName();
         } catch (IllegalArgumentException e) {
-            // The analyzer value isn't a string. Type errors have already been reported by verifyValue, but still
-            // validate the query with the default analyzer so query errors are surfaced too.
-            verifyQuery(defaultAnalyzer(analysisRegistry), failures);
+            // The analyzer value isn't a string. Type errors have already been reported by verifyValue.
+            commandAnalyzerName = null;
+        }
+        if (verifyAnalyzerNames(commandAnalyzerName, failures, analysisRegistry)) {
             return;
         }
         String valueAnalyzerName = null;
@@ -354,49 +360,92 @@ public class Highlight extends UnaryPlan
             valueAnalyzerName = HighlightSupport.valuesAnalyzerName(fields);
         } catch (IllegalArgumentException e) {
             failures.add(fail(this, "{}", e.getMessage()));
+            return;
         }
-        if (query != null && query.resolved()) {
-            try {
-                HighlightSupport.requireUniformAnalyzer(query, commandAnalyzerName, valueAnalyzerName);
-            } catch (IllegalArgumentException e) {
-                failures.add(fail(this, "{}", e.getMessage()));
-                return;
-            }
-        }
-        Analyzer analyzer;
         try {
-            String effective = commandAnalyzerName != null ? commandAnalyzerName : valueAnalyzerName;
-            analyzer = effective == null ? defaultAnalyzer(analysisRegistry) : PlannerUtils.resolveAnalyzer(effective, analysisRegistry);
-        } catch (InvalidArgumentException e) {
-            // The analyzer name is a valid string but doesn't resolve.
+            HighlightSupport.requireUniformAnalyzer(query, commandAnalyzerName, valueAnalyzerName);
+        } catch (IllegalArgumentException e) {
             failures.add(fail(this, "{}", e.getMessage()));
             return;
         }
-        verifyQuery(analyzer, failures);
+        verifyQuery(commandAnalyzerName, failures, analysisRegistry);
     }
 
-    /** Value of the {@code analyzer} option, or {@code null} when unset. Throws when set but not a string. */
-    private String commandAnalyzerName() {
+    /** The user-set {@code WITH {"analyzer": ...}} name, or {@code null} when absent. */
+    private String analyzerOptionName() {
         Expression value = options == null ? null : foldableOption(ANALYZER);
         return value == null ? null : HighlightOptions.analyzerName(ANALYZER, value, FoldContext.small());
     }
 
-    private static Analyzer defaultAnalyzer(AnalysisRegistry analysisRegistry) {
-        return PlannerUtils.resolveAnalyzer(HighlightQueryBuilders.DEFAULT_ANALYZER_NAME, analysisRegistry);
+    /**
+     * Error for an unresolvable analyzer on an implicit WHERE query. Covers ON-field primaries, leaves outside ON,
+     * and {@code quote_analyzer}.
+     */
+    private static String borrowedUnresolvedAnalyzerMessage(String name) {
+        return "HIGHLIGHT derived its query from a preceding WHERE, but that query refers to analyzer ["
+            + name
+            + "], which is not a registered analyzer. Per-index custom analyzers cannot be used in HIGHLIGHT. "
+            + "Provide an explicit HIGHLIGHT query that does not use analyzer ["
+            + name
+            + "].";
     }
 
-    private void verifyQuery(Analyzer analyzer, Failures failures) {
-        if (query == null || query.resolved() == false || fields.isEmpty()) {
-            return;
-        }
-        List<String> fieldNames = fields.stream().map(NamedExpression::name).toList();
+    private void verifyQuery(String commandAnalyzerName, Failures failures, AnalysisRegistry analysisRegistry) {
         try {
-            // Enforce ON membership only when the user wrote both the query and the field list.
-            HighlightQueryBuilders.verify(query, fieldNames, analyzer, implicitQuery == false && derivedFields == false, implicitQuery);
-        } catch (IllegalArgumentException e) {
+            // TO_TEXT declarations may not have been verified yet.
+            Map<String, NamedAnalyzer> fieldAnalyzers = HighlightAnalyzers.resolve(fields, commandAnalyzerName, analysisRegistry);
+            // Enforce ON membership only when the query and field list are both explicit. An implicit query
+            // treats a field outside ON as match-none instead of failing.
+            HighlightQueryBuilders.verify(
+                query,
+                fieldAnalyzers,
+                commandAnalyzerName,
+                implicitQuery == false && derivedFields == false,
+                implicitQuery,
+                analysisRegistry
+            );
+        } catch (InvalidArgumentException | IllegalArgumentException e) {
             // Attach to the query node, not this Highlight node: failures dedupe by node, so pinning it here would let a
             // co-located option/analyzer failure on this node swallow the query error (see VerifierTests#testHighlightAnalyzerOption).
             failures.add(fail(query, "{}", e.getMessage()));
+        }
+    }
+
+    /**
+     * Resolves each analyzer name written in the query or WITH. Mapping names are not checked here.
+     * {@link HighlightAnalyzers#resolve} substitutes {@code standard} for an unresolvable mapping name.
+     * Returns {@code true} if a failure was recorded, and skips query verification in that case.
+     */
+    private boolean verifyAnalyzerNames(String commandAnalyzerName, Failures failures, AnalysisRegistry analysisRegistry) {
+        String commandFailure = unresolvableMessage(commandAnalyzerName, analysisRegistry);
+        if (commandFailure != null) {
+            failures.add(fail(this, "{}", commandFailure));
+            return true;
+        }
+        // WITH analyzer strips leaf analyzer options (HighlightQueryBuilders#withoutLeafAnalyzer), so an
+        // unresolvable name on an implicit WHERE leaf is ignored. An explicit HIGHLIGHT query still reports it.
+        Set<String> names = HighlightSupport.analyzerNamesOf(query, implicitQuery == false || commandAnalyzerName == null);
+        names.remove(commandAnalyzerName);
+        for (String name : names) {
+            String failure = unresolvableMessage(name, analysisRegistry);
+            if (failure != null) {
+                failures.add(fail(this, "{}", implicitQuery ? borrowedUnresolvedAnalyzerMessage(name) : failure));
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The failure message from resolving {@code name}, or {@code null} when it resolves or is absent. */
+    private static String unresolvableMessage(String name, AnalysisRegistry analysisRegistry) {
+        if (name == null) {
+            return null;
+        }
+        try {
+            PlannerUtils.resolveAnalyzer(name, analysisRegistry);
+            return null;
+        } catch (InvalidArgumentException e) {
+            return e.getMessage();
         }
     }
 

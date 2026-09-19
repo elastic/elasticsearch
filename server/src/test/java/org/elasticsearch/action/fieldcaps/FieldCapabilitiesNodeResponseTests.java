@@ -148,6 +148,13 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
             "inference field flag requires transport version " + FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD,
             hasInferenceField == false || version.supports(FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD)
         );
+        final boolean hasIndexAnalyzer = indexResponses.stream()
+            .flatMap(r -> r.get().values().stream())
+            .anyMatch(fc -> fc.indexAnalyzer() != null);
+        assumeTrue(
+            "index analyzer requires transport version " + FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER,
+            hasIndexAnalyzer == false || version.supports(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER)
+        );
 
         final FieldCapabilitiesNodeResponse outNode = copyInstance(inNode, version);
         assertThat(outNode.getFailures().keySet(), equalTo(inNode.getFailures().keySet()));
@@ -173,6 +180,35 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
             for (FieldCapabilitiesIndexResponse r : rs) {
                 assertTrue(r.canMatch());
                 assertSame(r.get(), rs.get(0).get());
+            }
+        }
+    }
+
+    /** Checks the analyzer version boundary for both grouped and ungrouped index responses. */
+    public void testIndexAnalyzerSerialization() throws Exception {
+        var title = new IndexFieldCapabilitiesBuilder("title", "text").indexAnalyzer("english").build();
+        var tag = new IndexFieldCapabilitiesBuilder("tag", "keyword").build();
+        var fields = Map.of("title", title, "tag", tag);
+        var response = new FieldCapabilitiesNodeResponse(
+            List.of(
+                new FieldCapabilitiesIndexResponse("ungrouped", null, fields, true, IndexMode.STANDARD),
+                new FieldCapabilitiesIndexResponse("grouped-1", "mapping", fields, true, IndexMode.STANDARD),
+                new FieldCapabilitiesIndexResponse("grouped-2", "mapping", fields, true, IndexMode.STANDARD)
+            ),
+            Map.of(),
+            Set.of()
+        );
+        for (TransportVersion version : List.of(
+            TransportVersionUtils.getPreviousVersion(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER),
+            FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER
+        )) {
+            var copy = copyInstance(response, version);
+            var expectedTitle = version.supports(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER)
+                ? title
+                : new IndexFieldCapabilitiesBuilder("title", "text").build();
+            assertThat(copy.getIndexResponses(), hasSize(3));
+            for (var indexResponse : copy.getIndexResponses()) {
+                assertEquals(Map.of("title", expectedTitle, "tag", tag), indexResponse.get());
             }
         }
     }

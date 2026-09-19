@@ -141,7 +141,15 @@ public class EsFieldTestUtils {
         boolean hasDocValues = randomBoolean();
         boolean isAlias = randomBoolean();
         EsField.TimeSeriesFieldType tsType = randomFrom(EsField.TimeSeriesFieldType.values());
-        return new TextEsField(name, properties, hasDocValues, isAlias, tsType);
+        String analyzerName = null;
+        int positionIncrementGap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
+        if (supportedOn == null || supportedOn.supports(TextEsField.FIELD_CAPS_INDEX_ANALYZER)) {
+            analyzerName = randomBoolean() ? null : randomAlphaOfLength(6);
+            if (analyzerName != null) {
+                positionIncrementGap = randomBoolean() ? TextEsField.DEFAULT_POSITION_INCREMENT_GAP : between(0, 1000);
+            }
+        }
+        return new TextEsField(name, properties, hasDocValues, isAlias, tsType, analyzerName, positionIncrementGap);
     }
 
     public static PotentiallyUnmappedKeywordEsField randomPotentiallyUnmappedKeywordEsField(

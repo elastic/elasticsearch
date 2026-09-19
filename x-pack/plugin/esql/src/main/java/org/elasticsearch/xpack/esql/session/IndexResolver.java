@@ -566,7 +566,15 @@ public class IndexResolver {
         // TODO I think we only care about unmapped fields if we're aggregating on them. do we even then?
 
         if (type == TEXT) {
-            return new TextEsField(name, new HashMap<>(), false, isAlias, timeSeriesFieldType);
+            return new TextEsField(
+                name,
+                new HashMap<>(),
+                false,
+                isAlias,
+                timeSeriesFieldType,
+                sharedIndexAnalyzer(first, rest),
+                first.indexAnalyzerPositionIncrementGap()
+            );
         }
         if (type == KEYWORD) {
             int length = Short.MAX_VALUE;
@@ -582,6 +590,27 @@ public class IndexResolver {
         }
 
         return new EsField(name, type, new HashMap<>(), aggregatable, isAlias, timeSeriesFieldType);
+    }
+
+    /**
+     * Analyzer name shared by every index for this text field, or {@code null} if they disagree on the name or
+     * {@code position_increment_gap}, or any index omitted it (older node). HIGHLIGHT treats {@code null} as
+     * {@code standard} for that field only.
+     * TODO: surface the disagreement as a warning header.
+     */
+    @Nullable
+    private static String sharedIndexAnalyzer(IndexFieldCapabilities first, List<IndexFieldCapabilities> rest) {
+        String shared = first.indexAnalyzer();
+        if (shared == null) {
+            return null;
+        }
+        int sharedGap = first.indexAnalyzerPositionIncrementGap();
+        for (IndexFieldCapabilities fc : rest) {
+            if (shared.equals(fc.indexAnalyzer()) == false || sharedGap != fc.indexAnalyzerPositionIncrementGap()) {
+                return null;
+            }
+        }
+        return shared;
     }
 
     // Visible for testing.

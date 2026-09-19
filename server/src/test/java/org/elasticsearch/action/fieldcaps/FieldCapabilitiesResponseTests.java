@@ -156,6 +156,35 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         return FieldCapabilitiesResponse.builder().withIndexResponses(indexResponses).withFailures(failures).build();
     }
 
+    /** Checks the analyzer version boundary for both grouped and ungrouped cross-cluster responses. */
+    public void testIndexAnalyzerSerialization() throws IOException {
+        var title = new IndexFieldCapabilitiesBuilder("title", "text").indexAnalyzer("english").build();
+        var tag = new IndexFieldCapabilitiesBuilder("tag", "keyword").build();
+        var fields = Map.of("title", title, "tag", tag);
+        var response = FieldCapabilitiesResponse.builder()
+            .withIndexResponses(
+                List.of(
+                    new FieldCapabilitiesIndexResponse("ungrouped", null, fields, true, IndexMode.STANDARD),
+                    new FieldCapabilitiesIndexResponse("grouped-1", "mapping", fields, true, IndexMode.STANDARD),
+                    new FieldCapabilitiesIndexResponse("grouped-2", "mapping", fields, true, IndexMode.STANDARD)
+                )
+            )
+            .build();
+        for (TransportVersion version : List.of(
+            TransportVersionUtils.getPreviousVersion(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER),
+            FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER
+        )) {
+            var copy = copyInstance(response, version);
+            var expectedTitle = version.supports(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER)
+                ? title
+                : new IndexFieldCapabilitiesBuilder("title", "text").build();
+            assertThat(copy.getIndexResponses(), hasSize(3));
+            for (var indexResponse : copy.getIndexResponses()) {
+                assertEquals(Map.of("title", expectedTitle, "tag", tag), indexResponse.get());
+            }
+        }
+    }
+
     public void testSerializeCCSResponseBetweenNewClusters() throws Exception {
         Map<String, List<String>> mappingHashToIndices = randomMappingHashToIndices();
         List<FieldCapabilitiesIndexResponse> indexResponses = CollectionUtils.concatLists(
@@ -188,6 +217,13 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         assumeTrue(
             "inference field flag requires transport version " + FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD,
             hasInferenceField == false || version.supports(FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD)
+        );
+        final boolean hasIndexAnalyzer = indexResponses.stream()
+            .flatMap(r -> r.get().values().stream())
+            .anyMatch(fc -> fc.indexAnalyzer() != null);
+        assumeTrue(
+            "index analyzer requires transport version " + FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER,
+            hasIndexAnalyzer == false || version.supports(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER)
         );
 
         final FieldCapabilitiesResponse outResponse = copyInstance(inResponse, version);

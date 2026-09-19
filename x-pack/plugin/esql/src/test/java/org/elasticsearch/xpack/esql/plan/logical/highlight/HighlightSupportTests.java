@@ -10,12 +10,15 @@ package org.elasticsearch.xpack.esql.plan.logical.highlight;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
@@ -26,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
@@ -74,7 +78,11 @@ public class HighlightSupportTests extends ESTestCase {
             new Or(EMPTY, qstr, kql),
             match("title", "fox", options("fuzziness", "AUTO")),
             match("title", "fox", options("analyzer", "english")),
-            queryString("fox", options("quote_analyzer", "english"))
+            matchPhrase("body", "quick fox", options("analyzer", "english")),
+            queryString("fox", options("analyzer", "english")),
+            queryString("fox", options("quote_analyzer", "english")),
+            new Kql(EMPTY, of("title: fox"), options("analyzer", "english"), TEST_CFG),
+            new And(EMPTY, match, match("body", "fox", options("analyzer", "english")))
         )) {
             assertTrue(supported.toString(), HighlightSupport.isSupportedImplicitPredicate(supported));
         }
@@ -88,6 +96,32 @@ public class HighlightSupportTests extends ESTestCase {
         )) {
             assertFalse(unsupported.toString(), HighlightSupport.isSupportedImplicitPredicate(unsupported));
         }
+    }
+
+    /**
+     * {@code quote_analyzer} is always collected. Leaf {@code analyzer} is omitted when {@code includeLeafAnalyzers}
+     * is false, which is the WITH-override path.
+     */
+    public void testAnalyzerNamesOfSkipsLeafAnalyzersOnRequest() {
+        Expression noOptions = match("title", "fox", null);
+        assertThat(HighlightSupport.analyzerNamesOf(noOptions, true), equalTo(Set.of()));
+        assertThat(HighlightSupport.analyzerNamesOf(noOptions, false), equalTo(Set.of()));
+
+        Expression leafAnalyzer = match("title", "fox", options("analyzer", "english"));
+        assertThat(HighlightSupport.analyzerNamesOf(leafAnalyzer, true), equalTo(Set.of("english")));
+        assertThat(HighlightSupport.analyzerNamesOf(leafAnalyzer, false), equalTo(Set.of()));
+
+        Expression quoteAnalyzers = new Or(
+            EMPTY,
+            queryString("fox", options("quote_analyzer", "english")),
+            queryString("dog", options("quote_analyzer", "whitespace"))
+        );
+        assertThat(HighlightSupport.analyzerNamesOf(quoteAnalyzers, true), equalTo(Set.of("english", "whitespace")));
+        assertThat(HighlightSupport.analyzerNamesOf(quoteAnalyzers, false), equalTo(Set.of("english", "whitespace")));
+
+        Expression both = queryString("fox", options("analyzer", "english", "quote_analyzer", "whitespace"));
+        assertThat(HighlightSupport.analyzerNamesOf(both, true), equalTo(Set.of("english", "whitespace")));
+        assertThat(HighlightSupport.analyzerNamesOf(both, false), equalTo(Set.of("whitespace")));
     }
 
     public void testUniformAnalyzerAgreement() {
@@ -130,6 +164,8 @@ public class HighlightSupportTests extends ESTestCase {
             HighlightSupport.valuesAnalyzerName(List.of(textField("title", "english"), textField("body", "english"))),
             equalTo("english")
         );
+        assertThat(HighlightSupport.valuesAnalyzerName(List.of(mappedText("title", "english"))), equalTo("english"));
+        assertNull(HighlightSupport.valuesAnalyzerName(List.of(mappedText("title", "standard"))));
 
         IllegalArgumentException mixed = expectThrows(
             IllegalArgumentException.class,
@@ -152,6 +188,14 @@ public class HighlightSupportTests extends ESTestCase {
 
     private static ReferenceAttribute textField(String name, String valuesAnalyzer) {
         return new ReferenceAttribute(EMPTY, null, name, TEXT, Nullability.FALSE, new NameId(), false, valuesAnalyzer);
+    }
+
+    private static FieldAttribute mappedText(String name, String analyzerName) {
+        return new FieldAttribute(
+            EMPTY,
+            name,
+            new TextEsField(name, Map.of(), false, false, EsField.TimeSeriesFieldType.NONE, analyzerName)
+        );
     }
 
     public void testRequireUniformAnalyzerRejectsMixedLeaves() {

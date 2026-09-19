@@ -7,15 +7,25 @@
 
 package org.elasticsearch.xpack.esql.type;
 
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 
+import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomProperties;
 import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomTextEsField;
 
 public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
+    /** Older peers omit the analyzer name and gap while retaining the rest of the field. */
+    public void testAnalyzerNameSerialization() throws IOException {
+        var field = new TextEsField("title", Map.of(), false, false, EsField.TimeSeriesFieldType.NONE, "english", 0);
+        var oldVersion = TransportVersionUtils.getPreviousVersion(TextEsField.FIELD_CAPS_INDEX_ANALYZER);
+        assertEquals(new TextEsField("title", Map.of(), false, false, EsField.TimeSeriesFieldType.NONE), copyInstance(field, oldVersion));
+        assertEquals(field, copyInstance(field, TextEsField.FIELD_CAPS_INDEX_ANALYZER));
+    }
+
     @Override
     protected TextEsField createTestInstance() {
         return randomTextEsField(4);
@@ -28,14 +38,21 @@ public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
         boolean hasDocValues = instance.isAggregatable();
         boolean isAlias = instance.isAlias();
         EsField.TimeSeriesFieldType tsType = instance.getTimeSeriesFieldType();
-        switch (between(0, 4)) {
+        String analyzerName = instance.analyzerName();
+        int positionIncrementGap = instance.positionIncrementGap();
+        switch (between(0, 6)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
             case 2 -> hasDocValues = false == hasDocValues;
             case 3 -> isAlias = false == isAlias;
             case 4 -> tsType = randomValueOtherThan(tsType, () -> randomFrom(EsField.TimeSeriesFieldType.values()));
+            case 5 -> analyzerName = randomValueOtherThan(analyzerName, () -> randomBoolean() ? null : randomAlphaOfLength(6));
+            case 6 -> {
+                analyzerName = analyzerName == null ? randomAlphaOfLength(6) : analyzerName;
+                positionIncrementGap = randomValueOtherThan(positionIncrementGap, () -> randomIntBetween(0, 1000));
+            }
             default -> throw new IllegalArgumentException();
         }
-        return new TextEsField(name, properties, hasDocValues, isAlias, tsType);
+        return new TextEsField(name, properties, hasDocValues, isAlias, tsType, analyzerName, positionIncrementGap);
     }
 }

@@ -1961,7 +1961,7 @@ TS k8s
 # MATCH's analyzer applies to the query string; HIGHLIGHT tokenizes values with TO_TEXT's analyzer. They agree here,
 # so highlighting stems "Rings" without restating the name as WITH.
 highlightUniformAnalyzerFromExplicitMatch
-required_capability: highlight_implicit_query_and_fields
+required_capability: highlight_mapping_analyzer
 required_capability: fn_to_text_analyzer
 required_capability: fn_match_runtime_analyzer
 
@@ -1975,9 +1975,9 @@ The Lord of the <em>Rings</em>
 ;
 
 
-# Two leaves and both ON columns declare the same values analyzer, so highlighting stems both fields.
+# Two MATCH leaves both use english. Both TO_TEXT columns declare english.
 highlightUniformAnalyzerAcrossFields
-required_capability: highlight_implicit_query_and_fields
+required_capability: highlight_mapping_analyzer
 required_capability: fn_to_text_analyzer
 required_capability: fn_match_runtime_analyzer
 
@@ -1991,7 +1991,8 @@ The Lord of the <em>Rings</em> | Tolkien wrote about <em>rings</em>
 ;
 
 
-# An implicit query's MATCH analyzer must match HIGHLIGHT WITH; mapped fields have no TO_TEXT analyzer to agree with.
+# An implicit query's MATCH analyzer must match HIGHLIGHT WITH on a standard-mapped field.
+# Mapping english + MATCH english without WITH is highlightMappingAnalyzerStemsWithoutWith.
 highlightUniformAnalyzerFromImplicitWhere
 required_capability: highlight_implicit_query_and_fields
 
@@ -2003,6 +2004,344 @@ FROM books
 
 title:text            | highlight_title:keyword
 Return of the Shadow  | Return of the <em>Shadow</em>
+;
+
+
+# WITH english tokenizes both the query and the document. The MATCH leaf is unlabeled, so WITH is the highlight analyzer.
+highlightAnalyzerWithOverridesMatchLeafAnalyzer
+required_capability: highlight_mapping_analyzer
+
+ROW title = to_text("The Lord of the Rings")
+| HIGHLIGHT MATCH(title, "ring") ON title WITH { "analyzer": "english" }
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+The Lord of the <em>Rings</em>
+;
+
+
+# Mixed leaf/values analyzers are rejected at analysis. See VerifierTests#testHighlightMappingAnalyzerAgreesWithQueryWithoutWith.
+
+# MATCH with no analyzer option uses the TO_TEXT column's declared analyzer. HIGHLIGHT options stay unset.
+implicitAnalyzerUnlabeledLeafUsesValuesAnalyzer
+required_capability: highlight_mapping_analyzer
+
+ROW title = to_text(["The Lord of the Rings"], { "analyzer": "english" })
+| MV_EXPAND title
+| WHERE MATCH(title, "ring")
+| HIGHLIGHT
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+The Lord of the <em>Rings</em>
+;
+
+
+# quote_analyzer on an implicit QSTR resolves.
+implicitAnalyzerQuoteAnalyzerResolves
+required_capability: highlight_mapping_analyzer
+
+FROM books
+| WHERE QSTR("title:\"return\"", { "analyzer": "standard", "quote_analyzer": "keyword" })
+| HIGHLIGHT
+| KEEP title, highlight_title
+| SORT title
+;
+
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+Return of the Shadow                                             | <em>Return</em> of the Shadow
+;
+
+
+# Mapping english stems "Rings" with no WITH analyzer.
+highlightMappingAnalyzerStemsWithoutWith
+required_capability: highlight_mapping_analyzer
+
+// tag::highlightMappingAnalyzerStemsWithoutWithForDocs[]
+FROM books_english
+| WHERE MATCH(title, "ring") AND book_no == "2714"
+| HIGHLIGHT
+| KEEP title, highlight_title
+| SORT title
+// end::highlightMappingAnalyzerStemsWithoutWithForDocs[]
+;
+
+// tag::highlightMappingAnalyzerStemsWithoutWithForDocs-result[]
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+// end::highlightMappingAnalyzerStemsWithoutWithForDocs-result[]
+;
+
+
+# Explicit query, no WHERE, still uses the mapping analyzer. 2714 is "Rings"; standard would miss it.
+highlightMappingAnalyzerExplicitStringQuery
+required_capability: highlight_mapping_analyzer
+
+FROM books_english
+| HIGHLIGHT "ring" ON title
+| WHERE highlight_title IS NOT NULL AND book_no == "2714"
+| KEEP title, highlight_title
+| SORT title
+;
+
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
+# WITH whitespace tokenizes query and document. It is case-sensitive, so "ring" does not match "Ring".
+highlightMappingAnalyzerWithOverridesMapping
+required_capability: highlight_mapping_analyzer
+
+FROM books_english
+| WHERE MATCH(title, "ring") AND book_no == "2714"
+| HIGHLIGHT WITH { "analyzer": "whitespace" }
+| KEEP title, highlight_title
+;
+
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | null
+;
+
+
+# books and books_english disagree on title's analyzer, so HIGHLIGHT uses standard. "ring" matches "Ring", not "Rings".
+highlightMappingAnalyzerConflictFallsBackToStandard
+required_capability: highlight_mapping_analyzer
+
+FROM books,books_english
+| WHERE MATCH(title, "ring") AND book_no == "2714"
+| HIGHLIGHT
+| KEEP title, highlight_title
+| SORT title
+;
+
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | null
+;
+
+
+# ON title, description (both mapping english). MATCH on description leaves highlight_title null.
+# number_of_fragments 0 returns the whole value.
+highlightMappingAnalyzerOnStar
+required_capability: highlight_mapping_analyzer
+
+FROM books_english
+| WHERE MATCH(description, "ring") AND book_no == "2714"
+| HIGHLIGHT ON title, description WITH { "number_of_fragments": 0 }
+| KEEP highlight_title, highlight_description
+;
+
+highlight_title:keyword | highlight_description:keyword
+null | Concluding the story begun in The Hobbit, this is the final part of Tolkien s epic masterpiece, The Lord of the <em>Rings</em>, featuring an exclusive cover image from the film, the definitive text, and a detailed map of Middle-earth. The armies of the Dark Lord Sauron are massing as his evil shadow spreads ever wider. Men, Dwarves, Elves and Ents unite forces to do battle agains the Dark. Meanwhile, Frodo and Sam struggle further into Mordor in their heroic quest to destroy the One <em>Ring</em>. The devastating conclusion of J.R.R. Tolkien s classic tale of magic and adventure, begun in The Fellowship of the <em>Ring</em> and The Two Towers, features the definitive edition of the text and includes the Appendices and a revised Index in full. To celebrate the release of the first of Peter Jackson s two-part film adaptation of The Hobbit, THE HOBBIT: AN UNEXPECTED JOURNEY, this third part of The Lord of the <em>Rings</em> is available for a limited time with an exclusive cover image from Peter Jackson s award-winning trilogy.
+;
+
+
+# HIGHLIGHT after STATS still uses the mapping analyzer.
+highlightMappingAnalyzerAfterStats
+required_capability: highlight_mapping_analyzer
+
+FROM books_english
+| WHERE MATCH(title, "ring") AND book_no == "2714"
+| STATS c = COUNT(*) BY title
+| HIGHLIGHT "ring" ON title
+| KEEP title, highlight_title
+| SORT title
+;
+
+title:text | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
+# RENAME drops the mapping analyzer; Rings is not stemmed.
+highlightMappingAnalyzerRenamedFieldFallsBackToStandard
+required_capability: highlight_mapping_analyzer
+
+FROM books_english
+| RENAME title AS t
+| WHERE book_no == "2714"
+| HIGHLIGHT "ring" ON t
+| KEEP t, highlight_t
+;
+
+t:text | highlight_t:keyword
+Return of the King Being the Third Part of The Lord of the Rings | null
+;
+
+
+# books title is default/standard: "ring" paints "Ring" and misses "Rings".
+highlightDefaultMappingAnalyzerUsesStandard
+required_capability: highlight_mapping_analyzer
+
+FROM books
+| WHERE book_no IN ("2714", "2936")
+| HIGHLIGHT "ring" ON title
+| KEEP book_no, highlight_title
+| SORT book_no
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | null
+2936            | Fellowship of the <em>Ring</em> 2ND Edition
+;
+
+
+# Mapping english paints both "Ring" and "Rings" in one result set.
+highlightMappingAnalyzerStemsRingAndRings
+required_capability: highlight_mapping_analyzer
+
+FROM books_english
+| WHERE MATCH(title, "ring") AND book_no IN ("2714", "2936")
+| HIGHLIGHT
+| KEEP book_no, highlight_title
+| SORT book_no
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+2936            | Fellowship of the <em>Ring</em> 2ND Edition
+;
+
+
+# WITH english is the highlight analyzer. The MATCH leaf is unlabeled so it does not disagree.
+highlightMappingAnalyzerWithOverridesLeafAnalyzer
+required_capability: highlight_mapping_analyzer
+
+FROM books_english
+| WHERE book_no == "2714"
+| HIGHLIGHT MATCH(title, "ring") ON title WITH { "analyzer": "english" }
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
+# Keyword ON fields still use standard, not the keyword analyzer. "Tolkien" is a token of the value.
+highlightMappingAnalyzerKeywordFieldUsesStandard
+required_capability: highlight_mapping_analyzer
+
+FROM books_english
+| WHERE book_no == "2714"
+| HIGHLIGHT "Tolkien" ON `author.keyword` WITH { "number_of_fragments": 0 }
+| KEEP `highlight_author.keyword`
+;
+
+highlight_author.keyword:keyword
+J. R. R. <em>Tolkien</em>
+;
+
+
+# Declared whitespace on a runtime copy of a mapped english field: "ring" misses "Rings".
+highlightMappingAnalyzerToTextOverridesMapping
+required_capability: highlight_mapping_analyzer
+
+FROM books_english
+| WHERE book_no == "2714"
+| EVAL t = TO_TEXT(CONCAT(title, ""), {"analyzer": "whitespace"})
+| HIGHLIGHT "ring" ON t
+| KEEP highlight_t
+;
+
+highlight_t:keyword
+null
+;
+
+
+# QSTR with no analyzer option uses the mapping analyzer.
+highlightMappingAnalyzerQstrUsesMapping
+required_capability: highlight_mapping_analyzer
+required_capability: qstr_function
+
+FROM books_english
+| WHERE book_no == "2714"
+| HIGHLIGHT QSTR("title:ring") ON title
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
+# KQL has no analyzer option; it uses the mapping analyzer.
+highlightMappingAnalyzerKqlUsesMapping
+required_capability: highlight_mapping_analyzer
+required_capability: kql_function
+
+FROM books_english
+| WHERE book_no == "2714"
+| HIGHLIGHT KQL("title:ring") ON title
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
+# MATCH with no leaf analyzer uses the TO_TEXT values analyzer.
+highlightUnindexedMatchUsesDeclaredValuesAnalyzer
+required_capability: highlight_mapping_analyzer
+
+ROW t = to_text("The Lord of the Rings", {"analyzer": "english"})
+| HIGHLIGHT MATCH(t, "ring") ON t
+| KEEP highlight_t
+;
+
+highlight_t:keyword
+The Lord of the <em>Rings</em>
+;
+
+
+# RENAME keeps a TO_TEXT analyzer declaration; mapped-field RENAME does not (see highlightMappingAnalyzerRenamedFieldFallsBackToStandard).
+highlightUnindexedDeclaredAnalyzerSurvivesRename
+required_capability: highlight_mapping_analyzer
+
+ROW t = to_text("The Lord of the Rings", {"analyzer": "english"})
+| RENAME t AS title
+| HIGHLIGHT "ring" ON title
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+The Lord of the <em>Rings</em>
+;
+
+
+# EVAL of a ROW literal has no declared analyzer, so HIGHLIGHT uses standard.
+highlightUnindexedEvalWithoutDeclarationUsesStandard
+required_capability: highlight_mapping_analyzer
+
+ROW raw = "The Lord of the Rings"
+| EVAL t = raw
+| HIGHLIGHT "ring" ON t
+| KEEP highlight_t
+;
+
+highlight_t:keyword
+null
+;
+
+
+# Two implicit MATCH leaves that share the TO_TEXT analyzer. HIGHLIGHT does not synthesize WITH.
+implicitAnalyzerAndBothLeavesAgreeOnAnalyzer
+required_capability: highlight_mapping_analyzer
+
+ROW title = to_text(["The Lord of the Rings"], { "analyzer": "english" }), author = to_text(["Tolkien wrote about rings"], { "analyzer": "english" })
+| MV_EXPAND title
+| MV_EXPAND author
+| WHERE MATCH(title, "ring") AND MATCH(author, "ring")
+| HIGHLIGHT
+| KEEP highlight_title, highlight_author
+;
+
+highlight_title:keyword        | highlight_author:keyword
+The Lord of the <em>Rings</em> | Tolkien wrote about <em>rings</em>
 ;
 
 

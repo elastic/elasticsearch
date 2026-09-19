@@ -13,6 +13,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 
 import java.io.IOException;
@@ -27,6 +29,11 @@ import java.util.Map;
  * @param isAggregatable Whether this field can be aggregated on.
  * @param isInference    Whether this field is an inference field.
  * @param meta           Metadata about the field.
+ * @param indexAnalyzer  The name of the analyzer the field is indexed with, for text-family fields.
+ *                       {@code null} for other field types and for responses from nodes that predate this field.
+ *                       ES|QL HIGHLIGHT re-analyzes values on the coordinator, so it reads this name from field-caps.
+ * @param indexAnalyzerPositionIncrementGap Mapping {@code position_increment_gap} when {@code indexAnalyzer} is set;
+ *                       default otherwise so it does not affect equality.
  */
 
 public record IndexFieldCapabilities(
@@ -38,8 +45,16 @@ public record IndexFieldCapabilities(
     boolean isInference,
     boolean isDimension,
     TimeSeriesParams.MetricType metricType,
-    Map<String, String> meta
+    Map<String, String> meta,
+    @Nullable String indexAnalyzer,
+    int indexAnalyzerPositionIncrementGap
 ) implements Writeable {
+
+    public IndexFieldCapabilities {
+        if (indexAnalyzer == null) {
+            indexAnalyzerPositionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
+        }
+    }
 
     private static final StringLiteralDeduplicator typeStringDeduplicator = new StringLiteralDeduplicator();
 
@@ -53,6 +68,10 @@ public record IndexFieldCapabilities(
         TimeSeriesParams.MetricType metricType = in.readOptionalEnum(TimeSeriesParams.MetricType.class);
         Map<String, String> meta = in.readImmutableMap(StreamInput::readString);
         boolean isInference = in.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD) && in.readBoolean();
+        String indexAnalyzer = in.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER)
+            ? in.readOptionalString()
+            : null;
+        int indexAnalyzerPositionIncrementGap = indexAnalyzer != null ? in.readVInt() : TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
         return new IndexFieldCapabilities(
             name,
             type,
@@ -62,7 +81,9 @@ public record IndexFieldCapabilities(
             isInference,
             isDimension,
             metricType,
-            meta
+            meta,
+            indexAnalyzer,
+            indexAnalyzerPositionIncrementGap
         );
     }
 
@@ -78,6 +99,12 @@ public record IndexFieldCapabilities(
         out.writeMap(meta, StreamOutput::writeString);
         if (out.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD)) {
             out.writeBoolean(isInference);
+        }
+        if (out.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER)) {
+            out.writeOptionalString(indexAnalyzer);
+            if (indexAnalyzer != null) {
+                out.writeVInt(indexAnalyzerPositionIncrementGap);
+            }
         }
     }
 

@@ -12,6 +12,7 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 
+import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -37,7 +38,10 @@ enum DateFormat {
         @Override
         Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
             return (date) -> {
-                TemporalAccessor accessor = ISO_8601.parse(date);
+                TemporalAccessor accessor = ISO_8601.tryParse(date);
+                if (accessor == null) {
+                    throwStacklessDateTimeException(date, ISO_8601);
+                }
                 // even though locale could be set to en-us, Locale.ROOT (following iso8601 calendar data rules) should be used
                 return DateFormatters.from(accessor, Locale.ROOT, timezone).withZoneSameInstant(timezone);
             };
@@ -88,11 +92,13 @@ enum DateFormat {
                 format = format.substring(1);
             }
 
-            DateFormatter dateFormatter = DateFormatter.forPattern(format).withLocale(locale);
+            final DateFormatter formatter = DateFormatter.forPattern(format).withLocale(locale);
+            return date -> {
+                TemporalAccessor accessor = formatter.tryParse(date);
+                if (accessor == null) {
+                    throwStacklessDateTimeException(date, formatter);
+                }
 
-            final DateFormatter formatter = dateFormatter;
-            return text -> {
-                TemporalAccessor accessor = formatter.parse(text);
                 // if there is no year nor year-of-era, we fall back to the current one and
                 // fill the rest of the date up with the parsed date
                 if (accessor.isSupported(ChronoField.YEAR) == false
@@ -112,7 +118,6 @@ enum DateFormat {
                 }
 
                 return DateFormatters.from(accessor, locale, zoneId).withZoneSameInstant(zoneId);
-
             };
         }
     };
@@ -138,6 +143,16 @@ enum DateFormat {
             case "UNIX_MS" -> UnixMs;
             case "TAI64N" -> Tai64n;
             default -> Java;
+        };
+    }
+
+    private static void throwStacklessDateTimeException(String input, DateFormatter formatter) {
+        throw new DateTimeException("failed to parse date field [" + input + "] with format [" + formatter.pattern() + "]") {
+            @Override
+            public synchronized Throwable fillInStackTrace() {
+                // do not populate the stacktrace
+                return this;
+            }
         };
     }
 }

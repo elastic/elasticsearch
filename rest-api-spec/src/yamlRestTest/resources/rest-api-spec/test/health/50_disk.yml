@@ -1,0 +1,24 @@
+---
+teardown:
+  - do:
+      indices.delete:
+        index: disk_readonly_index
+        ignore: 404
+
+---
+"Green disk health on a healthy cluster":
+  - requires:
+      cluster_features: "gte_v8.7.0"
+      reason: "the API path changed in 8.7"
+
+  - do:
+      health_report:
+        feature: disk
+
+  - is_true: cluster_name
+  - match: { indicators.disk.status: "green" }
+  - match: { indicators.disk.symptom: "The cluster has enough available disk space." }
+  - match: { indicators.disk.details.nodes_over_high_watermark: 0 }
+  - match: { indicators.disk.details.nodes_over_flood_stage_watermark: 0 }
+  - match: { indicators.disk.details.indices_with_readonly_block: 0 }
+  - gte: { indicators.disk.details.nodes_with_enough_disk_space: 1 }

@@ -781,3 +781,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.objectstore.gc.StaleTranslogsGCIT
   method: testTranslogGCDoesNotDeleteLeftNodeWhenRecovering
   issue: https://github.com/elastic/elasticsearch/issues/159790
+- class: org.elasticsearch.xpack.prometheus.PrometheusInstantQueryRestIT
+  method: testInstantAggregatedOperandsMatchAcrossIngestionPaths
+  issue: https://github.com/elastic/elasticsearch/issues/159795

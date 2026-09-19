@@ -14,12 +14,18 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -181,7 +187,22 @@ public class DeleteByQueryRequest extends AbstractBulkByPaginatedSearchRequest<D
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         getSearchRequest().source().innerToXContent(builder, params);
+        if (getMaxDocs() != MAX_DOCS_ALL_MATCHES) {
+            builder.field("max_docs", getMaxDocs());
+        }
+        if (isAbortOnVersionConflict() == false) {
+            builder.field("conflicts", "proceed");
+        }
         builder.endObject();
         return builder;
+    }
+
+    public static DeleteByQueryRequest fromXContent(XContentParser parser, Predicate<NodeFeature> clusterSupportsFeature)
+        throws IOException {
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest();
+        Map<String, Consumer<Object>> consumers = new HashMap<>();
+        consumers.put("conflicts", o -> deleteByQueryRequest.setConflicts((String) o));
+        consumers.put("max_docs", s -> ReindexRequest.setMaxDocsValidateIdentical(deleteByQueryRequest, ((Number) s).intValue()));
+        return parseXContent(deleteByQueryRequest, parser, clusterSupportsFeature, consumers);
     }
 }

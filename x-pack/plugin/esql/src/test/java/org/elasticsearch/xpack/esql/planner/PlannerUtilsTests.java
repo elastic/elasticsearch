@@ -54,8 +54,8 @@ public class PlannerUtilsTests extends ESTestCase {
      * </pre>
      *
      * The outer MergeExec is replaced by ExchangeSourceExec at the root. The inner MergeExec becomes a nested SubPlan.Merge whose plan
-     * is ExchangeSinkExec wrapping a new ExchangeSourceExec — it feeds the outer exchange and itself consumes an inner exchange. No
-     * MergeExec nodes survive in any plan.
+     * is ExchangeSinkExec wrapping a new ExchangeSourceExec — at runtime it writes into the parent's {@code LocalExchange} and reads
+     * from its own. No MergeExec nodes survive in any plan.
      */
     public void testBuildSubPlanRecursivelyBuildsNestedMerges() {
         List<Attribute> output = List.of(field("a"));
@@ -72,13 +72,13 @@ public class PlannerUtilsTests extends ESTestCase {
         assertThat(outerMerge.plan(), instanceOf(ExchangeSourceExec.class));
         assertThat(outerMerge.children(), hasSize(2));
 
-        // First child: a Leaf wrapping branchA in an ExchangeSinkExec that writes into the outer exchange.
+        // First child: a Leaf wrapping branchA in an ExchangeSinkExec that writes into the parent's LocalExchange.
         SubPlan.Leaf leafA = as(outerMerge.children().get(0), SubPlan.Leaf.class);
         ExchangeSinkExec leafASink = as(leafA.plan(), ExchangeSinkExec.class);
         assertThat(leafASink.child(), sameInstance(branchA));
 
-        // Second child: a nested Merge. Its plan is ExchangeSinkExec → ExchangeSourceExec: it writes into the outer exchange
-        // and reads from its own inner exchange. No MergeExec should survive anywhere in this plan.
+        // Second child: a nested Merge. Its plan is ExchangeSinkExec → ExchangeSourceExec: it writes into the parent's
+        // LocalExchange and reads from its own. No MergeExec should survive anywhere in this plan.
         SubPlan.Merge innerMerge = as(outerMerge.children().get(1), SubPlan.Merge.class);
         ExchangeSinkExec innerMergeSink = as(innerMerge.plan(), ExchangeSinkExec.class);
         ExchangeSourceExec innerMergeSource = as(innerMergeSink.child(), ExchangeSourceExec.class);
@@ -131,8 +131,8 @@ public class PlannerUtilsTests extends ESTestCase {
      *
      * The MergeExec is not the root — LimitExec sits above it. {@code buildSubPlan} finds the MergeExec during the traversal,
      * replaces it with ExchangeSourceExec in place, and keeps LimitExec in the coordinator segment plan. At execution time
-     * SubPlansExecutor wraps the segment plan in an {@code OutputExec} and runs it locally, so the limit is applied after the
-     * exchange source has received all merged data from the two branches.
+     * {@code SubPlansExecutor} wraps the segment plan in an {@code OutputExec} and runs it locally against the root
+     * {@code LocalExchange}, so the limit is applied after that exchange has received merged data from the two branches.
      */
     public void testBuildSubPlanWithProcessingCommandAboveMerge() {
         List<Attribute> output = List.of(field("a"));
@@ -150,7 +150,7 @@ public class PlannerUtilsTests extends ESTestCase {
         LimitExec limitInPlan = as(mergeResult.plan(), LimitExec.class);
         as(limitInPlan.child(), ExchangeSourceExec.class);
 
-        // The two branches of the MergeExec become leaves that write into the exchange source.
+        // The two branches of the MergeExec become leaves that write into the root LocalExchange.
         assertThat(mergeResult.children(), hasSize(2));
         ExchangeSinkExec sinkA = as(as(mergeResult.children().get(0), SubPlan.Leaf.class).plan(), ExchangeSinkExec.class);
         assertThat(sinkA.child(), sameInstance(branchA));
@@ -188,7 +188,7 @@ public class PlannerUtilsTests extends ESTestCase {
      *
      * This is the general mixed case: a single coordinator merge that aggregates both direct producers and nested coordinator segments.
      * The two direct leaves become {@link SubPlan.Leaf} children directly; each nested {@link MergeExec} becomes a {@link SubPlan.Merge}
-     * child with its own {@link ExchangeSourceExec}–{@link ExchangeSinkExec} pair.
+     * child with its own {@link ExchangeSourceExec}–{@link ExchangeSinkExec} pair, later wired to that merge's {@code LocalExchange}.
      */
     public void testBuildSubPlanWithMixedLeavesAndNestedMerges() {
         List<Attribute> output = List.of(field("a"));
@@ -244,8 +244,9 @@ public class PlannerUtilsTests extends ESTestCase {
      *
      * In practice this shape cannot appear: when a join's lookup side is a {@code UNION ALL}, it is fully materialised before the join
      * executes, so the right side is never a {@link MergeExec} by the time {@code buildSubPlan} is called. The restriction is kept
-     * because one compute context supplies one exchange source to all {@link ExchangeSourceExec} nodes in the segment — two sibling
-     * merges would each need a separate exchange source, which the current execution model does not support.
+     * because one compute context supplies one exchange source — at runtime, one {@code LocalExchange} — to all
+     * {@link ExchangeSourceExec} nodes in the segment. Two sibling merges would each need a separate exchange, which the current
+     * execution model does not support.
      */
     public void testBuildSubPlanRejectsSiblingTopmostMerges() {
         List<Attribute> output = List.of(field("a"));

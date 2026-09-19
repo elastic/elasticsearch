@@ -41,13 +41,14 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Cluster tests for nested {@code FROM} subqueries under {@code org.elasticsearch.xpack.esql.plugin.SubPlansExecutor}. {@link SubqueryIT}
- * checks that nested unions return the right rows; this suite checks that later branches stay undispatched when the query no longer needs
- * them.
+ * checks that nested unions return the correct results; this suite checks that later branches stay undispatched when the query no longer
+ * needs them.
  * <p>
- * Each test uses {@code branch_parallel_degree = 1} (or {@code 2} for the reaper case) so one outer leaf starts while nested leaves stay
- * in {@code scheduledLeaves}. Branches that must not run read the pausable {@code pause_me} field; {@code scriptWaits} is the proof they
- * never started. LIMIT and STOP complete the root merge without cancelling the root task, so {@code executeLeaf} must skip those queued
- * leaves as success. Cancel must fail the query instead. The inactive-sink reaper must not drop a leaf that is only queued.
+ * Each test uses {@code branch_parallel_degree = 1} (or {@code 2} for the reaper case) so one outer leaf starts while nested leaves wait
+ * for a permit. Branches that must not run read the pausable {@code pause_me} field; {@code scriptWaits} is the proof they never started.
+ * LIMIT and STOP finish the root {@code LocalExchange} without cancelling the root task, so the next depth-first search visit must skip
+ * those leaves as success. Cancel must fail the query instead. The inactive-sink reaper must not drop a leaf that has not been dispatched
+ * yet: those leaves have no {@code ExchangeSinkHandler}, only a dummy sink on the parent {@code LocalExchange}.
  */
 public class NestedSubqueriesIT extends AbstractPausableIntegTestCase {
 
@@ -80,12 +81,6 @@ public class NestedSubqueriesIT extends AbstractPausableIntegTestCase {
         assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
     }
 
-    /**
-     * {@code scriptPermits} and {@code scriptWaits} are static on {@link AbstractPausableIntegTestCase} and the cluster is
-     * shared across the methods of this class, so permits released by one test would otherwise leak into the next in
-     * whatever order the runner picks. A leak here does not fail a test, it defeats it: with spare permits available no
-     * branch ever blocks, and a test that depends on a branch staying queued would pass without exercising anything.
-     */
     @Before
     public void resetPausePermits() {
         scriptPermits.drainPermits();
@@ -95,18 +90,16 @@ public class NestedSubqueriesIT extends AbstractPausableIntegTestCase {
     /**
      * A branch waiting for a runner permit must still contribute its rows once it finally runs.
      * <p>
-     * {@link ExchangeService} reaps any sink that has no producer attached and has not been touched for
-     * {@code esql.exchange.sink_inactive_interval}, and a sink belonging to a branch that has not started looks exactly
-     * like that: the coordinator's fetch parks on an empty, unfinished buffer, so nothing refreshes the sink's timestamp.
-     * Reaping finishes the buffer, the parked fetch is answered with "finished, no pages", and the branch contributes
-     * nothing - no failure, no partial-results flag. {@code MergeLevelExecutor} avoids this by opening a leaf's sink from
-     * {@code SubPlan.execute}, after the runner has dispatched it, rather than when it is submitted.
+     * {@link ExchangeService} reaps any {@code ExchangeSinkHandler} that has no producer attached and has not been touched
+     * for {@code esql.exchange.sink_inactive_interval}. A leaf that has not been dispatched must not register such a handler:
+     * {@code SubPlansExecutor} only opens a dummy sink on the parent {@code LocalExchange} at tree-build time, and the data-node sink is
+     * created later inside {@code executePlan}. Reaping a handler that was registered too early finishes the buffer, the parked fetch is
+     * answered with "finished, no pages", and the branch contributes nothing — no failure, no partial-results flag.
      * <p>
-     * The query below is a nested union, so the outer and inner executors share one runner. With
-     * {@code branch_parallel_degree = 2} the outer branch and the first inner branch take both permits and block on
-     * {@code pause_me}; the second inner branch reads only {@code foo} and is the one left queued, for as long as this
-     * test cares to hold it. All three branches count the same 10 documents, so a branch that lost its sink would show up
-     * as a count of 20 rather than 30.
+     * The query below is a nested union under one {@code SubPlansExecutor}. With {@code branch_parallel_degree = 2} the outer branch and
+     * the first inner branch take both permits and block on {@code pause_me}; the second inner branch reads only {@code foo} and is left
+     * undispatched, for as long as this test cares to hold it. All three branches count the same 10 documents, so a branch that lost its
+     * sink would show up as a count of 20 rather than 30.
      */
     public void testQueuedBranchOutlivesInactiveSinkReaper() throws Exception {
         String query = """
@@ -120,18 +113,16 @@ public class NestedSubqueriesIT extends AbstractPausableIntegTestCase {
         ActionFuture<EsqlQueryResponse> future = client().execute(EsqlQueryAction.INSTANCE, request);
         try {
             // Wait until two branches are actually blocked inside pause_me, which means both runner permits are held and the third
-            // branch is sitting in the queue.
+            // branch is still waiting for a permit.
             assertBusy(() -> assertThat(scriptWaits.availablePermits(), greaterThanOrEqualTo(2)), 30, TimeUnit.SECONDS);
 
-            // Hold that state well past the reaper interval. The reaper runs every half interval, so this gives it several passes
-            // over the queued branch.
             safeSleep(INACTIVE_SINK_INTERVAL.millis() * 4);
 
             // Let everything through. Each document evaluation of pause_me needs one permit, across all branches.
-            scriptPermits.release(numberOfDocs() * 10);
+            scriptPermits.release(numberOfDocs() * 2);
 
             try (EsqlQueryResponse response = future.actionGet(60, TimeUnit.SECONDS)) {
-                // Three branches over the same index: the queued branch must still have contributed its rows.
+                // Three branches over the same index: the undispatched branch must still have contributed its rows.
                 assertThat(getValuesList(response), equalTo(List.of(List.of((long) numberOfDocs() * 3))));
             }
         } finally {
@@ -145,21 +136,19 @@ public class NestedSubqueriesIT extends AbstractPausableIntegTestCase {
     /**
      * A nested merge branch that has not started yet must be skipped once the query already has enough rows.
      * <p>
-     * When the main plan satisfies its {@code LIMIT} it calls {@code SubPlanTaskRunner.finish()}, which skips every leaf
-     * still queued. Merge branches never enter that queue - {@code MergeLevelExecutor} expands them itself, on the thread
-     * that finished the previous branch - so they need the separate {@code finished()} check in
-     * {@code tryExecuteNextSubPlan}. Without it, an unstarted nested union still registers an exchange source, starts a
-     * coordinator merge driver and runs its own branches to produce rows that nobody will read.
+     * When the root {@code LimitExec} has enough pages it finishes the root {@code LocalExchange}. The next {@code tryExecuteLeaves} visit
+     * sees that the parent exchange is finished and completes the nested merge without {@code runCompute}, then skips its leaves without
+     * {@code executePlan}. Without that check, an unstarted nested union would start a coordinator merge driver and run its own branches
+     * to produce rows that nobody will read.
      * <p>
-     * {@code branch_parallel_degree = 1} starts only the first outer branch, and that branch reads just {@code foo}, so
-     * {@code LIMIT 1} is satisfied and {@code finish()} runs while the nested union is still waiting for the single
-     * permit. The nested branches do read {@code pause_me} and no permits have been released at that point, so if the
-     * merge were expanded they would block in the pause script and raise {@code scriptWaits}.
+     * {@code branch_parallel_degree = 1} starts only the first outer branch, and that branch reads just {@code foo}, so {@code LIMIT 1} is
+     * satisfied while the nested union is still waiting for the single permit. The nested branches do read {@code pause_me} and no permits
+     * have been released at that point, so if the merge were started they would block in the pause script and raise {@code scriptWaits}.
      * <p>
-     * Each branch tags its rows with its own name so that the one row {@code LIMIT 1} keeps says which branch produced
-     * it. {@code foo} is the document id, so its value is whichever document the outer branch happened to emit first.
+     * Each branch tags its rows with its own name so that the one row {@code LIMIT 1} keeps says which branch produced it. {@code foo} is
+     * the document id, so its value is whichever document the outer branch happened to emit first.
      */
-    public void testLimitSkipsUnstartedNestedMerge() {
+    public void testLimitSkipsUnstartedNestedMergeAndQueuedSiblingLeaves() {
         String query = """
             FROM (FROM test | KEEP foo | EVAL branch = "outer"),
                  (FROM (FROM test | WHERE pause_me IS NOT NULL | KEEP foo | EVAL branch = "nested-paused"),
@@ -194,56 +183,15 @@ public class NestedSubqueriesIT extends AbstractPausableIntegTestCase {
     }
 
     /**
-     * Same two-level topology as {@link #testLimitSkipsUnstartedNestedMerge}: an outer leaf and a nested union of two
-     * leaves. After the outer leaf satisfies {@code LIMIT 1}, the nested leaves are already in {@code scheduledLeaves}
-     * and must be released without {@code executePlan}.
+     * Cancelling the query through the tasks API while a nested merge is still unstarted must fail the whole query and wind every task
+     * down — the sync counterpart of {@code AsyncEsqlQueryActionIT}'s delete test. Cancellation reaches the branch machinery through the
+     * root {@code CancellableTask}: {@code start()} / {@code startLeaf} see {@code rootTask.isCancelled()} and fail without
+     * {@code runCompute} / {@code executePlan}. If the nested merge started anyway, its paused branch would evaluate {@code pause_me}
+     * and raise {@code scriptWaits} past what the single outer branch can produce.
      * <p>
-     * {@code branch_parallel_degree = 1} starts only {@code first}, which reads {@code foo}. One nested leaf reads
-     * {@code pause_me}; no permits have been released, so if either nested leaf were dispatched it would raise
-     * {@code scriptWaits}.
-     */
-    public void testLimitSkipsQueuedSiblingLeaves() {
-        String query = """
-            FROM (FROM test | KEEP foo | EVAL branch = "first"),
-                 (FROM (FROM test | WHERE pause_me IS NOT NULL | KEEP foo | EVAL branch = "queued"),
-                       (FROM test | KEEP foo | EVAL branch = "queued-plain"))
-            | LIMIT 1
-            | KEEP branch, foo
-            """;
-        var request = syncEsqlQueryRequest(query).pragmas(new QueryPragmas(Settings.builder().put("branch_parallel_degree", 1).build()));
-
-        ActionFuture<EsqlQueryResponse> future = client().execute(EsqlQueryAction.INSTANCE, request);
-        try (EsqlQueryResponse response = future.actionGet(30, TimeUnit.SECONDS)) {
-            assertColumnNames(response.columns(), List.of("branch", "foo"));
-            assertColumnTypes(response.columns(), List.of("keyword", "long"));
-            assertFalse(response.isPartial());
-
-            List<List<Object>> values = getValuesList(response);
-            assertThat(values, hasSize(1));
-            assertThat(values.get(0).get(0), equalTo("first"));
-            assertThat((Long) values.get(0).get(1), allOf(greaterThanOrEqualTo(0L), lessThan((long) numberOfDocs())));
-
-            // The nested leaves never ran: reaching pause_me would have raised scriptWaits.
-            assertThat(scriptWaits.availablePermits(), equalTo(0));
-        } finally {
-            scriptPermits.release(numberOfDocs() * 10);
-            if (future.isDone() == false) {
-                future.cancel(true);
-            }
-        }
-    }
-
-    /**
-     * Cancelling the query through the tasks API while a nested merge is still unstarted must fail the whole query and
-     * wind every task down - the sync counterpart of {@code AsyncEsqlQueryActionIT}'s delete test. Cancellation reaches
-     * the branch machinery through the {@code CancellableTask} listener that {@code ComputeService.execute} registers,
-     * which calls {@code SubPlanTaskRunner.fail}; an unstarted merge then hits the failure check in
-     * {@code MergeLevelExecutor.tryExecuteNextSubPlan} instead of expanding. If it expanded anyway, its paused branch
-     * would evaluate {@code pause_me} and raise {@code scriptWaits} past what the single outer branch can produce.
-     * <p>
-     * {@code branch_parallel_degree = 1}: the first outer branch takes the only permit and blocks on {@code pause_me};
-     * the nested union waits unstarted. The cancel lands while the query is in that state, so the failure is recorded
-     * before the outer branch completes and before the nested merge is ever considered.
+     * {@code branch_parallel_degree = 1}: the first outer branch takes the only permit and blocks on {@code pause_me}; the nested union
+     * waits unstarted. The cancel lands while the query is in that state, so the failure is recorded before the outer branch completes
+     * and before the nested merge is ever considered.
      */
     public void testSyncCancellationSkipsUnstartedNestedMerge() throws Exception {
         String query = """
@@ -299,10 +247,9 @@ public class NestedSubqueriesIT extends AbstractPausableIntegTestCase {
     }
 
     /**
-     * Async STOP while the outer leaf is blocked on {@code pause_me} and the nested leaves are still queued. STOP must
-     * return a partial, finished result without dispatching those nested leaves. The two-level shape matches
-     * {@link #testLimitSkipsUnstartedNestedMerge}; the outer leaf also reads {@code pause_me} so the query is still
-     * running when STOP is issued. {@code branch_parallel_degree = 1} keeps the nested pair in {@code scheduledLeaves}.
+     * Async STOP while the outer leaf is blocked on {@code pause_me} and the nested leaves are still waiting for a permit. STOP marks
+     * {@code EsqlExecutionInfo} stopped and finishes the root {@code LocalExchange}; the next depth-first search visit must skip those
+     * nested leaves.
      */
     public void testStopSkipsQueuedNestedLeaves() throws Exception {
         String query = """

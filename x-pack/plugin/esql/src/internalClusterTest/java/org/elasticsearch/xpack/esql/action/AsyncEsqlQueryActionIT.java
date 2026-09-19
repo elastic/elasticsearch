@@ -227,22 +227,21 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
     }
 
     /**
-     * Verifies that async stop works while nested subqueries are still queued: with {@code branch_parallel_degree=1} only the first
-     * leaf subquery runs (paused on the script) and the nested branches have not started yet, so the stop must both halt the running
-     * leaf and drain the queued ones, returning a partial, non-running result.
-     * <p>
-     * {@code branch_parallel_degree=1} is the only pragma this and the following nested-subquery termination tests need: it
-     * deterministically forces the nested branches into the queued state regardless of the pragma's default. Unlike
-     * {@link #testAsyncStopNestedSubqueryHonorsGlobalParallelismWithBranchParallelDegreeTwo}, these tests do not count paused drivers,
-     * they only need to know the query reached the pausable script (a single {@code scriptWaits} acquire), which holds no matter how
-     * many slices a leaf is split into, so {@code data_partitioning} need not be forced to {@code shard}. Script permits are consumed
-     * per document rather than per page, so {@code page_size} is irrelevant as well.
+     * With {@code branch_parallel_degree=2} the outer leaf and the first nested leaf may start (observed via the pausable script) while
+     * the last nested leaf waits. It then issues an async stop while the leaves are paused and expects a partial, non-running result.
      */
-    public void testStopNestedSubqueryWithBranchParallelDegreeOne() throws Exception {
+    public void testStopNestedSubquery() throws Exception {
         assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         scriptPermits.drainPermits();
         scriptWaits.drainPermits();
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1).build());
+        var pragmas = new QueryPragmas(
+            Settings.builder()
+                // Force shard partitioning so each leaf subquery runs as exactly one driver (the index has a single shard). The
+                // semaphore accounting below counts one scriptWaits permit per paused driver, so finer partitioning that splits a
+                // leaf into several slices/drivers would break the "exactly two waits" logic.
+                .put(QueryPragmas.DATA_PARTITIONING.getKey(), "shard")
+                .build()
+        );
         var request = asyncEsqlQueryRequest("""
             FROM
                ( FROM test | STATS total = SUM(pause_me) ),
@@ -255,13 +254,31 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
         try (var initialResponse = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(60, TimeUnit.SECONDS)) {
             assertThat(initialResponse.isRunning(), is(true));
             assertThat(initialResponse.asyncExecutionId(), isPresent());
-            assertTrue("a nested leaf must reach the pausable field", scriptWaits.tryAcquire(30, TimeUnit.SECONDS));
+            assertTrue("the first leaf must reach the pausable field", scriptWaits.tryAcquire(30, TimeUnit.SECONDS));
+            assertTrue("the second leaf must reach the pausable field", scriptWaits.tryAcquire(30, TimeUnit.SECONDS));
+            assertFalse(
+                "branch_parallel_degree=2 must keep the remaining nested leaf undispatched",
+                scriptWaits.tryAcquire(200, TimeUnit.MILLISECONDS)
+            );
 
             var stopFuture = client().execute(EsqlAsyncStopAction.INSTANCE, new AsyncStopRequest(initialResponse.asyncExecutionId().get()));
             scriptPermits.release(numberOfDocs() * 3);
             try (var stoppedResponse = stopFuture.actionGet(60, TimeUnit.SECONDS)) {
                 assertThat(stoppedResponse.isRunning(), is(false));
                 assertThat(stoppedResponse.isPartial(), is(true));
+                assertThat(stoppedResponse.columns(), equalTo(List.of(new ColumnInfoImpl("total", "long", null))));
+                // The stop races with the released leaves, so anywhere from none to all three branches may contribute a row. A
+                // branch that is stopped mid-aggregation may emit a partial sum (or null if it processed nothing); a branch that
+                // completed sums pause_me=1 over all docs, so no value can exceed numberOfDocs().
+                List<List<Object>> rows = getValuesList(stoppedResponse);
+                assertThat(rows.size(), lessThanOrEqualTo(3));
+                for (List<Object> row : rows) {
+                    assertThat(row, hasSize(1));
+                    if (row.get(0) != null) {
+                        assertThat((long) row.get(0), greaterThanOrEqualTo(0L));
+                        assertThat((long) row.get(0), lessThanOrEqualTo((long) numberOfDocs()));
+                    }
+                }
             }
         } finally {
             scriptPermits.drainPermits();
@@ -271,16 +288,13 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
 
     /**
      * Verifies that cancelling the async query task through the cancel tasks API terminates a query whose nested subqueries are still
-     * queued behind {@code branch_parallel_degree=1}: the cancellation must propagate to the running leaf and the queued branches, and
-     * fetching the async result afterwards must throw {@link TaskCancelledException}.
-     * See {@link #testStopNestedSubqueryWithBranchParallelDegreeOne} for why {@code branch_parallel_degree=1} is the only pragma these
-     * tests set.
+     * waiting for a permit: the cancellation must propagate to the running leaf and the undispatched branches, and fetching the async
+     * result afterwards must throw {@link TaskCancelledException}.
      */
-    public void testCancelNestedSubqueryWithBranchParallelDegreeOne() throws Exception {
+    public void testCancelNestedSubquery() throws Exception {
         assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         scriptPermits.drainPermits();
         scriptWaits.drainPermits();
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1).build());
         var request = asyncEsqlQueryRequest("""
             FROM
                ( FROM test | STATS total = SUM(pause_me) ),
@@ -288,7 +302,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
                     ( FROM test | STATS total = SUM(pause_me) ),
                     ( FROM test | STATS total = SUM(pause_me) )
                )
-            """).pragmas(pragmas).waitForCompletionTimeout(TimeValue.timeValueNanos(1)).keepOnCompletion(true).keepAlive(randomKeepAlive());
+            """).waitForCompletionTimeout(TimeValue.timeValueNanos(1)).keepOnCompletion(true).keepAlive(randomKeepAlive());
 
         try (var initialResponse = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(60, TimeUnit.SECONDS)) {
             assertThat(initialResponse.isRunning(), is(true));
@@ -321,17 +335,14 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
     }
 
     /**
-     * Verifies that deleting the async result while one leaf is paused and the nested subqueries are queued behind
-     * {@code branch_parallel_degree=1} cancels the whole query: the delete must be acknowledged, the queued branches drained so no
-     * ES|QL tasks linger, and the stored response removed so a later get throws {@link ResourceNotFoundException}. See
-     * {@link #testStopNestedSubqueryWithBranchParallelDegreeOne} for why {@code branch_parallel_degree=1} is the only pragma these tests
-     * set.
+     * Verifies that deleting the async result while one leaf is paused and the nested subqueries are waiting for a permit cancels the
+     * whole query: the delete must be acknowledged, the undispatched branches skipped so no ES|QL tasks linger, and the stored response
+     * removed so a later get throws {@link ResourceNotFoundException}.
      */
-    public void testDeleteNestedSubqueryWithBranchParallelDegreeOne() throws Exception {
+    public void testDeleteNestedSubquery() throws Exception {
         assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         scriptPermits.drainPermits();
         scriptWaits.drainPermits();
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1).build());
         var request = asyncEsqlQueryRequest("""
             FROM
                ( FROM test | STATS total = SUM(pause_me) ),
@@ -339,7 +350,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
                     ( FROM test | STATS total = SUM(pause_me) ),
                     ( FROM test | STATS total = SUM(pause_me) )
                )
-            """).pragmas(pragmas).waitForCompletionTimeout(TimeValue.timeValueNanos(1)).keepOnCompletion(true).keepAlive(randomKeepAlive());
+            """).waitForCompletionTimeout(TimeValue.timeValueNanos(1)).keepOnCompletion(true).keepAlive(randomKeepAlive());
 
         try (var initialResponse = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(60, TimeUnit.SECONDS)) {
             assertThat(initialResponse.isRunning(), is(true));
@@ -351,11 +362,8 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
             scriptPermits.release(numberOfDocs() * 3);
 
             assertThat(deleteFuture.actionGet(timeValueSeconds(60)).isAcknowledged(), equalTo(true));
+            assertBusy(() -> assertThat(getEsqlQueryTasks(), empty()));
 
-            // no tasks should remain after deletion
-            assertBusy(() -> assertThat(getEsqlQueryTasks(), hasSize(0)));
-
-            // the stored result must be gone
             var getResultsRequest = new GetAsyncResultRequest(id);
             getResultsRequest.setKeepAlive(timeValueMinutes(10));
             getResultsRequest.setWaitForCompletionTimeout(timeValueSeconds(60));
@@ -371,17 +379,14 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
     }
 
     /**
-     * Verifies that keep-alive expiry cancels a query with queued nested subqueries: while one leaf is paused behind
-     * {@code branch_parallel_degree=1}, the keep-alive is shortened to a few milliseconds so the async reaper kicks in. All started
-     * drivers and the async query task itself must be cancelled, and a subsequent get of the result must fail with
-     * "keep_alive expired". See {@link #testStopNestedSubqueryWithBranchParallelDegreeOne} for why {@code branch_parallel_degree=1} is
-     * the only pragma these tests set.
+     * Verifies that keep-alive expiry cancels a query with undispatched nested subqueries: while one leaf is paused, the keep-alive is
+     * shortened to a few milliseconds so the async reaper kicks in. All started drivers and the async query task itself must be cancelled,
+     * and a subsequent get of the result must fail with "keep_alive expired".
      */
     public void testKeepAliveExpiryNestedSubqueryWithBranchParallelDegreeOne() throws Exception {
         assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         scriptPermits.drainPermits();
         scriptWaits.drainPermits();
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1).build());
         var request = asyncEsqlQueryRequest("""
             FROM
                ( FROM test | STATS total = SUM(pause_me) ),
@@ -389,8 +394,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
                     ( FROM test | STATS total = SUM(pause_me) ),
                     ( FROM test | STATS total = SUM(pause_me) )
                )
-            """).pragmas(pragmas)
-            .waitForCompletionTimeout(TimeValue.timeValueNanos(1))
+            """).waitForCompletionTimeout(TimeValue.timeValueNanos(1))
             .keepOnCompletion(randomBoolean())
             .allowPartialResults(false)
             .keepAlive(TimeValue.timeValueMinutes(between(1, 5)));
@@ -439,134 +443,6 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
             }
         });
         assertThat(error.getMessage(), containsString("keep_alive expired"));
-    }
-
-    /**
-     * Verifies that {@code branch_parallel_degree} is enforced globally across nesting levels rather than per level. The query has four
-     * leaf subqueries spread over two nested FROM branches; with {@code branch_parallel_degree=2} exactly two leaves may start executing
-     * (observed via the pausable script) while the rest stay queued. It then issues an async stop while the leaves are paused and expects
-     * a partial, non-running result.
-     */
-    public void testAsyncStopNestedSubqueryHonorsGlobalParallelismWithBranchParallelDegreeTwo() throws Exception {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        scriptPermits.drainPermits();
-        scriptWaits.drainPermits();
-        var pragmas = new QueryPragmas(
-            Settings.builder()
-                // Force shard partitioning so each leaf subquery runs as exactly one driver (the index has a single shard). The
-                // semaphore accounting below counts one scriptWaits permit per paused driver, so finer partitioning that splits a
-                // leaf into several slices/drivers would break the "exactly two waits" logic.
-                .put(QueryPragmas.DATA_PARTITIONING.getKey(), "shard")
-                // Small page size for consistency with the other tests in this file; the pause script blocks per document, so this
-                // test does not depend on it.
-                .put(QueryPragmas.PAGE_SIZE.getKey(), pageSize())
-                // Matches the current default, but every assertion below depends on the value being exactly 2, so pin it explicitly
-                // in case the default changes.
-                .put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 2)
-                .build()
-        );
-        var request = asyncEsqlQueryRequest("""
-            FROM
-               ( FROM
-                    ( FROM test | STATS total = SUM(pause_me) ),
-                    ( FROM test | STATS total = SUM(pause_me) )
-               ),
-               ( FROM
-                    ( FROM test | STATS total = SUM(pause_me) ),
-                    ( FROM test | STATS total = SUM(pause_me) )
-               )
-            """).pragmas(pragmas).waitForCompletionTimeout(TimeValue.timeValueNanos(1)).keepOnCompletion(true).keepAlive(randomKeepAlive());
-
-        try (var initialResponse = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(60, TimeUnit.SECONDS)) {
-            assertThat(initialResponse.isRunning(), is(true));
-            assertThat(initialResponse.asyncExecutionId(), isPresent());
-            assertTrue("the first nested leaf must reach the pausable field", scriptWaits.tryAcquire(30, TimeUnit.SECONDS));
-            assertTrue("the second nested leaf must reach the pausable field", scriptWaits.tryAcquire(30, TimeUnit.SECONDS));
-            assertFalse(
-                "branch_parallel_degree=2 must keep the other nested leaves queued",
-                scriptWaits.tryAcquire(200, TimeUnit.MILLISECONDS)
-            );
-
-            var stopFuture = client().execute(EsqlAsyncStopAction.INSTANCE, new AsyncStopRequest(initialResponse.asyncExecutionId().get()));
-            scriptPermits.release(numberOfDocs() * 4);
-            try (var stoppedResponse = stopFuture.actionGet(60, TimeUnit.SECONDS)) {
-                assertThat(stoppedResponse.isRunning(), is(false));
-                assertThat(stoppedResponse.isPartial(), is(true));
-                assertThat(stoppedResponse.columns(), equalTo(List.of(new ColumnInfoImpl("total", "long", null))));
-                // The stop races with the released leaves, so anywhere from none to all four branches may contribute a row. A
-                // branch that is stopped mid-aggregation may emit a partial sum (or null if it processed nothing); a branch that
-                // completed sums pause_me=1 over all docs, so no value can exceed numberOfDocs().
-                List<List<Object>> rows = getValuesList(stoppedResponse);
-                assertThat(rows.size(), lessThanOrEqualTo(4));
-                for (List<Object> row : rows) {
-                    assertThat(row, hasSize(1));
-                    if (row.get(0) != null) {
-                        assertThat((long) row.get(0), greaterThanOrEqualTo(0L));
-                        assertThat((long) row.get(0), lessThanOrEqualTo((long) numberOfDocs()));
-                    }
-                }
-            }
-        } finally {
-            scriptPermits.drainPermits();
-            scriptWaits.drainPermits();
-        }
-    }
-
-    /**
-     * Verifies that cancelling an async query (via delete) also drains nested subqueries that are still queued behind the parallelism
-     * limit. With {@code branch_parallel_degree=1} only one leaf subquery runs while the nested ones wait in the queue; deleting the async
-     * result while the running leaf is paused must be acknowledged and leave no lingering ES|QL tasks, i.e. the queued nested branches
-     * must not start or leak.
-     */
-    public void testAsyncCancellationDrainsQueuedNestedSubqueriesWithBranchParallelDegreeOne() throws Exception {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        scriptPermits.drainPermits();
-        scriptWaits.drainPermits();
-        var pragmas = new QueryPragmas(
-            Settings.builder()
-                // Force shard partitioning so each leaf subquery runs as exactly one driver (the index has a single shard),
-                // keeping the scriptWaits accounting deterministic.
-                .put(QueryPragmas.DATA_PARTITIONING.getKey(), "shard")
-                // Small page size for consistency with the other tests in this file; the pause script blocks per document, so this
-                // test does not depend on it.
-                .put(QueryPragmas.PAGE_SIZE.getKey(), pageSize())
-                // Only one leaf may run at a time, so the delete below must drain the nested subqueries still waiting in the queue.
-                .put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), 1)
-                .build()
-        );
-        var request = asyncEsqlQueryRequest("""
-            FROM
-               ( FROM test | STATS total = SUM(pause_me) ),
-               ( FROM
-                    ( FROM test | STATS total = SUM(pause_me) ),
-                    ( FROM test | STATS total = SUM(pause_me) )
-               )
-            """).pragmas(pragmas).waitForCompletionTimeout(TimeValue.timeValueNanos(1)).keepOnCompletion(true).keepAlive(randomKeepAlive());
-
-        try (var initialResponse = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(60, TimeUnit.SECONDS)) {
-            assertThat(initialResponse.isRunning(), is(true));
-            assertThat(initialResponse.asyncExecutionId(), isPresent());
-            assertTrue("a nested leaf must reach the pausable field", scriptWaits.tryAcquire(30, TimeUnit.SECONDS));
-
-            String id = initialResponse.asyncExecutionId().get();
-            var deleteFuture = client().execute(TransportDeleteAsyncResultAction.TYPE, new DeleteAsyncResultRequest(id));
-            scriptPermits.release(numberOfDocs() * 3);
-            assertThat(deleteFuture.actionGet(timeValueSeconds(60)).isAcknowledged(), equalTo(true));
-            assertThat(getEsqlQueryTasks(), empty());
-
-            // Deleting cancels the query and discards its results, so no query output can be validated: the stored response must
-            // no longer be retrievable.
-            var getResultsRequest = new GetAsyncResultRequest(id);
-            getResultsRequest.setWaitForCompletionTimeout(timeValueSeconds(60));
-            var e = expectThrows(
-                ResourceNotFoundException.class,
-                () -> client().execute(EsqlAsyncGetResultAction.INSTANCE, getResultsRequest).actionGet()
-            );
-            assertThat(e.getMessage(), equalTo(id));
-        } finally {
-            scriptPermits.drainPermits();
-            scriptWaits.drainPermits();
-        }
     }
 
     public void testFinishingBeforeTimeoutKeep() {

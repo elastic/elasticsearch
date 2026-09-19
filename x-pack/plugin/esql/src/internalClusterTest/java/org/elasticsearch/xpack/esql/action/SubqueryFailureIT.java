@@ -356,12 +356,11 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Same scenario as {@link #testPartialResultsWithFailingShardInSubquery}, but the branch with the failing shard sits
-     * one level deeper, inside a nested union. The shard failure has to cross two merge levels on its way up: the nested
-     * {@code SubPlansExecutor}'s segment, then the outer one. With {@code allowPartialResults} the rows from every ok
-     * shard must still arrive, and the response must be marked partial - the flag travels through
-     * {@code EsqlExecutionInfo}, not the row stream, so losing it at a merge boundary would silently misreport a
-     * partial result as complete.
+     * Same scenario as {@link #testPartialResultsWithFailingShardInSubquery}, but the branch with the failing shard sits one level deeper,
+     * inside a nested union. The shard failure has to cross two {@code ExecutionMerge} levels in one {@code SubPlansExecutor} on its way
+     * up: the nested merge, then the outer one. With {@code allowPartialResults} the rows from every ok shard must still arrive, and the
+     * response must be marked partial — the flag travels through {@code EsqlExecutionInfo}, not the row stream, so losing it at a merge
+     * boundary would silently misreport a partial result as complete.
      */
     public void testPartialResultsWithFailingShardInNestedSubquery() {
         assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());

@@ -17,7 +17,8 @@ import java.util.Objects;
  * An immutable coordinator-local execution topology built from a physical plan that may contain nested
  * {@link org.elasticsearch.xpack.esql.plan.physical.MergeExec} nodes. The tree has two node kinds:
  * <ul>
- *   <li>{@link Leaf} — a producer branch with no merge point; executed on data nodes via {@code ComputeService.executePlan}.</li>
+ *   <li>{@link Leaf} — a producer branch with no merge point; dispatched via {@code ComputeService.executePlan}, which fans the
+ *       plan out to data nodes and runs the coordinator-side reduction locally.</li>
  *   <li>{@link Merge} — a coordinator segment whose topmost {@link org.elasticsearch.xpack.esql.plan.physical.MergeExec} has been
  *       replaced by an {@link org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec}; run locally via
  *       {@code ComputeService.runCompute}.</li>
@@ -32,12 +33,13 @@ import java.util.Objects;
  *   <li>The producer branches ({@code MergeExec} children) must be dispatched and run <em>independently</em> — possibly on separate
  *       data nodes — before the coordinator merge can read from them.</li>
  *   <li>Each branch writes its output into an exchange sink, and the coordinator merge reads from the matching exchange source.
- *       {@link org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler}s are registered during setup;
- *       {@link org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler}s are created lazily when that child is started.</li>
+ *       After a {@link Leaf} has been reduced on the coordinator, that hop is same-node: {@code SubPlansExecutor} uses a
+ *       {@link org.elasticsearch.compute.operator.exchange.LocalExchange} per {@link Merge}. Cross-node transport lives inside
+ *       {@code ComputeService.executePlan} (an {@code ExchangeSourceHandler} pulling from data-node sinks), not in this tree.</li>
  * </ol>
  * {@code SubPlan} solves this by decomposing the original plan into a tree of coordinator segments ({@link Merge}) and leaf producers
- * ({@link Leaf}) <em>before</em> any execution begins, so that {@code SubPlansExecutor} can register every merge's exchange source
- * in one synchronous pass, then start coordinators and dispatch leaves with lazily attached sinks.
+ * ({@link Leaf}) <em>before</em> any execution begins, so that {@code SubPlansExecutor} can build a matching runtime tree, open one
+ * {@code LocalExchange} per merge, and start coordinators and leaves lazily.
  *
  * <h2>How {@link PlannerUtils#buildSubPlan} creates the tree</h2>
  * <p>
@@ -90,8 +92,8 @@ import java.util.Objects;
  * </pre>
  * The outer {@code MergeExec} is replaced by an {@code ExchangeSourceExec} in the root coordinator segment
  * ({@code LimitExec → ExchangeSourceExec}). Each inner {@code MergeExec} becomes a nested {@link Merge} whose plan is
- * {@code ExchangeSinkExec → ExchangeSourceExec}: it reads from its own children's exchange source and writes the merged output
- * into the outer exchange source via the surrounding {@code ExchangeSinkExec}. No {@code MergeExec} node survives in any plan.
+ * {@code ExchangeSinkExec → ExchangeSourceExec}: it reads from its own children's {@code LocalExchange} and writes the merged output into
+ * the parent's {@code LocalExchange} via the surrounding {@code ExchangeSinkExec}. No {@code MergeExec} node survives in any plan.
  *
  * <h2>How {@code SubPlansExecutor} executes the tree</h2>
  * <p>
@@ -99,27 +101,24 @@ import java.util.Objects;
  * <ul>
  *   <li>A {@link Leaf} root means no merge; {@code ComputeService} calls {@code executePlan} directly.</li>
  *   <li>A {@link Merge} root means at least one merge point; {@code ComputeService} creates a {@code SubPlansExecutor} and calls
- *       {@code SubPlansExecutor.execute}.</li>
+ *       {@code SubPlansExecutor.executePlan}.</li>
  * </ul>
- * {@code SubPlansExecutor.execute} works in two setup steps and a lazy dispatch:
- * <ol>
- *   <li><b>Phase 1a — register exchanges ({@code buildSubPlanContext}):</b> walks the {@code SubPlan} tree and registers an
- *       {@link org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler} for every {@link Merge} node. Every child — leaf
- *       or nested merge — gets a lazy keep-alive ref on its parent's source; no
- *       {@link org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler} is registered here. This phase is fully
- *       synchronous. If it fails partway through, {@code cleanupUnstartedExchanges} rolls back all registrations before propagating the
- *       error.</li>
- *   <li><b>Phase 1b — allocate refs ({@code allocateComputeRefs}):</b> opens a {@code ComputeListener} per merge, acquires the
- *       segment and child tickets, and flattens leaves into {@code scheduledLeaves}. No drivers start.</li>
- *   <li><b>Phase 2a — start root:</b> {@code startMerge} runs the root coordinator so the exchange leaves write into is already
- *       consuming. Nested merge segments stay unstarted. If Phase 1b already aborted the root, {@code startMerge} is a no-op and
- *       leaves are not dispatched.</li>
- *   <li><b>Phase 2b — dispatch leaves:</b> launches up to {@code branchParallelDegree} initial workers. Each worker atomically
- *       claims the next leaf, starts any still-unstarted nested ancestor via {@code ensureAncestorsStarted}, and re-invokes
- *       itself on completion, keeping the number of concurrently running leaves bounded.</li>
- * </ol>
- * The root {@link Merge}'s plan is additionally wrapped in an {@code OutputExec} by {@code buildSubPlanContext} so that the pages it
- * produces are collected into the final result list; nested {@link Merge} nodes use their plans as-is.
+ * The executor constructor mirrors this tree as runtime nodes ({@code ExecutionMerge} / {@code ExecutionLeaf}). That walk does not start
+ * drivers. It opens a {@code LocalExchange} per merge, a {@code ComputeListener} per merge with one ref per child, and a dummy sink on
+ * each parent exchange so an unstarted child cannot look like “all producers finished.” The root plan is wrapped in an {@code OutputExec}
+ * to collect result pages. Only the root {@code LocalExchange} is registered on
+ * {@link org.elasticsearch.compute.operator.exchange.ExchangeService} (under the query session id) so async STOP can finish it. Nested
+ * exchanges stay coordinator-private.
+ * <p>
+ * {@code executePlan} then runs a permit-gated depth-first search ({@code branch_parallel_degree} permits). Each visit starts the
+ * current merge if needed ({@code runCompute}, so the consumer is running before any child writes), then spends remaining permits on
+ * children left to right. A {@link Leaf} consumes one permit and calls {@code executePlan}, passing a sink on the parent
+ * {@code LocalExchange}. When that leaf completes it returns the permit and the walk continues. A nested {@link Merge} is therefore
+ * started only when the walk first reaches it — typically just before its first descendant leaf is dispatched.
+ * <p>
+ * If the query is stopped or the parent exchange is already finished ({@code LIMIT} satisfied), the visit completes the node without
+ * {@code runCompute} / {@code executePlan} so queued branches are skipped. Failure cancels the root task; remaining nodes observe that
+ * and fail without starting new work.
  */
 public abstract sealed class SubPlan permits SubPlan.Leaf, SubPlan.Merge {
 
@@ -129,20 +128,16 @@ public abstract sealed class SubPlan permits SubPlan.Leaf, SubPlan.Merge {
         this.plan = Objects.requireNonNull(plan);
     }
 
-    /** The physical plan executed by this topology node. */
+    /** The physical plan executed by this node. */
     public PhysicalPlan plan() {
         return plan;
     }
 
     /**
-     * A producer branch with no merge point. Its {@link #plan()} is always an
+     * A producer branch with no merge point. When this node is a child of a {@link Merge}, {@link #plan()} is an
      * {@link org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec} wrapping the original branch plan — the sink writes the
-     * branch's output into the parent merge's {@link org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler}.
-     * {@code SubPlansExecutor} dispatches it via {@code ComputeService.executePlan}, which fans the plan out to data nodes and runs
-     * the coordinator-side reduction locally; the resulting pages flow through the {@code ExchangeSinkExec} into the parent exchange.
-     * <p>
-     * A {@code Leaf} has no children and carries no mutable execution state. Its lifecycle is fully managed by {@code SubPlansExecutor}
-     * through a {@code ScheduledLeaf} record that pairs it with the {@code ActionListener} to notify on completion.
+     * branch's output into the parent merge's {@link org.elasticsearch.compute.operator.exchange.LocalExchange}. If the plan has no
+     * {@code MergeExec}, it is executed by {@code ComputeService} directly, not by {@code SubPlansExecutor}.
      */
     public static final class Leaf extends SubPlan {
         public Leaf(PhysicalPlan plan) {
@@ -152,21 +147,22 @@ public abstract sealed class SubPlan permits SubPlan.Leaf, SubPlan.Merge {
 
     /**
      * A coordinator segment whose topmost {@link org.elasticsearch.xpack.esql.plan.physical.MergeExec} has been replaced by an
-     * {@link org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec}. Its {@link #plan()} is run locally by {@code
-     * SubPlansExecutor} via {@code ComputeService.runCompute}; it reads merged rows from the exchange source that its children write into.
+     * {@link org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec}. Its {@link #plan()} is run locally by
+     * {@code SubPlansExecutor} via {@code ComputeService.runCompute}; it reads merged rows from the {@code LocalExchange} that its
+     * children write into.
      * <p>
      * The plan shape depends on the node's position in the tree:
      * <ul>
-     *   <li><b>Root node</b>: the plan is the original coordinator plan with {@code MergeExec} replaced by {@code ExchangeSourceExec}
+     *   <li><b>Root merge</b>: the plan is the original coordinator plan with {@code MergeExec} replaced by {@code ExchangeSourceExec}
      *       (e.g. {@code LimitExec → ExchangeSourceExec}). {@code SubPlansExecutor} additionally wraps it in an {@code OutputExec} at
-     *       runtime to collect final result pages.</li>
-     *   <li><b>Nested node</b>: the plan is {@code ExchangeSinkExec → ExchangeSourceExec}. It reads from its own children's exchange
-     *       source (the inner {@code ExchangeSourceExec}) and writes the merged output into the parent's exchange source (the
-     *       {@code ExchangeSinkExec}). No {@code MergeExec} node survives in the plan.</li>
+     *       runtime to collect final result pages, and registers this node's {@code LocalExchange} on {@code ExchangeService}.</li>
+     *   <li><b>Nested merge</b>: the plan is {@code ExchangeSinkExec → ExchangeSourceExec}. It reads from its own children's
+     *       {@code LocalExchange} (the inner {@code ExchangeSourceExec}) and writes the merged output into the parent's
+     *       {@code LocalExchange} (the {@code ExchangeSinkExec}).</li>
      * </ul>
-     * Each child in {@link #children()} is either a {@link Leaf} (a direct producer dispatched to data nodes) or a nested {@link Merge}
-     * (another coordinator segment that itself has an exchange source and its own children, produced by a recursive call to
-     * {@link PlannerUtils#buildSubPlan}).
+     * Each child in {@link #children()} is either a {@link Leaf} (a direct producer dispatched via {@code executePlan}) or a nested
+     * {@link Merge} (another coordinator segment with its own {@code LocalExchange} and children. The executor starts this segment lazily,
+     * {@code runCompute} runs when the depth-first search first reaches the node, not during tree construction.
      */
     public static final class Merge extends SubPlan {
         private final List<SubPlan> children;

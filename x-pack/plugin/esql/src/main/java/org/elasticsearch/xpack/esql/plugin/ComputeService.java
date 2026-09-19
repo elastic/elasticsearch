@@ -1013,7 +1013,6 @@ public class ComputeService {
                 case SubPlan.Merge merge -> new SubPlansExecutor(
                     this,
                     exchangeService,
-                    searchExecutor,
                     sessionId,
                     rootTask,
                     flags,
@@ -1021,8 +1020,11 @@ public class ComputeService {
                     foldContext,
                     execInfo,
                     initialClusterStatuses,
-                    warnIndexCoordinatorOnce
-                ).execute(merge, planTimeProfile, dispatchListener);
+                    warnIndexCoordinatorOnce,
+                    planTimeProfile,
+                    merge,
+                    dispatchListener
+                ).executePlan();
             }
         } catch (Exception e) {
             // executePlan does planning work outside its own try/catch (breakPlanBetweenCoordinatorAndDataNode, getIndices), so a

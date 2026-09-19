@@ -68,12 +68,27 @@ public final class EsqlDataSourceCodecEligibility {
             normalized = normalized.substring(lastDot + 1);
         }
         return switch (normalized) {
-            case "csv", "tsv", "ndjson", "parquet", "orc", "none" -> "none";
+            case "csv", "tsv", "ndjson", "parquet", "orc", "none" -> "none"; // dimension-copy-ok: a switch arm collapsing every format's
+                                                                             // own extension to 'none'
             case "gz", "gzip" -> "gzip";
             case "zst", "zstd" -> "zstd";
             case "bz", "bz2", "bzip2" -> "bzip2";
             default -> normalized;
         };
+    }
+
+    /**
+     * Whether snapshot-only codecs may run at all in this build.
+     *
+     * <p>In a mixed-version run BOTH distributions have to be snapshots: the old node has to be able to
+     * read what the new one wrote. Exposed rather than inlined because the fixture declaration owns WHICH
+     * codecs are snapshot-only, while this owns WHETHER snapshot-only ones are eligible, and the two
+     * answers are combined at the call sites.
+     */
+    public static boolean experimentalCodecsEligible() {
+        return EsqlDataSourceMixedClusterTestSupport.isBwcTest()
+            ? EsqlDataSourceMixedClusterTestSupport.currentBuildSnapshot() && EsqlDataSourceMixedClusterTestSupport.oldBuildSnapshot()
+            : Build.current().isSnapshot();
     }
 
     /**
@@ -83,10 +98,7 @@ public final class EsqlDataSourceCodecEligibility {
      * both distributions to be snapshots.
      */
     public static List<String> textCompressionFormats(String baseFormat) {
-        boolean includeExperimental = EsqlDataSourceMixedClusterTestSupport.isBwcTest()
-            ? EsqlDataSourceMixedClusterTestSupport.currentBuildSnapshot() && EsqlDataSourceMixedClusterTestSupport.oldBuildSnapshot()
-            : Build.current().isSnapshot();
-        if (includeExperimental) {
+        if (experimentalCodecsEligible()) {
             return List.of(baseFormat + ".gz", baseFormat + ".zst", baseFormat + ".zstd", baseFormat + ".bz2", baseFormat + ".bz");
         }
         return List.of(baseFormat + ".gz", baseFormat + ".zst", baseFormat + ".zstd");

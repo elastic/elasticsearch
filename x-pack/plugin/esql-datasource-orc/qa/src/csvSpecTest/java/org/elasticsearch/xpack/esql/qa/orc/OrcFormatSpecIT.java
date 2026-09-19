@@ -70,6 +70,6 @@ public class OrcFormatSpecIT extends AbstractExternalSourceSpecTestCase {
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTests(BWC_MATRIX_POLICY, "/datasources/external-*.csv-spec", "/orc-*.csv-spec");
+        return readExternalSpecTestsForSuite(BWC_MATRIX_POLICY, "orc");
     }
 }

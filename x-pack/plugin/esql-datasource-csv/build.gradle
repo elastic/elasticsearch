@@ -46,6 +46,9 @@ dependencies {
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(xpackModule('esql:qa:testFixtures'))
+  // For the format_specific_keys drift gate: the crossing MIRRORS this plugin's config keys and
+  // cannot import them, so the equality is asserted from this side, where both are visible.
+  testImplementation project(xpackModule('esql:qa:fixture-common'))
 }
 
 tasks.named("dependencyLicenses").configure {

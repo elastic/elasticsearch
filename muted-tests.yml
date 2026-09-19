@@ -217,6 +217,8 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
   method: testEsqlTermsAggregation
   issue: https://github.com/elastic/elasticsearch/issues/159745
+- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/159788
 
 # Examples:
 #

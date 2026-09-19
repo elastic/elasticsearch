@@ -117,6 +117,7 @@ import static org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration.
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
@@ -2436,6 +2437,133 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var registrationResponse = registerFuture.get();
             assertThat(registrationResponse, notNullValue());
             assertThat(registrationResponse.getCompoundCommit().primaryTermAndGeneration(), equalTo(commitToRegister));
+        }
+    }
+
+    public void testRegisterCommitForUnpromotableRecoveryDoesNotGiveCommitAboveMaxGenerationToUpload() throws Exception {
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm)) {
+            final var shardId = testHarness.shardId;
+            final var commitService = testHarness.commitService;
+            final var stateWithNoSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 0);
+            final var stateWithSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 1);
+            final var nodeId = stateWithSearchShards.getRoutingTable()
+                .shardRoutingTable(shardId)
+                .replicaShards()
+                .getFirst()
+                .currentNodeId();
+            commitService.clusterChanged(new ClusterChangedEvent("test", stateWithSearchShards, stateWithNoSearchShards));
+
+            final var initialCommits = testHarness.generateIndexCommits(3);
+            for (var initialCommit : initialCommits) {
+                commitService.onCommitCreation(initialCommit);
+            }
+            final var lastUploadedCommit = initialCommits.getLast();
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, lastUploadedCommit.getGeneration());
+            waitUntilBCCIsUploaded(commitService, shardId, lastUploadedCommit.getGeneration());
+
+            // Start the relocation handoff
+            final var markedRelocating = new PlainActionFuture<Void>();
+            final var handoffListener = commitService.markRelocating(shardId, lastUploadedCommit.getGeneration(), markedRelocating);
+            markedRelocating.actionGet();
+
+            // A background merge creates a commit above maxGenerationToUpload that will never be uploaded.
+            final var mergedCommit = testHarness.generateIndexCommits(1, true).getFirst();
+            commitService.onCommitCreation(mergedCommit);
+            assertThat(mergedCommit.getGeneration(), greaterThan(lastUploadedCommit.getGeneration()));
+
+            final var registerFuture = new PlainActionFuture<RegisterCommitResponse>();
+            commitService.registerCommitForUnpromotableRecovery(
+                null,
+                new PrimaryTermAndGeneration(lastUploadedCommit.getPrimaryTerm(), lastUploadedCommit.getGeneration()),
+                shardId,
+                nodeId,
+                stateWithSearchShards,
+                registerFuture
+            );
+
+            final var response = registerFuture.actionGet();
+            assertThat(
+                "a commit created after the relocation handoff started must not be handed to a recovering search shard",
+                response.getCompoundCommit().generation(),
+                equalTo(lastUploadedCommit.getGeneration())
+            );
+
+            handoffListener.onResponse(null);
+        }
+    }
+
+    public void testRegisterCommitForUnpromotableRecoveryPrefersPendingUploadBccWithinMaxGenerationToUpload() throws Exception {
+        final Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        final var blockedBlobName = new AtomicReference<String>();
+        final var blockUpload = new CountDownLatch(1);
+        final var uploadBlocked = new CountDownLatch(1);
+
+        // One commit per BCC, so every commit is frozen and handed to the uploader as soon as it is created.
+        try (var testHarness = createNode(fileCapture(uploadedBlobs), (blobName, runnable) -> {
+            if (blobName.equals(blockedBlobName.get())) {
+                uploadBlocked.countDown();
+                safeAwait(blockUpload);
+            }
+            runnable.run();
+            uploadedBlobs.add(blobName);
+        }, 1)) {
+            try {
+                final var shardId = testHarness.shardId;
+                final var commitService = testHarness.commitService;
+                final var stateWithNoSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 0);
+                final var stateWithSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 1);
+                final var nodeId = stateWithSearchShards.getRoutingTable()
+                    .shardRoutingTable(shardId)
+                    .replicaShards()
+                    .getFirst()
+                    .currentNodeId();
+                commitService.clusterChanged(new ClusterChangedEvent("test", stateWithSearchShards, stateWithNoSearchShards));
+
+                final var commits = testHarness.generateIndexCommits(2);
+                final var uploadedCommit = commits.get(0);
+                final var pendingCommit = commits.get(1);
+
+                commitService.onCommitCreation(uploadedCommit);
+                waitUntilBCCIsUploaded(commitService, shardId, uploadedCommit.getGeneration());
+
+                // Hold the second commit's upload so that it is still pending when the handoff starts.
+                blockedBlobName.set(StatelessCompoundCommit.blobNameFromGeneration(pendingCommit.getGeneration()));
+                commitService.onCommitCreation(pendingCommit);
+                safeAwait(uploadBlocked);
+
+                // maxGenerationToUpload becomes the pending commit's generation
+                final var markedRelocating = new PlainActionFuture<Void>();
+                final var handoffListener = commitService.markRelocating(shardId, pendingCommit.getGeneration(), markedRelocating);
+                assertFalse("the handoff waits for the pending upload", markedRelocating.isDone());
+
+                // A background merge completes during the handoff, above maxGenerationToUpload.
+                final var mergedCommit = testHarness.generateIndexCommits(1, true).getFirst();
+                commitService.onCommitCreation(mergedCommit);
+                assertThat(mergedCommit.getGeneration(), greaterThan(pendingCommit.getGeneration()));
+
+                final var registerFuture = new PlainActionFuture<RegisterCommitResponse>();
+                commitService.registerCommitForUnpromotableRecovery(
+                    null,
+                    new PrimaryTermAndGeneration(uploadedCommit.getPrimaryTerm(), uploadedCommit.getGeneration()),
+                    shardId,
+                    nodeId,
+                    stateWithSearchShards,
+                    registerFuture
+                );
+
+                final var response = registerFuture.actionGet();
+                assertThat(
+                    "the pending-upload commit within the bound is preferred over both the merged commit and the last uploaded BCC",
+                    response.getCompoundCommit().generation(),
+                    equalTo(pendingCommit.getGeneration())
+                );
+
+                blockUpload.countDown();
+                markedRelocating.actionGet();
+                handoffListener.onResponse(null);
+            } finally {
+                blockUpload.countDown();
+            }
         }
     }
 

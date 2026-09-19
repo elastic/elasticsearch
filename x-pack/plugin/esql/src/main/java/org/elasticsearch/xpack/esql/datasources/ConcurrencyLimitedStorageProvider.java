@@ -106,12 +106,15 @@ class ConcurrencyLimitedStorageProvider implements StorageProvider {
             // the retryable 503-class type the retry layer acts on (RetryableStorageProvider -> RetryPolicy.execute
             // catches ExternalUnavailableException and re-attempts). throttling=false: this is a local semaphore, not
             // a remote-store 429/503, so it must not feed the per-bucket adaptive backoff or the throttle budget.
-            throw new ExternalUnavailableException(e, "Timed out acquiring cloud API concurrency permit: {}", e.getMessage());
+            throw new ExternalUnavailableException(e.getMessage(), e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             // Interrupt is a shutdown/cancellation signal, not back-pressure: throw non-retryable so the
-            // retry layer does not loop on an interrupt flag that will fire again immediately.
-            throw new EsRejectedExecutionException("Interrupted while acquiring cloud API concurrency permit");
+            // retry layer does not loop on an interrupt flag that will fire again immediately. The interrupt
+            // is preserved as the cause so the origin survives in diagnostics (the type has no cause constructor).
+            EsRejectedExecutionException rejected = new EsRejectedExecutionException("Interrupted while acquiring a concurrency permit");
+            rejected.initCause(e);
+            throw rejected;
         }
     }
 

@@ -132,6 +132,24 @@ public final class ExternalSourceSettings {
         return Math.min(configured, memoryBoundConcurrency(heapBytes, requestBreakerLimitBytes));
     }
 
+    static BlobStoreConcurrency blobStoreConcurrencyInfo(Settings settings) {
+        return blobStoreConcurrencyInfo(
+            MAX_CONCURRENT_REQUESTS.get(settings),
+            JvmInfo.jvmInfo().getMem().getHeapMax().getBytes(),
+            HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes()
+        );
+    }
+
+    // visible for testing
+    static BlobStoreConcurrency blobStoreConcurrencyInfo(int configured, long heapBytes, long requestBreakerLimitBytes) {
+        int effective = blobStoreConcurrency(configured, heapBytes, requestBreakerLimitBytes);
+        if (effective == 0) {
+            return new BlobStoreConcurrency(0, false);
+        }
+        int ceiling = Math.min(memoryBoundConcurrency(heapBytes, requestBreakerLimitBytes), MAX_CONCURRENT_REQUESTS_UPPER_BOUND);
+        return new BlobStoreConcurrency(effective, effective < ceiling);
+    }
+
     /**
      * Thread count for the dedicated {@code esql_external_io} pool ({@code EsqlPlugin}). Sized to exactly the single
      * concurrency knob {@link #blobStoreConcurrency(Settings)} — no headroom — because every blocking task that lands
@@ -148,6 +166,8 @@ public final class ExternalSourceSettings {
         int concurrency = blobStoreConcurrency(settings);
         return concurrency > 0 ? concurrency : defaultBlobStoreConcurrency(settings);
     }
+
+    static final int MAX_CONCURRENT_REQUESTS_UPPER_BOUND = 500;
 
     /**
      * The single external-read concurrency knob, per scheme, per node. It sizes both the per-scheme permit semaphore
@@ -174,9 +194,16 @@ public final class ExternalSourceSettings {
         "esql.external.max_concurrent_requests",
         s -> Integer.toString(defaultBlobStoreConcurrency(s)),
         0,
-        500,
+        MAX_CONCURRENT_REQUESTS_UPPER_BOUND,
         Setting.Property.NodeScope
     );
+
+    /**
+     * Effective per-scheme blob-store permit count for this node, and whether a higher
+     * {@link #MAX_CONCURRENT_REQUESTS} value in the node's configuration would raise that count after a
+     * restart. Zero permits is unraisable because there is no timeout path.
+     */
+    record BlobStoreConcurrency(int permits, boolean settingCanRaiseLimit) {}
 
     /**
      * Upper bound on how many stream-only-compressed (gzip/zstd) segmentators may occupy the

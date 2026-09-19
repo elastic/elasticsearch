@@ -796,3 +796,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.HeterogeneousRelationClassIT
   method: testGroupingOnClassSeparatesTheBranches
   issue: https://github.com/elastic/elasticsearch/issues/159800
+- class: org.elasticsearch.xpack.esql.action.HeterogeneousRelationClassIT
+  method: testWildcardMatchingBothAnswersPerLeaf
+  issue: https://github.com/elastic/elasticsearch/issues/159801

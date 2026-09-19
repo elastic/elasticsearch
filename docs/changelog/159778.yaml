@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 159778
+summary: Add a simple knn recall eval endpoint
+type: feature

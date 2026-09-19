@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -21,7 +23,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -51,6 +55,7 @@ import static org.hamcrest.Matchers.equalTo;
  * extremum to the dataset-wide {@code MIN}/{@code MAX} instead of poisoning it. This end-to-end IT is the
  * multi-FILE coverage the single-file fold ITs lacked.
  */
+@TestLogging(value = "org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver:DEBUG", reason = "which file refuses the aggregate")
 public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSourceIT {
 
     private static final int FILE_COUNT = 25;
@@ -143,6 +148,133 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
                 response.documentsFound(),
                 equalTo(0L)
             );
+        }
+    }
+
+    // ------------------------------------------------------------------------------------------------------------
+    // Heterogeneous corpus: the parts do not all infer the same schema, in the two ways a real corpus produces.
+    // ------------------------------------------------------------------------------------------------------------
+
+    private static final int HET_ROWS_PER_FILE = 30_000;
+    /** The part whose {@code color} column holds one letter inside the inference window, so it infers keyword. */
+    private static final int MIXED_PART = 5;
+    /** The parts whose {@code order_id} column is blank in every row, so inference has no evidence and falls to keyword. */
+    private static final int SPARSE_FIRST_PART = 1;
+    private static final int SPARSE_LAST_PART = 9;
+
+    /**
+     * Writes {@link #FILE_COUNT} parts of {@code id,color,order_id,value}. With {@code heterogeneous} the corpus
+     * has the shape a real one takes: {@code color} is digits everywhere except one letter in part
+     * {@link #MIXED_PART} inside the 20,000-row inference window (that part infers keyword, the rest integer), and
+     * {@code order_id} is blank in every row of parts {@link #SPARSE_FIRST_PART}..{@link #SPARSE_LAST_PART}
+     * (those parts fall to the keyword default, the rest infer integer). {@code value} runs 0..total-1 across the
+     * parts and infers the same type in every part. Without {@code heterogeneous} every part infers the same schema.
+     * Part names are zero-padded so {@code file_sort_by: name} makes part 00 the first-file-wins anchor.
+     */
+    private static long writeCsvCorpus(Path dir, boolean heterogeneous) throws IOException {
+        long total = 0;
+        for (int f = 0; f < FILE_COUNT; f++) {
+            boolean sparse = heterogeneous && f >= SPARSE_FIRST_PART && f <= SPARSE_LAST_PART;
+            StringBuilder sb = new StringBuilder("id,color,order_id,value\n");
+            for (int i = 0; i < HET_ROWS_PER_FILE; i++) {
+                long v = total + i;
+                String color = heterogeneous && f == MIXED_PART && i == 10 ? "g" : Long.toString(v % 7);
+                String orderId = sparse ? "" : Long.toString(v % 1000);
+                sb.append(v).append(',').append(color).append(',').append(orderId).append(',').append(v).append('\n');
+            }
+            Files.writeString(dir.resolve(String.format(Locale.ROOT, "part-%02d.csv", f)), sb.toString(), StandardCharsets.UTF_8);
+            total += HET_ROWS_PER_FILE;
+        }
+        return total;
+    }
+
+    /** {@code file_sort_by} is only accepted under first_file_wins, where it pins part 00 as the anchor. */
+    private static Map<String, Object> nullFieldSettings(String schemaResolution) {
+        return "first_file_wins".equals(schemaResolution)
+            ? Map.of("format", "csv", "error_mode", "null_field", "schema_resolution", schemaResolution, "file_sort_by", "name")
+            : Map.of("format", "csv", "error_mode", "null_field", "schema_resolution", schemaResolution);
+    }
+
+    private static LinkedHashMap<String, DatasetFieldMapping> declaredColumns() {
+        LinkedHashMap<String, DatasetFieldMapping> columns = new LinkedHashMap<>();
+        columns.put("id", new DatasetFieldMapping("integer", null));
+        columns.put("color", new DatasetFieldMapping("keyword", null));
+        columns.put("order_id", new DatasetFieldMapping("integer", null));
+        columns.put("value", new DatasetFieldMapping("integer", null));
+        return columns;
+    }
+
+    /** No row is dropped under {@code null_field} on this corpus, so the warm COUNT(*) must be served. */
+    public void testCsvHeterogeneousCorpusWarmCountServedUnderNullFieldFirstFileWins() throws Exception {
+        Path dir = createTempDir();
+        long total = writeCsvCorpus(dir, true);
+        String dataset = registerDataset("het_ffw_csv", globUri(dir, "*.csv"), nullFieldSettings("first_file_wins"));
+        assertWarmCountShortCircuits(dataset, total);
+    }
+
+    public void testCsvHeterogeneousCorpusWarmCountServedUnderNullFieldUnionByName() throws Exception {
+        Path dir = createTempDir();
+        long total = writeCsvCorpus(dir, true);
+        String dataset = registerDataset("het_ubn_csv", globUri(dir, "*.csv"), nullFieldSettings("union_by_name"));
+        assertWarmCountShortCircuits(dataset, total);
+    }
+
+    /** {@code strict} rejects a corpus whose parts disagree, so its arm runs the homogeneous corpus under {@code null_field}. */
+    public void testCsvHomogeneousCorpusWarmCountServedUnderNullFieldStrict() throws Exception {
+        Path dir = createTempDir();
+        long total = writeCsvCorpus(dir, false);
+        String dataset = registerDataset("hom_strict_csv", globUri(dir, "*.csv"), nullFieldSettings("strict"));
+        assertWarmCountShortCircuits(dataset, total);
+    }
+
+    public void testCsvHeterogeneousCorpusWarmCountServedUnderNullFieldDeclaredDynamic() throws Exception {
+        Path dir = createTempDir();
+        long total = writeCsvCorpus(dir, true);
+        String dataset = registerNonStrictDataset("het_dyn_csv", globUri(dir, "*.csv"), declaredColumns(), nullFieldSettings("first_file_wins"));
+        assertWarmCountShortCircuits(dataset, total);
+    }
+
+    public void testCsvHeterogeneousCorpusWarmCountServedUnderNullFieldDeclaredStrict() throws Exception {
+        Path dir = createTempDir();
+        long total = writeCsvCorpus(dir, true);
+        String dataset = registerStrictDataset(
+            "het_declared_csv",
+            globUri(dir, "*.csv"),
+            declaredColumns(),
+            Map.of("format", "csv", "error_mode", "null_field")
+        );
+        assertWarmCountShortCircuits(dataset, total);
+    }
+
+    /**
+     * Under first_file_wins the anchor types {@code color} as an integer, so part {@link #MIXED_PART}'s letter cell is
+     * null-filled: that column lost a cell in that part. {@code value} lost nothing in any part, so its warm MIN/MAX
+     * must be served even though a sibling column of the same file was damaged.
+     */
+    public void testCsvHeterogeneousCorpusWarmMinMaxServedOnUntouchedColumnFirstFileWins() throws Exception {
+        Path dir = createTempDir();
+        long total = writeCsvCorpus(dir, true);
+        String dataset = registerDataset("het_ffw_minmax_csv", globUri(dir, "*.csv"), nullFieldSettings("first_file_wins"));
+        String minMaxQuery = "FROM " + dataset + " | STATS lo = MIN(value), hi = MAX(value)";
+        try (var response = run(syncEsqlQueryRequest(minMaxQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertMinMax(response, 0L, total - 1);
+            assertThat("cold MIN/MAX reads every row", response.documentsFound(), equalTo(total));
+        }
+        try (var response = run(syncEsqlQueryRequest(minMaxQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertMinMax(response, 0L, total - 1);
+            assertThat("warm MIN/MAX over a column no part damaged must be served", response.documentsFound(), equalTo(0L));
+        }
+    }
+
+    private void assertWarmCountShortCircuits(String dataset, long total) {
+        String countQuery = "FROM " + dataset + " | STATS c = COUNT(*)";
+        try (var response = run(syncEsqlQueryRequest(countQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertSingleLong(response, total);
+            assertThat("cold COUNT(*) reads every row", response.documentsFound(), equalTo(total));
+        }
+        try (var response = run(syncEsqlQueryRequest(countQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertSingleLong(response, total);
+            assertThat("warm COUNT(*) must be served from the per-file statistics", response.documentsFound(), equalTo(0L));
         }
     }
 

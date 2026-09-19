@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 159791
+summary: Send `Content-MD5` with Azure blob uploads
+type: bug

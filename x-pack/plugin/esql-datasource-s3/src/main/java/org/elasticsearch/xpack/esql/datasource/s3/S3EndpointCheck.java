@@ -261,7 +261,7 @@ final class S3EndpointCheck {
      * service and region come from the matched tail, so the only thing read out of the name is the endpoint
      * id and its optional prefix, each of which must be a single label.
      *
-     * <p>All four tests do work no other one does, which is why none of them may be dropped.
+     * <p>All four checks below do work no other one does, which is why none of them may be dropped.
      * {@code testRefusesVpcFormsOutsideTheExactShape} holds a literal for each: the tail alone refuses
      * {@code vpce-0a1b.ec2.us-east-1.vpce.amazonaws.com}, whose label before the region names another
      * service; the {@code vpce-} requirement alone refuses {@code evil.s3.us-east-1.vpce.amazonaws.com},

@@ -21,6 +21,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.DocumentIdGenerator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
@@ -149,7 +150,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
         try (ReplicationGroup shards = createGroup(0)) {
             shards.startAll();
             final IndexRequest originalRequest = new IndexRequest(index.getName()).source("{}", XContentType.JSON);
-            originalRequest.autoGenerateId();
+            originalRequest.autoGenerateId(DocumentIdGenerator.DEFAULT);
             final IndexRequest retryRequest = copyIndexRequest(originalRequest);
             retryRequest.onRetry();
             shards.index(retryRequest);

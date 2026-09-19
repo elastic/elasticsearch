@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.DocumentIdGenerator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -110,6 +111,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final boolean clusterHasFailureStoreFeature;
     @Nullable
     private final BatchModeRouter router;
+    private final DocumentIdGenerator documentIdGenerator;
 
     BulkOperation(
         Task task,
@@ -127,7 +129,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         boolean clusterHasFailureStoreFeature,
-        BatchIndexingEnabled batchIndexingEnabled
+        BatchIndexingEnabled batchIndexingEnabled,
+        DocumentIdGenerator documentIdGenerator
     ) {
         this(
             task,
@@ -147,7 +150,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             failureStoreMetrics,
             dataStreamFailureStoreSettings,
             clusterHasFailureStoreFeature,
-            batchIndexingEnabled
+            batchIndexingEnabled,
+            documentIdGenerator
         );
     }
 
@@ -169,7 +173,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         boolean clusterHasFailureStoreFeature,
-        BatchIndexingEnabled batchIndexingEnabled
+        BatchIndexingEnabled batchIndexingEnabled,
+        DocumentIdGenerator documentIdGenerator
     ) {
         super(listener);
         this.task = task;
@@ -192,6 +197,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         this.clusterHasFailureStoreFeature = clusterHasFailureStoreFeature;
         this.router = BatchModeRouter.create(bulkRequest, ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService));
+        this.documentIdGenerator = documentIdGenerator;
     }
 
     @Override
@@ -308,7 +314,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         @Nullable BatchModeRouter batchRouter
     ) {
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
-        final ConcreteIndices concreteIndices = new ConcreteIndices(project, indexNameExpressionResolver);
+        final ConcreteIndices concreteIndices = new ConcreteIndices(project, indexNameExpressionResolver, documentIdGenerator);
         // Both modes fill the same map: x-content fills it incrementally in route(); provided-batch
         // fills it in buildGrouping() after the deferred columnar routing pass completes.
         Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
@@ -967,10 +973,16 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         private final IndexNameExpressionResolver indexNameExpressionResolver;
         private final Map<String, IndexAbstraction> indexAbstractions = new HashMap<>();
         private final Map<Index, IndexRouting> routings = new HashMap<>();
+        private final DocumentIdGenerator documentIdGenerator;
 
-        ConcreteIndices(ProjectMetadata project, IndexNameExpressionResolver indexNameExpressionResolver) {
+        ConcreteIndices(
+            ProjectMetadata project,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            DocumentIdGenerator documentIdGenerator
+        ) {
             this.project = project;
             this.indexNameExpressionResolver = indexNameExpressionResolver;
+            this.documentIdGenerator = documentIdGenerator;
         }
 
         /**
@@ -1006,7 +1018,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         IndexRouting routing(Index index) {
             IndexRouting routing = routings.get(index);
             if (routing == null) {
-                routing = IndexRouting.fromIndexMetadata(project.getIndexSafe(index));
+                routing = IndexRouting.fromIndexMetadata(project.getIndexSafe(index), documentIdGenerator);
                 routings.put(index, routing);
             }
             return routing;

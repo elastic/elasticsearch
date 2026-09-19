@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.DocumentIdGenerator;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -176,7 +177,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                     }
                 },
                 new TimeSeriesEligibleWriteWindowLocator(),
-                DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
+                DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+                DocumentIdGenerator.DEFAULT
             );
         }
 
@@ -923,7 +925,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             failureHandler.capture(),
             listener.capture()
         );
-        indexRequest1.autoGenerateId();
+        indexRequest1.autoGenerateId(DocumentIdGenerator.DEFAULT);
         listener.getValue().onResponse(null);
 
         // check failure passed through to the listener

@@ -22,6 +22,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.DocumentIdGenerator;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
@@ -607,7 +608,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             List<IndexRequest> replicationRequests = new ArrayList<>();
             for (int numDocs = between(1, 10), i = 0; i < numDocs; i++) {
                 final IndexRequest indexRequest = new IndexRequest(index.getName()).source("{}", XContentType.JSON);
-                indexRequest.autoGenerateId();
+                indexRequest.autoGenerateId(DocumentIdGenerator.DEFAULT);
                 final IndexRequest copyRequest;
                 if (randomBoolean()) {
                     copyRequest = copyIndexRequest(indexRequest);

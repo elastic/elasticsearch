@@ -73,6 +73,7 @@ import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadMetrics;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
+import org.elasticsearch.common.DocumentIdGenerator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -211,6 +212,7 @@ import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
 import org.elasticsearch.plugins.UserAgentParserRegistryProvider;
+import org.elasticsearch.plugins.internal.DocumentIdGeneratorProvider;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentParsingProviderPlugin;
 import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
@@ -777,6 +779,11 @@ class NodeConstruction {
         clusterService.addStateApplier(scriptService);
 
         modules.bindToInstance(DocumentParsingProvider.class, documentParsingProvider);
+        modules.bindToInstance(
+            DocumentIdGenerator.class,
+            getSinglePlugin(DocumentIdGeneratorProvider.class).map(DocumentIdGeneratorProvider::getDocumentIdGenerator)
+                .orElse(DocumentIdGenerator.DEFAULT)
+        );
 
         FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
 

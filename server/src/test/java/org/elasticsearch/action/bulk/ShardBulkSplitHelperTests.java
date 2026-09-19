@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.common.DocumentIdGenerator;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -125,7 +126,7 @@ public class ShardBulkSplitHelperTests extends ESTestCase {
         TestWriteDocRequest(Index index, int shardId) {
             super(index.getName());
             this.shardId = new ShardId(index, shardId);
-            autoGenerateId();
+            autoGenerateId(DocumentIdGenerator.DEFAULT);
         }
 
         @Override

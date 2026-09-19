@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.common.DocumentIdGenerator;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
@@ -63,6 +64,10 @@ public abstract sealed class IndexRouting {
      * Build the routing from {@link IndexMetadata}.
      */
     public static IndexRouting fromIndexMetadata(IndexMetadata metadata) {
+        return fromIndexMetadata(metadata, DocumentIdGenerator.DEFAULT);
+    }
+
+    public static IndexRouting fromIndexMetadata(IndexMetadata metadata, DocumentIdGenerator idGenerator) {
         RoutingFunction routingFunction;
 
         if (shouldUseShardCountModRouting(metadata.getCreationVersion())) {
@@ -71,7 +76,7 @@ public abstract sealed class IndexRouting {
             routingFunction = RoutingFunction.legacyRoutingNumberOfShards(metadata.getRoutingNumShards(), metadata.getRoutingFactor());
         }
 
-        return create(metadata, routingFunction, metadata.getReshardingMetadata());
+        return create(metadata, routingFunction, metadata.getReshardingMetadata(), idGenerator);
     }
 
     public static IndexRouting reshardingCustom(
@@ -79,38 +84,46 @@ public abstract sealed class IndexRouting {
         RoutingFunction routingFunction,
         IndexReshardingMetadata reshardingMetadata
     ) {
-        return create(metadata, routingFunction, reshardingMetadata);
+        return create(metadata, routingFunction, reshardingMetadata, DocumentIdGenerator.DEFAULT);
     }
 
     private static IndexRouting create(
         IndexMetadata metadata,
         RoutingFunction routingFunction,
-        IndexReshardingMetadata reshardingMetadata
+        IndexReshardingMetadata reshardingMetadata,
+        DocumentIdGenerator idGenerator
     ) {
         if (IndexMode.isTsdb(metadata.getIndexMode())
             && metadata.getTimeSeriesDimensions().isEmpty() == false
             && metadata.getCreationVersion().onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING)) {
-            return new ExtractFromSource.ForIndexDimensions(metadata, routingFunction, reshardingMetadata);
+            return new ExtractFromSource.ForIndexDimensions(metadata, routingFunction, reshardingMetadata, idGenerator);
         }
         if (metadata.getRoutingPaths().isEmpty() == false) {
-            return new ExtractFromSource.ForRoutingPath(metadata, routingFunction, reshardingMetadata);
+            return new ExtractFromSource.ForRoutingPath(metadata, routingFunction, reshardingMetadata, idGenerator);
         }
         if (metadata.isRoutingPartitionedIndex()) {
-            return new Partitioned(metadata, routingFunction, reshardingMetadata);
+            return new Partitioned(metadata, routingFunction, reshardingMetadata, idGenerator);
         }
-        return new Unpartitioned(metadata, routingFunction, reshardingMetadata);
+        return new Unpartitioned(metadata, routingFunction, reshardingMetadata, idGenerator);
     }
 
     protected final String indexName;
     protected final IndexVersion creationVersion;
     protected final RoutingFunction routingFunction;
+    protected final DocumentIdGenerator idGenerator;
     @Nullable
     private final IndexReshardingMetadata reshardingMetadata;
 
-    private IndexRouting(IndexMetadata metadata, RoutingFunction routingFunction, @Nullable IndexReshardingMetadata reshardingMetadata) {
+    private IndexRouting(
+        IndexMetadata metadata,
+        RoutingFunction routingFunction,
+        @Nullable IndexReshardingMetadata reshardingMetadata,
+        DocumentIdGenerator idGenerator
+    ) {
         this.indexName = metadata.getIndex().getName();
         this.creationVersion = metadata.getCreationVersion();
         this.reshardingMetadata = reshardingMetadata;
+        this.idGenerator = idGenerator;
 
         this.routingFunction = routingFunction;
     }
@@ -286,8 +299,13 @@ public abstract sealed class IndexRouting {
         private final boolean sliceEnabled;
         private final String requiredRoutingParameterName;
 
-        IdAndRoutingOnly(IndexMetadata metadata, RoutingFunction routingFunction, IndexReshardingMetadata reshardingMetadata) {
-            super(metadata, routingFunction, reshardingMetadata);
+        IdAndRoutingOnly(
+            IndexMetadata metadata,
+            RoutingFunction routingFunction,
+            IndexReshardingMetadata reshardingMetadata,
+            DocumentIdGenerator idGenerator
+        ) {
+            super(metadata, routingFunction, reshardingMetadata, idGenerator);
             MappingMetadata mapping = metadata.mapping();
             this.routingRequired = mapping == null ? false : mapping.routingRequired();
             this.indexMode = metadata.getIndexMode();
@@ -304,9 +322,9 @@ public abstract sealed class IndexRouting {
             final String id = indexRequest.id();
             if (id == null) {
                 if (shouldUseTimeBasedId(indexMode, creationVersion)) {
-                    indexRequest.autoGenerateTimeBasedId();
+                    indexRequest.autoGenerateKOrderedId(idGenerator, OptionalInt.empty());
                 } else {
-                    indexRequest.autoGenerateId();
+                    indexRequest.autoGenerateId(idGenerator);
                 }
             } else if (id.isEmpty()) {
                 throw new IllegalArgumentException("if _id is specified it must not be empty");
@@ -389,8 +407,13 @@ public abstract sealed class IndexRouting {
      * Strategy for indices that are not partitioned.
      */
     private static final class Unpartitioned extends IdAndRoutingOnly {
-        Unpartitioned(IndexMetadata metadata, RoutingFunction routingFunction, IndexReshardingMetadata reshardingMetadata) {
-            super(metadata, routingFunction, reshardingMetadata);
+        Unpartitioned(
+            IndexMetadata metadata,
+            RoutingFunction routingFunction,
+            IndexReshardingMetadata reshardingMetadata,
+            DocumentIdGenerator idGenerator
+        ) {
+            super(metadata, routingFunction, reshardingMetadata, idGenerator);
         }
 
         @Override
@@ -410,8 +433,13 @@ public abstract sealed class IndexRouting {
     private static final class Partitioned extends IdAndRoutingOnly {
         private final int routingPartitionSize;
 
-        Partitioned(IndexMetadata metadata, RoutingFunction routingFunction, IndexReshardingMetadata reshardingMetadata) {
-            super(metadata, routingFunction, reshardingMetadata);
+        Partitioned(
+            IndexMetadata metadata,
+            RoutingFunction routingFunction,
+            IndexReshardingMetadata reshardingMetadata,
+            DocumentIdGenerator idGenerator
+        ) {
+            super(metadata, routingFunction, reshardingMetadata, idGenerator);
             this.routingPartitionSize = metadata.getRoutingPartitionSize();
         }
 
@@ -465,9 +493,10 @@ public abstract sealed class IndexRouting {
             IndexMetadata metadata,
             RoutingFunction routingFunction,
             IndexReshardingMetadata reshardingMetadata,
+            DocumentIdGenerator idGenerator,
             List<String> includePaths
         ) {
-            super(metadata, routingFunction, reshardingMetadata);
+            super(metadata, routingFunction, reshardingMetadata, idGenerator);
             if (metadata.isRoutingPartitionedIndex()) {
                 throw new IllegalArgumentException("routing_partition_size is incompatible with routing_path");
             }
@@ -509,7 +538,7 @@ public abstract sealed class IndexRouting {
                 indexRequest.routing(TimeSeriesRoutingHashFieldMapper.encode(hash));
             } else if (addIdWithRoutingHash) {
                 assert hash != Integer.MAX_VALUE;
-                indexRequest.autoGenerateTimeBasedId(OptionalInt.of(hash));
+                indexRequest.autoGenerateKOrderedId(idGenerator, OptionalInt.of(hash));
             }
         }
 
@@ -595,7 +624,7 @@ public abstract sealed class IndexRouting {
             int hash;
             if (addIdWithRoutingHash) {
                 // For LogsDB with routing on sort fields, the routing hash is stored in the range[id.length - 9, id.length - 5] of the id,
-                // see IndexRequest#autoGenerateTimeBasedId.
+                // see IndexRequest#autoGenerateKOrderedId.
                 hash = ByteUtils.readIntLE(idBytes, idBytes.length - 9);
             } else if (useTimeSeriesSyntheticId) {
                 var uid = new BytesRef(idBytes);
@@ -640,8 +669,13 @@ public abstract sealed class IndexRouting {
         public static final class ForRoutingPath extends ExtractFromSource {
             private final Predicate<String> isRoutingPath;
 
-            ForRoutingPath(IndexMetadata metadata, RoutingFunction routingFunction, IndexReshardingMetadata reshardingMetadata) {
-                super(metadata, routingFunction, reshardingMetadata, metadata.getRoutingPaths());
+            ForRoutingPath(
+                IndexMetadata metadata,
+                RoutingFunction routingFunction,
+                IndexReshardingMetadata reshardingMetadata,
+                DocumentIdGenerator idGenerator
+            ) {
+                super(metadata, routingFunction, reshardingMetadata, idGenerator, metadata.getRoutingPaths());
                 isRoutingPath = Regex.simpleMatcher(metadata.getRoutingPaths().toArray(String[]::new));
             }
 
@@ -719,8 +753,13 @@ public abstract sealed class IndexRouting {
 
             private final Predicate<String> isDimensionField;
 
-            ForIndexDimensions(IndexMetadata metadata, RoutingFunction routingFunction, IndexReshardingMetadata reshardingMetadata) {
-                super(metadata, routingFunction, reshardingMetadata, metadata.getTimeSeriesDimensions());
+            ForIndexDimensions(
+                IndexMetadata metadata,
+                RoutingFunction routingFunction,
+                IndexReshardingMetadata reshardingMetadata,
+                DocumentIdGenerator idGenerator
+            ) {
+                super(metadata, routingFunction, reshardingMetadata, idGenerator, metadata.getTimeSeriesDimensions());
                 assert IndexMode.isTsdb(metadata.getIndexMode()) : "Index mode must be time_series for ForIndexDimensions routing";
                 assert metadata.getCreationVersion().onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING)
                     : "Index version must be at least "

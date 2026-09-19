@@ -34,6 +34,135 @@ public class SourceFilterTests extends ESTestCase {
         assertFalse(filtered.source().containsKey("field1"));
     }
 
+    public void testIncludeNestedFieldUnderBackslashNamedParent() {
+        SourceFilter filter = new SourceFilter(new String[] { "\\.nested_value" }, new String[] {});
+        Map<String, Object> expected = Map.of("\\", Map.of("nested_value", "value"));
+
+        Source fromMap = Source.fromMap(Map.of("\\", Map.of("nested_value", "value", "other", "ignored")), XContentType.JSON);
+        assertEquals(expected, fromMap.filter(filter).source());
+
+        Source fromBytes = Source.fromBytes(new BytesArray("{\"\\\\\": { \"nested_value\": \"value\", \"other\": \"ignored\" }}"));
+        assertEquals(expected, fromBytes.filter(filter).source());
+    }
+
+    public void testExcludeNestedFieldUnderBackslashNamedParent() {
+        SourceFilter filter = new SourceFilter(new String[] {}, new String[] { "\\.excluded" });
+        Map<String, Object> expected = Map.of("\\", Map.of("included", "value"), "other", "value");
+
+        Source fromMap = Source.fromMap(
+            Map.of("\\", Map.of("included", "value", "excluded", "value"), "other", "value"),
+            XContentType.JSON
+        );
+        assertEquals(expected, fromMap.filter(filter).source());
+
+        Source fromBytes = Source.fromBytes(
+            new BytesArray("{\"\\\\\": { \"included\": \"value\", \"excluded\": \"value\" }, \"other\": \"value\"}")
+        );
+        assertEquals(expected, fromBytes.filter(filter).source());
+    }
+
+    public void testEscapedDotsStillMatchFlatField() {
+        SourceFilter filter = new SourceFilter(new String[] { "w\\.0.0\\.t" }, new String[] {});
+        assertFilteringPathsAgree(filter, Map.of("w.0.0.t", "flat", "other", "ignored"), Map.of("w.0.0.t", "flat"));
+        assertTrue(filter.isExplicitlyIncluded("w.0.0.t"));
+        assertFalse(filter.isPathFiltered("w.0.0.t", false));
+        assertTrue(filter.isPathFiltered("other", false));
+    }
+
+    public void testExcludeEscapedDots() {
+        SourceFilter filter = new SourceFilter(null, new String[] { "w\\.0.0\\.t" });
+        assertFilteringPathsAgree(filter, Map.of("w.0.0.t", "excluded", "other", "kept"), Map.of("other", "kept"));
+        assertTrue(filter.isPathFiltered("w.0.0.t", false));
+        assertFalse(filter.isPathFiltered("other", false));
+    }
+
+    public void testEscapedDotsWithWildcardExclude() {
+        SourceFilter filter = new SourceFilter(new String[] { "w\\.0.*" }, new String[] { "w\\.0.secret*" });
+        assertFilteringPathsAgree(
+            filter,
+            Map.of("w.0.public", "kept", "w.0.secret", "excluded", "other", "ignored"),
+            Map.of("w.0.public", "kept")
+        );
+    }
+
+    public void testEscapedDotsWithBackslashParentInclude() {
+        SourceFilter filter = new SourceFilter(new String[] { "\\.nested_value", "w\\.0.0\\.t" }, null);
+        assertFilteringPathsAgree(
+            filter,
+            Map.of("\\", Map.of("nested_value", "kept", "other", "ignored"), "w.0.0.t", "flat", "other", "ignored"),
+            Map.of("\\", Map.of("nested_value", "kept"), "w.0.0.t", "flat")
+        );
+        assertTrue(filter.isExplicitlyIncluded("\\.nested_value"));
+        assertTrue(filter.isExplicitlyIncluded("w.0.0.t"));
+    }
+
+    public void testEscapedDotsWithBackslashParentExclude() {
+        SourceFilter filter = new SourceFilter(null, new String[] { "\\.excluded", "w\\.0.0\\.t" });
+        assertFilteringPathsAgree(
+            filter,
+            Map.of("\\", Map.of("excluded", "value", "included", "kept"), "w.0.0.t", "excluded", "other", "kept"),
+            Map.of("\\", Map.of("included", "kept"), "other", "kept")
+        );
+    }
+
+    public void testEscapedDotsMatchNestedFields() {
+        SourceFilter filter = new SourceFilter(new String[] { "w\\.0.*" }, new String[] { "w\\.0.secret" });
+        assertFilteringPathsAgree(
+            filter,
+            Map.of("w", Map.of("0", Map.of("public", "kept", "secret", "excluded")), "other", "ignored"),
+            Map.of("w", Map.of("0", Map.of("public", "kept")))
+        );
+    }
+
+    public void testEscapedDotsBelowBackslashParent() {
+        SourceFilter filter = new SourceFilter(new String[] { "\\.w\\.0.*" }, new String[] { "\\.w\\.0.secret" });
+        assertFilteringPathsAgree(
+            filter,
+            Map.of("\\", Map.of("w.0.public", "kept", "w.0.secret", "excluded")),
+            Map.of("\\", Map.of("w.0.public", "kept"))
+        );
+    }
+
+    public void testLiteralBackslashRunBeforePathSeparator() {
+        Map<String, Object> document = Map.of("foo\\\\", Map.of("field", "kept", "other", "ignored"));
+        Map<String, Object> expected = Map.of("foo\\\\", Map.of("field", "kept"));
+        SourceFilter filter = new SourceFilter(new String[] { "foo\\\\.field" }, null);
+        assertFilteringPathsAgree(filter, document, expected);
+        assertFilteringPathsAgree(new SourceFilter(filter.getIncludes(), filter.getExcludes()), document, expected);
+        assertFilteringPathsAgree(new SourceFilter(null, new String[] { "foo\\\\.other" }), document, expected);
+    }
+
+    private void assertFilteringPathsAgree(SourceFilter filter, Map<String, Object> document, Map<String, Object> expected) {
+        for (XContentType type : List.of(XContentType.JSON, XContentType.SMILE, XContentType.YAML, XContentType.CBOR)) {
+            Source fromMap = Source.fromMap(document, type);
+            BytesReference bytes = fromMap.internalSourceRef();
+            assertEquals(expected, filter.filterMap(fromMap).source());
+            assertEquals(expected, filter.filterBytes(Source.fromBytes(bytes, type)).source());
+            assertEquals(expected, fromMap.filter(filter).source());
+            assertEquals(expected, Source.fromBytes(bytes, type).filter(filter).source());
+
+            Source parsedSource = Source.fromBytes(bytes, type);
+            parsedSource.source();
+            assertEquals(expected, parsedSource.filter(filter).source());
+        }
+    }
+
+    public void testIncludeBackslashBeforeWildcard() {
+        SourceFilter filter = new SourceFilter(new String[] { "foo\\*bar" }, new String[] {});
+        Source source = Source.fromBytes(
+            new BytesArray("{\"foo\\\\middlebar\": \"match\", \"foomiddlebar\": \"ignored\", \"other\": \"ignored\"}")
+        );
+
+        assertEquals(Map.of("foo\\middlebar", "match"), filter.filterBytes(source).source());
+    }
+
+    public void testIncludePlainBackslash() {
+        SourceFilter filter = new SourceFilter(new String[] { "foo\\bar" }, new String[] {});
+        Source source = Source.fromBytes(new BytesArray("{\"foo\\\\bar\": \"match\", \"foobar\": \"ignored\"}"));
+
+        assertEquals(Map.of("foo\\bar", "match"), filter.filterBytes(source).source());
+    }
+
     public void testSimpleExclude() {
         Source s = Source.fromBytes(new BytesArray("""
             { "field1" : "value1", "field2" : "value2" }"""));

@@ -149,7 +149,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             fetchMetadata();
         }
         if (cachedExists != null && cachedExists == false) {
-            throw new IOException("Object not found: " + path);
+            throw new IOException("External data object not found");
         }
         return cachedLength;
     }
@@ -336,23 +336,16 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             if (ExternalUnavailableException.isRetryableStatus(se.getCode())) {
                 boolean throttling = ExternalUnavailableException.isThrottlingStatus(se.getCode());
                 long retryAfterMs = throttling ? retryAfterMsFromChain(se) : 0L;
-                return new ExternalUnavailableException(
-                    throttling,
-                    retryAfterMs,
-                    cause,
-                    "GCS store unavailable reading [{}] (HTTP {})",
-                    path,
-                    se.getCode()
-                );
+                return new ExternalUnavailableException(throttling, retryAfterMs, cause, "GCS store unavailable (HTTP {})", se.getCode());
             }
             if (se.getCode() == 412) {
-                return new ExternalObjectChangedException(cause, "Object changed during read of [{}]", path);
+                return new ExternalObjectChangedException("External data object was modified during read", cause);
             }
             if (se.getCode() == 404) {
-                return new IOException("Object not found: " + path, cause);
+                return new IOException("External data object not found", cause);
             }
         }
-        return new IOException(context + " " + path + ": " + GcsFailureDetail.of(cause), cause);
+        return new IOException(context + ": " + GcsFailureDetail.of(cause), cause);
     }
 
     /**
@@ -435,7 +428,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             }
         }
         if (pinned.equals(generation) == false) {
-            throw new ExternalObjectChangedException("Object changed during read of [{}]", path);
+            throw new ExternalObjectChangedException("External data object was modified during read");
         }
         if (blob.getSize() != null) {
             cachedLength = blob.getSize();
@@ -466,7 +459,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             } else if (e.getCode() == 403) {
                 fetchMetadataViaRangeRead();
             } else {
-                throw new IOException("Failed to get metadata for " + path + ": " + GcsFailureDetail.of(e), e);
+                throw new IOException("Failed to get external object metadata: " + GcsFailureDetail.of(e), e);
             }
         }
     }
@@ -486,7 +479,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
                 return;
             }
             throw new IOException(
-                "Failed to get metadata for " + path + " (metadata denied, range read also failed): " + GcsFailureDetail.of(e),
+                "Failed to get external object metadata (metadata denied, range read also failed): " + GcsFailureDetail.of(e),
                 e
             );
         }
@@ -497,9 +490,8 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             // from a range read. The caller must know the length from listing (glob expansion).
             if (cachedLength == null) {
                 throw new IOException(
-                    "Failed to determine object size for "
-                        + path
-                        + ": GCS metadata access denied and object size cannot be determined from a range read. "
+                    "Failed to determine external object size: "
+                        + "GCS metadata access denied and object size cannot be determined from a range read. "
                         + "Use glob patterns (which include size from listing) instead of direct file paths."
                 );
             }

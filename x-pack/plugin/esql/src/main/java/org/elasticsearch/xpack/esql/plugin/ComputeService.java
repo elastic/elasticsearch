@@ -68,6 +68,8 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.tree.Node;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
@@ -2035,7 +2037,12 @@ public class ComputeService {
          * be quite large, and it isn't tracked.
          */
         boolean needPlanString = LOGGER.isDebugEnabled() || context.configuration().profile();
-        String planString = needPlanString ? localPlan.toString() : null;
+        // Select the location mapper: authorized callers see the real storage paths; others get
+        // "[redacted]" in place of every location() field (sourcePath, datasetName).
+        NodeStringMapper locationMapper = context.configuration().canSeeDatasetLocation()
+            ? NodeStringMapper.IDENTITY
+            : NodeStringMapper.REDACT_LOCATION;
+        String planString = needPlanString ? localPlan.toString(Node.NodeStringFormat.LIMITED, locationMapper) : null;
         return listener.map(ignored -> {
             if (LOGGER.isDebugEnabled() || context.configuration().profile()) {
                 DriverCompletionInfo driverCompletionInfo = DriverCompletionInfo.includingProfiles(

@@ -721,19 +721,19 @@ class RetryableStorageObject implements StorageObject {
             String observed = delegate.contentGeneration();
             if (pinnedGeneration == null) {
                 if (observed != null && delivered > 0) {
-                    throw new ExternalObjectChangedException("Object changed during read of [{}]", delegate.path());
+                    throw new ExternalObjectChangedException("External data object was modified during read");
                 }
                 pinnedGeneration = observed;
             } else if (observed != null && pinnedGeneration.equals(observed) == false) {
                 // Providers set the pin once, so this is unreachable today; kept as an assertion of that
                 // invariant rather than as a silent splice if a provider ever moves its pin.
-                throw new ExternalObjectChangedException("Object changed during read of [{}]", delegate.path());
+                throw new ExternalObjectChangedException("External data object was modified during read");
             }
             long observedLength = delegate.knownLength();
             if (pinnedKnownLength == READ_TO_END) {
                 pinnedKnownLength = observedLength;
             } else if (observedLength != READ_TO_END && observedLength != pinnedKnownLength) {
-                throw new ExternalObjectChangedException("Object changed during read of [{}]", delegate.path());
+                throw new ExternalObjectChangedException("External data object was modified during read");
             }
         }
 

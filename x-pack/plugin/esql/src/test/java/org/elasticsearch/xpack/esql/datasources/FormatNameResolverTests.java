@@ -385,7 +385,7 @@ public class FormatNameResolverTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> FormatNameResolver.rejectConflictingListedFormats(listing, "csv", registry)
         );
-        assertEquals(FormatNameResolver.listedFormatConflictMessage("s3://b/b.parquet", "parquet", "csv"), e.getMessage());
+        assertEquals(FormatNameResolver.listedFormatConflictMessage("parquet", "csv"), e.getMessage());
     }
 
     public void testResolveReaderDiagnosesBareCompressionSuffix() {

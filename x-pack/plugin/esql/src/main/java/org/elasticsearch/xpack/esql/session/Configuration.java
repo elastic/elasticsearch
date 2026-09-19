@@ -55,6 +55,14 @@ public class Configuration implements Writeable {
     private static final TransportVersion ESQL_RESOLVED_SETTINGS = TransportVersion.fromName("esql_resolved_settings");
 
     /**
+     * The caller is authorized to see the storage locations of the datasets named in the query
+     * ({@code indices:admin/esql/dataset/get}). When true, plan renderers use the identity location
+     * mapper and error messages include storage paths. When false (the default for older peers),
+     * location strings are redacted in plan output.
+     */
+    private static final TransportVersion ESQL_DATASET_LOCATION_VISIBLE = TransportVersion.fromName("esql_dataset_location_visible");
+
+    /**
      * Reserved transport version id from the GROK watchdog work (#152170), which was reverted before release.
      * Intentionally unused: the id is boxed in between released version markers, so it cannot be removed without
      * breaking transport-version id density. This reference keeps the definition from becoming orphaned. Do not
@@ -81,6 +89,7 @@ public class Configuration implements Writeable {
     private final boolean profile;
     private final boolean allowPartialResults;
     private final boolean explainOnly;
+    private final boolean canSeeDatasetLocation;
 
     private final Map<String, Map<String, Column>> tables;
     private final long queryStartTimeNanos;
@@ -134,14 +143,14 @@ public class Configuration implements Writeable {
             resultTruncationDefaultSizeTimeseries,
             resolvedSettings,
             viewQueries,
+            false,
             false
         );
     }
 
     /**
-     * Canonical constructor — every field is a parameter (the {@code explainOnly} flag is the only difference
-     * from the 16-arg constructor above). {@link ConfigurationBuilder#build()} calls this directly, so any new
-     * field added here must also be added to {@link ConfigurationBuilder}.
+     * Canonical constructor — every field is a parameter. {@link ConfigurationBuilder#build()} calls this
+     * directly, so any new field added here must also be added to {@link ConfigurationBuilder}.
      */
     public Configuration(
         Instant now,
@@ -160,7 +169,8 @@ public class Configuration implements Writeable {
         int resultTruncationDefaultSizeTimeseries,
         ResolvedSettings resolvedSettings,
         Map<String, String> viewQueries,
-        boolean explainOnly
+        boolean explainOnly,
+        boolean canSeeDatasetLocation
     ) {
         this.now = now;
         this.username = username;
@@ -181,6 +191,7 @@ public class Configuration implements Writeable {
         this.viewQueries = viewQueries;
         assert viewQueries != null;
         this.explainOnly = explainOnly;
+        this.canSeeDatasetLocation = canSeeDatasetLocation;
     }
 
     public Configuration(BlockStreamInput in) throws IOException {
@@ -228,6 +239,13 @@ public class Configuration implements Writeable {
             this.explainOnly = in.readBoolean();
         } else {
             this.explainOnly = false;
+        }
+        if (in.getTransportVersion().supports(ESQL_DATASET_LOCATION_VISIBLE)) {
+            this.canSeeDatasetLocation = in.readBoolean();
+        } else {
+            // Older peers do not send this flag; default to false (redact) so the fail-closed behaviour
+            // applies when the coordinator is newer than a data node.
+            this.canSeeDatasetLocation = false;
         }
         if (readLegacySettings) {
             // project_routing is intentionally not synthesized here — data nodes never had it on the wire.
@@ -286,6 +304,9 @@ public class Configuration implements Writeable {
         }
         if (out.getTransportVersion().supports(ESQL_EXPLAIN_ONLY)) {
             out.writeBoolean(explainOnly);
+        }
+        if (out.getTransportVersion().supports(ESQL_DATASET_LOCATION_VISIBLE)) {
+            out.writeBoolean(canSeeDatasetLocation);
         }
         if (writeLegacySettings == false) {
             resolvedSettings.writeTo(out);
@@ -397,6 +418,24 @@ public class Configuration implements Writeable {
     }
 
     /**
+     * Whether the caller is authorized to see storage locations for the datasets named in this
+     * query ({@code indices:admin/esql/dataset/get}). When {@code true}, plan renderers use the
+     * identity location mapper and error messages include storage paths; when {@code false},
+     * locations are redacted. Clusters with security disabled always receive {@code true}.
+     */
+    public boolean canSeeDatasetLocation() {
+        return canSeeDatasetLocation;
+    }
+
+    /**
+     * Returns a new Configuration with {@code canSeeDatasetLocation} set to the given value.
+     * Called on the coordinator after the privilege check completes.
+     */
+    public Configuration withCanSeeDatasetLocation(boolean value) {
+        return new ConfigurationBuilder(this).canSeeDatasetLocation(value).build();
+    }
+
+    /**
      * Returns a new Configuration with profile and explainOnly enabled.
      * Used for EXPLAIN queries that need to capture plan information.
      */
@@ -469,7 +508,8 @@ public class Configuration implements Writeable {
             && allowPartialResults == that.allowPartialResults
             && Objects.equals(resolvedSettings, that.resolvedSettings)
             && viewQueries.equals(that.viewQueries)
-            && explainOnly == that.explainOnly;
+            && explainOnly == that.explainOnly
+            && canSeeDatasetLocation == that.canSeeDatasetLocation;
     }
 
     @Override
@@ -490,7 +530,8 @@ public class Configuration implements Writeable {
             resultTruncationDefaultSizeTimeseries,
             resolvedSettings,
             viewQueries,
-            explainOnly
+            explainOnly,
+            canSeeDatasetLocation
         );
     }
 

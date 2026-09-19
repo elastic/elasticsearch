@@ -69,6 +69,39 @@ public final class ExternalFailures {
     private ExternalFailures() {}
 
     /**
+     * Internal carrier for a coordinator-side resolution failure whose storage location is known.
+     * The {@link #resolve(boolean) resolved} exception exposes the location only to callers that hold
+     * {@code indices:admin/esql/dataset/get}; others receive the same message without the path.
+     * <p>
+     * This type is never serialised across node boundaries — it is created in
+     * {@code ExternalSourceResolver.mapResolveFailure} and resolved in {@code EsqlSession} before
+     * the exception leaves the coordinator.
+     */
+    public static final class LocatedException extends RuntimeException {
+        private final RuntimeException unlocated;
+        private final RuntimeException located;
+
+        LocatedException(RuntimeException unlocated, RuntimeException located) {
+            super(unlocated.getMessage(), unlocated);
+            this.unlocated = unlocated;
+            this.located = located;
+        }
+
+        /** Returns the exception whose message includes the storage path if {@code canSeeLocation}, otherwise the redacted version. */
+        public RuntimeException resolve(boolean canSeeLocation) {
+            return canSeeLocation ? located : unlocated;
+        }
+    }
+
+    /**
+     * Wraps a pair of exceptions — one without the storage path, one with — so the coordinator can
+     * reinstate the path only for callers authorised by {@code indices:admin/esql/dataset/get}.
+     */
+    public static LocatedException locatedException(RuntimeException unlocated, RuntimeException located) {
+        return new LocatedException(unlocated, located);
+    }
+
+    /**
      * Third-party decoding exceptions that are, by contract, malformed-input signals rather than bugs —
      * currently Parquet's {@code ParquetDecodingException} ("could not read page ..."). They are
      * unchecked {@link RuntimeException}s (not {@link IOException}s), so without this they would be
@@ -190,24 +223,6 @@ public final class ExternalFailures {
     }
 
     /**
-     * The message for a wrapper that types a metadata-resolution failure as client-caused — {@code FileSourceFactory},
-     * {@code TableCatalog}. Such a wrapper exists to fix the HTTP status, not to say anything new, so it keeps the
-     * cause's own diagnosis: "Object not found: &lt;path&gt;", "CSV file has no schema line", "Could not read
-     * [&lt;path&gt;] as a Parquet file: ...". A wrapper that replaces the diagnosis with a constant naming only the
-     * path reports every distinct condition — a missing object, a wrong format, a truncated footer, an empty file —
-     * with one identical sentence, which is what makes an external-source failure unactionable.
-     * <p>
-     * The location is prepended only when the cause does not already name it. Storage and reader messages usually do
-     * (they are built from the path), and this method is reached through
-     * {@code ExternalSourceResolver#mapResolveFailure}, which passes a client-caused failure straight to the user
-     * without adding context of its own — so the location has to be here when the cause omits it, and must not be
-     * here twice when the cause includes it.
-     */
-    public static String resolutionFailureMessage(String location, Throwable cause) {
-        return locate("Failed to resolve metadata for", location, detail(cause));
-    }
-
-    /**
      * Applies the same rule for any wrapper prefix: a detail that already names the location is returned as-is,
      * so the path is not printed twice. Callers that have already resolved their own detail string use this
      * directly rather than re-deriving it from the cause.
@@ -219,9 +234,8 @@ public final class ExternalFailures {
             // than appending the word "null".
             return prefix + " [" + location + "]";
         }
-        // contains() is deliberately loose: it is inherited from resolutionFailureMessage, and a location that is a
-        // strict prefix of the one named in the detail would suppress the prefix wrongly. No path produces that
-        // today -- both come from the same StoragePath -- so tightening it is not worth a behaviour change here.
+        // contains() is deliberately loose: a location that is a strict prefix of the one named in the detail would
+        // suppress the prefix wrongly. No path produces that today, so tightening it is not worth a behaviour change.
         return detail.contains(location) ? detail : prefix + " [" + location + "]: " + detail;
     }
 

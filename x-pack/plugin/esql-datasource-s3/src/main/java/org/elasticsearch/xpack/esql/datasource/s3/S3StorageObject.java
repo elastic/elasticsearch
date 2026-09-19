@@ -237,25 +237,17 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                     s3.awsErrorDetails().sdkHttpResponse().firstMatchingHeader("Retry-After").orElse(null)
                 );
             }
-            return new ExternalUnavailableException(
-                throttling,
-                retryAfterMs,
-                cause,
-                "S3 store unavailable reading [{}] (HTTP {})",
-                path,
-                s3.statusCode()
-            );
+            return new ExternalUnavailableException(throttling, retryAfterMs, cause, "S3 store unavailable (HTTP {})", s3.statusCode());
         }
         if (cause instanceof S3Exception precondition && precondition.statusCode() == 412) {
-            return new ExternalObjectChangedException(cause, "Object changed during read of [{}]", path);
+            return new ExternalObjectChangedException("External data object was modified during read", cause);
         }
         if (cause instanceof S3Exception clockSkew
             && clockSkew.awsErrorDetails() != null
             && "RequestTimeTooSkewed".equals(clockSkew.awsErrorDetails().errorCode())) {
             return new IOException(
-                "S3 request rejected due to clock skew reading ["
-                    + path
-                    + "]: the server clock differs too much from S3. Check that the host clock is NTP-synchronized.",
+                "S3 request rejected due to clock skew: "
+                    + "the server clock differs too much from S3. Check that the host clock is NTP-synchronized.",
                 cause
             );
         }
@@ -264,9 +256,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             // The read path cannot say which credential is wrong -- S3 answers a bad key and an anonymous request
             // against an authenticated bucket with the same 403 -- so it names both remedies.
             return new IOException(
-                "Access denied reading ["
-                    + path
-                    + "] ("
+                "Access denied reading external data ("
                     + S3FailureDetail.of(denied)
                     + "). Verify the access_key and secret_key configured on the data source, "
                     + "or set auth=anonymous if the bucket is public.",
@@ -274,24 +264,18 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             );
         }
         if (cause instanceof NoSuchKeyException) {
-            return new IOException("Object not found: " + path, cause);
+            return new IOException("External data object not found", cause);
         }
         if (isClosedClient(cause)) {
-            return new ExternalUnavailableException(
-                false,
-                cause,
-                "S3 client unavailable reading [{}]: {}",
-                path,
-                S3FailureDetail.of(cause)
-            );
+            return new ExternalUnavailableException(false, cause, "S3 client unavailable: {}", S3FailureDetail.of(cause));
         }
         if (isSdkClientTransportFailure(cause)) {
-            return new ExternalUnavailableException(false, cause, "S3 store unavailable reading [{}]: {}", path, S3FailureDetail.of(cause));
+            return new ExternalUnavailableException(false, cause, "S3 store unavailable: {}", S3FailureDetail.of(cause));
         }
         if (cause instanceof IllegalStateException ise) {
             return ise;
         }
-        return new IOException(context + " " + path + ": " + S3FailureDetail.of(cause), cause);
+        return new IOException(context + ": " + S3FailureDetail.of(cause), cause);
     }
 
     /**
@@ -449,7 +433,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         String current = pinnedEtag.get();
         if (etag == null || etag.isBlank() || isStrongEtag(etag) == false) {
             if (current != null) {
-                throw new ExternalObjectChangedException("Object generation could not be verified during read of [{}]", path);
+                throw new ExternalObjectChangedException("External data object was modified during read");
             }
             return;
         }
@@ -460,7 +444,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             current = pinnedEtag.get();
         }
         if (current.equals(etag) == false) {
-            throw new ExternalObjectChangedException("Object changed during read of [{}]", path);
+            throw new ExternalObjectChangedException("External data object was modified during read");
         }
     }
 
@@ -525,7 +509,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             fetchMetadata();
         }
         if (cachedExists != null && cachedExists == false) {
-            throw new IOException("Object not found: " + path);
+            throw new IOException("External data object not found");
         }
         return cachedLength;
     }
@@ -638,9 +622,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 cachedExists = true;
                 observeResponse(metadata, 0L, true);
                 if (cachedLength == null) {
-                    throw new IOException(
-                        "Failed to determine object size for " + path + ": Content-Range header missing from range GET response"
-                    );
+                    throw new IOException("Failed to determine external object size: Content-Range header missing from range GET response");
                 }
             }
         } catch (IOException e) {

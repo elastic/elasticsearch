@@ -730,9 +730,17 @@ public class ExternalSourceResolver {
             LOGGER.debug("External source resolution cancelled for [{}]", path);
             return new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE);
         }
+        // A LocatedException was already typed and wrapped by a deeper layer (e.g. lastFactoryFailure). Preserve
+        // it so the coordinator can reinstate the path for authorised callers.
+        if (e instanceof ExternalFailures.LocatedException locatedEx) {
+            recordDiscoveryFailure();
+            return locatedEx;
+        }
         // A buried 503 (retryable back-pressure) must not be masked as a 400 by the factory loop's IllegalArgumentException
         // wrapper. unwrap walks the root + cause chain (cycle-guarded), so it catches the 503 raw or wrapped. Re-wrap so
-        // the client message keeps the path context while the 503 status and the throttling flag survive.
+        // the 503 status and the throttling flag survive; the path is omitted from the message. Unlike the client-error
+        // arm below, this arm does not wrap in a LocatedException, because a transient unavailability does not benefit
+        // from path reinstatement.
         ExternalUnavailableException unavailable = (ExternalUnavailableException) ExceptionsHelper.unwrap(
             e,
             ExternalUnavailableException.class
@@ -744,13 +752,12 @@ public class ExternalSourceResolver {
                 unavailable.throttling(),
                 unavailable,
                 "{}",
-                ExternalFailures.locate("Failed to resolve external source", path, unavailable.getMessage())
+                unavailable.getMessage() != null ? unavailable.getMessage() : "Failed to resolve external source"
             );
         }
         // A permit-acquisition interrupt surfaces as an EsRejectedExecutionException (429). The factory loop wraps it
         // in an IllegalArgumentException (400), so recover it from the cause chain before the IllegalArgumentException
-        // branch: a node-level rejection must keep its 429 status instead of being masked as a client error. Re-wrap
-        // so the client message keeps the path context while the 429 status survives (the type has no cause constructor).
+        // branch: a node-level rejection must keep its 429 status instead of being masked as a client error.
         EsRejectedExecutionException rejected = (EsRejectedExecutionException) ExceptionsHelper.unwrap(
             e,
             EsRejectedExecutionException.class
@@ -759,7 +766,7 @@ public class ExternalSourceResolver {
             recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
             EsRejectedExecutionException wrapped = new EsRejectedExecutionException(
-                ExternalFailures.locate("Failed to resolve external source", path, rejected.getMessage())
+                rejected.getMessage() != null ? rejected.getMessage() : "Failed to resolve external source"
             );
             wrapped.initCause(rejected);
             return wrapped;
@@ -779,11 +786,17 @@ public class ExternalSourceResolver {
         // that rail, making the status depend on whether the provider happened to be cacheable. Recovering at the
         // boundary rather than auditing every wrap site means a wrapper introduced later cannot silently
         // reintroduce the same masking.
+        // The message does not include the path; LocatedException carries it for authorised callers.
         IllegalArgumentException clientError = (IllegalArgumentException) ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
         if (clientError != null) {
             recordDiscoveryFailure();
             LOGGER.error("Failed to resolve external source [{}]: {}", path, clientError.getMessage(), e);
-            return clientError;
+            String detail = clientError.getMessage();
+            RuntimeException located = new IllegalArgumentException(
+                ExternalFailures.locate("Failed to resolve external source", path, detail),
+                clientError
+            );
+            return ExternalFailures.locatedException(clientError, located);
         }
         // Recover a client IO error from behind a transparent wrapper for the same reason the IAE arm above
         // does. The file-metadata rail raises IOException (missing object, access denied) and it arrives wrapped
@@ -799,7 +812,13 @@ public class ExternalSourceResolver {
             LOGGER.error("Failed to resolve external source [{}]: {}", path, detail, e);
             // Chain ioError, not e: e is the cache's ExecutionException whose own message is the cause's
             // toString(), so chaining it renders "java.io.IOException: ..." into the user's caused_by.
-            return new ExternalClientException(ioError, "{}", ExternalFailures.locate("Failed to resolve external source", path, detail));
+            RuntimeException unlocated = new ExternalClientException(ioError, "{}", detail);
+            RuntimeException located = new ExternalClientException(
+                ioError,
+                "{}",
+                ExternalFailures.locate("Failed to resolve external source", path, detail)
+            );
+            return ExternalFailures.locatedException(unlocated, located);
         }
         recordDiscoveryFailure();
         // rootDetail, not getMessage: the file-metadata rail raises a plain IOException that arrives inside the
@@ -809,11 +828,13 @@ public class ExternalSourceResolver {
         LOGGER.error("Failed to resolve external source [{}]: {}", path, detail, e);
         // Chain the root, not e: e may be the cache's ExecutionException whose message is the cause's toString(),
         // which would render a JVM type name into the user's caused_by exactly as the IOException arm above did.
-        return new ExternalServerException(
+        RuntimeException unlocated = new ExternalServerException(ExternalFailures.rootCause(e), "{}", detail);
+        RuntimeException located = new ExternalServerException(
             ExternalFailures.rootCause(e),
             "{}",
             ExternalFailures.locate("Failed to resolve external source", path, detail)
         );
+        return ExternalFailures.locatedException(unlocated, located);
     }
 
     private void resolveSource(
@@ -1385,7 +1406,9 @@ public class ExternalSourceResolver {
      * the message, along with the path's configure-time notices (see {@link #currentPathConfigWarnings}).
      */
     private IllegalArgumentException noFilesMatched(String path, FileList listing) {
-        StringBuilder message = new StringBuilder("Glob pattern matched no files: ").append(path);
+        // The path is intentionally omitted from the message; mapResolveFailure wraps this in a
+        // LocatedException so authorised callers can still see it.
+        StringBuilder message = new StringBuilder("Glob pattern matched no files");
         for (String notice : listing.listingWarnings()) {
             message.append(". ").append(notice);
         }
@@ -2770,10 +2793,12 @@ public class ExternalSourceResolver {
      * its message changes. It used to be the constant "Failed to resolve metadata for [path]", which reported a
      * missing object, a wrong format, a truncated footer and an empty file with one identical sentence — and the
      * factories already build that same sentence one level down, so the wrapper also duplicated it. It now carries
-     * the diagnosis instead; see {@link ExternalFailures#resolutionFailureMessage}.
+     * the diagnosis instead.
      */
     private static RuntimeException lastFactoryFailure(String path, Exception lastFailure) {
-        return new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(path, lastFailure), lastFailure);
+        // The path is intentionally omitted from the message; mapResolveFailure wraps the result in a
+        // LocatedException so authorised callers can still see it.
+        return new IllegalArgumentException(ExternalFailures.rootDetail(lastFailure), lastFailure);
     }
 
     private SourceMetadata resolveSingleSource(String path, Map<String, Object> config) {

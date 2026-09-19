@@ -1330,7 +1330,7 @@ public class FileSplitProviderTests extends ESTestCase {
      */
     public void testDiscoverSplitsAsyncInvalidParquetDoesNotFallBackToWholeFile() {
         IllegalArgumentException invalid = new IllegalArgumentException(
-            "Could not read [s3://b/data-0.parquet] as a Parquet file: expected magic number at tail",
+            "Could not read the Parquet file: expected magic number at tail",
             new IOException("PARE")
         );
         RangeAwareFormatReader mockReader = createMockRangeReader(List.of(), () -> { throw invalid; });
@@ -1338,8 +1338,7 @@ public class FileSplitProviderTests extends ESTestCase {
         PlainActionFuture<SplitDiscoveryResult> future = new PlainActionFuture<>();
         provider.discoverSplitsAsync(rangeAwareContext(1), EsExecutors.DIRECT_EXECUTOR_SERVICE, future);
         Exception e = expectThrows(Exception.class, () -> future.actionGet(30, TimeUnit.SECONDS));
-        assertThat(ExceptionsHelper.stackTrace(e), containsString("Could not read"));
-        assertThat(ExceptionsHelper.stackTrace(e), containsString("as a Parquet file"));
+        assertThat(ExceptionsHelper.stackTrace(e), containsString("Could not read the Parquet file"));
     }
 
     /**

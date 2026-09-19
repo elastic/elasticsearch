@@ -149,7 +149,7 @@ public class S3AnonymousAccessTests extends ESTestCase {
         S3StorageObject obj = new S3StorageObject(mockS3Client, BUCKET, KEY, PATH);
 
         IOException e = expectThrows(IOException.class, obj::length);
-        assertThat(e.getMessage(), containsString("Access denied reading [" + PATH + "]"));
+        assertThat(e.getMessage(), containsString("Access denied reading external data"));
         assertThat(e.getMessage(), containsString("HTTP 403"));
         // The message has to say what to change, not only what was refused: S3 answers a wrong key and an
         // anonymous request against an authenticated bucket identically, so both remedies are named.

@@ -54,6 +54,15 @@ public interface NodeStringMapper {
      */
     String opaque(String text);
 
+    /**
+     * Map a storage location — an external source URI, dataset name, or path component that the
+     * caller may or may not be authorized to see. Returns the text verbatim under {@link #IDENTITY};
+     * {@link #REDACT_LOCATION} returns a fixed redaction marker. Distinguished from {@link #opaque}
+     * so a pushed filter written by the caller (which goes through {@code opaque}) is not redacted
+     * along with the storage location.
+     */
+    String location(String text);
+
     /** Pass-through. The default for raw rendering. */
     NodeStringMapper IDENTITY = new NodeStringMapper() {
         @Override
@@ -87,6 +96,43 @@ public interface NodeStringMapper {
         @Override
         public String opaque(String text) {
             return text;
+        }
+
+        @Override
+        public String location(String text) {
+            return text;
+        }
+    };
+
+    /**
+     * Identity everywhere except {@link #location}, which returns a fixed redaction marker. Used
+     * when rendering a profile plan string for a caller who is not authorized to see dataset storage
+     * locations ({@code indices:admin/esql/dataset/get}).
+     */
+    NodeStringMapper REDACT_LOCATION = new NodeStringMapper() {
+        @Override
+        public String column(String name) {
+            return name;
+        }
+
+        @Override
+        public String index(String name) {
+            return name;
+        }
+
+        @Override
+        public String literal(Object value, DataType type) {
+            return IDENTITY.literal(value, type);
+        }
+
+        @Override
+        public String opaque(String text) {
+            return text;
+        }
+
+        @Override
+        public String location(String text) {
+            return "[redacted]";
         }
     };
 }

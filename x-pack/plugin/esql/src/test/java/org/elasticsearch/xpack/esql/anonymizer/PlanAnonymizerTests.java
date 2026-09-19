@@ -1021,4 +1021,34 @@ public class PlanAnonymizerTests extends ESTestCase {
         Filter filter = new Filter(Source.EMPTY, relation, new And(Source.EMPTY, emailEq, new And(Source.EMPTY, orderEq, retryEq)));
         return new Limit(Source.EMPTY, new Literal(Source.EMPTY, 100, DataType.INTEGER), filter);
     }
+
+    /**
+     * {@link NodeStringMapper#REDACT_LOCATION} redacts storage locations but leaves column names,
+     * index names, opaque text, and literals verbatim — so the plan shape stays readable while the
+     * bucket name/key/URI is hidden from callers who do not hold
+     * {@code indices:admin/esql/dataset/get}.
+     */
+    public void testRedactLocationMapperRedactsOnlyLocation() {
+        String path = "s3://my-bucket/data/events.parquet";
+
+        assertEquals("[redacted]", NodeStringMapper.REDACT_LOCATION.location(path));
+        assertEquals(path, NodeStringMapper.IDENTITY.location(path));
+
+        // All other methods are identity under REDACT_LOCATION.
+        String col = "myField";
+        assertEquals(col, NodeStringMapper.REDACT_LOCATION.column(col));
+
+        String idx = "my-index-*";
+        assertEquals(idx, NodeStringMapper.REDACT_LOCATION.index(idx));
+
+        String filter = "{ \"term\": { \"status\": \"active\" } }";
+        assertEquals(filter, NodeStringMapper.REDACT_LOCATION.opaque(filter));
+
+        Object kwValue = new BytesRef("some keyword");
+        assertEquals(
+            NodeStringMapper.IDENTITY.literal(kwValue, DataType.KEYWORD),
+            NodeStringMapper.REDACT_LOCATION.literal(kwValue, DataType.KEYWORD)
+        );
+        assertEquals(NodeStringMapper.IDENTITY.literal(42L, DataType.LONG), NodeStringMapper.REDACT_LOCATION.literal(42L, DataType.LONG));
+    }
 }

@@ -12,6 +12,7 @@ package org.elasticsearch.simdjson;
 import org.elasticsearch.simdjson.internal.fieldnames.FrozenFieldNameTable;
 import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 
+import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
 
@@ -315,6 +316,17 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
             List.of("bigInteger(n=99999999999999999999)"),
             walkJson("{\"n\":99999999999999999999}")
         );
+        for (int i = 0; i < 20; i++) {
+            boolean negative = randomBoolean();
+            String digits = randomNumericOfLength(randomIntBetween(20, 40));
+            String sign = negative ? "-" : "";
+            String expected = new BigInteger(sign + digits).toString();
+            assertEquals(
+                "digitCount=" + digits.length() + ", negative=" + negative + ": always BigInteger regardless of value",
+                List.of("bigInteger(n=" + expected + ")"),
+                walkJson("{\"n\":" + sign + digits + "}")
+            );
+        }
     }
 
     // Same digitCount-at-19 boundaries as array elements.

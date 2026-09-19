@@ -667,9 +667,6 @@ tests:
 - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
   method: testCohereEmbeddings {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/159164
-- class: org.elasticsearch.xpack.shutdown.NodeShutdownShardSnapshotsIT
-  method: testShardSnapshotsStatus
-  issue: https://github.com/elastic/elasticsearch/issues/159165
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
   method: testReshardWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/156004

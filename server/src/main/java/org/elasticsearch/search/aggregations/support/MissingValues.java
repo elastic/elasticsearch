@@ -14,7 +14,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 
@@ -33,8 +33,8 @@ public enum MissingValues {
     public static ValuesSource.Bytes replaceMissing(final ValuesSource.Bytes valuesSource, final BytesRef missing) {
         return new ValuesSource.Bytes() {
             @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
-                SortedBinaryDocValues values = valuesSource.bytesValues(context);
+            public SortableBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                SortableBinaryDocValues values = valuesSource.bytesValues(context);
                 return replaceMissing(values, missing);
             }
 
@@ -45,10 +45,10 @@ public enum MissingValues {
         };
     }
 
-    public static SortedBinaryDocValues replaceMissing(final SortedBinaryDocValues values, final BytesRef missing) {
-        // We do not directly delegate to the SortedBinaryDocValues because it doesn't account for the missing values.
+    public static SortableBinaryDocValues replaceMissing(final SortableBinaryDocValues values, final BytesRef missing) {
+        // We do not directly delegate to the SortableBinaryDocValues because it doesn't account for the missing values.
         // If needed, this could be supported by using DocIdSetIterator.range() along with the maxDoc.
-        return new SortedBinaryDocValues(null) {
+        return new SortableBinaryDocValues(null) {
 
             private int count;
 
@@ -80,7 +80,7 @@ public enum MissingValues {
 
             @Override
             public String toString() {
-                return "anon SortedBinaryDocValues of [" + super.toString() + "]";
+                return "anon SortableBinaryDocValues of [" + super.toString() + "]";
             }
         };
     }
@@ -96,7 +96,7 @@ public enum MissingValues {
             }
 
             @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+            public SortableBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
                 return replaceMissing(valuesSource.bytesValues(context), new BytesRef(missing.toString()));
             }
 
@@ -200,8 +200,8 @@ public enum MissingValues {
     public static ValuesSource.Bytes replaceMissing(final ValuesSource.Bytes.WithOrdinals valuesSource, final BytesRef missing) {
         return new ValuesSource.Bytes.WithOrdinals() {
             @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
-                SortedBinaryDocValues values = valuesSource.bytesValues(context);
+            public SortableBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                SortableBinaryDocValues values = valuesSource.bytesValues(context);
                 return replaceMissing(values, missing);
             }
 
@@ -408,7 +408,7 @@ public enum MissingValues {
         return new ValuesSource.GeoPoint() {
 
             @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+            public SortableBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
                 return replaceMissing(valuesSource.bytesValues(context), new BytesRef(missing.toString()));
             }
 

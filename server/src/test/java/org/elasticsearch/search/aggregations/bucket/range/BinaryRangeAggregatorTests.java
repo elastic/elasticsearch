@@ -11,7 +11,8 @@ package org.elasticsearch.search.aggregations.bucket.range;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues.ValueOrder;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.range.BinaryRangeAggregator.SortedBinaryRangeLeafCollector;
 import org.elasticsearch.search.aggregations.bucket.range.BinaryRangeAggregator.SortedSetRangeLeafCollector;
@@ -136,15 +137,26 @@ public class BinaryRangeAggregatorTests extends ESTestCase {
         }
     }
 
-    private static class FakeSortedBinaryDocValues extends SortedBinaryDocValues {
+    private static class FakeSortedBinaryDocValues extends SortableBinaryDocValues {
 
         private final BytesRef[] terms;
+        private final ValueOrder valueOrder;
         int i;
         long[] ords;
 
         FakeSortedBinaryDocValues(BytesRef[] terms) {
+            this(terms, ValueOrder.SORTED);
+        }
+
+        FakeSortedBinaryDocValues(BytesRef[] terms, ValueOrder valueOrder) {
             super(null);
             this.terms = terms;
+            this.valueOrder = valueOrder;
+        }
+
+        @Override
+        public ValueOrder getValueOrder() {
+            return valueOrder;
         }
 
         @Override
@@ -166,6 +178,11 @@ public class BinaryRangeAggregatorTests extends ESTestCase {
     }
 
     private void doTestSortedBinaryRangeLeafCollector(int maxNumValuesPerDoc) throws Exception {
+        doTestSortedBinaryRangeLeafCollector(maxNumValuesPerDoc, SortableBinaryDocValues.ValueOrder.SORTED);
+    }
+
+    private void doTestSortedBinaryRangeLeafCollector(int maxNumValuesPerDoc, SortableBinaryDocValues.ValueOrder valueOrder)
+        throws Exception {
         final Set<BytesRef> termSet = new HashSet<>();
         final int numTerms = TestUtil.nextInt(random(), maxNumValuesPerDoc, 100);
         while (termSet.size() < numTerms) {
@@ -185,7 +202,7 @@ public class BinaryRangeAggregatorTests extends ESTestCase {
         }
         Arrays.sort(ranges, BinaryRangeAggregator.RANGE_COMPARATOR);
 
-        FakeSortedBinaryDocValues values = new FakeSortedBinaryDocValues(terms);
+        FakeSortedBinaryDocValues values = new FakeSortedBinaryDocValues(terms, valueOrder);
         final int[] counts = new int[ranges.length];
         SortedBinaryRangeLeafCollector collector = new SortedBinaryRangeLeafCollector(values, ranges, null) {
             @Override
@@ -202,8 +219,24 @@ public class BinaryRangeAggregatorTests extends ESTestCase {
             while (ordinalSet.size() < numValues) {
                 ordinalSet.add(random().nextLong(terms.length));
             }
-            final long[] ords = ordinalSet.stream().mapToLong(Long::longValue).toArray();
-            Arrays.sort(ords);
+            long[] ords = ordinalSet.stream().mapToLong(Long::longValue).toArray();
+            if (ords.length > 0 && randomBoolean()) {
+                // The payload keeps repeats, so a document can offer the same value twice. It still belongs to a
+                // range once: this counts documents, and nothing deduplicated the field.
+                ords = Arrays.copyOf(ords, ords.length + 1);
+                ords[ords.length - 1] = ords[randomInt(ords.length - 2)];
+            }
+            if (valueOrder == SortableBinaryDocValues.ValueOrder.SORTED) {
+                if (valueOrder == SortableBinaryDocValues.ValueOrder.SORTED) {
+                    Arrays.sort(ords);
+                } else {
+                    // Array order: the collector has no low bound to carry from one value to the next.
+                    shuffle(ords);
+                }
+            } else {
+                // Array order: the collector cannot carry a low bound from one value to the next.
+                shuffle(ords);
+            }
             values.ords = ords;
 
             // simulate aggregation
@@ -228,6 +261,23 @@ public class BinaryRangeAggregatorTests extends ESTestCase {
         final int iters = randomInt(10);
         for (int i = 0; i < iters; ++i) {
             doTestSortedBinaryRangeLeafCollector(1);
+        }
+    }
+
+    /** The same ranges over values that do not ascend, which is how the ColumNAR payload hands them back. */
+    public void testSortedBinaryRangeLeafCollectorArrayOrder() throws Exception {
+        final int iters = randomInt(10);
+        for (int i = 0; i < iters; ++i) {
+            doTestSortedBinaryRangeLeafCollector(5, SortableBinaryDocValues.ValueOrder.ARRAY);
+        }
+    }
+
+    private static void shuffle(long[] ords) {
+        for (int i = ords.length - 1; i > 0; i--) {
+            final int j = randomInt(i);
+            final long swap = ords[i];
+            ords[i] = ords[j];
+            ords[j] = swap;
         }
     }
 

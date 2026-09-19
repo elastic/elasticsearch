@@ -82,19 +82,20 @@ public class PainlessConcurrentAllocationIT extends ResourceExhaustionPainlessTe
     }
 
     public void testConcurrentScriptsUnderLimitAllSucceed() throws Exception {
-        Request search = scoreSearch(SUCCESS_ITERS);
-        List<Future<Integer>> futures = submit(THREAD_COUNT, () -> client().performRequest(search).getStatusLine().getStatusCode());
+        List<Future<Integer>> futures = submit(
+            THREAD_COUNT,
+            () -> client().performRequest(scoreSearch(SUCCESS_ITERS)).getStatusLine().getStatusCode()
+        );
         for (int i = 0; i < futures.size(); i++) {
             assertThat("thread " + i + " expected 200", futures.get(i).get(), equalTo(200));
         }
     }
 
     public void testConcurrentScriptsOverLimitAllFail() throws Exception {
-        Request search = scoreSearch(FAILURE_ITERS);
         // Read the entity on the background thread before the HTTP connection is released.
         List<Future<Map<String, Object>>> futures = submit(THREAD_COUNT, () -> {
             try {
-                client().performRequest(search);
+                client().performRequest(scoreSearch(FAILURE_ITERS));
                 return null; // signals unexpected success
             } catch (ResponseException e) {
                 return entityAsMap(e.getResponse());

@@ -84,6 +84,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("user1", "x-pack-test-password", "user1", false)
         .user("user2", "x-pack-test-password", "user2", false)
         .user("user3", "x-pack-test-password", "user3", false)
+        .user("remote_fetch_dls_fls", "x-pack-test-password", "remote_fetch_dls_fls", false)
         .user("user_dataset_authorize_only", "x-pack-test-password", "user_dataset_authorize_only", false)
         .user("ds_repro_broad_reader", "x-pack-test-password", "ds_repro_broad_reader", false)
         .user("user4", "x-pack-test-password", "user4", false)
@@ -773,6 +774,33 @@ public class EsqlSecurityIT extends ESRestTestCase {
         Map<String, Object> respMap = entityAsMap(resp);
         assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
         assertThat(respMap.get("values"), equalTo(List.of(List.of(10.0))));
+    }
+
+    public void testRemoteFetchUsesRetainedDlsAndFlsContext() throws Exception {
+        setRemoteFetchTopNEnabled(true);
+        try {
+            Request request = new Request("POST", "_query");
+            XContentBuilder json = JsonXContent.contentBuilder();
+            json.startObject();
+            json.field("query", "FROM index,indexpartial | SORT value DESC | LIMIT 2 | KEEP value, org");
+            json.field("profile", true);
+            json.field("accept_pragma_risks", true);
+            json.startObject("pragma");
+            json.field("node_level_reduction", true);
+            json.field("data_partitioning", "shard");
+            json.endObject();
+            json.endObject();
+            request.setJsonEntity(Strings.toString(json));
+            request.setOptions(runAsUserOptions("remote_fetch_dls_fls", null));
+
+            Response response = client().performRequest(request);
+            assertOK(response);
+            Map<String, Object> responseMap = entityAsMap(response);
+            assertThat(responseMap.get("values"), equalTo(List.of(Arrays.asList(40.0, null), List.of(10.0, "sales"))));
+            assertTrue("query profile must contain the remote fetch operator", containsRemoteFetchOperator(responseMap.get("profile")));
+        } finally {
+            setRemoteFetchTopNEnabled(null);
+        }
     }
 
     public void testDocumentLevelSecurityFromStar() throws Exception {
@@ -2631,6 +2659,36 @@ public class EsqlSecurityIT extends ESRestTestCase {
         );
         setUser(request, "test-admin");
         assertOK(client().performRequest(request));
+    }
+
+    private void setRemoteFetchTopNEnabled(@Nullable Boolean enabled) throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity(
+            "{\"persistent\":{\"esql.query.remote_fetch_topn.enabled\":" + (enabled == null ? "null" : enabled.toString()) + "}}"
+        );
+        setUser(request, "test-admin");
+        assertOK(client().performRequest(request));
+    }
+
+    private static boolean containsRemoteFetchOperator(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Object operator = map.get("operator");
+            if (operator instanceof String operatorName && operatorName.startsWith("RemoteFetchOperator")) {
+                return true;
+            }
+            for (Object child : map.values()) {
+                if (containsRemoteFetchOperator(child)) {
+                    return true;
+                }
+            }
+        } else if (value instanceof List<?> list) {
+            for (Object child : list) {
+                if (containsRemoteFetchOperator(child)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private void deleteIndexQuietly(String indexName) {

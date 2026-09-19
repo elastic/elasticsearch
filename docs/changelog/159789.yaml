@@ -1,5 +1,5 @@
 area: Snapshot/Restore
 issues: []
 pr: 159789
-summary: Pin repository-azure back to reactor-netty 1.0.45
+summary: Pin repository-azure back to reactor-core 3.4.38
 type: bug

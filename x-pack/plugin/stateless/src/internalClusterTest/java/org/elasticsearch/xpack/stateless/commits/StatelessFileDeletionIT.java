@@ -1151,6 +1151,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         final var blobsBeforeMerge = shardCommitsContainer.listBlobs(operationPurpose).keySet();
         assertThat(blobsBeforeMerge, not(empty()));
         logger.info("--> blobs before merge: {}", blobsBeforeMerge);
+        final long lastGenerationBeforeMerge = indexEngine.getCurrentGeneration();
 
         // Step 2: Force merge supersedes old commits. No deletion due to locally acquired readers
         logger.info("--> force merging to a single segment");
@@ -1159,6 +1160,18 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         final Set<String> blobsAfterMerge = shardCommitsContainer.listBlobs(operationPurpose).keySet();
         logger.info("--> blobs after merge: {}", blobsAfterMerge);
         assertThat(blobsAfterMerge, hasItems(blobsBeforeMerge.toArray(new String[0])));
+
+        // The search shard releases its references to the superseded commits only once it has acknowledged the post-merge commit, which
+        // happens asynchronously after the flush above returns. Wait for that so that the locally acquired readers are the only remaining
+        // references to the pre-merge blobs; otherwise releasing those readers in step 4 would not make the blobs eligible for deletion.
+        assertBusy(() -> {
+            final var commitsInUseBySearchNodes = commitService.getSearchNodesPerCommit(indexShard.shardId()).keySet();
+            assertThat(
+                "search nodes still reference pre-merge commits: " + commitsInUseBySearchNodes,
+                commitsInUseBySearchNodes.stream().filter(gen -> gen.generation() <= lastGenerationBeforeMerge).toList(),
+                empty()
+            );
+        });
 
         // Step 3: Trigger relocation and block the primary context handoff to keep the shard in RELOCATING state
         var handOffStarted = new CountDownLatch(1);
@@ -1208,6 +1221,101 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
                 );
             });
         }
+
+        assertHitCount(prepareSearch(indexName).setQuery(matchAllQuery()), totalDocs);
+        findPlugin(indexNodeB, TestStatelessPlugin.class).shouldDeleteShardFiles.set(true);
+    }
+
+    /**
+     * Exercises the scenario that caused the original sporadic CI failure for
+     * {@link #testBlobsNotDeletedDuringFailedRelocation}: the search node has not yet acknowledged the
+     * post-merge commit when the relocation runs, so it still holds the pre-merge blobs.
+     */
+    public void testBlobsDeletedAfterFailedRelocationWhenCommitNotificationIsDelayed() throws Exception {
+        startMasterOnlyNode();
+        final var indexNodeA = startIndexNode();
+        final var searchNode = startSearchNode();
+        ensureStableCluster(3);
+
+        var indexName = randomIndexName();
+        createIndex(indexName, indexSettings(1, 1).put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 0).build());
+        ensureGreen(indexName);
+        final var indexShard = findIndexShard(indexName);
+        final var indexNodeB = startIndexNode();
+        ensureStableCluster(4);
+        findPlugin(indexNodeB, TestStatelessPlugin.class).shouldDeleteShardFiles.set(false);
+
+        final var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+        final var commitService = indexEngine.getStatelessCommitService();
+        final var shardLocalReadersTracker = commitService.getShardLocalCommitsTracker(indexShard.shardId()).shardLocalReadersTracker();
+
+        // Step 1: Create multiple commits and register mock local readers to pin pre-merge blobs.
+        final var readers = new ArrayList<DirectoryReader>();
+        final Runnable acquireLocalReaderForCurrentCommit = () -> {
+            final var reader = mock(DirectoryReader.class);
+            shardLocalReadersTracker.trackOpenReader(
+                reader,
+                commitService.getCommitBCCResolverForShard(indexShard.shardId())
+                    .resolveReferencedBCCsForCommit(indexEngine.getCurrentGeneration())
+            );
+            readers.add(reader);
+        };
+        acquireLocalReaderForCurrentCommit.run();
+        int totalDocs = 0;
+        for (int i = 0; i < 3; i++) {
+            totalDocs += indexDocsAndFlush(indexName);
+            acquireLocalReaderForCurrentCommit.run();
+        }
+
+        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNodeA, 0);
+        final var blobsBeforeMerge = shardCommitsContainer.listBlobs(operationPurpose).keySet();
+        assertThat(blobsBeforeMerge, not(empty()));
+        final long lastGenerationBeforeMerge = indexEngine.getCurrentGeneration();
+
+        // Step 2: Intercept post-merge notifications on the search node to keep it on the pre-merge commit.
+        final var notificationCaptured = new CountDownLatch(1);
+        final var delayedNotifications = new LinkedBlockingQueue<CheckedRunnable<Exception>>();
+        MockTransportService.getInstance(searchNode)
+            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
+                var notification = asInstanceOf(NewCommitNotificationRequest.class, request);
+                if (notification.getGeneration() > lastGenerationBeforeMerge) {
+                    delayedNotifications.add(() -> handler.messageReceived(request, channel, task));
+                    notificationCaptured.countDown();
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
+
+        // Step 3: Force merge and flush. Post-merge notification is captured; search node stays on the pre-merge commit.
+        forceMerge(true);
+        flush(indexName);
+        safeAwait(notificationCaptured);
+
+        // Step 4: Trigger relocation, release local readers while RELOCATING, then fail the handoff.
+        // The search node's hold keeps the pre-merge blobs above zero ref count so they never enter the deferred list.
+        var handOffStarted = new CountDownLatch(1);
+        var proceedWithHandOff = new CountDownLatch(1);
+        MockTransportService.getInstance(indexNodeB)
+            .addRequestHandlingBehavior(PRIMARY_CONTEXT_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
+                handOffStarted.countDown();
+                safeAwait(proceedWithHandOff);
+                channel.sendResponse(new ElasticsearchException("test fails handoff on purpose"));
+            });
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB, ProjectId.DEFAULT));
+        safeAwait(handOffStarted);
+        readers.forEach(shardLocalReadersTracker::onLocalReaderClosed);
+        proceedWithHandOff.countDown();
+        ensureGreen(indexName);
+
+        // Step 5: Release the delayed notification. The search node drops its hold on the pre-merge blobs;
+        // their ref count reaches zero while the shard is RUNNING, so they are deleted immediately.
+        CheckedRunnable<Exception> delayed;
+        while ((delayed = delayedNotifications.poll()) != null) {
+            delayed.run();
+        }
+        assertBusy(
+            () -> assertThat(Sets.intersection(shardCommitsContainer.listBlobs(operationPurpose).keySet(), blobsBeforeMerge), empty())
+        );
 
         assertHitCount(prepareSearch(indexName).setQuery(matchAllQuery()), totalDocs);
         findPlugin(indexNodeB, TestStatelessPlugin.class).shouldDeleteShardFiles.set(true);

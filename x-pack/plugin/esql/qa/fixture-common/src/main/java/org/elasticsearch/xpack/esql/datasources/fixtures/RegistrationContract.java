@@ -81,6 +81,9 @@ public final class RegistrationContract {
      */
     private static final String ROWS_PREFIX = "rows.";
 
+    /** The attributes whose own qualifier is the last segment, so the attribute spans more than one. */
+    private static final Set<String> QUALIFIED_ATTRIBUTES = Set.of("settings", "columns", "rows");
+
     /** What counts as citing a defect: a filed issue a reader can open, not a bare number. */
     static final Pattern ISSUE_REFERENCE = Pattern.compile("elastic/[a-z0-9-]+#\\d+");
 
@@ -383,17 +386,36 @@ public final class RegistrationContract {
         if (last < 0) {
             throw new IllegalStateException("malformed key [" + key + "]; expected 'case.<name>.<attribute>'");
         }
+        // Attributes are one segment, except the qualified ones. Walk back over the qualifier segments
+        // rather than testing a fixed depth: rows.<row>.<column> is three, and a rule written for the
+        // two-segment case swallowed one of its indices into the name -- silently, because the result
+        // was still a plausible name and the case simply went missing from the corpus.
         String head = rest.substring(0, last);
         int previous = head.lastIndexOf('.');
+        if (previous >= 0 && isIndex(head.substring(previous + 1))) {
+            head = head.substring(0, previous);
+            previous = head.lastIndexOf('.');
+        }
         if (previous >= 0) {
-            // The two attributes that take a qualifier: the key being registered and the column index
-            // are themselves the last segment, so the attribute is the two segments together.
             String qualified = head.substring(previous + 1);
-            if (qualified.equals("settings") || qualified.equals("columns")) {
+            if (QUALIFIED_ATTRIBUTES.contains(qualified)) {
                 return head.substring(0, previous);
             }
         }
         return head;
+    }
+
+    /** Whether a segment is an index rather than part of a name. */
+    private static boolean isIndex(String segment) {
+        if (segment.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < segment.length(); i++) {
+            if (Character.isDigit(segment.charAt(i)) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** The expected columns of a case, in the order their indices give. */

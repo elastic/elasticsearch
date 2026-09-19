@@ -239,6 +239,24 @@ public class DatasetRegistrationContractIT extends ESRestTestCase {
             names,
             equalTo(contractCase.columns())
         );
+
+        if (contractCase.rows().isEmpty()) {
+            return;
+        }
+        // Column names reach most settings, because the discriminating bytes can go in the header. They
+        // do not reach the ones whose whole effect is inside a cell -- a null sentinel, a truncation, a
+        // parsed date -- where the header is identical either way.
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) response.get("values");
+        assertThat("the query returned no rows", values, notNullValue());
+        List<List<String>> actual = values.stream().map(row -> row.stream().map(String::valueOf).toList()).toList();
+        assertThat(
+            contractCase.settings()
+                + " was accepted and the rows do not show it. These are the values the "
+                + "file produces when the setting is IGNORED.",
+            actual,
+            equalTo(contractCase.rows())
+        );
     }
 
     /**

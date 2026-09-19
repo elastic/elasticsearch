@@ -436,7 +436,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                     Collections.unmodifiableMap(extraContent),
                     timestampFieldValueRange
                 ),
-            Long.parseLong(reference.getIndexCommit().getUserData().get(SequenceNumbers.MAX_SEQ_NO))
+            Long.parseLong(reference.getIndexCommit().getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
+            localCheckpointOf(reference)
         );
         pendingCompoundCommits.add(pendingCompoundCommit);
         assert currentOffset.get() == headerOffset + pendingCompoundCommit.getSizeInBytes()
@@ -929,12 +930,22 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         return true;
     }
 
+    /**
+     * The local checkpoint recorded in a commit, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO} when the commit does not carry one.
+     * It is only used for logging, so an absent value must not stop a commit being appended.
+     */
+    private static long localCheckpointOf(StatelessCommitRef reference) throws IOException {
+        final String localCheckpoint = reference.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY);
+        return localCheckpoint == null ? SequenceNumbers.UNASSIGNED_SEQ_NO : Long.parseLong(localCheckpoint);
+    }
+
     // TODO: make package-private ES-13786
     public static class PendingCompoundCommit implements Closeable, Comparable<PendingCompoundCommit> {
         private final int headerSize;
         private final StatelessCommitRef reference;
         private final StatelessCompoundCommit statelessCompoundCommit;
         private final long maxSeqNo;
+        private final long localCheckpoint;
         // No need to be volatile because writing is synchronized at higher level in StatelessCommitService
         // and reading is dispatched to another thread after a second synchronization
         private int padding = 0;
@@ -950,12 +961,14 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             int headerSize,
             StatelessCommitRef reference,
             StatelessCompoundCommit statelessCompoundCommit,
-            long maxSeqNo
+            long maxSeqNo,
+            long localCheckpoint
         ) {
             this.headerSize = headerSize;
             this.reference = reference;
             this.statelessCompoundCommit = statelessCompoundCommit;
             this.maxSeqNo = maxSeqNo;
+            this.localCheckpoint = localCheckpoint;
             assert statelessCompoundCommit.hollow() == reference.isHollow()
                 : "stateless compound commit hollow flag ["
                     + statelessCompoundCommit.hollow()
@@ -975,6 +988,10 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
         long getMaxSeqNo() {
             return maxSeqNo;
+        }
+
+        long getLocalCheckpoint() {
+            return localCheckpoint;
         }
 
         StatelessCommitRef getCommitReference() {

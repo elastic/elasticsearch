@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -203,25 +204,33 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BccUploadRe
                             virtualBcc.getTotalSizeInBytes()
                         )
                     );
-                    if (logger.isDebugEnabled()) {
-                        final var timing = attemptTimings.getLast();
-                        logger.debug(() -> {
-                            int uploadedFileCount = 0;
-                            long uploadedFileBytes = 0;
-                            for (Map.Entry<String, BlobLocation> entry : virtualBcc.getInternalLocations().entrySet()) {
-                                uploadedFileCount++;
-                                uploadedFileBytes += entry.getValue().fileLength();
-                            }
-                            return format(
-                                "%s commit [%s] uploaded in %s (%s files, %s total bytes)",
-                                shardId,
-                                virtualBcc.primaryTermAndGeneration(),
-                                timing.toLogString(),
-                                uploadedFileCount,
-                                uploadedFileBytes
-                            );
-                        });
-                    }
+                    final var timing = attemptTimings.getLast();
+                    // The sequence numbers a commit covered are only held in the commit itself, which is normally
+                    // superseded and deleted within minutes, so they have to be recorded as it is written.
+                    logger.info(() -> {
+                        int uploadedFileCount = 0;
+                        long uploadedFileBytes = 0;
+                        for (Map.Entry<String, BlobLocation> entry : virtualBcc.getInternalLocations().entrySet()) {
+                            uploadedFileCount++;
+                            uploadedFileBytes += entry.getValue().fileLength();
+                        }
+                        final var commits = virtualBcc.getPendingCompoundCommits();
+                        final var newest = commits.getLast();
+                        return format(
+                            "%s uuid [%s] commit [%s] blob [%s] uploaded in %s (%s files, %s total bytes, "
+                                + "generations [%s], local_checkpoint [%s], max_seq_no [%s])",
+                            shardId,
+                            shardId.getIndex().getUUID(),
+                            virtualBcc.primaryTermAndGeneration(),
+                            virtualBcc.getBlobName(),
+                            timing.toLogString(),
+                            uploadedFileCount,
+                            uploadedFileBytes,
+                            commits.stream().map(c -> Long.toString(c.getGeneration())).collect(Collectors.joining(",")),
+                            newest.getLocalCheckpoint(),
+                            newest.getMaxSeqNo()
+                        );
+                    });
                     l.onResponse(null);
                 })
             );

@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -259,7 +260,14 @@ public class DatasetRegistrationContractIT extends ESRestTestCase {
      * the suite guessing from the string.
      */
     private static String resourceFor(RegistrationContract.Case declared) {
-        java.nio.file.Path file = FIXTURE_DIR.resolve(declared.resource());
+        Path file = FIXTURE_DIR.resolve(declared.resource());
+        if (declared.content() != null) {
+            try {
+                Files.writeString(file, declared.content());
+            } catch (IOException e) {
+                throw new AssertionError("could not write the fixture for [" + declared.name() + "]", e);
+            }
+        }
         return declared.rawPath() ? file.toString() : file.toUri().toString();
     }
 
@@ -273,7 +281,9 @@ public class DatasetRegistrationContractIT extends ESRestTestCase {
      */
     private static Path initFixtureDir() {
         try {
-            Path dir = Files.createTempDirectory("registration-contract-");
+            // The two-argument form: the no-location overload is a forbidden API here, because a temp
+            // directory with no declared parent lands wherever the JVM decides.
+            Path dir = Files.createTempDirectory(PathUtils.get(System.getProperty("java.io.tmpdir")), "registration-contract-");
             Files.writeString(dir.resolve("simple.csv"), "a,b\n1,foo\n2,bar\n");
             // CSV bytes under a name that implies no format, so an explicit `format` decides what the
             // reader is told to expect and nothing at registration can contradict it.

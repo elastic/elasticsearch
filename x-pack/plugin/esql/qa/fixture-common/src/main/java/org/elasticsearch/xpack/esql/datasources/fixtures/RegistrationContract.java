@@ -56,7 +56,8 @@ public final class RegistrationContract {
         "query",
         "resource",
         "resource_form",
-        "blocked_by"
+        "blocked_by",
+        "content"
     );
 
     /**
@@ -118,6 +119,7 @@ public final class RegistrationContract {
      * @param absent    a substring the failure must NOT contain, or null
      * @param blockedBy the filed issue that stops this case passing today, or null when it passes
      * @param columns   for a {@code QUERY_SUCCEEDS} case, the column names the result must have
+     * @param content   the bytes to write for this case, or null to use the suite's shared fixture
      */
     public record Case(
         String name,
@@ -131,7 +133,8 @@ public final class RegistrationContract {
         boolean rawPath,
         String absent,
         String blockedBy,
-        List<String> columns
+        List<String> columns,
+        String content
     ) {
         public Case {
             settings = Map.copyOf(settings);
@@ -211,7 +214,11 @@ public final class RegistrationContract {
             String prefix = "case." + name + "." + SETTINGS_PREFIX;
             for (String key : new TreeSet<>(props.stringPropertyNames())) {
                 if (key.startsWith(prefix)) {
-                    settings.put(key.substring(prefix.length()), props.getProperty(key).trim());
+                    // NOT trimmed. A setting value can be whitespace and mean it -- a tab delimiter is
+                    // the case that caught this, arriving as an empty string and silently reading the
+                    // file on the comma default. Properties already strips what precedes the value, so
+                    // what is left is what the case wrote.
+                    settings.put(key.substring(prefix.length()), props.getProperty(key));
                 }
             }
             if (settings.isEmpty()) {
@@ -260,7 +267,13 @@ public final class RegistrationContract {
             }
             // The default fixture is a well-formed file of the declared format. A query-failure case is
             // usually about bytes that do NOT match what the settings announce, so it names its own.
-            String resource = props.getProperty("case." + name + ".resource", "simple." + format).trim();
+            // Bytes declared with the case. An effect case is only worth having when the data parses
+            // differently under the setting than under the default, so the fixture is part of the case
+            // rather than something shared -- and putting the discriminating bytes in the HEADER means
+            // a mis-parse shows up as different column names rather than only different values.
+            String content = props.getProperty("case." + name + ".content");
+            String resource = props.getProperty("case." + name + ".resource", content != null ? name + "." + format : "simple." + format)
+                .trim();
             String resourceForm = props.getProperty("case." + name + ".resource_form", "uri").trim();
             if (resourceForm.equals("uri") == false && resourceForm.equals("path") == false) {
                 throw new IllegalStateException(
@@ -298,7 +311,8 @@ public final class RegistrationContract {
                     resourceForm.equals("path"),
                     absent,
                     blockedBy,
-                    columns
+                    columns,
+                    content
                 )
             );
         }

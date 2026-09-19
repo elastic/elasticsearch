@@ -57,7 +57,8 @@ public final class RegistrationContract {
         "resource",
         "resource_form",
         "blocked_by",
-        "content"
+        "content",
+        "content_charset"
     );
 
     /**
@@ -120,6 +121,8 @@ public final class RegistrationContract {
      * @param blockedBy the filed issue that stops this case passing today, or null when it passes
      * @param columns   for a {@code QUERY_SUCCEEDS} case, the column names the result must have
      * @param content   the bytes to write for this case, or null to use the suite's shared fixture
+     * @param contentCharset the charset the content is WRITTEN in, which is the point of an encoding
+     *                       case: bytes valid in the declared charset and invalid as UTF-8
      */
     public record Case(
         String name,
@@ -134,7 +137,8 @@ public final class RegistrationContract {
         String absent,
         String blockedBy,
         List<String> columns,
-        String content
+        String content,
+        String contentCharset
     ) {
         public Case {
             settings = Map.copyOf(settings);
@@ -272,6 +276,14 @@ public final class RegistrationContract {
             // rather than something shared -- and putting the discriminating bytes in the HEADER means
             // a mis-parse shows up as different column names rather than only different values.
             String content = props.getProperty("case." + name + ".content");
+            // The charset the fixture is WRITTEN in, which is a different question from the encoding
+            // the dataset declares. An encoding case is only meaningful when the two differ: bytes
+            // that are valid in the declared charset and not valid UTF-8 are what separate a reader
+            // honouring the setting from one that decoded with its default and substituted.
+            String contentCharset = props.getProperty("case." + name + ".content_charset", "UTF-8").trim();
+            if (content == null && props.getProperty("case." + name + ".content_charset") != null) {
+                throw new IllegalStateException("case [" + name + "] declares a content_charset but no content to write in it");
+            }
             String resource = props.getProperty("case." + name + ".resource", content != null ? name + "." + format : "simple." + format)
                 .trim();
             String resourceForm = props.getProperty("case." + name + ".resource_form", "uri").trim();
@@ -312,7 +324,8 @@ public final class RegistrationContract {
                     absent,
                     blockedBy,
                     columns,
-                    content
+                    content,
+                    contentCharset
                 )
             );
         }

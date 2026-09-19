@@ -25,6 +25,7 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -263,7 +264,7 @@ public class DatasetRegistrationContractIT extends ESRestTestCase {
         Path file = FIXTURE_DIR.resolve(declared.resource());
         if (declared.content() != null) {
             try {
-                Files.writeString(file, declared.content());
+                Files.write(file, declared.content().getBytes(Charset.forName(declared.contentCharset())));
             } catch (IOException e) {
                 throw new AssertionError("could not write the fixture for [" + declared.name() + "]", e);
             }

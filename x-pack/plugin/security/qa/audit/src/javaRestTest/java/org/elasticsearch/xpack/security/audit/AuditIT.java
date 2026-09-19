@@ -126,7 +126,7 @@ public class AuditIT extends ESRestTestCase {
                 + accessKey
                 + "\",\"secret_key\":\""
                 + secretKey
-                + "\",\"endpoint\":\"http://localhost:12345\"}}"
+                + "\",\"endpoint\":\"https://s3.us-east-1.amazonaws.com\"}}"
         );
         executeAndVerifyAudit(request, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
             String body = asInstanceOf(String.class, event.get(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME));
@@ -160,7 +160,7 @@ public class AuditIT extends ESRestTestCase {
                 + accessKey
                 + "\",\"secret_key\":\""
                 + secretKey
-                + "\",\"endpoint\":\"http://localhost:12345\"}}"
+                + "\",\"endpoint\":\"https://s3.us-east-1.amazonaws.com\"}}"
         );
         request.addParameter("source_content_type", "application/json");
         request.addParameter("ignore", "400");

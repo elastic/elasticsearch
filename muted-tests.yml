@@ -790,3 +790,6 @@ tests:
 - class: org.elasticsearch.xpack.prometheus.PrometheusQueryRangeRestIT
   method: testRangeAggregatedOperandsMatchAcrossIngestionPaths
   issue: https://github.com/elastic/elasticsearch/issues/159797
+- class: org.elasticsearch.xpack.prometheus.PrometheusQueryRangeRestIT
+  method: testRangeExplicitOnMatchesRetainedMetricNames
+  issue: https://github.com/elastic/elasticsearch/issues/159798

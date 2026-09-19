@@ -202,8 +202,45 @@ public class PlannerUtils {
             .stream()
             .map(child -> buildSubPlan(new ExchangeSinkExec(child.source(), child.output(), false, child)))
             .toList();
-        return new SubPlan.Merge(segmentPlan, children);
+        return new SubPlan.Merge(segmentPlan, children, topmostMerge.get().kind());
     }
+
+    /**
+     * When the plan contains children like {@code MergeExec} resulted from the planning of commands such as FORK,
+     * we need to break the plan into sub plans and a main coordinator plan.
+     * The result pages from each sub plan will be funneled to the main coordinator plan.
+     * To achieve this, we wire each sub plan with a {@code ExchangeSinkExec} and add a {@code ExchangeSourceExec}
+     * to the main coordinator plan.
+     * There is an additional split of each sub plan into a data node plan and coordinator plan.
+     * This split is not done here, but as part of {@code PlannerUtils#breakPlanBetweenCoordinatorAndDataNode}.
+     * <p>
+     * {@link SubPlansAndMainPlan#kind()} is the kind of the {@link MergeExec} whose children became the
+     * subplans, so placement does not need a second walk to recover it. Nested merges still collapse to
+     * the outermost node: {@code transformUp} overwrites {@code subplans} as it walks out, and that
+     * same node supplies the kind.
+     */
+    public static SubPlansAndMainPlan breakPlanIntoSubPlansAndMainPlan(PhysicalPlan plan) {
+        var subplans = new Holder<List<PhysicalPlan>>();
+        var kind = new Holder<MergeExec.Kind>();
+        PhysicalPlan mainPlan = plan.transformUp(MergeExec.class, me -> {
+            subplans.set(
+                me.children()
+                    .stream()
+                    .map(child -> (PhysicalPlan) new ExchangeSinkExec(child.source(), child.output(), false, child))
+                    .toList()
+            );
+            kind.set(me.kind());
+            return new ExchangeSourceExec(me.source(), me.output(), false);
+        });
+
+        return new SubPlansAndMainPlan(subplans.get(), mainPlan, kind.get());
+    }
+
+    /**
+     * Result of splitting a {@link MergeExec} into per-child subplans plus the coordinator plan that
+     * gathers them. {@code subplans} and {@code kind} are null when the plan has no merge.
+     */
+    public record SubPlansAndMainPlan(List<PhysicalPlan> subplans, PhysicalPlan mainPlan, MergeExec.Kind kind) {}
 
     public static Tuple<PhysicalPlan, PhysicalPlan> breakPlanBetweenCoordinatorAndDataNode(PhysicalPlan plan, Configuration config) {
         var dataNodePlan = new Holder<PhysicalPlan>();

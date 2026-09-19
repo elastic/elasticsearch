@@ -87,6 +87,11 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(tablePathString(out), equalTo("s3://logs/*.parquet"));
         assertThat(datasourceParamValue(out, "region"), nullValue());
         assertThat(paramValue(out, "format"), equalTo("parquet"));
+        assertThat(
+            "legacy stored document without schema_resolution hydrates as union_by_name",
+            paramValue(out, ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION),
+            equalTo("union_by_name")
+        );
     }
 
     public void testRemovedParquetDatasetSettingsAreStrippedOnRewrite() {
@@ -111,6 +116,23 @@ public class DatasetRewriterTests extends ESTestCase {
         for (String key : RemovedParquetDatasetSettings.KEYS) {
             assertFalse(out.config().containsKey(key));
         }
+        assertThat(paramValue(out, ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION), equalTo("union_by_name"));
+    }
+
+    public void testStoredFirstFileWinsIsNotHydratedToUnionByName() {
+        DataSource parent = dataSource("s3_parent", Map.of("region", new DataSourceSetting("us-east-1", false)));
+        Dataset dataset = new Dataset(
+            "logs",
+            new DataSourceReference("s3_parent"),
+            "s3://logs/*.parquet",
+            null,
+            Map.of("format", "parquet", "schema_resolution", "first_file_wins")
+        );
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        LogicalPlan rewritten = rewrite(relationOf("logs"), project);
+        UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
+        assertThat(paramValue(out, ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION), equalTo("first_file_wins"));
     }
 
     public void testDatasetSettingsOverrideParentOnKeyCollision() {
@@ -477,7 +499,7 @@ public class DatasetRewriterTests extends ESTestCase {
     public void testHeterogeneousFromUnderCpsEmitsShadowForDataset() {
         // A heterogeneous FROM (local index + local dataset) under CPS must run the same
         // non-remotable-abstraction rail as a dataset-only FROM. The dataset's exact name gets a DatasetShadowRelation
-        // so a remote index of the same name reads both, a remote view of the same name fails, and a remote dataset of
+        // so a remote index of the same name reads both, a remote view of the same name is ignored, and a remote dataset of
         // the same name is invisible. Before the unification the heterogeneous path returned before the CPS rail,
         // silently skipping the dataset's remote half.
         DataSource parent = dataSource("s3_parent", Map.of());

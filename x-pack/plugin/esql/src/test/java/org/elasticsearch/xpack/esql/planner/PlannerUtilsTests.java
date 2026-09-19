@@ -62,8 +62,8 @@ public class PlannerUtilsTests extends ESTestCase {
         LocalSourceExec branchA = localSource(output);
         LocalSourceExec branchB = localSource(output);
         LocalSourceExec branchC = localSource(output);
-        MergeExec inner = new MergeExec(Source.EMPTY, List.of(branchB, branchC), output);
-        MergeExec outer = new MergeExec(Source.EMPTY, List.of(branchA, inner), output);
+        MergeExec inner = new MergeExec(Source.EMPTY, List.of(branchB, branchC), output, MergeExec.Kind.UNION);
+        MergeExec outer = new MergeExec(Source.EMPTY, List.of(branchA, inner), output, MergeExec.Kind.UNION);
 
         var executionPlan = PlannerUtils.buildSubPlan(outer);
 
@@ -138,7 +138,7 @@ public class PlannerUtilsTests extends ESTestCase {
         List<Attribute> output = List.of(field("a"));
         LocalSourceExec branchA = localSource(output);
         LocalSourceExec branchB = localSource(output);
-        MergeExec merge = new MergeExec(Source.EMPTY, List.of(branchA, branchB), output);
+        MergeExec merge = new MergeExec(Source.EMPTY, List.of(branchA, branchB), output, MergeExec.Kind.UNION);
         LimitExec limit = new LimitExec(Source.EMPTY, merge, new Literal(Source.EMPTY, 10, DataType.INTEGER), null);
 
         var executionPlan = PlannerUtils.buildSubPlan(limit);
@@ -198,9 +198,9 @@ public class PlannerUtilsTests extends ESTestCase {
         LocalSourceExec leafD = localSource(output);
         LocalSourceExec leafE = localSource(output);
         LocalSourceExec leafF = localSource(output);
-        MergeExec innerA = new MergeExec(Source.EMPTY, List.of(leafC, leafD), output);
-        MergeExec innerB = new MergeExec(Source.EMPTY, List.of(leafE, leafF), output);
-        MergeExec top = new MergeExec(Source.EMPTY, List.of(leafA, leafB, innerA, innerB), output);
+        MergeExec innerA = new MergeExec(Source.EMPTY, List.of(leafC, leafD), output, MergeExec.Kind.UNION);
+        MergeExec innerB = new MergeExec(Source.EMPTY, List.of(leafE, leafF), output, MergeExec.Kind.UNION);
+        MergeExec top = new MergeExec(Source.EMPTY, List.of(leafA, leafB, innerA, innerB), output, MergeExec.Kind.UNION);
 
         var executionPlan = PlannerUtils.buildSubPlan(top);
 
@@ -250,8 +250,8 @@ public class PlannerUtilsTests extends ESTestCase {
      */
     public void testBuildSubPlanRejectsSiblingTopmostMerges() {
         List<Attribute> output = List.of(field("a"));
-        MergeExec first = new MergeExec(Source.EMPTY, List.of(localSource(output), localSource(output)), output);
-        MergeExec second = new MergeExec(Source.EMPTY, List.of(localSource(output), localSource(output)), output);
+        MergeExec first = new MergeExec(Source.EMPTY, List.of(localSource(output), localSource(output)), output, MergeExec.Kind.UNION);
+        MergeExec second = new MergeExec(Source.EMPTY, List.of(localSource(output), localSource(output)), output, MergeExec.Kind.UNION);
         HashJoinExec siblingContainer = new HashJoinExec(Source.EMPTY, first, second, List.of(), List.of(), List.of());
 
         var exception = expectThrows(EsqlIllegalArgumentException.class, () -> PlannerUtils.buildSubPlan(siblingContainer));

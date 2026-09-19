@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.util.List;
@@ -166,10 +167,12 @@ public abstract sealed class SubPlan permits SubPlan.Leaf, SubPlan.Merge {
      */
     public static final class Merge extends SubPlan {
         private final List<SubPlan> children;
+        private final MergeExec.Kind kind;
 
-        public Merge(PhysicalPlan plan, List<SubPlan> children) {
+        public Merge(PhysicalPlan plan, List<SubPlan> children, MergeExec.Kind kind) {
             super(plan);
             this.children = List.copyOf(children);
+            this.kind = Objects.requireNonNull(kind);
             if (this.children.isEmpty()) {
                 // EsqlIllegalArgumentException, not a plain IllegalArgumentException: a branchless MergeExec is unreachable from user
                 // input (only Mapper.mapFork builds one, and Fork.checkBranchCount rejects a zero-branch Fork at verification), so this
@@ -181,6 +184,10 @@ public abstract sealed class SubPlan permits SubPlan.Leaf, SubPlan.Merge {
 
         public List<SubPlan> children() {
             return children;
+        }
+
+        public MergeExec.Kind kind() {
+            return kind;
         }
     }
 }

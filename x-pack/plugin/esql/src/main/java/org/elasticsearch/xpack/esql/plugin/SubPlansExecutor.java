@@ -20,6 +20,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.SubPlan;
@@ -241,13 +242,16 @@ final class SubPlansExecutor {
             this.exchange = new LocalExchange(queryPragmas.exchangeBufferSize());
             this.computeListener = new ComputeListener(cancelOnFailure, ActionListener.runBefore(listener, blocked::close));
             List<SubPlan> children = merge.children();
-            for (int i = 0; i < children.size(); i++) {
+            final MergeExec.Kind mergeKind = merge.kind();
+            final int childCount = children.size();
+            for (int i = 0; i < childCount; i++) {
                 final String childPath = childPath(path, i);
                 final ActionListener<DriverCompletionInfo> childListener = computeListener.acquireCompute();
+                final int siblingIndex = i;
                 this.children.add(switch (children.get(i)) {
                     case SubPlan.Leaf leaf -> {
                         unstartedLeaves++;
-                        yield new ExecutionLeaf(this, leaf, childPath, childListener);
+                        yield new ExecutionLeaf(this, leaf, childPath, childListener, mergeKind, siblingIndex, childCount);
                     }
                     case SubPlan.Merge nested -> {
                         var nestedExecution = new ExecutionMerge(
@@ -334,11 +338,25 @@ final class SubPlansExecutor {
     private final class ExecutionLeaf extends ExecutionNode {
         final SubPlan.Leaf plan;
         final ActionListener<DriverCompletionInfo> leafListener;
+        final MergeExec.Kind mergeKind;
+        final int siblingIndex;
+        final int siblingCount;
 
-        ExecutionLeaf(ExecutionMerge parent, SubPlan.Leaf plan, String path, ActionListener<DriverCompletionInfo> leafListener) {
+        ExecutionLeaf(
+            ExecutionMerge parent,
+            SubPlan.Leaf plan,
+            String path,
+            ActionListener<DriverCompletionInfo> leafListener,
+            MergeExec.Kind mergeKind,
+            int siblingIndex,
+            int siblingCount
+        ) {
             super(parent, path);
             this.plan = plan;
             this.leafListener = leafListener;
+            this.mergeKind = mergeKind;
+            this.siblingIndex = siblingIndex;
+            this.siblingCount = siblingCount;
         }
 
         @Override
@@ -385,7 +403,8 @@ final class SubPlansExecutor {
                     () -> parent.exchange.exchangeSink(() -> {}),
                     initialClusterStatuses,
                     configuration.profile() ? new PlanTimeProfile() : null,
-                    warnIndexCoordinatorOnce
+                    warnIndexCoordinatorOnce,
+                    SiblingPlacement.forMerge(mergeKind, siblingIndex, siblingCount)
                 );
             } catch (Exception e) {
                 resultListener.onFailure(e);

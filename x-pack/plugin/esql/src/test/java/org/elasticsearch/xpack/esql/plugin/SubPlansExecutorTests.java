@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.SubPlan;
@@ -291,7 +292,7 @@ public class SubPlansExecutorTests extends ESTestCase {
         var injected = new RuntimeException("injected synchronous executePlan failure");
         stubRunComputeSuccess();
         doThrow(injected).when(computeService)
-            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
 
         var future = new PlainActionFuture<Result>();
         buildAndExecute(oneMergeNLeaves(2), future);
@@ -321,7 +322,8 @@ public class SubPlansExecutorTests extends ESTestCase {
                 return null;
             }
             throw injected;
-        }).when(computeService).executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        }).when(computeService)
+            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
 
         var future = new PlainActionFuture<Result>();
         buildAndExecute(oneMergeNLeaves(2), new QueryPragmas(Settings.builder().put("branch_parallel_degree", 1).build()), future);
@@ -351,7 +353,8 @@ public class SubPlansExecutorTests extends ESTestCase {
                 listener.onResponse(new Result(List.of(), List.of(), null, cfg, DriverCompletionInfo.EMPTY, null, null));
             });
             return null;
-        }).when(computeService).executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        }).when(computeService)
+            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
 
         var future = new PlainActionFuture<Result>();
         buildAndExecute(oneMergeNLeaves(3), new QueryPragmas(Settings.builder().put("branch_parallel_degree", 1).build()), future);
@@ -457,6 +460,7 @@ public class SubPlansExecutorTests extends ESTestCase {
             any(),
             any(),
             any(),
+            any(),
             any()
         );
         assertBusy(() -> assertTrue("all exchanges must be deregistered after pre-dispatch STOP", exchangeFullyEmpty()));
@@ -503,7 +507,8 @@ public class SubPlansExecutorTests extends ESTestCase {
                 parkedLeaves.add(listener);
             }
             return null;
-        }).when(computeService).executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        }).when(computeService)
+            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
 
         var future = new PlainActionFuture<Result>();
         buildAndExecute(twoMergesThreeLeaves(), new QueryPragmas(Settings.builder().put("branch_parallel_degree", 2).build()), future);
@@ -627,7 +632,8 @@ public class SubPlansExecutorTests extends ESTestCase {
             Configuration cfg = inv.getArgument(4);
             listener.onResponse(new Result(List.of(), List.of(), null, cfg, DriverCompletionInfo.EMPTY, null, null));
             return null;
-        }).when(computeService).executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        }).when(computeService)
+            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
 
         var future1 = new PlainActionFuture<Result>();
         buildAndExecute(oneMergeNLeaves(2), future1);
@@ -711,7 +717,8 @@ public class SubPlansExecutorTests extends ESTestCase {
             Configuration cfg = inv.getArgument(4);
             listener.onResponse(new Result(List.of(), List.of(), null, cfg, DriverCompletionInfo.EMPTY, null, null));
             return null;
-        }).when(computeService).executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        }).when(computeService)
+            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     /**
@@ -731,7 +738,8 @@ public class SubPlansExecutorTests extends ESTestCase {
                 listener.onResponse(new Result(List.of(), List.of(), null, cfg, DriverCompletionInfo.EMPTY, null, null));
             }
             return null;
-        }).when(computeService).executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        }).when(computeService)
+            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     /**
@@ -821,7 +829,8 @@ public class SubPlansExecutorTests extends ESTestCase {
             }
             parked.countDown();
             return null;
-        }).when(computeService).executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        }).when(computeService)
+            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     private void completeWhenSourceFinished(ExchangeSource source, Runnable onDone) {
@@ -964,7 +973,7 @@ public class SubPlansExecutorTests extends ESTestCase {
         for (int i = 0; i < n; i++) {
             leaves.add(new SubPlan.Leaf(stub));
         }
-        return new SubPlan.Merge(stub, leaves);
+        return new SubPlan.Merge(stub, leaves, MergeExec.Kind.UNION);
     }
 
     /**
@@ -978,8 +987,8 @@ public class SubPlansExecutorTests extends ESTestCase {
      */
     private static SubPlan.Merge twoMergesThreeLeaves() {
         PhysicalPlan stub = new LocalSourceExec(org.elasticsearch.xpack.esql.core.tree.Source.EMPTY, List.of(), EmptyLocalSupplier.EMPTY);
-        SubPlan.Merge inner = new SubPlan.Merge(stub, List.of(new SubPlan.Leaf(stub), new SubPlan.Leaf(stub)));
-        return new SubPlan.Merge(stub, List.of(new SubPlan.Leaf(stub), inner));
+        SubPlan.Merge inner = new SubPlan.Merge(stub, List.of(new SubPlan.Leaf(stub), new SubPlan.Leaf(stub)), MergeExec.Kind.UNION);
+        return new SubPlan.Merge(stub, List.of(new SubPlan.Leaf(stub), inner), MergeExec.Kind.UNION);
     }
 
     /**
@@ -997,11 +1006,12 @@ public class SubPlansExecutorTests extends ESTestCase {
      */
     private static SubPlan.Merge threeMergesSixLeaves() {
         PhysicalPlan stub = new LocalSourceExec(org.elasticsearch.xpack.esql.core.tree.Source.EMPTY, List.of(), EmptyLocalSupplier.EMPTY);
-        SubPlan.Merge innerA = new SubPlan.Merge(stub, List.of(new SubPlan.Leaf(stub), new SubPlan.Leaf(stub)));
+        SubPlan.Merge innerA = new SubPlan.Merge(stub, List.of(new SubPlan.Leaf(stub), new SubPlan.Leaf(stub)), MergeExec.Kind.UNION);
         SubPlan.Merge innerB = new SubPlan.Merge(
             stub,
-            List.of(new SubPlan.Leaf(stub), new SubPlan.Leaf(stub), new SubPlan.Leaf(stub), new SubPlan.Leaf(stub))
+            List.of(new SubPlan.Leaf(stub), new SubPlan.Leaf(stub), new SubPlan.Leaf(stub), new SubPlan.Leaf(stub)),
+            MergeExec.Kind.UNION
         );
-        return new SubPlan.Merge(stub, List.of(innerA, innerB));
+        return new SubPlan.Merge(stub, List.of(innerA, innerB), MergeExec.Kind.UNION);
     }
 }

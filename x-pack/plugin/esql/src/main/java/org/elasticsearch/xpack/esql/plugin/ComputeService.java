@@ -429,19 +429,14 @@ public class ComputeService {
         };
     }
 
-    ExternalDistributionResult applyExternalDistributionStrategy(
-        PhysicalPlan plan,
-        Configuration configuration,
-        EsqlExecutionInfo execInfo,
-        BooleanSupplier isCancelled
-    ) {
-        return applyExternalDistributionStrategy(collectExternalSplits(plan, configuration, execInfo, isCancelled), configuration);
-    }
-
     /**
      * CPU-only distribution after splits are already collected. Must not perform object-store IO.
      */
-    ExternalDistributionResult applyExternalDistributionStrategy(CollectedSplits collected, Configuration configuration) {
+    ExternalDistributionResult applyExternalDistributionStrategy(
+        CollectedSplits collected,
+        Configuration configuration,
+        SiblingPlacement placement
+    ) {
         // Fragment-path discovery may have rewritten exhaustively-pruned relations to FileList.EMPTY; use the
         // rewritten plan from here on so the empty-splits (coordinator-local) and distributed paths both read nothing
         // for those relations instead of scanning the whole dataset only to have a downstream row filter drop it all.
@@ -456,7 +451,8 @@ public class ComputeService {
             resolvedPlan,
             externalSplits,
             clusterService.state().nodes(),
-            configuration.pragmas()
+            configuration.pragmas(),
+            placement
         );
 
         ExternalDistributionPlan distributionPlan = strategy.planDistribution(context);
@@ -1080,6 +1076,44 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile,
         Runnable warnIndexCoordinatorOnce
     ) {
+        executePlan(
+            sessionId,
+            rootTask,
+            flags,
+            physicalPlan,
+            configuration,
+            foldContext,
+            execInfo,
+            profileQualifier,
+            listener,
+            exchangeSinkSupplier,
+            initialClusterStatuses,
+            planTimeProfile,
+            warnIndexCoordinatorOnce,
+            SiblingPlacement.SINGLE
+        );
+    }
+
+    /**
+     * Runs one producer after split discovery, placing it with {@code placement} so sibling
+     * UNION leaves rotate and hop instead of stacking on the coordinator.
+     */
+    public void executePlan(
+        String sessionId,
+        CancellableTask rootTask,
+        EsqlFlags flags,
+        PhysicalPlan physicalPlan,
+        Configuration configuration,
+        FoldContext foldContext,
+        EsqlExecutionInfo execInfo,
+        String profileQualifier,
+        ActionListener<Result> listener,
+        Supplier<ExchangeSink> exchangeSinkSupplier,
+        Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
+        PlanTimeProfile planTimeProfile,
+        Runnable warnIndexCoordinatorOnce,
+        SiblingPlacement placement
+    ) {
         final long splitDiscoveryStart = System.nanoTime();
         // Capture the inbound ThreadContext before Phase-2 hops to esql_external_io / SDK
         // threads. Those completions have no security user; SEARCH's executor would then
@@ -1101,7 +1135,8 @@ public class ComputeService {
                         initialClusterStatuses,
                         planTimeProfile,
                         warnIndexCoordinatorOnce,
-                        splitDiscoveryStart
+                        splitDiscoveryStart,
+                        placement
                     ),
                     listener
                 ),
@@ -1185,7 +1220,8 @@ public class ComputeService {
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
         PlanTimeProfile planTimeProfile,
         Runnable warnIndexCoordinatorOnce,
-        long splitDiscoveryStart
+        long splitDiscoveryStart,
+        SiblingPlacement placement
     ) {
         final ExternalDistributionResult distributionResult;
         try {
@@ -1193,7 +1229,7 @@ public class ComputeService {
             // already landed via recordExternalScanStats from the fan-out executor. Do not start
             // this timer before the hop: start and completion would be different threads.
             long splitDiscoveryCpuStart = ThreadCpuTimer.currentNanos();
-            distributionResult = applyExternalDistributionStrategy(collected, configuration);
+            distributionResult = applyExternalDistributionStrategy(collected, configuration, placement);
             if (runsExternalScanLocally(distributionResult, clusterService.localNode().getId())) {
                 warnIndexCoordinatorOnce.run();
             }

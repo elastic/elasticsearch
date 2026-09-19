@@ -79,8 +79,11 @@ public final class FixtureExclusions {
             }
             for (String slot : vectorSlots.split(",")) {
                 String trimmed = slot.trim();
-                int dot = trimmed.indexOf('.');
-                if (trimmed.substring(dot + 1).equals(vector.get(trimmed.substring(0, dot))) == false) {
+                // The dimension name may itself carry a dot, so the boundary is the name's length
+                // rather than the first separator -- splitting on the first dot read the GROUP as the
+                // dimension and the rest as the value, and matched nothing.
+                String dimension = FixtureDimensions.dimensionNameIn(trimmed);
+                if (dimension == null || trimmed.substring(dimension.length() + 1).equals(vector.get(dimension)) == false) {
                     return false;
                 }
             }

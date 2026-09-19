@@ -143,7 +143,7 @@ public final class FixtureContractAudit {
 
     static List<Cell> audit(FixtureDimensions dimensions) {
         List<Cell> cells = new ArrayList<>();
-        List<String> formats = dimensions.values("format");
+        List<String> formats = dimensions.values("data.format");
         for (String dimension : dimensions.names()) {
             Set<String> scope = dimensions.appliesTo(dimension);
             for (String value : dimensions.values(dimension)) {
@@ -152,7 +152,7 @@ public final class FixtureContractAudit {
                         continue;
                     }
                     // The format axis names itself: the cell (format, tsv) only exists on tsv.
-                    if (dimension.equals("format") && value.equals(format) == false) {
+                    if (dimension.equals("data.format") && value.equals(format) == false) {
                         continue;
                     }
                     if (value.equals(dimensions.defaultValue(dimension, format))) {

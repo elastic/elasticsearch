@@ -41,9 +41,9 @@ public class FixtureDimensionsTests extends ESTestCase {
 
     private final FixtureDimensions dimensions = FixtureDimensions.get();
 
-    private static final Pattern PER_FORMAT_DEFAULT = Pattern.compile("dimension\\.[a-z_]+\\.default\\.(.+)");
+    private static final Pattern PER_FORMAT_DEFAULT = Pattern.compile("dimension\\.[a-z_]+(?:\\.[a-z_]+)?\\.default\\.(.+)");
     /** A format-local tier selection: {@code dimension.<n>.tier.<value>.<format>}, four segments deep. */
-    private static final Pattern PER_FORMAT_TIER = Pattern.compile("dimension\\.[a-z_]+\\.tier\\.[a-z_]+\\.(.+)");
+    private static final Pattern PER_FORMAT_TIER = Pattern.compile("dimension\\.[a-z_]+(?:\\.[a-z_]+)?\\.tier\\.[a-z_]+\\.(.+)");
 
     /**
      * The pair table must be total. This is the gate that turns "did anyone think about this
@@ -157,26 +157,26 @@ public class FixtureDimensionsTests extends ESTestCase {
     /** A minimal well-formed declaration, so each test below alters exactly one thing. */
     private static String[] wellFormed() {
         return new String[] {
-            "dimension.format.values = csv, parquet",
-            "dimension.format.default = csv",
-            "dimension.format.binds = fixture",
-            "dimension.error_mode.values = fail_fast, skip_row",
-            "dimension.error_mode.default = fail_fast",
-            "dimension.error_mode.binds = directive",
-            "pair.error_mode.format = interacting",
+            "dimension.data.format.values = csv, parquet",
+            "dimension.data.format.default = csv",
+            "dimension.data.format.binds = fixture",
+            "dimension.dataset.error_mode.values = fail_fast, skip_row",
+            "dimension.dataset.error_mode.default = fail_fast",
+            "dimension.dataset.error_mode.binds = directive",
+            "pair.data.format.dataset.error_mode = interacting",
             // Appended last on purpose: the tests below edit this array by index.
-            "dimension.error_mode.key = error_mode" };
+            "dimension.dataset.error_mode.key = error_mode" };
     }
 
     public void testAWellFormedDeclarationParses() {
         FixtureDimensions parsed = FixtureDimensions.parse(declaration(wellFormed()));
-        assertThat(parsed.names(), equalTo(List.of("error_mode", "format")));
-        assertThat(parsed.binds("format"), equalTo("fixture"));
+        assertThat(parsed.names(), equalTo(List.of("data.format", "dataset.error_mode")));
+        assertThat(parsed.binds("data.format"), equalTo("fixture"));
     }
 
     /** An unrecognised key is a typo or an invented attribute; either way it would do nothing silently. */
     public void testUnknownKeyIsRejected() {
-        String[] lines = ArrayUtils.append(wellFormed(), "dimension.format.colour = blue");
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.data.format.colour = blue");
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("colour"));
     }
@@ -184,7 +184,7 @@ public class FixtureDimensionsTests extends ESTestCase {
     /** The default anchors every generated vector, so one outside its own values makes the baseline a fiction. */
     public void testADefaultOutsideItsOwnValuesIsRejected() {
         String[] lines = wellFormed().clone();
-        lines[1] = "dimension.format.default = orc";
+        lines[1] = "dimension.data.format.default = orc";
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("orc"));
     }
@@ -192,13 +192,13 @@ public class FixtureDimensionsTests extends ESTestCase {
     /** A dimension nothing knows how to apply would generate vectors that cannot be run. */
     public void testAMissingBindsIsRejected() {
         String[] lines = new String[] {
-            "dimension.format.values = csv, parquet",
-            "dimension.format.default = csv",
-            "dimension.error_mode.values = fail_fast, skip_row",
-            "dimension.error_mode.default = fail_fast",
-            "dimension.error_mode.binds = directive",
-            "dimension.error_mode.key = error_mode",
-            "pair.error_mode.format = interacting" };
+            "dimension.data.format.values = csv, parquet",
+            "dimension.data.format.default = csv",
+            "dimension.dataset.error_mode.values = fail_fast, skip_row",
+            "dimension.dataset.error_mode.default = fail_fast",
+            "dimension.dataset.error_mode.binds = directive",
+            "dimension.dataset.error_mode.key = error_mode",
+            "pair.data.format.dataset.error_mode = interacting" };
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("binds"));
     }
@@ -209,20 +209,20 @@ public class FixtureDimensionsTests extends ESTestCase {
      */
     public void testAnIncompletePairTableIsRejected() {
         String[] lines = new String[] {
-            "dimension.format.values = csv, parquet",
-            "dimension.format.default = csv",
-            "dimension.format.binds = fixture",
-            "dimension.error_mode.values = fail_fast, skip_row",
-            "dimension.error_mode.default = fail_fast",
-            "dimension.error_mode.binds = directive" };
+            "dimension.data.format.values = csv, parquet",
+            "dimension.data.format.default = csv",
+            "dimension.data.format.binds = fixture",
+            "dimension.dataset.error_mode.values = fail_fast, skip_row",
+            "dimension.dataset.error_mode.default = fail_fast",
+            "dimension.dataset.error_mode.binds = directive" };
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
-        assertThat(e.getMessage(), containsString("error_mode.format"));
+        assertThat(e.getMessage(), containsString("data.format.dataset.error_mode"));
     }
 
     /** An unknown verdict is not a fourth state to be guessed at; it is a typo. */
     public void testAnUnknownVerdictIsRejected() {
         String[] lines = wellFormed().clone();
-        lines[6] = "pair.error_mode.format = probably";
+        lines[6] = "pair.data.format.dataset.error_mode = probably";
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("probably"));
     }
@@ -234,7 +234,7 @@ public class FixtureDimensionsTests extends ESTestCase {
      */
     public void testADirectiveDimensionWithoutAKeyOrDerivedIsRejected() {
         String[] lines = wellFormed().clone();
-        lines[7] = "dimension.error_mode.applies_to = csv, parquet";
+        lines[7] = "dimension.dataset.error_mode.applies_to = csv, parquet";
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("neither a key nor derived"));
     }
@@ -251,14 +251,14 @@ public class FixtureDimensionsTests extends ESTestCase {
      */
     public void testDirectiveSettingsNeverEmitsADerivedSlot() {
         FixtureDimensions d = FixtureDimensions.get();
-        assertThat("schema_mode declares both", d.directiveKey("schema_mode"), equalTo("mappings"));
-        assertThat(d.derivedFrom("schema_mode"), equalTo("dataset_schema"));
+        assertThat("schema_mode declares both", d.directiveKey("dataset.schema_mode"), equalTo("mappings"));
+        assertThat(d.derivedFrom("dataset.schema_mode"), equalTo("dataset_schema"));
 
         Map<String, String> varied = new LinkedHashMap<>();
         for (String name : d.names()) {
             varied.put(name, d.defaultValue(name));
         }
-        varied.put("schema_mode", "declared_open");
+        varied.put("dataset.schema_mode", "declared_open");
         assertThat("its value is not a constant, so nothing may inject it", d.directiveSettings(varied), equalTo(Map.of()));
     }
 
@@ -275,7 +275,9 @@ public class FixtureDimensionsTests extends ESTestCase {
         assertThat(d.dataSourceKey("endpoint"), equalTo("endpoint"));
         assertThat("a data-source key is not a directive key", d.directiveKey("endpoint"), nullValue());
 
-        Map<String, String> vector = new LinkedHashMap<>(Map.of("format", "csv", "error_mode", "fail_fast", "endpoint", "custom"));
+        Map<String, String> vector = new LinkedHashMap<>(
+            Map.of("data.format", "csv", "dataset.error_mode", "fail_fast", "endpoint", "custom")
+        );
         assertThat(d.dataSourceSettings(vector), equalTo(Map.of("endpoint", "custom")));
         assertThat("the dataset body must not carry it", d.directiveSettings(vector), equalTo(Map.of()));
     }
@@ -283,7 +285,9 @@ public class FixtureDimensionsTests extends ESTestCase {
     /** Omission is the default on this side too, exactly as it is for a directive slot. */
     public void testDataSourceSettingsOmitSlotsAtTheirDefault() {
         FixtureDimensions d = FixtureDimensions.parse(declaration(withDataSourceDimension()));
-        Map<String, String> baseline = new LinkedHashMap<>(Map.of("format", "csv", "error_mode", "fail_fast", "endpoint", "default"));
+        Map<String, String> baseline = new LinkedHashMap<>(
+            Map.of("data.format", "csv", "dataset.error_mode", "fail_fast", "endpoint", "default")
+        );
         assertThat(d.dataSourceSettings(baseline), equalTo(Map.of()));
     }
 
@@ -301,20 +305,20 @@ public class FixtureDimensionsTests extends ESTestCase {
     /** A declaration carrying one data-source-bound dimension alongside the well-formed pair. */
     private static String[] withDataSourceDimension() {
         return new String[] {
-            "dimension.format.values = csv, parquet",
-            "dimension.format.default = csv",
-            "dimension.format.binds = fixture",
-            "dimension.error_mode.values = fail_fast, skip_row",
-            "dimension.error_mode.default = fail_fast",
-            "dimension.error_mode.binds = directive",
-            "dimension.error_mode.key = error_mode",
+            "dimension.data.format.values = csv, parquet",
+            "dimension.data.format.default = csv",
+            "dimension.data.format.binds = fixture",
+            "dimension.dataset.error_mode.values = fail_fast, skip_row",
+            "dimension.dataset.error_mode.default = fail_fast",
+            "dimension.dataset.error_mode.binds = directive",
+            "dimension.dataset.error_mode.key = error_mode",
             "dimension.endpoint.values = default, custom",
             "dimension.endpoint.default = default",
             "dimension.endpoint.binds = data_source",
             "dimension.endpoint.key = endpoint",
-            "pair.error_mode.format = interacting",
-            "pair.endpoint.format = interacting",
-            "pair.endpoint.error_mode = interacting" };
+            "pair.data.format.dataset.error_mode = interacting",
+            "pair.data.format.endpoint = interacting",
+            "pair.dataset.error_mode.endpoint = interacting" };
     }
 
     /**
@@ -323,7 +327,7 @@ public class FixtureDimensionsTests extends ESTestCase {
      * so a mis-declaration became a setting on every dataset instead of a failure to parse.
      */
     public void testAKeyOnABindThatCarriesNoneIsRejected() {
-        String[] lines = ArrayUtils.append(wellFormed(), "dimension.format.key = format");
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.data.format.key = format");
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("binds as [fixture]"));
         assertThat(e.getMessage(), containsString("carries no key"));
@@ -331,7 +335,7 @@ public class FixtureDimensionsTests extends ESTestCase {
 
     /** A value mapping naming a value the dimension does not declare is dead text that never fires. */
     public void testAValueMappingForAnUndeclaredValueIsRejected() {
-        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.value.explode = boom");
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.value.explode = boom");
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("explode"));
     }
@@ -349,18 +353,18 @@ public class FixtureDimensionsTests extends ESTestCase {
         assertThat(d.directiveSettings(allDefaults), equalTo(Map.of()));
 
         Map<String, String> varied = new LinkedHashMap<>(allDefaults);
-        varied.put("error_mode", "skip_row");
-        varied.put("schema_mode", "declared_closed");
+        varied.put("dataset.error_mode", "skip_row");
+        varied.put("dataset.schema_mode", "declared_closed");
         Map<String, String> settings = d.directiveSettings(varied);
         assertThat("a constant slot off its default is injected", settings, equalTo(Map.of("error_mode", "skip_row")));
-        assertThat("a derived slot cannot be a constant here", d.derivedFrom("schema_mode"), equalTo("dataset_schema"));
+        assertThat("a derived slot cannot be a constant here", d.derivedFrom("dataset.schema_mode"), equalTo("dataset_schema"));
     }
 
     /** The declaration maps a value to a different spelling only where it says so. */
     public void testAValueMappingIsAppliedAndOthersPassThrough() {
         FixtureDimensions d = FixtureDimensions.get();
-        assertThat(d.settingValue("datetime_format", "custom"), equalTo("strict_date_optional_time"));
-        assertThat(d.settingValue("error_mode", "skip_row"), equalTo("skip_row"));
+        assertThat(d.settingValue("dataset.datetime_format", "custom"), equalTo("strict_date_optional_time"));
+        assertThat(d.settingValue("dataset.error_mode", "skip_row"), equalTo("skip_row"));
     }
 
     /** The baseline has no off-default slot, so it must not render as an empty name. */
@@ -380,8 +384,8 @@ public class FixtureDimensionsTests extends ESTestCase {
         for (String name : d.names()) {
             v.put(name, d.defaultValue(name));
         }
-        v.put("error_mode", "skip_row");
-        assertThat(d.render(v), equalTo("error_mode=skip_row"));
+        v.put("dataset.error_mode", "skip_row");
+        assertThat(d.render(v), equalTo("dataset.error_mode=skip_row"));
     }
 
     /**
@@ -396,7 +400,7 @@ public class FixtureDimensionsTests extends ESTestCase {
             for (Map<String, String> vector : d.directiveExpressibleVectors(format)) {
                 for (Map.Entry<String, String> slot : vector.entrySet()) {
                     String dimension = slot.getKey();
-                    if (dimension.equals("format") || slot.getValue().equals(d.defaultValue(dimension, format))) {
+                    if (dimension.equals("data.format") || slot.getValue().equals(d.defaultValue(dimension, format))) {
                         continue;
                     }
                     boolean served = d.directiveKey(dimension) != null || FixtureCapabilities.renders(dimension, slot.getValue(), format);
@@ -460,8 +464,8 @@ public class FixtureDimensionsTests extends ESTestCase {
     /** The specific case the generated suite found: template detection needs the path template with it. */
     public void testTemplatePartitionDetectionIsDeclaredAsNeedingAPath() {
         FixtureDimensions d = FixtureDimensions.get();
-        assertThat(d.derivedFromForValue("partition_detection", "template"), equalTo("partition_path"));
-        assertThat("the other values stand alone", d.derivedFromForValue("partition_detection", "hive"), nullValue());
+        assertThat(d.derivedFromForValue("dataset.partition_detection", "template"), equalTo("partition_path"));
+        assertThat("the other values stand alone", d.derivedFromForValue("dataset.partition_detection", "hive"), nullValue());
     }
 
     /**
@@ -471,15 +475,15 @@ public class FixtureDimensionsTests extends ESTestCase {
      */
     public void testAPragmaKeyIsNotADirectiveSetting() {
         FixtureDimensions d = FixtureDimensions.get();
-        assertThat("distribution binds as a pragma", d.binds("distribution"), equalTo("pragma"));
-        assertThat(d.pragmaKey("distribution"), equalTo("external_distribution"));
-        assertThat("and must NOT be reachable as a directive", d.directiveKey("distribution"), nullValue());
+        assertThat("distribution binds as a pragma", d.binds("query.distribution"), equalTo("pragma"));
+        assertThat(d.pragmaKey("query.distribution"), equalTo("external_distribution"));
+        assertThat("and must NOT be reachable as a directive", d.directiveKey("query.distribution"), nullValue());
 
         Map<String, String> varied = new LinkedHashMap<>();
         for (String name : d.names()) {
             varied.put(name, d.defaultValue(name));
         }
-        varied.put("distribution", "round_robin");
+        varied.put("query.distribution", "round_robin");
         assertThat("a pragma slot contributes no WITH settings", d.directiveSettings(varied), equalTo(Map.of()));
     }
 
@@ -508,7 +512,7 @@ public class FixtureDimensionsTests extends ESTestCase {
      */
     public void testEveryVectorCarriesItsOwnFormatsDefaults() {
         FixtureDimensions d = FixtureDimensions.get();
-        for (String format : d.values("format")) {
+        for (String format : d.values("data.format")) {
             for (Map<String, String> vector : d.directiveExpressibleVectors(format)) {
                 for (String name : d.names()) {
                     if (d.render(vector).contains(name + "=")) {
@@ -558,7 +562,7 @@ public class FixtureDimensionsTests extends ESTestCase {
 
         Map<String, Set<Map<String, String>>> before = universeByFormat(declared);
         Map<String, Set<Map<String, String>>> after = universeByFormat(FixtureDimensions.parse(collapsed));
-        for (String format : declared.values("format")) {
+        for (String format : declared.values("data.format")) {
             if (ownDefault.contains(format)) {
                 continue;
             }
@@ -584,7 +588,7 @@ public class FixtureDimensionsTests extends ESTestCase {
         // a pinned per-format expectation has to name its formats, and a new format arriving SHOULD break
         // this line rather than be counted silently into a battery nobody sized.
         Map<String, Integer> actual = new LinkedHashMap<>();
-        for (String format : d.values("format")) {
+        for (String format : d.values("data.format")) {
             actual.put(format, ciVectors(d, format).size());
         }
         assertThat(actual, equalTo(expected));
@@ -609,7 +613,7 @@ public class FixtureDimensionsTests extends ESTestCase {
         // a pinned per-format expectation has to name its formats, and a new format arriving SHOULD break
         // this line rather than be counted silently into a battery nobody sized.
         Map<String, Integer> actual = new LinkedHashMap<>();
-        for (String format : d.values("format")) {
+        for (String format : d.values("data.format")) {
             Set<FixtureDimensions.Seam> seams = FixtureMatrix.get().seams(format + "-vector");
             actual.put(format, d.expressibleVectors(format, seams, FixtureDimensions.Tier.NIGHTLY).size());
         }
@@ -624,7 +628,7 @@ public class FixtureDimensionsTests extends ESTestCase {
      */
     public void testTheNightlyTierIsTheWholeUniverse() {
         FixtureDimensions d = FixtureDimensions.get();
-        for (String format : d.values("format")) {
+        for (String format : d.values("data.format")) {
             Set<FixtureDimensions.Seam> seams = FixtureMatrix.get().seams(format + "-vector");
             assertThat(
                 "nightly must equal the unrestricted derivation for " + format,
@@ -641,10 +645,10 @@ public class FixtureDimensionsTests extends ESTestCase {
      */
     public void testTheCiTierCarriesOnlyDefaultsAndDeclaredCiValues() {
         FixtureDimensions d = FixtureDimensions.get();
-        for (String format : d.values("format")) {
+        for (String format : d.values("data.format")) {
             for (Map<String, String> vector : ciVectors(d, format)) {
                 for (Map.Entry<String, String> slot : vector.entrySet()) {
-                    if (slot.getKey().equals("format")) {
+                    if (slot.getKey().equals("data.format")) {
                         continue;
                     }
                     String value = slot.getValue();
@@ -666,7 +670,7 @@ public class FixtureDimensionsTests extends ESTestCase {
     /** Every format keeps a battery. A format whose CI selection is empty would gate nothing at all. */
     public void testEveryConsumedFormatHasCiVectors() {
         FixtureDimensions d = FixtureDimensions.get();
-        for (String format : d.values("format")) {
+        for (String format : d.values("data.format")) {
             if (FixtureCapabilities.formatIsConsumed(d, format)) {
                 assertThat("format [" + format + "] would gate no pull request", ciVectors(d, format), not(empty()));
             }
@@ -678,7 +682,10 @@ public class FixtureDimensionsTests extends ESTestCase {
      * opinion, and the argument for running it on every pull request cannot be checked by anyone.
      */
     public void testACiTierCitingNoIssueIsRejected() {
-        String[] lines = ArrayUtils.concat(wellFormed(), new String[] { "dimension.error_mode.tier.skip_row = ci: it feels important" });
+        String[] lines = ArrayUtils.concat(
+            wellFormed(),
+            new String[] { "dimension.dataset.error_mode.tier.skip_row = ci: it feels important" }
+        );
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("cites no issue"));
     }
@@ -691,18 +698,18 @@ public class FixtureDimensionsTests extends ESTestCase {
     public void testANightlyTierNeedsNoCitation() {
         String[] lines = ArrayUtils.concat(
             wellFormed(),
-            new String[] { "dimension.error_mode.tier.skip_row = nightly: too slow to earn a place on every pull request" }
+            new String[] { "dimension.dataset.error_mode.tier.skip_row = nightly: too slow to earn a place on every pull request" }
         );
         FixtureDimensions parsed = FixtureDimensions.parse(declaration(lines));
-        assertThat(parsed.tierReason("error_mode", "skip_row", "csv"), containsString("nightly:"));
-        assertThat(parsed.tierCarries("error_mode", "skip_row", "csv", FixtureDimensions.Tier.CI), equalTo(false));
-        assertThat(parsed.tierCarries("error_mode", "skip_row", "csv", FixtureDimensions.Tier.NIGHTLY), equalTo(true));
+        assertThat(parsed.tierReason("dataset.error_mode", "skip_row", "csv"), containsString("nightly:"));
+        assertThat(parsed.tierCarries("dataset.error_mode", "skip_row", "csv", FixtureDimensions.Tier.CI), equalTo(false));
+        assertThat(parsed.tierCarries("dataset.error_mode", "skip_row", "csv", FixtureDimensions.Tier.NIGHTLY), equalTo(true));
     }
 
     public void testATierReasonNamingNoTierIsRejected() {
         String[] lines = ArrayUtils.concat(
             wellFormed(),
-            new String[] { "dimension.error_mode.tier.skip_row = elastic/esql-planning#1842 -- no tier named" }
+            new String[] { "dimension.dataset.error_mode.tier.skip_row = elastic/esql-planning#1842 -- no tier named" }
         );
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("[ci:] or [nightly:]"));
@@ -712,7 +719,7 @@ public class FixtureDimensionsTests extends ESTestCase {
     public void testATierOnTheDefaultValueIsRejected() {
         String[] lines = ArrayUtils.concat(
             wellFormed(),
-            new String[] { "dimension.error_mode.tier.fail_fast = ci: elastic/esql-planning#1842 -- the default" }
+            new String[] { "dimension.dataset.error_mode.tier.fail_fast = ci: elastic/esql-planning#1842 -- the default" }
         );
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("effective default value"));
@@ -726,8 +733,8 @@ public class FixtureDimensionsTests extends ESTestCase {
         String[] lines = ArrayUtils.concat(
             wellFormed(),
             new String[] {
-                "dimension.error_mode.gap.skip_row = gap: nobody has written the fixture",
-                "dimension.error_mode.tier.skip_row = ci: elastic/esql-planning#1842 -- reaches the policy path" }
+                "dimension.dataset.error_mode.gap.skip_row = gap: nobody has written the fixture",
+                "dimension.dataset.error_mode.tier.skip_row = ci: elastic/esql-planning#1842 -- reaches the policy path" }
         );
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("declared absent"));
@@ -738,8 +745,8 @@ public class FixtureDimensionsTests extends ESTestCase {
         String[] lines = ArrayUtils.concat(
             wellFormed(),
             new String[] {
-                "dimension.error_mode.gap.skip_row = gap: nobody has written the fixture",
-                "dimension.error_mode.tier.skip_row.parquet = ci: elastic/esql-planning#1842 -- reaches the policy path" }
+                "dimension.dataset.error_mode.gap.skip_row = gap: nobody has written the fixture",
+                "dimension.dataset.error_mode.tier.skip_row.parquet = ci: elastic/esql-planning#1842 -- reaches the policy path" }
         );
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("declared absent"));
@@ -748,7 +755,7 @@ public class FixtureDimensionsTests extends ESTestCase {
     public void testATierOnAnUndeclaredValueIsRejected() {
         String[] lines = ArrayUtils.concat(
             wellFormed(),
-            new String[] { "dimension.error_mode.tier.nonesuch = ci: elastic/esql-planning#1842 -- no such value" }
+            new String[] { "dimension.dataset.error_mode.tier.nonesuch = ci: elastic/esql-planning#1842 -- no such value" }
         );
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("does not declare"));
@@ -763,12 +770,12 @@ public class FixtureDimensionsTests extends ESTestCase {
         String[] lines = ArrayUtils.concat(
             wellFormed(),
             new String[] {
-                "dimension.error_mode.tier.skip_row = ci: elastic/esql-planning#1842 -- reaches the policy path",
-                "dimension.error_mode.tier.skip_row.parquet = nightly: columnar reads never reach the row policy" }
+                "dimension.dataset.error_mode.tier.skip_row = ci: elastic/esql-planning#1842 -- reaches the policy path",
+                "dimension.dataset.error_mode.tier.skip_row.parquet = nightly: columnar reads never reach the row policy" }
         );
         FixtureDimensions parsed = FixtureDimensions.parse(declaration(lines));
-        assertThat(parsed.tierCarries("error_mode", "skip_row", "csv", FixtureDimensions.Tier.CI), equalTo(true));
-        assertThat(parsed.tierCarries("error_mode", "skip_row", "parquet", FixtureDimensions.Tier.CI), equalTo(false));
+        assertThat(parsed.tierCarries("dataset.error_mode", "skip_row", "csv", FixtureDimensions.Tier.CI), equalTo(true));
+        assertThat(parsed.tierCarries("dataset.error_mode", "skip_row", "parquet", FixtureDimensions.Tier.CI), equalTo(false));
     }
 
     private static List<Map<String, String>> ciVectors(FixtureDimensions d, String format) {
@@ -830,10 +837,10 @@ public class FixtureDimensionsTests extends ESTestCase {
 
     private static Map<String, Set<Map<String, String>>> universeByFormat(FixtureDimensions dimensions) {
         Map<String, Set<Map<String, String>>> byFormat = new LinkedHashMap<>();
-        for (String format : dimensions.values("format")) {
+        for (String format : dimensions.values("data.format")) {
             byFormat.put(format, new LinkedHashSet<>());
         }
-        dimensions.forEachVector(vector -> byFormat.get(vector.get("format")).add(vector));
+        dimensions.forEachVector(vector -> byFormat.get(vector.get("data.format")).add(vector));
         return byFormat;
     }
 
@@ -866,7 +873,7 @@ public class FixtureDimensionsTests extends ESTestCase {
 
     /** A hole nobody explained is indistinguishable from a forgotten line. */
     public void testAValueDisjointWithoutAWhyIsRejected() {
-        String[] lines = ArrayUtils.append(wellFormed(), "pair.error_mode.format.value_disjoint = skip_row:parquet");
+        String[] lines = ArrayUtils.append(wellFormed(), "pair.data.format.dataset.error_mode.value_disjoint = skip_row:parquet");
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("declares no why"));
     }
@@ -874,8 +881,8 @@ public class FixtureDimensionsTests extends ESTestCase {
     /** A disjoint naming a value the dimension does not declare would silently match nothing. */
     public void testAValueDisjointNamingAnUndeclaredValueIsRejected() {
         String[] lines = ArrayUtils.append(
-            ArrayUtils.append(wellFormed(), "pair.error_mode.format.value_disjoint = explode:parquet"),
-            "pair.error_mode.format.value_disjoint.why = because"
+            ArrayUtils.append(wellFormed(), "pair.data.format.dataset.error_mode.value_disjoint = explode:parquet"),
+            "pair.data.format.dataset.error_mode.value_disjoint.why = because"
         );
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("explode"));
@@ -884,24 +891,24 @@ public class FixtureDimensionsTests extends ESTestCase {
     /** The reader default is per-extension: a .tsv is read plain where a .csv is read quoted. */
     public void testAPerFormatDefaultOverridesTheBaseDefault() {
         FixtureDimensions d = FixtureDimensions.get();
-        assertThat(d.defaultValue("text_mode"), equalTo("quoted"));
-        assertThat(d.defaultValue("text_mode", "tsv"), equalTo("plain"));
-        assertThat("a format with no override falls back", d.defaultValue("text_mode", "csv"), equalTo("quoted"));
+        assertThat(d.defaultValue("data.text_mode"), equalTo("quoted"));
+        assertThat(d.defaultValue("data.text_mode", "tsv"), equalTo("plain"));
+        assertThat("a format with no override falls back", d.defaultValue("data.text_mode", "csv"), equalTo("quoted"));
     }
 
     /** The scheme-to-backend correspondence is declared, so renaming a backend cannot rot it silently. */
     public void testTheSchemeToBackendCorrespondenceIsDeclaredAndTotal() {
         FixtureDimensions d = FixtureDimensions.get();
-        assertThat(d.backendFor("storage_scheme", "wasbs"), equalTo("AZURE"));
-        assertThat(d.backendFor("storage_scheme", "file"), equalTo("LOCAL"));
-        for (String scheme : d.values("storage_scheme")) {
-            assertThat("every scheme names a backend", d.backendFor("storage_scheme", scheme), notNullValue());
+        assertThat(d.backendFor("datasource.storage_scheme", "wasbs"), equalTo("AZURE"));
+        assertThat(d.backendFor("datasource.storage_scheme", "file"), equalTo("LOCAL"));
+        for (String scheme : d.values("datasource.storage_scheme")) {
+            assertThat("every scheme names a backend", d.backendFor("datasource.storage_scheme", scheme), notNullValue());
         }
     }
 
     /** A read key on a binding nothing announces would be wiring that only looks like it exists. */
     public void testAReadKeyOnANonFixtureDimensionIsRejected() {
-        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.read_key = mode");
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.read_key = mode");
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("read_key"));
     }
@@ -909,28 +916,28 @@ public class FixtureDimensionsTests extends ESTestCase {
     /** An unknown binding is a typo that would otherwise silently exclude the dimension from every seam. */
     public void testAnUnknownBindsIsRejected() {
         String[] lines = wellFormed().clone();
-        lines[2] = "dimension.format.binds = magic";
+        lines[2] = "dimension.data.format.binds = magic";
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("magic"));
     }
 
     /** A per-format default naming a format that does not exist would never apply to anything. */
     public void testAPerFormatDefaultForAnUndeclaredFormatIsRejected() {
-        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.default.orc = skip_row");
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.default.orc = skip_row");
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("undeclared format"));
     }
 
     /** A partial backend map is a forgotten line wearing a decision's face. */
     public void testAPartialBackendMapIsRejected() {
-        String[] lines = ArrayUtils.append(wellFormed(), "dimension.format.backend.csv = LOCAL");
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.data.format.backend.csv = LOCAL");
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("parquet"));
     }
 
     /** An absence whose reason contradicts its own key would render a report that argues with itself. */
     public void testAnAbsenceWhoseReasonKindDisagreesWithItsKeyIsRejected() {
-        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.gap.skip_row = rule: not really a gap");
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.gap.skip_row = rule: not really a gap");
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("gap:"));
     }
@@ -951,21 +958,21 @@ public class FixtureDimensionsTests extends ESTestCase {
         // intact. Going through the helper would destroy the character before the guard could see it, and
         // the test would pass for the wrong reason.
         Properties props = declaration(wellFormed());
-        props.setProperty("dimension.error_mode.value.skip_row", "\t");
+        props.setProperty("dimension.dataset.error_mode.value.skip_row", "\t");
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(props));
         assertThat(e.getMessage(), containsString("entirely whitespace"));
-        assertThat("names the offending key", e.getMessage(), containsString("dimension.error_mode.value.skip_row"));
+        assertThat("names the offending key", e.getMessage(), containsString("dimension.dataset.error_mode.value.skip_row"));
     }
 
     /** A genuinely empty value is not whitespace destruction, and stays allowed. */
     public void testATrulyEmptyValueIsStillAccepted() {
         Properties props = declaration(wellFormed());
-        props.setProperty("dimension.error_mode.value.skip_row", "");
+        props.setProperty("dimension.dataset.error_mode.value.skip_row", "");
         FixtureDimensions.parse(props);
     }
 
     public void testAnAbsenceOnTheDefaultValueIsRejected() {
-        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.gap.fail_fast = gap: nope");
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.gap.fail_fast = gap: nope");
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("effective default"));
     }
@@ -973,13 +980,13 @@ public class FixtureDimensionsTests extends ESTestCase {
     /** A per-format absence wins over a bare one, so one value can be a rule here and a gap there. */
     public void testAPerFormatAbsenceWinsOverABareOne() {
         String[] lines = ArrayUtils.append(
-            ArrayUtils.append(wellFormed(), "dimension.error_mode.gap.skip_row = gap: nothing writes a bad row yet"),
-            "dimension.error_mode.rule.skip_row.parquet = rule: parquet rejects the file, not the row"
+            ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.gap.skip_row = gap: nothing writes a bad row yet"),
+            "dimension.dataset.error_mode.rule.skip_row.parquet = rule: parquet rejects the file, not the row"
         );
         FixtureDimensions d = FixtureDimensions.parse(declaration(lines));
-        assertThat(d.absenceReason("error_mode", "skip_row", "csv"), containsString("nothing writes"));
-        assertThat(d.absenceReason("error_mode", "skip_row", "parquet"), containsString("rejects the file"));
-        assertThat("a value with no absence is not licensed", d.absenceReason("error_mode", "fail_fast", "csv"), nullValue());
+        assertThat(d.absenceReason("dataset.error_mode", "skip_row", "csv"), containsString("nothing writes"));
+        assertThat(d.absenceReason("dataset.error_mode", "skip_row", "parquet"), containsString("rejects the file"));
+        assertThat("a value with no absence is not licensed", d.absenceReason("dataset.error_mode", "fail_fast", "csv"), nullValue());
     }
 
     /**
@@ -996,7 +1003,7 @@ public class FixtureDimensionsTests extends ESTestCase {
     public void testEveryDeclaredFormatIsConsumedBySomeSuite() {
         FixtureDimensions d = FixtureDimensions.get();
         Set<FixtureDimensions.Seam> all = Set.of(FixtureDimensions.Seam.values());
-        for (String format : d.values("format")) {
+        for (String format : d.values("data.format")) {
             assertThat(
                 "format [" + format + "] is declared but no suite yields vectors for it; either wire a suite or declare the absence",
                 d.expressibleVectors(format, all),
@@ -1046,7 +1053,7 @@ public class FixtureDimensionsTests extends ESTestCase {
     /** csv needs no capability row: it is the default format, so its vectors never carry the slot off default. */
     public void testTheDefaultFormatNeedsNoCapabilityRow() {
         FixtureDimensions d = FixtureDimensions.get();
-        assertThat(FixtureCapabilities.renders("format", "csv", "csv"), equalTo(false));
+        assertThat(FixtureCapabilities.renders("data.format", "csv", "csv"), equalTo(false));
         assertThat(d.expressibleVectors("csv", Set.of(FixtureDimensions.Seam.DIRECTIVE)).size(), equalTo(106));
     }
 
@@ -1113,41 +1120,41 @@ public class FixtureDimensionsTests extends ESTestCase {
      * byte and announces another, which produces bytes that parse cleanly and mean something else.
      */
     public void testAMultiCharacterSpellingForACharValuedSlotIsRejected() {
-        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.value.skip_row = ;;");
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.value.skip_row = ;;");
         FixtureDimensions d = FixtureDimensions.parse(declaration(lines));
-        Exception e = expectThrows(IllegalStateException.class, () -> d.charValue("error_mode", "skip_row"));
+        Exception e = expectThrows(IllegalStateException.class, () -> d.charValue("dataset.error_mode", "skip_row"));
         assertThat(e.getMessage(), containsString("not one character"));
     }
 
     /** The escape survives Properties and the contract parser's trim, so it still reaches the writer. */
     public void testTheTabEscapeDecodesToARealTab() {
-        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.value.skip_row = \\t");
-        assertThat(FixtureDimensions.parse(declaration(lines)).charValue("error_mode", "skip_row"), equalTo('\t'));
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.value.skip_row = \\t");
+        assertThat(FixtureDimensions.parse(declaration(lines)).charValue("dataset.error_mode", "skip_row"), equalTo('\t'));
     }
 
     /** A cluster setting is applied around the query, so it is collected apart from the dataset settings. */
     public void testClusterSettingsCarryOnlyClusterBoundSlotsOffTheirDefault() {
         String[] lines = new String[] {
-            "dimension.format.values = csv, parquet",
-            "dimension.format.default = csv",
-            "dimension.format.binds = fixture",
-            "dimension.error_mode.values = fail_fast, skip_row",
-            "dimension.error_mode.default = fail_fast",
-            "dimension.error_mode.binds = directive",
-            "dimension.error_mode.key = error_mode",
+            "dimension.data.format.values = csv, parquet",
+            "dimension.data.format.default = csv",
+            "dimension.data.format.binds = fixture",
+            "dimension.dataset.error_mode.values = fail_fast, skip_row",
+            "dimension.dataset.error_mode.default = fail_fast",
+            "dimension.dataset.error_mode.binds = directive",
+            "dimension.dataset.error_mode.key = error_mode",
             "dimension.cache.values = on, off",
             "dimension.cache.default = on",
             "dimension.cache.binds = cluster_setting",
             "dimension.cache.key = esql.external.cache.enabled",
-            "pair.error_mode.format = interacting",
-            "pair.cache.format = interacting",
-            "pair.cache.error_mode = interacting" };
+            "pair.data.format.dataset.error_mode = interacting",
+            "pair.cache.data.format = interacting",
+            "pair.cache.dataset.error_mode = interacting" };
         FixtureDimensions d = FixtureDimensions.parse(declaration(lines));
-        Map<String, String> off = new LinkedHashMap<>(Map.of("format", "csv", "error_mode", "fail_fast", "cache", "off"));
+        Map<String, String> off = new LinkedHashMap<>(Map.of("data.format", "csv", "dataset.error_mode", "fail_fast", "cache", "off"));
         assertThat(d.clusterSettings(off, "csv"), equalTo(Map.of("esql.external.cache.enabled", "off")));
         assertThat("the dataset body must not carry it", d.directiveSettings(off), equalTo(Map.of()));
 
-        Map<String, String> on = new LinkedHashMap<>(Map.of("format", "csv", "error_mode", "fail_fast", "cache", "on"));
+        Map<String, String> on = new LinkedHashMap<>(Map.of("data.format", "csv", "dataset.error_mode", "fail_fast", "cache", "on"));
         assertThat("omission is the default here too", d.clusterSettings(on, "csv"), equalTo(Map.of()));
     }
 
@@ -1163,31 +1170,34 @@ public class FixtureDimensionsTests extends ESTestCase {
      * the entry when the defect is fixed, so it outlives its reason and keeps cutting cells silently.
      */
     public void testADisjointPairBlamedOnADefectMustCiteIt() {
-        String[] uncited = ArrayUtils.append(wellFormed(), "pair.error_mode.format.value_disjoint.why = bug: it breaks sometimes");
+        String[] uncited = ArrayUtils.append(
+            wellFormed(),
+            "pair.data.format.dataset.error_mode.value_disjoint.why = bug: it breaks sometimes"
+        );
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(uncited)));
         assertThat(e.getMessage(), containsString("cites no issue"));
 
         String[] cited = ArrayUtils.append(
             wellFormed(),
-            "pair.error_mode.format.value_disjoint.why = bug: elastic/esql-planning#1 it breaks sometimes"
+            "pair.data.format.dataset.error_mode.value_disjoint.why = bug: elastic/esql-planning#1 it breaks sometimes"
         );
         assertThat(
             "the same reason carrying its issue is accepted",
             FixtureDimensions.parse(declaration(cited)).names(),
-            equalTo(List.of("error_mode", "format"))
+            equalTo(List.of("data.format", "dataset.error_mode"))
         );
     }
 
     /** A dimension with no default has no baseline, so every generated vector would be off an unknown one. */
     public void testADimensionWithoutADefaultIsRejected() {
         String[] lines = new String[] {
-            "dimension.format.values = csv, parquet",
-            "dimension.format.default = csv",
-            "dimension.format.binds = fixture",
-            "dimension.error_mode.values = fail_fast, skip_row",
-            "dimension.error_mode.binds = directive",
-            "dimension.error_mode.key = error_mode",
-            "pair.error_mode.format = interacting" };
+            "dimension.data.format.values = csv, parquet",
+            "dimension.data.format.default = csv",
+            "dimension.data.format.binds = fixture",
+            "dimension.dataset.error_mode.values = fail_fast, skip_row",
+            "dimension.dataset.error_mode.binds = directive",
+            "dimension.dataset.error_mode.key = error_mode",
+            "pair.data.format.dataset.error_mode = interacting" };
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("declares no default"));
     }
@@ -1199,7 +1209,7 @@ public class FixtureDimensionsTests extends ESTestCase {
             expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(unknownDimension))).getMessage(),
             containsString("unknown dimension [ghost]")
         );
-        String[] unknownValue = ArrayUtils.append(wellFormed(), "dimension.error_mode.derived.nope = something");
+        String[] unknownValue = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.derived.nope = something");
         assertThat(
             expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(unknownValue))).getMessage(),
             containsString("names a value the dimension does not declare")
@@ -1218,22 +1228,22 @@ public class FixtureDimensionsTests extends ESTestCase {
      * contract exists to prevent -- so every part of it has to name something real.
      */
     public void testAMalformedValueDisjointEntryIsRejected() {
-        String[] notAPair = ArrayUtils.append(wellFormed(), "pair.error_mode.value_disjoint = skip_row:csv");
+        String[] notAPair = ArrayUtils.append(wellFormed(), "pair.dataset.error_mode..value_disjoint = skip_row:csv");
         assertThat(
             expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(notAPair))).getMessage(),
             containsString("malformed value_disjoint pair")
         );
         String[] notAColonPair = ArrayUtils.append(
-            ArrayUtils.append(wellFormed(), "pair.error_mode.format.value_disjoint = skip_row"),
-            "pair.error_mode.format.value_disjoint.why = rule: they cannot coexist"
+            ArrayUtils.append(wellFormed(), "pair.data.format.dataset.error_mode.value_disjoint = skip_row"),
+            "pair.data.format.dataset.error_mode.value_disjoint.why = rule: they cannot coexist"
         );
         assertThat(
             expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(notAColonPair))).getMessage(),
             containsString("is not <value>:<value>")
         );
         String[] undeclared = ArrayUtils.append(
-            ArrayUtils.append(wellFormed(), "pair.error_mode.format.value_disjoint = skip_row:orc"),
-            "pair.error_mode.format.value_disjoint.why = rule: they cannot coexist"
+            ArrayUtils.append(wellFormed(), "pair.data.format.dataset.error_mode.value_disjoint = skip_row:orc"),
+            "pair.data.format.dataset.error_mode.value_disjoint.why = rule: they cannot coexist"
         );
         assertThat(
             expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(undeclared))).getMessage(),
@@ -1243,7 +1253,7 @@ public class FixtureDimensionsTests extends ESTestCase {
 
     /** A per-format default outside the dimension's own values makes that format's baseline a fiction. */
     public void testAPerFormatDefaultOutsideItsValuesIsRejected() {
-        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.default.parquet = nope");
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.default.parquet = nope");
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("is not one of the dimension's values"));
     }
@@ -1265,20 +1275,20 @@ public class FixtureDimensionsTests extends ESTestCase {
     /** A codec's file extension is declared, so a renamed codec cannot keep an extension nothing writes. */
     public void testACodecExtensionComesFromTheDeclaration() {
         FixtureDimensions d = FixtureDimensions.get();
-        assertThat(d.extensionFor("text_codec", "gzip"), equalTo("gz"));
-        assertThat("a value with no declared extension has none", d.extensionFor("text_codec", "none"), nullValue());
+        assertThat(d.extensionFor("data.text_codec", "gzip"), equalTo("gz"));
+        assertThat("a value with no declared extension has none", d.extensionFor("data.text_codec", "none"), nullValue());
     }
 
     /** A qualifier on an attribute that takes none is dead text: nothing reads the extra segment. */
     public void testAnAttributeQualifierIsRejectedWhereNoneIsTaken() {
-        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.binds.extra = directive");
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.binds.extra = directive");
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("takes no qualifier"));
     }
 
     /** The mirror: an attribute that is per-value means nothing without the value it applies to. */
     public void testAPerValueAttributeWithoutItsValueIsRejected() {
-        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.rule = rule: no value named");
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.rule = rule: no value named");
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("requires a value name"));
     }
@@ -1288,12 +1298,15 @@ public class FixtureDimensionsTests extends ESTestCase {
      * nothing, and nothing would ever report that the reason is inert.
      */
     public void testAnAbsenceMustNameARealValueAndFormat() {
-        String[] unknownValue = ArrayUtils.append(wellFormed(), "dimension.error_mode.rule.nope = rule: cannot be written");
+        String[] unknownValue = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.rule.nope = rule: cannot be written");
         assertThat(
             expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(unknownValue))).getMessage(),
             containsString("names a value the dimension does not declare")
         );
-        String[] unknownFormat = ArrayUtils.append(wellFormed(), "dimension.error_mode.rule.skip_row.orc = rule: cannot be written");
+        String[] unknownFormat = ArrayUtils.append(
+            wellFormed(),
+            "dimension.dataset.error_mode.rule.skip_row.orc = rule: cannot be written"
+        );
         assertThat(
             expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(unknownFormat))).getMessage(),
             containsString("names an undeclared format")
@@ -1304,7 +1317,7 @@ public class FixtureDimensionsTests extends ESTestCase {
     public void testATierMustNameADeclaredFormat() {
         String[] lines = ArrayUtils.append(
             wellFormed(),
-            "dimension.error_mode.tier.skip_row.orc = ci: elastic/esql-planning#1 -- the row-error path"
+            "dimension.dataset.error_mode.tier.skip_row.orc = ci: elastic/esql-planning#1 -- the row-error path"
         );
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("names an undeclared format"));
@@ -1312,7 +1325,7 @@ public class FixtureDimensionsTests extends ESTestCase {
 
     /** A backend mapping for a value the dimension does not declare would never be consulted. */
     public void testABackendMappingMustNameADeclaredValue() {
-        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.backend.nope = S3");
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.backend.nope = S3");
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("names a value the dimension does not declare"));
     }
@@ -1331,16 +1344,16 @@ public class FixtureDimensionsTests extends ESTestCase {
         assertThat(
             "prose attached to an entry declared elsewhere is skipped, not refused",
             FixtureDimensions.parse(declaration(reason)).names(),
-            equalTo(List.of("error_mode", "format"))
+            equalTo(List.of("data.format", "dataset.error_mode"))
         );
     }
 
     /** An untraced pair is treated as interacting, so uncertainty costs test executions, never coverage. */
     public void testAnUnverifiedPairIsTreatedAsInteracting() {
         String[] lines = wellFormed().clone();
-        lines[6] = "pair.error_mode.format = unverified";
+        lines[6] = "pair.data.format.dataset.error_mode = unverified";
         FixtureDimensions d = FixtureDimensions.parse(declaration(lines));
-        assertThat(d.verdict("error_mode", "format"), equalTo(FixtureDimensions.Verdict.UNVERIFIED));
+        assertThat(d.verdict("dataset.error_mode", "data.format"), equalTo(FixtureDimensions.Verdict.UNVERIFIED));
     }
 
     /** Asking for a dimension the declaration does not have is a caller bug, not an empty answer. */
@@ -1351,7 +1364,7 @@ public class FixtureDimensionsTests extends ESTestCase {
 
     /** Likewise a pair: an absent verdict would otherwise read as "does not interact" and cut cells. */
     public void testAskingForAVerdictOnAnUnknownPairIsRejected() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> FixtureDimensions.get().verdict("format", "ghost"));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> FixtureDimensions.get().verdict("data.format", "ghost"));
         assertThat(e.getMessage(), containsString("no verdict for pair"));
     }
 
@@ -1362,14 +1375,14 @@ public class FixtureDimensionsTests extends ESTestCase {
      */
     public void testAVectorNameCarriesTheOffDefaultSlotsAndRoundTrips() {
         FixtureDimensions d = FixtureDimensions.get();
-        Map<String, String> pinned = new LinkedHashMap<>(Map.of("format", "tsv", "text_mode", "escaped"));
+        Map<String, String> pinned = new LinkedHashMap<>(Map.of("data.format", "tsv", "data.text_mode", "escaped"));
         assertThat(d.parseRendered(d.render(pinned)), equalTo(pinned));
 
-        Map<String, String> atBaseline = new LinkedHashMap<>(Map.of("format", "csv", "text_mode", "escaped"));
+        Map<String, String> atBaseline = new LinkedHashMap<>(Map.of("data.format", "csv", "data.text_mode", "escaped"));
         assertThat(
             "csv is the default format, so it is not spelled into the name",
             d.parseRendered(d.render(atBaseline)),
-            equalTo(Map.of("text_mode", "escaped"))
+            equalTo(Map.of("data.text_mode", "escaped"))
         );
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> d.parseRendered("not-a-vector"));
@@ -1412,7 +1425,7 @@ public class FixtureDimensionsTests extends ESTestCase {
 
     /** Asserting only that some 400 came back passes when the wrong setting is refused for the wrong reason. */
     public void testARejectionWithoutAMessageIsRefused() {
-        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.rejected.skip_row = ");
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.rejected.skip_row = ");
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("declares no message"));
     }
@@ -1423,7 +1436,7 @@ public class FixtureDimensionsTests extends ESTestCase {
      * rather than one wrong line.
      */
     public void testRefusingTheDefaultIsRejected() {
-        String[] lines = ArrayUtils.append(wellFormed(), "dimension.error_mode.rejected.fail_fast = it is refused");
+        String[] lines = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.rejected.fail_fast = it is refused");
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("refuses the dimension's default"));
     }
@@ -1431,8 +1444,8 @@ public class FixtureDimensionsTests extends ESTestCase {
     /** Cannot-be-built and must-be-refused are different claims, and a cell cannot make both. */
     public void testACellCannotBeBothAbsentAndRejected() {
         String[] lines = ArrayUtils.append(
-            ArrayUtils.append(wellFormed(), "dimension.error_mode.rejected.skip_row = it is refused"),
-            "dimension.error_mode.rule.skip_row = rule: nothing writes it"
+            ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.rejected.skip_row = it is refused"),
+            "dimension.dataset.error_mode.rule.skip_row = rule: nothing writes it"
         );
         Exception e = expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(lines)));
         assertThat(e.getMessage(), containsString("cannot also be refused"));
@@ -1440,12 +1453,12 @@ public class FixtureDimensionsTests extends ESTestCase {
 
     /** A refusal naming a value or format that does not exist refuses nothing. */
     public void testARejectionMustNameARealValueAndFormat() {
-        String[] unknownValue = ArrayUtils.append(wellFormed(), "dimension.error_mode.rejected.nope = it is refused");
+        String[] unknownValue = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.rejected.nope = it is refused");
         assertThat(
             expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(unknownValue))).getMessage(),
             containsString("names a value the dimension does not declare")
         );
-        String[] unknownFormat = ArrayUtils.append(wellFormed(), "dimension.error_mode.rejected.skip_row.orc = it is refused");
+        String[] unknownFormat = ArrayUtils.append(wellFormed(), "dimension.dataset.error_mode.rejected.skip_row.orc = it is refused");
         assertThat(
             expectThrows(IllegalStateException.class, () -> FixtureDimensions.parse(declaration(unknownFormat))).getMessage(),
             containsString("names an undeclared format")
@@ -1455,14 +1468,14 @@ public class FixtureDimensionsTests extends ESTestCase {
     /** A dimension whose off-default values are a mix of accepted and refused ones. */
     private static String[] rejecting() {
         return new String[] {
-            "dimension.format.values = csv, parquet",
-            "dimension.format.default = csv",
-            "dimension.format.binds = fixture",
+            "dimension.data.format.values = csv, parquet",
+            "dimension.data.format.default = csv",
+            "dimension.data.format.binds = fixture",
             "dimension.segment_size.values = default, big, tiny",
             "dimension.segment_size.default = default",
             "dimension.segment_size.binds = directive",
             "dimension.segment_size.key = segment_size",
             "dimension.segment_size.rejected.tiny = [1b] is below the minimum segment size of [64kb]",
-            "pair.format.segment_size = interacting" };
+            "pair.data.format.segment_size = interacting" };
     }
 }

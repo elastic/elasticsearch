@@ -114,7 +114,7 @@ public class DimensionDiscriminationTests extends ESTestCase {
 
         for (String format : FORMATS) {
             // Only formats a suite actually consumes. ORC's fixtures are generated in full and read by
-            // nothing (dimension.format.rule.orc), so its cells are reachable through a seam and correctly
+            // nothing (dimension.data.format.rule.orc), so its cells are reachable through a seam and correctly
             // never run -- asking the crossing for them would be asking for vectors no suite can execute.
             if (FixtureCapabilities.formatIsConsumed(dimensions, format) == false) {
                 continue;
@@ -144,11 +144,11 @@ public class DimensionDiscriminationTests extends ESTestCase {
         assertTrue("reachable but never exercised:\n" + String.join("\n", unexercised), unexercised.isEmpty());
     }
 
-    private static final List<String> FORMATS = FixtureDimensions.get().values("format");
+    private static final List<String> FORMATS = FixtureDimensions.get().values("data.format");
 
     private static Map<String, String> settingsFor(FixtureDimensions dimensions, String dimension, String value, String format) {
         Map<String, String> vector = new LinkedHashMap<>();
-        vector.put("format", format);
+        vector.put("data.format", format);
         vector.put(dimension, value);
         Map<String, String> all = new LinkedHashMap<>();
         all.putAll(dimensions.directiveSettings(vector));

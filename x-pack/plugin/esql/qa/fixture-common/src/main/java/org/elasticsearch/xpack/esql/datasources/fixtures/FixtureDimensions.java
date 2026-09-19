@@ -148,6 +148,31 @@ public final class FixtureDimensions {
      * the data source rather than the dataset -- a different registration, validated by a different
      * component, which is why it cannot share the directive bind.
      */
+    /**
+     * The groups a dimension name may sit under, and the whole list of them.
+     *
+     * <p>Twenty-one dimensions in one flat list put a byte inside a CSV file and the size of the
+     * cluster beside each other as siblings. What kind of thing each one is was already recorded --
+     * {@code binds} says it -- but the NAMES did not, so nothing reading the file by eye could group
+     * them and a suite could not ask for "the dataset settings" without listing them.
+     *
+     * <p>A closed set, and short on purpose: a group that names one dimension's subject is not a group.
+     * It is also what makes the grammar unambiguous, since a name is two segments exactly when its
+     * first segment is one of these and one segment otherwise. No attribute is named after a group, so
+     * nothing else can be mistaken for one.
+     */
+    /**
+     * The axis the crossing is PARTITIONED by, rather than one of the dimensions crossed within it.
+     *
+     * <p>Every generated vector is built for one value of this axis, with the rest of the declaration
+     * read relative to it: defaults, absences and tiers are all resolvable per value of it. That makes
+     * it a different kind of thing from the dimensions it partitions, and it was previously a bare
+     * string literal repeated at seventeen sites, where nothing said so.
+     */
+    public static final String PARTITION_AXIS = "data.format";
+
+    public static final Set<String> GROUPS = Set.of("data", "dataset", "datasource", "layout", "cluster", "query");
+
     public static final Set<String> BINDS = Set.of(
         "fixture",
         "resolver",
@@ -293,7 +318,7 @@ public final class FixtureDimensions {
      * consulted by both, cannot disagree with itself.
      */
     public char delimiterChar(String value) {
-        return charValue("delimiter", value);
+        return charValue("data.delimiter", value);
     }
 
     /** The single character a char-valued dimension's slot renders and reads with. */
@@ -311,7 +336,7 @@ public final class FixtureDimensions {
                     + "] spells ["
                     + spelling
                     + "], which is not one character; "
-                    + "dimension.delimiter.value."
+                    + "dimension.data.delimiter.value."
                     + value
                     + " must map to a single char"
             );
@@ -368,9 +393,9 @@ public final class FixtureDimensions {
      */
     public boolean carriesDisjointValues(Map<String, String> vector) {
         for (Map.Entry<String, Set<String>> declared : valueDisjointByPair.entrySet()) {
-            int dot = declared.getKey().indexOf('.');
-            String left = vector.get(declared.getKey().substring(0, dot));
-            String right = vector.get(declared.getKey().substring(dot + 1));
+            String[] halves = pairNamesIn(declared.getKey());
+            String left = vector.get(halves[0]);
+            String right = vector.get(halves[1]);
             if (left != null && right != null && declared.getValue().contains(left + ":" + right)) {
                 return true;
             }
@@ -460,9 +485,9 @@ public final class FixtureDimensions {
         if (tier == Tier.NIGHTLY) {
             return true;
         }
-        String format = vector.get("format");
+        String format = vector.get(PARTITION_AXIS);
         for (Map.Entry<String, String> slot : vector.entrySet()) {
-            if (slot.getKey().equals("format") == false && tierCarries(slot.getKey(), slot.getValue(), format, tier) == false) {
+            if (slot.getKey().equals(PARTITION_AXIS) == false && tierCarries(slot.getKey(), slot.getValue(), format, tier) == false) {
                 return false;
             }
         }
@@ -659,7 +684,7 @@ public final class FixtureDimensions {
                     "value for ["
                         + key
                         + "] is entirely whitespace, so trimming leaves nothing; a whitespace character must be "
-                        + "written as an escape that survives the trim (see dimension.delimiter.value.tab)"
+                        + "written as an escape that survives the trim (see dimension.data.delimiter.value.tab)"
                 );
             }
             if (key.startsWith("dimension.")) {
@@ -668,12 +693,11 @@ public final class FixtureDimensions {
                 // value name as the attribute, which is why this used to need a special case per
                 // two-part attribute -- one per attribute, each easy to forget when adding the next.
                 String rest = key.substring("dimension.".length());
-                int dot = rest.indexOf('.');
-                if (dot < 0) {
+                String name = dimensionNameIn(rest);
+                if (name == null) {
                     throw new IllegalStateException("malformed dimension key [" + key + "]");
                 }
-                String name = rest.substring(0, dot);
-                String attribute = rest.substring(dot + 1);
+                String attribute = rest.substring(name.length() + 1);
                 int sub = attribute.indexOf('.');
                 String head = sub < 0 ? attribute : attribute.substring(0, sub);
                 String tail = sub < 0 ? null : attribute.substring(sub + 1);
@@ -888,12 +912,12 @@ public final class FixtureDimensions {
         Map<String, Set<String>> normalisedDisjoint = new LinkedHashMap<>();
         for (Map.Entry<String, Set<String>> entry : valueDisjoint.entrySet()) {
             String pair = entry.getKey();
-            int dot = pair.indexOf('.');
-            if (dot < 0) {
+            String[] halves = pairNamesIn(pair);
+            if (halves == null) {
                 throw new IllegalStateException("malformed value_disjoint pair [" + pair + "]");
             }
-            String left = pair.substring(0, dot);
-            String right = pair.substring(dot + 1);
+            String left = halves[0];
+            String right = halves[1];
             requireDeclaredDimension(values, left, "value_disjoint");
             requireDeclaredDimension(values, right, "value_disjoint");
             if (disjointWhys.contains(pair) == false) {
@@ -941,7 +965,7 @@ public final class FixtureDimensions {
                 );
             }
         }
-        List<String> declaredFormats = values.get("format");
+        List<String> declaredFormats = values.get(PARTITION_AXIS);
         for (Map.Entry<String, Map<String, String>> entry : formatDefaults.entrySet()) {
             requireDeclaredDimension(values, entry.getKey(), "per-format default");
             for (Map.Entry<String, String> perFormat : entry.getValue().entrySet()) {
@@ -1137,6 +1161,45 @@ public final class FixtureDimensions {
     }
 
     /** An attribute that requires a value name, so a bare form cannot silently mean "all values". */
+    /**
+     * The dimension name at the front of a key's remainder, or null when there is none.
+     *
+     * <p>Two segments when the first is a {@link #GROUPS} member, one otherwise. Both spellings parse,
+     * because the declaration is renamed a group at a time and a half-renamed file has to keep working
+     * -- and because another branch carrying the old names has to be able to rebase onto this without
+     * touching every line of its own copy.
+     */
+    /**
+     * The two dimension names in a pair key, or null when it does not hold two.
+     *
+     * <p>A pair key is two names joined by a dot, and a name may itself carry a dot now, so the split
+     * is by name length rather than by the first separator. Splitting on the first dot read
+     * {@code cluster.cache_enabled.datasource.auth_mode} as a pair between {@code cluster} and the
+     * rest, and the group name is not a dimension.
+     */
+    static String[] pairNamesIn(String pair) {
+        String left = dimensionNameIn(pair + ".");
+        if (left == null || left.length() >= pair.length()) {
+            return null;
+        }
+        String right = pair.substring(left.length() + 1);
+        return right.isEmpty() ? null : new String[] { left, right };
+    }
+
+    static String dimensionNameIn(String rest) {
+        int first = rest.indexOf('.');
+        if (first < 0) {
+            return null;
+        }
+        String head = rest.substring(0, first);
+        if (GROUPS.contains(head)) {
+            int second = rest.indexOf('.', first + 1);
+            // A group with nothing after it names no dimension.
+            return second < 0 ? null : rest.substring(0, second);
+        }
+        return head;
+    }
+
     private static String requireQualified(String key, String tail) {
         if (tail == null) {
             throw new IllegalStateException("dimension attribute in [" + key + "] requires a value name");
@@ -1291,8 +1354,8 @@ public final class FixtureDimensions {
             recordTuples(t, vector, covered);
         }
         List<String> axes = new ArrayList<>(names);
-        axes.remove("format");
-        for (String format : values("format")) {
+        axes.remove(PARTITION_AXIS);
+        for (String format : values(PARTITION_AXIS)) {
             List<String> applicable = new ArrayList<>();
             for (String axis : axes) {
                 if (appliesHere(axis, format)) {
@@ -1338,7 +1401,7 @@ public final class FixtureDimensions {
                 for (String d : names) {
                     vector.put(d, defaultValue(d, format));
                 }
-                vector.put("format", format);
+                vector.put(PARTITION_AXIS, format);
                 vector.putAll(pinned);
                 if (carriesDisjointValues(vector) == false && seen.add(Map.copyOf(vector))) {
                     recordTuples(t, vector, covered);
@@ -1378,9 +1441,9 @@ public final class FixtureDimensions {
     }
 
     private void recordTuples(int t, Map<String, String> vector, Set<String> into) {
-        String format = vector.get("format");
+        String format = vector.get(PARTITION_AXIS);
         List<String> axes = new ArrayList<>(names);
-        axes.remove("format");
+        axes.remove(PARTITION_AXIS);
         combine(axes, t, 0, new ArrayList<>(), chosen -> {
             Map<String, String> pinned = new LinkedHashMap<>();
             for (String axis : chosen) {
@@ -1401,7 +1464,7 @@ public final class FixtureDimensions {
     }
 
     public Set<String> formatsFor(Set<String> group) {
-        Set<String> formats = new LinkedHashSet<>(values("format"));
+        Set<String> formats = new LinkedHashSet<>(values(PARTITION_AXIS));
         for (String d : group) {
             Set<String> scope = appliesTo(d);
             if (scope.isEmpty() == false) {
@@ -1419,7 +1482,7 @@ public final class FixtureDimensions {
      */
     public String render(Map<String, String> vector) {
         StringBuilder out = new StringBuilder();
-        String format = vector.get("format");
+        String format = vector.get(PARTITION_AXIS);
         for (String name : names) {
             String value = vector.get(name);
             // Against the vector's OWN format: quoted is the baseline on csv and a variation on tsv, so a
@@ -1475,7 +1538,14 @@ public final class FixtureDimensions {
      * agree do not: add a slot here and the generator writes a tree the suite never looks in, which
      * reads as "the dimension does nothing" rather than as a wiring bug.
      */
-    public static final List<String> DIALECT_SLOTS = List.of("text_mode", "header_row", "mv_syntax", "delimiter", "quote", "escape");
+    public static final List<String> DIALECT_SLOTS = List.of(
+        "data.text_mode",
+        "data.header_row",
+        "data.mv_syntax",
+        "data.delimiter",
+        "data.quote",
+        "data.escape"
+    );
 
     /**
      * The distinct dialect variants a format needs on disk, as slug to the slots it pins.
@@ -1490,7 +1560,7 @@ public final class FixtureDimensions {
     public Map<String, Map<String, String>> dialectSlugs(String format) {
         Map<String, Map<String, String>> slugs = new LinkedHashMap<>();
         forEachVector(vector -> {
-            if (format.equals(vector.get("format")) == false) {
+            if (format.equals(vector.get(PARTITION_AXIS)) == false) {
                 return;
             }
             Map<String, String> pinned = new LinkedHashMap<>();
@@ -1570,12 +1640,12 @@ public final class FixtureDimensions {
         }
         Set<String> rendered = new LinkedHashSet<>();
         forEachVector(tier, vector -> {
-            if (format.equals(vector.get("format")) == false) {
+            if (format.equals(vector.get(PARTITION_AXIS)) == false) {
                 return;
             }
             for (Map.Entry<String, String> slot : vector.entrySet()) {
                 String dimension = slot.getKey();
-                if (dimension.equals("format") || slot.getValue().equals(defaultValue(dimension, format))) {
+                if (dimension.equals(PARTITION_AXIS) || slot.getValue().equals(defaultValue(dimension, format))) {
                     continue;
                 }
                 if (seamServes(dimension, slot.getValue(), format, seams) == false) {
@@ -1727,7 +1797,7 @@ public final class FixtureDimensions {
                 // globally-filled baseline hands every tsv vector an off-default text_mode it never asked
                 // for. That stays invisible while the selection predicate makes the same mistake, and the
                 // two cancel; it surfaces as a silent drop the moment either side is corrected alone.
-                String format = assignment.get("format");
+                String format = assignment.get(PARTITION_AXIS);
                 Map<String, String> vector = new LinkedHashMap<>();
                 for (String d : names) {
                     vector.put(d, defaultValue(d, format));
@@ -1798,7 +1868,7 @@ public final class FixtureDimensions {
         List<Map<String, String>> acc = new ArrayList<>();
         acc.add(new LinkedHashMap<>());
         for (String axis : axes) {
-            List<String> choices = axis.equals("format") ? new ArrayList<>(formats) : tierValues(axis, formats, tier);
+            List<String> choices = axis.equals(PARTITION_AXIS) ? new ArrayList<>(formats) : tierValues(axis, formats, tier);
             List<Map<String, String>> next = new ArrayList<>();
             for (Map<String, String> partial : acc) {
                 for (String choice : choices) {
@@ -1815,12 +1885,12 @@ public final class FixtureDimensions {
         // were reachable on tsv, ndjson and parquet by every other measure, and no vector ever carried
         // them there. The audit called those cells covered because they ARE reachable; the crossing simply
         // never asked for them, which is coverage claimed and not delivered.
-        if (axes.contains("format") == false) {
+        if (axes.contains(PARTITION_AXIS) == false) {
             List<Map<String, String>> spread = new ArrayList<>(acc.size() * formats.size());
             for (String format : formats) {
                 for (Map<String, String> vector : acc) {
                     Map<String, String> copy = new LinkedHashMap<>(vector);
-                    copy.put("format", format);
+                    copy.put(PARTITION_AXIS, format);
                     spread.add(copy);
                 }
             }

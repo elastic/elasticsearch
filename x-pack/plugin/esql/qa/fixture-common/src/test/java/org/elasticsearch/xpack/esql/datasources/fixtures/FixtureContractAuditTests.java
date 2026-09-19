@@ -44,30 +44,30 @@ public class FixtureContractAuditTests extends ESTestCase {
      */
     private static String[] unreachableCell() {
         return new String[] {
-            "dimension.format.values = csv, parquet",
-            "dimension.format.default = csv",
-            "dimension.format.binds = fixture",
-            "dimension.cluster_size.values = single, multi",
-            "dimension.cluster_size.default = single",
-            "dimension.cluster_size.binds = cluster",
-            "pair.cluster_size.format = interacting" };
+            "dimension.data.format.values = csv, parquet",
+            "dimension.data.format.default = csv",
+            "dimension.data.format.binds = fixture",
+            "dimension.cluster.cluster_size.values = single, multi",
+            "dimension.cluster.cluster_size.default = single",
+            "dimension.cluster.cluster_size.binds = cluster",
+            "pair.cluster.cluster_size.data.format = interacting" };
     }
 
     public void testAnUndeclaredAbsenceIsAViolation() {
         FixtureDimensions dimensions = FixtureDimensions.parse(declaration(unreachableCell()));
         List<FixtureContractAudit.Cell> cells = FixtureContractAudit.audit(dimensions);
-        assertThat(FixtureContractAudit.violatingDimensions(cells), hasItem("cluster_size"));
+        assertThat(FixtureContractAudit.violatingDimensions(cells), hasItem("cluster.cluster_size"));
     }
 
     /** Declaring why it cannot run is what clears it -- and the reason is carried into the report. */
     public void testATypedAbsenceClearsTheViolation() {
         String[] lines = ArrayUtils.append(
             unreachableCell(),
-            "dimension.cluster_size.gap.multi = gap: no vector routes to the multi-node suite"
+            "dimension.cluster.cluster_size.gap.multi = gap: no vector routes to the multi-node suite"
         );
         FixtureDimensions dimensions = FixtureDimensions.parse(declaration(lines));
         List<FixtureContractAudit.Cell> cells = FixtureContractAudit.audit(dimensions);
-        assertThat(FixtureContractAudit.violatingDimensions(cells), not(hasItem("cluster_size")));
+        assertThat(FixtureContractAudit.violatingDimensions(cells), not(hasItem("cluster.cluster_size")));
         assertThat(FixtureContractAudit.countByVerdict(cells).get("GAP"), equalTo(2L));
     }
 
@@ -77,18 +77,18 @@ public class FixtureContractAuditTests extends ESTestCase {
      */
     public void testAnAbsenceOnAReachableCellIsAViolation() {
         String[] lines = new String[] {
-            "dimension.format.values = csv, parquet",
-            "dimension.format.default = csv",
-            "dimension.format.binds = fixture",
-            "dimension.error_mode.values = fail_fast, skip_row",
-            "dimension.error_mode.default = fail_fast",
-            "dimension.error_mode.binds = directive",
-            "dimension.error_mode.key = error_mode",
-            "dimension.error_mode.gap.skip_row = gap: stale, this works now",
-            "pair.error_mode.format = interacting" };
+            "dimension.data.format.values = csv, parquet",
+            "dimension.data.format.default = csv",
+            "dimension.data.format.binds = fixture",
+            "dimension.dataset.error_mode.values = fail_fast, skip_row",
+            "dimension.dataset.error_mode.default = fail_fast",
+            "dimension.dataset.error_mode.binds = directive",
+            "dimension.dataset.error_mode.key = error_mode",
+            "dimension.dataset.error_mode.gap.skip_row = gap: stale, this works now",
+            "pair.data.format.dataset.error_mode = interacting" };
         FixtureDimensions dimensions = FixtureDimensions.parse(declaration(lines));
         List<FixtureContractAudit.Cell> cells = FixtureContractAudit.audit(dimensions);
-        assertThat(FixtureContractAudit.violatingDimensions(cells), hasItem("error_mode"));
+        assertThat(FixtureContractAudit.violatingDimensions(cells), hasItem("dataset.error_mode"));
         // Two, not one: error_mode declares no applies_to, so the stale cell exists on every format.
         assertThat(FixtureContractAudit.countByVerdict(cells).get("STALE-ABSENCE"), equalTo(2L));
     }
@@ -140,13 +140,13 @@ public class FixtureContractAuditTests extends ESTestCase {
     public void testAViolatingCellFailsTheAuditAndIsNamedInTheReport() throws IOException {
         FixtureDimensions dimensions = FixtureDimensions.parse(
             declaration(
-                "dimension.format.values = csv, parquet",
-                "dimension.format.default = csv",
-                "dimension.format.binds = fixture",
-                "dimension.error_mode.values = fail_fast, skip_row",
-                "dimension.error_mode.default = fail_fast",
-                "dimension.error_mode.binds = backend",
-                "pair.error_mode.format = interacting"
+                "dimension.data.format.values = csv, parquet",
+                "dimension.data.format.default = csv",
+                "dimension.data.format.binds = fixture",
+                "dimension.dataset.error_mode.values = fail_fast, skip_row",
+                "dimension.dataset.error_mode.default = fail_fast",
+                "dimension.dataset.error_mode.binds = backend",
+                "pair.data.format.dataset.error_mode = interacting"
             )
         );
         Path report = createTempDir().resolve("contract.txt");
@@ -156,7 +156,7 @@ public class FixtureContractAuditTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("error_mode=skip_row"));
 
         assertThat("the report is written before the failure, so the reader can see what failed", Files.exists(report), equalTo(true));
-        assertThat(Files.readString(report), containsString("error_mode"));
+        assertThat(Files.readString(report), containsString("dataset.error_mode"));
     }
 
     /**

@@ -35,28 +35,28 @@ public final class FixtureCapabilities {
      * inferred from an empty directory.
      */
     private static final Set<String> RENDERED_AND_SELECTABLE = Set.of(
-        "format=tsv@tsv",
-        "format=ndjson@ndjson",
-        "format=parquet@parquet",
-        "format=orc@orc",
+        "data.format=tsv@tsv",
+        "data.format=ndjson@ndjson",
+        "data.format=parquet@parquet",
+        "data.format=orc@orc",
         // Compressed variants of every text fixture are written at fixture-load time by
         // AbstractExternalSourceSpecTestCase.generateCompressedFixtures, so these bytes already exist for
         // all three text formats -- no generator work earned these rows, only the consumption that reads
-        "text_codec=gzip@csv",
-        "text_codec=gzip@tsv",
-        "text_codec=gzip@ndjson",
-        "text_codec=zstd@csv",
-        "text_codec=zstd@tsv",
-        "text_codec=zstd@ndjson",
-        "text_codec=bzip2@csv",
-        "text_codec=bzip2@tsv",
-        "text_codec=bzip2@ndjson",
-        "text_codec=lz4@csv",
-        "text_codec=lz4@tsv",
-        "text_codec=lz4@ndjson",
-        "text_codec=snappy@csv",
-        "text_codec=snappy@tsv",
-        "text_codec=snappy@ndjson",
+        "data.text_codec=gzip@csv",
+        "data.text_codec=gzip@tsv",
+        "data.text_codec=gzip@ndjson",
+        "data.text_codec=zstd@csv",
+        "data.text_codec=zstd@tsv",
+        "data.text_codec=zstd@ndjson",
+        "data.text_codec=bzip2@csv",
+        "data.text_codec=bzip2@tsv",
+        "data.text_codec=bzip2@ndjson",
+        "data.text_codec=lz4@csv",
+        "data.text_codec=lz4@tsv",
+        "data.text_codec=lz4@ndjson",
+        "data.text_codec=snappy@csv",
+        "data.text_codec=snappy@tsv",
+        "data.text_codec=snappy@ndjson",
         // Dialect trees rendered by <Format>FixtureGenerator --vector-variants into vector/<slug>/, and
         // selected by AbstractExternalSourceSpecTestCase.fixturesBase. Both text generators now have a
         // vector mode and both are wired in esql-datasource-csv/qa, which hosts the Csv and Tsv suites
@@ -64,39 +64,39 @@ public final class FixtureCapabilities {
         // off-default dialects are escaped and plain; tsv defaults to plain, so its off-default dialects
         // are quoted and escaped. A row for a format's own default would claim a cell that no vector
         // carries, since a vector never pins a slot at its default.
-        "text_mode=escaped@csv",
-        "text_mode=plain@csv",
-        "mv_syntax=brackets@csv",
-        "text_mode=quoted@tsv",
-        "text_mode=escaped@tsv",
-        "mv_syntax=brackets@tsv",
+        "data.text_mode=escaped@csv",
+        "data.text_mode=plain@csv",
+        "data.mv_syntax=brackets@csv",
+        "data.text_mode=quoted@tsv",
+        "data.text_mode=escaped@tsv",
+        "data.mv_syntax=brackets@tsv",
         // The field separator. Off-default per format, so the rows differ: csv defaults to comma and tsv
         // to tab, and a row for a format's own default would claim a cell no vector carries. A csv
         // fixture rendered with tabs is a real configuration -- the extension picks the reader, the
         // delimiter picks the bytes -- so tab@csv and comma@tsv are both meaningful cells, not the two
         // formats collapsing into each other.
-        "delimiter=tab@csv",
-        "delimiter=semicolon@csv",
-        "delimiter=pipe@csv",
-        "delimiter=comma@tsv",
-        "delimiter=semicolon@tsv",
-        "delimiter=pipe@tsv",
+        "data.delimiter=tab@csv",
+        "data.delimiter=semicolon@csv",
+        "data.delimiter=pipe@csv",
+        "data.delimiter=comma@tsv",
+        "data.delimiter=semicolon@tsv",
+        "data.delimiter=pipe@tsv",
         // The rest of the parsing grammar. Same shape as delimiter: off-default only, and both formats,
         // since neither character's default differs per format.
-        "quote=single@csv",
-        "quote=single@tsv",
-        "escape=tilde@csv",
-        "escape=tilde@tsv",
+        "data.quote=single@csv",
+        "data.quote=single@tsv",
+        "data.escape=tilde@csv",
+        "data.escape=tilde@tsv",
         // Codec-specific parquet trees written by compressed-parquet-fixtures.gradle into
         // standalone-<codec>/. These bytes predate the vector regime -- ParquetCompressedFormatSpecIT has
         // read them all along -- so no generator work earned these rows either, only the selection added
         // to vectorFixturesBase. lz4_legacy has no row because no generator writes that codec anywhere,
         // which is a different absence and stays declared as a gap.
-        "parquet_codec=snappy@parquet",
-        "parquet_codec=gzip@parquet",
-        "parquet_codec=zstd@parquet",
-        "parquet_codec=lz4_raw@parquet",
-        "parquet_codec=lz4_legacy@parquet"
+        "data.parquet_codec=snappy@parquet",
+        "data.parquet_codec=gzip@parquet",
+        "data.parquet_codec=zstd@parquet",
+        "data.parquet_codec=lz4_raw@parquet",
+        "data.parquet_codec=lz4_legacy@parquet"
     );
 
     /**
@@ -127,11 +127,11 @@ public final class FixtureCapabilities {
         // parquet registers no format-specific keys at all since elastic/elasticsearch#157868, and ORC is
         // in the same position structurally -- OrcDataSourcePlugin declares FormatSpec.of("orc", ".orc"),
         // whose config-key set is empty -- so #1841 has nothing to truncate on either.
-        "path_shape=glob@csv",
-        "path_shape=glob@tsv",
-        "path_shape=glob@ndjson",
-        "path_shape=glob@parquet",
-        "path_shape=glob@orc"
+        "layout.path_shape=glob@csv",
+        "layout.path_shape=glob@tsv",
+        "layout.path_shape=glob@ndjson",
+        "layout.path_shape=glob@parquet",
+        "layout.path_shape=glob@orc"
     );
 
     /** Whether a suite can ask for this resolver-bound value on this format. */
@@ -152,7 +152,7 @@ public final class FixtureCapabilities {
      * fixtures are generated.
      */
     public static boolean formatIsConsumed(FixtureDimensions dimensions, String format) {
-        return format.equals(dimensions.defaultValue("format")) || renders("format", format, format);
+        return format.equals(dimensions.defaultValue("data.format")) || renders("data.format", format, format);
     }
 
     /** Every declared cell, for the audit's report and for tests that pin the set. */

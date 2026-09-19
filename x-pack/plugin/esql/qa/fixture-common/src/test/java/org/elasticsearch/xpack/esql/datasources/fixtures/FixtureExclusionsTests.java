@@ -135,18 +135,26 @@ public class FixtureExclusionsTests extends ESTestCase {
         Properties props = new Properties();
         props.setProperty("suites", "tsv-vector");
         props.setProperty(
-            "exclude.tsv-vector.some-spec.aCase@text_mode.escaped,delimiter.semicolon",
+            "exclude.tsv-vector.some-spec.aCase@data.text_mode.escaped,data.delimiter.semicolon",
             "bug: elastic/esql-planning#1880 -- only the pair splits wrongly"
         );
         FixtureExclusions parsed = FixtureExclusions.parse(props);
 
         // The vector-aware lookup, because that is the one the suites call: an exclusion is only ever
         // consulted against the vector a case is about to run under.
-        assertThat("both slots present", excluded(parsed, Map.of("text_mode", "escaped", "delimiter", "semicolon")), equalTo(true));
-        assertThat("only the mode", excluded(parsed, Map.of("text_mode", "escaped", "delimiter", "tab")), equalTo(false));
-        assertThat("only the delimiter", excluded(parsed, Map.of("text_mode", "quoted", "delimiter", "semicolon")), equalTo(false));
-        assertThat("neither", excluded(parsed, Map.of("text_mode", "quoted", "delimiter", "tab")), equalTo(false));
-        assertThat("a slot absent from the vector", excluded(parsed, Map.of("text_mode", "escaped")), equalTo(false));
+        assertThat(
+            "both slots present",
+            excluded(parsed, Map.of("data.text_mode", "escaped", "data.delimiter", "semicolon")),
+            equalTo(true)
+        );
+        assertThat("only the mode", excluded(parsed, Map.of("data.text_mode", "escaped", "data.delimiter", "tab")), equalTo(false));
+        assertThat(
+            "only the delimiter",
+            excluded(parsed, Map.of("data.text_mode", "quoted", "data.delimiter", "semicolon")),
+            equalTo(false)
+        );
+        assertThat("neither", excluded(parsed, Map.of("data.text_mode", "quoted", "data.delimiter", "tab")), equalTo(false));
+        assertThat("a slot absent from the vector", excluded(parsed, Map.of("data.text_mode", "escaped")), equalTo(false));
     }
 
     private static boolean excluded(FixtureExclusions exclusions, Map<String, String> vector) {
@@ -157,14 +165,14 @@ public class FixtureExclusionsTests extends ESTestCase {
     public void testASingleSlotAndAnUnqualifiedExclusionAreUnchanged() {
         Properties props = new Properties();
         props.setProperty("suites", "tsv-vector");
-        props.setProperty("exclude.tsv-vector.some-spec.oneSlot@text_mode.escaped", "bug: elastic/esql-planning#1 -- one value");
+        props.setProperty("exclude.tsv-vector.some-spec.oneSlot@data.text_mode.escaped", "bug: elastic/esql-planning#1 -- one value");
         props.setProperty("exclude.tsv-vector.some-spec.everyVector", "rule: the suite cannot express this");
         FixtureExclusions parsed = FixtureExclusions.parse(props);
 
-        assertThat(parsed.find("tsv-vector", "some-spec", "oneSlot", Map.of("text_mode", "escaped")), not(nullValue()));
-        assertThat(parsed.find("tsv-vector", "some-spec", "oneSlot", Map.of("text_mode", "quoted")), nullValue());
+        assertThat(parsed.find("tsv-vector", "some-spec", "oneSlot", Map.of("data.text_mode", "escaped")), not(nullValue()));
+        assertThat(parsed.find("tsv-vector", "some-spec", "oneSlot", Map.of("data.text_mode", "quoted")), nullValue());
 
-        assertThat(parsed.find("tsv-vector", "some-spec", "everyVector", Map.of("text_mode", "quoted")), not(nullValue()));
+        assertThat(parsed.find("tsv-vector", "some-spec", "everyVector", Map.of("data.text_mode", "quoted")), not(nullValue()));
         assertThat(parsed.find("tsv-vector", "some-spec", "everyVector", Map.of()), not(nullValue()));
     }
 
@@ -206,20 +214,21 @@ public class FixtureExclusionsTests extends ESTestCase {
                 qualified++;
                 for (String slot : e.vectorSlots().split(",")) {
                     String trimmed = slot.trim();
-                    int dot = trimmed.indexOf('.');
-                    String dimension = trimmed.substring(0, dot);
-                    String value = trimmed.substring(dot + 1);
+                    // A dimension name may carry a dot, so the boundary comes from the grammar rather
+                    // than from the first separator.
+                    String dimension = FixtureDimensions.dimensionNameIn(trimmed);
+                    String value = dimension == null ? trimmed : trimmed.substring(dimension.length() + 1);
                     // `rerendered` is derived by the suite rather than declared, so it has no value list --
                     // but it is not therefore unconstrained. The suite computes it with String.valueOf on a
                     // boolean, so exactly two spellings ever reach a vector, and skipping the check let
                     // @rerendered.tru through to match nothing in silence. Checked against the two.
-                    if (dimension.equals("rerendered")) {
+                    if ("rerendered".equals(dimension)) {
                         if (value.equals("true") == false && value.equals("false") == false) {
                             bad.add(suite + "." + e.caseName() + "@" + trimmed + " -- [rerendered] is a boolean");
                         }
                         continue;
                     }
-                    if (dimensions.names().contains(dimension) == false) {
+                    if (dimension == null || dimensions.names().contains(dimension) == false) {
                         bad.add(suite + "." + e.caseName() + "@" + trimmed + " -- no such dimension");
                     } else if (dimensions.values(dimension).contains(value) == false) {
                         bad.add(suite + "." + e.caseName() + "@" + trimmed + " -- [" + dimension + "] declares no [" + value + "]");

@@ -18,6 +18,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
 
@@ -71,6 +72,15 @@ public final class RegistrationContract {
      */
     private static final String COLUMNS_PREFIX = "columns.";
 
+    /**
+     * Expected cell values, addressed {@code rows.<row>.<column>}.
+     *
+     * <p>Column names reach most settings, because the discriminating bytes can usually be put in the
+     * header. They do not reach the ones whose effect is inside a cell -- a null sentinel, a truncation,
+     * a parsed date -- where the header is identical either way and only the value differs.
+     */
+    private static final String ROWS_PREFIX = "rows.";
+
     /** What counts as citing a defect: a filed issue a reader can open, not a bare number. */
     static final Pattern ISSUE_REFERENCE = Pattern.compile("elastic/[a-z0-9-]+#\\d+");
 
@@ -123,6 +133,8 @@ public final class RegistrationContract {
      * @param content   the bytes to write for this case, or null to use the suite's shared fixture
      * @param contentCharset the charset the content is WRITTEN in, which is the point of an encoding
      *                       case: bytes valid in the declared charset and invalid as UTF-8
+     * @param rows      expected cell values as text, row-major, or empty when the case asserts only
+     *                  the column names
      */
     public record Case(
         String name,
@@ -138,11 +150,13 @@ public final class RegistrationContract {
         String blockedBy,
         List<String> columns,
         String content,
-        String contentCharset
+        String contentCharset,
+        List<List<String>> rows
     ) {
         public Case {
             settings = Map.copyOf(settings);
             columns = List.copyOf(columns);
+            rows = rows.stream().map(List::copyOf).toList();
         }
 
         /** Whether this case asserts behaviour the product does not have yet. */
@@ -199,13 +213,14 @@ public final class RegistrationContract {
             // valid alone, and a contract of one setting per case cannot express one.
             if (attribute.startsWith(SETTINGS_PREFIX) == false
                 && attribute.startsWith(COLUMNS_PREFIX) == false
+                && attribute.startsWith(ROWS_PREFIX) == false
                 && ATTRIBUTES.contains(attribute) == false) {
                 throw new IllegalStateException(
                     "case ["
                         + name
                         + "] declares unknown attribute ["
                         + attribute
-                        + "]; expected settings.<key>, columns.<n> or one of "
+                        + "]; expected settings.<key>, columns.<n>, rows.<r>.<c> or one of "
                         + ATTRIBUTES
                 );
             }
@@ -262,6 +277,23 @@ public final class RegistrationContract {
                 }
             } else if (declaredColumns(props, name).isEmpty() == false) {
                 throw new IllegalStateException("case [" + name + "] does not expect a result, so its [columns] would never be compared");
+            }
+            List<List<String>> rows = declaredRows(props, name);
+            if (outcome != Outcome.QUERY_SUCCEEDS && rows.isEmpty() == false) {
+                throw new IllegalStateException("case [" + name + "] does not expect a result, so its [rows] would never be compared");
+            }
+            for (List<String> row : rows) {
+                if (row.size() != columns.size()) {
+                    throw new IllegalStateException(
+                        "case ["
+                            + name
+                            + "] declares "
+                            + columns.size()
+                            + " column(s) and a row of "
+                            + row.size()
+                            + "; a row that does not line up with the columns cannot be compared against one"
+                    );
+                }
             }
             String query = props.getProperty("case." + name + ".query", DEFAULT_QUERY).trim();
             // A refusal never runs a query, so declaring one says the case was written as the other kind
@@ -325,7 +357,8 @@ public final class RegistrationContract {
                     blockedBy,
                     columns,
                     content,
-                    contentCharset
+                    contentCharset,
+                    rows
                 )
             );
         }
@@ -380,6 +413,34 @@ public final class RegistrationContract {
         // Sorted by index, not by the string form, so columns.10 follows columns.9 rather than columns.1.
         indices.sort(Integer::compareTo);
         return indices.stream().map(i -> props.getProperty(prefix + i).trim()).toList();
+    }
+
+    /**
+     * The expected cell values of a case, row-major, in index order.
+     *
+     * <p>Addressed per cell rather than as delimited text for the same reason the columns are: a value
+     * can contain whatever the bytes contain, so any separator this file chose could also be inside one.
+     */
+    private static List<List<String>> declaredRows(Properties props, String name) {
+        String prefix = "case." + name + "." + ROWS_PREFIX;
+        Map<Integer, Map<Integer, String>> byRow = new TreeMap<>();
+        for (String key : props.stringPropertyNames()) {
+            if (key.startsWith(prefix) == false) {
+                continue;
+            }
+            String tail = key.substring(prefix.length());
+            int dot = tail.indexOf('.');
+            if (dot < 0) {
+                throw new IllegalStateException("case [" + name + "] declares [rows." + tail + "]; expected rows.<row>.<column>");
+            }
+            try {
+                byRow.computeIfAbsent(Integer.parseInt(tail.substring(0, dot)), r -> new TreeMap<>())
+                    .put(Integer.parseInt(tail.substring(dot + 1)), props.getProperty(key));
+            } catch (NumberFormatException e) {
+                throw new IllegalStateException("case [" + name + "] declares [rows." + tail + "]; expected integer row and column", e);
+            }
+        }
+        return byRow.values().stream().map(cells -> List.copyOf(cells.values())).toList();
     }
 
     private static String required(Properties props, String name, String attribute) {

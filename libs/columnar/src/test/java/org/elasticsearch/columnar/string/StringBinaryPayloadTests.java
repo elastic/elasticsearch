@@ -87,6 +87,29 @@ public class StringBinaryPayloadTests extends ESTestCase {
         }
     }
 
+    /**
+     * The buffer is allocated by the first {@link StringBinaryPayload.Builder#appendSlot}, so a builder that never has one appended
+     * has no buffer to write a count back into. Building one anyway must still answer the empty payload rather than reach past the
+     * end of it.
+     */
+    public void testBuildsWithNoSlotAppended() {
+        assertEquals(StringBinaryPayload.EMPTY, new StringBinaryPayload.Builder().build());
+    }
+
+    /** A slot appended into a fresh builder lands the same bytes as one appended into a builder that has been reset. */
+    public void testFirstAppendAgreesWithAReusedBuilder() {
+        final StringBinaryPayload.Builder reused = new StringBinaryPayload.Builder();
+        reused.appendSlot(new BytesRef(randomAlphaOfLengthBetween(1, 50)));
+        reused.build();
+        for (BytesRef slot : Arrays.asList(new BytesRef(randomAlphaOfLengthBetween(1, 100)), new BytesRef(""), null)) {
+            final StringBinaryPayload.Builder fresh = new StringBinaryPayload.Builder();
+            fresh.appendSlot(slot);
+            reused.reset();
+            reused.appendSlot(slot);
+            assertEquals("a fresh builder's first slot", BytesRef.deepCopyOf(reused.build()), fresh.build());
+        }
+    }
+
     /** Building twice without appending anything in between must not carry the first document's slots over. */
     public void testBuilderResets() {
         final StringBinaryPayload.Builder builder = new StringBinaryPayload.Builder();

@@ -597,7 +597,7 @@ public final class StringColumnWriter {
             return false;
         }
         final long[] sample = new long[trialValues];
-        try (IndexInput in = directory.openInput(staged, context)) {
+        try (IndexInput in = directory.openInput(staged, IOContext.READONCE)) {
             for (int i = 0; i < trialValues; i++) {
                 sample[i] = in.readVInt();
             }

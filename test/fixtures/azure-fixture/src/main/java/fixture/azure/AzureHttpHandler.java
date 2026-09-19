@@ -16,6 +16,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
@@ -37,6 +38,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -146,7 +148,9 @@ public class AzureHttpHandler implements HttpHandler {
 
                 final String blockId = params.get("blockid");
                 assert assertValidBlockId(blockId);
-                mockAzureBlobStore.putBlock(blobPath(exchange), blockId, Streams.readFully(exchange.getRequestBody()), leaseId(exchange));
+                final BytesReference block = Streams.readFully(exchange.getRequestBody());
+                verifyContentMd5(exchange, block);
+                mockAzureBlobStore.putBlock(blobPath(exchange), blockId, block, leaseId(exchange));
                 exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
 
             } else if (Regex.simpleMatch("PUT /" + account + "/" + container + "/*comp=blocklist*", request)) {
@@ -207,6 +211,7 @@ public class AzureHttpHandler implements HttpHandler {
                 final Headers requestHeaders = exchange.getRequestHeaders();
                 final String ifNoneMatch = requestHeaders.getFirst("If-None-Match");
                 BytesReference contents = Streams.readFully(exchange.getRequestBody());
+                verifyContentMd5(exchange, contents);
 
                 final String copySourceUrl = requestHeaders.getFirst(X_MS_COPY_SOURCE);
                 if (copySourceUrl != null) {
@@ -537,6 +542,27 @@ public class AzureHttpHandler implements HttpHandler {
             sendError(exchange, RestStatus.INTERNAL_SERVER_ERROR, "InternalError", e.getMessage());
         } finally {
             exchange.close();
+        }
+    }
+
+    /**
+     * Rejects a body that does not match the {@code Content-MD5} the request declared, as the real service does.
+     *
+     * <p>Azure checks this header on Put Blob and Put Block and answers {@code 400 Md5Mismatch} when it disagrees
+     * with the body. Without the check here a client could send a digest that does not describe what it sent and
+     * every test would still pass, which is the opposite of what the header is for.
+     */
+    private static void verifyContentMd5(HttpExchange exchange, BytesReference body) {
+        final String declared = exchange.getRequestHeaders().getFirst("Content-MD5");
+        if (declared == null) {
+            return;
+        }
+        final String actual = Base64.getEncoder().encodeToString(MessageDigests.digest(body, MessageDigests.md5()));
+        if (declared.equals(actual) == false) {
+            throw new MockAzureBlobStore.BadRequestException(
+                "Md5Mismatch",
+                "The MD5 value specified in the request did not match with the MD5 value calculated by the server."
+            );
         }
     }
 

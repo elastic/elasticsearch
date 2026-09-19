@@ -70,6 +70,7 @@ import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -99,6 +100,7 @@ import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
+import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -593,7 +595,7 @@ public class AzureBlobStore implements BlobStore {
             if (multiParts == null || multiParts.size() == 1) {
                 logger.debug("{}: uploading blob of size [{}] as single upload", blobName, blobSize);
                 var flux = toFlux(blobName, provider, 0L, blobSize, DEFAULT_UPLOAD_BUFFERS_SIZE, 0);
-                executeSingleUpload(purpose, blobName, flux, blobSize, failIfAlreadyExists);
+                executeSingleUpload(purpose, blobName, flux, blobSize, failIfAlreadyExists, contentMd5(provider, 0L, blobSize));
             } else {
                 logger.debug("{}: uploading blob of size [{}] using [{}] parts", blobName, blobSize, multiParts.size());
                 assert blobSize == ((multiParts.size() - 1) * getUploadBlockSize()) + multiParts.getLast().blockSize();
@@ -643,6 +645,38 @@ public class AzureBlobStore implements BlobStore {
         }
     }
 
+    /**
+     * Digests the bytes that an upload is about to send, so that the service can reject a body that does not match.
+     *
+     * <p>Azure verifies the {@code Content-MD5} of a Put Blob or Put Block request against the body it receives and
+     * answers {@code 400 Md5Mismatch} if they differ. Without it a body that is corrupted anywhere between reading
+     * the source and the bytes reaching the wire is stored and acknowledged, and the damage only surfaces when
+     * something later reads the blob and fails a Lucene checksum - by which time the shard cannot be recovered
+     * without losing the writes that followed.
+     *
+     * <p>This costs one extra pass over the source. The provider hands out an independent stream per call, so the
+     * pass is not the one the upload itself reads, and the two agree only if the source is stable - which it is for
+     * the compound commits this exists to protect, as they are frozen before upload.
+     */
+    private static byte[] contentMd5(BlobContainer.BlobMultiPartInputStreamProvider provider, long offset, long length) throws IOException {
+        final MessageDigest digest = MessageDigests.md5();
+        final byte[] buffer = new byte[DEFAULT_UPLOAD_BUFFERS_SIZE];
+        long remaining = length;
+        try (InputStream stream = provider.apply(offset, length)) {
+            while (remaining > 0L) {
+                final int read = stream.read(buffer, 0, Math.toIntExact(Math.min(buffer.length, remaining)));
+                if (read == -1) {
+                    throw new IOException(
+                        format("stream for [%s] bytes at offset [%s] ended after [%s] bytes", length, offset, length - remaining)
+                    );
+                }
+                digest.update(buffer, 0, read);
+                remaining -= read;
+            }
+        }
+        return digest.digest();
+    }
+
     private record MultiPart(int part, String blockId, long blockOffset, long blockSize, boolean isLast) {}
 
     private static List<MultiPart> computeMultiParts(long totalSize, long partSize) {
@@ -681,10 +715,18 @@ public class AzureBlobStore implements BlobStore {
             multiPart.blockSize(),
             multiPart.blockOffset()
         );
-        return asyncClient.stageBlock(
+        final byte[] contentMd5;
+        try {
+            contentMd5 = contentMd5(provider, multiPart.blockOffset(), multiPart.blockSize());
+        } catch (IOException e) {
+            return Mono.error(e);
+        }
+        return asyncClient.stageBlockWithResponse(
             multiPart.blockId(),
             toFlux(blobName, provider, multiPart.blockOffset(), multiPart.blockSize(), DEFAULT_UPLOAD_BUFFERS_SIZE, multiPart.part()),
-            multiPart.blockSize()
+            multiPart.blockSize(),
+            contentMd5,
+            null
         )
             .doOnSuccess(
                 unused -> logger.debug(
@@ -733,6 +775,20 @@ public class AzureBlobStore implements BlobStore {
         long blobSize,
         boolean failIfAlreadyExists
     ) {
+        executeSingleUpload(purpose, blobName, byteBufferFlux, blobSize, failIfAlreadyExists, null);
+    }
+
+    /**
+     * @param contentMd5 digest of the bytes being sent, or {@code null} not to ask the service to check them
+     */
+    private void executeSingleUpload(
+        OperationPurpose purpose,
+        String blobName,
+        Flux<ByteBuffer> byteBufferFlux,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        @Nullable byte[] contentMd5
+    ) {
         try (var client = getAzureBlobServiceClientClient(purpose)) {
             final BlobServiceAsyncClient asyncClient = client.getAsyncClient();
 
@@ -740,6 +796,7 @@ public class AzureBlobStore implements BlobStore {
             final BlockBlobAsyncClient blockBlobAsyncClient = blobAsyncClient.getBlockBlobAsyncClient();
 
             final BlockBlobSimpleUploadOptions options = new BlockBlobSimpleUploadOptions(byteBufferFlux, blobSize);
+            options.setContentMd5(contentMd5);
             resolveAccessTier(purpose).ifPresent(options::setTier);
             BlobRequestConditions requestConditions = new BlobRequestConditions();
             if (failIfAlreadyExists) {

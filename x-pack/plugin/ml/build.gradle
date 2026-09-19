@@ -67,6 +67,7 @@ esplugin.bundleSpec.exclude 'platform/licenses/**'
 ["bundlePlugin", "explodedBundlePlugin"].each { bundleTaskName ->
     tasks.named(bundleTaskName).configure {
         dependsOn configurations.nativeBundle
+        dependsOn "verifyControllerProtocolVersion"
     }
 }
 
@@ -110,6 +111,100 @@ dependencies {
 def mlCppVersion(){
   return (project.gradle.parent != null && buildParams.snapshotBuild == false) ?
       (project.version + "-SNAPSHOT") : project.version;
+}
+
+// Minimum controller-protocol.version that ml-cpp's native controller must publish (see ml-cpp's own
+// build.gradle, next to its controller-protocol.version publication). Bumping this constant is how a
+// future breaking change to the controller protocol gets enforced at Elasticsearch build time -
+// instead of relying on convention - so we can never ship an ES build that assumes new controller
+// capabilities against an old, incompatible native controller.
+def REQUIRED_CONTROLLER_PROTOCOL_VERSION = 2
+
+tasks.register("verifyControllerProtocolVersion") {
+  def nativeBundleFiles = objects.fileCollection().from(configurations.nativeBundle)
+  def archiveOps = project.services.get(org.gradle.api.file.ArchiveOperations)
+  dependsOn nativeBundleFiles
+  inputs.files(nativeBundleFiles).withPropertyName("nativeBundle")
+  doLast {
+    // This is a hard build-time failure, not an advisory-only check. PyTorchBuilder emits, on Linux,
+    // exactly one of '--disableSandbox' (xpack.ml.trained_models.sandbox_enabled=false, the default)
+    // or '--requireSandbox' (sandbox_enabled=true) on every deployment start - never neither. Only a
+    // native controller built against this same controller-protocol version recognizes either token;
+    // an older controller forwards an unrecognized token verbatim to the child, which aborts at
+    // startup. Both settings values depend on this compatibility check equally - there is no
+    // sandbox-setting value for which an incompatible pairing is safe. This Elasticsearch build must
+    // not be assembled/shipped until the paired ml-cpp artifact (publishing 'controller-protocol.version'
+    // at >= REQUIRED_CONTROLLER_PROTOCOL_VERSION) is bundled - see
+    // https://github.com/elastic/ml-cpp/pull/3188.
+    //
+    // The design doc describes the token as living in "the deps bundle" (singular), so this check is
+    // deliberately deps-artifact-first - but it tolerates the marker appearing in EITHER resolved
+    // nativeBundle artifact (deps@zip or nodeps@zip), at ANY depth rather than only the archive root,
+    // because the exact publication path isn't nailed down yet. In particular, ml-cpp's nodeps
+    // packaging (noDependenciesSpec in ml-cpp's own build.gradle) is an include-only file spec with no
+    // pattern admitting a root-level marker file, so it can never carry one; requiring the marker in
+    // every artifact would make this gate permanently red even after the paired ml-cpp change lands.
+    // It is sufficient for at least one resolved artifact to carry a valid, sufficiently new marker.
+    def matchesByZip = nativeBundleFiles.files.collectEntries { zipFile ->
+      [zipFile, archiveOps.zipTree(zipFile).matching { include '**/controller-protocol.version' }.files]
+    }
+    if (matchesByZip.values().every { it.isEmpty() }) {
+      def checkedNames = nativeBundleFiles.files.collect { it.name }.join(', ')
+      throw new GradleException(
+        "None of the resolved native controller bundles (checked: ${checkedNames}) contain a " +
+        "'controller-protocol.version' file, at any depth (required: controller-protocol-version >= " +
+        "${REQUIRED_CONTROLLER_PROTOCOL_VERSION}). The resolved ml-cpp artifact predates the " +
+        "controller-protocol.version publication and is incompatible with this Elasticsearch build."
+      )
+    }
+    // Genuine OR-across-artifacts: a single artifact with a valid, sufficiently new marker is
+    // enough to pass, regardless of what any other resolved artifact contains (malformed marker,
+    // stale version, or - per the nodeps case above - no marker at all). Collect failure reasons
+    // from every checked artifact instead of throwing on the first one, so the eventual failure
+    // message (only emitted if NO artifact passes) is complete rather than a single hit.
+    def failureReasons = []
+    def foundPassingVersion = false
+    matchesByZip.each { zipFile, matches ->
+      matches.each { versionFile ->
+        // Match line-by-line (each trimmed individually) rather than the whole trimmed file content,
+        // so trailing blank lines, CRLF line endings, or an extra comment line the ml-cpp side might
+        // legitimately add don't trip the "malformed" check below.
+        def versionLinePattern = ~/^controller-protocol-version=(\d+)$/
+        def matcher = null
+        for (fileLine in versionFile.text.readLines()) {
+          def candidate = versionLinePattern.matcher(fileLine.trim())
+          if (candidate.matches()) {
+            matcher = candidate
+            break
+          }
+        }
+        if (matcher == null) {
+          failureReasons.add(
+            "Native controller bundle '${zipFile.name}' has a malformed 'controller-protocol.version' file " +
+            "(got '${versionFile.text.trim()}', expected a line matching 'controller-protocol-version=<int>')."
+          )
+          return
+        }
+        def foundVersion = matcher.group(1).toInteger()
+        if (foundVersion < REQUIRED_CONTROLLER_PROTOCOL_VERSION) {
+          failureReasons.add(
+            "Native controller bundle '${zipFile.name}' publishes controller-protocol version ${foundVersion}, " +
+            "but this Elasticsearch build requires controller-protocol version >= " +
+            "${REQUIRED_CONTROLLER_PROTOCOL_VERSION}. Upgrade the resolved ml-cpp artifact."
+          )
+          return
+        }
+        foundPassingVersion = true
+      }
+    }
+    if (!foundPassingVersion) {
+      throw new GradleException(
+        "None of the resolved native controller bundles carry a valid, sufficiently new " +
+        "'controller-protocol.version' marker (required: controller-protocol-version >= " +
+        "${REQUIRED_CONTROLLER_PROTOCOL_VERSION}). Reasons:\n" + failureReasons.collect { "  - ${it}" }.join('\n')
+      )
+    }
+  }
 }
 
 tasks.named('assemble').configure {

@@ -1,0 +1,6 @@
+area: Machine Learning
+issues: []
+pr: 159052
+summary: Add `xpack.ml.trained_models.sandbox_enabled` setting for staged Sandbox2
+  rollout
+type: enhancement

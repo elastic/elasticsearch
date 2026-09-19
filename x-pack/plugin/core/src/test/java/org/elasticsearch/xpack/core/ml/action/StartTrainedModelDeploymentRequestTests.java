@@ -227,6 +227,142 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSer
         assertThat(e.getMessage(), containsString("[number_of_allocations] must be 1 when [priority] is low"));
     }
 
+    public void testValidate_GivenDeploymentIdContainsParentDirectoryTraversal() {
+        Request request = createRandom();
+        request.setDeploymentId("..");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("Invalid deployment_id"));
+    }
+
+    public void testValidate_GivenDeploymentIdContainsSlash() {
+        Request request = createRandom();
+        request.setDeploymentId("foo/bar");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("Invalid deployment_id"));
+    }
+
+    public void testValidate_GivenDeploymentIdContainsBackslash() {
+        // '\' must be rejected on every platform ES runs on, not only where it happens to be the local
+        // path separator (Windows) - this validator runs cluster-wide in Request#validate, so accept/reject
+        // cannot depend on which node handles the request. On Linux/macOS this assertion would still pass
+        // even if MlStrings#isValidPathSafeId only rejected the current platform's separator, since '\' was
+        // never the local separator there either - so this case is the one that actually pins the fix.
+        Request request = createRandom();
+        request.setDeploymentId("foo\\bar");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("Invalid deployment_id"));
+    }
+
+    public void testValidate_GivenDeploymentIdIsEmpty() {
+        Request request = createRandom();
+        request.setDeploymentId("");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("Invalid deployment_id"));
+    }
+
+    public void testValidate_GivenDeploymentIdContainsNulByte() {
+        Request request = createRandom();
+        request.setDeploymentId("deployment\u0000id");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("Invalid deployment_id"));
+    }
+
+    public void testValidate_GivenDeploymentIdIsMixedCaseInferenceEndpointId() {
+        // deployment_id is only required to be safe as a single filesystem path component (see
+        // MlStrings#isValidPathSafeId); it does not have to conform to MlStrings#isValidId's
+        // lowercase-alphanumeric charset. Inference endpoint ids - which are used verbatim as
+        // deployment_id by BaseElasticsearchInternalService - have no such charset restriction today,
+        // so an id like "My-ELSER" must keep working.
+        Request request = createRandom();
+        request.setDeploymentId("My-ELSER");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(nullValue()));
+    }
+
+    public void testValidate_GivenDeploymentIdContainsCharsOutsideIsValidIdCharset() {
+        // "!" is not in MlStrings#isValidId's charset, but path-safety only cares about path
+        // traversal/separator/NUL-byte safety, so this must still be accepted.
+        Request request = createRandom();
+        request.setDeploymentId("deployment!1");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(nullValue()));
+    }
+
+    public void testValidate_GivenDeploymentIdIsValid() {
+        Request request = createRandom();
+        request.setDeploymentId("deployment-1_valid.id");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(nullValue()));
+    }
+
+    public void testValidate_GivenDeploymentIdIsPackagedModelId() {
+        Request request = createRandom();
+        request.setDeploymentId(".elser_model_2");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(nullValue()));
+    }
+
+    public void testValidate_GivenDeploymentIdIsPackagedModelIdWithSnapshotSuffix() {
+        Request request = createRandom();
+        request.setDeploymentId(".elser_model_2_SNAPSHOT");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(nullValue()));
+    }
+
+    public void testValidate_GivenDeploymentIdIsDefaultModelIdWithHyphens() {
+        Request request = createRandom();
+        request.setDeploymentId(".multilingual-e5-small");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(nullValue()));
+    }
+
+    public void testValidate_GivenDeploymentIdIsLeadingDotFollowedBySlash() {
+        Request request = createRandom();
+        request.setDeploymentId("./foo");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("Invalid deployment_id"));
+    }
+
+    public void testValidate_GivenDeploymentIdIsLoneLeadingDot() {
+        Request request = createRandom();
+        request.setDeploymentId(".");
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("Invalid deployment_id"));
+    }
+
     public void testDefaults() {
         Request request = new Request(randomAlphaOfLength(10), randomAlphaOfLength(10));
         assertThat(request.getTimeout(), equalTo(TimeValue.timeValueSeconds(30)));

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.process;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectBuilder;
 import org.elasticsearch.xpack.ml.process.logging.CppLogMessageHandler;
@@ -73,7 +74,8 @@ public class ProcessPipesTests extends ESTestCase {
             true,
             true,
             true,
-            true
+            true,
+            false
         );
 
         List<String> command = new ArrayList<>();
@@ -133,7 +135,8 @@ public class ProcessPipesTests extends ESTestCase {
             true,
             true,
             true,
-            true
+            true,
+            false
         );
     }
 
@@ -166,7 +169,8 @@ public class ProcessPipesTests extends ESTestCase {
             true,
             true,
             true,
-            true
+            true,
+            false
         );
 
         processPipes.connectLogStream();
@@ -178,5 +182,244 @@ public class ProcessPipesTests extends ESTestCase {
         verify(processInStream, times(1)).close();
         verify(processOutStream, times(1)).close();
         verify(restoreStream, times(1)).close();
+    }
+
+    public void testPipeNaming_isolationOff_pinnedLegacyNames() {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        NamedPipeHelper namedPipeHelper = new NamedPipeHelper();
+
+        ProcessPipes processPipes = new ProcessPipes(
+            env,
+            namedPipeHelper,
+            Duration.ofSeconds(10),
+            "myproc",
+            "my_job",
+            42L,
+            true,
+            true,
+            true,
+            true,
+            true,
+            false
+        );
+
+        List<String> command = new ArrayList<>();
+        processPipes.addArgs(command);
+
+        // Pin the exact legacy naming scheme: <defaultPipeDirPrefix><processName>_<jobId>_<uniqueId>_<pipe><_pid>
+        String prefix = namedPipeHelper.getDefaultPipeDirectoryPrefix(env) + "myproc_my_job_42_";
+        String suffix = "_" + JvmInfo.jvmInfo().getPid();
+        assertEquals(11, command.size());
+        assertEquals(ProcessPipes.LOG_PIPE_ARG + prefix + "log" + suffix, command.get(0));
+        assertEquals(ProcessPipes.COMMAND_PIPE_ARG + prefix + "command" + suffix, command.get(1));
+        assertEquals(ProcessPipes.INPUT_ARG + prefix + "input" + suffix, command.get(2));
+        assertEquals(ProcessPipes.INPUT_IS_PIPE_ARG, command.get(3));
+        assertEquals(ProcessPipes.OUTPUT_ARG + prefix + "output" + suffix, command.get(4));
+        assertEquals(ProcessPipes.OUTPUT_IS_PIPE_ARG, command.get(5));
+        assertEquals(ProcessPipes.RESTORE_ARG + prefix + "restore" + suffix, command.get(6));
+        assertEquals(ProcessPipes.RESTORE_IS_PIPE_ARG, command.get(7));
+        assertEquals(ProcessPipes.PERSIST_ARG + prefix + "persist" + suffix, command.get(8));
+        assertEquals(ProcessPipes.PERSIST_IS_PIPE_ARG, command.get(9));
+        assertEquals(ProcessPipes.TIMEOUT_ARG + 10, command.get(10));
+    }
+
+    public void testPipeNaming_isolationOnLinux_usesChildIpcDirectory() {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        NamedPipeHelper namedPipeHelper = new NamedPipeHelper();
+
+        ProcessPipes processPipes = new ProcessPipes(
+            env,
+            namedPipeHelper,
+            Duration.ofSeconds(10),
+            "myproc",
+            "deployment-1",
+            null,
+            false,
+            true,
+            true,
+            true,
+            false,
+            true,
+            true // isLinux
+        );
+
+        List<String> command = new ArrayList<>();
+        processPipes.addArgs(command);
+
+        String childIpcDir = namedPipeHelper.getChildIpcDirectoryPrefix(env, "deployment-1");
+        assertEquals(8, command.size());
+        assertEquals(ProcessPipes.LOG_PIPE_ARG + childIpcDir + "logPipe", command.get(0));
+        assertEquals(ProcessPipes.INPUT_ARG + childIpcDir + "input", command.get(1));
+        assertEquals(ProcessPipes.INPUT_IS_PIPE_ARG, command.get(2));
+        assertEquals(ProcessPipes.OUTPUT_ARG + childIpcDir + "output", command.get(3));
+        assertEquals(ProcessPipes.OUTPUT_IS_PIPE_ARG, command.get(4));
+        assertEquals(ProcessPipes.RESTORE_ARG + childIpcDir + "restore", command.get(5));
+        assertEquals(ProcessPipes.RESTORE_IS_PIPE_ARG, command.get(6));
+        assertEquals(ProcessPipes.TIMEOUT_ARG + 10, command.get(7));
+    }
+
+    public void testChildIpcDirectory_disjointPerJobId() {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        NamedPipeHelper namedPipeHelper = new NamedPipeHelper();
+
+        ProcessPipes pipesA = new ProcessPipes(
+            env,
+            namedPipeHelper,
+            Duration.ofSeconds(10),
+            "myproc",
+            "job-a",
+            null,
+            false,
+            true,
+            false,
+            false,
+            false,
+            true,
+            true
+        );
+        ProcessPipes pipesB = new ProcessPipes(
+            env,
+            namedPipeHelper,
+            Duration.ofSeconds(10),
+            "myproc",
+            "job-b",
+            null,
+            false,
+            true,
+            false,
+            false,
+            false,
+            true,
+            true
+        );
+
+        List<String> commandA = new ArrayList<>();
+        pipesA.addArgs(commandA);
+        List<String> commandB = new ArrayList<>();
+        pipesB.addArgs(commandB);
+
+        String inputA = commandA.get(1).substring(ProcessPipes.INPUT_ARG.length());
+        String inputB = commandB.get(1).substring(ProcessPipes.INPUT_ARG.length());
+
+        assertNotEquals(inputA, inputB);
+        assertTrue(inputA.contains("job-a"));
+        assertTrue(inputB.contains("job-b"));
+        assertFalse(inputA.contains("job-b"));
+        assertFalse(inputB.contains("job-a"));
+    }
+
+    public void testPipeNaming_isolationRequestedButNotLinux_fallsBackToLegacyNaming() {
+        // Constants.LINUX is a static final boolean and cannot be overridden in-process (see PyTorchBuilderTests
+        // for the same limitation with PyTorchBuilder). This test uses the package-private constructor to inject
+        // isLinux=false directly, which is the only way to exercise the "isolation requested but not Linux" branch;
+        // it does not prove Constants.LINUX itself evaluates correctly on a real non-Linux host.
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        NamedPipeHelper namedPipeHelper = new NamedPipeHelper();
+
+        ProcessPipes processPipes = new ProcessPipes(
+            env,
+            namedPipeHelper,
+            Duration.ofSeconds(10),
+            "myproc",
+            "my_job",
+            42L,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true, // useIsolatedChildIpcDir requested
+            false // isLinux
+        );
+
+        List<String> command = new ArrayList<>();
+        processPipes.addArgs(command);
+
+        String prefix = namedPipeHelper.getDefaultPipeDirectoryPrefix(env) + "myproc_my_job_42_";
+        String suffix = "_" + JvmInfo.jvmInfo().getPid();
+        assertEquals(ProcessPipes.LOG_PIPE_ARG + prefix + "log" + suffix, command.get(0));
+    }
+
+    public void testPipeNaming_isolationRequestedButNoJobId_fallsBackToLegacyNaming() {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        NamedPipeHelper namedPipeHelper = new NamedPipeHelper();
+
+        ProcessPipes processPipes = new ProcessPipes(
+            env,
+            namedPipeHelper,
+            Duration.ofSeconds(10),
+            "myproc",
+            null,
+            null,
+            false,
+            true,
+            false,
+            false,
+            false,
+            true,
+            true
+        );
+
+        List<String> command = new ArrayList<>();
+        processPipes.addArgs(command);
+
+        String prefix = namedPipeHelper.getDefaultPipeDirectoryPrefix(env) + "myproc_";
+        String suffix = "_" + JvmInfo.jvmInfo().getPid();
+        assertEquals(ProcessPipes.LOG_PIPE_ARG + prefix + "log" + suffix, command.get(0));
+    }
+
+    public void testIsolatedChildIpcDir_rejectsPersistPipe() {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        NamedPipeHelper namedPipeHelper = new NamedPipeHelper();
+
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new ProcessPipes(
+                env,
+                namedPipeHelper,
+                Duration.ofSeconds(10),
+                "myproc",
+                "my_job",
+                null,
+                false,
+                true,
+                true,
+                true,
+                true, // wantPersistPipe
+                true,
+                true
+            )
+        );
+    }
+
+    public void testIsolatedChildIpcDir_rejectsCommandPipe() {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        NamedPipeHelper namedPipeHelper = new NamedPipeHelper();
+
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new ProcessPipes(
+                env,
+                namedPipeHelper,
+                Duration.ofSeconds(10),
+                "myproc",
+                "my_job",
+                null,
+                true, // wantCommandPipe
+                true,
+                true,
+                true,
+                false,
+                true,
+                true
+            )
+        );
     }
 }

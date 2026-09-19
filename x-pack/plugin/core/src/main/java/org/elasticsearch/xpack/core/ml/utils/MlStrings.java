@@ -69,6 +69,50 @@ public final class MlStrings {
     }
 
     /**
+     * Checks that {@code id} is safe to use as a single path component - i.e. that joining it onto a
+     * parent directory (as {@code NamedPipeHelper#getChildIpcDirectoryPrefix} does for the isolated
+     * ml-child-ipc directory, keyed on {@code deployment_id}) cannot escape that parent directory or
+     * otherwise inject something unexpected into the filesystem path.
+     *
+     * Deliberately narrower than {@link #isValidId}: it does not restrict the character set (so mixed-case,
+     * non-lowercase ids such as inference endpoint ids used verbatim as {@code deployment_id} remain valid),
+     * only path-traversal / separator / NUL-byte safety.
+     *
+     * This is related to, but deliberately not identical to, the predicate in {@code
+     * NamedPipeHelper#validateChildId} in the ml plugin: {@code core} cannot depend on {@code ml}
+     * (dependency runs the other way), and that method is private and applied as a defense-in-depth check
+     * at the point the path is actually constructed. The two are not a byte-identical mirror and are not
+     * meant to be kept in lockstep - see the divergence below.
+     *
+     * Deliberately diverges from {@code NamedPipeHelper#validateChildId} on one point: that method rejects
+     * only the current platform's separator character (correct there, since it runs node-locally at the
+     * point the filesystem path is actually built), whereas this method backs a cluster-wide request
+     * validator ({@code StartTrainedModelDeploymentAction.Request#validate}) that may execute on any node,
+     * so accept/reject cannot depend on which node's OS handles the request. This method therefore rejects
+     * both {@code /} and {@code \} unconditionally: a platform-independent superset of what any single
+     * node's separator check would reject on its own, not a mirror of it.
+     *
+     * @param id the id to check
+     * @return {@code true} if {@code id} is non-null, non-empty, not {@code .} or {@code ..}, and contains
+     * no path separator or NUL character
+     */
+    public static boolean isValidPathSafeId(String id) {
+        if (id == null || id.isEmpty()) {
+            return false;
+        }
+        if (id.equals(".") || id.equals("..")) {
+            return false;
+        }
+        if (id.indexOf('/') >= 0 || id.indexOf('\\') >= 0) {
+            return false;
+        }
+        if (id.indexOf('\u0000') >= 0) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
      * Checks if the given {@code id} has a valid length.
      * We keep IDs in a length shorter or equal than {@link #ID_LENGTH_LIMIT}
      * in order to avoid unfriendly errors when storing docs with

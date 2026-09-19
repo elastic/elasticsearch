@@ -654,9 +654,15 @@ public class AzureBlobStore implements BlobStore {
      * something later reads the blob and fails a Lucene checksum - by which time the shard cannot be recovered
      * without losing the writes that followed.
      *
-     * <p>This costs one extra pass over the source. The provider hands out an independent stream per call, so the
-     * pass is not the one the upload itself reads, and the two agree only if the source is stable - which it is for
-     * the compound commits this exists to protect, as they are frozen before upload.
+     * <p>This costs one extra pass over the source, and that pass is required rather than merely convenient. The
+     * header travels ahead of the body, so the digest has to be known before the first byte is sent and cannot be
+     * accumulated from the upload's own read. Nor can it be taken from the buffers the upload emits: those are the
+     * bytes we believe we are sending, and a fault downstream of them is precisely what this is here to catch. Do
+     * not fold this into the read that feeds the {@link Flux} - it would leave the header in place and the
+     * protection gone.
+     *
+     * <p>The provider hands out an independent stream per call, so the two passes agree only if the source is
+     * stable. It is, for the compound commits this exists to protect: they are frozen before upload.
      */
     private static byte[] contentMd5(BlobContainer.BlobMultiPartInputStreamProvider provider, long offset, long length) throws IOException {
         final MessageDigest digest = MessageDigests.md5();

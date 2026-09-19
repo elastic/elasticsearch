@@ -278,6 +278,7 @@ public class DatasetRegistrationContractIT extends ESRestTestCase {
             // CSV bytes under a name that implies no format, so an explicit `format` decides what the
             // reader is told to expect and nothing at registration can contradict it.
             Files.writeString(dir.resolve("noext"), "a,b\n1,foo\n2,bar\n");
+            Files.writeString(dir.resolve("simple.ndjson"), "{\"a\":1,\"b\":\"foo\"}\n{\"a\":2,\"b\":\"bar\"}\n");
             return dir;
         } catch (IOException e) {
             throw new AssertionError("could not lay down the registration-contract fixture", e);

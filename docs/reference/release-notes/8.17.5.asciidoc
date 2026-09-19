@@ -24,4 +24,7 @@ Search::
 TLS::
 * Set `keyUsage` for generated HTTP certificates and self-signed CA {es-pull}126376[#126376] (issue: {es-issue}117769[#117769])
 
+Vector Search::
+* Revert enabling madvise by default to fix vector search performance degradation on Linux with MGLRU enabled {es-pull}126308[#126308] (issue: {es-issue}124499[#124499])
+
 

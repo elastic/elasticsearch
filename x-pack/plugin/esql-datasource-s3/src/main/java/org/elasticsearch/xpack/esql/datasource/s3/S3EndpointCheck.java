@@ -57,10 +57,11 @@ final class S3EndpointCheck {
      * Every S3 endpoint family AWS serves, with only the regional object endpoint enabled. The list is
      * load-bearing rather than documentary: each enabled label is crossed with every region to build
      * {@link #S3_ENDPOINT_HOSTS}. Uncommenting a line is the first step in readmitting a family, not the
-     * whole of it, and for three of them not even that: {@code s3express} carries an availability-zone token
-     * rather than a fixed label, so its entry is a placeholder that does not compile as written, and
-     * {@code s3-external-1} and transfer acceleration are region-less in the SDK's own metadata, which this
-     * crossing cannot produce.
+     * whole of it, for every entry: the single enabled element carries no trailing comma, so nothing below it
+     * compiles until that is fixed. Three need more than that. {@code s3express} carries an availability-zone
+     * token rather than a fixed label, so there is no label to enable; {@code s3-external-1} and transfer
+     * acceleration are region-less in the SDK's own metadata, and this crossing only builds a host with a
+     * region in it.
      *
      * <p>The historical {@code s3-<region>} spelling is absent because it is not a label of its own — it
      * carries the region inside the service label, and is generated separately. Dual-stack is absent because

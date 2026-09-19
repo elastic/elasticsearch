@@ -153,15 +153,21 @@ public class S3DataSourcePluginTests extends ESTestCase {
         }
     }
 
-    /** The production default is an empty list, which must waive nothing. */
+    /** The production default is an empty list, which must waive neither of the two rules it can waive. */
     public void testEmptyAllowlistWaivesNothing() throws IOException {
         try (S3DataSourcePlugin plugin = new S3DataSourcePlugin()) {
             DataSourceValidator validator = plugin.datasourceValidators(Settings.EMPTY).get("s3");
-            var e = expectThrows(
+            var overHttp = expectThrows(
                 ValidationException.class,
                 () -> validator.validateDatasource(Map.of("endpoint", "http://127.0.0.1:9000", "auth", "anonymous"))
             );
-            assertThat(e.getMessage(), containsString("must use https"));
+            assertThat(overHttp.getMessage(), containsString("must use https"));
+            // The same host over https clears the scheme rule and must still be refused by the host rule.
+            var overHttps = expectThrows(
+                ValidationException.class,
+                () -> validator.validateDatasource(Map.of("endpoint", "https://127.0.0.1:9000", "auth", "anonymous"))
+            );
+            assertThat(overHttps.getMessage(), containsString("not a supported AWS S3 endpoint"));
         }
     }
 

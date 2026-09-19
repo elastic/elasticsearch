@@ -14,6 +14,7 @@ import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceMixedClusterTestSupport;
 
 import java.util.function.Supplier;
@@ -66,6 +67,11 @@ public class Clusters {
             .setting("esql.external.local_allowed_paths", FixtureUtils.pathRepoRootForIcebergFixtures(Clusters.class))
             // S3 client configuration for accessing the S3HttpFixture
             .setting("s3.client.default.endpoint", s3EndpointSupplier)
+            // Every node gets the endpoint allowlist, including the one the split-role cluster below boots with
+            // federation disabled. Whether the key is registered is decided by the system property
+            // Federation.REGISTER_PROPERTY, which defaults to registered and is not set anywhere in this module;
+            // the esql.federation.enabled setting turns the feature off without unregistering its settings.
+            .setting(S3FixtureUtils.ALLOWED_ENDPOINT_HOSTS_SETTING, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS)
             // S3 credentials must be stored in keystore, not as regular settings
             .keystore("s3.client.default.access_key", ACCESS_KEY)
             .keystore("s3.client.default.secret_key", SECRET_KEY)

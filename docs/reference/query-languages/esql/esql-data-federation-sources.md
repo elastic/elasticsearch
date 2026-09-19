@@ -49,7 +49,7 @@ Click **Connect data source** to open a flyout where you define the connection:
 - **Data source type**: the storage system to connect to, such as **Amazon S3**.
 - **Name**: a unique name for the data source. Names must be lowercase and cannot begin with `-`, `_`, or `+`.
 - **Description**: an optional description.
-- **Endpoint**: an optional Amazon S3 endpoint override, given as an absolute `http` or `https` URL.
+- **Endpoint**: an optional Amazon S3 endpoint override, given as an absolute `https` URL naming a regional AWS S3 endpoint. Leave it empty to have the endpoint resolved from the region.
 - **Authentication**: select an authentication model from the dropdown, then fill in the credentials it requires.
 
 For the full set of authentication methods and what each one requires, refer to [authentication models](#authentication). For detailed setup walkthroughs, refer to [connect with static credentials](esql-data-federation-static-credentials.md) or [connect with federated identity](esql-data-federation-federated-identity.md).
@@ -215,11 +215,38 @@ The following settings are available for `s3` data sources:
 
 | Setting | Required | Description |
 |---|---|---|
-| `endpoint` | No | An explicit Amazon S3 endpoint override. Must be an absolute `http` or `https` URL with a host, for example `https://minio.example.com:9000`. <br> A value without a scheme, or with a host the URL syntax does not allow (such as an underscore or a non-numeric port), is rejected when the data source is created. {applies_to}`stack: experimental 9.6+` |
-| `addressing_style` {applies_to}`stack: experimental 9.6+` | No | URL addressing style. `auto` (default) uses path-style when `endpoint` is set and SDK-default otherwise. `path` always uses path-style. `virtual_hosted` lets the SDK decide (bare-IP endpoints fall back to path-style). Use `virtual_hosted` for AWS FIPS, dual-stack, or VPC interface endpoints that require virtual-hosted addressing. |
+| `endpoint` | No | Optional Amazon S3 endpoint override. Must be an absolute `https` URL naming a supported AWS S3 endpoint, for example `https://s3.us-east-1.amazonaws.com`. Omit to resolve the endpoint from the region, which is the recommended configuration. See [S3 endpoint requirements](#s3-endpoint-requirements). {applies_to}`stack: experimental 9.6+` |
+| `addressing_style` {applies_to}`stack: experimental 9.6+` | No | URL addressing style. `auto` (default) uses path-style when `endpoint` is set and SDK-default otherwise. `path` always uses path-style. `virtual_hosted` lets the SDK decide (bare-IP endpoints fall back to path-style). Because `auto` resolves to path-style whenever `endpoint` is set, set `virtual_hosted` if reads through a VPC interface endpoint fail with an addressing error. |
+
+$$$s3-endpoint-requirements$$$
+::::{dropdown} S3 endpoint requirements
+:applies_to: stack: experimental 9.6+
+Accepted endpoint forms, in every AWS partition:
+
+- Regional: `https://s3.us-east-1.amazonaws.com`
+- Historical: `https://s3-us-west-2.amazonaws.com`
+- VPC interface: `https://bucket.vpce-0a1b2c3d.s3.us-east-1.vpce.amazonaws.com`
+- Global: `https://s3.amazonaws.com`
+
+A regional endpoint must name a region that the Elasticsearch version you are running knows about. A region added by AWS after that release is rejected until you upgrade, or until a node permits its host with the setting described below.
 
 :::{note}
-The `region` setting on a data source is deprecated and has no effect. Set `region` on each [dataset](esql-data-federation-datasets.md#common-settings) instead, or omit it to let Elasticsearch detect the region automatically. For standard AWS S3 (no endpoint override), the SDK redirects transparently. For custom-endpoint stores, Elasticsearch issues a `HeadBucket` probe on the first request and caches the discovered region for the lifetime of the data source.
+The global endpoint names no region. Setting any `endpoint` pins the host: cross-region redirection is off and a cross-region redirect is not followed, so `https://s3.amazonaws.com` reaches buckets in `us-east-1` and fails for buckets in other regions rather than being sent elsewhere. Omit `endpoint` instead: the region then comes from the dataset and every region is reachable.
+:::
+
+If reads through one of these fail with an addressing error, set `addressing_style: virtual_hosted`; the default resolves to path-style whenever `endpoint` is set.
+
+Every other AWS endpoint family is rejected, including FIPS endpoints, dual-stack endpoints, transfer acceleration, access points, object lambda, Outposts, the account-level control plane, the legacy `s3-external-1` alias, and S3 Express. FIPS and dual-stack endpoints are rejected because this data source has never been tested against them. Naming one does reach it — AWS serves both — so this is a decision about what is supported rather than a technical limit. To use one, permit its host with the node setting described below. So are plain `http`, a value without a scheme, and a host the URL syntax does not allow, such as an underscore or a non-numeric port.
+
+A node can permit additional hosts with the `esql.external.allowed_endpoint_hosts` node setting, a list of `host:port` patterns in `elasticsearch.yml` that defaults to empty. It is a static setting: it cannot be updated through the cluster settings API, and a change takes effect when the node restarts. This is how a deployment that needs one of the rejected families reaches it. Because the setting is applied per node, managing data sources does not grant it. A host it names is also accepted over plain `http`.
+
+:::{warning}
+A data source created before endpoint validation was added keeps working for queries, but updating it requires an `endpoint` that passes validation. Creating a data source replaces all of its settings, so a data source with an unsupported endpoint cannot have any settings changed, including credential rotation, until the endpoint is updated or the data source is recreated.
+:::
+::::
+
+:::{note}
+The `region` setting on a data source is deprecated and has no effect. Set `region` on each [dataset](esql-data-federation-datasets.md#common-settings) instead, or omit it to let Elasticsearch detect the region automatically. When no `endpoint` is set, the SDK redirects transparently. When one is set, Elasticsearch issues a `HeadBucket` probe on the first request and caches the discovered region for the lifetime of the data source.
 :::
 
 **Authentication settings:**
@@ -231,7 +258,7 @@ The `region` setting on a data source is deprecated and has no effect. Set `regi
 | `role_arn` | Yes (federated identity) | The ARN of the IAM role {{es}} assumes via STS. Used with `auth: federated_identity`. |
 | `jwt_audience` | No | Overrides the JWT audience claim sent to STS. Defaults to `sts.amazonaws.com`. Used with `auth: federated_identity`. |
 | `role_session_name` | No | A label for the assumed-role session. Defaults to `elasticsearch-esql-datasource`. Used with `auth: federated_identity`. |
-| `sts_endpoint` | No | A custom STS endpoint URL. Used with `auth: federated_identity` (Subject to the same URL requirements as `endpoint`. {applies_to}`stack: experimental 9.6+`) |
+| `sts_endpoint` | No | Optional explicit AWS STS endpoint override, for example `https://sts.us-east-1.amazonaws.com`. Used with `auth: federated_identity`. Subject to the same [S3 endpoint requirements](#s3-endpoint-requirements), against AWS STS endpoints rather than S3 ones. Hosts added through `esql.external.allowed_endpoint_hosts` receive the node's OIDC token, so only permit a host on a trusted network path. {applies_to}`stack: experimental 9.6+` |
 | `sts_region` | No | The AWS region of the STS endpoint. Defaults to the dataset's `region` setting, or `us-east-1` if the dataset has no explicit region. Used with `auth: federated_identity`. |
 | `auth` | Yes | Authentication mode. Set it to `anonymous`, `static_credentials`, `managed_identity`, or `federated_identity`. |
 

@@ -423,6 +423,59 @@ public final class ExternalSourceSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Allowlist of {@code host:port} patterns an external data source's endpoint may name, beside the AWS
+     * endpoints that are always permitted. Mirrors {@link #LOCAL_ALLOWED_PATHS} and {@code reindex.remote.whitelist}:
+     * the list is the enable, and the default — empty — permits nothing beyond AWS. An entry is a simple glob
+     * matched against the endpoint's host and port, so {@code 127.0.0.1:*} admits a fixture on any port.
+     * <p>
+     * The scheme is not matched, so an allowed entry may be reached over plain {@code http}. That is the point of
+     * the setting: the {@code https} requirement exists because a host rule rests on the certificate presented for
+     * a name, and an operator naming an exact host and port has made that judgement themselves.
+     * <p>
+     * The waiver covers {@code sts_endpoint} as well as {@code endpoint}, and that is the sharper half. The STS
+     * client authenticates with nothing but the node's own OIDC token, so a listed host named there receives that
+     * token — over plain {@code http} if the entry is reached that way. List a host for STS only where the network
+     * path to it is trusted on its own.
+     * <p>
+     * A pattern is matched against the host exactly as the URL spells it, where the AWS rule normalises first, so
+     * write the host as the SDK will send it: a differing case or a trailing root dot is not matched here.
+     * <p>
+     * This is a node-scope setting — only someone who can configure the node can widen what it reaches. Holding
+     * the privilege to manage data sources is not enough.
+     */
+    public static final String ALLOWED_ENDPOINT_HOSTS_KEY = "esql.external.allowed_endpoint_hosts";
+
+    public static final Setting<List<String>> ALLOWED_ENDPOINT_HOSTS = Setting.stringListSetting(
+        ALLOWED_ENDPOINT_HOSTS_KEY,
+        (Setting.Validator<List<String>>) entries -> entries.forEach(ExternalSourceSettings::validateEndpointHostEntry),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Refuses an entry that names no port. Entries are matched against {@code host:port}, so one written as a
+     * bare hostname — the natural thing to copy from a URL — matches nothing, and the refusal the operator
+     * then sees talks about the endpoint rather than about the entry that failed to admit it. Since this
+     * setting is the only way past a security control, that silence is worth refusing at startup instead.
+     */
+    private static void validateEndpointHostEntry(String entry) {
+        // A bracketed IPv6 literal carries colons of its own, so the port separator is the first one after
+        // the closing bracket rather than the first one in the entry.
+        int afterHost = entry.startsWith("[") ? entry.indexOf(']') : 0;
+        int portSeparator = afterHost < 0 ? -1 : entry.indexOf(':', afterHost);
+        if (portSeparator < 0 || portSeparator == entry.length() - 1) {
+            throw new IllegalArgumentException(
+                "["
+                    + ALLOWED_ENDPOINT_HOSTS_KEY
+                    + "] entry ["
+                    + entry
+                    + "] names no port. Entries are matched against host:port, so write for example ["
+                    + entry
+                    + ":443]; an entry without a port matches nothing."
+            );
+        }
+    }
+
     public static List<Setting<?>> settings() {
         return List.of(
             MAX_CONCURRENT_REQUESTS,
@@ -438,7 +491,8 @@ public final class ExternalSourceSettings {
             FEDERATED_IDENTITY_ENABLED,
             FEDERATED_IDENTITY_ENABLED_OLD,
             LOCAL_ALLOWED_PATHS,
-            LOCAL_ALLOWED_PATHS_OLD
+            LOCAL_ALLOWED_PATHS_OLD,
+            ALLOWED_ENDPOINT_HOSTS
         );
     }
 }

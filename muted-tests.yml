@@ -793,3 +793,6 @@ tests:
 - class: org.elasticsearch.xpack.prometheus.PrometheusQueryRangeRestIT
   method: testRangeExplicitOnMatchesRetainedMetricNames
   issue: https://github.com/elastic/elasticsearch/issues/159798
+- class: org.elasticsearch.xpack.esql.action.HeterogeneousRelationClassIT
+  method: testGroupingOnClassSeparatesTheBranches
+  issue: https://github.com/elastic/elasticsearch/issues/159800

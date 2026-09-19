@@ -130,8 +130,8 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
     ) {
         TestTelemetryPlugin testTelemetryPlugin = getTestTelemetryPlugin(searchNode);
         testTelemetryPlugin.collect();
-        long reads = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
-        long misses = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
+        long reads = testTelemetryPlugin.getLongAsyncGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
+        long misses = testTelemetryPlugin.getLongAsyncGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
         assertThat(misses, lessThanOrEqualTo(reads));
 
         executeSearch(indexName);
@@ -141,9 +141,9 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
 
         testTelemetryPlugin.collect();
 
-        long newReads = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
-        long newMisses = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
-        double newRatio = testTelemetryPlugin.getDoubleGaugeMeasurement("es.blob_cache.miss.ratio").getLast().getDouble();
+        long newReads = testTelemetryPlugin.getLongAsyncGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
+        long newMisses = testTelemetryPlugin.getLongAsyncGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
+        double newRatio = testTelemetryPlugin.getDoubleAsyncGaugeMeasurement("es.blob_cache.miss.ratio").getLast().getDouble();
 
         assertThat(newReads, greaterThan(reads));
         assertThat(newMisses, greaterThan(misses));
@@ -154,17 +154,17 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
     private static void executeNoMissSearch(String searchNode, String indexName) {
         TestTelemetryPlugin testTelemetryPlugin = getTestTelemetryPlugin(searchNode);
         testTelemetryPlugin.collect();
-        long reads = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
-        long misses = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
-        double ratio = testTelemetryPlugin.getDoubleGaugeMeasurement("es.blob_cache.miss.ratio").getLast().getDouble();
+        long reads = testTelemetryPlugin.getLongAsyncGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
+        long misses = testTelemetryPlugin.getLongAsyncGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
+        double ratio = testTelemetryPlugin.getDoubleAsyncGaugeMeasurement("es.blob_cache.miss.ratio").getLast().getDouble();
         assertThat(misses, lessThanOrEqualTo(reads));
 
         executeSearch(indexName);
 
         testTelemetryPlugin.collect();
-        long newReads = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
-        long newMisses = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
-        double newRatio = testTelemetryPlugin.getDoubleGaugeMeasurement("es.blob_cache.miss.ratio").getLast().getDouble();
+        long newReads = testTelemetryPlugin.getLongAsyncGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
+        long newMisses = testTelemetryPlugin.getLongAsyncGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
+        double newRatio = testTelemetryPlugin.getDoubleAsyncGaugeMeasurement("es.blob_cache.miss.ratio").getLast().getDouble();
 
         assertThat(newReads, greaterThan(reads));
         assertThat(newMisses, equalTo(misses));
@@ -231,14 +231,20 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
             .sum();
         assertThat(noCacheBypassCount, greaterThan(0L));
         // Bypass reads count as both reads and misses
-        assertThat(noCacheTelemetry.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong(), equalTo(noCacheBypassCount));
-        assertThat(noCacheTelemetry.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong(), equalTo(noCacheBypassCount));
+        assertThat(
+            noCacheTelemetry.getLongAsyncGaugeMeasurement("es.blob_cache.read.total").getLast().getLong(),
+            equalTo(noCacheBypassCount)
+        );
+        assertThat(
+            noCacheTelemetry.getLongAsyncGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong(),
+            equalTo(noCacheBypassCount)
+        );
 
         // Normal-cache node: reads and misses but no bypass reads
         final var normalCacheTelemetry = getTestTelemetryPlugin(normalCacheSearchNode);
         normalCacheTelemetry.collect();
-        assertThat(normalCacheTelemetry.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong(), greaterThan(0L));
-        assertThat(normalCacheTelemetry.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong(), greaterThan(0L));
+        assertThat(normalCacheTelemetry.getLongAsyncGaugeMeasurement("es.blob_cache.read.total").getLast().getLong(), greaterThan(0L));
+        assertThat(normalCacheTelemetry.getLongAsyncGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong(), greaterThan(0L));
         long normalCacheBypassCount = normalCacheTelemetry.getLongCounterMeasurement(BlobCacheMetrics.BLOB_CACHE_BYPASS_READ_TOTAL)
             .stream()
             .mapToLong(Measurement::getLong)

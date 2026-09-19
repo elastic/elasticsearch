@@ -19,16 +19,15 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongCounter;
-import org.elasticsearch.telemetry.metric.LongGaugeMetric;
+import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
-import java.io.Closeable;
 import java.util.Map;
 
 /// Collects and emits recovery metrics.
-public class RecoveryMetricsCollector implements IndexEventListener, RecoverySchedulingListener, Closeable {
+public class RecoveryMetricsCollector implements IndexEventListener, RecoverySchedulingListener {
 
     private static final Logger logger = LogManager.getLogger(RecoveryMetricsCollector.class);
 
@@ -67,7 +66,7 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
 
     private final LongCounter shardRecoveryDirectCancellationsMetric;
     private final LongHistogram shardRecoveryDirectCancellationsWorkTimeMetric;
-    private final LongGaugeMetric recoveryGateBlockedCurrentMetric;
+    private final LongGauge recoveryGateBlockedCurrentMetric;
     private final LongCounter recoveryGateBlockedMetric;
     private final LongHistogram recoveryGateBlockedDurationMetric;
 
@@ -134,12 +133,12 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
                 + "the elapsed time between starting and cancelling, i.e. the lost work time",
             "ms"
         );
-        recoveryGateBlockedCurrentMetric = LongGaugeMetric.create(
-            meterRegistry,
+        recoveryGateBlockedCurrentMetric = meterRegistry.registerLongGauge(
             RECOVERY_GATE_BLOCKED_CURRENT_METRIC,
             "Whether recovery dispatch is currently blocked by recovery gates",
             "unit"
         );
+        recoveryGateBlockedCurrentMetric.set(0); // starts as unblocked
         recoveryGateBlockedMetric = meterRegistry.registerLongCounter(
             RECOVERY_GATE_BLOCKED_TOTAL_METRIC,
             "Number of times recovery dispatch entered the blocked state",
@@ -291,12 +290,6 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     public void onRecoveriesUnblocked(long blockedTimeMillis) {
         recoveryGateBlockedCurrentMetric.set(0L);
         recoveryGateBlockedDurationMetric.record(blockedTimeMillis);
-    }
-
-    @Override
-    public void close() {
-        // Only the asynchronous gauge is closeable; the synchronous counters and histograms need no cleanup.
-        recoveryGateBlockedCurrentMetric.gauge().close();
     }
 
     private static Map<String, Object> storeRecoveryTargetLifecycleMetricLabels(RecoverySource.Type type, PriorityGroup priorityGroup) {

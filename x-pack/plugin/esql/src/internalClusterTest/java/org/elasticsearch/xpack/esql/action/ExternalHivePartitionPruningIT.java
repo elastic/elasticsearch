@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
@@ -91,6 +94,139 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
     }
 
     // -- Single-dimension partial pushdown: leading, middle, and deepest dimension --
+
+    // -- The out-of-band DSL request filter: what a Kibana time picker and filter pills send --
+    // Each case mirrors a WHERE case above, sent as a request filter instead. The filter translates to the multivalue
+    // comparison functions, and the matcher is format-independent, so text datasets prune files as parquet does.
+
+    public void testParquetRequestFilterTermPrunesToFourFiles() throws Exception {
+        assertPruneFilter(
+            registerTree("pq_rf_term", "parquet"),
+            QueryBuilders.termQuery("year", 2025),
+            TOTAL_FILES,
+            4,
+            idsWhere((y, m, d) -> y == 2025)
+        );
+    }
+
+    public void testCsvRequestFilterTermPrunesToFourFiles() throws Exception {
+        assertPruneFilter(
+            registerTree("csv_rf_term", "csv"),
+            QueryBuilders.termQuery("year", 2025),
+            TOTAL_FILES,
+            4,
+            idsWhere((y, m, d) -> y == 2025)
+        );
+    }
+
+    public void testParquetRequestFilterTermsPrunesToFourFiles() throws Exception {
+        assertPruneFilter(
+            registerTree("pq_rf_terms", "parquet"),
+            QueryBuilders.termsQuery("year", List.of(2024)),
+            TOTAL_FILES,
+            4,
+            idsWhere((y, m, d) -> y == 2024)
+        );
+    }
+
+    public void testParquetRequestFilterOneSidedIntegerRangePrunes() throws Exception {
+        // A one-sided range on an integer column is clamped to the type's extreme and emitted as a closed mv_in_range.
+        assertPruneFilter(
+            registerTree("pq_rf_gte", "parquet"),
+            QueryBuilders.rangeQuery("year").gte(2025),
+            TOTAL_FILES,
+            4,
+            idsWhere((y, m, d) -> y >= 2025)
+        );
+    }
+
+    public void testParquetRequestFilterExclusiveRangePrunes() throws Exception {
+        // month > 1 keeps only month=6; the exclusive bound is made inclusive (2) before it reaches the matcher.
+        assertPruneFilter(
+            registerTree("pq_rf_gt", "parquet"),
+            QueryBuilders.rangeQuery("month").gt(1),
+            TOTAL_FILES,
+            4,
+            idsWhere((y, m, d) -> m > 1)
+        );
+    }
+
+    public void testParquetRequestFilterTwoTimeDimensionsPruneToTwoFiles() throws Exception {
+        // A time range AND a second time dimension — the combination the picker and a pill produce together.
+        assertPruneFilter(
+            registerTree("pq_rf_and", "parquet"),
+            QueryBuilders.boolQuery().filter(QueryBuilders.rangeQuery("month").gt(1)).filter(QueryBuilders.termQuery("year", 2025)),
+            TOTAL_FILES,
+            2,
+            idsWhere((y, m, d) -> m > 1 && y == 2025)
+        );
+    }
+
+    public void testCsvRequestFilterTwoTimeDimensionsPruneToTwoFiles() throws Exception {
+        assertPruneFilter(
+            registerTree("csv_rf_and", "csv"),
+            QueryBuilders.boolQuery().filter(QueryBuilders.rangeQuery("month").gt(1)).filter(QueryBuilders.termQuery("year", 2025)),
+            TOTAL_FILES,
+            2,
+            idsWhere((y, m, d) -> m > 1 && y == 2025)
+        );
+    }
+
+    public void testParquetRequestFilterTimePlusDataColumnDoesNotOverPrune() throws Exception {
+        // The partition arm prunes files; the data-column arm (id is not path-derived) only filters rows.
+        assertPruneFilter(
+            registerTree("pq_rf_mixed", "parquet"),
+            QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("year", 2025)).filter(QueryBuilders.rangeQuery("id").gt(20250200)),
+            TOTAL_FILES,
+            4,
+            idsWhere((y, m, d) -> y == 2025 && idFor(y, m, d) > 20250200)
+        );
+    }
+
+    public void testParquetRequestFilterMustNotTermPrunesTheExcludedYear() throws Exception {
+        assertPruneFilter(
+            registerTree("pq_rf_not_term", "parquet"),
+            QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("year", 2024)),
+            TOTAL_FILES,
+            4,
+            idsWhere((y, m, d) -> y != 2024)
+        );
+    }
+
+    public void testParquetRequestFilterMustNotRangePrunesThePartitionOnTheBound() throws Exception {
+        // must_not range year > 2024 is NOT mv_in_range(year, 2025, MAX). The year=2025 files sit exactly on the lower
+        // bound; every row in them fails the filter, so they must be pruned rather than scanned for nothing.
+        assertPruneFilter(
+            registerTree("pq_rf_not_range", "parquet"),
+            QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("year").gt(2024)),
+            TOTAL_FILES,
+            4,
+            idsWhere((y, m, d) -> y <= 2024)
+        );
+    }
+
+    public void testParquetRequestFilterCaseInsensitiveTermScansEveryFile() throws Exception {
+        // A case_insensitive term becomes mv_contains(TO_LOWER(region), "eu"). Partition values hold the original case,
+        // so it must prune nothing — all three files scanned — while the retained filter still returns the EU row.
+        assertPruneFilter(
+            registerRegionTree("pq_rf_ci", "parquet"),
+            QueryBuilders.termQuery("region", "eu").caseInsensitive(true),
+            REGIONS.length,
+            REGIONS.length,
+            List.of(1L)
+        );
+    }
+
+    public void testParquetRequestFilterExactKeywordTermPrunesToOneFile() throws Exception {
+        // The positive control for the case above: the same value, case-sensitive, prunes to the one matching file.
+        assertPruneFilter(
+            registerRegionTree("pq_rf_kw", "parquet"),
+            QueryBuilders.termQuery("region", "EU"),
+            REGIONS.length,
+            1,
+            List.of(1L)
+        );
+    }
 
     public void testCsvYearOnlyPrunesToFourFiles() throws Exception {
         // Leading dimension. year=2025 spans months {01,06} x days {01,15} = 4 files.
@@ -572,6 +708,21 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
      * files were opened, and every candidate file is accounted for as either scanned or pruned. Returns the rows.
      */
     private List<List<Object>> runPruned(String dataset, String tail, int totalFiles, int expectedFilesScanned) {
+        return runPruned(dataset, tail, null, totalFiles, expectedFilesScanned);
+    }
+
+    /**
+     * {@link #runPruned} with an optional out-of-band request {@code filter} — the DSL a Kibana time picker and filter
+     * pills send alongside the query. It is translated and grafted as an ordinary {@code Filter} above the dataset
+     * leaf, so from there it must prune exactly as the equivalent {@code WHERE} does.
+     */
+    private List<List<Object>> runPruned(
+        String dataset,
+        String tail,
+        @Nullable QueryBuilder requestFilter,
+        int totalFiles,
+        int expectedFilesScanned
+    ) {
         // round_robin distributes every surviving split to a data node regardless of plan shape, so the read lowers
         // through a FragmentExec and split discovery runs on the fragment path (discoverSplitsFromFragments).
         QueryPragmas pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), "round_robin").build());
@@ -581,6 +732,9 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
         request.pragmas(pragmas);
         request.acceptedPragmaRisks(true); // pragmas are rejected on non-snapshot builds without this
         request.profile(true);
+        if (requestFilter != null) {
+            request.filter(requestFilter);
+        }
         try (var response = run(request)) {
             // The node set cannot be required to be >= 2: once pruning succeeds the surviving split set may fit one
             // node. A non-empty scan-node set proves the external scan ran on a data node (distributed fragment
@@ -602,6 +756,34 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
             );
             return getValuesList(response);
         }
+    }
+
+    /**
+     * {@link #assertPrune} with the predicate sent as a DSL request filter instead of a {@code WHERE} clause: the same
+     * bidirectional check — exact rows against the independent oracle, exact {@code files_scanned} — on both plan
+     * shapes. The request filter translates to the multivalue comparison functions ({@code term} to {@code mv_contains},
+     * {@code terms} to {@code mv_intersects}, an integer {@code range} to {@code mv_in_range}), so this is what proves the
+     * partition matcher prunes on them end to end rather than merely classifying them.
+     */
+    private void assertPruneFilter(
+        String dataset,
+        QueryBuilder requestFilter,
+        int totalFiles,
+        int expectedFilesScanned,
+        List<Long> expectedIds
+    ) {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        List<List<Object>> rows = runPruned(dataset, "KEEP id | SORT id ASC", requestFilter, totalFiles, expectedFilesScanned);
+        List<Long> actualIds = rows.stream().map(row -> ((Number) row.get(0)).longValue()).toList();
+        assertThat("[" + requestFilter + "] must return exactly the matching rows", actualIds, equalTo(expectedIds));
+
+        List<List<Object>> counted = runPruned(dataset, "STATS c = COUNT(*)", requestFilter, totalFiles, expectedFilesScanned);
+        assertThat("expect a single count row", counted.size(), equalTo(1));
+        assertThat(
+            "[" + requestFilter + "] the aggregate path must agree with the projection path",
+            ((Number) counted.get(0).get(0)).longValue(),
+            equalTo((long) expectedIds.size())
+        );
     }
 
     /** Region-fixture variant of {@link #assertPrune}: 3 single-row files ({@code region} in {@code US, EU, AP}). */

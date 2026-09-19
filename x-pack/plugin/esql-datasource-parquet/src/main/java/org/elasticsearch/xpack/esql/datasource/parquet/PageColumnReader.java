@@ -392,7 +392,12 @@ final class PageColumnReader implements Releasable {
             Block result = readBatch(survivorCount, blockFactory);
             int trailing = sourceRows - survivorPositions[survivorCount - 1] - 1;
             if (trailing > 0) {
-                skipRows(trailing);
+                try {
+                    skipRows(trailing);
+                } catch (RuntimeException skipEx) {
+                    ParquetReadFailures.closePreservingCause(skipEx, result);
+                    throw skipEx;
+                }
             }
             return result;
         }

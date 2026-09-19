@@ -482,6 +482,90 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
     }
 
     // -------------------------------------------------------------------------------------
+    // Regression test for the trailing-gap skip leak in readBatchSparse fast path (#1963)
+
+    /**
+     * Regression test for the block leak in {@link PageColumnReader#readBatchSparse}'s
+     * contiguous-survivor fast path: when survivors form a contiguous run that does not reach
+     * the last row of the batch ({@code trailing > 0}), the fast path calls
+     * {@link PageColumnReader#skipRows} <em>after</em> allocating the result block. On a
+     * compressed file, {@code skipRows} can charge the circuit breaker via
+     * {@code PrefetchedPageReader.ensureDecompCapacity}; pre-fix, a trip there propagated
+     * through without releasing the already-allocated block, silently leaking its
+     * circuit-breaker reservation.
+     *
+     * <p>Reproduction constraints this test enforces:
+     * <ul>
+     *   <li>SNAPPY so {@code PrefetchedPageReader} uses a real heap decompressor.</li>
+     *   <li>No dictionary encoding — a column dictionary spanning the large trailing values
+     *       would decompress (same breaker label) during {@code readBatch}, before {@code result}
+     *       exists, and steal the grow trip from the trailing-skip site.</li>
+     *   <li>Survivor density {@code > 0.8} so two-phase falls back to a full projection-chunk
+     *       fetch ({@code RowRanges.shouldDiscard()}); with page filtering, trailing pages are
+     *       absent from the queue and {@code skipRows} jumps them without decompressing.</li>
+     *   <li>Tiny labels on survivor rows and large labels on trailing rows, so
+     *       {@code ensureDecompCapacity} must <em>grow</em> during the trailing skip (it is
+     *       grow-only: same-sized pages do not re-charge).</li>
+     *   <li>{@code pageRowCountLimit} aligned with the survivor cut so no data page straddles
+     *       survivors and trailing rows — a straddling page would decompress during
+     *       {@code readBatch} and steal the grow trip.</li>
+     * </ul>
+     *
+     * <p>The breaker is armed only after Phase 1+2 settle ({@code hasNext()}), then refuses the
+     * first large ({@code >= 64 KiB}) {@code parquet page decompression} charge inside
+     * {@code next()}. Survivor pages are ~1 KiB; the trailing page is hundreds of KiB — that
+     * grow is the {@code ensureDecompCapacity} call that races the already-allocated result.
+     */
+    public void testTrailingSkipBreakerTripDoesNotLeakBlock() throws Exception {
+        final int totalRows = 1_000;
+        // Density 0.9 > RowRanges default 0.8 → full projection fetch (trailing pages present).
+        final int survivorRows = 900;
+        final int rowsPerPage = 100; // divides survivorRows so the cut is on a page boundary
+        final int trailingLabelBytes = 8 * 1024;
+        assert survivorRows % rowsPerPage == 0;
+        byte[] parquetData = buildParquet(TWO_COL_SCHEMA, totalRows, i -> {
+            SimpleGroupFactory factory = new SimpleGroupFactory(TWO_COL_SCHEMA);
+            Group g = factory.newGroup();
+            g.add("id", (long) i);
+            if (i < survivorRows) {
+                g.add("label", "s_" + i);
+            } else {
+                g.add("label", repeat('L', trailingLabelBytes) + "_" + i);
+            }
+            return g;
+        }, CompressionCodecName.SNAPPY, 4 * 1024, rowsPerPage);
+
+        // Contiguous survivors [0, survivorRows) with trailing > 0 → readBatchSparse fast path.
+        ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, (long) survivorRows, DataType.LONG), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        TripOnDecompGrowBreaker breaker = new TripOnDecompGrowBreaker();
+        BlockFactory bf = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+        try (
+            CloseableIterator<Page> it = new ParquetFormatReader(bf, true).withPushedFilter(pushed)
+                .read(nativeAsyncStorage(parquetData), FormatReadContext.builder().batchSize(1024).build())
+        ) {
+            // Phase 1 (predicate decode) + Phase 2 (projection prefetch) must succeed; arm only
+            // once next() is about to run readBatchSparse's trailing skip.
+            assertTrue("expected at least one row group to read", it.hasNext());
+            breaker.arm();
+            CircuitBreakingException thrown = expectThrows(CircuitBreakingException.class, () -> {
+                Page page = it.next();
+                page.releaseBlocks();
+            });
+            assertThat(thrown.getMessage(), org.hamcrest.Matchers.containsString("synthetic"));
+            assertTrue("expected a decompression-buffer grow during trailing skipRows", breaker.tripped());
+        }
+        assertEquals(
+            "breaker must return to zero — pre-fix, the result block from readBatch leaked across "
+                + "the trailing skipRows CircuitBreakingException",
+            0L,
+            breaker.getUsed()
+        );
+    }
+
+    // -------------------------------------------------------------------------------------
     // Helpers
 
     /**
@@ -570,6 +654,49 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
     }
 
     /**
+     * Armed breaker that refuses the first large {@code parquet page decompression} charge.
+     * Survivor pages under this test's layout are ~1 KiB; trailing pages are hundreds of KiB.
+     * Same-sized pages do not re-charge {@code ensureDecompCapacity}, so a page-count baseline
+     * is unreliable — a size threshold is what distinguishes the trailing-skip grow.
+     */
+    private static final class TripOnDecompGrowBreaker extends LimitedBreaker {
+        private static final String PAGE_DECOMPRESSION_LABEL = "parquet page decompression";
+        /** Above survivor-page size (~1 KiB) and below one trailing page (~800 KiB). */
+        private static final long TRAILING_PAGE_TRIP_BYTES = 64 * 1024;
+
+        private final long limitBytes;
+        private boolean armed;
+        private boolean tripped;
+
+        TripOnDecompGrowBreaker() {
+            super("test-breaker", ByteSizeValue.ofGb(1));
+            this.limitBytes = ByteSizeValue.ofGb(1).getBytes();
+        }
+
+        void arm() {
+            armed = true;
+        }
+
+        boolean tripped() {
+            return tripped;
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+            if (armed && tripped == false && bytes >= TRAILING_PAGE_TRIP_BYTES && PAGE_DECOMPRESSION_LABEL.equals(label)) {
+                tripped = true;
+                throw new CircuitBreakingException(
+                    "synthetic trip on decompression grow (" + bytes + " bytes for [" + label + "])",
+                    bytes,
+                    limitBytes,
+                    CircuitBreaker.Durability.TRANSIENT
+                );
+            }
+            super.addEstimateBytesAndMaybeBreak(bytes, label);
+        }
+    }
+
+    /**
      * In-memory {@link StorageObject} whose {@code supportsNativeAsync()} returns
      * {@code false}, forcing the single-phase late-materialization path instead of
      * two-phase I/O (which requires native async support).
@@ -628,6 +755,47 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
 
     private static byte[] buildParquet(MessageType schema, int rowCount, java.util.function.IntFunction<Group> rowFactory)
         throws IOException {
+        return buildParquet(schema, rowCount, rowFactory, CompressionCodecName.UNCOMPRESSED);
+    }
+
+    private static byte[] buildParquet(
+        MessageType schema,
+        int rowCount,
+        java.util.function.IntFunction<Group> rowFactory,
+        CompressionCodecName codec
+    ) throws IOException {
+        return buildParquet(schema, rowCount, rowFactory, codec, 0, 0);
+    }
+
+    /**
+     * @param pageSize page size in bytes; {@code 0} means writer default (~1 MB).
+     */
+    private static byte[] buildParquet(
+        MessageType schema,
+        int rowCount,
+        java.util.function.IntFunction<Group> rowFactory,
+        CompressionCodecName codec,
+        int pageSize
+    ) throws IOException {
+        return buildParquet(schema, rowCount, rowFactory, codec, pageSize, 0);
+    }
+
+    /**
+     * @param pageSize Parquet page size in bytes; {@code 0} means the writer default (~1 MB).
+     * @param pageRowCountLimit max rows per page; {@code 0} means writer default. When non-zero,
+     *                          used to pin page boundaries (e.g. so a survivor cut does not fall
+     *                          mid-page). Dictionary encoding is disabled whenever either limit is
+     *                          set so a fat dictionary cannot steal breaker trips from the
+     *                          data-page grow path.
+     */
+    private static byte[] buildParquet(
+        MessageType schema,
+        int rowCount,
+        java.util.function.IntFunction<Group> rowFactory,
+        CompressionCodecName codec,
+        int pageSize,
+        int pageRowCountLimit
+    ) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         OutputFile out = new OutputFile() {
             @Override
@@ -674,13 +842,21 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
                 return 0;
             }
         };
-        try (
-            ParquetWriter<Group> writer = ExampleParquetWriter.builder(out)
-                .withType(schema)
-                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
-                .withConf(new PlainParquetConfiguration())
-                .build()
-        ) {
+        ExampleParquetWriter.Builder writerBuilder = ExampleParquetWriter.builder(out)
+            .withType(schema)
+            .withCompressionCodec(codec)
+            .withCodecFactory(new PlainCompressionCodecFactory())
+            .withConf(new PlainParquetConfiguration());
+        if (pageSize > 0 || pageRowCountLimit > 0) {
+            writerBuilder = writerBuilder.withDictionaryEncoding(false);
+        }
+        if (pageSize > 0) {
+            writerBuilder = writerBuilder.withPageSize(pageSize);
+        }
+        if (pageRowCountLimit > 0) {
+            writerBuilder = writerBuilder.withPageRowCountLimit(pageRowCountLimit);
+        }
+        try (ParquetWriter<Group> writer = writerBuilder.build()) {
             for (int i = 0; i < rowCount; i++) {
                 writer.write(rowFactory.apply(i));
             }

@@ -876,7 +876,6 @@ public class IndexEngine extends InternalEngine {
         long translogRecoveryStartFile = indexDirectory.getTranslogRecoveryStartFile();
 
         if (nodeEphemeralId.isPresent()) {
-            logger.debug("new translog snapshot seqnos [{}]-[{}] and node ephemeral id [{}]", fromSeqNo, toSeqNo, nodeEphemeralId.get());
             BlobContainer translogBlobContainer = this.translogBlobContainer.apply(nodeEphemeralId.get());
             TranslogReplicatorReader reader = new TranslogReplicatorReader(
                 translogBlobContainer,
@@ -909,6 +908,14 @@ public class IndexEngine extends InternalEngine {
                 }
             };
         } else {
+            // Nothing is replayed and the shard still starts, so without this line the recovery leaves no trace at all.
+            logger.info(
+                "[{}] no stateless translog recovery: recovery commit names no node ephemeral id "
+                    + "[fromSeqNo={}, translogRecoveryStartFile={}]",
+                shardId,
+                fromSeqNo,
+                translogRecoveryStartFile
+            );
             return Translog.Snapshot.EMPTY;
         }
     }

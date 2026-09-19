@@ -6212,7 +6212,7 @@ TSDB:
 * Skip the validation when retrieving the index mode during reindexing a time series data stream [#127824](https://github.com/elastic/elasticsearch/pull/127824)
 
 Vector Search:
-* [9.x] Revert "Enable madvise by default for all builds" [#127921](https://github.com/elastic/elasticsearch/pull/127921)
+* Revert enabling madvise by default to fix vector search performance degradation on Linux with MGLRU enabled [#127921](https://github.com/elastic/elasticsearch/pull/127921) (issue: [#124499](https://github.com/elastic/elasticsearch/issues/124499))
 
 
 

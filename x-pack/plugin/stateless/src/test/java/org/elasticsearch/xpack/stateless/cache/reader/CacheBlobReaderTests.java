@@ -102,6 +102,26 @@ public class CacheBlobReaderTests extends ESTestCase {
     record GetRangeInputStreamCall(long position, int length, IntSupplier bytesReadSupplier) {}
 
     /**
+     * Verbose description of a compound commit, including the full commitFiles and extraContent maps (i.e. every file name and its
+     * BlobLocation). Only used for debug logging in tests.
+     */
+    private static String toLongDescription(StatelessCompoundCommit commit) {
+        return commit.shardId()
+            + commit.toShortDescription()
+            + '['
+            + commit.translogRecoveryStartFile()
+            + "]["
+            + commit.nodeEphemeralId()
+            + "]["
+            + commit.commitFiles()
+            + "]["
+            + commit.extraContent()
+            + "]["
+            + commit.timestampFieldValueRange()
+            + ']';
+    }
+
+    /**
      * A custom {@link FakeStatelessNode} that builds a {@link VirtualBatchedCompoundCommit} with a few commits and its
      * {@link org.elasticsearch.xpack.stateless.lucene.SearchDirectory} uses that to get VBCC chunks from.
      */
@@ -168,7 +188,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                     virtualBatchedCompoundCommit
                 );
                 StatelessCompoundCommit latestCommit = pendingCompoundCommits.get(pendingCompoundCommits.size() - 1);
-                logger.debug("Updating Search directory with CC: {}", latestCommit.toLongDescription());
+                logger.debug("Updating Search directory with CC: {}", toLongDescription(latestCommit));
                 searchDirectory.updateCommit(latestCommit);
             }
         }
@@ -373,7 +393,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                 @Override
                 public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
                     blobReads.incrementAndGet();
-                    if (blobName.contains(StatelessCompoundCommit.PREFIX)) {
+                    if (blobName.contains(BatchedCompoundCommit.PREFIX)) {
                         assert ThreadPool.assertCurrentThreadPool(StatelessPlugin.SHARD_READ_THREAD_POOL);
                     }
                     logger.debug("reading {} from blob store", blobName);
@@ -383,7 +403,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                 @Override
                 public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
                     blobReads.incrementAndGet();
-                    if (blobName.contains(StatelessCompoundCommit.PREFIX)) {
+                    if (blobName.contains(BatchedCompoundCommit.PREFIX)) {
                         assert ThreadPool.assertCurrentThreadPool(StatelessPlugin.SHARD_READ_THREAD_POOL);
                     }
                     logger.debug("reading {} from blob store, position: {} length: {}", blobName, position, length);

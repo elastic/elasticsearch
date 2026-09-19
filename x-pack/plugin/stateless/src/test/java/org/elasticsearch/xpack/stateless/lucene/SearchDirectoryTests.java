@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.stateless.cache.TimestampCapturingEvictionPolicy;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -247,7 +248,7 @@ public class SearchDirectoryTests extends ESTestCase {
             final var blobContainer = searchDirectory.getBlobContainer(primaryTerm);
             final int minFileSize = CodecUtil.footerLength();
 
-            final String blobName = StatelessCompoundCommit.blobNameFromGeneration(1L);
+            final String blobName = BatchedCompoundCommit.blobNameFromGeneration(1L);
             long blobLength = 0L;
             long generation = 0L;
 
@@ -751,7 +752,7 @@ public class SearchDirectoryTests extends ESTestCase {
                 equalTo(MINIMAL_CACHE_TIMESTAMP)
             );
 
-            final var metadataBlobName = StatelessCompoundCommit.blobNameFromGeneration(3L);
+            final var metadataBlobName = BatchedCompoundCommit.blobNameFromGeneration(3L);
             final var metadataTermAndGen = new PrimaryTermAndGeneration(1L, 3L);
             searchDirectory.updateLatestUploadedBcc(metadataTermAndGen);
             var metadataReadDirectory = searchDirectory.createMetadataReadDirectory(true);
@@ -1011,8 +1012,8 @@ public class SearchDirectoryTests extends ESTestCase {
             final long primaryTerm = 1L;
             final var orphanTermAndGen = new PrimaryTermAndGeneration(primaryTerm, 1L);
             final var reReadTermAndGen = new PrimaryTermAndGeneration(primaryTerm, 2L);
-            final var orphanBlobName = StatelessCompoundCommit.blobNameFromGeneration(orphanTermAndGen.generation());
-            final var reReadBlobName = StatelessCompoundCommit.blobNameFromGeneration(reReadTermAndGen.generation());
+            final var orphanBlobName = BatchedCompoundCommit.blobNameFromGeneration(orphanTermAndGen.generation());
+            final var reReadBlobName = BatchedCompoundCommit.blobNameFromGeneration(reReadTermAndGen.generation());
 
             final var orphanKey = new FileCacheKey(node.shardId, primaryTerm, orphanBlobName);
             final var reReadKey = new FileCacheKey(node.shardId, primaryTerm, reReadBlobName);

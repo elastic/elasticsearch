@@ -1266,10 +1266,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 continue;
             }
             blobFiles.add(
-                new BlobFile(
-                    StatelessCompoundCommit.blobNameFromGeneration(primaryTermAndGeneration.generation()),
-                    primaryTermAndGeneration
-                )
+                new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(primaryTermAndGeneration.generation()), primaryTermAndGeneration)
             );
         }
         // We also need to include all blobs pending deletion as they are deleted asynchronously.
@@ -1279,7 +1276,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
             blobFiles.add(
                 new BlobFile(
-                    StatelessCompoundCommit.blobNameFromGeneration(staleCompoundCommit.primaryTermAndGeneration().generation()),
+                    BatchedCompoundCommit.blobNameFromGeneration(staleCompoundCommit.primaryTermAndGeneration().generation()),
                     staleCompoundCommit.primaryTermAndGeneration()
                 )
             );
@@ -1552,7 +1549,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             List<BlobReference> previousBCCBlobs = new ArrayList<>(otherBlobs.size());
             // create a compound commit blob instance for the recovery commit
             for (BlobFile nonRecoveredBlobFile : otherBlobs) {
-                if (StatelessCompoundCommit.startsWithBlobPrefix(nonRecoveredBlobFile.blobName())) {
+                if (BatchedCompoundCommit.startsWithBlobPrefix(nonRecoveredBlobFile.blobName())) {
                     PrimaryTermAndGeneration nonRecoveredTermGen = nonRecoveredBlobFile.termAndGeneration();
 
                     Map<String, BlobLocation> internalFiles = referencedBlobs.getOrDefault(nonRecoveredTermGen, Collections.emptyMap());

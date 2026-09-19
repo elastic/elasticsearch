@@ -926,7 +926,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
                 Sets.intersection(
                     blobsUsedForScroll.stream()
                         .map(name -> name.substring(name.lastIndexOf('/') + 1))
-                        .map(StatelessCompoundCommit::parseGenerationFromBlobName)
+                        .map(BatchedCompoundCommit::parseGenerationFromBlobName)
                         .collect(Collectors.toUnmodifiableSet()),
                     termAndGensInUse.get().stream().map(PrimaryTermAndGeneration::generation).collect(Collectors.toUnmodifiableSet())
                 ),
@@ -1773,7 +1773,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
 
         var latestUploadedBcc = commitService.getLatestUploadedBcc(shardId);
         assertThat(latestUploadedBcc, is(notNullValue()));
-        var latestUploadedBlob = StatelessCompoundCommit.blobNameFromGeneration(latestUploadedBcc.primaryTermAndGeneration().generation());
+        var latestUploadedBlob = BatchedCompoundCommit.blobNameFromGeneration(latestUploadedBcc.primaryTermAndGeneration().generation());
 
         PITRetentionTestScenarios testScenario = randomFrom(PITRetentionTestScenarios.values());
         logger.info("Using PITRetentionTestScenario: " + testScenario);

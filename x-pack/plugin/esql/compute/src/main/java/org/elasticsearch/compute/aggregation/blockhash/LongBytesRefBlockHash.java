@@ -32,6 +32,7 @@ import org.elasticsearch.swisshash.BytesLongPartitionedHash;
 import org.elasticsearch.swisshash.BytesRefSwissHash;
 import org.elasticsearch.swisshash.LongLongSwissHash;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -439,5 +440,16 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
         LongIntBlockHash.PartitionedHashKeysWithSeenBlocks withSeen = (LongIntBlockHash.PartitionedHashKeysWithSeenBlocks) keys;
         longIntHash.seenBlocks |= withSeen.seenBlocks();
         return partitioner().combinePartition(withSeen.delegate(), partitionIndex, resultIds);
+    }
+
+    @Override
+    public boolean[] combinePartitions(List<? extends PartitionedHashKeys> keys, int partitionIndex, int[][] resultIds) {
+        List<PartitionedHashKeys> delegates = new ArrayList<>(keys.size());
+        for (PartitionedHashKeys k : keys) {
+            LongIntBlockHash.PartitionedHashKeysWithSeenBlocks withSeen = (LongIntBlockHash.PartitionedHashKeysWithSeenBlocks) k;
+            longIntHash.seenBlocks |= withSeen.seenBlocks();
+            delegates.add(withSeen.delegate());
+        }
+        return partitioner().combinePartitions(delegates, partitionIndex, resultIds);
     }
 }

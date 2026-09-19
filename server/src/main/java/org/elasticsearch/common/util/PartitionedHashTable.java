@@ -11,6 +11,8 @@ package org.elasticsearch.common.util;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
 
+import java.util.List;
+
 /**
  * A hash table whose keys can be redistributed into partitions by hash, so that several tables can be merged partition by
  * partition via {@link #splitPartition} and {@link #combinePartition} instead of all at once. A key always falls into the
@@ -142,4 +144,13 @@ public interface PartitionedHashTable {
      *                      associated per-key state instead of scattering it by id.
      */
     boolean combinePartition(PartitionedHashKeys keys, int partitionIndex, int[] resultIds);
+
+    default boolean[] combinePartitions(List<? extends PartitionedHashKeys> keys, int partitionIndex, int[][] resultIds) {
+        final boolean[] appendOnly = new boolean[keys.size()];
+        for (int g = 0; g < appendOnly.length; g++) {
+            final PartitionedHashKeys genKeys = keys.get(g);
+            appendOnly[g] = genKeys.keysInPartition(partitionIndex) == 0 || combinePartition(genKeys, partitionIndex, resultIds[g]);
+        }
+        return appendOnly;
+    }
 }

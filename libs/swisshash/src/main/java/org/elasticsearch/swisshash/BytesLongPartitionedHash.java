@@ -12,6 +12,8 @@ package org.elasticsearch.swisshash;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.PartitionedHashTable;
 
+import java.util.List;
+
 public final class BytesLongPartitionedHash implements PartitionedHashTable {
     /*
      * longValue, intValue  -> longValue, intValue & WIDEN
@@ -114,11 +116,33 @@ public final class BytesLongPartitionedHash implements PartitionedHashTable {
     @Override
     public boolean combinePartition(PartitionedHashKeys partitioned, int partitionIndex, int[] resultIds) {
         BytesAndLongKeys combined = (BytesAndLongKeys) partitioned;
-        final int numBytes = combined.bytesKeys.keysInPartition(partitionIndex);
-        assert numBytes <= resultIds.length : numBytes + " > " + resultIds.length;
-        bytesHash.combinePartition(combined.bytesKeys, partitionIndex, resultIds);
-        final var longKeys = combined.longKeys;
-        mapOnePartitionKeys(longKeys.partitionKeys[partitionIndex], longKeys.keysInPartition(partitionIndex), resultIds);
+        combineBytes(combined, partitionIndex, resultIds);
         return longlongHash.combinePartition(combined.longKeys, partitionIndex, resultIds);
+    }
+
+    @Override
+    public boolean[] combinePartitions(List<? extends PartitionedHashKeys> partitioned, int partitionIndex, int[][] resultIds) {
+        final int numGens = partitioned.size();
+        for (int g = 0; g < numGens; g++) {
+            BytesAndLongKeys combined = (BytesAndLongKeys) partitioned.get(g);
+            if (combined.longKeys.keysInPartition(partitionIndex) > 0) {
+                combineBytes(combined, partitionIndex, resultIds[g]);
+            }
+        }
+        final boolean[] appendOnly = new boolean[numGens];
+        for (int g = 0; g < numGens; g++) {
+            BytesAndLongKeys combined = (BytesAndLongKeys) partitioned.get(g);
+            appendOnly[g] = combined.longKeys.keysInPartition(partitionIndex) == 0
+                || longlongHash.combinePartition(combined.longKeys, partitionIndex, resultIds[g]);
+        }
+        return appendOnly;
+    }
+
+    private void combineBytes(BytesAndLongKeys combined, int partitionIndex, int[] scratch) {
+        final int numBytes = combined.bytesKeys.keysInPartition(partitionIndex);
+        assert numBytes <= scratch.length : numBytes + " > " + scratch.length;
+        bytesHash.combinePartition(combined.bytesKeys, partitionIndex, scratch);
+        final var longKeys = combined.longKeys;
+        mapOnePartitionKeys(longKeys.partitionKeys[partitionIndex], longKeys.keysInPartition(partitionIndex), scratch);
     }
 }

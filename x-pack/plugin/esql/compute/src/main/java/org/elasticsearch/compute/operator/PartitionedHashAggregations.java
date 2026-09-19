@@ -140,7 +140,7 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
         private final HashAggregationOperator op;
         private final CircuitBreaker breaker;
         private int[][] allGenIds = null;
-        private boolean[] appendOnly;
+        private List<PartitionedHashTable.PartitionedHashKeys> allGenKeys = null;
 
         Combiner(HashAggregationOperator op) {
             this.op = op;
@@ -153,21 +153,22 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
             PartitionedBlockHash blockHash = (PartitionedBlockHash) op.blockHash;
             if (allGenIds == null) {
                 allGenIds = new int[numGens][];
-            }
-            if (appendOnly == null) {
-                appendOnly = new boolean[numGens];
+                allGenKeys = new ArrayList<>(numGens);
+                for (PartitionedKeyAndAggs partitioned : generations) {
+                    allGenKeys.add(partitioned.keys);
+                }
             }
             // Combine keys from every generation first, then combine each aggregation across all generations.
             // This keeps accesses to the hash table and aggregation state cache-friendly.
             for (int g = 0; g < numGens; g++) {
-                PartitionedKeyAndAggs partitioned = generations.get(g);
-                var partitionedKeys = partitioned.keys;
-                int numKeys = partitionedKeys.keysInPartition(p);
+                int numKeys = allGenKeys.get(g).keysInPartition(p);
                 if (numKeys > 0) {
                     ensureGenIds(g, numKeys);
-                    appendOnly[g] = blockHash.combinePartition(partitionedKeys, p, allGenIds[g]);
                     op.rowsAddedInCurrentBatch += numKeys;
                 }
+            }
+            final boolean[] appendOnly = blockHash.combinePartitions(allGenKeys, p, allGenIds);
+            for (var partitionedKeys : allGenKeys) {
                 partitionedKeys.releasePartition(breaker, p);
             }
             // now combine aggregations

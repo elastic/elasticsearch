@@ -61,11 +61,7 @@ public class PushdownPredicatesTests extends ESTestCase {
     public void testMvContainsDeclinesToLowerWrappedField() {
         // The case-insensitive DSL term. The field is a function, not a column: statistics and partition values hold
         // original-case values, so pruning against the lowered literal would under-match.
-        MvContains caseInsensitive = new MvContains(
-            SRC,
-            new ToLower(SRC, field("host", DataType.KEYWORD), TEST_CFG),
-            keyword("h1")
-        );
+        MvContains caseInsensitive = new MvContains(SRC, new ToLower(SRC, field("host", DataType.KEYWORD), TEST_CFG), keyword("h1"));
         assertFalse(PushdownPredicates.isMvContains(caseInsensitive, SUPPORTED));
     }
 

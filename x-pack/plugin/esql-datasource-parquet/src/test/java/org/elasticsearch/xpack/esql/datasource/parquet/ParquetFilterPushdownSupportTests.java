@@ -17,6 +17,11 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatt
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -37,12 +42,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 
 import java.time.ZoneOffset;
 import java.util.List;
-
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
 
 import static org.hamcrest.Matchers.instanceOf;
 

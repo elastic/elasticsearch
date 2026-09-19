@@ -49,7 +49,7 @@ import java.util.function.Consumer;
  * @param splitStartByte   file-global byte offset at which this split begins (i.e. {@code FileSplit.offset()}).
  *                         Text readers add the bytes they consume to this anchor to emit a file-global,
  *                         split-invariant start byte per record for the {@code _rowPosition} channel
- *                         (the substrate of {@code _file.record_ref} / {@code _id}). {@code 0} for the
+ *                         (the substrate of {@code _file.record_ref}). {@code 0} for the
  *                         whole-file (non-split) case and for columnar formats, which derive a file-global
  *                         row index from their own footer/stripe metadata rather than from a byte anchor.
  *                         <p>Note: this carries the SAME VALUE as {@code statsBaseOffset} at every current call

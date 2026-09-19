@@ -151,6 +151,10 @@ public class RBACEngine implements AuthorizationEngine {
         SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
         SearchTransportService.MARK_CONTEXT_RELOCATING_ACTION_NAME
     );
+    private static final Set<String> ESQL_REMOTE_FETCH_ACTIONS = Set.of(
+        "indices:data/read/esql/remote_fetch/exchange_setup",
+        "indices:data/read/esql/remote_fetch/release"
+    );
 
     private final Settings settings;
     private final CompositeRolesStore rolesStore;
@@ -347,7 +351,14 @@ public class RBACEngine implements AuthorizationEngine {
                 role.checkIndicesAction(action) ? IndexAuthorizationResult.EMPTY : IndexAuthorizationResult.DENIED
             );
         } else if (request instanceof IndicesRequest == false) {
-            if (SCROLL_RELATED_ACTIONS.contains(action)) {
+            if (ESQL_REMOTE_FETCH_ACTIONS.contains(action)) {
+                // Remote fetch operates on retained search contexts instead of resolving indices again. The context contains
+                // the DLS/FLS-wrapped readers from the originating query, and RemoteFetchService separately verifies that the
+                // current authentication can access resources created by the authentication that retained the context.
+                return SubscribableListener.newSucceeded(
+                    role.checkIndicesAction(action) ? IndexAuthorizationResult.EMPTY : IndexAuthorizationResult.DENIED
+                );
+            } else if (SCROLL_RELATED_ACTIONS.contains(action)) {
                 // scroll is special
                 // some APIs are indices requests that are not actually associated with indices. For example,
                 // search scroll request, is categorized under the indices context, but doesn't hold indices names

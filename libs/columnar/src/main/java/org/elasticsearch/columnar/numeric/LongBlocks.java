@@ -17,6 +17,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
+import org.elasticsearch.columnar.substrate.BlockRuns;
 import org.elasticsearch.columnar.substrate.MonotonicReader;
 import org.elasticsearch.columnar.substrate.MonotonicWriter;
 import org.elasticsearch.columnar.substrate.StagedBytes;
@@ -120,6 +121,15 @@ public final class LongBlocks {
         private long added;
         private boolean finished;
 
+        /** Whether every value of the block being filled is the same. */
+        private boolean blockIsConstant = true;
+        /** The value a constant block holds, meaningful only while {@link #blockIsConstant}. */
+        private long blockConstant;
+        /** The value the last block written out holds, when that block was constant. */
+        private long lastWrittenConstant;
+        /** Whether the last block written out was constant. */
+        private boolean lastWrittenIsConstant;
+
         /**
          * Blocks written straight into {@code data}, for a caller that owns it until they are done. Nothing
          * is copied and nothing is staged.
@@ -188,6 +198,10 @@ public final class LongBlocks {
         public void add(long value) throws IOException {
             if (inBlock == 0) {
                 blockOffsets.add(written());
+                blockIsConstant = true;
+                blockConstant = value;
+            } else if (blockIsConstant && value != blockConstant) {
+                blockIsConstant = false;
             }
             buffer[inBlock++] = value;
             added++;
@@ -223,9 +237,19 @@ public final class LongBlocks {
             return out.getFilePointer() - directOffset;
         }
 
+        /**
+         * Writes the block unless it holds the one value the block before it held, in which case it writes
+         * nothing and leaves the empty extent {@link BlockRuns} reads as a repeat.
+         */
         private void flush(int count) throws IOException {
+            if (blockIsConstant && lastWrittenIsConstant && blockConstant == lastWrittenConstant) {
+                inBlock = 0;
+                return;
+            }
             blockValueCount[0] = count;
             blockBytesCodec.write(blockEncoder, out);
+            lastWrittenIsConstant = blockIsConstant;
+            lastWrittenConstant = blockConstant;
             inBlock = 0;
         }
 
@@ -246,6 +270,8 @@ public final class LongBlocks {
         private final long[] blockBuffer;
 
         private long cachedBlock = -1;
+        /** The block whose bytes {@link #blockBuffer} holds, which a run of repeats all share. */
+        private long cachedSource = -1;
 
         public Reader(Metadata meta, IndexInput data) throws IOException {
             this.meta = meta;
@@ -278,15 +304,21 @@ public final class LongBlocks {
             if (blockIndex == cachedBlock) {
                 return blockBuffer;
             }
-            final long start = meta.valuesOffset() + blockOffsets.get(blockIndex);
-            final long end = meta.valuesOffset() + blockOffsets.get(blockIndex + 1);
-            data.seek(start);
-            final DataInput blockData = blockBytesCodec.read(data, (int) (end - start));
-            // Full blocks hold blockSize values; the last block holds the remainder.
-            final int valueCount = (int) Math.min(meta.blockSize(), meta.numValues() - blockIndex * meta.blockSize());
-            encoder.decode(blockData, valueCount, blockBuffer);
+            final long source = BlockRuns.source(blockOffsets, blockIndex);
+            if (source != cachedSource) {
+                final long from = blockOffsets.get(source);
+                final long to = blockOffsets.get(source + 1);
+                data.seek(meta.valuesOffset() + from);
+                final DataInput blockData = blockBytesCodec.read(data, (int) (to - from));
+                // Full blocks hold blockSize values; the last block holds the remainder. The count is the
+                // source block's, which is a full one: only the last block is short, and nothing repeats it.
+                final int valueCount = (int) Math.min(meta.blockSize(), meta.numValues() - source * meta.blockSize());
+                encoder.decode(blockData, valueCount, blockBuffer);
+                cachedSource = source;
+            }
             cachedBlock = blockIndex;
             return blockBuffer;
         }
+
     }
 }

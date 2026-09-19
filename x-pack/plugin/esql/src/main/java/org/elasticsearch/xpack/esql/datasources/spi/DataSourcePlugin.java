@@ -48,6 +48,23 @@ public interface DataSourcePlugin {
     }
 
     /**
+     * Maps logical data-source type names (as accepted by PUT /_query/data_source) to the primary URI
+     * scheme used to look up this plugin's storage provider factory for test-connection purposes.
+     *
+     * <p>Override when the PUT type name differs from the URI scheme. For example, the GCS plugin
+     * uses type {@code "gcs"} for PUT but registers its factory under scheme {@code "gs"}; the Azure
+     * plugin uses type {@code "azure"} but registers under {@code "wasbs"}; the HTTP plugin uses type
+     * {@code "local"} but registers under {@code "file"}.
+     *
+     * <p>Plugins whose type name already matches a URI scheme (e.g. S3 type {@code "s3"} → scheme
+     * {@code "s3"}, or HTTP type {@code "http"} → scheme {@code "http"}) do not need to override —
+     * the direct lookup in {@code DataSourceModule.testConnection} already finds the correct factory.
+     */
+    default Map<String, String> testConnectionSchemes() {
+        return Map.of();
+    }
+
+    /**
      * URI schemes handled by this plugin's connectors (e.g. "flight", "grpc").
      * Separate from {@link #supportedSchemes()} which is for storage providers.
      */

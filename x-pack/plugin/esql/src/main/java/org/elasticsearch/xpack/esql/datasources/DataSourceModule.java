@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
 import org.elasticsearch.xpack.esql.datasources.spi.TableCatalog;
 import org.elasticsearch.xpack.esql.datasources.spi.TableCatalogFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.TestConnectionNotSupportedException;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -63,6 +64,13 @@ public final class DataSourceModule implements Closeable {
     private final StorageProviderRegistry storageProviderRegistry;
     private final FormatReaderRegistry formatReaderRegistry;
     private final Map<String, ExternalSourceFactory> sourceFactories;
+    /**
+     * Pre-built delegating probes for types whose PUT name differs from the URI scheme
+     * (e.g. {@code "gcs"→gs factory}, {@code "azure"→wasbs factory}). Keyed by the user-facing PUT
+     * type name. Built at construction from {@link DataSourcePlugin#testConnectionSchemes()}.
+     */
+    private final Map<String, StorageProviderFactory> testConnectionStorageProbes;
+    private final DataSourceCredentials credentials;
     // TODO(#142815): backward-compat bridge — remove once table functions land.
     private final Map<String, SourceOperatorFactoryProvider> pluginFactories;
     private final List<Closeable> managedCloseables;
@@ -177,6 +185,7 @@ public final class DataSourceModule implements Closeable {
         @Nullable ExecutorService splitDiscoveryExecutor
     ) {
         this.capabilities = capabilities;
+        this.credentials = credentials;
         // Always create a live accumulator so phone-home counters work even when APM is disabled.
         DataSourceUsageAccumulator accumulator = new DataSourceUsageAccumulator();
         this.externalSourceMetrics = new ExternalSourceMetrics(meterRegistry != null ? meterRegistry : MeterRegistry.NOOP, accumulator);
@@ -206,8 +215,15 @@ public final class DataSourceModule implements Closeable {
         Map<String, SourceOperatorFactoryProvider> operatorFactoryProviders = new HashMap<>();
         List<Closeable> closeables = new ArrayList<>();
         Map<String, String> registeredSchemes = new HashMap<>();
+        Map<String, String> tcTypeToScheme = new HashMap<>();
 
         for (DataSourcePlugin plugin : dataSourcePlugins) {
+            plugin.testConnectionSchemes().forEach((type, scheme) -> {
+                if (tcTypeToScheme.putIfAbsent(type, scheme) != null) {
+                    throw new IllegalStateException("duplicate testConnectionSchemes entry for type [" + type + "]");
+                }
+            });
+
             LazyPluginState state = new LazyPluginState(plugin, settings, executor, environment, resourceWatcherService);
 
             // A DataSourcePlugin's storageProviders(StorageProviderServices) may allocate node-level
@@ -227,22 +243,20 @@ public final class DataSourceModule implements Closeable {
                 StorageProviderFactory delegating = new StorageProviderFactory() {
                     @Override
                     public StorageProvider create(Settings s) {
-                        Map<String, StorageProviderFactory> factories = state.storageFactories();
-                        StorageProviderFactory real = factories.get(scheme);
-                        if (real == null) {
-                            throw new IllegalArgumentException(
-                                "Plugin "
-                                    + plugin.getClass().getName()
-                                    + " declared scheme ["
-                                    + scheme
-                                    + "] but storageProviders() did not return it"
-                            );
-                        }
-                        return real.create(s);
+                        return real(scheme).create(s);
                     }
 
                     @Override
                     public Configured<StorageProvider> createTrackingConsumedKeys(Settings s, Map<String, Object> config) {
+                        return real(scheme).createTrackingConsumedKeys(s, config);
+                    }
+
+                    @Override
+                    public void testConnection(Map<String, Object> config) throws IOException {
+                        real(scheme).testConnection(config);
+                    }
+
+                    private StorageProviderFactory real(String scheme) {
                         Map<String, StorageProviderFactory> factories = state.storageFactories();
                         StorageProviderFactory real = factories.get(scheme);
                         if (real == null) {
@@ -254,7 +268,7 @@ public final class DataSourceModule implements Closeable {
                                     + "] but storageProviders() did not return it"
                             );
                         }
-                        return real.createTrackingConsumedKeys(s, config);
+                        return real;
                     }
                 };
                 storageProviderRegistry.registerFactory(scheme, delegating);
@@ -355,6 +369,27 @@ public final class DataSourceModule implements Closeable {
         // factory's config-aware canHandle claims that same object whenever an explicit `format` is configured. With
         // an undefined order, which one resolves such a path would vary between nodes and restarts.
         this.sourceFactories = Collections.unmodifiableMap(new LinkedHashMap<>(sourceFactoryMap));
+        // Pre-build the test-connection probe map keyed by user-facing PUT type names.
+        // Each entry is a delegating StorageProviderFactory that resolves the scheme-registered
+        // factory lazily (the registry is fully populated by the time testConnection() is called).
+        Map<String, StorageProviderFactory> tcProbes = new LinkedHashMap<>();
+        tcTypeToScheme.forEach((type, scheme) -> tcProbes.put(type, new StorageProviderFactory() {
+            @Override
+            public StorageProvider create(Settings s) {
+                return storageProviderRegistry.getFactory(scheme).create(s);
+            }
+
+            @Override
+            public Configured<StorageProvider> createTrackingConsumedKeys(Settings s, Map<String, Object> config) {
+                return storageProviderRegistry.getFactory(scheme).createTrackingConsumedKeys(s, config);
+            }
+
+            @Override
+            public void testConnection(Map<String, Object> config) throws IOException {
+                storageProviderRegistry.getFactory(scheme).testConnection(config);
+            }
+        }));
+        this.testConnectionStorageProbes = Map.copyOf(tcProbes);
         this.pluginFactories = Map.copyOf(operatorFactoryProviders);
         this.managedCloseables = closeables;
     }
@@ -390,6 +425,53 @@ public final class DataSourceModule implements Closeable {
 
     public DecompressionCodecRegistry codecRegistry() {
         return codecRegistry;
+    }
+
+    /**
+     * Tests the live connection for the given data source type and raw settings. The settings are passed
+     * as-is to the factory: plaintext values (from a not-yet-saved data source) and
+     * {@link org.elasticsearch.xpack.encryption.spi.EncryptedData} values (from a saved data source) are
+     * both handled correctly — the {@link LazyConnectorFactory} calls
+     * {@link org.elasticsearch.xpack.esql.datasources.DataSourceCredentials#decryptInPlace} before delegating,
+     * which is a no-op for non-{@code EncryptedData} values.
+     *
+     * @param type the data source type identifier (e.g. {@code "s3"}, {@code "flight"})
+     * @param rawSettings raw settings map; may be empty but must not be {@code null}
+     * @return {@link TestConnectionResult#SUCCESS} if the probe passed,
+     *         {@link TestConnectionResult#UNTESTABLE} if the type is valid but has no probe,
+     *         or {@link TestConnectionResult.Failure} if the probe ran but failed
+     * @throws IllegalArgumentException if no factory is registered for the data source type (HTTP 400)
+     */
+    public TestConnectionResult testConnection(String type, Map<String, Object> rawSettings) {
+        // Resolve the factory before entering the try block so that "unknown type" IAE is thrown
+        // unconditionally and always maps to HTTP 400 — not caught as a soft failure.
+        ExternalSourceFactory extFactory = sourceFactories.get(type);
+        StorageProviderFactory spFactory = null;
+        if (extFactory == null) {
+            // Direct scheme lookup: works when the PUT type name matches the URI scheme (e.g. "s3").
+            spFactory = storageProviderRegistry.getFactory(type);
+            if (spFactory == null) {
+                // Pre-built probe map: handles types whose PUT name differs from the URI scheme
+                // (e.g. "gcs" → gs factory, "azure" → wasbs factory, "local" → file factory).
+                spFactory = testConnectionStorageProbes.get(type);
+            }
+        }
+        if (extFactory == null && spFactory == null) {
+            throw new IllegalArgumentException("No factory registered for data source type [" + type + "]");
+        }
+        try {
+            if (extFactory != null) {
+                extFactory.testConnection(rawSettings);
+            } else {
+                spFactory.testConnection(credentials.decryptInPlace(rawSettings));
+            }
+            return TestConnectionResult.SUCCESS;
+        } catch (TestConnectionNotSupportedException e) {
+            return new TestConnectionResult.Untestable(e.userReason());
+        } catch (IOException | RuntimeException e) {
+            String msg = e.getMessage() != null ? e.getMessage() : e.getClass().getName();
+            return TestConnectionResult.failure(msg);
+        }
     }
 
     /**
@@ -542,6 +624,11 @@ public final class DataSourceModule implements Closeable {
         @Override
         public Connector open(Map<String, Object> config) {
             return resolveDelegate().open(credentials.decryptInPlace(config));
+        }
+
+        @Override
+        public void testConnection(Map<String, Object> config) throws IOException {
+            resolveDelegate().testConnection(credentials.decryptInPlace(config));
         }
 
         @Override

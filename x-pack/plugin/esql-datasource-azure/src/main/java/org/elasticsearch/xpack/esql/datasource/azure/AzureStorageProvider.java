@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.TestConnectionNotSupportedException;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -194,6 +195,44 @@ public final class AzureStorageProvider implements StorageProvider {
             }
         }
         return clients;
+    }
+
+    /**
+     * Tests connectivity by fetching account information from the configured account.
+     * Uses {@code Get Account Information} ({@code ?restype=account&comp=properties}), a data-plane
+     * operation that succeeds with any data-plane credential (account key, SAS token, or
+     * {@code Storage Blob Data Reader} RBAC at the account scope). Unlike {@code getProperties()}
+     * (which is a management-plane call requiring {@code Storage Account Contributor}), this probe
+     * works with account-scoped read permissions. No container name is required.
+     * Called from the factory's {@code testConnection} on a GENERIC thread — blocking I/O is expected.
+     *
+     * <p>If the Azure client cannot be constructed from the data source settings alone (e.g. the
+     * account endpoint is only resolvable from a {@code wasbs://account…} URI, not from the settings),
+     * an {@link IllegalStateException} is thrown and surfaces as a {@code {status: "failure"}} response.
+     *
+     * <p>A 403 from {@code Get Account Information} is treated as {@code untestable}: the principal
+     * may have {@code Storage Blob Data Reader} at the container scope rather than the account scope,
+     * which is a valid configuration for reading blobs but insufficient for this account-level probe.
+     * Reporting failure in that case would be a false negative.
+     */
+    public void testConnection() {
+        if (config != null && config.isAnonymous()) {
+            throw new TestConnectionNotSupportedException(
+                "Azure anonymous access cannot be verified at the data source level",
+                "Anonymous access targets public containers; create a dataset to validate read access."
+            );
+        }
+        try {
+            clients(null).sync().getAccountInfo();
+        } catch (BlobStorageException e) {
+            if (e.getStatusCode() == 403) {
+                throw new TestConnectionNotSupportedException(
+                    "Azure returned 403 on Get Account Information; credentials may be container-scoped",
+                    "Container-scoped credentials cannot be verified at the data source level; create a dataset to validate access."
+                );
+            }
+            throw e;
+        }
     }
 
     /**

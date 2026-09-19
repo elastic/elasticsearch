@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.TestConnectionNotSupportedException;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -943,6 +944,39 @@ public class S3StorageProvider implements StorageProvider {
             key = key.substring(1);
         }
         return key;
+    }
+
+    /**
+     * Tests connectivity by attempting {@code ListBuckets}.
+     * <p>
+     * A {@code 403 AccessDenied} response means the credentials are valid but bucket-scoped — they
+     * signed and delivered the request, so authentication works; the IAM policy just does not grant
+     * {@code s3:ListAllMyBuckets}. Under the false-negative avoidance principle, this returns
+     * {@link TestConnectionNotSupportedException} (untestable) rather than success or failure:
+     * the same as GCS and Azure when facing bucket/container-scoped credentials. The user is
+     * directed to create a dataset to verify access at the bucket level.
+     * Invalid credentials ({@code InvalidClientTokenId}, {@code SignatureDoesNotMatch}) are re-thrown as failures.
+     * Called from the factory's {@code testConnection} on a GENERIC thread — blocking I/O is expected.
+     */
+    public void testConnection() {
+        if (config != null && config.isAnonymous()) {
+            throw new TestConnectionNotSupportedException(
+                "S3 anonymous access cannot be verified at the data source level",
+                "Anonymous access targets public buckets; create a dataset to validate read access."
+            );
+        }
+        try {
+            s3Client.listBuckets();
+        } catch (S3Exception e) {
+            if (e.statusCode() == 403 && e.awsErrorDetails() != null && "AccessDenied".equals(e.awsErrorDetails().errorCode())) {
+                // Credentials are valid but bucket-scoped; cannot verify at the data-source level.
+                throw new TestConnectionNotSupportedException(
+                    "S3 returned 403 AccessDenied on ListBuckets; credentials may be bucket-scoped",
+                    "Bucket-scoped credentials cannot be verified at the data source level; create a dataset to validate access."
+                );
+            }
+            throw e;
+        }
     }
 
     public S3Client s3Client() {

@@ -57,8 +57,10 @@ final class S3EndpointCheck {
      * Every S3 endpoint family AWS serves, with only the regional object endpoint enabled. The list is
      * load-bearing rather than documentary: each enabled label is crossed with every region to build
      * {@link #S3_ENDPOINT_HOSTS}. Uncommenting a line is the first step in readmitting a family, not the
-     * whole of it — {@code s3express} carries an availability-zone token rather than a fixed label, so its
-     * entry is a placeholder and not something that compiles as written.
+     * whole of it, and for three of them not even that: {@code s3express} carries an availability-zone token
+     * rather than a fixed label, so its entry is a placeholder that does not compile as written, and
+     * {@code s3-external-1} and transfer acceleration are region-less in the SDK's own metadata, which this
+     * crossing cannot produce.
      *
      * <p>The historical {@code s3-<region>} spelling is absent because it is not a label of its own — it
      * carries the region inside the service label, and is generated separately. Dual-stack is absent because
@@ -259,14 +261,15 @@ final class S3EndpointCheck {
      * service and region come from the matched tail, so the only thing read out of the name is the endpoint
      * id and its optional prefix, each of which must be a single label.
      *
-     * <p>All three tests do work no other one does, which is why none of them may be dropped.
+     * <p>All four tests do work no other one does, which is why none of them may be dropped.
      * {@code testRefusesVpcFormsOutsideTheExactShape} holds a literal for each: the tail alone refuses
      * {@code vpce-0a1b.ec2.us-east-1.vpce.amazonaws.com}, whose label before the region names another
      * service; the {@code vpce-} requirement alone refuses {@code evil.s3.us-east-1.vpce.amazonaws.com},
-     * whose tail matches and whose id position holds an arbitrary label; and the {@code vpce-svc-} refusal
+     * whose tail matches and whose id position holds an arbitrary label; the {@code vpce-svc-} refusal
      * alone refuses {@code vpce-svc-0c2d.s3.us-east-1.vpce.amazonaws.com}, whose tail matches and whose id
-     * begins {@code vpce-}. A customer-published PrivateLink service is refused by whichever of the three
-     * its spelling reaches.
+     * begins {@code vpce-}; and the single-label limit alone refuses
+     * {@code a.b.vpce-0a1b.s3.us-east-1.vpce.amazonaws.com}, which is otherwise the exact shape. A
+     * customer-published PrivateLink service is refused by whichever of the four its spelling reaches.
      *
      * <p>The tail names the bare service, so an interface endpoint for one of the other S3 families —
      * {@code s3-outposts}, say — is refused even if that family is later enabled above. No source of truth

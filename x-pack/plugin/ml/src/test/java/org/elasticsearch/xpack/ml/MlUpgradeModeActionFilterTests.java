@@ -116,7 +116,17 @@ public class MlUpgradeModeActionFilterTests extends ESTestCase {
 
     public void testOrder_UpgradeFilterIsExecutedAfterSecurityFilter() {
         MlUpgradeModeActionFilter upgradeModeFilter = new MlUpgradeModeActionFilter(clusterService);
-        SecurityActionFilter securityFilter = new SecurityActionFilter(null, null, null, null, mock(ThreadPool.class), null, null, Set::of);
+        SecurityActionFilter securityFilter = new SecurityActionFilter(
+            null,
+            null,
+            null,
+            null,
+            mock(ThreadPool.class),
+            null,
+            null,
+            Set::of,
+            java.util.Map.of()
+        );
 
         ActionFilter[] actionFiltersInOrderOfExecution = new ActionFilters(Sets.newHashSet(upgradeModeFilter, securityFilter)).filters();
         assertThat(actionFiltersInOrderOfExecution, is(arrayContaining(securityFilter, upgradeModeFilter)));

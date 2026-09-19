@@ -134,8 +134,9 @@ final class S3EndpointCheck {
             }
             // The historical spelling, which S3 still answers to where it was configured years ago. It is
             // generated for every region rather than for the regions that serve it, so the set holds some
-            // names that resolve to nothing — each still under a suffix AWS controls, which is the property
-            // the rule rests on.
+            // names that resolve to nothing. Every one of them is still built from a region id and a
+            // partition suffix this metadata supplied, never from anything the configured value carried,
+            // which is the property the rule rests on.
             s3Hosts.add(S3_SERVICE + "-" + id + "." + suffix);
             s3Tails.add("." + S3_SERVICE + "." + id + ".vpce." + suffix);
             stsTails.add("." + STS_SERVICE + "." + id + ".vpce." + suffix);
@@ -258,10 +259,14 @@ final class S3EndpointCheck {
      * service and region come from the matched tail, so the only thing read out of the name is the endpoint
      * id and its optional prefix, each of which must be a single label.
      *
-     * <p>What excludes a customer-published PrivateLink service is the tail: AWS mints such an endpoint as
-     * {@code vpce-<id>-<hash>.vpce-svc-<serviceid>.<region>.vpce.<suffix>}, whose label before the region is
-     * the service id rather than {@code s3} or {@code sts}, so no generated tail matches it. The
-     * {@code vpce-svc-} test is a second guard on a line the tail otherwise holds alone.
+     * <p>All three tests do work no other one does, which is why none of them may be dropped.
+     * {@code testRefusesVpcFormsOutsideTheExactShape} holds a literal for each: the tail alone refuses
+     * {@code vpce-0a1b.ec2.us-east-1.vpce.amazonaws.com}, whose label before the region names another
+     * service; the {@code vpce-} requirement alone refuses {@code evil.s3.us-east-1.vpce.amazonaws.com},
+     * whose tail matches and whose id position holds an arbitrary label; and the {@code vpce-svc-} refusal
+     * alone refuses {@code vpce-svc-0c2d.s3.us-east-1.vpce.amazonaws.com}, whose tail matches and whose id
+     * begins {@code vpce-}. A customer-published PrivateLink service is refused by whichever of the three
+     * its spelling reaches.
      *
      * <p>The tail names the bare service, so an interface endpoint for one of the other S3 families —
      * {@code s3-outposts}, say — is refused even if that family is later enabled above. No source of truth

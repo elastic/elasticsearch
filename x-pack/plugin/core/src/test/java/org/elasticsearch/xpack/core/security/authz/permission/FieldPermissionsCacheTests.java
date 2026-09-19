@@ -6,8 +6,11 @@
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -127,6 +130,84 @@ public class FieldPermissionsCacheTests extends ESTestCase {
             FieldPermissions result = cache.union(permissionsList);
             assertFalse(result.hasFieldLevelSecurity());
         }
+    }
+
+    public void testUnionGrantsMetadataFields() {
+        FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
+        FieldPermissions union = cache.union(
+            List.of(
+                new FieldPermissions(fieldPermissionDef(new String[] { "f1" }, null)),
+                new FieldPermissions(fieldPermissionDef(new String[] { "f2" }, null))
+            )
+        );
+        assertTrue(union.hasFieldLevelSecurity());
+        assertTrue(union.grantsAccessTo("f1"));
+        assertTrue(union.grantsAccessTo("f2"));
+        for (String field : FieldPermissions.METADATA_FIELDS_ALLOWLIST) {
+            assertTrue(field, union.grantsAccessTo(field));
+            assertTrue(field, union.grantsAccessTo(field + ".sub"));
+        }
+        assertFalse(union.grantsAccessTo("_some_plugin_meta_field"));
+        assertFalse(union.grantsAccessTo("f3"));
+    }
+
+    public void testUnionPropagatesLegacyExceptFieldsFlag() {
+        FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
+        FieldPermissions legacy = new FieldPermissions(fieldPermissionDef(new String[] { "xyz" }, new String[] { "_xyz" }));
+        assertTrue(legacy.hasLegacyExceptFields());
+        FieldPermissions nonLegacy = new FieldPermissions(fieldPermissionDef(new String[] { "abc*" }, new String[] { "abcd" }));
+        assertFalse(nonLegacy.hasLegacyExceptFields());
+
+        FieldPermissions union = cache.union(shuffledList(List.of(legacy, nonLegacy)));
+        assertTrue(union.hasLegacyExceptFields());
+        assertTrue(union.grantsAccessTo("xyz"));
+        assertTrue(union.grantsAccessTo("abc"));
+        assertFalse(union.grantsAccessTo("_xyz"));
+        assertFalse(union.grantsAccessTo("abcd"));
+
+        FieldPermissions otherNonLegacy = new FieldPermissions(fieldPermissionDef(new String[] { "def*" }, new String[] { "defa" }));
+        union = cache.union(shuffledList(List.of(nonLegacy, otherNonLegacy)));
+        assertFalse(union.hasLegacyExceptFields());
+    }
+
+    public void testValidateFieldPermissionsWithCacheWarnsOnFirstComputationOnly() {
+        FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
+        MockLog.assertThatLogger(
+            () -> cache.validateFieldPermissionsWithCache("role1", fieldPermissionDef(new String[] { "xyz" }, new String[] { "_xyz" })),
+            FieldPermissionsCache.class,
+            new MockLog.SeenEventExpectation(
+                "legacy except fields warning",
+                FieldPermissionsCache.class.getName(),
+                Level.WARN,
+                "Role [role1] has exceptions for field permissions*minimally required metadata fields*"
+            )
+        );
+
+        // the same definition is cached, so validating it again (even for another role) does not warn a second time
+        MockLog.assertThatLogger(
+            () -> cache.validateFieldPermissionsWithCache(
+                randomFrom("role1", "role2"),
+                fieldPermissionDef(new String[] { "xyz" }, new String[] { "_xyz" })
+            ),
+            FieldPermissionsCache.class,
+            new MockLog.UnseenEventExpectation("no repeated warning", FieldPermissionsCache.class.getName(), Level.WARN, "*")
+        );
+    }
+
+    public void testValidateFieldPermissionsWithCacheDoesNotWarnForValidDefinitions() {
+        FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
+        MockLog.assertThatLogger(
+            () -> cache.validateFieldPermissionsWithCache("role1", fieldPermissionDef(new String[] { "ab*" }, new String[] { "abc" })),
+            FieldPermissionsCache.class,
+            new MockLog.UnseenEventExpectation("no warning", FieldPermissionsCache.class.getName(), Level.WARN, "*")
+        );
+    }
+
+    public void testInvalidDefinitionThrows() {
+        FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
+        FieldPermissionsDefinition invalid = fieldPermissionDef(new String[] { "abc" }, new String[] { randomFrom("xyz", "*", "a*") });
+        expectThrows(ElasticsearchSecurityException.class, () -> cache.validateFieldPermissionsWithCache("role1", invalid));
+        expectThrows(ElasticsearchSecurityException.class, () -> cache.getFieldPermissions(invalid));
     }
 
     private static FieldPermissionsDefinition fieldPermissionDef(String[] granted, String[] denied) {

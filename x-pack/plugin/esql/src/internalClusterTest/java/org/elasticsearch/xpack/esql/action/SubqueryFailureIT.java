@@ -16,6 +16,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.FailingFieldPlugin;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -49,6 +50,10 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
 
+    private static final int FAIL_SHARDS = 1;
+
+    private int okShards;
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
@@ -63,11 +68,6 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))
             .build();
-    }
-
-    @Before
-    public void checkSubqueryInFromCommandSupport() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
     }
 
     @Before
@@ -95,7 +95,14 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
         }
         mapping.endObject();
         mapping.endObject();
-        client().admin().indices().prepareCreate("fail").setMapping(mapping).get();
+        // One primary so KEEP fail_me can fail every shard of this index. Extra empty shards would count as successful and hide the
+        // query-wide all-targets check.
+        client().admin()
+            .indices()
+            .prepareCreate("fail")
+            .setSettings(Settings.builder().put("index.number_of_shards", FAIL_SHARDS).put("index.number_of_replicas", 0))
+            .setMapping(mapping)
+            .get();
         client().prepareBulk()
             .add(new IndexRequest("fail").id("1").source("id", 1))
             .add(new IndexRequest("fail").id("2").source("id", 2))
@@ -103,10 +110,11 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
             .get();
 
         // Create "ok" index with normal data
+        okShards = randomIntBetween(1, 3);
         client().admin()
             .indices()
             .prepareCreate("ok")
-            .setSettings(Settings.builder().put("index.number_of_shards", randomIntBetween(1, 3)))
+            .setSettings(Settings.builder().put("index.number_of_shards", okShards))
             .setMapping("id", "type=integer", "value", "type=keyword")
             .get();
         client().prepareBulk()
@@ -304,10 +312,6 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
      * One subquery reads from both fail and ok indices — the fail shard fails but the ok shard succeeds.
      * With allowPartialResults=true, the overall query succeeds and returns rows from all ok shards
      * across all subqueries.
-     *
-     * TODO: the PARTIAL status is only set on the main plan, the overall cluster status is SUCCESSFUL
-     *  even though one shard failed inside a subquery, this should be addressed in a follow up. The
-     *  behavior being tested is that the query does NOT fail.
      */
     public void testPartialResultsWithFailingShardInSubquery() {
         var query = """
@@ -324,17 +328,79 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
                 .put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1)
                 .build()
         );
-        var request = syncEsqlQueryRequest(query).pragmas(pragmas);
+        var request = executionMetadataRequest(query, pragmas);
         request.allowPartialResults(true);
-        request.acceptedPragmaRisks(true);
         try (EsqlQueryResponse resp = run(request)) {
+            assertTrue(resp.isPartial());
             List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
             // subquery 1: ok shard returns 3 docs (fail_me=null), fail shard is swallowed
             // subquery 2: returns 1 doc (id==1)
             // subquery 3: returns 1 doc (id==2)
             // total = 3 + 1 + 1 = 5
             assertThat(rows.size(), equalTo(5));
+            // fail,ok once plus two ok-only branches
+            assertLocalShardCounts(resp, FAIL_SHARDS + 3 * okShards, 3 * okShards, FAIL_SHARDS);
         }
+    }
+
+    /**
+     * First leaf loses every shard ({@code FROM fail} only). A later sibling still has healthy shards. {@code failIfAllShardsFailed} must
+     * not run against the shared {@code EsqlExecutionInfo} at the first leaf — that would cancel the query before {@code ok} executes.
+     */
+    public void testPartialResultsWhenFirstBranchLosesAllShards() {
+        var query = """
+            FROM
+               (FROM fail | KEEP fail_me | LIMIT 100),
+               (FROM ok | WHERE id == 1)
+            | LIMIT 100
+            """;
+        var request = executionMetadataRequest(query, partialBranchPragmas());
+        request.allowPartialResults(true);
+        try (EsqlQueryResponse resp = run(request)) {
+            assertTrue(resp.isPartial());
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            // fail branch: 0 rows; ok branch: 1 row (id==1)
+            assertThat(rows.size(), equalTo(1));
+            assertLocalShardCounts(resp, FAIL_SHARDS + okShards, okShards, FAIL_SHARDS);
+        }
+    }
+
+    /**
+     * Healthy branch first (successful shards, zero rows), then a leaf that loses every shard. Shard counts must accumulate so the last
+     * writer cannot trip the query-wide all-targets check.
+     */
+    public void testPartialResultsWhenLaterBranchLosesAllShardsAfterEmptySuccess() {
+        var query = """
+            FROM
+               (FROM ok | WHERE id == 999),
+               (FROM fail | KEEP fail_me | LIMIT 100)
+            | LIMIT 100
+            """;
+        var request = executionMetadataRequest(query, partialBranchPragmas());
+        request.allowPartialResults(true);
+        try (EsqlQueryResponse resp = run(request)) {
+            assertTrue(resp.isPartial());
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows.size(), equalTo(0));
+            assertLocalShardCounts(resp, FAIL_SHARDS + okShards, okShards, FAIL_SHARDS);
+        }
+    }
+
+    /**
+     * Every merge branch lost all of its shards. The root all-targets check must still fail the query even with
+     * {@code allowPartialResults}.
+     */
+    public void testFailsWhenEveryBranchLosesAllShards() {
+        var query = """
+            FROM
+               (FROM fail | KEEP fail_me | LIMIT 100),
+               (FROM fail | KEEP fail_me | LIMIT 100)
+            | LIMIT 100
+            """;
+        var request = executionMetadataRequest(query, partialBranchPragmas());
+        request.allowPartialResults(true);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> run(request).close());
+        assertThat(e.getMessage(), equalTo("Accessing failing field"));
     }
 
     /**
@@ -476,5 +542,33 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
 
     private static QueryPragmas batchPragmas(int batchSize) {
         return new QueryPragmas(Settings.builder().put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), batchSize).build());
+    }
+
+    private static EsqlQueryRequest executionMetadataRequest(String query, QueryPragmas pragmas) {
+        EsqlQueryRequest request = syncEsqlQueryRequest(query).pragmas(pragmas);
+        request.includeExecutionMetadata(true);
+        request.acceptedPragmaRisks(true);
+        return request;
+    }
+
+    private static void assertLocalShardCounts(EsqlQueryResponse resp, int total, int successful, int failed) {
+        EsqlExecutionInfo.Cluster local = resp.getExecutionInfo().getCluster(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY);
+        assertNotNull(local);
+        assertThat("total shards", local.getTotalShards(), equalTo(total));
+        assertThat("successful shards", local.getSuccessfulShards(), equalTo(successful));
+        assertThat("failed shards", local.getFailedShards(), equalTo(failed));
+    }
+
+    /**
+     * Serial ({@code 1}) and overlapping ({@code >1}) dispatch both share one {@code EsqlExecutionInfo}; the all-targets check must be
+     * correct for either.
+     */
+    private static QueryPragmas partialBranchPragmas() {
+        return new QueryPragmas(
+            Settings.builder()
+                .put(QueryPragmas.BRANCH_PARALLEL_DEGREE.getKey(), randomIntBetween(1, 3))
+                .put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1)
+                .build()
+        );
     }
 }

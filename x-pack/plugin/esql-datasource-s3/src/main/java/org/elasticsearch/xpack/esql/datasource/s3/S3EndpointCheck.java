@@ -57,15 +57,17 @@ final class S3EndpointCheck {
     /**
      * Every S3 endpoint family AWS serves, with only the regional object endpoint enabled. The list is
      * load-bearing rather than documentary: each enabled label is crossed with every region to build
-     * {@link #S3_ENDPOINT_HOSTS}, so uncommenting a line readmits that family for all regions at once.
+     * {@link #S3_ENDPOINT_HOSTS}. Uncommenting a line is the first step in readmitting a family, not the
+     * whole of it — {@code s3express} carries an availability-zone token rather than a fixed label, so its
+     * entry is a placeholder and not something that compiles as written.
      *
      * <p>The historical {@code s3-<region>} spelling is absent because it is not a label of its own — it
      * carries the region inside the service label, and is generated separately. Dual-stack is absent because
      * it is a label between the service and the region, so no host built from this list can contain it.
      *
      * <p>{@code s3-fips} and dual-stack are disabled for the same reason as the rest: nothing here has been
-     * tested against them. Naming one does reach it, so this is a decision about what is supported, not a
-     * technical limit. AWS serves S3 FIPS only in GovCloud and the ISO partitions.
+     * tested against them. Naming one does reach it — AWS serves both, in commercial regions as well as in
+     * GovCloud — so this is a decision about what is supported rather than a technical limit.
      */
     // tag::
     private static final Set<String> S3_SERVICE_LABELS = Set.of(

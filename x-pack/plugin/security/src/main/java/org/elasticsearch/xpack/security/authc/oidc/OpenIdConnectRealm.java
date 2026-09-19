@@ -19,6 +19,7 @@ import com.nimbusds.oauth2.sdk.id.State;
 import com.nimbusds.openid.connect.sdk.AuthenticationRequest;
 import com.nimbusds.openid.connect.sdk.LogoutRequest;
 import com.nimbusds.openid.connect.sdk.Nonce;
+import com.nimbusds.openid.connect.sdk.op.OIDCProviderMetadata;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
@@ -96,7 +97,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         super(config);
         this.roleMapper = roleMapper;
         this.rpConfiguration = buildRelyingPartyConfiguration(config);
-        this.opConfiguration = buildOpenIdConnectProviderConfiguration(config);
+        this.opConfiguration = buildOpenIdConnectProviderConfiguration(config, sslService);
         this.principalAttribute = ClaimParser.forSetting(logger, PRINCIPAL_CLAIM, config, true);
         this.groupsAttribute = ClaimParser.forSetting(logger, GROUPS_CLAIM, config, false);
         this.dnAttribute = ClaimParser.forSetting(logger, DN_CLAIM, config, false);
@@ -124,7 +125,9 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         super(config);
         this.roleMapper = roleMapper;
         this.rpConfiguration = buildRelyingPartyConfiguration(config);
-        this.opConfiguration = buildOpenIdConnectProviderConfiguration(config);
+        // Discovery is only triggered when an op.* endpoint setting is left unset; callers of this constructor
+        // must keep configuring every op.* endpoint explicitly, since no SSLService is available here to fetch one.
+        this.opConfiguration = buildOpenIdConnectProviderConfiguration(config, null);
         this.openIdConnectAuthenticator = authenticator;
         this.principalAttribute = ClaimParser.forSetting(logger, PRINCIPAL_CLAIM, config, true);
         this.groupsAttribute = ClaimParser.forSetting(logger, GROUPS_CLAIM, config, false);
@@ -286,20 +289,52 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         );
     }
 
-    private OpenIdConnectProviderConfiguration buildOpenIdConnectProviderConfiguration(RealmConfig config) {
+    private OpenIdConnectProviderConfiguration buildOpenIdConnectProviderConfiguration(
+        RealmConfig config,
+        @Nullable SSLService sslService
+    ) {
         Issuer issuer = new Issuer(require(config, OP_ISSUER));
 
-        String jwkSetUrl = require(config, OP_JWKSET_PATH);
+        // Only fetch the discovery document when one of the *required* op.* endpoints is left unset; a
+        // fully-explicit configuration (as required before this feature existed) never triggers a network call.
+        // op.userinfo_endpoint/op.endsession_endpoint are legitimately optional and their absence alone must not
+        // trigger discovery, otherwise every pre-existing config that omits them would start doing a network
+        // fetch at realm construction time.
+        final boolean tokenEndpointRequired = "code".equals(config.getSetting(RP_RESPONSE_TYPE));
+        final boolean needsDiscovery = config.getSetting(OP_AUTHORIZATION_ENDPOINT).isEmpty()
+            || config.getSetting(OP_JWKSET_PATH).isEmpty()
+            || (tokenEndpointRequired && config.getSetting(OP_TOKEN_ENDPOINT).isEmpty());
+        final OIDCProviderMetadata discovered = needsDiscovery
+            ? OpenIdConnectProviderDiscoveryResolver.resolve(config, sslService, issuer.getValue())
+            : null;
+
+        String jwkSetUrl = requireResolved(
+            config,
+            OP_JWKSET_PATH,
+            discovered == null || discovered.getJWKSetURI() == null ? null : discovered.getJWKSetURI().toString()
+        );
 
         URI authorizationEndpoint;
         try {
-            authorizationEndpoint = new URI(require(config, OP_AUTHORIZATION_ENDPOINT));
+            authorizationEndpoint = new URI(
+                requireResolved(
+                    config,
+                    OP_AUTHORIZATION_ENDPOINT,
+                    discovered == null || discovered.getAuthorizationEndpointURI() == null
+                        ? null
+                        : discovered.getAuthorizationEndpointURI().toString()
+                )
+            );
         } catch (URISyntaxException e) {
             // This should never happen as it's already validated in the settings
             throw new SettingsException("Invalid URI: " + OP_AUTHORIZATION_ENDPOINT.getKey(), e);
         }
         String responseType = require(config, RP_RESPONSE_TYPE);
-        String tokenEndpointString = config.getSetting(OP_TOKEN_ENDPOINT);
+        String tokenEndpointString = resolveSetting(
+            config,
+            OP_TOKEN_ENDPOINT,
+            discovered == null || discovered.getTokenEndpointURI() == null ? null : discovered.getTokenEndpointURI().toString()
+        );
         if (responseType.equals("code") && tokenEndpointString.isEmpty()) {
             throw new SettingsException(
                 "The configuration setting ["
@@ -318,18 +353,26 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         }
         URI userinfoEndpoint;
         try {
-            userinfoEndpoint = (config.getSetting(OP_USERINFO_ENDPOINT).isEmpty())
-                ? null
-                : new URI(config.getSetting(OP_USERINFO_ENDPOINT));
+            final String userinfoEndpointString = resolveSetting(
+                config,
+                OP_USERINFO_ENDPOINT,
+                discovered == null || discovered.getUserInfoEndpointURI() == null ? null : discovered.getUserInfoEndpointURI().toString()
+            );
+            userinfoEndpoint = userinfoEndpointString.isEmpty() ? null : new URI(userinfoEndpointString);
         } catch (URISyntaxException e) {
             // This should never happen as it's already validated in the settings
             throw new SettingsException("Invalid URI: " + OP_USERINFO_ENDPOINT.getKey(), e);
         }
         URI endsessionEndpoint;
         try {
-            endsessionEndpoint = (config.getSetting(OP_ENDSESSION_ENDPOINT).isEmpty())
-                ? null
-                : new URI(config.getSetting(OP_ENDSESSION_ENDPOINT));
+            final String endsessionEndpointString = resolveSetting(
+                config,
+                OP_ENDSESSION_ENDPOINT,
+                discovered == null || discovered.getEndSessionEndpointURI() == null
+                    ? null
+                    : discovered.getEndSessionEndpointURI().toString()
+            );
+            endsessionEndpoint = endsessionEndpointString.isEmpty() ? null : new URI(endsessionEndpointString);
         } catch (URISyntaxException e) {
             // This should never happen as it's already validated in the settings
             throw new SettingsException("Invalid URI: " + OP_ENDSESSION_ENDPOINT.getKey(), e);
@@ -347,6 +390,27 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
 
     private static String require(RealmConfig config, Setting.AffixSetting<String> setting) {
         final String value = config.getSetting(setting);
+        if (value.isEmpty()) {
+            throw new SettingsException("The configuration setting [" + RealmSettings.getFullSettingKey(config, setting) + "] is required");
+        }
+        return value;
+    }
+
+    /**
+     * Returns the explicitly configured value for {@code setting}, falling back to {@code discoveredValue} (which
+     * may be {@code null}) when the setting is unset. An explicitly configured value always takes precedence over
+     * a value resolved from the OpenID Connect provider's discovery document.
+     */
+    private static String resolveSetting(RealmConfig config, Setting.AffixSetting<String> setting, @Nullable String discoveredValue) {
+        final String explicit = config.getSetting(setting);
+        if (explicit.isEmpty() == false) {
+            return explicit;
+        }
+        return discoveredValue == null ? "" : discoveredValue;
+    }
+
+    private static String requireResolved(RealmConfig config, Setting.AffixSetting<String> setting, @Nullable String discoveredValue) {
+        final String value = resolveSetting(config, setting, discoveredValue);
         if (value.isEmpty()) {
             throw new SettingsException("The configuration setting [" + RealmSettings.getFullSettingKey(config, setting) + "] is required");
         }

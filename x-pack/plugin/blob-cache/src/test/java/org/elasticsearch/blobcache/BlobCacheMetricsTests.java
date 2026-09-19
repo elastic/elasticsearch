@@ -7,7 +7,11 @@
 
 package org.elasticsearch.blobcache;
 
+import org.elasticsearch.action.search.TimeRangeBucket;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
@@ -16,19 +20,28 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_BYPASS_READ_TOTAL;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTION_SCANNED_ENTRIES;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTION_SCAN_TIME;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_LOCK_ACQUIRE_TIME;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_MISS_AGE;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_MISS_TOTAL;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_PREFETCH_TOTAL;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_READ_AGE;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_READ_TOTAL;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LOCK_ACQUIRE_SITE_ATTRIBUTE_KEY;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.NON_ES_EXECUTOR_TO_RECORD;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.PREFETCH_RESULT_ATTRIBUTE_KEY;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -36,11 +49,37 @@ public class BlobCacheMetricsTests extends ESTestCase {
 
     private RecordingMeterRegistry recordingMeterRegistry;
     private BlobCacheMetrics metrics;
+    /** Controllable "now" for deterministic age assertions. */
+    private final AtomicLong fakeNowMillis = new AtomicLong(System.currentTimeMillis());
 
     @Before
     public void createMetrics() {
         recordingMeterRegistry = new RecordingMeterRegistry();
-        metrics = new BlobCacheMetrics(recordingMeterRegistry);
+        metrics = new BlobCacheMetrics(recordingMeterRegistry, timeProvider(fakeNowMillis));
+    }
+
+    private static TimeProvider timeProvider(AtomicLong clock) {
+        return new TimeProvider() {
+            @Override
+            public long relativeTimeInMillis() {
+                return clock.get();
+            }
+
+            @Override
+            public long relativeTimeInNanos() {
+                return clock.get() * 1_000_000L;
+            }
+
+            @Override
+            public long rawRelativeTimeInMillis() {
+                return clock.get();
+            }
+
+            @Override
+            public long absoluteTimeInMillis() {
+                return clock.get();
+            }
+        };
     }
 
     public void testRecordCachePopulationMetricsRecordsThroughput() {
@@ -80,13 +119,14 @@ public class BlobCacheMetricsTests extends ESTestCase {
         assertEquals(totalTimeMeasurement.getLong(), TimeUnit.SECONDS.toMillis(secondsTaken));
         assertExpectedAttributesPresent(totalTimeMeasurement, cachePopulationReason, cachePopulationSource, fileExtension, threadName);
 
+        // Use UNKNOWN_TIMESTAMP as a stable timestamp for read/miss tracking in this test.
         // let us check for 0, avoid div by 0.
         checkReadsAndMisses(0, 0, 1);
         int reads = between(1, 100);
         int misses = between(1, reads);
         recordMisses(metrics, misses);
         checkReadsAndMisses(0, misses, misses);
-        IntStream.range(0, reads).forEach(i -> metrics.recordRead());
+        IntStream.range(0, reads).forEach(i -> metrics.recordRead(SharedBlobCacheService.UNKNOWN_TIMESTAMP));
         checkReadsAndMisses(reads, misses, reads);
         recordMisses(metrics, reads);
         checkReadsAndMisses(reads, misses + reads, misses + reads);
@@ -154,6 +194,147 @@ public class BlobCacheMetricsTests extends ESTestCase {
         assertThat(measurements.getFirst().attributes().keySet(), contains(LOCK_ACQUIRE_SITE_ATTRIBUTE_KEY));
     }
 
+    public void testSentinelTimestampsSkipAgeHistogram() {
+        metrics.recordRead(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP);
+        metrics.recordMiss(SharedBlobCacheService.UNKNOWN_TIMESTAMP);
+
+        assertThat(ageMeasurements(BLOB_CACHE_READ_AGE), empty());
+        assertThat(ageMeasurements(BLOB_CACHE_MISS_AGE), empty());
+        assertEquals(1L, metrics.readCount());
+        assertEquals(1L, metrics.missCount());
+
+        collectAndReset();
+        assertEquals(1L, gaugeValue(BLOB_CACHE_READ_TOTAL));
+        assertEquals(1L, gaugeValue(BLOB_CACHE_MISS_TOTAL));
+    }
+
+    public void testKnownTimestampsRecordAgeHistogram() {
+        long now = fakeNowMillis.get();
+
+        metrics.recordRead(SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP);
+        metrics.recordRead(now - TimeValue.timeValueHours(2).getMillis());
+        metrics.recordMiss(java.time.Instant.parse("2026-01-01T00:00:00Z").toEpochMilli());
+
+        List<Measurement> readAges = ageMeasurements(BLOB_CACHE_READ_AGE);
+        assertThat(readAges, hasSize(2));
+        assertEquals(now - SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP, readAges.get(0).getLong());
+        assertEquals(TimeValue.timeValueHours(2).getMillis(), readAges.get(1).getLong());
+
+        List<Measurement> missAges = ageMeasurements(BLOB_CACHE_MISS_AGE);
+        assertThat(missAges, hasSize(1));
+        assertEquals(now - java.time.Instant.parse("2026-01-01T00:00:00Z").toEpochMilli(), missAges.getFirst().getLong());
+    }
+
+    public void testAgeHistogramRecordsThresholdAges() {
+        long now = fakeNowMillis.get();
+        // Skip OlderThan14Days (Long.MAX_VALUE): now - MAX_VALUE overflows. That last bucket is
+        // covered by testAgesOlderThan14DaysLandInLastHistogramBucket.
+        List<Long> finiteBounds = TimeRangeBucket.histogramBoundaries()
+            .stream()
+            .filter(boundary -> boundary != TimeRangeBucket.OlderThan14Days.millis())
+            .toList();
+        for (long boundary : finiteBounds) {
+            metrics.recordRead(now - boundary);
+        }
+        List<Long> recorded = ageMeasurements(BLOB_CACHE_READ_AGE).stream().map(Measurement::getLong).toList();
+        assertEquals(finiteBounds, recorded);
+    }
+
+    public void testAgesOlderThan14DaysLandInLastHistogramBucket() {
+        assertThat(TimeRangeBucket.histogramBoundaries(), hasItem(TimeRangeBucket.OlderThan14Days.millis()));
+        assertEquals(Arrays.stream(TimeRangeBucket.values()).map(TimeRangeBucket::millis).toList(), TimeRangeBucket.histogramBoundaries());
+
+        long now = fakeNowMillis.get();
+        long justOver14Days = TimeValue.timeValueDays(14).getMillis() + 1;
+        long oneYear = TimeValue.timeValueDays(365).getMillis();
+        assertEquals(TimeRangeBucket.OlderThan14Days.label(), TimeRangeBucket.resolve(justOver14Days));
+        assertEquals(TimeRangeBucket.OlderThan14Days.label(), TimeRangeBucket.resolve(oneYear));
+        assertTrue(justOver14Days > TimeRangeBucket.FourteenDays.millis());
+        assertTrue(justOver14Days <= TimeRangeBucket.OlderThan14Days.millis());
+        assertTrue(oneYear <= TimeRangeBucket.OlderThan14Days.millis());
+
+        metrics.recordRead(now - justOver14Days);
+        metrics.recordMiss(now - oneYear);
+        assertThat(ageMeasurements(BLOB_CACHE_READ_AGE).stream().map(Measurement::getLong).toList(), contains(justOver14Days));
+        assertThat(ageMeasurements(BLOB_CACHE_MISS_AGE).stream().map(Measurement::getLong).toList(), contains(oneYear));
+    }
+
+    public void testFutureDatedTimestampRecordsNegativeAge() {
+        long now = fakeNowMillis.get();
+        metrics.recordRead(now + 1_000);
+        List<Measurement> readAges = ageMeasurements(BLOB_CACHE_READ_AGE);
+        assertThat(readAges, hasSize(1));
+        assertEquals(-1_000L, readAges.getFirst().getLong());
+    }
+
+    public void testGaugesEmitOneUnattributedObservation() {
+        long now = fakeNowMillis.get();
+
+        metrics.recordRead(SharedBlobCacheService.UNKNOWN_TIMESTAMP);
+        metrics.recordRead(now - TimeValue.timeValueHours(2).getMillis());
+        metrics.recordMiss(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP);
+
+        assertThat(ageMeasurements(BLOB_CACHE_READ_AGE), hasSize(1));
+        assertEquals(TimeValue.timeValueHours(2).getMillis(), ageMeasurements(BLOB_CACHE_READ_AGE).getFirst().getLong());
+        assertThat(ageMeasurements(BLOB_CACHE_MISS_AGE), empty());
+
+        collectAndReset();
+
+        List<Measurement> readMeasurements = recordingMeterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, BLOB_CACHE_READ_TOTAL);
+        assertThat(readMeasurements, hasSize(1));
+        assertThat(readMeasurements.getFirst().attributes().keySet(), empty());
+        assertEquals(2L, readMeasurements.getFirst().getLong());
+
+        List<Measurement> missMeasurements = recordingMeterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, BLOB_CACHE_MISS_TOTAL);
+        assertThat(missMeasurements, hasSize(1));
+        assertThat(missMeasurements.getFirst().attributes().keySet(), empty());
+        assertEquals(1L, missMeasurements.getFirst().getLong());
+    }
+
+    public void testReadAndMissGaugeTotalsMatchAccessors() {
+        long now = fakeNowMillis.get();
+        int reads = between(1, 20);
+        int misses = between(1, reads);
+
+        IntStream.range(0, reads)
+            .forEach(
+                i -> metrics.recordRead(
+                    i % 2 == 0 ? SharedBlobCacheService.UNKNOWN_TIMESTAMP : now - TimeValue.timeValueDays(1).getMillis()
+                )
+            );
+        IntStream.range(0, misses).forEach(i -> metrics.recordMiss(SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP));
+
+        assertEquals(reads, metrics.readCount());
+        assertEquals(misses, metrics.missCount());
+
+        collectAndReset();
+        assertEquals(reads, gaugeValue(BLOB_CACHE_READ_TOTAL));
+        assertEquals(misses, gaugeValue(BLOB_CACHE_MISS_TOTAL));
+    }
+
+    public void testBypassReadDoesNotRecordAgeHistograms() {
+        metrics.recordBypassRead();
+
+        assertEquals(1L, metrics.readCount());
+        assertEquals(1L, metrics.missCount());
+        assertThat(ageMeasurements(BLOB_CACHE_READ_AGE), empty());
+        assertThat(ageMeasurements(BLOB_CACHE_MISS_AGE), empty());
+        assertEquals(
+            1L,
+            recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, BLOB_CACHE_BYPASS_READ_TOTAL)
+                .stream()
+                .mapToLong(Measurement::getLong)
+                .sum()
+        );
+
+        collectAndReset();
+        assertEquals(1L, gaugeValue(BLOB_CACHE_READ_TOTAL));
+        assertEquals(1L, gaugeValue(BLOB_CACHE_MISS_TOTAL));
+    }
+
     private static void assertEvictionScanAttributes(
         Measurement measurement,
         BlobCacheMetrics.EvictionScanMode mode,
@@ -176,27 +357,40 @@ public class BlobCacheMetricsTests extends ESTestCase {
             .sum();
     }
 
-    private void recordMisses(BlobCacheMetrics metrics, int misses) {
-        IntStream.range(0, misses).forEach(i -> metrics.recordMiss());
+    private void recordMisses(BlobCacheMetrics blobCacheMetrics, int misses) {
+        IntStream.range(0, misses).forEach(i -> blobCacheMetrics.recordMiss(SharedBlobCacheService.UNKNOWN_TIMESTAMP));
     }
 
+    /**
+     * Resets the recorder, runs a collect, then asserts the unattributed read/miss totals and miss ratio.
+     *
+     * @param reads       expected total read count
+     * @param writes      expected total miss count
+     * @param readsForRatio expected denominator for the miss ratio (max(reads, 1))
+     */
     private void checkReadsAndMisses(int reads, int writes, int readsForRatio) {
-        recordingMeterRegistry.getRecorder().collect();
-
-        Measurement totalReadsMeasurement = recordingMeterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, "es.blob_cache.read.total")
-            .getLast();
-        assertEquals(reads, totalReadsMeasurement.getLong());
-
-        Measurement totalMissesMeasurement = recordingMeterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, "es.blob_cache.miss.total")
-            .getLast();
-        assertEquals(writes, totalMissesMeasurement.getLong());
+        collectAndReset();
+        assertEquals(reads, gaugeValue(BLOB_CACHE_READ_TOTAL));
+        assertEquals(writes, gaugeValue(BLOB_CACHE_MISS_TOTAL));
 
         Measurement missRatio = recordingMeterRegistry.getRecorder()
             .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, "es.blob_cache.miss.ratio")
             .getLast();
         assertEquals((double) writes / readsForRatio, missRatio.getDouble(), 0.00000001d);
+    }
+
+    /** Resets accumulated measurements, then triggers a fresh collect so subsequent assertions start clean. */
+    private void collectAndReset() {
+        recordingMeterRegistry.getRecorder().resetCalls();
+        recordingMeterRegistry.getRecorder().collect();
+    }
+
+    private long gaugeValue(String metricName) {
+        return recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, metricName).getLast().getLong();
+    }
+
+    private List<Measurement> ageMeasurements(String metricName) {
+        return recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, metricName);
     }
 
     private static void assertExpectedAttributesPresent(

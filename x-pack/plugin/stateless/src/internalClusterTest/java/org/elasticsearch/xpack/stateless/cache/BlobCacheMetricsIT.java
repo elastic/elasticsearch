@@ -8,22 +8,27 @@
 package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.TimeRangeBucket;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.CachePopulationSource;
 import org.elasticsearch.blobcache.shared.SharedBytes;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -35,12 +40,20 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.function.UnaryOperator;
 
+import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_MISS_AGE;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_MISS_TOTAL;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_READ_AGE;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_READ_TOTAL;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
@@ -129,9 +142,8 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
         CachePopulationSource expectedPopulationSource
     ) {
         TestTelemetryPlugin testTelemetryPlugin = getTestTelemetryPlugin(searchNode);
-        testTelemetryPlugin.collect();
-        long reads = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
-        long misses = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
+        long reads = collectReadTotal(testTelemetryPlugin);
+        long misses = collectMissTotal(testTelemetryPlugin);
         assertThat(misses, lessThanOrEqualTo(reads));
 
         executeSearch(indexName);
@@ -139,10 +151,8 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
         // Confirm we see cache-miss metrics on the search node
         assertMetricsArePresent(searchNode, BlobCacheMetrics.CachePopulationReason.CacheMiss, expectedPopulationSource);
 
-        testTelemetryPlugin.collect();
-
-        long newReads = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
-        long newMisses = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
+        long newReads = collectReadTotal(testTelemetryPlugin);
+        long newMisses = collectMissTotal(testTelemetryPlugin);
         double newRatio = testTelemetryPlugin.getDoubleGaugeMeasurement("es.blob_cache.miss.ratio").getLast().getDouble();
 
         assertThat(newReads, greaterThan(reads));
@@ -153,22 +163,38 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
 
     private static void executeNoMissSearch(String searchNode, String indexName) {
         TestTelemetryPlugin testTelemetryPlugin = getTestTelemetryPlugin(searchNode);
-        testTelemetryPlugin.collect();
-        long reads = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
-        long misses = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
+        long reads = collectReadTotal(testTelemetryPlugin);
+        long misses = collectMissTotal(testTelemetryPlugin);
         double ratio = testTelemetryPlugin.getDoubleGaugeMeasurement("es.blob_cache.miss.ratio").getLast().getDouble();
         assertThat(misses, lessThanOrEqualTo(reads));
 
         executeSearch(indexName);
 
-        testTelemetryPlugin.collect();
-        long newReads = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
-        long newMisses = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
+        long newReads = collectReadTotal(testTelemetryPlugin);
+        long newMisses = collectMissTotal(testTelemetryPlugin);
         double newRatio = testTelemetryPlugin.getDoubleGaugeMeasurement("es.blob_cache.miss.ratio").getLast().getDouble();
 
         assertThat(newReads, greaterThan(reads));
         assertThat(newMisses, equalTo(misses));
         assertThat(newRatio, lessThan(ratio));
+    }
+
+    /**
+     * Resets the meter, triggers a fresh collect, then returns the unattributed
+     * {@code es.blob_cache.read.total} gauge.
+     */
+    private static long collectReadTotal(TestTelemetryPlugin plugin) {
+        plugin.resetMeter();
+        plugin.collect();
+        return plugin.getLongGaugeMeasurement(BLOB_CACHE_READ_TOTAL).getLast().getLong();
+    }
+
+    /**
+     * Returns the miss total from the most recent {@link #collectReadTotal} call on the same plugin.
+     * Must be called immediately after {@link #collectReadTotal} with no intervening meter mutation.
+     */
+    private static long collectMissTotal(TestTelemetryPlugin plugin) {
+        return plugin.getLongGaugeMeasurement(BLOB_CACHE_MISS_TOTAL).getLast().getLong();
     }
 
     private static void executeSearch(String indexName) {
@@ -224,21 +250,19 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
 
         // No-cache node: all reads bypass the cache
         final var noCacheTelemetry = getTestTelemetryPlugin(noCacheSearchNode);
-        noCacheTelemetry.collect();
         long noCacheBypassCount = noCacheTelemetry.getLongCounterMeasurement(BlobCacheMetrics.BLOB_CACHE_BYPASS_READ_TOTAL)
             .stream()
             .mapToLong(Measurement::getLong)
             .sum();
         assertThat(noCacheBypassCount, greaterThan(0L));
-        // Bypass reads count as both reads and misses
-        assertThat(noCacheTelemetry.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong(), equalTo(noCacheBypassCount));
-        assertThat(noCacheTelemetry.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong(), equalTo(noCacheBypassCount));
+        // Bypass reads count as both a read and a miss on the unattributed totals.
+        assertThat(collectReadTotal(noCacheTelemetry), equalTo(noCacheBypassCount));
+        assertThat(collectMissTotal(noCacheTelemetry), equalTo(noCacheBypassCount));
 
         // Normal-cache node: reads and misses but no bypass reads
         final var normalCacheTelemetry = getTestTelemetryPlugin(normalCacheSearchNode);
-        normalCacheTelemetry.collect();
-        assertThat(normalCacheTelemetry.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong(), greaterThan(0L));
-        assertThat(normalCacheTelemetry.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong(), greaterThan(0L));
+        assertThat(collectReadTotal(normalCacheTelemetry), greaterThan(0L));
+        assertThat(collectMissTotal(normalCacheTelemetry), greaterThan(0L));
         long normalCacheBypassCount = normalCacheTelemetry.getLongCounterMeasurement(BlobCacheMetrics.BLOB_CACHE_BYPASS_READ_TOTAL)
             .stream()
             .mapToLong(Measurement::getLong)
@@ -321,6 +345,226 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
         Map<String, Object> attributes = measurement.attributes();
         return attributes.get(BlobCacheMetrics.CACHE_POPULATION_REASON_ATTRIBUTE_KEY) == cachePopulationReason.name()
             && attributes.get(BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY) == cachePopulationSource.name();
+    }
+
+    /**
+     * Verifies that cache read and miss ages land in the {@link TimeRangeBucket} window matching
+     * the {@code @timestamp} values in each index's compound commit.
+     *
+     * <p>For each bucket a dedicated single-shard index is created whose documents carry a
+     * {@code @timestamp} positioned in the middle of that bucket's age window. The compound
+     * commit captures the {@code @timestamp} range; the search node stamps cache regions with
+     * the range midpoint. After warming, the cache is evicted, a search is issued, and the
+     * age histograms should include a sample in that window while the unattributed totals grow.
+     * A separate index without {@code @timestamp} mapping exercises the sentinel path where
+     * regions receive an {@code UNKNOWN_TIMESTAMP}: totals still increase, but no age is recorded.
+     *
+     * <p>Timing note: the FifteenMinutes bucket uses a 2-minute-old timestamp, leaving
+     * 13 minutes of slack before the age crosses the 15-minute boundary. The full test is
+     * expected to complete well within that window on any reasonable CI machine.
+     */
+    public void testTimestampAgeBuckets() throws Exception {
+        startMasterAndIndexNode();
+        final String searchNode = startSearchNode();
+        ensureStableCluster(2);
+
+        // Capture "now" once. Every per-bucket timestamp is derived from this reference so that
+        // test-execution wall-clock drift cannot push a timestamp across a bucket boundary.
+        final long nowMillis = System.currentTimeMillis();
+
+        // For each TimeRangeBucket, create an index whose @timestamp sits at the midpoint of
+        // that bucket's age window and index two segments' worth of data.
+        record BucketCase(TimeRangeBucket bucket, String indexName) {}
+        final TimeRangeBucket[] buckets = TimeRangeBucket.values();
+        final BucketCase[] cases = new BucketCase[buckets.length];
+        startInParallel(buckets.length, i -> {
+            final TimeRangeBucket bucket = buckets[i];
+            final String indexName = createTimestampedIndex(bucket.label().replace('_', '-'));
+            final long docTimestampMillis = nowMillis - midpointAgeMillisForBucket(bucket);
+            indexTimestampedSegments(indexName, docTimestampMillis);
+            flush(indexName);
+            cases[i] = new BucketCase(bucket, indexName);
+        });
+
+        // Sentinel path: an index without @timestamp mapping — regions receive UNKNOWN_TIMESTAMP
+        // and are omitted from the age histograms.
+        final String otherIndexName = "other-" + randomIdentifier();
+        assertAcked(
+            prepareCreate(
+                otherIndexName,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+            )
+        );
+        populateIndex(otherIndexName);
+        flush(otherIndexName);
+
+        final List<String> allIndices = new ArrayList<>();
+        for (BucketCase c : cases) {
+            allIndices.add(c.indexName());
+        }
+        allIndices.add(otherIndexName);
+        ensureGreen(allIndices.toArray(String[]::new));
+        // Wait for cache population on the search node to finish. Other pools (management, generic)
+        // keep periodic work and would make an all-pools idle wait flake.
+        final var searchThreadPool = internalCluster().getInstance(ThreadPool.class, searchNode);
+        assertBusy(() -> {
+            ThreadPoolStats.Stats stats = searchThreadPool.stats()
+                .stats()
+                .stream()
+                .filter(s -> BlobStoreRepository.STATELESS_SHARD_READ_THREAD_NAME.equals(s.name()))
+                .findFirst()
+                .orElse(null);
+            assertNotNull("missing " + BlobStoreRepository.STATELESS_SHARD_READ_THREAD_NAME + " pool", stats);
+            assertEquals(0, stats.active());
+            assertEquals(0, stats.queue());
+        }, 30L, TimeUnit.SECONDS);
+
+        final TestTelemetryPlugin plugin = getTestTelemetryPlugin(searchNode);
+
+        // For each time-range bucket: evict the search cache, capture current totals, issue a
+        // search, then assert both totals grew and the age histograms include a sample in range.
+        for (final BucketCase bc : cases) {
+            clearShardCache(findSearchShard(bc.indexName()));
+            plugin.resetMeter();
+            plugin.collect();
+            final long readsBefore = plugin.getLongGaugeMeasurement(BLOB_CACHE_READ_TOTAL).getLast().getLong();
+            final long missesBefore = plugin.getLongGaugeMeasurement(BLOB_CACHE_MISS_TOTAL).getLast().getLong();
+
+            executeSearch(bc.indexName());
+
+            assertThat(
+                "read age histogram should include a sample in bucket '" + bc.bucket().label() + "'",
+                plugin.getLongHistogramMeasurement(BLOB_CACHE_READ_AGE).stream().anyMatch(m -> isAgeInBucket(m.getLong(), bc.bucket())),
+                equalTo(true)
+            );
+            assertThat(
+                "miss age histogram should include a sample in bucket '" + bc.bucket().label() + "'",
+                plugin.getLongHistogramMeasurement(BLOB_CACHE_MISS_AGE).stream().anyMatch(m -> isAgeInBucket(m.getLong(), bc.bucket())),
+                equalTo(true)
+            );
+
+            plugin.collect();
+            assertThat(
+                "read total should increase after cache eviction + search for bucket '" + bc.bucket().label() + "'",
+                plugin.getLongGaugeMeasurement(BLOB_CACHE_READ_TOTAL).getLast().getLong(),
+                greaterThan(readsBefore)
+            );
+            assertThat(
+                "miss total should increase after cache eviction + search for bucket '" + bc.bucket().label() + "'",
+                plugin.getLongGaugeMeasurement(BLOB_CACHE_MISS_TOTAL).getLast().getLong(),
+                greaterThan(missesBefore)
+            );
+        }
+
+        // Sentinel: evict + search and assert totals grew with no age histogram samples.
+        clearShardCache(findSearchShard(otherIndexName));
+        plugin.resetMeter();
+        plugin.collect();
+        final long otherReadsBefore = plugin.getLongGaugeMeasurement(BLOB_CACHE_READ_TOTAL).getLast().getLong();
+        final long otherMissesBefore = plugin.getLongGaugeMeasurement(BLOB_CACHE_MISS_TOTAL).getLast().getLong();
+
+        executeSearch(otherIndexName);
+
+        assertThat("sentinel reads should not record a read age", plugin.getLongHistogramMeasurement(BLOB_CACHE_READ_AGE), empty());
+        assertThat("sentinel misses should not record a miss age", plugin.getLongHistogramMeasurement(BLOB_CACHE_MISS_AGE), empty());
+
+        plugin.collect();
+        assertThat(
+            "read total should increase after eviction + search of sentinel index",
+            plugin.getLongGaugeMeasurement(BLOB_CACHE_READ_TOTAL).getLast().getLong(),
+            greaterThan(otherReadsBefore)
+        );
+        assertThat(
+            "miss total should increase after eviction + search of sentinel index",
+            plugin.getLongGaugeMeasurement(BLOB_CACHE_MISS_TOTAL).getLast().getLong(),
+            greaterThan(otherMissesBefore)
+        );
+    }
+
+    /**
+     * Returns the age (in milliseconds) used as the {@code @timestamp} offset for a given bucket.
+     * Each value is chosen to sit near the midpoint of the bucket's age window, giving ample slack
+     * for test-execution time to pass without crossing a bucket boundary.
+     */
+    private static long midpointAgeMillisForBucket(TimeRangeBucket bucket) {
+        return switch (bucket) {
+            // (0, 15 min] — use 2 min; leaves 13 min slack before crossing the 15-min boundary
+            case FifteenMinutes -> TimeUnit.MINUTES.toMillis(2);
+            // (15 min, 1 hr] — use 37 min; comfortably between the two boundaries
+            case OneHour -> TimeUnit.MINUTES.toMillis(37);
+            // (1 hr, 12 hr] — use 6 hr; midpoint of the 11-hour window
+            case TwelveHours -> TimeUnit.HOURS.toMillis(6);
+            // (12 hr, 24 hr] — use 18 hr
+            case OneDay -> TimeUnit.HOURS.toMillis(18);
+            // (1 day, 3 days] — use 2 days
+            case ThreeDays -> TimeUnit.DAYS.toMillis(2);
+            // (3 days, 7 days] — use 5 days
+            case SevenDays -> TimeUnit.DAYS.toMillis(5);
+            // (7 days, 14 days] — use 10 days
+            case FourteenDays -> TimeUnit.DAYS.toMillis(10);
+            // > 14 days — use 20 days
+            case OlderThan14Days -> TimeUnit.DAYS.toMillis(20);
+        };
+    }
+
+    /**
+     * Creates a single-shard, one-replica index with a {@code @timestamp} date field mapping.
+     * The search node is already in the cluster, so the replica allocates immediately and
+     * {@link SynchronousWarmingPlugin} warms the cache before recovery completes. Automatic
+     * refresh is disabled so each explicit {@link #refresh} call produces exactly one Lucene segment.
+     */
+    private String createTimestampedIndex(String namePrefix) {
+        final String indexName = namePrefix + "-" + randomIdentifier();
+        assertAcked(
+            prepareCreate(
+                indexName,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+            ).setMapping("@timestamp", "type=date")
+        );
+        return indexName;
+    }
+
+    /**
+     * Indexes two batches of small documents into {@code indexName}, each batch followed by a
+     * refresh (producing two Lucene segments). All documents carry {@code @timestamp =
+     * timestampMillis} so the compound commit records a {@code TimestampFieldValueRange} whose
+     * midpoint equals {@code timestampMillis}. The search node will stamp cache regions for this
+     * index with that midpoint, routing reads and misses into the corresponding
+     * {@link TimeRangeBucket} age-histogram window.
+     */
+    private void indexTimestampedSegments(final String indexName, final long timestampMillis) {
+        for (int i = 0; i < 2; i++) {
+            indexDocs(
+                indexName,
+                randomIntBetween(100, 300),
+                UnaryOperator.identity(),
+                null,
+                () -> Map.of("@timestamp", timestampMillis, "field", randomAlphaOfLength(32))
+            );
+            refresh(indexName);
+        }
+    }
+
+    /**
+     * Whether {@code ageMillis} falls in {@code bucket}'s exclusive-lower, inclusive-upper window.
+     * {@link TimeRangeBucket#FifteenMinutes} also includes negative (future) ages;
+     * {@link TimeRangeBucket#OlderThan14Days} is the overflow bucket above 14 days.
+     */
+    private static boolean isAgeInBucket(long ageMillis, TimeRangeBucket bucket) {
+        return switch (bucket) {
+            case FifteenMinutes -> ageMillis <= bucket.millis();
+            case OneHour, TwelveHours, OneDay, ThreeDays, SevenDays, FourteenDays -> {
+                TimeRangeBucket previous = TimeRangeBucket.values()[bucket.ordinal() - 1];
+                yield ageMillis > previous.millis() && ageMillis <= bucket.millis();
+            }
+            case OlderThan14Days -> ageMillis > TimeRangeBucket.FourteenDays.millis();
+        };
     }
 
     /**

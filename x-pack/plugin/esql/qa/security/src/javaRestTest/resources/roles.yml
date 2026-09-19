@@ -81,6 +81,20 @@ user3:
           }
         }
 
+remote_fetch_dls_fls:
+  cluster: []
+  indices:
+    - names: [ 'index' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ value, org ]
+      query: '{"term":{"org":"sales"}}'
+    - names: [ 'indexpartial' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ value ]
+      query: '{"term":{"org":"sales"}}'
+
 # Passes global.data_source authorize for shared IT datasource; no create_dataset on security_it_ds_* — for PUT dataset denied on index priv.
 user_dataset_authorize_only:
   cluster: []

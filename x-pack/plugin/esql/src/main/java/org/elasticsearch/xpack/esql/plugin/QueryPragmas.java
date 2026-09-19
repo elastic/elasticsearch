@@ -135,7 +135,7 @@ public final class QueryPragmas implements Writeable {
      * so the per-{@code FROM} limit ({@link org.elasticsearch.xpack.esql.plan.logical.Fork#MAX_BRANCHES}) alone lets the leaf total grow as
      * a power of the nesting depth.
      */
-    public static final Setting<Integer> MAX_QUERY_BRANCHES = Setting.intSetting("max_query_branches", 100, 1);
+    public static final Setting<Integer> MAX_QUERY_BRANCHES = Setting.intSetting("max_query_branches", 20, 1);
 
     /**
      * The maximum depth of nested {@code UnionAll}s an independently executed query may use. The main query and each {@code IN} subquery
@@ -144,7 +144,7 @@ public final class QueryPragmas implements Writeable {
      * wired before any leaf runs. Without a depth limit a skinny chain of two-way unions can grow arbitrarily deep while still staying
      * under {@link #MAX_QUERY_BRANCHES}.
      */
-    public static final Setting<Integer> MAX_QUERY_BRANCH_LEVELS = Setting.intSetting("max_query_branch_levels", 10, 1);
+    public static final Setting<Integer> MAX_QUERY_BRANCH_LEVELS = Setting.intSetting("max_query_branch_levels", 5, 1);
 
     /**
      * Number of parallel parser threads for intra-file text format parsing (CSV, NDJSON).

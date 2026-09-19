@@ -51,10 +51,10 @@ public class HeapAttackNestedSubqueryIT extends HeapAttackTestCase {
     private static final int NESTED_LEAVES = nestedLeafCount(NESTED_LEVELS, BRANCHES_PER_LEVEL);
 
     /**
-     * Stateful nested trees have {@link #NESTED_LEAVES} leaves (27), above the default  {@code max_branch_count} of 20. Raise the pragma
-     * on stateful only so those queries can run. Serverless keeps the default and is otherwise unchanged.
+     * Nested trees have {@link #NESTED_LEAVES} leaves (27), above the default {@code max_branch_count} of 20. Raise the pragma so those
+     * queries can run on both stateful and serverless.
      */
-    private static final int STATEFUL_MAX_BRANCH_COUNT = 30;
+    private static final int MAX_BRANCH_COUNT = 30;
 
     private record NestedShape(int levels, int branches) {}
 
@@ -260,25 +260,19 @@ public class HeapAttackNestedSubqueryIT extends HeapAttackTestCase {
         return leaves;
     }
 
-    private static String endQuery() throws IOException {
+    private static String endQuery() {
         return endQuery(null);
     }
 
-    private static String endQuery(Integer branchParallelDegree) throws IOException {
-        if (isServerless()) {
-            if (branchParallelDegree != null) {
-                return " \", \"pragma\": {\"branch_parallel_degree\": " + branchParallelDegree + "}}";
-            }
-            return " \"}";
-        }
+    private static String endQuery(Integer branchParallelDegree) {
         if (branchParallelDegree != null) {
             return " \", \"pragma\": {\"branch_parallel_degree\": "
                 + branchParallelDegree
                 + ", \"max_branch_count\": "
-                + STATEFUL_MAX_BRANCH_COUNT
+                + MAX_BRANCH_COUNT
                 + "}}";
         }
-        return " \", \"pragma\": {\"max_branch_count\": " + STATEFUL_MAX_BRANCH_COUNT + "}}";
+        return " \", \"pragma\": {\"max_branch_count\": " + MAX_BRANCH_COUNT + "}}";
     }
 
     private static Integer serverlessExecuteBranchSequentially() throws IOException {

@@ -186,6 +186,10 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         TestData testData = createSimpleTestBatches(blockFactory, numBatches, 1, 1, 1, 10);
         List<List<Page>> batches = testData.batches();
         List<List<Page>> expectedOutputBatches = testData.expectedOutputBatches();
+        long expectedRequestPages = batches.stream().mapToLong(List::size).sum();
+        long expectedRequestRows = batches.stream().flatMap(List::stream).mapToLong(Page::getPositionCount).sum();
+        long expectedResponsePages = expectedOutputBatches.stream().mapToLong(List::size).sum();
+        long expectedResponseRows = expectedOutputBatches.stream().flatMap(List::stream).mapToLong(Page::getPositionCount).sum();
 
         // Track results
         AtomicInteger processedBatches = new AtomicInteger(0);
@@ -264,8 +268,25 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             BidirectionalBatchExchangeClient.Profile profile = client.profile();
             assertThat(profile.totalSetupNanos(), greaterThan(0L));
             assertThat(profile.maxSetupNanos(), greaterThan(0L));
-            assertThat(profile.serverProfiles().size(), equalTo(createdWorkerNodeIds.size()));
-            assertTrue(profile.serverProfiles().stream().allMatch(serverProfile -> serverProfile.driverTookNanos() > 0L));
+            assertThat(profile.workers().size(), equalTo(createdWorkerNodeIds.size()));
+            assertTrue(profile.workers().stream().allMatch(worker -> worker.setupNanos() > 0L));
+            assertTrue(profile.workers().stream().allMatch(worker -> worker.server() != null));
+            assertTrue(profile.workers().stream().allMatch(worker -> worker.server().driverTookNanos() > 0L));
+            assertTrue(profile.workers().stream().allMatch(worker -> worker.server().requestPages() > 0L));
+            assertTrue(profile.workers().stream().allMatch(worker -> worker.server().requestRows() > 0L));
+            assertTrue(profile.workers().stream().allMatch(worker -> worker.server().responsePages() > 0L));
+            assertTrue(profile.workers().stream().allMatch(worker -> worker.server().responseRows() > 0L));
+            assertThat(profile.workers().stream().mapToLong(worker -> worker.server().requestPages()).sum(), equalTo(expectedRequestPages));
+            assertThat(profile.workers().stream().mapToLong(worker -> worker.server().requestRows()).sum(), equalTo(expectedRequestRows));
+            assertThat(
+                profile.workers().stream().mapToLong(worker -> worker.server().responsePages()).sum(),
+                equalTo(expectedResponsePages)
+            );
+            assertThat(profile.workers().stream().mapToLong(worker -> worker.server().responseRows()).sum(), equalTo(expectedResponseRows));
+            assertThat(
+                profile.workers().stream().map(BidirectionalBatchExchangeClient.WorkerProfile::nodeId).collect(Collectors.toSet()),
+                equalTo(new HashSet<>(createdWorkerNodeIds))
+            );
 
             // Verify results and release pages
             verifyResultsAndReleasePages(
@@ -723,6 +744,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             infra.numServers(), // maxWorkers
             () -> serverNodes.get(serverNodeIndex.getAndIncrement() % serverNodes.size()) // serverNodeSupplier
         );
+        client.enableProfiling();
         logger.debug("[TEST-CLIENT] Client initialized successfully");
 
         return client;

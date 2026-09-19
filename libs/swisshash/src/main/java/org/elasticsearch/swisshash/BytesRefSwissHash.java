@@ -986,6 +986,10 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
 
     @Override
     public PartitionedHashKeys splitPartition(CircuitBreaker breaker, PartitionSplitter partitionSplitter) {
+        return splitPartition(breaker, null, partitionSplitter);
+    }
+
+    PartitionedHashKeys splitPartition(CircuitBreaker breaker, byte[] savedPartitions, PartitionSplitter partitionSplitter) {
         final int[] batchPartitionCounts = new int[NUM_PARTITIONS];
         final short[] shiftedIds = new short[PARTITION_WRITE_BATCH * NUM_PARTITIONS];
         int batchStart = 0;
@@ -1001,6 +1005,9 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
                 bytesRefs.get(id, scratch);
                 final long hash64 = hash64(scratch);
                 final int p = partition(hash64);
+                if (savedPartitions != null) {
+                    savedPartitions[id] = (byte) (p & 0xFF);
+                }
                 if (batchPartitionCounts[p] == PARTITION_WRITE_BATCH) {
                     partitionedKeys.splitKeys(breaker, bytesRefs, scratch, batchStart, shiftedIds, batchPartitionCounts);
                     partitionSplitter.split(batchStart, shiftedIds, id - batchStart, batchPartitionCounts, partitionOffsets);

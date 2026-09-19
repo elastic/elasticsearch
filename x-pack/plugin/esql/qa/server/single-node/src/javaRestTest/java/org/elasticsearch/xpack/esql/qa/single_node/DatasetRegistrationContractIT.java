@@ -260,6 +260,64 @@ public class DatasetRegistrationContractIT extends ESRestTestCase {
     }
 
     /**
+     * Proves the case is testing its settings at all.
+     *
+     * <p>An effect case works only when the bytes parse DIFFERENTLY with the settings than without
+     * them. Pick the fixture wrong and the case passes while proving nothing, and it looks exactly like
+     * a real one -- which is the failure mode of this whole kind of test rather than a hypothetical.
+     * Three cases in this corpus were inert when first written: a tab delimiter that arrived empty, a
+     * column_prefix that only applies when no header supplies the names, and two cases that pinned no
+     * setting and leaned on a default.
+     *
+     * <p>So the same bytes are registered a second time with NO settings, and the results must differ.
+     * A control that fails to query at all counts as differing -- the settings were load-bearing enough
+     * that the file cannot be read without them.
+     */
+    public void testRemovingTheSettingsChangesTheResult() throws IOException {
+        assumeTrue(
+            "only a case that asserts a successful result can be inert this way",
+            contractCase.outcome() == RegistrationContract.Outcome.QUERY_SUCCEEDS
+        );
+        assumeFalse("blocked on " + contractCase.blockedBy(), contractCase.blocked());
+        assumeFalse(
+            "this case asserts that its value behaves as the default, so matching it is the claim: " + contractCase.sameAsDefault(),
+            contractCase.expectedToMatchDefault()
+        );
+
+        String control = datasetNameFor(contractCase) + "_control";
+        DatasetRegistry.putDataset(client(), control, SHARED_DS_NAME, resourceFor(contractCase), Map.of());
+
+        Request query = new Request("POST", "/_query");
+        query.setJsonEntity("{\"query\": \"" + String.format(Locale.ROOT, contractCase.query(), control) + "\"}");
+        Map<String, Object> response;
+        try {
+            response = entityAsMap(client().performRequest(query));
+        } catch (ResponseException e) {
+            // Unreadable without the settings, so they are doing something.
+            return;
+        }
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> columns = (List<Map<String, Object>>) response.get("columns");
+        List<String> controlNames = columns == null ? List.of() : columns.stream().map(c -> String.valueOf(c.get("name"))).toList();
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) response.get("values");
+        List<List<String>> controlRows = values == null
+            ? List.of()
+            : values.stream().map(row -> row.stream().map(String::valueOf).toList()).toList();
+
+        boolean sameColumns = controlNames.equals(contractCase.columns());
+        boolean sameRows = contractCase.rows().isEmpty() || controlRows.equals(contractCase.rows());
+        assertFalse(
+            "this case is inert: the same file with NO settings produces the same result, so "
+                + contractCase.settings()
+                + " is not what the case is testing. Either the fixture does not discriminate, or the "
+                + "setting does not reach the reader.",
+            sameColumns && sameRows
+        );
+    }
+
+    /**
      * A dataset name derived from the case name.
      *
      * <p>Case names are dotted paths and dataset names are not, so the separators are folded. The case

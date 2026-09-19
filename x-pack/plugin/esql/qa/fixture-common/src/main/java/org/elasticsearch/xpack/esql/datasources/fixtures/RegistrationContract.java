@@ -59,7 +59,8 @@ public final class RegistrationContract {
         "resource_form",
         "blocked_by",
         "content",
-        "content_charset"
+        "content_charset",
+        "same_as_default"
     );
 
     /**
@@ -138,6 +139,8 @@ public final class RegistrationContract {
      *                       case: bytes valid in the declared charset and invalid as UTF-8
      * @param rows      expected cell values as text, row-major, or empty when the case asserts only
      *                  the column names
+     * @param sameAsDefault why this case produces the same result as no settings at all, or null when
+     *                      it is expected to differ
      */
     public record Case(
         String name,
@@ -154,12 +157,25 @@ public final class RegistrationContract {
         List<String> columns,
         String content,
         String contentCharset,
-        List<List<String>> rows
+        List<List<String>> rows,
+        String sameAsDefault
     ) {
         public Case {
             settings = Map.copyOf(settings);
             columns = List.copyOf(columns);
             rows = rows.stream().map(List::copyOf).toList();
+        }
+
+        /**
+         * Whether removing the settings is expected to change nothing.
+         *
+         * <p>Almost always false, and the exception has to say why. A case whose result is identical
+         * without its settings is normally a case that tests nothing -- the wrong fixture, or a setting
+         * that never reaches the reader. The legitimate exception is a case asserting that some value
+         * IS the default behaviour, where being indistinguishable is the claim.
+         */
+        public boolean expectedToMatchDefault() {
+            return sameAsDefault != null;
         }
 
         /** Whether this case asserts behaviour the product does not have yet. */
@@ -281,6 +297,21 @@ public final class RegistrationContract {
             } else if (declaredColumns(props, name).isEmpty() == false) {
                 throw new IllegalStateException("case [" + name + "] does not expect a result, so its [columns] would never be compared");
             }
+            String sameAsDefault = props.getProperty("case." + name + ".same_as_default");
+            if (sameAsDefault != null) {
+                sameAsDefault = sameAsDefault.trim();
+                if (sameAsDefault.isBlank()) {
+                    throw new IllegalStateException(
+                        "case ["
+                            + name
+                            + "] is exempt from the discrimination check but says nothing about why; "
+                            + "an unexplained exemption is indistinguishable from a case that quietly tests nothing"
+                    );
+                }
+                if (outcome != Outcome.QUERY_SUCCEEDS) {
+                    throw new IllegalStateException("case [" + name + "] does not assert a result, so it is not subject to that check");
+                }
+            }
             List<List<String>> rows = declaredRows(props, name);
             if (outcome != Outcome.QUERY_SUCCEEDS && rows.isEmpty() == false) {
                 throw new IllegalStateException("case [" + name + "] does not expect a result, so its [rows] would never be compared");
@@ -361,7 +392,8 @@ public final class RegistrationContract {
                     columns,
                     content,
                     contentCharset,
-                    rows
+                    rows,
+                    sameAsDefault
                 )
             );
         }

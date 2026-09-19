@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
@@ -627,10 +628,14 @@ public class ViewResolver {
                         }
                     }
                 }
-                if (subqueries.size() == 1) {
-                    return subqueries.getFirst().plan();
+                LogicalPlan built = subqueries.size() == 1
+                    ? subqueries.getFirst().plan()
+                    : buildPlanFromBranches(unresolvedRelation, subqueries, depth);
+
+                if (unresolvedRelation.metadataFields().isEmpty()) {
+                    return built;
                 }
-                return buildPlanFromBranches(unresolvedRelation, subqueries, depth);
+                return new UnresolvedMetadata(unresolvedRelation.source(), built, unresolvedRelation.metadataFields());
             }).addListener(listener);
         }));
     }
@@ -1040,7 +1045,8 @@ public class ViewResolver {
 
         // Parse the view query with the view name, which causes all Source objects
         // to be tagged with the view name during parsing
-        LogicalPlan subquery = parser.apply(view.query(), view.name());
+        LogicalPlan parsed = parser.apply(view.query(), view.name());
+        LogicalPlan subquery = parsed instanceof UnresolvedMetadata fs ? fs.child() : parsed;
         if (subquery instanceof UnresolvedRelation ur && containsExclusion(ur) == false) {
             // Simple UnresolvedRelation subqueries are not kept as views, so we can compact them
             // together and avoid branched plans. But exclusion patterns must stay scoped to the
@@ -1048,11 +1054,11 @@ public class ViewResolver {
             // or outer UnresolvedRelations would have its exclusion's scope widened across the
             // merged pattern list (see #146XXX), so those are wrapped in a NamedSubquery via the
             // else branch to prevent merging.
-            return ur;
+            return parsed;
         } else {
             // More complex subqueries (or simple UnresolvedRelations containing exclusions) are
             // maintained with the view name for branch identification.
-            return new NamedSubquery(subquery.source(), subquery, view.name());
+            return new NamedSubquery(parsed.source(), parsed, view.name());
         }
     }
 

@@ -234,7 +234,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             });
             // Skip view-group tests entirely when the cluster cannot support views: views are not loaded,
             // so running them would fail with "index not found" rather than giving a meaningful skip.
-            if ("views".equals(groupName)) {
+            if (allTestsInGroupNeedViews()) {
                 assumeTrue(
                     "Cluster does not support views (" + RestPutViewAction.VIEWS_PUT_SERVERLESS_SCOPE + " capability absent)",
                     supportsViews()
@@ -280,7 +280,14 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     // Load views only for groups whose tests reference view fixtures
     protected boolean shouldLoadViews() {
-        return "views".equals(groupName) || "approximation".equals(groupName) || "unmapped-load".equals(groupName);
+        return "views".equals(groupName)
+            || "approximation".equals(groupName)
+            || "unmapped-load".equals(groupName)
+            || "metadata-views-and-subqueries".equals(groupName);
+    }
+
+    private boolean allTestsInGroupNeedViews() {
+        return "views".equals(groupName) || "metadata-views-and-subqueries".equals(groupName);
     }
 
     /**

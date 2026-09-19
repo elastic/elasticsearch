@@ -45,7 +45,3 @@ that is likely to change in the future:
   indices in the view definition, and this will change in later releases.
     * The future design will have the query filtering impact the output of the
       view, not the source indices.
-* `METADATA` directives inside and outside a view definition behave the same
-  as they do for
-  [`METADATA` in subqueries](/reference/query-languages/esql/esql-from-subquery.md#subqueries-with-metadata).
-  This will change for views.

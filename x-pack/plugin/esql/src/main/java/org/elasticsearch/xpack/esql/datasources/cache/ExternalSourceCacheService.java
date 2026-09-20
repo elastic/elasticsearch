@@ -427,6 +427,7 @@ public class ExternalSourceCacheService implements Closeable {
         // than dependent on path hashCode. Final per-entry state is order-independent (each path keys a
         // distinct entry; a swept sibling is recovered per key), so this only pins reproducibility.
         Map<String, Map<String, Object>> merged = new LinkedHashMap<>(contributionsPerFile.size());
+        Map<String, SourceStatsContribution.ReadIdentity> identityPerFile = new HashMap<>();
         // Per-path whole-file stats this reconcile PROVED complete (a whole-file contribution, or a
         // stripe delta whose committed fold reached 0..K+EOF). Input to the pending dataset-aggregate
         // fulfillment below: a dataset promise is honored only when every one of its paths lands here.
@@ -477,6 +478,20 @@ public class ExternalSourceCacheService implements Closeable {
                 Map<String, Object> mergedForFile = mergeWholeFileContributions(wholeFile);
                 if (mergedForFile != null && mergedForFile.isEmpty() == false) {
                     merged.put(e.getKey(), mergedForFile);
+                    // The identity travels as the typed value, not through the flat map: toFlatMap deliberately
+                    // never writes it (it must never reach an entry), so re-reading it from the merged map would
+                    // always find nothing and no column could ever cross on this rail. Contributions that disagree
+                    // about the read carry no usable identity — the same safe-miss mergeWholeFileContributions makes.
+                    SourceStatsContribution.ReadIdentity identity = wholeFile.get(0).readIdentity();
+                    for (SourceStatsContribution.WholeFile other : wholeFile) {
+                        if (Objects.equals(identity, other.readIdentity()) == false) {
+                            identity = null;
+                            break;
+                        }
+                    }
+                    if (identity != null) {
+                        identityPerFile.put(e.getKey(), identity);
+                    }
                     if (anyPendingDatasetAggregate) {
                         completedWholeFile.put(e.getKey(), mergedForFile);
                     }
@@ -503,7 +518,7 @@ public class ExternalSourceCacheService implements Closeable {
                 }
             }
         }
-        reconcileSourceStats(merged, preCommitSnapshot);
+        reconcileSourceStats(merged, preCommitSnapshot, identityPerFile);
         if (anyPendingDatasetAggregate) {
             fulfillPendingDatasetAggregates(completedWholeFile);
         }
@@ -974,7 +989,11 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     @Nullable
-    private static Map<String, Object> applicableStats(SchemaCacheEntry entry, Map<String, Object> contribution) {
+    private static Map<String, Object> applicableStats(
+        SchemaCacheEntry entry,
+        Map<String, Object> contribution,
+        @Nullable SourceStatsContribution.ReadIdentity identity
+    ) {
         Object entryReadConfig = entry.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
         Object contributionReadConfig = contribution.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
         if (Objects.equals(entryReadConfig, contributionReadConfig)) {
@@ -986,7 +1005,7 @@ public class ExternalSourceCacheService implements Closeable {
             entry,
             contribution,
             Boolean.TRUE.equals(contribution.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)),
-            SourceStatsContribution.ReadIdentity.from(contribution),
+            identity,
             false,
             entry.location()
         );
@@ -1670,7 +1689,7 @@ public class ExternalSourceCacheService implements Closeable {
         if (enabled == false || mergedStatsPerFile == null || mergedStatsPerFile.isEmpty()) {
             return;
         }
-        reconcileSourceStats(mergedStatsPerFile, snapshotEntriesByPath(mergedStatsPerFile.keySet()));
+        reconcileSourceStats(mergedStatsPerFile, snapshotEntriesByPath(mergedStatsPerFile.keySet()), Map.of());
     }
 
     /**
@@ -1681,7 +1700,8 @@ public class ExternalSourceCacheService implements Closeable {
      */
     private void reconcileSourceStats(
         Map<String, Map<String, Object>> mergedStatsPerFile,
-        Map<String, List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>>> preCommitSnapshot
+        Map<String, List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>>> preCommitSnapshot,
+        Map<String, SourceStatsContribution.ReadIdentity> identityPerFile
     ) {
         if (enabled == false || mergedStatsPerFile == null || mergedStatsPerFile.isEmpty()) {
             return;
@@ -1721,7 +1741,7 @@ public class ExternalSourceCacheService implements Closeable {
                 for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matchingEntries) {
                     SchemaCacheKey key = match.getKey();
                     SchemaCacheEntry existing = match.getValue();
-                    Map<String, Object> applicable = applicableStats(existing, mergedStats);
+                    Map<String, Object> applicable = applicableStats(existing, mergedStats, identityPerFile.get(path));
                     if (applicable == null) {
                         // Harvested under a different resolved read configuration, with no licence to cross: enriching would serve one
                         // read's measurement as another's. Safe-miss — the foreign read re-scans.
@@ -1732,7 +1752,38 @@ public class ExternalSourceCacheService implements Closeable {
                     // last-writer-wins (no POISON fold), so an unrepresentable value (e.g. a Double past
                     // Long.MAX for a LONG-resolved column) is DROPPED rather than stored — otherwise the
                     // serve would coerce it to the resolved type and produce a wrong value.
-                    enriched.putAll(coerceColumnStatsToResolvedTypes(applicable, existing.columnNames(), existing.columnTypes(), true));
+                    Map<String, Object> coerced = coerceColumnStatsToResolvedTypes(
+                        applicable,
+                        existing.columnNames(),
+                        existing.columnTypes(),
+                        true
+                    );
+                    boolean sameRead = Objects.equals(
+                        existing.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY),
+                        mergedStats.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY)
+                    );
+                    if (sameRead) {
+                        enriched.putAll(coerced);
+                    } else {
+                        // A crossed contribution adds to what this entry's own read measured; it never replaces it.
+                        // The entry is authoritative about its own read, and the crossing rules admit a column only
+                        // when both reads saw the same cells — so a disagreement here means they did not, and the
+                        // safe answer is to keep what the entry measured rather than overwrite it.
+                        for (Map.Entry<String, Object> crossed : coerced.entrySet()) {
+                            Object own = enriched.get(crossed.getKey());
+                            if (own == null) {
+                                enriched.put(crossed.getKey(), crossed.getValue());
+                            } else if (Objects.equals(own, crossed.getValue()) == false) {
+                                logger.debug(
+                                    "[{}] crossed contribution disagrees with the entry's own [{}]: [{}] vs [{}]; keeping the entry's",
+                                    path,
+                                    crossed.getKey(),
+                                    own,
+                                    crossed.getValue()
+                                );
+                            }
+                        }
+                    }
                     schemaCache.put(key, existing.withSafeMetadata(enriched));
                 }
             }

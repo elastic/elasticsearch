@@ -909,6 +909,84 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * An entry that already measured its own read, enriched by a licensed whole-file contribution from a different
+     * one. The row count crosses; the entry's own measurement of a column it already measured is kept rather than
+     * replaced by the other read's.
+     */
+    public void testWholeFileCrossingKeepsTheEntrysOwnColumnMeasurements() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/probe.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.TRUE, null, false)
+            );
+            Map<String, Object> own = new LinkedHashMap<>();
+            own.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+            own.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-A");
+            own.put(ExternalStats.COLUMNS_IN_FILE_ORDER_KEY, Boolean.TRUE);
+            own.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 999L);
+            own.put(SourceStatisticsSerializer.columnMaxKey("id"), 998L);
+            service.getOrComputeSchema(key, k -> SchemaCacheEntry.from(schema, "csv", path, own, Map.of()));
+
+            Map<String, Object> foreign = wholeFileStats(mtime, "fp", 1000L);
+            foreign.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-B");
+            foreign.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            foreign.put(ExternalStats.READ_COLUMN_NAMES_KEY, List.of("id"));
+            foreign.put(ExternalStats.READ_COLUMN_TYPES_KEY, List.of("long"));
+            foreign.put(ExternalStats.READ_BINDING_KEY, ExternalStats.BINDING_BY_POSITION);
+            foreign.put(SourceStatisticsSerializer.columnMaxKey("id"), 999L);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(foreign)));
+
+            SchemaCacheEntry after = service.getOrComputeSchema(key, k -> { throw new AssertionError("cached"); });
+            // First: the contribution must actually have reached the entry, or the assertion below says nothing.
+            assertEquals(
+                "the entry's own row count describes its own read, which may have dropped rows; it is not replaced",
+                999L,
+                after.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+            assertEquals(
+                "nor is its own measurement of a column it already measured",
+                998L,
+                after.safeMetadata().get(SourceStatisticsSerializer.columnMaxKey("id"))
+            );
+        }
+    }
+
+    /**
+     * The other direction, so the test above cannot pass by nothing crossing: an entry that has measured nothing
+     * yet takes the licensed row count and the identically-read column from a foreign contribution.
+     */
+    public void testWholeFileCrossingFillsAnEntryThatHasMeasuredNothing() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/empty-entry.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.TRUE, null, false)
+            );
+            Map<String, Object> own = new LinkedHashMap<>();
+            own.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+            own.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-A");
+            own.put(ExternalStats.COLUMNS_IN_FILE_ORDER_KEY, Boolean.TRUE);
+            service.getOrComputeSchema(key, k -> SchemaCacheEntry.from(schema, "csv", path, own, Map.of()));
+
+            Map<String, Object> foreign = wholeFileStats(mtime, "fp", 1000L);
+            foreign.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-B");
+            foreign.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            foreign.put(ExternalStats.READ_COLUMN_NAMES_KEY, List.of("id"));
+            foreign.put(ExternalStats.READ_COLUMN_TYPES_KEY, List.of("long"));
+            foreign.put(ExternalStats.READ_BINDING_KEY, ExternalStats.BINDING_BY_POSITION);
+            foreign.put(SourceStatisticsSerializer.columnMaxKey("id"), 999L);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(foreign)));
+
+            SchemaCacheEntry after = service.getOrComputeSchema(key, k -> { throw new AssertionError("cached"); });
+            assertEquals(1000L, after.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+            assertEquals(999L, after.safeMetadata().get(SourceStatisticsSerializer.columnMaxKey("id")));
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private static Map<String, Object> stripeAt(SchemaCacheEntry entry, long ordinal) {
         Object stripe = entry.safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + ordinal);

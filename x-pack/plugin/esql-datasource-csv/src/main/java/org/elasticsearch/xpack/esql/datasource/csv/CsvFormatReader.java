@@ -1737,7 +1737,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * {@code metadata()} path discards the sample after type inference, so the offsets are dead
      * data and skipping their capture keeps that call site allocation-free.
      */
-    record SchemaSample(List<String[]> rows, long reservedBytes, long[] rowStartBytes, boolean recordCapDropped) {}
+       /**
+        * @param rowsDropped rows the sampling window lost to a parse failure. They never reach {@code onRowError}, so
+        *                    without carrying them here a read that dropped a row while sampling would still license its
+        *                    survivor count as the file's physical record count.
+        */
+    record SchemaSample(List<String[]> rows, long reservedBytes, long[] rowStartBytes, boolean recordCapDropped, long rowsDropped) {}
 
     /** Hard cap on consecutive parse failures during schema sampling, applied INDEPENDENTLY of
      *  the user's {@link ErrorPolicy}. Jackson's stream-based CSV parser cannot guarantee
@@ -1803,6 +1808,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         long reservedBytes = 0;
         boolean success = false;
         boolean capDropped = false;
+        long droppedWhileSampling = 0;
         List<String> capturedErrors = null;
         Throwable firstCause = null;
         long errorCount = 0;
@@ -1843,6 +1849,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 } catch (RuntimeException e) {
                     totalRowCount++;
                     errorCount++;
+                    droppedWhileSampling++;
                     if (isRecordCapDrop(e)) {
                         // A cap-dropped row within the sampling window is a pragma-dependent survivor loss that
                         // would replay N-1 into the batch and publish with recordCapDropped still false; propagate
@@ -1887,7 +1894,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     offsets[i] = rowStartBytesList.get(i);
                 }
             }
-            return new SchemaSample(sampleRows, reservedBytes, offsets, capDropped);
+            return new SchemaSample(sampleRows, reservedBytes, offsets, capDropped, droppedWhileSampling);
         } finally {
             if (success == false) {
                 breaker.addWithoutBreaking(-reservedBytes);
@@ -3648,6 +3655,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * projection and still commit; NULL_FIELD nulls the cell and drops nothing.
          */
         private boolean projectionDependentDrop = false;
+        /** Rows this read lost: structural drops and {@code skip_row} drops alike, plus any lost while sampling. */
+        private long rowsDropped = 0;
         /**
          * The byte offsets of the rows that SURVIVED into the current page, in page order. {@link #rowStartBytes}
          * holds an offset for every PARSED row (including ones later dropped by a structural/field error during
@@ -3910,7 +3919,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 pinnedMtimeMillis,
                 computeConfigFingerprint(),
                 readConfig,
-                errorPolicy.isStrict(),
+                rowCountIsPhysical(),
                 schema,
                 declaredDateFormats,
                 schemaFieldIndex != null ? ExternalStats.BINDING_BY_NAME : ExternalStats.BINDING_BY_POSITION,
@@ -4056,10 +4065,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (readConfig.isEmpty() == false) {
                 base.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
             }
-            // Only FAIL_FAST licenses this count to cross resolved read configurations: any structural mismatch aborts before publish,
-            // so a committed count is the physical record count for every declaration. Under the lenient policies dropped rows make a
-            // committed count a survivor count for this read, not the file's physical record count.
-            if (errorPolicy.isStrict()) {
+            // The count crosses resolved read configurations only when it is the file's physical record count —
+            // measured, not assumed from the mode's name. See rowCountIsPhysical().
+            if (rowCountIsPhysical()) {
                 base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
             }
             if (chunkMode) {
@@ -4507,6 +4515,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (sample.recordCapDropped() || wideningWindow.recordCapDropped()) {
                 recordCapDropped = true; // cap-determined survivor loss during sampling — publish must safe-miss
             }
+            // Rows lost while sampling never passed through onRowError, so they are added here; the licence is a
+            // statement about the whole read, not about the part of it that went through the error path.
+            rowsDropped += sample.rowsDropped() + wideningWindow.rowsDropped();
             if (wideningWindow.rows().isEmpty()) {
                 prefetchedRows = sample.rows();
                 prefetchedRowStartBytes = sample.rowStartBytes();
@@ -6838,6 +6849,21 @@ public class CsvFormatReader implements SegmentableFormatReader {
             onRowErrorImpl(message, cause, CsvErrorMessages.summarize(rawLine), structural);
         }
 
+        /**
+         * Whether this read's row count is the file's physical record count, and so means the same number for every
+         * way of reading the file — the one statistic that may cross into an entry minted by a different read.
+         * <p>
+         * Measured, not inferred from the error mode's name. Under {@code fail_fast} any structural mismatch aborts
+         * before publish, so a committed count is physical by construction. Under {@code null_field} it is physical
+         * exactly when nothing was dropped — which the reader knows, having counted. The read must also be headered:
+         * a headerless positional read bounds a row's width by its own schema, so a wider read of the same file keeps
+         * rows this one drops, and "dropped nothing" would then be true of two reads that disagree on the count.
+         * {@code skip_row} is never licensed: dropping rows is what it is for.
+         */
+        private boolean rowCountIsPhysical() {
+            return errorPolicy.isStrict() || (errorPolicy.mode() == ErrorPolicy.Mode.NULL_FIELD && rowsDropped == 0 && options.headerRow());
+        }
+
         private void onRowErrorImpl(String message, Exception cause, String rowExcerpt, boolean structural) {
             if (modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
                 String hint = structural
@@ -6856,6 +6882,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 projectionDependentDrop = true;
             }
             errorCount++;
+            // Every non-throwing path through here loses a row, structural or skip_row alike. The licence below is
+            // granted on this count, not on the error mode's name: a lenient read that dropped nothing produced the
+            // file's physical record count, and a strict-sounding one that dropped a row did not.
+            rowsDropped++;
             skipWarnings.add("Row [" + totalRowCount + "] error: " + message);
             if (logErrors) {
                 logger.warn(

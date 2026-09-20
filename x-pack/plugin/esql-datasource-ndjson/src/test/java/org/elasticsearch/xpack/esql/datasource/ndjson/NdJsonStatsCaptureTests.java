@@ -277,6 +277,43 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
     }
 
     /** Binds a capture sink, drains the reader to EOF, returns the single contribution for the path (or null). */
+    /**
+     * The licence is measured here too: a {@code null_field} read that dropped no record produced the file's
+     * physical record count. NDJSON has no row width, so unlike CSV there is no headered conjunct — a record is
+     * either parseable or it is not, whatever schema the read holds.
+     */
+    public void testRowCountLicenceIsMeasuredNotAssumedFromTheMode() throws Exception {
+        String clean = "{\"id\":1,\"n\":10}\n{\"id\":2,\"n\":20}\n{\"id\":3,\"n\":30}\n";
+        ErrorPolicy nullField = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 10, 1.0, false);
+        ErrorPolicy skipRow = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 10, 1.0, false);
+
+        assertEquals(
+            Boolean.TRUE,
+            capture(obj(clean), FormatReadContext.builder().batchSize(10).errorPolicy(nullField).build()).get(
+                ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY
+            )
+        );
+        assertEquals(
+            Boolean.TRUE,
+            capture(obj(clean), FormatReadContext.builder().batchSize(10).build()).get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)
+        );
+
+        // One unparseable line: the record is dropped, so the count is this read's survivors, not the file's.
+        String broken = "{\"id\":1,\"n\":10}\nnot json at all\n{\"id\":3,\"n\":30}\n";
+        Map<String, Object> dropped = capture(obj(broken), FormatReadContext.builder().batchSize(10).errorPolicy(nullField).build());
+        assertNotNull(dropped);
+        assertFalse(
+            "a read that dropped a record must not license its count",
+            dropped.containsKey(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)
+        );
+
+        assertFalse(
+            capture(obj(clean), FormatReadContext.builder().batchSize(10).errorPolicy(skipRow).build()).containsKey(
+                ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY
+            )
+        );
+    }
+
     private Map<String, Object> capture(StorageObject o, FormatReadContext ctx) throws Exception {
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         try (

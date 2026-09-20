@@ -281,6 +281,8 @@ public class NdJsonPageDecoder implements Closeable {
      * only decode loop that can drop a record ({@code FAIL_FAST} throws instead).
      */
     private boolean rowDroppedBySkipRow;
+    /** Records this read lost: whole-line parse failures and {@code skip_row} record discards alike. */
+    private long rowsDropped;
 
     /** Whether the current record has already been charged to the error budget; see {@link #chargeErrorBudget}. */
     private boolean recordChargedToBudget;
@@ -846,6 +848,11 @@ public class NdJsonPageDecoder implements Closeable {
      * {@code CsvFormatReader} routes its own constraint violation (a field over {@code max_field_size}) through
      * {@code onRowError} rather than {@code onFieldError}.
      */
+    /** Records lost by this read; the row-count licence is granted on this being zero, not on the mode's name. */
+    long rowsDropped() {
+        return rowsDropped;
+    }
+
     private void onNdjsonLineParseError(JsonProcessingException e, long logicalRowIndex, String phaseLabel) {
         // Described once, for the strict message, the client warning and the log alike. The row index is the
         // one part a user can act on -- it names the line to go and look at -- and CsvFormatReader's own
@@ -872,6 +879,7 @@ public class NdJsonPageDecoder implements Closeable {
                 description + "; set error_mode=skip_row (or null_field) to skip the line and warn instead of failing"
             );
         }
+        rowsDropped++;
         if (e instanceof StreamConstraintsException) {
             // String length is validated LAZILY: only a projected column's decode arm reads the value, so a
             // skipped field never trips it and this drop is projection-dependent -- a COUNT(*) scan keeps the
@@ -1292,6 +1300,7 @@ public class NdJsonPageDecoder implements Closeable {
                     blockTracker.set(rowPositionSlot);
                 }
                 if (rowDroppedBySkipRow) {
+                    rowsDropped++;
                     // The drop was decided by the projection (a projected column's coercion failure), the class
                     // of drop the publish gate refuses to commit. Set here, at the single point every skip_row
                     // record discard funnels through. A record that also hits a later whole-line parse error

@@ -93,11 +93,13 @@ final class NdJsonPageIterator extends BufferingPageIterator {
     private final String readConfig;
     /** Declared date patterns by physical column name; kept for the read identity stamped on each contribution. */
     private final Map<String, String> declaredDateFormats;
+    /** Kept so the row-count licence can be evaluated at emit time, once the decoder knows what it dropped. */
+    private final ErrorPolicy errorPolicy;
     /**
      * Whether this read's error policy makes its row count independent of the resolved read configuration (FAIL_FAST only). Derived at
      * construction because the policy itself is consumed while opening the stream and is not retained.
      */
-    private final boolean rowCountReadConfigIndependent;
+
     /** Full file schema as passed by the planner. Non-null on the wholeFileRead path; used for fingerprint at close. */
     private final List<Attribute> fingerprintSchema;
     private final String sourceLocation;
@@ -235,7 +237,8 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         this.fingerprinter = fingerprinter;
         this.readConfig = readConfig == null ? "" : readConfig;
         this.declaredDateFormats = declaredDateFormats == null ? Map.of() : Map.copyOf(declaredDateFormats);
-        this.rowCountReadConfigIndependent = errorPolicy.isStrict();
+        this.errorPolicy = errorPolicy;
+
         this.fingerprintSchema = resolvedAttributes;
         this.sourceLocation = object.path().toString();
         this.chunkMode = chunkMode;
@@ -716,7 +719,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                                 pinnedMtimeMillis,
                                 fingerprinter.apply(fullSchema),
                                 readConfig,
-                                rowCountReadConfigIndependent,
+                                rowCountIsPhysical(),
                                 fullSchema,
                                 declaredDateFormats,
                                 // NDJSON binds every column by object key, and has no present-but-empty cell: a key
@@ -758,7 +761,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
             base.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
         }
         // See CsvFormatReader: only FAIL_FAST makes a committed row count read-config-independent.
-        if (rowCountReadConfigIndependent) {
+        if (rowCountIsPhysical()) {
             base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
         }
         if (chunkMode) {
@@ -769,6 +772,17 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         SourceStatisticsSerializer.stampReadIdentity(base, fullSchema, declaredDateFormats, ExternalStats.BINDING_BY_NAME, false);
         Map<String, Object> flat = SourceStatisticsSerializer.embedStatistics(base, sourceStats);
         ExternalStatsCapture.record(sourceLocation, flat);
+    }
+
+    /**
+     * Whether this read's row count is the file's physical record count, and so means the same number for every way
+     * of reading the file. Measured rather than inferred from the error mode's name: {@code fail_fast} aborts before
+     * publish, and {@code null_field} qualifies exactly when the decoder dropped no record. NDJSON has no row width,
+     * so unlike CSV there is no headered conjunct. {@code skip_row} is never licensed.
+     */
+    private boolean rowCountIsPhysical() {
+        return errorPolicy.isStrict()
+            || (errorPolicy.mode() == ErrorPolicy.Mode.NULL_FIELD && pageDecoder != null && pageDecoder.rowsDropped() == 0);
     }
 
     private OptionalLong sizeInBytesFromLength() {

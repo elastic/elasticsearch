@@ -270,6 +270,90 @@ public class CsvStatsCaptureTests extends ESTestCase {
     }
 
     /** Binds a capture sink, drains the reader to EOF, returns the single contribution for the path (or null). */
+    /**
+     * The row-count licence says "this count is the file's physical record count, so it means the same number for
+     * every way of reading the file". It is measured, not inferred from the error mode's name.
+     */
+    public void testRowCountLicenceIsMeasuredNotAssumedFromTheMode() throws Exception {
+        String clean = "id:integer,n:integer\n1,10\n2,20\n3,30\n";
+        ErrorPolicy nullField = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 10, 1.0, false);
+        ErrorPolicy skipRow = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 10, 1.0, false);
+
+        // null_field, headered, nothing dropped: physical, so licensed. Reverting the predicate to isStrict() fails here.
+        assertEquals(
+            Boolean.TRUE,
+            capture(obj(clean), FormatReadContext.builder().batchSize(10).recordAligned(true).errorPolicy(nullField).build()).get(
+                ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY
+            )
+        );
+
+        // fail_fast: unchanged, licensed by construction (a mismatch aborts before publish).
+        assertEquals(
+            Boolean.TRUE,
+            capture(obj(clean), FormatReadContext.builder().batchSize(10).recordAligned(true).build()).get(
+                ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY
+            )
+        );
+
+        // null_field that really dropped a row: a survivor count, not the file's. Row 2 is wider than the header.
+        String ragged = "id:integer,n:integer\n1,10\n2,20,extra\n3,30\n";
+        Map<String, Object> dropped = capture(
+            obj(ragged),
+            FormatReadContext.builder().batchSize(10).recordAligned(true).errorPolicy(nullField).build()
+        );
+        assertFalse(
+            "a read that dropped a row must not license its count",
+            dropped.containsKey(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)
+        );
+
+        // skip_row is never licensed: dropping rows is what it is for.
+        assertFalse(
+            capture(obj(clean), FormatReadContext.builder().batchSize(10).recordAligned(true).errorPolicy(skipRow).build()).containsKey(
+                ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY
+            )
+        );
+    }
+
+    /**
+     * Headerless is never licensed under {@code null_field}, even having dropped nothing: a positional read bounds a
+     * row's width by its own schema, so a wider read of the same file keeps rows this one drops and the two counts
+     * disagree. Dropping the {@code headerRow()} conjunct fails this.
+     */
+    public void testHeaderlessNullFieldIsNeverLicensed() throws Exception {
+        ErrorPolicy nullField = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 10, 1.0, false);
+        CsvFormatReader headerless = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of(CsvFormatReader.CONFIG_HEADER_ROW, false)
+        );
+        Map<String, Object> c = captureWith(
+            headerless,
+            "1,10\n2,20\n3,30\n",
+            FormatReadContext.builder().batchSize(10).recordAligned(true).errorPolicy(nullField).build()
+        );
+        assertNotNull(c);
+        assertFalse(
+            "a headerless null_field read must not license its count",
+            c.containsKey(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)
+        );
+    }
+
+    /**
+     * A row lost inside the schema-sampling window never passes through the reader's error path, so counting only
+     * the error path would license a survivor count as the file's physical record count. The read here has no pinned
+     * schema, so it samples on the data path, and its malformed row falls inside that window.
+     * <p>Fails if {@code SchemaSample}'s dropped count is not added into the reader's {@code rowsDropped}.
+     */
+    public void testSamplingWindowDropIsCountedAgainstTheLicence() throws Exception {
+        ErrorPolicy nullField = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 10, 1.0, false);
+        // Row 2's quoted field is never closed: a structural failure the sampling pass drops outright.
+        StorageObject o = obj("id,n\n1,10\n2,\"unclosed\n3,30\n");
+        Map<String, Object> c = capture(o, FormatReadContext.builder().batchSize(10).recordAligned(true).errorPolicy(nullField).build());
+        assertNotNull("the read must still publish its survivor statistics", c);
+        assertFalse(
+            "a row dropped while sampling is still a dropped row: the count is not the file's physical record count",
+            c.containsKey(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)
+        );
+    }
+
     private Map<String, Object> capture(StorageObject o, FormatReadContext ctx) throws Exception {
         List<Map<String, Object>> all = captureAll(o, ctx);
         return all == null ? null : all.get(0);

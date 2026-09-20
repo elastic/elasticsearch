@@ -3626,10 +3626,25 @@ public class ExternalSourceResolver {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingSchemaWarnings::add);
         }
 
-        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = new HashMap<>();
-        for (int i = 0; i < listing.fileCount(); i++) {
+        // A declared mapping is the whole schema for every file, so every entry of this map holds the
+        // same value and only the key differs. Build that value once and share the instance: composing an
+        // identical FileSchemaInfo — and a throwaway single-entry map to merge it — per file made the cost
+        // of answering proportional to the file count, for a schema fully known before the listing ran.
+        // FileSchemaInfo is a record, so one instance is safely shared across every key.
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
+        if (logicalSchema == null || logicalSchema.isEmpty()) {
+            schemaMap = Map.of();
+        } else {
             // Strict reads only the anchor's footer for the coercibility check, so no file has harvested statistics.
-            schemaMap.putAll(singleEntrySchemaMap(listing.path(i), logicalSchema, null));
+            SchemaReconciliation.FileSchemaInfo declaredInfo = new SchemaReconciliation.FileSchemaInfo(
+                new ExternalSchema(logicalSchema),
+                new ColumnMapping(identityMapping(logicalSchema.size()), null),
+                null
+            );
+            schemaMap = Maps.newHashMapWithExpectedSize(listing.fileCount());
+            for (int i = 0; i < listing.fileCount(); i++) {
+                schemaMap.put(listing.path(i), declaredInfo);
+            }
         }
         return new ExternalSourceResolution.ResolvedSource(extMetadata, listing, schemaMap);
     }

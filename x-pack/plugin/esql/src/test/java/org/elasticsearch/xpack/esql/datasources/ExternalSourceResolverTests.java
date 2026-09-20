@@ -290,6 +290,55 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /** Resolves a one-file parquet glob under a declared mapping — the harness for the columnar declaration rejects. */
+    /**
+     * A declared mapping is the entire schema for every file, so the per-file schema map holds one value
+     * repeated once per key. It is built once and shared: composing an equal {@code FileSchemaInfo} per
+     * file — through a throwaway single-entry map merged into the result — made the cost of answering a
+     * schema-only query proportional to the file count, for a schema fully known before the listing ran.
+     * <p>
+     * The assertion is identity rather than equality on purpose. Equal-but-distinct records would satisfy
+     * an {@code equals} check while still allocating one schema, one identity mapping and one record per
+     * listed file, which is the whole of the defect.
+     */
+    public void testDeclaredSchemaMapSharesOneInstanceAcrossEveryFile() throws Exception {
+        List<Attribute> fileSchema = List.of(attr("event_ts", DataType.LONG), attr("msg", DataType.KEYWORD));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("event_ts", new DatasetFieldMapping("long", null));
+        properties.put("msg", new DatasetFieldMapping("keyword", null));
+
+        int fileCount = 8;
+        List<StorageEntry> files = new ArrayList<>(fileCount);
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        for (int i = 0; i < fileCount; i++) {
+            String file = "s3://bucket/data/file" + i + ".parquet";
+            files.add(entry(file, 100));
+            schemasByPath.put(file, fileSchema);
+        }
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put(StoragePath.of(DECLARED_GLOB).patternPrefix().toString(), files);
+
+        ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(
+            List.of(DECLARED_GLOB),
+            Map.of(DECLARED_GLOB, new HashMap<>()),
+            null,
+            Map.of(DECLARED_GLOB, mapping),
+            null,
+            future
+        );
+        ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(DECLARED_GLOB);
+
+        assertNotNull(resolved);
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = resolved.schemaMap();
+        assertThat("every listed file is keyed", schemaMap.size(), equalTo(fileCount));
+        SchemaReconciliation.FileSchemaInfo shared = schemaMap.values().iterator().next();
+        for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : schemaMap.entrySet()) {
+            assertSame("one declared schema backs every key, not one record per file", shared, e.getValue());
+        }
+    }
+
     private ExternalSourceResolution resolveWithDeclaredMapping(
         List<Attribute> fileSchema,
         Map<String, DatasetFieldMapping> properties,

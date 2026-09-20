@@ -811,3 +811,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:prometheus-k8s-increase.increase_of_double_no_grouping_promql}
   issue: https://github.com/elastic/elasticsearch/issues/159814
+- class: org.elasticsearch.xpack.esql.parser.LookupJoinParserTests
+  method: testValidJoinPatternWithRemoteExpressionJoin
+  issue: https://github.com/elastic/elasticsearch/issues/159818

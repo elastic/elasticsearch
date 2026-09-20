@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.AutoPartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
@@ -462,6 +463,66 @@ public final class GlobExpander {
 
         boolean recursive = matcher.needsRecursion();
 
+        // A glob leading with the recursive wildcard names no partition key the textual rewrite could act on, so
+        // the walk narrows the enumeration itself. Every declined or failed shape falls through to the flat listing
+        // below; see PartitionPruningWalk for the fail-closed rules and the trust boundary.
+        if (globstarLeads(glob) && walkableStrategy(partitionConfig)) {
+            List<PartitionFilterHint> partitionHints = partitionPruningHints(hints);
+            if (partitionHints.isEmpty() == false) {
+                PartitionPruningWalk.WalkResult walk = PartitionPruningWalk.tryWalk(
+                    provider,
+                    prefix,
+                    matcher,
+                    nameFilter,
+                    partitionHints,
+                    maxDiscoveredFiles
+                );
+                // An all-pruned walk mirrors the rewrite-to-empty fallback: re-list flat so the resolver keeps a
+                // schema-inference anchor; the row filter still yields zero matching rows.
+                if (walk != null && walk.matched().isEmpty() == false) {
+                    List<StorageEntry> walked = walk.matched();
+                    if (fileHints.isEmpty() == false) {
+                        List<StorageEntry> filtered = new ArrayList<>();
+                        StorageEntry fileHintAnchor = null;
+                        for (StorageEntry entry : walked) {
+                            fileHintAnchor = addOrStashAnchor(entry, fileHints, filtered, fileHintAnchor, maxDiscoveredFiles);
+                        }
+                        if (filtered.isEmpty() && fileHintAnchor != null && maxDiscoveredFiles > 0) {
+                            filtered.add(fileHintAnchor);
+                        }
+                        walked = filtered;
+                    }
+                    fileOrder.apply(walked);
+                    List<String> walkNotices = new ArrayList<>();
+                    PartitionMetadata walkedMetadata = detectPartitions(walked, partitionConfig, walkNotices::add);
+                    if (walkPruningProven(walk.prunedColumns(), walkedMetadata)) {
+                        if (walkTypesConsistent(walk, walkedMetadata)) {
+                            // Counted pre-_file.*-filter, as the flat path counts.
+                            if (walk.excludedCount() > 0) {
+                                walkNotices.add(
+                                    exclusionWarning(
+                                        walk.excludedCount(),
+                                        walk.matched().size(),
+                                        prefix.toString(),
+                                        walk.excludedExample(),
+                                        walk.excludedExampleEntry()
+                                    )
+                                );
+                            }
+                            return new GenericFileList(walked, pattern, walkedMetadata, walkNotices);
+                        }
+                        logger.debug("Walked listing of [{}] would narrow the type of partition column(s); re-listing flat", pattern);
+                    } else {
+                        logger.debug(
+                            "Walked listing of [{}] does not detect the pruned-on partition columns {}; re-listing flat",
+                            pattern,
+                            walk.prunedColumns()
+                        );
+                    }
+                }
+            }
+        }
+
         List<StorageEntry> matched = new ArrayList<>();
         StorageEntry fileHintAnchor = null;
         String prefixStr = prefix.toString();
@@ -615,6 +676,86 @@ public final class GlobExpander {
             return null;
         }
         return result;
+    }
+
+    /** Whether the glob's first segment is the recursive wildcard — the shape the partition-pruning walk narrows. */
+    private static boolean globstarLeads(String glob) {
+        return glob.equals("**") || glob.startsWith("**/");
+    }
+
+    /**
+     * Whether the resolved strategy licenses matching {@code key=value} folders during the listing walk: {@code HIVE}
+     * always; {@code AUTO} only without a usable template (then it is Hive-or-nothing — with one, detection could
+     * resolve to template columns the walk knows nothing about). {@code TEMPLATE} binds whole segments and
+     * {@code NONE} has no partition columns; neither may prune.
+     */
+    private static boolean walkableStrategy(PartitionConfig config) {
+        return switch (config.strategy()) {
+            case HIVE -> true;
+            case AUTO -> config.pathTemplate() == null || TemplatePartitionDetector.parseTemplateColumns(config.pathTemplate()).isEmpty();
+            case TEMPLATE, NONE -> false;
+        };
+    }
+
+    /**
+     * A folder prune is trusted only when the pruned listing itself detects the pruned-on column as a partition
+     * column. A stray file outside the {@code key=value} structure breaks detection and makes the column a data
+     * column whose values could live anywhere; this check turns that from silently dropped rows into a flat
+     * re-listing. Passes only on the pruned columns; non-pruned column types are verified by
+     * {@link #walkTypesConsistent}.
+     */
+    private static boolean walkPruningProven(Set<String> prunedColumns, @Nullable PartitionMetadata metadata) {
+        if (prunedColumns.isEmpty()) {
+            return true;
+        }
+        return metadata != null && metadata.partitionColumns().keySet().containsAll(prunedColumns);
+    }
+
+    /**
+     * Verifies that the walk did not narrow the type of any non-pruned partition column relative to what the full
+     * value set (including values inside pruned subtrees) would produce. A pruned subtree may be the sole source of
+     * a type-widening folder value for another column: e.g. {@code year=2023/month=abc} (widening {@code month} to
+     * keyword) pruned by {@code year >= 2024} — the walked listing sees only {@code month=06} and detects
+     * {@code month} as integer, while the flat listing would detect it as keyword. No file is dropped, but the
+     * declared schema would differ. The walk addresses this by peeking one level into pruned dirs to capture shadow
+     * values (see {@code PartitionPruningWalk}); this method checks whether those shadow values change any
+     * column's inferred type — including pruned columns, whose walked type may narrow when only matching
+     * folders survive (e.g. {@code month=06} is INTEGER alone but KEYWORD with {@code month=abc} present).
+     *
+     * <p><b>Residual limitation.</b> The peek is one level deep: if the type-widening value is more than one
+     * level inside the pruned subtree (e.g. {@code a=1/b=x/month=abc} pruned at {@code a}), the divergence in
+     * {@code month}'s type is not detected. Such cases are unusual (consistent partition layouts rarely vary type
+     * across different parent subtrees) and a flat re-listing is the safe fallback for any undetected case.
+     */
+    private static boolean walkTypesConsistent(PartitionPruningWalk.WalkResult walk, @Nullable PartitionMetadata metadata) {
+        if (metadata == null || walk.prunedColumns().isEmpty()) {
+            return true;
+        }
+        Map<String, DataType> fullTypes = walk.columnFullTypes();
+        for (Map.Entry<String, DataType> e : metadata.partitionColumns().entrySet()) {
+            DataType fullType = fullTypes.get(e.getKey());
+            if (fullType != null && fullType != e.getValue()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * The hints that may prune {@code key=value} folders during the listing walk: every non-{@code _file.*} filter
+     * column. Also the exact hint set the cache key carries for a walk-eligible pattern — see {@link ListingIdentity}.
+     */
+    static List<PartitionFilterHint> partitionPruningHints(@Nullable List<PartitionFilterHint> hints) {
+        if (hints == null || hints.isEmpty()) {
+            return List.of();
+        }
+        List<PartitionFilterHint> partitionHints = new ArrayList<>();
+        for (PartitionFilterHint hint : hints) {
+            if (FileMetadataColumns.isFileMetadataColumn(hint.columnName()) == false && hint.values().isEmpty() == false) {
+                partitionHints.add(hint);
+            }
+        }
+        return partitionHints;
     }
 
     /**
@@ -777,12 +918,13 @@ public final class GlobExpander {
 
     /**
      * Everything about a query that determines which files a {@code path} lists: the resolved
-     * {@link PartitionConfig} (strategy AND path template),
-     * the effective (post-rewrite) glob pattern, the {@code _file.*} metadata filters, the resolved
-     * {@link ExclusionConfig}, and the resolved {@link FileOrderConfig}. These are the inputs
-     * {@link #doExpandGlob} consults beyond the storage contents themselves — the rewrite via {@link #effectivePattern}
-     * and the {@code _file.*} filters via {@link #fileMetadataHints} — and this value shares those same helpers, so the
-     * listing cache key it feeds cannot drift from the listing it names. Note this binds only the cache key: a new
+     * {@link PartitionConfig} (strategy AND path template), the effective (post-rewrite) glob pattern, the
+     * {@code _file.*} metadata filters, the partition hints when the effective pattern is walk-eligible (see
+     * {@link PartitionPruningWalk}), the resolved {@link ExclusionConfig}, and the resolved {@link FileOrderConfig}.
+     * These are the inputs {@link #doExpandGlob} consults beyond the storage contents themselves — via
+     * {@link #effectivePattern}, {@link #applyFileMetadataFilters} and {@link #partitionPruningHints} — and this
+     * value shares those same helpers, so the listing cache key cannot drift from the listing it names. It binds only
+     * the cache key: a new
      * hint channel added to {@link #doExpandGlob} must be added here by hand, or that channel silently reintroduces
      * the poisoning bug.
      *
@@ -795,6 +937,7 @@ public final class GlobExpander {
         PartitionConfig partitionConfig,
         String effectivePattern,
         List<String> encodedFileHints,
+        List<String> encodedPartitionHints,
         ExclusionConfig exclusionConfig,
         FileOrderConfig fileOrder
     ) {
@@ -806,10 +949,17 @@ public final class GlobExpander {
             ExclusionConfig exclusionConfig,
             FileOrderConfig fileOrder
         ) {
+            String effectivePattern = effectiveWholePathPattern(path, hints, partitionConfig);
             return new ListingIdentity(
                 partitionConfig,
-                effectiveWholePathPattern(path, hints, partitionConfig),
-                encodedFileMetadataHints(hints),
+                effectivePattern,
+                encodedHints(fileMetadataHints(hints)),
+                // The walk is the second hint channel into the listing: partition hints decide which folders are
+                // enumerated without changing the effective pattern, so on a walk-eligible pattern they must join
+                // the identity or a filtered query poisons the cache. Eligibility is judged on the EFFECTIVE
+                // pattern — a keyed data/year=*/** rewrites to data/year=2024/** and the walk prunes under that
+                // prefix. Provider support cannot be known at key time; over-inclusion merely fragments, safely.
+                walkShapeEligible(effectivePattern, partitionConfig) ? encodedHints(partitionPruningHints(hints)) : List.of(),
                 exclusionConfig,
                 fileOrder
             );
@@ -830,6 +980,10 @@ public final class GlobExpander {
             for (String encodedHint : encodedFileHints) {
                 appendLengthPrefixed(sb, encodedHint);
             }
+            sb.append(encodedPartitionHints.size()).append(':');
+            for (String encodedHint : encodedPartitionHints) {
+                appendLengthPrefixed(sb, encodedHint);
+            }
             // The exclusion list is framed like encodedFileHints above — a count, then that many
             // length-prefixed entries — so no user-supplied glob can forge a field boundary. Entry order is
             // preserved rather than sorted: order does not change semantics (any-match), so two same-set
@@ -848,6 +1002,29 @@ public final class GlobExpander {
         }
     }
 
+    /**
+     * Whether any glob of {@code effectivePattern} (the lone post-rewrite pattern, or a comma segment of it) has the
+     * shape and strategy the walk acts on. Ignores whether the walk would actually prune — the identity only needs
+     * to be at least as fine-grained as the listing decision it names.
+     */
+    private static boolean walkShapeEligible(String effectivePattern, PartitionConfig partitionConfig) {
+        if (walkableStrategy(partitionConfig) == false) {
+            return false;
+        }
+        List<String> segments = hasTopLevelComma(effectivePattern) ? commaSegments(effectivePattern) : List.of(effectivePattern);
+        for (String segment : segments) {
+            try {
+                StoragePath storagePath = StoragePath.of(segment);
+                if (storagePath.isPattern() && globstarLeads(storagePath.globPart())) {
+                    return true;
+                }
+            } catch (IllegalArgumentException e) {
+                // Unparseable segment: the expansion that follows raises the error; it cannot be walk-eligible.
+            }
+        }
+        return false;
+    }
+
     /** Appends {@code <charLength>':'<value>}, an injective framing that no value content can forge a boundary in. */
     private static void appendLengthPrefixed(StringBuilder sb, String value) {
         sb.append(value.length()).append(':').append(value);
@@ -856,10 +1033,11 @@ public final class GlobExpander {
     /**
      * A string that identifies the listing a given set of hints produces for a given path: equal discriminators
      * guarantee equal listings, so it is safe to key the listing cache on it. See {@link ListingIdentity} for the
-     * inputs it captures and why they are exhaustive; hints that reach none of them (an ordinary data column, say)
-     * leave the discriminator untouched, so an incidentally-filtered query still shares the un-filtered entry.
-     * The exclusion settings resolve from {@code config} via {@link ExclusionConfig#fromConfig}.
-     * File order resolves via {@link FileOrderConfig#forListing}.
+     * inputs and why they are exhaustive; hints that reach none of them leave the discriminator untouched, so an
+     * incidentally-filtered query still shares the un-filtered entry. On a walk-eligible pattern every
+     * non-{@code _file.*} hint joins the key — pre-resolution nothing can tell a partition column from a data
+     * column, so over-inclusion (safe fragmentation) is the only sound reading. The exclusion settings resolve from
+     * {@code config} via {@link ExclusionConfig#fromConfig}. File order resolves via {@link FileOrderConfig#forListing}.
      */
     public static String listingCacheDiscriminator(
         String path,
@@ -1044,14 +1222,13 @@ public final class GlobExpander {
         }
     }
 
-    /** The hints {@link #applyFileMetadataFilters} acts on, each encoded injectively (length-prefixed) and ordered. */
-    private static List<String> encodedFileMetadataHints(@Nullable List<PartitionFilterHint> hints) {
-        List<PartitionFilterHint> fileHints = fileMetadataHints(hints);
-        if (fileHints.isEmpty()) {
+    /** A hint list encoded injectively (each field length-prefixed) and ordered, for use in a cache key. */
+    private static List<String> encodedHints(List<PartitionFilterHint> hints) {
+        if (hints.isEmpty()) {
             return List.of();
         }
-        List<String> encoded = new ArrayList<>(fileHints.size());
-        for (PartitionFilterHint hint : fileHints) {
+        List<String> encoded = new ArrayList<>(hints.size());
+        for (PartitionFilterHint hint : hints) {
             StringBuilder sb = new StringBuilder();
             appendLengthPrefixed(sb, hint.columnName());
             appendLengthPrefixed(sb, hint.operator().name());

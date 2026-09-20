@@ -261,6 +261,11 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             );
             waitForClientCompletion(client, batchExchangeStatusFuture, TEST_TIMEOUT_SECONDS);
             logger.debug("[TEST] waitForClientCompletion() returned");
+            BidirectionalBatchExchangeClient.Profile profile = client.profile();
+            assertThat(profile.totalSetupNanos(), greaterThan(0L));
+            assertThat(profile.maxSetupNanos(), greaterThan(0L));
+            assertThat(profile.serverProfiles().size(), equalTo(createdWorkerNodeIds.size()));
+            assertTrue(profile.serverProfiles().stream().allMatch(serverProfile -> serverProfile.driverTookNanos() > 0L));
 
             // Verify results and release pages
             verifyResultsAndReleasePages(
@@ -494,6 +499,39 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
         }
     }
 
+    public void testServerResponseWaitReusesListener() throws Exception {
+        ThreadPool threadPool = threadPool();
+        BlockFactory blockFactory = blockFactory();
+        TestInfrastructure infra = setupTestInfrastructure(threadPool, blockFactory);
+        try (
+            BidirectionalBatchExchangeClient client = new BidirectionalBatchExchangeClient(
+                "test-stable-server-response-listener",
+                infra.clientExchangeService(),
+                threadPool.executor(ThreadPool.Names.SEARCH),
+                10,
+                infra.clientTransportService(),
+                mock(Task.class),
+                ActionListener.noop(),
+                CLIENT_SETTINGS,
+                (node, clientToServerId, serverToClientId, listener) -> fail("no worker setup expected"),
+                null,
+                1,
+                () -> infra.serverTransportServices().get(0).getLocalNode()
+            )
+        ) {
+            IsBlockedResult first = client.waitForServerResponse();
+            IsBlockedResult second = client.waitForServerResponse();
+
+            assertFalse(first.listener().isDone());
+            assertSame(first.listener(), second.listener());
+
+            client.finish();
+            assertTrue(first.listener().isDone());
+        } finally {
+            cleanupServices(infra, threadPool);
+        }
+    }
+
     /**
      * A lookup-join whose target index is transiently unavailable on the routed node (for example during a
      * rolling restart, or before the index has recovered/propagated) fails with {@link IndexNotFoundException},
@@ -656,6 +694,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
                     List.of(addOneOperator),
                     "test-cluster",
                     () -> {},
+                    true,
                     ActionListener.noop()
                 );
                 logger.debug("[TEST] Server created and started for node={}", node.getId());

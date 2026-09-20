@@ -153,6 +153,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testEnrichExplosionManyMatches
   issue: https://github.com/elastic/elasticsearch/issues/159787
+- class: org.elasticsearch.common.blobstore.url.http.URLHttpClientTests
+  method: testInvalidErrorMessageCharsetIsIgnored
+  issue: https://github.com/elastic/elasticsearch/issues/159815
 
 # Examples:
 #

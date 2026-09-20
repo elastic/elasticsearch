@@ -736,6 +736,185 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * Two columns, {@code id LONG} and {@code color KEYWORD}, in the file's own order. A licensed delta from a read
+     * that saw {@code id} the same way and {@code color} differently may enrich the entry with {@code id} and the
+     * row count, and with nothing of {@code color} — and the entry must still describe its OWN read afterwards.
+     */
+    public void testLicensedForeignStripeDeltaMergesIdenticallyReadColumnsOnly() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/a.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.TRUE, null, false),
+                new ReferenceAttribute(Source.EMPTY, null, "color", DataType.KEYWORD, Nullability.TRUE, null, false)
+            );
+            service.getOrComputeSchema(
+                key,
+                k -> SchemaCacheEntry.from(
+                    schema,
+                    "csv",
+                    path,
+                    Map.of(
+                        ExternalStats.CONFIG_FINGERPRINT_KEY,
+                        "fp",
+                        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+                        "config-own",
+                        ExternalStats.COLUMNS_IN_FILE_ORDER_KEY,
+                        Boolean.TRUE
+                    ),
+                    Map.of()
+                )
+            );
+
+            Map<String, Object> foreign = stripeFragment(mtime, "fp", 30L, 100L, 0, 0, 100, true, true, false);
+            foreign.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-foreign");
+            foreign.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            // The foreign read saw id as LONG (as the entry does) and color as an INTEGER — a different column.
+            foreign.put(ExternalStats.READ_COLUMN_NAMES_KEY, List.of("id", "color"));
+            foreign.put(ExternalStats.READ_COLUMN_TYPES_KEY, List.of("long", "integer"));
+            foreign.put(ExternalStats.READ_BINDING_KEY, ExternalStats.BINDING_BY_POSITION);
+            foreign.put(SourceStatisticsSerializer.columnMinKey("id"), 1L);
+            foreign.put(SourceStatisticsSerializer.columnMaxKey("id"), 9L);
+            foreign.put(SourceStatisticsSerializer.columnMinKey("color"), 3L);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(foreign)));
+
+            SchemaCacheEntry entry = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            Map<String, Object> stripe = stripeAt(entry, 0);
+            assertNotNull("a licensed delta of identically-read columns must enrich the entry", stripe);
+            assertEquals(1L, stripe.get(SourceStatisticsSerializer.columnMinKey("id")));
+            assertNull(
+                "color was read at another type, so nothing of it may cross",
+                stripe.get(SourceStatisticsSerializer.columnMinKey("color"))
+            );
+            assertEquals(
+                "the entry still describes its own read, not the one that enriched it",
+                "config-own",
+                entry.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY)
+            );
+            assertEquals(
+                "a crossed map must carry the licence, or the entry's fold goes cold",
+                Boolean.TRUE,
+                stripe.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)
+            );
+        }
+    }
+
+    /**
+     * B2: a positional read binds the i-th column to the i-th physical field, so its statistics may only be paired
+     * with an entry column at the SAME index. A part whose header permutes the anchor's columns would otherwise
+     * have one column's statistics written under another column's name.
+     */
+    public void testPositionalCrossingRequiresSamePositionAndName() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/b.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.TRUE, null, false),
+                new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG, Nullability.TRUE, null, false)
+            );
+            service.getOrComputeSchema(
+                key,
+                k -> SchemaCacheEntry.from(
+                    schema,
+                    "csv",
+                    path,
+                    Map.of(
+                        ExternalStats.CONFIG_FINGERPRINT_KEY,
+                        "fp",
+                        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+                        "config-own",
+                        ExternalStats.COLUMNS_IN_FILE_ORDER_KEY,
+                        Boolean.TRUE
+                    ),
+                    Map.of()
+                )
+            );
+
+            // The foreign read holds the same two names at swapped positions.
+            Map<String, Object> foreign = stripeFragment(mtime, "fp", 30L, 100L, 0, 0, 100, true, true, false);
+            foreign.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-foreign");
+            foreign.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            foreign.put(ExternalStats.READ_COLUMN_NAMES_KEY, List.of("n", "id"));
+            foreign.put(ExternalStats.READ_COLUMN_TYPES_KEY, List.of("long", "long"));
+            foreign.put(ExternalStats.READ_BINDING_KEY, ExternalStats.BINDING_BY_POSITION);
+            foreign.put(SourceStatisticsSerializer.columnMinKey("n"), 7L);
+            foreign.put(SourceStatisticsSerializer.columnMinKey("id"), 7L);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(foreign)));
+
+            Map<String, Object> stripe = stripeAt(service.getOrComputeSchema(key, k -> { throw new AssertionError("cached"); }), 0);
+            if (stripe != null) {
+                assertNull(
+                    "a positional read holding [n] at index 0 describes the entry's [id]; it must not cross as [n]",
+                    stripe.get(SourceStatisticsSerializer.columnMinKey("n"))
+                );
+                assertNull("and the same for [id] at index 1", stripe.get(SourceStatisticsSerializer.columnMinKey("id")));
+            }
+        }
+    }
+
+    /**
+     * B1: a blank cell is the empty string on one read and null on another, so the same string column measured by
+     * the two has different value counts, null counts and extrema. Same name, same type, and still not the same
+     * cells.
+     */
+    public void testStringColumnCrossesOnlyWhenBlankPoliciesAgree() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/c.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "color", DataType.KEYWORD, Nullability.TRUE, null, false),
+                new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG, Nullability.TRUE, null, false)
+            );
+            service.getOrComputeSchema(
+                key,
+                k -> SchemaCacheEntry.from(
+                    schema,
+                    "csv",
+                    path,
+                    Map.of(
+                        ExternalStats.CONFIG_FINGERPRINT_KEY,
+                        "fp",
+                        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+                        "config-own",
+                        ExternalStats.COLUMNS_IN_FILE_ORDER_KEY,
+                        Boolean.TRUE
+                    ),
+                    Map.of()
+                )
+            );
+
+            Map<String, Object> foreign = stripeFragment(mtime, "fp", 30L, 100L, 0, 0, 100, true, true, false);
+            foreign.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-foreign");
+            foreign.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            foreign.put(ExternalStats.READ_COLUMN_NAMES_KEY, List.of("color", "n"));
+            foreign.put(ExternalStats.READ_COLUMN_TYPES_KEY, List.of("keyword", "long"));
+            foreign.put(ExternalStats.READ_BINDING_KEY, ExternalStats.BINDING_BY_POSITION);
+            // This read held a blank string cell as the empty string; the entry's read (no key) made it null.
+            foreign.put(ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY, Boolean.TRUE);
+            foreign.put(SourceStatisticsSerializer.columnValueCountKey("color"), 30L);
+            foreign.put(SourceStatisticsSerializer.columnMinKey("n"), 2L);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(foreign)));
+
+            Map<String, Object> stripe = stripeAt(service.getOrComputeSchema(key, k -> { throw new AssertionError("cached"); }), 0);
+            assertNotNull("the numeric column is unaffected by the blank rule and must still cross", stripe);
+            assertEquals(2L, stripe.get(SourceStatisticsSerializer.columnMinKey("n")));
+            assertNull(
+                "the two reads disagree on what a blank holds, so the string column's counts describe different cells",
+                stripe.get(SourceStatisticsSerializer.columnValueCountKey("color"))
+            );
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> stripeAt(SchemaCacheEntry entry, long ordinal) {
+        Object stripe = entry.safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + ordinal);
+        return stripe instanceof Map<?, ?> m ? (Map<String, Object>) m : null;
+    }
+
     public void testStripeFoldKeepsTheReadConfigurationOnTheFoldedResult() throws Exception {
         // The stripe merge keeps only recognised _stats.* keys, so the identity is re-attached by hand afterwards.
         // Drop that and every stripe-rail count arrives configuration-less — which is invisible at the entry (it

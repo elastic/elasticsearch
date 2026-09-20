@@ -53,6 +53,9 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -99,6 +102,8 @@ public final class RemoteFetchService {
     private final RemoteFetchPushdownOperatorBuilder pushdownOperatorBuilder;
     private final RetainedSearchContextsRegistry retainedSearchContexts;
     private final ExchangeServerFactory exchangeServerFactory;
+    private final SecurityContext securityContext;
+    private final boolean securityEnabled;
 
     RemoteFetchService(TransportActionServices transportActionServices, BigArrays bigArrays, BlockFactory blockFactory) {
         this(
@@ -125,6 +130,27 @@ public final class RemoteFetchService {
         RetainedSearchContextsRegistry retainedSearchContexts,
         ExchangeServerFactory exchangeServerFactory
     ) {
+        this(
+            transportActionServices,
+            bigArrays,
+            blockFactory,
+            retainedSearchContexts,
+            exchangeServerFactory,
+            new SecurityContext(
+                transportActionServices.clusterService().getSettings(),
+                transportActionServices.transportService().getThreadPool().getThreadContext()
+            )
+        );
+    }
+
+    RemoteFetchService(
+        TransportActionServices transportActionServices,
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        RetainedSearchContextsRegistry retainedSearchContexts,
+        ExchangeServerFactory exchangeServerFactory,
+        SecurityContext securityContext
+    ) {
         this.clusterService = transportActionServices.clusterService();
         this.transportService = transportActionServices.transportService();
         this.exchangeService = transportActionServices.exchangeService();
@@ -135,6 +161,8 @@ public final class RemoteFetchService {
         this.pushdownOperatorBuilder = new RemoteFetchPushdownOperatorBuilder();
         this.retainedSearchContexts = Objects.requireNonNull(retainedSearchContexts);
         this.exchangeServerFactory = Objects.requireNonNull(exchangeServerFactory);
+        this.securityContext = Objects.requireNonNull(securityContext);
+        this.securityEnabled = XPackSettings.SECURITY_ENABLED.get(clusterService.getSettings());
         transportService.registerRequestHandler(
             RELEASE_ACTION_NAME,
             transportService.getThreadPool().executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME),
@@ -156,7 +184,13 @@ public final class RemoteFetchService {
     }
 
     RetainedSearchContextsRegistry.Handle retainSearchContexts(String sessionId, AcquiredSearchContexts searchContexts) {
-        return retainedSearchContexts.register(sessionId, searchContexts);
+        Authentication creator = securityContext.getAuthentication();
+        if (creator == null && securityEnabled) {
+            final String message = "cannot retain search contexts without an authentication";
+            assert false : message;
+            throw new IllegalStateException(message);
+        }
+        return retainedSearchContexts.register(sessionId, searchContexts, creator);
     }
 
     /**
@@ -166,7 +200,7 @@ public final class RemoteFetchService {
      * cannot release the search contexts out from under them.
      */
     RetainedSearchContextsRegistry.Handle acquireRetainedContexts(String sessionId) {
-        return retainedSearchContexts.acquire(sessionId);
+        return retainedSearchContexts.acquire(sessionId, securityContext::canIAccessResourcesCreatedBy);
     }
 
     void releaseAsync(DiscoveryNode targetNode, String retainedSessionId, ActionListener<Void> listener) {
@@ -597,7 +631,7 @@ public final class RemoteFetchService {
     }
 
     private void releaseSession(String sessionId) {
-        retainedSearchContexts.closeRegistration(sessionId);
+        retainedSearchContexts.closeRegistration(sessionId, securityContext::canIAccessResourcesCreatedBy);
     }
 
     void startExchangeFetchServer(ExchangeSetupRequest request, CancellableTask task, ActionListener<Void> listener) {
@@ -607,7 +641,7 @@ public final class RemoteFetchService {
         Releasable releasable = null;
         boolean success = false;
         try {
-            lease = retainedSearchContexts.acquire(request.retainedSessionId());
+            lease = acquireRetainedContexts(request.retainedSessionId());
             final DiscoveryNode clientNode = determineClientNode(task);
             final PlannerSettings settings = plannerSettings.get();
             final IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts = lease.searchContexts()

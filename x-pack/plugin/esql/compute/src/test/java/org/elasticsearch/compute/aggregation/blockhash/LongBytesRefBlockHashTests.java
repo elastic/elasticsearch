@@ -25,14 +25,14 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class LongBytesRefAdaptiveBlockHashTests extends ComputeTestCase {
+public class LongBytesRefBlockHashTests extends ComputeTestCase {
 
     public void testAddAfterLimitReached() {
 
         BlockFactory blockFactory = blockFactory();
         Map<Key, Integer> ords = new HashMap<>();
         try (
-            BlockHash hash = new LongBytesRefAdaptiveBlockHash(
+            BlockHash hash = new LongBytesRefBlockHash(
                 List.of(new BlockHash.GroupSpec(0, ElementType.LONG), new BlockHash.GroupSpec(1, ElementType.BYTES_REF)),
                 blockFactory,
                 between(1024, 16 * 1024),

@@ -192,8 +192,7 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
                 )
             );
         }
-        String idPath = randomBoolean() ? null : randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
-        return DatasetMapping.assemble(new DatasetMapping.Mappings(randomFrom(DatasetMapping.Dynamic.values()), props, idPath));
+        return DatasetMapping.assemble(new DatasetMapping.Mappings(randomFrom(DatasetMapping.Dynamic.values()), props));
     }
 
     private static Map<String, Object> randomSettings() {

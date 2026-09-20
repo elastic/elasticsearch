@@ -1263,6 +1263,16 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
         assertFalse(support.pushFilters(List.of(filter)).hasPushedFilter());
     }
 
+    public void testMvGreaterAndMvLessOnBooleanNotPushed() {
+        // Same reason as the mv_in_range case: BooleanColumn has no ordered comparison to build.
+        assertFalse(
+            support.pushFilters(List.of(new MvGreater(Source.EMPTY, attr("flag", DataType.BOOLEAN), boolLit(false)))).hasPushedFilter()
+        );
+        assertFalse(
+            support.pushFilters(List.of(new MvLess(Source.EMPTY, attr("flag", DataType.BOOLEAN), boolLit(true)))).hasPushedFilter()
+        );
+    }
+
     // --- helpers ---
 
     private static Attribute attr(String name, DataType type) {

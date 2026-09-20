@@ -2578,6 +2578,45 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         );
     }
 
+    public void testMvFormsAreCollectedAsPredicateColumns() {
+        // predicateColumnNames drives the dictionary and bloom pre-warm and the per-column materialization
+        // accounting, not only the row evaluator. Being unevaluable row-by-row does not make a column not a
+        // predicate column, and an mv_-only push is the first shape where the two differ.
+        assertEquals(
+            Set.of("id"),
+            new ParquetPushedExpressions(List.of(new MvContains(Source.EMPTY, attr("id", DataType.LONG), lit(7L, DataType.LONG))))
+                .predicateColumnNames()
+        );
+        assertEquals(
+            Set.of("id"),
+            new ParquetPushedExpressions(
+                List.of(new MvInRange(Source.EMPTY, attr("id", DataType.LONG), lit(1L, DataType.LONG), lit(9L, DataType.LONG)))
+            ).predicateColumnNames()
+        );
+        assertEquals(
+            Set.of("id"),
+            new ParquetPushedExpressions(List.of(new MvGreater(Source.EMPTY, attr("id", DataType.LONG), lit(1L, DataType.LONG))))
+                .predicateColumnNames()
+        );
+    }
+
+    public void testMvInRangeBuildsNoPredicateWhenOneBoundDeclines() {
+        // translateRange's contract: if either bound cannot be built, the whole range declines rather than
+        // pushing the half that could.
+        MessageType schema = stringListSchema();
+        assertNull(
+            predicateFor(
+                schema,
+                new MvInRange(
+                    Source.EMPTY,
+                    attr("tags", DataType.KEYWORD),
+                    lit(new BytesRef("a"), DataType.KEYWORD),
+                    lit(new BytesRef("b"), DataType.KEYWORD)
+                )
+            )
+        );
+    }
+
     /** The predicate {@code expr} alone would push, or {@code null} when it declines. */
     private static FilterPredicate predicateFor(MessageType schema, Expression expr) {
         return new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);

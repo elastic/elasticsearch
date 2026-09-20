@@ -168,6 +168,32 @@ public class PushdownPredicatesTests extends ESTestCase {
         assertTrue(PushdownPredicates.allPushdownLiteralsAgree(dateRange("@timestamp", 1L, 2L)));
     }
 
+    public void testMvInRangeDeclinesAListValuedBound() {
+        // mv_in_range type-resolves a list literal of the field's type, so this reaches recognition. A list is not a
+        // bound any statistics comparison can use; declining here keeps it away from a builder that would cast it.
+        Literal list = new Literal(SRC, List.of(1L, 2L), DataType.LONG);
+        MvInRange lowerIsList = new MvInRange(SRC, field("id", DataType.LONG), list, new Literal(SRC, 9L, DataType.LONG));
+        MvInRange upperIsList = new MvInRange(SRC, field("id", DataType.LONG), new Literal(SRC, 1L, DataType.LONG), list);
+        assertFalse(PushdownPredicates.isMvInRange(lowerIsList, SUPPORTED));
+        assertFalse(PushdownPredicates.isMvInRange(upperIsList, SUPPORTED));
+    }
+
+    public void testMvCompareDeclinesAListValuedBound() {
+        Literal list = new Literal(SRC, List.of(1L, 2L), DataType.LONG);
+        assertFalse(PushdownPredicates.isMvCompare(new MvGreater(SRC, field("id", DataType.LONG), list), SUPPORTED));
+        assertFalse(PushdownPredicates.isMvCompare(new MvLess(SRC, field("id", DataType.LONG), list), SUPPORTED));
+    }
+
+    public void testMvIntersectsAcceptsASingleValuedLiteral() {
+        // The translator always emits a list, but the function accepts a scalar and it is the same membership test.
+        assertTrue(PushdownPredicates.isMvIntersects(new MvIntersects(SRC, field("host", DataType.KEYWORD), keyword("h1")), SUPPORTED));
+    }
+
+    public void testMvCompareDeclinesANullBound() {
+        Literal nullBound = new Literal(SRC, null, DataType.LONG);
+        assertFalse(PushdownPredicates.isMvCompare(new MvGreater(SRC, field("id", DataType.LONG), nullBound), SUPPORTED));
+    }
+
     private static FieldAttribute field(String name, DataType type) {
         return new FieldAttribute(SRC, name, new EsField(name, type, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
     }

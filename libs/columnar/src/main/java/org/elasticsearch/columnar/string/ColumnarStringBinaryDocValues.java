@@ -68,6 +68,20 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
     }
 
     @Override
+    public int nonNullValueCount() throws IOException {
+        final int rank = iterator.rank();
+        final long first = reader.firstValueAddress(rank);
+        final long count = reader.valueCount(rank);
+        int found = 0;
+        for (long i = 0; i < count; i++) {
+            if (reader.isNullSlot(first + i) == false) {
+                found++;
+            }
+        }
+        return found;
+    }
+
+    @Override
     public int nonNullValues(BytesRef dst) throws IOException {
         final int rank = iterator.rank();
         final long first = reader.firstValueAddress(rank);

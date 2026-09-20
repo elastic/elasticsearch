@@ -57,6 +57,9 @@ public class AuditIT extends ESRestTestCase {
 
     private static final String ENCRYPTION_PASSWORD_ID = "test";
 
+    /** A permitted endpoint that routes nowhere: loopback, admitted by the allowlist set on the cluster below. */
+    private static final String FIXTURE_ENDPOINT = "https://127.0.0.1:9000";
+
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(1) // A single node makes it easier to find audit events
@@ -68,6 +71,10 @@ public class AuditIT extends ESRestTestCase {
         .setting("xpack.security.audit.logfile.events.include", "[ \"_all\" ]")
         .setting("xpack.security.audit.logfile.events.emit_request_body", "true")
         .setting("esql.federation.enabled", "true")
+        // Endpoints are confined to AWS hosts, so permit loopback the way every other suite in this
+        // repository does. Nothing is dialled here — these tests assert on the audit event, which is
+        // written before the handler runs — and a loopback fixture keeps it that way.
+        .setting("esql.external.allowed_endpoint_hosts", "127.0.0.1:*,[::1]:*,localhost:*")
         .keystore("cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID, "audit-it-encryption-password")
         .keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID)
         .user("admin_user", "admin-password")
@@ -126,7 +133,9 @@ public class AuditIT extends ESRestTestCase {
                 + accessKey
                 + "\",\"secret_key\":\""
                 + secretKey
-                + "\",\"endpoint\":\"https://s3.us-east-1.amazonaws.com\"}}"
+                + "\",\"endpoint\":\""
+                + FIXTURE_ENDPOINT
+                + "\"}}"
         );
         executeAndVerifyAudit(request, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
             String body = asInstanceOf(String.class, event.get(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME));
@@ -160,7 +169,9 @@ public class AuditIT extends ESRestTestCase {
                 + accessKey
                 + "\",\"secret_key\":\""
                 + secretKey
-                + "\",\"endpoint\":\"https://s3.us-east-1.amazonaws.com\"}}"
+                + "\",\"endpoint\":\""
+                + FIXTURE_ENDPOINT
+                + "\"}}"
         );
         request.addParameter("source_content_type", "application/json");
         request.addParameter("ignore", "400");

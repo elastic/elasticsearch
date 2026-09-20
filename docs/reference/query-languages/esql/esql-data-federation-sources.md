@@ -49,7 +49,7 @@ Click **Connect data source** to open a flyout where you define the connection:
 - **Data source type**: the storage system to connect to, such as **Amazon S3**.
 - **Name**: a unique name for the data source. Names must be lowercase and cannot begin with `-`, `_`, or `+`.
 - **Description**: an optional description.
-- **Endpoint**: an optional Amazon S3 endpoint override, given as an absolute `https` URL naming a regional AWS S3 endpoint. Leave it empty to have the endpoint resolved from the region.
+- **Endpoint**: an optional Amazon S3 endpoint override, given as an absolute `https` URL naming a supported AWS S3 endpoint. Leave it empty to have the endpoint resolved from the region.
 - **Authentication**: select an authentication model from the dropdown, then fill in the credentials it requires.
 
 For the full set of authentication methods and what each one requires, refer to [authentication models](#authentication). For detailed setup walkthroughs, refer to [connect with static credentials](esql-data-federation-static-credentials.md) or [connect with federated identity](esql-data-federation-federated-identity.md).
@@ -221,7 +221,7 @@ The following settings are available for `s3` data sources:
 $$$s3-endpoint-requirements$$$
 ::::{dropdown} S3 endpoint requirements
 :applies_to: stack: experimental 9.6+
-Accepted endpoint forms, in every AWS partition:
+Accepted endpoint forms. The first three are accepted in every AWS partition; the global form exists only in the commercial partition:
 
 - Regional: `https://s3.us-east-1.amazonaws.com`
 - Historical: `https://s3-us-west-2.amazonaws.com`
@@ -234,9 +234,9 @@ A regional endpoint must name a region that the Elasticsearch version you are ru
 The global endpoint names no region. Setting any `endpoint` pins the host: cross-region redirection is off and a cross-region redirect is not followed, so `https://s3.amazonaws.com` reaches buckets in `us-east-1` and fails for buckets in other regions rather than being sent elsewhere. Omit `endpoint` instead: the region then comes from the dataset and every region is reachable.
 :::
 
-If reads through one of these fail with an addressing error, set `addressing_style: virtual_hosted`; the default resolves to path-style whenever `endpoint` is set.
+Every other AWS endpoint family is rejected, including FIPS endpoints, dual-stack endpoints, transfer acceleration, access points, object lambda, Outposts, the account-level control plane, the legacy `s3-external-1` alias, and S3 Express. So are plain `http`, a value without a scheme, and a host the URL syntax does not allow, such as an underscore or a non-numeric port.
 
-Every other AWS endpoint family is rejected, including FIPS endpoints, dual-stack endpoints, transfer acceleration, access points, object lambda, Outposts, the account-level control plane, the legacy `s3-external-1` alias, and S3 Express. FIPS and dual-stack endpoints are rejected because this data source has never been tested against them. Naming one does reach it — AWS serves both — so this is a decision about what is supported rather than a technical limit. To use one, permit its host with the node setting described below. So are plain `http`, a value without a scheme, and a host the URL syntax does not allow, such as an underscore or a non-numeric port.
+FIPS and dual-stack endpoints are rejected because this data source has never been tested against them. Naming one does reach it — AWS serves both — so this is a decision about what is supported rather than a technical limit. To use one, permit its host with the node setting described below.
 
 A node can permit additional hosts with the `esql.external.allowed_endpoint_hosts` node setting, a list of `host:port` patterns in `elasticsearch.yml` that defaults to empty. It is a static setting: it cannot be updated through the cluster settings API, and a change takes effect when the node restarts. This is how a deployment that needs one of the rejected families reaches it. Because the setting is applied per node, managing data sources does not grant it. A host it names is also accepted over plain `http`.
 

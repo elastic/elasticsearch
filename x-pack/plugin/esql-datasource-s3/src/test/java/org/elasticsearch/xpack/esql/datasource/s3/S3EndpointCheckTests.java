@@ -236,10 +236,10 @@ public class S3EndpointCheckTests extends ESTestCase {
     }
 
     /**
-     * Every AWS endpoint family outside the regional object endpoint and PrivateLink. Each of these is a real
-     * AWS host, under an AWS suffix, and each is refused: an operator who needs one names it in
-     * {@code esql.external.allowed_endpoint_hosts} rather than having it permitted for everybody.
-     *
+     * Every AWS endpoint family outside the three this class accepts — the regional object endpoint, the
+     * global one, and PrivateLink. Each of these is a real AWS host, under an AWS suffix, and each is
+     * refused: an operator who needs one names it in {@code esql.external.allowed_endpoint_hosts} rather
+     * than having it permitted for everybody.
      */
     public void testRefusesNonRegionalAwsFamilies() {
         assertAllRefused(

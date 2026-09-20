@@ -80,7 +80,7 @@ dependencies {
   runtimeOnly "software.amazon.awssdk:aws-query-protocol:${versions.awsv2sdk}"
   runtimeOnly "software.amazon.awssdk:checksums-spi:${versions.awsv2sdk}"
   runtimeOnly "software.amazon.awssdk:checksums:${versions.awsv2sdk}"
-  runtimeOnly "software.amazon.awssdk:endpoints-spi:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:endpoints-spi:${versions.awsv2sdk}"
   runtimeOnly "software.amazon.awssdk:http-auth:${versions.awsv2sdk}"
   runtimeOnly "software.amazon.awssdk:http-auth-aws:${versions.awsv2sdk}"
   runtimeOnly "software.amazon.awssdk:http-auth-spi:${versions.awsv2sdk}"

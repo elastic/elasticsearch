@@ -453,10 +453,11 @@ public final class ExternalSourceSettings {
     );
 
     /**
-     * Refuses an entry that names no port. Entries are matched against {@code host:port}, so one written as a
-     * bare hostname — the natural thing to copy from a URL — matches nothing, and the refusal the operator
-     * then sees talks about the endpoint rather than about the entry that failed to admit it. Since this
-     * setting is the only way past a security control, that silence is worth refusing at startup instead.
+     * Refuses an entry that names no port, and one that names no host. Entries are matched against
+     * {@code host:port}, so one written as a bare hostname — the natural thing to copy from a URL — matches
+     * nothing, and so does one written as a bare port. Either way the refusal the operator then sees talks
+     * about the endpoint rather than about the entry that failed to admit it. Since this setting is the only
+     * way past a security control, that silence is worth refusing at startup instead.
      */
     private static void validateEndpointHostEntry(String entry) {
         // A bracketed IPv6 literal carries colons of its own, so the port separator is the first one after
@@ -472,6 +473,18 @@ public final class ExternalSourceSettings {
                     + "] names no port. Entries are matched against host:port, so write for example ["
                     + entry
                     + ":443]; an entry without a port matches nothing."
+            );
+        }
+        if (portSeparator == 0) {
+            throw new IllegalArgumentException(
+                "["
+                    + ALLOWED_ENDPOINT_HOSTS_KEY
+                    + "] entry ["
+                    + entry
+                    + "] names no host. Entries are matched against host:port, so write for example "
+                    + "[minio.internal"
+                    + entry
+                    + "]; an entry without a host matches nothing."
             );
         }
     }

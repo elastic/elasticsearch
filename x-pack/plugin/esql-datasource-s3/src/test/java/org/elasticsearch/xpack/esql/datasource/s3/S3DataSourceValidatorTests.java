@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.endpoints.S3EndpointParams;
+import software.amazon.awssdk.services.s3.endpoints.S3EndpointProvider;
+
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.datasources.DecompressionCodecRegistry;
@@ -20,6 +24,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 
 import java.io.InputStream;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -1314,8 +1319,18 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasetAcceptsBucketNamesThatMerelyResembleDirectoryBuckets() {
-        // The SDK keys off the exact suffixes: these resolve to the ordinary regional host, so refusing
-        // them would take away a legitimate bucket name. --op-s3 is the Outposts access-point alias.
+        // These resolve to the ordinary regional host, so refusing them would take away a legitimate
+        // bucket name. The --op-s3 one is below the length at which the ruleset reads an outpost id out
+        // of the name, which testValidateDatasetRefusesBucketNameThatRoutesToOutposts covers; each name
+        // here is asserted to reach the plain regional host rather than assumed to.
+        for (String bucket : List.of(
+            "mybucket--use1-az4--x-s3-suffix",
+            "mybucket--use1-az4--xa-s3-suffix",
+            "mybucket--use1-az4--op-s3",
+            "my-x-s3"
+        )) {
+            assertEquals(bucket, "s3.us-east-1.amazonaws.com", resolvedHostOf(bucket));
+        }
         validator.validateDataset(Map.of(), "s3://mybucket--use1-az4--x-s3-suffix/data/f.parquet", Map.of());
         validator.validateDataset(Map.of(), "s3://mybucket--use1-az4--xa-s3-suffix/data/f.parquet", Map.of());
         validator.validateDataset(Map.of(), "s3://mybucket--use1-az4--op-s3/data/f.parquet", Map.of());
@@ -1434,7 +1449,68 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasetOutpostsAlias() {
+        // Short enough that the ruleset never reads an outpost id out of it, so it is an ordinary
+        // bucket name and stays accepted. Asserted, because the boundary is what the next test is about.
+        assertEquals("s3.us-east-1.amazonaws.com", resolvedHostOf("my-access-po-o01ac--op-s3"));
         assertNotNull(validator.validateDataset(Map.of(), "s3://my-access-po-o01ac--op-s3/data/f.parquet", Map.of()));
+    }
+
+    /**
+     * A bucket name long enough to carry an outpost id moves the request to an {@code s3-outposts} host,
+     * which is a family the endpoint rule refuses by name — and no {@code endpoint} setting suppresses
+     * it, unlike an S3 Express name. The fixture is proved to reach that family by resolving it here,
+     * rather than by looking like an Outposts alias: the ruleset is positional, so a shorter name of the
+     * same shape resolves to the ordinary regional host and would make this test vacuous.
+     */
+    public void testValidateDatasetRefusesBucketNameThatRoutesToOutposts() {
+        String bucket = "oop-01234567890123aaaaaaaaaaaaaaaaaaaaaaaaa--op-s3";
+        assertThat(resolvedHostOf(bucket), containsString(".s3-outposts.us-east-1.amazonaws.com"));
+
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://" + bucket + "/data/f.parquet", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("which is not a supported AWS S3 endpoint"));
+        assertThat(e.getMessage(), containsString("s3-outposts"));
+        assertThat(e.getMessage(), not(containsString("looks like an S3 Express directory bucket")));
+    }
+
+    /**
+     * One character longer again and the ruleset throws instead of resolving, because the outpost id it
+     * reads out of the name is malformed. Such a name reaches no endpoint at all, so it is refused too,
+     * with a message that says so rather than naming a host.
+     */
+    public void testValidateDatasetRefusesBucketNameTheSdkCannotRoute() {
+        String bucket = "oop-01234567890123aaaaaaaaaaaaaaaaaaaaaaaaaaa--op-s3";
+        expectThrows(RuntimeException.class, () -> resolvedHostOf(bucket));
+
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://" + bucket + "/data/f.parquet", Map.of())
+        );
+        assertThat(e.getMessage(), containsString("cannot route to any endpoint"));
+    }
+
+    /**
+     * The host the pinned SDK builds for a bucket name on its own, path-style so that an ordinary bucket
+     * leaves the host bare. This is the same question {@code S3ResourceCheck} asks; asking it here is
+     * what stops a fixture drifting into a different branch than the test it is named for.
+     */
+    private static String resolvedHostOf(String bucket) {
+        URI url = S3EndpointProvider.defaultProvider()
+            .resolveEndpoint(
+                S3EndpointParams.builder()
+                    .bucket(bucket)
+                    .region(Region.US_EAST_1)
+                    .useFips(false)
+                    .useDualStack(false)
+                    .accelerate(false)
+                    .forcePathStyle(true)
+                    .build()
+            )
+            .join()
+            .url();
+        return url.getHost();
     }
 
     public void testValidateDatasetDottedBucketName() {

@@ -59,9 +59,9 @@ final class S3EndpointCheck {
      * {@link #S3_ENDPOINT_HOSTS}. Uncommenting a line is the first step in readmitting a family, not the
      * whole of it, for every entry: the single enabled element carries no trailing comma, so nothing below it
      * compiles until that is fixed. Three need more than that. {@code s3express} carries an availability-zone
-     * token rather than a fixed label, so there is no label to enable; {@code s3-external-1} and transfer
-     * acceleration are region-less in the SDK's own metadata, and this crossing only builds a host with a
-     * region in it.
+     * token rather than a fixed label, so there is no label to enable; {@code s3-external-1} and the transfer
+     * acceleration forms are not spelled {@code <label>.<region>.<suffix>} in the SDK's own metadata, which
+     * is the only shape this crossing builds.
      *
      * <p>The historical {@code s3-<region>} spelling is absent because it is not a label of its own — it
      * carries the region inside the service label, and is generated separately. Dual-stack is absent because
@@ -86,6 +86,7 @@ final class S3EndpointCheck {
      // "s3-control-fips",
      // "s3-external-1",            // the legacy us-east-1 alias
      // "s3express-<az>",           // S3 Express, whose buckets S3ResourceCheck refuses by name too
+     // "s3express-fips-<az>",      // the same over FIPS 140-validated cryptography
     );
     // end::
 
@@ -147,12 +148,19 @@ final class S3EndpointCheck {
         // The global endpoints, which name no region — the class javadoc has why they do not relax the
         // region requirement. Only the bare service label has a global form; an enabled family does not
         // acquire one.
+        // This lookup answers for the commercial partition whichever global pseudo-region it is given:
+        // every one the pinned SDK carries, aws-cn-global and aws-us-gov-global included, reports partition
+        // aws and suffix amazonaws.com. So the value is right and the call is not partition-aware, which
+        // matters the moment another partition's global form is admitted.
         String globalSuffix = PartitionMetadata.of(Region.AWS_GLOBAL).dnsSuffix();
-        if (Strings.hasText(globalSuffix)) {
-            globalSuffix = globalSuffix.toLowerCase(Locale.ROOT);
-            s3Hosts.add(S3_SERVICE + "." + globalSuffix);
-            stsHosts.add(STS_SERVICE + "." + globalSuffix);
+        if (Strings.hasText(globalSuffix) == false) {
+            // Unreachable at the pinned SDK. Dropping the two global literals in silence would refuse a
+            // value the docs list as accepted, which is the same class of outage as the empty check below.
+            throw new IllegalStateException("no global AWS partition suffix available");
         }
+        globalSuffix = globalSuffix.toLowerCase(Locale.ROOT);
+        s3Hosts.add(S3_SERVICE + "." + globalSuffix);
+        stsHosts.add(STS_SERVICE + "." + globalSuffix);
         if (s3Hosts.isEmpty() || stsHosts.isEmpty()) {
             // Both come from SDK metadata. Empty would silently refuse every endpoint value on the node,
             // which reads as a product outage rather than as a missing dependency. This class is first
@@ -232,6 +240,10 @@ final class S3EndpointCheck {
     /**
      * The {@code host:port} the allowlist is matched against, with the scheme's default port supplied when the
      * value carries none, so an entry never has to guess which spelling the user wrote.
+     *
+     * <p>Only the operator allowlist is matched on this. The AWS host rule above matches on the host alone,
+     * so {@code https://s3.us-east-1.amazonaws.com:8443} is accepted: the destination is still an AWS S3
+     * host, and nothing is widened by the port.
      */
     private static String hostAndPort(URI uri) {
         int port = uri.getPort();

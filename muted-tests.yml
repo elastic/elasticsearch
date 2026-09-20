@@ -222,6 +222,9 @@ tests:
 - class: org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignatureManagerTests
   method: testSignAndVerifyDifferentPayloadFailsPKCS12orBCFKS
   issue: https://github.com/elastic/elasticsearch/issues/159806
+- class: org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignatureManagerTests
+  method: testSignAndVerifyPKCS12orBCFKS
+  issue: https://github.com/elastic/elasticsearch/issues/159807
 
 # Examples:
 #

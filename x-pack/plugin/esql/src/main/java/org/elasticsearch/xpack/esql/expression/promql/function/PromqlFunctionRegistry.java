@@ -260,7 +260,8 @@ public class PromqlFunctionRegistry {
 
     /**
      * Builds the ES|QL expression for scalar, aggregate, and value-transformation functions.
-     * Reductions lowered to plan nodes ({@code limit_ratio}) and functions translated directly must go through
+     * Functions translated directly by the translator ({@code limit_ratio} lowers to a sampling
+     * filter, metadata functions to dedicated nodes) must go through
      * {@code PromqlFunctionCall#buildEsqlFunction} or the translator instead; calling this method for them trips
      * the assertion below, since which builder a function uses is fixed statically and never depends on user input.
      */

@@ -1,16 +1,15 @@
 // Tests for the PromQL limit_ratio() function.
 //
 // limit_ratio(r, v) keeps each series iff its sampling offset is below r, like Prometheus.
-// The offset is derived from a hash of the sampling key -- the groupings without the step
-// bucket (the _timeseries blob at series grain, the concrete group columns over aggregated
-// inputs). The absolute value of r selects the share; a negative r inverts the selection,
-// keeping offsets at or above 1 + r. Out-of-range ratios need no clamping (r > 1 and r < -1
-// keep everything), r=0 keeps nothing, and NaN is rejected.
+// The offset is derived from a stable hash of the sampling key (the _timeseries blob at
+// series grain, the concrete group columns over aggregated inputs). The absolute value of r
+// selects the share; a negative r inverts the selection, keeping offsets at or above 1 + r.
+// Out-of-range ratios need no clamping (r > 1 and r < -1 keep everything), r=0 keeps nothing,
+// and NaN is rejected.
 //
-// Only seed-independent outcomes are pinned here: the kept subset for fractional ratios is
-// stable within a process lifetime but varies across node restarts (unlike Prometheus, where
-// it is stable), so fractional cases are covered at unit level where the hash seed is fixed.
-// See the function docs for the recorded divergence.
+// The sampling offsets are stable across node restarts, so fractional subsets are pinned here
+// like any other deterministic outcome (only the subset itself differs from Prometheus, which
+// hashes the label serialization instead of the series identity).
 //
 // The k8s prod cluster has three pods: pod=one (947), pod=two (10277), pod=three (9969).
 
@@ -71,4 +70,17 @@ result:double | step:datetime            | _timeseries:keyword
 9969.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
 10277.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
 10797.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+;
+
+// r=0.5 over the prod cluster: the stably-hashed subset below. Offsets are stable across
+// restarts, so the kept series are pinned like Prometheus pins its own (different) subset.
+limit_ratio_r_half_stable_subset
+required_capability: promql_command_v0
+required_capability: promql_limit_ratio
+required_capability: fix_promql_time_bucket_v2
+PROMQL index=k8s step=1h result=(limit_ratio(0.5, network.total_bytes_in{cluster="prod"}))
+| SORT result;
+
+result:double | step:datetime            | _timeseries:keyword
+10277.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
 ;

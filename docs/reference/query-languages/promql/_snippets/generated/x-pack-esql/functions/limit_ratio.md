@@ -27,4 +27,4 @@ limit_ratio(0.5, http_requests_total)
 
 **Differences from Prometheus**
 
-Series are kept by hashing our internal field key rather than the Prometheus label serialization, so the kept subset has the same statistical properties but is generally a different subset than the one Prometheus keeps. The subset is stable within a process lifetime but varies across node restarts, unlike Prometheus where it is stable. `by` is a membership no-op as in Prometheus. A `without` grouping clause is not yet supported.
+Series are kept by hashing the series identity rather than the Prometheus label serialization, so the kept subset has the same statistical properties but is generally a different subset than the one Prometheus keeps. `by` is a membership no-op as in Prometheus. A `without` grouping clause is not yet supported.

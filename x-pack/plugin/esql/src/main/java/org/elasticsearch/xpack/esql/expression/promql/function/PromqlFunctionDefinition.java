@@ -675,9 +675,10 @@ public final class PromqlFunctionDefinition {
         /**
          * Across-series reduction that retains an approximate ratio of elements via hash sampling.
          * Like the metadata-manipulation functions this is not lowered through the generic {@link FunctionBuilder}:
-         * the translator builds the {@link org.elasticsearch.xpack.esql.plan.logical.LimitRatioBy} node directly
-         * (see {@code TranslatePromqlToEsqlPlan}), since it needs the collapsed child plan and its groupings,
-         * which the {@link PromqlFunctionRegistry.PromqlContext} does not carry.
+         * the translator emits a {@link org.elasticsearch.xpack.esql.plan.logical.Filter} over the internal
+         * {@link org.elasticsearch.xpack.esql.expression.promql.function.HashOffset} sampling offset directly
+         * (see {@code TranslatePromqlToEsqlPlan}), since it needs the collapsed child plan and its grouping
+         * columns, which the {@link PromqlFunctionRegistry.PromqlContext} does not carry.
          */
         public PromqlFunctionDefinition.Builder acrossSeriesBinaryRatioReduce(PromqlParamInfo ratioParam) {
             this.functionType = FunctionType.ACROSS_SERIES_REDUCTION;

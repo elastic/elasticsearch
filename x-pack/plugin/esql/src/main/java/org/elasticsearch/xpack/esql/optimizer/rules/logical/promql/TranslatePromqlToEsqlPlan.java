@@ -56,8 +56,10 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.expression.promql.function.HashOffset;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunctionDefinitions;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry.PromqlContext;
 import org.elasticsearch.xpack.esql.expression.promql.function.RegexExpand;
@@ -71,7 +73,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.logical.LimitRatioBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
@@ -444,24 +445,33 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             }
 
             // Ranking happens per series, so the child stays at series grain whatever the enclosing translation regroups
-            // by; the partition labels must be exposed to rank within them.
+            // by; the partition labels must be exposed to rank within them. limit_ratio is membership-neutral:
+            // its sampling key is solely the input vector's identity, so outer partitions are neither required
+            // from the child nor materialized below.
             List<String> partitions = mapFinite(plan.groupings());
-            Header childRequired = required.union(open()).union(finite(partitions));
+            boolean isLimitRatio = plan.definition() == PromqlBuiltinFunctionDefinitions.LIMIT_RATIO;
+            Header childRequired = isLimitRatio ? required.union(open()) : required.union(open()).union(finite(partitions));
             IntermediateResult childResult = new Translation(cmd, analyzer, stepBucketAlias, childRequired, time).doTranslateNode(
                 plan.child()
             );
             if (childResult.kind().constant) {
+                if (isLimitRatio) {
+                    // A constant vector's empty label set is a valid identity: sample it directly with an
+                    // empty key set, without introducing an aggregation.
+                    LogicalPlan sampled = emitLimitRatioFilter(plan, childResult);
+                    return childResult.with(sampled, childResult.header(), childResult.value());
+                }
                 return childResult;
             }
 
-            var header = childResult.header().union(finite(partitions));
+            var header = isLimitRatio ? childResult.header() : childResult.header().union(finite(partitions));
 
             var promqlCtx = new PromqlContext(time, AggregateFunction.NO_WINDOW, childResult.step(), configuration());
             IntermediateResult aggregated = childResult.kind().afterInitialAggregation
                 ? regroup(childResult, header, false, childResult.value())
                 : collapse(childResult, header, childResult.value());
             LogicalPlan result = plan.definition() == PromqlBuiltinFunctionDefinitions.LIMIT_RATIO
-                ? emitLimitRatioBy(plan, aggregated, partitions)
+                ? emitLimitRatioFilter(plan, aggregated)
                 : emitTopNBy(plan, aggregated, partitions, promqlCtx);
             return aggregated.with(result, aggregated.header(), aggregated.value());
         }
@@ -485,21 +495,24 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         }
 
         /**
-         * Keeps an approximate {@code ratio} of the already-collapsed per-series rows within each step and partition.
-         * Unlike the order-statistic reductions this is not a {@link TopNBy}: the kept subset is selected by hashing
-         * the field key in {@link LimitRatioBy}, so no sort order is built.
+         * Keeps an approximate {@code ratio} of the already-collapsed per-series rows with a plain
+         * {@link Filter} over the internal {@link HashOffset} sampling offset, so no sort order is
+         * built and no dedicated plan node or execution operator is needed. The sampling key is
+         * membership-neutral: solely the input identity (the {@code _timeseries} blob at series
+         * grain, else the surviving grouping labels or packed label sets). Outer {@code by}
+         * partition labels are neither hashed nor materialized as null columns. The filter sits
+         * above the aggregation producing its keys, which the optimizer cannot push past.
          */
-        private LogicalPlan emitLimitRatioBy(AcrossSeriesReduction reduction, IntermediateResult table, List<String> partitions) {
-            ReductionGrouping grouping = reductionGrouping(reduction, table, partitions);
-            // The sampling key is the groupings without the step bucket: the concrete grouping columns
-            // from below. At series grain that is the _timeseries blob; over an aggregated input the rows
-            // are groups, so their own grain labels are the key (for example pod groups for limit_ratio
-            // over sum by, even when the outer reduction is bare). With no key columns every row shares
-            // one identity, so a single-series result is kept or dropped deterministically.
-            List<Expression> key = new ArrayList<>(grouping.groupings());
-            Attribute series = grouping.plan().output().stream().filter(MetadataAttribute::isTimeSeriesAttribute).findFirst().orElse(null);
+        private LogicalPlan emitLimitRatioFilter(AcrossSeriesReduction reduction, IntermediateResult table) {
+            // The sampling key is the input identity from below. At series grain that is the
+            // _timeseries blob; over an aggregated input the rows are groups, so their own grain
+            // labels are the key (for example pod and cluster groups for limit_ratio over sum by).
+            // With no key columns every row shares one identity, so a single-series result is kept
+            // or dropped deterministically.
+            List<Expression> keys = new ArrayList<>();
+            Attribute series = table.plan().output().stream().filter(MetadataAttribute::isTimeSeriesAttribute).findFirst().orElse(null);
             if (series != null) {
-                addIfMissing(key, series);
+                addIfMissing(keys, series);
             } else {
                 // No series blob: the rows are groups. Their identity is the concrete grouping
                 // underneath -- packed label sets when the header packs labels away (for example
@@ -508,17 +521,37 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 for (Set<String> skip : finestFirst(table.header().skips())) {
                     Attribute packing = table.packed(skip);
                     if (packing != null) {
-                        addIfMissing(key, packing);
+                        addIfMissing(keys, packing);
                     }
                 }
                 for (String label : table.header().labels()) {
                     Attribute carrier = table.label(label);
                     // Guaranteed by emitRegroup, which resolves every header label (null-filling missing ones).
                     assert carrier != null : "invariant: grouping label [" + label + "] must be carried by the input";
-                    addIfMissing(key, carrier);
+                    addIfMissing(keys, carrier);
                 }
             }
-            return new LimitRatioBy(reduction.source(), grouping.plan(), reduction.parameters().getFirst(), key);
+            // Validated at analysis (ResolvePromqlFunctions): a foldable numeric non-NaN literal.
+            double ratio = ((Number) reduction.parameters().getFirst().fold(FoldContext.small())).doubleValue();
+            Source source = reduction.source();
+            if (Double.isNaN(ratio) || ratio == 0.0) {
+                // No offset falls below zero (and NaN comparisons are always false): keep nothing.
+                return new Filter(source, table.plan(), Literal.FALSE);
+            }
+            if (ratio >= 1.0 || ratio <= -1.0) {
+                // Every offset falls below ratios at or above one, and at or above the non-positive
+                // complement threshold of ratios at or below minus one: keep everything.
+                return table.plan();
+            }
+            Expression offset = new HashOffset(source, keys);
+            if (ratio > 0) {
+                return new Filter(source, table.plan(), new LessThan(source, offset, new Literal(source, ratio, DataType.DOUBLE)));
+            }
+            return new Filter(
+                source,
+                table.plan(),
+                new GreaterThanOrEqual(source, offset, new Literal(source, 1.0 + ratio, DataType.DOUBLE))
+            );
         }
 
         private static void addIfMissing(List<Expression> key, Attribute carrier) {

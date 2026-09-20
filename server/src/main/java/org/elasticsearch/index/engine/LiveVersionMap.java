@@ -341,7 +341,14 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     }
 
     boolean isUnsafe() {
-        return maps.current.isUnsafe() || maps.old.isUnsafe() || archive.isUnsafe();
+        return isMapsUnsafe() || archive.isUnsafe();
+    }
+
+    /**
+     * Returns whether the current or the old map has seen indexing operations that were not recorded in it.
+     */
+    boolean isMapsUnsafe() {
+        return maps.current.isUnsafe() || maps.old.isUnsafe();
     }
 
     void enforceSafeAccess() {

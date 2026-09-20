@@ -253,6 +253,8 @@ public class InternalEngine extends Engine {
     protected static final String REAL_TIME_GET_REFRESH_SOURCE = "realtime_get";
     protected static final String REAL_TIME_GET_FOR_UPDATE_REFRESH_SOURCE = "realtime_get_for_update";
     protected static final String UNSAFE_VERSION_MAP_REFRESH_SOURCE = "unsafe_version_map";
+    // Refresh source when current and old maps are safe but the archive contains unrecorded commits.
+    protected static final String UNSAFE_VERSION_MAP_ARCHIVE_REFRESH_SOURCE = "unsafe_version_map_archive";
 
     @SuppressWarnings("this-escape")
     public InternalEngine(EngineConfig engineConfig) {
@@ -1162,7 +1164,12 @@ public class InternalEngine extends Engine {
                 // but we only need to do this once since the last operation per ID is to add to the version
                 // map so once we pass this point we can safely lookup from the version map.
                 if (versionMap.isUnsafe()) {
-                    refreshInternalSearcher(UNSAFE_VERSION_MAP_REFRESH_SOURCE, true);
+                    // is current or old unsafe. If yes, use the `UNSAFE_VERSION_MAP_REFRESH_SOURCE` which will force a commit
+                    // if only archive is unsafe, commit is forced only if isNewCommitRequiredForUnsafeArchive returns true
+                    final String source = versionMap.isMapsUnsafe()
+                        ? UNSAFE_VERSION_MAP_REFRESH_SOURCE
+                        : UNSAFE_VERSION_MAP_ARCHIVE_REFRESH_SOURCE;
+                    refreshInternalSearcher(source, true);
                     // After the refresh, the doc that triggered it must now be part of the last commit.
                     // In rare cases, there could be other flush cycles completed in between the above line
                     // and the line below which push the last commit generation further. But that's OK.

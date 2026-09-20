@@ -103,6 +103,10 @@ public class LiveVersionMapTestUtils {
         return map.isUnsafe();
     }
 
+    public static boolean isMapsUnsafe(LiveVersionMap map) {
+        return map.isMapsUnsafe();
+    }
+
     public static boolean isSafeAccessRequired(LiveVersionMap map) {
         return map.isSafeAccessRequired();
     }

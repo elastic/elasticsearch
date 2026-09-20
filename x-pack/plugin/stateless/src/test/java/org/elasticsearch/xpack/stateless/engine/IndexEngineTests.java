@@ -32,6 +32,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.IndexOperationBatch;
+import org.elasticsearch.index.engine.LiveVersionMapTestUtils;
 import org.elasticsearch.index.engine.MergeMemoryEstimator;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
@@ -76,6 +77,7 @@ import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.stream.LongStream;
 
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
@@ -232,6 +234,126 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         assertTrue(engine.refreshNeeded());
         refreshResult = engine.refreshInternalSearcher(randomFrom("realtime_get", "unsafe_version_map"), true);
         verify(statelessCommitService, never()).addListenerForUploadedGeneration(any(), anyLong(), anyActionListener());
+    }
+
+    public void testRealTimeGetOnUnsafeArchiveDoesNotCommitPerGet() throws IOException {
+        Settings nodeSettings = Settings.builder().put(StatelessPlugin.STATELESS_ENABLED.getKey(), true).build();
+        try (
+            var engine = newIndexEngine(
+                indexConfig(
+                    Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build(),
+                    nodeSettings,
+                    () -> 1L,
+                    NoMergePolicy.INSTANCE
+                )
+            )
+        ) {
+            final var versionMap = engine.getLiveVersionMap();
+            final var archive = (StatelessLiveVersionMapArchive) LiveVersionMapTestUtils.getArchive(versionMap);
+            final long initialGeneration = engine.getLastCommittedSegmentInfos().getGeneration();
+
+            engine.index(appendOnlyDoc("1"));
+            engine.index(appendOnlyDoc("2"));
+            engine.index(appendOnlyDoc("3"));
+            engine.index(appendOnlyDoc("4"));
+
+            // For append only docs versionMap starts as unsafe and archive is safe since nothing has been archived yet.
+            assertTrue(LiveVersionMapTestUtils.isUnsafe(versionMap));
+            assertFalse(archive.isUnsafe());
+
+            // A GET will now force a commit
+            assertNull(getFromTranslog(engine, "1"));
+            final long firstGeneration = engine.getLastCommittedSegmentInfos().getGeneration();
+            assertThat(firstGeneration, greaterThan(initialGeneration));
+            assertThat(engine.getLastUnsafeSegmentGenerationForGets(), equalTo(firstGeneration));
+
+            // The first get switches the map to safe access
+            assertFalse(LiveVersionMapTestUtils.isMapsUnsafe(versionMap));
+
+            // unsafe version map will be moved to archive
+            assertTrue(archive.isUnsafe());
+            assertThat(archive.getMinSafeGeneration(), equalTo(firstGeneration + 1));
+
+            // The next get creates the next commit
+            assertNull(getFromTranslog(engine, "2"));
+            final long safeGeneration = engine.getLastCommittedSegmentInfos().getGeneration();
+            assertThat(safeGeneration, equalTo(archive.getMinSafeGeneration()));
+            assertThat(engine.getLastUnsafeSegmentGenerationForGets(), equalTo(safeGeneration));
+
+            // Archive continues to be unsafe
+            assertTrue(archive.isUnsafe());
+
+            // Further gets do not create new commits while waiting for commitSuccess
+            for (int i = 0; i < 5; i++) {
+                assertNull(getFromTranslog(engine, "" + i));
+                assertThat(engine.getLastCommittedSegmentInfos().getGeneration(), equalTo(safeGeneration));
+                assertThat(engine.getLastUnsafeSegmentGenerationForGets(), equalTo(safeGeneration));
+                assertTrue(archive.isUnsafe());
+            }
+
+            // Acknowledging the commit makes the archive safe
+            engine.commitSuccess(safeGeneration);
+            assertFalse(archive.isUnsafe());
+            assertFalse(LiveVersionMapTestUtils.isUnsafe(versionMap));
+
+            // Documents indexed while in safe access mode are recorded and found.
+            engine.index(appendOnlyDoc("recorded-1"));
+
+            // First getFromTranslog will start tracking and force a commit. Subsequent ones will not.
+            try (var result = getFromTranslog(engine, "recorded-1")) {
+                assertNotNull(result);
+                assertTrue(result.exists());
+            }
+            final long trackingGeneration = engine.getLastCommittedSegmentInfos().getGeneration();
+            assertThat(trackingGeneration, greaterThan(safeGeneration));
+            engine.index(appendOnlyDoc("recorded-2"));
+            try (var result = getFromTranslog(engine, "recorded-2")) {
+                assertNotNull(result);
+                assertTrue(result.exists());
+            }
+            assertThat(engine.getLastCommittedSegmentInfos().getGeneration(), equalTo(trackingGeneration));
+
+            // Safe access mode lapses once a refreshed map has seen operations without any lookup enforcing it again.
+            // refresh forces a new version map which will be safe but not recording.
+            engine.refresh("test");
+
+            // Make the map unsafe by adding an appendOnlyDoc
+            engine.index(appendOnlyDoc("unsafe"));
+            assertTrue(LiveVersionMapTestUtils.isMapsUnsafe(versionMap));
+
+            // Archive is safe because the older map was safe.
+            assertFalse(archive.isUnsafe());
+
+            // archive's min safe generation was set intially to firstGeneration + 1 and stayed there since.
+            assertThat(archive.getMinSafeGeneration(), lessThanOrEqualTo(trackingGeneration));
+
+            assertNull(getFromTranslog(engine, "unsafe"));
+            // A new commit must now be created
+            assertThat(engine.getLastCommittedSegmentInfos().getGeneration(), greaterThan(trackingGeneration));
+
+        }
+    }
+
+    private static Engine.Index appendOnlyDoc(String id) throws IOException {
+        final Engine.Index doc = randomDoc(id);
+        return new Engine.Index(
+            doc.uid(),
+            doc.parsedDoc(),
+            UNASSIGNED_SEQ_NO,
+            doc.primaryTerm(),
+            Versions.MATCH_ANY,
+            VersionType.INTERNAL,
+            PRIMARY,
+            System.nanoTime(),
+            System.currentTimeMillis(), // set autogenerated timestamp explicitly
+            false,
+            UNASSIGNED_SEQ_NO,
+            0
+        );
+    }
+
+    private static Engine.GetResult getFromTranslog(IndexEngine engine, String id) {
+        return engine.getFromTranslog(new Engine.Get(true, true, id), MappingLookup.EMPTY, null, Function.identity());
     }
 
     public void testFlushesWaitForUpload() throws IOException {

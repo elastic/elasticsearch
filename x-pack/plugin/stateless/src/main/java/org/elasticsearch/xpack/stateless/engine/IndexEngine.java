@@ -695,9 +695,17 @@ public class IndexEngine extends InternalEngine {
         flushHollow(ActionListener.noop());
     }
 
+    /**
+     * Flush when:
+     * 1. TranslogLocation is not being tracked.
+     * 2. Current or Old version maps are unsafe.
+     * 3. Only archive is unsafe AND the min safe generation is behind the current committed segment
+     */
     @Override
     protected RefreshResult refreshInternalSearcher(String source, boolean block) throws EngineException {
-        if (source.equals(REAL_TIME_GET_REFRESH_SOURCE) || source.equals(UNSAFE_VERSION_MAP_REFRESH_SOURCE)) {
+        if (source.equals(REAL_TIME_GET_REFRESH_SOURCE)
+            || source.equals(UNSAFE_VERSION_MAP_REFRESH_SOURCE)
+            || (source.equals(UNSAFE_VERSION_MAP_ARCHIVE_REFRESH_SOURCE) && isNewCommitRequiredForUnsafeArchive())) {
             try {
                 IS_FLUSH_BY_REFRESH.set(true);
                 // TODO: Eventually the Refresh API will also need to transition (maybe) to an async API here.
@@ -708,6 +716,17 @@ public class IndexEngine extends InternalEngine {
         }
         // TODO: could we avoid this refresh if we have flushed above?
         return super.refreshInternalSearcher(source, block);
+    }
+
+    /**
+     * Decides whether a real-time get that finds the {@link StatelessLiveVersionMapArchive} unsafe needs to create a new commit.
+     * @return {@code true} if no commit is known to contain the unrecorded operations held by the archive or minSafeGeneration is -1
+     */
+    private boolean isNewCommitRequiredForUnsafeArchive() {
+        // The archive is considered unsafe until the search shards acknowledge a commit that is guaranteed to contain operations
+        // that were never recorded in the LiveVersionMap.
+        final long minSafeGeneration = ((StatelessLiveVersionMapArchive) getLiveVersionMapArchive()).getMinSafeGeneration();
+        return minSafeGeneration <= 0 || getLastCommittedSegmentInfos().getGeneration() < minSafeGeneration;
     }
 
     // visible for testing

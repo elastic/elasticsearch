@@ -1,0 +1,206 @@
+// esql-planning#1344: the multivalue comparison functions push to the Parquet reader and the file
+// matcher. Results must not change, so every shape here is written twice — once with the scalar
+// comparison, once with the multivalue form that is equivalent over a single-valued column — and the
+// two share an expected block. A pushdown that dropped or invented a row fails one of the pair.
+//
+// Compound and mixed shapes are the point: AND and OR of multivalue leaves, a negation over one, a
+// multivalue leaf beside a scalar one, and a multivalue leaf beside a predicate that cannot push at
+// all. An OR of mv_in_range leaves is what a date `terms` filter and a `multi_match` translate into.
+//
+// employees has both single-valued columns (emp_no, salary) and genuinely multivalued ones
+// (job_positions), so the last pair covers the case the statistics path must decline.
+
+mvInRangeAndScalarConjunct
+required_capability: external_command
+required_capability: fn_mv_in_range
+dataset: mv_employees: "{{employees}}"
+
+FROM mv_employees
+| WHERE mv_in_range(emp_no, 10001, 10005) AND salary > 57000
+| KEEP emp_no, salary
+| SORT emp_no ASC;
+
+emp_no:integer | salary:integer
+10001          | 57305
+10003          | 61805
+10005          | 63528
+;
+
+scalarRangeAndScalarConjunct
+required_capability: external_command
+dataset: mv_employees: "{{employees}}"
+
+FROM mv_employees
+| WHERE emp_no >= 10001 AND emp_no <= 10005 AND salary > 57000
+| KEEP emp_no, salary
+| SORT emp_no ASC;
+
+emp_no:integer | salary:integer
+10001          | 57305
+10003          | 61805
+10005          | 63528
+;
+
+mvInRangeDisjunction
+required_capability: external_command
+required_capability: fn_mv_in_range
+dataset: mv_employees: "{{employees}}"
+
+FROM mv_employees
+| WHERE mv_in_range(emp_no, 10001, 10002) OR mv_in_range(emp_no, 10099, 10100)
+| KEEP emp_no
+| SORT emp_no ASC;
+
+emp_no:integer
+10001
+10002
+10099
+10100
+;
+
+scalarRangeDisjunction
+required_capability: external_command
+dataset: mv_employees: "{{employees}}"
+
+FROM mv_employees
+| WHERE (emp_no >= 10001 AND emp_no <= 10002) OR (emp_no >= 10099 AND emp_no <= 10100)
+| KEEP emp_no
+| SORT emp_no ASC;
+
+emp_no:integer
+10001
+10002
+10099
+10100
+;
+
+notOverMvContains
+required_capability: external_command
+required_capability: fn_mv_contains_v1
+dataset: mv_employees: "{{employees}}"
+
+FROM mv_employees
+| WHERE emp_no <= 10005 AND NOT mv_contains(emp_no, 10003)
+| KEEP emp_no
+| SORT emp_no ASC;
+
+emp_no:integer
+10001
+10002
+10004
+10005
+;
+
+notOverScalarEquality
+required_capability: external_command
+dataset: mv_employees: "{{employees}}"
+
+FROM mv_employees
+| WHERE emp_no <= 10005 AND NOT (emp_no == 10003)
+| KEEP emp_no
+| SORT emp_no ASC;
+
+emp_no:integer
+10001
+10002
+10004
+10005
+;
+
+mvNestedConjunctionInsideDisjunction
+required_capability: external_command
+required_capability: fn_mv_in_range
+required_capability: fn_mv_contains_v1
+dataset: mv_employees: "{{employees}}"
+
+FROM mv_employees
+| WHERE (mv_in_range(emp_no, 10001, 10003) AND salary > 57000) OR mv_contains(emp_no, 10100)
+| KEEP emp_no
+| SORT emp_no ASC;
+
+emp_no:integer
+10001
+10003
+10100
+;
+
+scalarNestedConjunctionInsideDisjunction
+required_capability: external_command
+dataset: mv_employees: "{{employees}}"
+
+FROM mv_employees
+| WHERE (emp_no >= 10001 AND emp_no <= 10003 AND salary > 57000) OR emp_no == 10100
+| KEEP emp_no
+| SORT emp_no ASC;
+
+emp_no:integer
+10001
+10003
+10100
+;
+
+mvIntersectsBesideAnUnpushablePredicate
+required_capability: external_command
+required_capability: fn_mv_intersects
+dataset: mv_employees: "{{employees}}"
+
+FROM mv_employees
+| WHERE mv_intersects(emp_no, [10001, 10100]) AND last_name LIKE "F*"
+| KEEP emp_no, last_name;
+
+emp_no:integer | last_name:keyword
+10001          | Facello
+;
+
+inBesideAnUnpushablePredicate
+required_capability: external_command
+dataset: mv_employees: "{{employees}}"
+
+FROM mv_employees
+| WHERE emp_no IN (10001, 10100) AND last_name LIKE "F*"
+| KEEP emp_no, last_name;
+
+emp_no:integer | last_name:keyword
+10001          | Facello
+;
+
+mvGreaterAndMvLessAreStrict
+required_capability: external_command
+required_capability: fn_mv_greater
+dataset: mv_employees: "{{employees}}"
+
+FROM mv_employees
+| WHERE mv_greater(emp_no, 10098) AND mv_less(emp_no, 10100)
+| KEEP emp_no;
+
+emp_no:integer
+10099
+;
+
+scalarStrictBounds
+required_capability: external_command
+dataset: mv_employees: "{{employees}}"
+
+FROM mv_employees
+| WHERE emp_no > 10098 AND emp_no < 10100
+| KEEP emp_no;
+
+emp_no:integer
+10099
+;
+
+mvContainsOverAGenuinelyMultivaluedColumn
+required_capability: external_command
+required_capability: fn_mv_contains_v1
+dataset: mv_employees: "{{employees}}"
+
+FROM mv_employees
+| WHERE mv_contains(job_positions, "Accountant") AND emp_no <= 10020
+| KEEP emp_no
+| SORT emp_no ASC;
+
+emp_no:integer
+10001
+10012
+10016
+;

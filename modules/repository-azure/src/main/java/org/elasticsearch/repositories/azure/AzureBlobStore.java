@@ -1027,7 +1027,7 @@ public class AzureBlobStore implements BlobStore {
      * @param byteBufferSize    the size of the ByteBuffers to be created
      */
     // package-private for testing
-    private static Flux<ByteBuffer> toFlux(Supplier<InputStream> openStream, long length, final int byteBufferSize) {
+    static Flux<ByteBuffer> toFlux(Supplier<InputStream> openStream, long length, final int byteBufferSize) {
         // Flux.using creates the stream per subscriber so retries resubscribe with a new InputStream.
         // subscribeOn a different scheduler to avoid blocking the network io threads when reading bytes from disk
         return Flux.using(openStream::get, stream -> {

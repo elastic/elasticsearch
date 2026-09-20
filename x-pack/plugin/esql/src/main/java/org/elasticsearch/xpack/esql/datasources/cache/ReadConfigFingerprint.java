@@ -45,8 +45,11 @@ import java.util.Map;
  *       retype is already visible in the type, and a positional format's binding IS the order.</li>
  *   <li><b>Per-column declared date pattern</b>, physicalized — it changes which values parse and therefore which
  *       rows survive under a lenient policy.</li>
- *   <li><b>Binding mode</b> — a DECLARED schema binds by name and reports absent columns; an INFERRED one binds by
- *       position. Same columns, different reads.</li>
+ *   <li><b>Binding mode</b> — a by-name read binds each column against the file's own physical names and null-fills
+ *       one the file does not supply; a positional read takes the <em>i</em>-th physical field. Same columns, different
+ *       cells.</li>
+ *   <li><b>Blank-cell policy</b> — whether a present-but-empty cell on a string column holds the empty string or
+ *       {@code null}. It changes that column's values, and with them its null count, value count and extrema.</li>
  *   <li><b>NOT nullability</b> — {@code FileSplit} normalizes the planner-internal UNKNOWN to nullable on the wire,
  *       so a coordinator hashing its in-memory schema and a data node hashing the round-tripped one would disagree.
  *       An identity the two sides compute differently is worse than no identity: it matches nothing, silently.</li>
@@ -112,7 +115,10 @@ public final class ReadConfigFingerprint {
             appendLengthPrefixed(encoded, attribute.dataType().typeName());
             appendLengthPrefixed(encoded, dateFormats.getOrDefault(logicalName, ""));
         }
-        appendLengthPrefixed(encoded, readSpec.provenance().name());
+        // The two read INSTRUCTIONS, named rather than derived from where the schema came from: each changes what the
+        // read observes, so two reads differing on either describe different cells and must not share a statistic.
+        appendLengthPrefixed(encoded, readSpec.bindsByName() ? "binding:name" : "binding:position");
+        appendLengthPrefixed(encoded, readSpec.blankStringCellIsEmptyString() ? "blank:empty" : "blank:null");
 
         byte[] bytes = encoded.toString().getBytes(StandardCharsets.UTF_8);
         MurmurHash3.Hash128 hash = MurmurHash3.hash128(bytes, 0, bytes.length, 0, new MurmurHash3.Hash128());

@@ -298,16 +298,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * All three inputs are known before the first row: the binding and the options are the reader's, and the
      * schema is the one the split pinned.
      *
-     * @param declaredProvenanceBinding the read is bound to a strictly declared schema ({@code dynamic: false})
+     * @param blankStringCellIsEmptyString the read was told a blank string cell holds the empty string
      * @param preResolvedSchema         that schema, pinned on the read context; a declaration always arrives with one
      * @param options                   consulted for {@code null_value}, which when set to the blank overrides the above
      */
-    private static boolean declaredStringSemantics(
-        boolean declaredProvenanceBinding,
+    private static boolean blankStringSemantics(
+        boolean blankStringCellIsEmptyString,
         @Nullable List<Attribute> preResolvedSchema,
         CsvFormatOptions options
     ) {
-        return declaredProvenanceBinding && preResolvedSchema != null && "".equals(options.nullValue()) == false;
+        return blankStringCellIsEmptyString && preResolvedSchema != null && "".equals(options.nullValue()) == false;
     }
 
     /**
@@ -507,13 +507,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
      */
     private final Map<String, String> declaredDateFormats;
     /**
-     * True when the pinned schema's provenance is {@code DECLARED} (set by {@code FileSourceFactory} from
-     * {@link org.elasticsearch.xpack.esql.datasources.SchemaProvenance#DECLARED}), meaning the schema was explicitly
-     * declared by the user and its columns must bind to the file BY NAME rather than by position — see
-     * {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReader#withDeclaredProvenanceBinding}.
-     * False (the default) means the schema is inferred; the file columns bind positionally.
+     * True when the pinned schema names its columns, so they bind to the file BY NAME rather than by position — see
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReader#withNameBinding}. False (the default) binds
+     * positionally: the schema's <em>i</em>-th column is the file's <em>i</em>-th physical field.
      */
-    private final boolean declaredProvenanceBinding;
+    private final boolean bindsByName;
+
+    /**
+     * True when a present-but-empty cell on a string column holds the empty string rather than {@code null}, unless
+     * {@code null_value} names the blank — see
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReader#withBlankStringCellAsEmptyString}. Carried
+     * separately from {@link #bindsByName} because it decides what a cell HOLDS, not which field a column reads.
+     */
+    private final boolean blankStringCellIsEmptyString;
 
     /**
      * When {@code true} (default), eligible non-bracket reads use the direct-to-block path that parses
@@ -539,6 +545,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             true,
             Map.of(),
             false,
+            false,
             List.of()
         );
     }
@@ -556,6 +563,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             "",
             true,
             Map.of(),
+            false,
             false,
             List.of()
         );
@@ -575,6 +583,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             true,
             Map.of(),
             false,
+            false,
             List.of()
         );
     }
@@ -591,7 +600,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         String readConfig,
         boolean directBlockEnabled,
         Map<String, String> declaredDateFormats,
-        boolean declaredProvenanceBinding,
+        boolean bindsByName,
+        boolean blankStringCellIsEmptyString,
         List<String> configWarnings
     ) {
         this(
@@ -606,7 +616,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             readConfig,
             directBlockEnabled,
             declaredDateFormats,
-            declaredProvenanceBinding,
+            bindsByName,
+            blankStringCellIsEmptyString,
             null,
             configWarnings
         );
@@ -629,7 +640,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         String readConfig,
         boolean directBlockEnabled,
         Map<String, String> declaredDateFormats,
-        boolean declaredProvenanceBinding,
+        boolean bindsByName,
+        boolean blankStringCellIsEmptyString,
         CsvReaderCounters sharedCounters,
         List<String> configWarnings
     ) {
@@ -644,7 +656,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         this.readConfig = readConfig == null ? "" : readConfig;
         this.directBlockEnabled = directBlockEnabled;
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
-        this.declaredProvenanceBinding = declaredProvenanceBinding;
+        this.bindsByName = bindsByName;
+        this.blankStringCellIsEmptyString = blankStringCellIsEmptyString;
         this.counters = sharedCounters != null ? sharedCounters : new CsvReaderCounters(format);
         this.configWarnings = List.copyOf(configWarnings);
         this.sharedCsvMapper = createMapper(options);
@@ -670,7 +683,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             readConfig,
             enabled,
             declaredDateFormats,
-            declaredProvenanceBinding,
+            bindsByName,
+            blankStringCellIsEmptyString,
             configWarnings
         );
     }
@@ -1041,7 +1055,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             readConfig,
             directBlockEnabled,
             declaredDateFormats,
-            declaredProvenanceBinding,
+            bindsByName,
+            blankStringCellIsEmptyString,
             configWarnings
         );
     }
@@ -1060,14 +1075,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
             readConfig,
             directBlockEnabled,
             declaredDateFormats,
-            declaredProvenanceBinding,
+            bindsByName,
+            blankStringCellIsEmptyString,
             configWarnings
         );
     }
 
     @Override
-    public CsvFormatReader withDeclaredProvenanceBinding(boolean binding) {
-        if (binding == declaredProvenanceBinding) {
+    public CsvFormatReader withNameBinding(boolean binding) {
+        if (binding == bindsByName) {
             return this;
         }
         return new CsvFormatReader(
@@ -1083,15 +1099,39 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directBlockEnabled,
             declaredDateFormats,
             binding,
+            blankStringCellIsEmptyString,
             configWarnings
         );
     }
 
     @Override
-    public boolean declaredNameBindingNeedsFileStart() {
-        // Headered + provenance-declared schema binds against the header line, which only the first split carries.
+    public CsvFormatReader withBlankStringCellAsEmptyString(boolean blankIsEmptyString) {
+        if (blankIsEmptyString == blankStringCellIsEmptyString) {
+            return this;
+        }
+        return new CsvFormatReader(
+            blockFactory,
+            options,
+            format,
+            extensions,
+            resolvedSchema,
+            schemaSampleSize,
+            effectivePolicy,
+            canonicalConfig,
+            readConfig,
+            directBlockEnabled,
+            declaredDateFormats,
+            bindsByName,
+            blankIsEmptyString,
+            configWarnings
+        );
+    }
+
+    @Override
+    public boolean nameBindingNeedsFileStart() {
+        // A headered by-name schema binds against the header line, which only the first split carries.
         // Headerless binds from the names alone, so it stays splittable.
-        return declaredProvenanceBinding && options.headerRow();
+        return bindsByName && options.headerRow();
     }
 
     /**
@@ -1113,7 +1153,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /**
      * Maps each position of a pinned declared schema to the raw field index it reads, so each declared column
      * binds the file column it names regardless of its position. Returns {@code null} for a pinned inferred schema
-     * ({@link #declaredProvenanceBinding} is false) — the caller then keeps the positional contract.
+     * ({@link #bindsByName} is false) — the caller then keeps the positional contract.
      * <p>
      * Headerless files self-bind: the physical name IS the position ({@code col4} -> field 4), so no file content is
      * needed and binding stays content-independent. Headered files bind against {@code headerFields}, which the caller
@@ -1122,7 +1162,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * @param headerFields the file's header names, or {@code null} for a headerless file
      */
     private int[] declaredFieldIndexes(List<Attribute> readSchema, String[] headerFields, StorageObject object) {
-        if (declaredProvenanceBinding == false || readSchema == null) {
+        if (bindsByName == false || readSchema == null) {
             return null;
         }
         int[] bound = new int[readSchema.size()];
@@ -1230,7 +1270,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             readConfig,
             directBlockEnabled,
             physicalNameToPattern,
-            declaredProvenanceBinding,
+            bindsByName,
+            blankStringCellIsEmptyString,
             configWarnings
         );
     }
@@ -1255,7 +1296,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             newReadConfig,
             directBlockEnabled,
             declaredDateFormats,
-            declaredProvenanceBinding,
+            bindsByName,
+            blankStringCellIsEmptyString,
             counters,
             configWarnings
         );
@@ -1290,7 +1332,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             result.readConfig,
             result.directBlockEnabled,
             result.declaredDateFormats,
-            result.declaredProvenanceBinding,
+            result.bindsByName,
+            result.blankStringCellIsEmptyString,
             parsedOptions.configWarnings()
         );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
@@ -2050,7 +2093,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         if (readSchema != null) {
             if (context.firstSplit() && options.headerRow()) {
-                // A declared (pinned) schema binds its columns to the header BY NAME (when declaredProvenanceBinding), which
+                // A declared (pinned) schema binds its columns to the header BY NAME (when bindsByName), which
                 // consumes the header line — so it is read here, not skipped. Runs before ownership of the stream chain
                 // transfers to the returned iterator, so the reader must be closed here or the file handle leaks
                 // (caught by LeakFS in CI).
@@ -2065,11 +2108,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     throw e;
                 }
             }
-            if (options.headerRow() == false && declaredProvenanceBinding) {
+            if (options.headerRow() == false && bindsByName) {
                 // A headerless file's physical names ARE positions (col4 -> field 4), so binding needs no file
                 // content and runs on EVERY split — macro-splits past the first stay correctly bound.
                 declaredBinding = DeclaredBinding.headerless(declaredFieldIndexes(readSchema, null, object));
-            } else if (options.headerRow() && declaredProvenanceBinding && context.firstSplit() == false) {
+            } else if (options.headerRow() && bindsByName && context.firstSplit() == false) {
                 // This read does not own the file's start, so the header is not in front of it. Bind by name
                 // against the header columns whoever cut the file up read once and passed down. Without them
                 // there is no way to know what this chunk's fields are called, and binding by position would
@@ -2302,11 +2345,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /**
      * Dispatches header-based binding for a pinned schema at the start of a headered file.
      *
-     * <p>When {@link #declaredProvenanceBinding} is true the schema is a user <em>declaration</em>: its columns
+     * <p>When {@link #bindsByName} is true the schema is a user <em>declaration</em>: its columns
      * bind to the file <b>by name</b>. This routes to {@link #bindDeclaredToHeaderNames} and the width of the
      * declaration relative to the file is irrelevant (naming one column of a hundred-column file is legitimate).
      *
-     * <p>When {@link #declaredProvenanceBinding} is false the schema is a <em>pinned inferred</em> schema (for
+     * <p>When {@link #bindsByName} is false the schema is a <em>pinned inferred</em> schema (for
      * example, a cached first-file schema being reused across a multi-file read). Binding is still positional, so
      * a schema <em>wider</em> than the file's header is a signal that the file has drifted — fail loudly rather
      * than null-splicing every row. A narrower schema leaves the trailing file columns unread.
@@ -2319,7 +2362,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return null; // empty file — nothing to validate, and nothing to read
         }
         String[] fields = splitFieldsForOptions(headerLine, options);
-        if (declaredProvenanceBinding) {
+        if (bindsByName) {
             return bindDeclaredToHeaderNames(headerColumnNames(headerLine, fields), readSchema, object);
         }
         if (readSchema.size() > fields.length) {
@@ -3352,12 +3395,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * Whether a present-but-empty cell on a {@code KEYWORD}/{@code TEXT} column reads as the empty string
          * rather than {@code null}. True only when the schema this read is bound to was DECLARED — which the
          * resolver means strictly: {@code mappings} carrying {@code dynamic: false}, the only form that yields
-         * {@link CsvFormatReader#declaredProvenanceBinding}, so a {@code dynamic: true} overlay naming the same
+         * {@link CsvFormatReader#bindsByName}, so a {@code dynamic: true} overlay naming the same
          * column does NOT enable it — and {@code null_value} does not name the blank. A strictly declared
          * {@code keyword} column is a request for string semantics, in which "" is a value the file can carry,
          * and {@code null_value: ""} is how to opt back out of it.
          * <p>Both inputs are constructor arguments, so the flag is decided once, before any row is read. It
-         * pairs {@code declaredProvenanceBinding} with a pinned schema because a declaration always arrives as
+         * pairs {@code bindsByName} with a pinned schema because a declaration always arrives as
          * one; the binding without a pinned schema is not a state the resolver can produce.
          * <p>False for an INFERRED schema, where the alternative would make a blank cell's meaning depend on
          * what the REST of its column holds — the same bytes reading {@code ""} in a column that sampled as
@@ -3663,7 +3706,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.hasCommentFilter = options.commentPrefix().isEmpty() == false;
             this.hasCustomNullValue = options.nullValue() != null;
             this.nullValueStr = options.nullValue();
-            this.emptyCellIsEmptyString = declaredStringSemantics(declaredProvenanceBinding, preResolvedSchema, options);
+            this.emptyCellIsEmptyString = blankStringSemantics(blankStringCellIsEmptyString, preResolvedSchema, options);
             this.datetimeFormatter = options.datetimeFormatter();
             this.bracketMultiValues = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS;
             this.sourceLocation = sourceLocation;

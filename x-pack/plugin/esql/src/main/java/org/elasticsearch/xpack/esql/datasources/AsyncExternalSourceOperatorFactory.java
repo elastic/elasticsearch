@@ -2702,7 +2702,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // breaks the warm COUNT(*)/MIN/MAX serve. Both whole-file streaming paths below read leader-anchored AND capture
         // stats, so a declared header read warms exactly like an inferred one. Compression is resolved first so a
         // gz/… declaration stays on the compressed path (decoding correctly) rather than the uncompressed one.
-        boolean needsFileStart = reader.declaredNameBindingNeedsFileStart();
+        boolean needsFileStart = reader.nameBindingNeedsFileStart();
         if (reader instanceof CompressionDelegatingFormatReader cdr) {
             DecompressionCodec codec = cdr.codec();
             // A splittable/indexed codec could range-split into headerless chunks; a header-bound declaration forces the
@@ -2786,7 +2786,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // A header-bound declaration must resolve names against the header at byte 0, so it can never take
                 // the proven-probing macro-split path (a non-leader range has no header). Force it onto the streaming
                 // whole-file path below, which reads leader-anchored in a single pass and still captures stats.
-                if (splitter != null && splitter.supportsProvenProbing() && reader.declaredNameBindingNeedsFileStart() == false) {
+                if (splitter != null && splitter.supportsProvenProbing() && reader.nameBindingNeedsFileStart() == false) {
                     return ParallelParsingCoordinator.parallelRead(
                         seg,
                         obj,

@@ -42,7 +42,7 @@ public class ReadConfigSymmetryTests extends ESTestCase {
 
     public void testFingerprintSurvivesTheSplitRoundTrip() throws IOException {
         List<Attribute> coordinatorSchema = List.of(attr("user", DataType.KEYWORD), attr("count", DataType.LONG));
-        DeclaredReadSpec spec = new DeclaredReadSpec(Map.of(), Map.of(), Set.of(), SchemaProvenance.INFERRED);
+        DeclaredReadSpec spec = new DeclaredReadSpec(Map.of(), Map.of(), Set.of(), false, false);
 
         String coordinatorSide = ReadConfigFingerprint.of(coordinatorSchema, spec);
         String dataNodeSide = ReadConfigFingerprint.of(roundTrip(coordinatorSchema).readSchema(), spec);
@@ -59,7 +59,8 @@ public class ReadConfigSymmetryTests extends ESTestCase {
             Map.of("user", "user_name"),
             Map.of("ts", "yyyyMMdd"),
             Set.of("user", "ts"),
-            SchemaProvenance.DECLARED
+            true,
+            true
         );
 
         assertEquals(

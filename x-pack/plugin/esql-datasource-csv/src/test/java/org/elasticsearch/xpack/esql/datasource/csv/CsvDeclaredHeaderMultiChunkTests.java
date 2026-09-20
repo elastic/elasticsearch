@@ -74,7 +74,8 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
         );
 
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
-            .withDeclaredProvenanceBinding(true)
+            .withNameBinding(true)
+            .withBlankStringCellAsEmptyString(true)
             .withSchema(declared);
 
         InputStream stream = new ByteArrayInputStream(csv.toString().getBytes(StandardCharsets.UTF_8));
@@ -153,7 +154,8 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "first_name", DataType.KEYWORD)
         );
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
-            .withDeclaredProvenanceBinding(true)
+            .withNameBinding(true)
+            .withBlankStringCellAsEmptyString(true)
             .withSchema(declared);
 
         List<String> warnings = Collections.synchronizedList(new ArrayList<>());

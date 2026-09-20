@@ -2449,8 +2449,7 @@ public class ExternalSourceResolver {
         if (effectiveSchemaResolution(config) != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
             return false;
         }
-        SchemaProvenance provenance = declaredReadSpec == null ? SchemaProvenance.INFERRED : declaredReadSpec.provenance();
-        return provenance == SchemaProvenance.INFERRED;
+        return declaredReadSpec == null || declaredReadSpec.bindsByName() == false;
     }
 
     /**
@@ -3333,12 +3332,12 @@ public class ExternalSourceResolver {
             }
             dateFormats = collected;
         }
-        // The one place the reading mode is read: it selects the schema's PROVENANCE and is consumed here, never
-        // travelling. A strict schema is a DECLARED claim about the file (bind by name, report absent columns);
-        // a dynamic schema was INFERRED from the file, so position already equals physical position. Every downstream
-        // read-time decision keys on the provenance the data node receives, not on the mode.
-        SchemaProvenance provenance = isDeclaredSchema(declaredMapping) ? SchemaProvenance.DECLARED : SchemaProvenance.INFERRED;
-        return DeclaredReadSpec.of(renames, dateFormats, declaredTypeColumns, provenance);
+        // The one place the reading mode is read: it selects two read INSTRUCTIONS and is consumed here, never
+        // travelling. A strict schema is a claim about the file, so its columns bind by name and a blank string cell
+        // holds the empty string; a dynamic schema was inferred from the file, so position already equals physical
+        // position and a blank reads null. Nothing downstream sees the mode, or asks which of them produced a read.
+        boolean declared = isDeclaredSchema(declaredMapping);
+        return DeclaredReadSpec.of(renames, dateFormats, declaredTypeColumns, declared, declared);
     }
 
     /**

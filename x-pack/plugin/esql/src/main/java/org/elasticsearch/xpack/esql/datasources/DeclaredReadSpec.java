@@ -40,12 +40,20 @@ import java.util.Set;
  *       inferred one null-fills whenever the file type is not widening-compatible. Physicalized to file-column names at
  *       the reader boundary ({@code FileSourceFactory}); the text readers ignore it (they parse straight into the
  *       target). Empty when the mapping declares no column types.</li>
- *   <li>{@code provenance} — whether the {@code readSchema} this spec accompanies is a
- *       {@link SchemaProvenance#DECLARED} claim (bind by name, report absent columns) or was
- *       {@link SchemaProvenance#INFERRED} from the file (bind by position). The axis {@code dynamic} actually
- *       selects; the data node reads provenance, never the mode. Defaults to {@code INFERRED} — the identity a
- *       pre-gate peer and every non-declared read carry.</li>
+ *   <li>{@code bindsByName} — the {@code readSchema} this spec accompanies names columns rather than positions, so
+ *       the reader binds each one against the file's own physical-name space (header line, columnar footer, JSON keys,
+ *       or the self-encoded {@code col<N>} names of a headerless text file) and null-fills a named column the file does
+ *       not supply, with one deduplicated warning. False binds by position: the <em>i</em>-th column of the schema is
+ *       the <em>i</em>-th physical field. Defaults to false — what every non-declared read carries.</li>
+ *   <li>{@code blankStringCellIsEmptyString} — a present but empty cell on a string column holds the empty string
+ *       rather than {@code null}, unless {@code null_value} names the blank. False reads such a cell as {@code null} on
+ *       every column type. Defaults to false.</li>
  * </ul>
+ * <p>
+ * The two flags are read instructions, not a statement about where the schema came from. Discovery decides them (a
+ * {@code dynamic:false} mapping sets both); nothing downstream asks how they were chosen, which is what keeps a cached
+ * statistic keyed on what a read DID to the cells rather than on the mapping that happened to produce it.
+ * <p>
  * A plain {@link Writeable}: its wire gate lives on the enclosing plan nodes, which only read/write it when the
  * {@code dataset_declared_schema} transport version is supported (mirrors how {@code DatasetMapping.Mappings} is gated
  * by its container rather than self-gating).
@@ -54,13 +62,14 @@ public record DeclaredReadSpec(
     Map<String, String> renames,
     Map<String, String> dateFormats,
     Set<String> declaredTypeColumns,
-    SchemaProvenance provenance
+    boolean bindsByName,
+    boolean blankStringCellIsEmptyString
 ) implements Writeable {
 
     /**
-     * Wire gate for {@link #provenance}; a pre-gate peer reads/writes the four original fields and defaults INFERRED.
-     * During a rolling upgrade a peer that predates this version therefore binds a strict read positionally — the
-     * pre-fix behaviour. That is TOLERATED by design, not failed loud: this is a read path (nothing is persisted or
+     * Wire gate for the read-instruction slot; a pre-gate peer reads/writes the four original fields and defaults both
+     * flags false. During a rolling upgrade a peer that predates this version therefore binds a strict read
+     * positionally — the pre-fix behaviour. That is TOLERATED by design, not failed loud: this is a read path (nothing is persisted or
      * corrupted — the worst case is a transient wrong query result), the degraded behaviour equals what that peer
      * already ships, and it self-heals once every node supports the version. Failing loud would break every running
      * strict query for the upgrade window to prevent a transient, non-durable result — a worse trade.
@@ -68,13 +77,12 @@ public record DeclaredReadSpec(
     private static final TransportVersion DECLARED_READ_SPEC_PROVENANCE = TransportVersion.fromName("declared_read_spec_provenance");
 
     /** The empty spec — nothing declared. The default carried on every non-declared read. */
-    public static final DeclaredReadSpec NONE = new DeclaredReadSpec(Map.of(), Map.of(), Set.of(), SchemaProvenance.INFERRED);
+    public static final DeclaredReadSpec NONE = new DeclaredReadSpec(Map.of(), Map.of(), Set.of(), false, false);
 
     public DeclaredReadSpec {
         renames = renames != null ? Map.copyOf(renames) : Map.of();
         dateFormats = dateFormats != null ? Map.copyOf(dateFormats) : Map.of();
         declaredTypeColumns = declaredTypeColumns != null ? Set.copyOf(declaredTypeColumns) : Set.of();
-        provenance = provenance != null ? provenance : SchemaProvenance.INFERRED;
     }
 
     /**
@@ -86,33 +94,38 @@ public record DeclaredReadSpec(
         @Nullable Map<String, String> renames,
         @Nullable Map<String, String> dateFormats,
         @Nullable Set<String> declaredTypeColumns,
-        @Nullable SchemaProvenance provenance
+        boolean bindsByName,
+        boolean blankStringCellIsEmptyString
     ) {
-        DeclaredReadSpec spec = new DeclaredReadSpec(renames, dateFormats, declaredTypeColumns, provenance);
+        DeclaredReadSpec spec = new DeclaredReadSpec(renames, dateFormats, declaredTypeColumns, bindsByName, blankStringCellIsEmptyString);
         return spec.isEmpty() ? NONE : spec;
     }
 
-    /** Convenience for a spec over an inferred schema ({@link SchemaProvenance#INFERRED}). */
+    /** Convenience for a spec over a positionally bound schema whose blank string cells read as {@code null}. */
     public static DeclaredReadSpec of(
         @Nullable Map<String, String> renames,
         @Nullable Map<String, String> dateFormats,
         @Nullable Set<String> declaredTypeColumns
     ) {
-        return of(renames, dateFormats, declaredTypeColumns, SchemaProvenance.INFERRED);
+        return of(renames, dateFormats, declaredTypeColumns, false, false);
     }
 
     /** Convenience for a spec with no declared date formats and no declared column types. */
     public static DeclaredReadSpec of(@Nullable Map<String, String> renames) {
-        return of(renames, Map.of(), Set.of(), SchemaProvenance.INFERRED);
+        return of(renames, Map.of(), Set.of(), false, false);
     }
 
     /**
-     * True when the mapping declared nothing for the data node to apply — no rename, format, or type,
-     * and {@link SchemaProvenance#INFERRED} provenance. A DECLARED provenance is itself an instruction, so it
-     * keeps the spec from collapsing to {@link #NONE} (whose provenance is INFERRED) and being lost on the wire.
+     * True when the mapping declared nothing for the data node to apply — no rename, format, or type, and neither read
+     * instruction set. Either flag being true is itself an instruction, so it keeps the spec from collapsing to
+     * {@link #NONE} (which carries both false) and being lost on the wire.
      */
     public boolean isEmpty() {
-        return renames.isEmpty() && dateFormats.isEmpty() && declaredTypeColumns.isEmpty() && provenance == SchemaProvenance.INFERRED;
+        return renames.isEmpty()
+            && dateFormats.isEmpty()
+            && declaredTypeColumns.isEmpty()
+            && bindsByName == false
+            && blankStringCellIsEmptyString == false;
     }
 
     /**
@@ -150,7 +163,13 @@ public record DeclaredReadSpec(
         out.writeMap(dateFormats, StreamOutput::writeString, StreamOutput::writeString);
         out.writeCollection(declaredTypeColumns, StreamOutput::writeString);
         if (out.getTransportVersion().supports(DECLARED_READ_SPEC_PROVENANCE)) {
-            out.writeEnum(provenance);
+            // One bit carries both instructions at this version: discovery sets them together, so the slot that used to
+            // hold the schema-provenance enum holds bindsByName and the reader derives the blank rule from it. The
+            // values match that enum's ordinals, so a peer predating this change reads exactly what it reads today. The
+            // change that first lets the two differ must add its own slot under a new transport version.
+            assert bindsByName == blankStringCellIsEmptyString
+                : "the wire carries one bit for both read instructions; add a slot before letting them differ";
+            out.writeVInt(bindsByName ? 1 : 0);
         }
     }
 
@@ -159,9 +178,7 @@ public record DeclaredReadSpec(
         in.readOptionalString(); // the _id.path slot a 9.5 peer writes; see writeTo
         Map<String, String> dateFormats = in.readMap(StreamInput::readString);
         Set<String> declaredTypeColumns = in.readCollectionAsSet(StreamInput::readString);
-        SchemaProvenance provenance = in.getTransportVersion().supports(DECLARED_READ_SPEC_PROVENANCE)
-            ? in.readEnum(SchemaProvenance.class)
-            : SchemaProvenance.INFERRED;
-        return of(renames, dateFormats, declaredTypeColumns, provenance);
+        boolean bindsByName = in.getTransportVersion().supports(DECLARED_READ_SPEC_PROVENANCE) && in.readVInt() == 1;
+        return of(renames, dateFormats, declaredTypeColumns, bindsByName, bindsByName);
     }
 }

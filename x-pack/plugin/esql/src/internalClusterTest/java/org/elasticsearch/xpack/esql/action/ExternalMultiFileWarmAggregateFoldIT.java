@@ -230,7 +230,12 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
     public void testCsvHeterogeneousCorpusWarmCountServedUnderNullFieldDeclaredDynamic() throws Exception {
         Path dir = createTempDir();
         long total = writeCsvCorpus(dir, true);
-        String dataset = registerNonStrictDataset("het_dyn_csv", globUri(dir, "*.csv"), declaredColumns(), nullFieldSettings("first_file_wins"));
+        String dataset = registerNonStrictDataset(
+            "het_dyn_csv",
+            globUri(dir, "*.csv"),
+            declaredColumns(),
+            nullFieldSettings("first_file_wins")
+        );
         assertWarmCountShortCircuits(dataset, total);
     }
 

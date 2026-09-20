@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
-import org.elasticsearch.xpack.esql.datasources.SchemaProvenance;
 
 import java.util.List;
 import java.util.Map;
@@ -30,7 +29,7 @@ public class ReadConfigFingerprintTests extends ESTestCase {
         // it must keep sharing the inferred read's cached statistics rather than paying a cold scan for saying so.
         List<Attribute> schema = List.of(attr("user", DataType.KEYWORD), attr("count", DataType.LONG));
         String inferred = ReadConfigFingerprint.of(schema, DeclaredReadSpec.NONE);
-        String redeclared = ReadConfigFingerprint.of(schema, spec(Map.of(), Map.of(), SchemaProvenance.INFERRED));
+        String redeclared = ReadConfigFingerprint.of(schema, spec(Map.of(), Map.of(), false, false));
         assertEquals(inferred, redeclared);
     }
 
@@ -56,17 +55,27 @@ public class ReadConfigFingerprintTests extends ESTestCase {
     public void testDeclaredDateFormatSplits() {
         List<Attribute> schema = List.of(attr("ts", DataType.DATETIME));
         String isoDefault = ReadConfigFingerprint.of(schema, DeclaredReadSpec.NONE);
-        String withPattern = ReadConfigFingerprint.of(schema, spec(Map.of(), Map.of("ts", "yyyyMMdd"), SchemaProvenance.DECLARED));
+        String withPattern = ReadConfigFingerprint.of(schema, spec(Map.of(), Map.of("ts", "yyyyMMdd"), true, true));
         assertNotEquals(isoDefault, withPattern);
     }
 
     public void testBindingModeSplits() {
-        // Same columns, same types: a declared schema binds by name and reports absent columns, an inferred one binds
-        // by position. Different reads of the same bytes.
+        // Same columns, same types: a by-name read binds against the file's own names and null-fills an absent
+        // column, a positional read takes the i-th field. Different reads of the same bytes.
         List<Attribute> schema = List.of(attr("a", DataType.KEYWORD), attr("b", DataType.LONG));
         assertNotEquals(
-            ReadConfigFingerprint.of(schema, spec(Map.of(), Map.of(), SchemaProvenance.INFERRED)),
-            ReadConfigFingerprint.of(schema, spec(Map.of(), Map.of(), SchemaProvenance.DECLARED))
+            ReadConfigFingerprint.of(schema, spec(Map.of(), Map.of(), false, false)),
+            ReadConfigFingerprint.of(schema, spec(Map.of(), Map.of(), true, false))
+        );
+    }
+
+    public void testBlankPolicySplits() {
+        // Same columns, same types, same binding: one read holds a blank string cell as the empty string and the
+        // other as null, so their value counts, null counts and extrema describe different cells.
+        List<Attribute> schema = List.of(attr("a", DataType.KEYWORD), attr("b", DataType.LONG));
+        assertNotEquals(
+            ReadConfigFingerprint.of(schema, spec(Map.of(), Map.of(), false, false)),
+            ReadConfigFingerprint.of(schema, spec(Map.of(), Map.of(), false, true))
         );
     }
 
@@ -87,7 +96,7 @@ public class ReadConfigFingerprintTests extends ESTestCase {
         String unrenamed = ReadConfigFingerprint.of(List.of(attr("user_name", DataType.KEYWORD)), DeclaredReadSpec.NONE);
         String renamed = ReadConfigFingerprint.of(
             List.of(attr("user", DataType.KEYWORD)),
-            spec(Map.of("user", "user_name"), Map.of(), SchemaProvenance.INFERRED)
+            spec(Map.of("user", "user_name"), Map.of(), false, false)
         );
         assertEquals(unrenamed, renamed);
     }
@@ -119,7 +128,7 @@ public class ReadConfigFingerprintTests extends ESTestCase {
     public void testStableAcrossInvocations() {
         // Both sides derive this independently; a value that varied per JVM or per call would match nothing.
         List<Attribute> schema = List.of(attr("a", DataType.KEYWORD), attr("ts", DataType.DATETIME));
-        DeclaredReadSpec readSpec = spec(Map.of("a", "a_file"), Map.of("ts", "yyyyMMdd"), SchemaProvenance.DECLARED);
+        DeclaredReadSpec readSpec = spec(Map.of("a", "a_file"), Map.of("ts", "yyyyMMdd"), true, true);
         assertEquals(ReadConfigFingerprint.of(schema, readSpec), ReadConfigFingerprint.of(schema, readSpec));
     }
 
@@ -127,7 +136,12 @@ public class ReadConfigFingerprintTests extends ESTestCase {
         return new ReferenceAttribute(Source.EMPTY, name, type);
     }
 
-    private static DeclaredReadSpec spec(Map<String, String> renames, Map<String, String> dateFormats, SchemaProvenance provenance) {
-        return new DeclaredReadSpec(renames, dateFormats, Set.of(), provenance);
+    private static DeclaredReadSpec spec(
+        Map<String, String> renames,
+        Map<String, String> dateFormats,
+        boolean bindsByName,
+        boolean blankStringCellIsEmptyString
+    ) {
+        return new DeclaredReadSpec(renames, dateFormats, Set.of(), bindsByName, blankStringCellIsEmptyString);
     }
 }

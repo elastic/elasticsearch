@@ -124,17 +124,25 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
-    public FormatReader withDeclaredProvenanceBinding(boolean declaredProvenanceBinding) {
+    public FormatReader withNameBinding(boolean bindsByName) {
         // Delegate to the wrapped text reader: a compressed .csv.gz binds its declared columns exactly like the plain
         // file. Without this the interface default would return the wrapper and every compressed read would silently
         // fall back to positional binding — the very bug this flag exists to fix.
-        FormatReader configured = inner.withDeclaredProvenanceBinding(declaredProvenanceBinding);
+        FormatReader configured = inner.withNameBinding(bindsByName);
         return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
     }
 
     @Override
-    public boolean declaredNameBindingNeedsFileStart() {
-        return inner.declaredNameBindingNeedsFileStart();
+    public FormatReader withBlankStringCellAsEmptyString(boolean blankStringCellIsEmptyString) {
+        // Delegate for the same reason as the binding above: a compressed .csv.gz must read a blank cell exactly as
+        // the plain file does, or the two disagree on a column's values and on the statistics harvested from them.
+        FormatReader configured = inner.withBlankStringCellAsEmptyString(blankStringCellIsEmptyString);
+        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
+    }
+
+    @Override
+    public boolean nameBindingNeedsFileStart() {
+        return inner.nameBindingNeedsFileStart();
     }
 
     @Override

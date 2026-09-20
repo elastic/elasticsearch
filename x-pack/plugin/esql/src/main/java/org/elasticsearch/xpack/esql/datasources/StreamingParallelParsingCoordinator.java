@@ -915,7 +915,7 @@ public final class StreamingParallelParsingCoordinator {
          * binding by position, which would shift every column silently.
          */
         private void captureFileHeaderColumns(byte[] buffer, int length) {
-            if (fileHeaderColumns != null || reader.declaredNameBindingNeedsFileStart() == false) {
+            if (fileHeaderColumns != null || reader.nameBindingNeedsFileStart() == false) {
                 return;
             }
             try {

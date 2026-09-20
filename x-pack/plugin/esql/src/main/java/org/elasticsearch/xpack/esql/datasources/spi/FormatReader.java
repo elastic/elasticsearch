@@ -325,21 +325,40 @@ public interface FormatReader extends Closeable {
      * column declared a {@code path}: a declaration whose order merely differs from the file, with no {@code path} at
      * all, must still bind by name.
      * <p>
-     * {@code dynamic} controls only whether a schema is inferred; it must not leak into how columns bind. Under
-     * {@code dynamic:true} the schema is inferred from the file, so its positions already are the file's — bind by
-     * position. Under {@code dynamic:false} the declaration itself is pinned as the schema; a reader that consumed it
-     * positionally would never look at the physical names it was handed, so the same mapping could read a different
-     * column. This bit makes such a reader bind by name, so the two modes agree (esql-planning#1307).
+     * {@code dynamic} controls only whether a schema is inferred; it must not leak into how columns bind. An inferred
+     * schema was read from the file, so its positions already are the file's — bind by position. A declared schema is
+     * pinned as the schema itself; a reader that consumed it positionally would never look at the physical names it was
+     * handed, so the same mapping could read a different column. This bit makes such a reader bind by name, so the two
+     * agree (esql-planning#1307). Discovery decides it; the reader is told the instruction, not its origin.
      * <p>
      * Only the text readers need it: they alone bind a pinned schema positionally. Parquet/ORC bind by footer name and
      * NDJSON by object key, so they bind a declared schema by name under either mode already and keep the no-op default.
      * A declared name the file does not supply reads null (CSV/TSV emit a warning; NDJSON and columnar formats read
      * null silently), never a silent positional fallback.
      *
-     * @param declaredProvenanceBinding true when the pinned schema is a DECLARED claim (provenance DECLARED)
+     * @param bindsByName true when the pinned schema names its columns rather than positioning them
      * @return a new reader honoring the binding mode, or {@code this} when it does not apply
      */
-    default FormatReader withDeclaredProvenanceBinding(boolean declaredProvenanceBinding) {
+    default FormatReader withNameBinding(boolean bindsByName) {
+        return this;
+    }
+
+    /**
+     * Returns a reader that reads a present-but-empty cell on a string column as the empty string rather than as
+     * {@code null}, unless {@code null_value} names the blank. False reads such a cell as {@code null} on every column
+     * type.
+     * <p>
+     * A read instruction in its own right, separate from {@link #withNameBinding}: it decides what a cell HOLDS, not
+     * which physical field a column reads. They are set together today, but a statistic harvested under one blank rule
+     * describes different cells from one harvested under the other, so the two are named and carried separately rather
+     * than derived from a single notion of where the schema came from.
+     * <p>
+     * Only the text readers need it: no other format has a present-but-empty cell distinct from an absent one.
+     *
+     * @param blankStringCellIsEmptyString true when a blank string cell holds the empty string
+     * @return a new reader honoring the rule, or {@code this} when it does not apply
+     */
+    default FormatReader withBlankStringCellAsEmptyString(boolean blankStringCellIsEmptyString) {
         return this;
     }
 
@@ -363,12 +382,12 @@ public interface FormatReader extends Closeable {
      * Whether this reader can only bind its declared columns when it sees the start of the file, which makes the file
      * unsplittable: every split past the first would have no way to resolve the binding.
      *
-     * <p>True only for a headered text reader binding a DECLARED schema by name: the binding is resolved against the
+     * <p>True only for a headered text reader binding its schema by name: the binding is resolved against the
      * file's header line, and only the first split carries it. A headerless file's physical names encode their own
      * positions ({@code col4} -> field 4), so it binds on any split and stays fully splittable — which is the file shape the
      * throughput-sensitive reads actually use.
      */
-    default boolean declaredNameBindingNeedsFileStart() {
+    default boolean nameBindingNeedsFileStart() {
         return false;
     }
 

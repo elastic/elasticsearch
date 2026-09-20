@@ -62,7 +62,16 @@ public class StatsInvalidationScopeTests extends ESTestCase {
         ExternalStats.MTIME_MILLIS_KEY,
         ExternalStats.CONFIG_FINGERPRINT_KEY,
         // Which read produced the entry, not a measurement over its rows — so a row drop does not invalidate it.
-        ExternalStats.READ_CONFIG_FINGERPRINT_KEY
+        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+        // The same identity spelled out: which columns the read bound, at what types and patterns, how it bound them
+        // and what it made of a blank string cell. The per-column merge reads these instead of the hash above, which
+        // can only answer "same" or "different" for the whole schema at once.
+        ExternalStats.READ_COLUMN_NAMES_KEY,
+        ExternalStats.READ_COLUMN_TYPES_KEY,
+        ExternalStats.READ_COLUMN_DATE_FORMATS_KEY,
+        ExternalStats.READ_BINDING_KEY,
+        ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY,
+        ExternalStats.COLUMNS_IN_FILE_ORDER_KEY
     );
 
     /**
@@ -171,6 +180,14 @@ public class StatsInvalidationScopeTests extends ESTestCase {
         // fold depends on who is calling. mergeStripesAndRekey re-attaches them from the entry it is committing to.
         Map.entry(ExternalStats.MTIME_MILLIS_KEY, FoldBehaviour.CALLER_REATTACHED),
         Map.entry(ExternalStats.CONFIG_FINGERPRINT_KEY, FoldBehaviour.CALLER_REATTACHED),
+        // The read identity rides on contributions, never into a fold's output: toFlatMap does not write it, and the
+        // committing caller re-attaches whatever the entry's own identity is.
+        Map.entry(ExternalStats.READ_COLUMN_NAMES_KEY, FoldBehaviour.CALLER_REATTACHED),
+        Map.entry(ExternalStats.READ_COLUMN_TYPES_KEY, FoldBehaviour.CALLER_REATTACHED),
+        Map.entry(ExternalStats.READ_COLUMN_DATE_FORMATS_KEY, FoldBehaviour.CALLER_REATTACHED),
+        Map.entry(ExternalStats.READ_BINDING_KEY, FoldBehaviour.CALLER_REATTACHED),
+        Map.entry(ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY, FoldBehaviour.CALLER_REATTACHED),
+        Map.entry(ExternalStats.COLUMNS_IN_FILE_ORDER_KEY, FoldBehaviour.CALLER_REATTACHED),
         Map.entry(SourceStatisticsSerializer.STATS_KEY_PREFIX, FoldBehaviour.MODEL_INTERNAL),
         Map.entry(SourceStatisticsSerializer.STATS_COL_PREFIX, FoldBehaviour.MODEL_INTERNAL),
         Map.entry(SourceStatisticsSerializer.STATS_PARTIAL, FoldBehaviour.MODEL_INTERNAL),

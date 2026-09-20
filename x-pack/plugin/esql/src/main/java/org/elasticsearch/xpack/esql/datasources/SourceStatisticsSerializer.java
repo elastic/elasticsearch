@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
@@ -122,6 +123,49 @@ public final class SourceStatisticsSerializer {
      * Merges statistics entries into a new map that includes both the original sourceMetadata
      * entries and the serialized statistics. Returns the original map if statistics are absent.
      */
+    /**
+     * Stamps onto {@code base} what the producing read DID: the physical column names it bound in read order, the
+     * type each was read at, the declared date patterns that decided which values parsed, how columns were bound, and
+     * whether a blank string cell held the empty string.
+     * <p>
+     * Identity data, not measurement. It travels with the statistics so a per-column merge can pair columns by name
+     * and compare the behaviours that decide whether two reads observed the same cells — rather than reading a single
+     * whole-schema hash, which can only say "same" or "different" and destroys the per-column detail on the way.
+     * <p>
+     * Names are physical: {@code FileSourceFactory} applies the declared renames before the reader sees the schema,
+     * so the attributes carry the file's own names, exactly as {@code ReadConfigFingerprint#of} hashes them.
+     */
+    public static Map<String, Object> stampReadIdentity(
+        Map<String, Object> base,
+        @Nullable List<Attribute> readSchema,
+        @Nullable Map<String, String> physicalDateFormats,
+        @Nullable String binding,
+        boolean blankStringCellIsEmptyString
+    ) {
+        if (readSchema == null || readSchema.isEmpty()) {
+            return base;
+        }
+        List<String> names = new ArrayList<>(readSchema.size());
+        List<String> types = new ArrayList<>(readSchema.size());
+        for (Attribute attribute : readSchema) {
+            names.add(attribute.name());
+            types.add(attribute.dataType().typeName());
+        }
+        base.put(ExternalStats.READ_COLUMN_NAMES_KEY, names);
+        base.put(ExternalStats.READ_COLUMN_TYPES_KEY, types);
+        if (physicalDateFormats != null && physicalDateFormats.isEmpty() == false) {
+            base.put(ExternalStats.READ_COLUMN_DATE_FORMATS_KEY, Map.copyOf(physicalDateFormats));
+        }
+        if (binding != null) {
+            base.put(ExternalStats.READ_BINDING_KEY, binding);
+        }
+        // Written only when true: absence is the common case and means the default rule (a blank is null).
+        if (blankStringCellIsEmptyString) {
+            base.put(ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY, Boolean.TRUE);
+        }
+        return base;
+    }
+
     public static Map<String, Object> embedStatistics(Map<String, Object> sourceMetadata, SourceStatistics statistics) {
         if (statistics == null) {
             return sourceMetadata;

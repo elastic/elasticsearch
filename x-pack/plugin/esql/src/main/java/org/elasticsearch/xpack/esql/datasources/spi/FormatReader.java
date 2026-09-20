@@ -320,10 +320,10 @@ public interface FormatReader extends Closeable {
     }
 
     /**
-     * Whether the pinned schema this reader was handed is a DECLARED claim (bind its columns to the file BY NAME) as
-     * opposed to an INFERRED description (bind by position). Keyed on the schema's provenance, not on whether any
-     * column declared a {@code path}: a declaration whose order merely differs from the file, with no {@code path} at
-     * all, must still bind by name.
+     * Whether this reader binds the pinned schema's columns to the file BY NAME rather than by position. An
+     * instruction the reader is given, not something it derives: it does not depend on whether any column declared a
+     * {@code path}, because a declaration whose order merely differs from the file, with no {@code path} at all, must
+     * still bind by name.
      * <p>
      * {@code dynamic} controls only whether a schema is inferred; it must not leak into how columns bind. An inferred
      * schema was read from the file, so its positions already are the file's — bind by position. A declared schema is

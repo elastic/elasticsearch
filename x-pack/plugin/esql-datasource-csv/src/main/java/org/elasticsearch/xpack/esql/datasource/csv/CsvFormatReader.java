@@ -2066,7 +2066,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         ErrorPolicy effective = context.errorPolicy() != null ? context.errorPolicy() : effectivePolicy;
         List<Attribute> effectiveSchema;
         List<Attribute> readSchema = context.readSchema();
-        // Raw field index per declared column, or null for the positional contract. Set when provenance is DECLARED;
+        // Raw field index per declared column, or null for the positional contract. Set when the read binds by name;
         // see declaredFieldIndexes.
         DeclaredBinding declaredBinding = null;
         if (logger.isDebugEnabled()) {
@@ -2120,10 +2120,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 List<String> headerColumns = context.fileHeaderColumns();
                 if (headerColumns == null) {
                     throw new IllegalStateException(
-                        "headered declared-provenance read of ["
+                        "headered by-name read of ["
                             + object.path()
-                            + "] reached a non-first split without the file's header columns; cannot bind the declared "
-                            + "schema by name"
+                            + "] reached a non-first split without the file's header columns; cannot bind the schema "
+                            + "by name"
                     );
                 }
                 declaredBinding = bindDeclaredToHeaderNames(headerColumns.toArray(new String[0]), readSchema, object);
@@ -3393,19 +3393,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private final String nullValueStr;
         /**
          * Whether a present-but-empty cell on a {@code KEYWORD}/{@code TEXT} column reads as the empty string
-         * rather than {@code null}. True only when the schema this read is bound to was DECLARED — which the
-         * resolver means strictly: {@code mappings} carrying {@code dynamic: false}, the only form that yields
-         * {@link CsvFormatReader#bindsByName}, so a {@code dynamic: true} overlay naming the same
-         * column does NOT enable it — and {@code null_value} does not name the blank. A strictly declared
-         * {@code keyword} column is a request for string semantics, in which "" is a value the file can carry,
-         * and {@code null_value: ""} is how to opt back out of it.
-         * <p>Both inputs are constructor arguments, so the flag is decided once, before any row is read. It
-         * pairs {@code bindsByName} with a pinned schema because a declaration always arrives as
-         * one; the binding without a pinned schema is not a state the resolver can produce.
-         * <p>False for an INFERRED schema, where the alternative would make a blank cell's meaning depend on
-         * what the REST of its column holds — the same bytes reading {@code ""} in a column that sampled as
-         * keyword and {@code null} in one that sampled as long, with nothing the user could set to align them.
-         * Blank is therefore {@code null} on every inferred column, whatever its inferred type.
+         * rather than {@code null}. True when this read was told so ({@link CsvFormatReader#blankStringCellIsEmptyString},
+         * which a {@code dynamic: false} declaration sets), it holds a pinned schema, and {@code null_value} does not
+         * already name the blank — {@code null_value: ""} is how to opt back out of it. Independent of
+         * {@link CsvFormatReader#bindsByName}: binding decides which field a column reads, this decides what an empty
+         * one holds.
+         * <p>All three inputs are known before the first row, so the flag is decided once. It pairs the instruction
+         * with a pinned schema because a declaration always arrives with one.
+         * <p>False otherwise, where the alternative would make a blank cell's meaning depend on what the REST of its
+         * column holds — the same bytes reading {@code ""} in a column that sampled as keyword and {@code null} in one
+         * that sampled as long, with nothing the user could set to align them. Blank is then {@code null} on every
+         * column, whatever its type.
          */
         private final boolean emptyCellIsEmptyString;
         private final DateFormatter datetimeFormatter;
@@ -3435,7 +3433,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private final int declaredFileColumnCount;
         /**
          * One past the widest raw field index any projected column binds — the addressable length of
-         * {@link #sourceToBufferIndex}. Equals the schema size under positional binding; a declared-provenance column
+         * {@link #sourceToBufferIndex}. Equals the schema size under positional binding; a by-name column
          * can push it beyond that (bind {@code col100} of a 105-column file) or leave it short of the file's width.
          */
         private int sourceIndexBound;
@@ -3913,7 +3911,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 computeConfigFingerprint(),
                 readConfig,
                 errorPolicy.isStrict(),
-                schema
+                schema,
+                declaredDateFormats,
+                schemaFieldIndex != null ? ExternalStats.BINDING_BY_NAME : ExternalStats.BINDING_BY_POSITION,
+                emptyCellIsEmptyString
             );
         }
 

@@ -91,6 +91,8 @@ final class NdJsonPageIterator extends BufferingPageIterator {
     private final Function<List<Attribute>, String> fingerprinter;
     /** Identity of how THIS file is read; stamped beside the config fingerprint. Empty when unknown. */
     private final String readConfig;
+    /** Declared date patterns by physical column name; kept for the read identity stamped on each contribution. */
+    private final Map<String, String> declaredDateFormats;
     /**
      * Whether this read's error policy makes its row count independent of the resolved read configuration (FAIL_FAST only). Derived at
      * construction because the policy itself is consumed while opening the stream and is not retained.
@@ -232,6 +234,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         this.pinnedMtimeMillis = pinnedMtimeMillis;
         this.fingerprinter = fingerprinter;
         this.readConfig = readConfig == null ? "" : readConfig;
+        this.declaredDateFormats = declaredDateFormats == null ? Map.of() : Map.copyOf(declaredDateFormats);
         this.rowCountReadConfigIndependent = errorPolicy.isStrict();
         this.fingerprintSchema = resolvedAttributes;
         this.sourceLocation = object.path().toString();
@@ -714,7 +717,12 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                                 fingerprinter.apply(fullSchema),
                                 readConfig,
                                 rowCountReadConfigIndependent,
-                                fullSchema
+                                fullSchema,
+                                declaredDateFormats,
+                                // NDJSON binds every column by object key, and has no present-but-empty cell: a key
+                                // the record omits is absent, not blank.
+                                ExternalStats.BINDING_BY_NAME,
+                                false
                             );
                         }
                     } else {

@@ -68,7 +68,19 @@ public class StripeStatsHarvesterTests extends ESTestCase {
         String path = "memory://harvester-" + UUID.randomUUID();
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         try (var handle = ExternalStatsCapture.bind(sink)) {
-            harvester.emit(path, splitStartByte, chunkBytes, 1000L, "fp", "config", false, SCHEMA);
+            harvester.emit(
+                path,
+                splitStartByte,
+                chunkBytes,
+                1000L,
+                "fp",
+                "config",
+                false,
+                SCHEMA,
+                Map.of(),
+                ExternalStats.BINDING_BY_POSITION,
+                false
+            );
         }
         List<Map<String, Object>> raw = sink.get(path);
         List<Frag> frags = new ArrayList<>();

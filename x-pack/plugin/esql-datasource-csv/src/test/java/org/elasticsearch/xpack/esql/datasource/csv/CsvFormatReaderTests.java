@@ -8326,6 +8326,34 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * The two read instructions are independent axes. Binding by name says which physical field a column reads; the
+     * blank flag says what a present-but-empty cell on a string column holds. Setting one must not move the other.
+     * <p>Fails if {@code blankStringSemantics} is fed the binding instead of the blank flag, or if
+     * {@code withBlankStringCellAsEmptyString} does not thread its value — the decoupling this whole change rests on.
+     */
+    public void testBlankRuleFollowsTheBlankFlagNotTheBinding() throws IOException {
+        String csv = """
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,,20
+            """;
+        StorageObject object = createStorageObject(csv);
+        List<Attribute> pinned = new CsvFormatReader(blockFactory).metadata(object).schema();
+        FormatReadContext ctx = FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(100).readSchema(pinned).build();
+
+        // By name, but told nothing about blanks: a blank keyword cell is null.
+        try (CloseableIterator<Page> it = new CsvFormatReader(blockFactory).withNameBinding(true).read(object, ctx)) {
+            assertTrue("expected at least one page", it.hasNext());
+            assertBlockNull(it.next(), 1, 1);
+        }
+        // Positional, but told a blank string cell is the empty string: it is, despite the positional binding.
+        try (CloseableIterator<Page> it = new CsvFormatReader(blockFactory).withBlankStringCellAsEmptyString(true).read(object, ctx)) {
+            assertTrue("expected at least one page", it.hasNext());
+            assertKeyword(it.next(), 1, 1, "");
+        }
+    }
+
     private static void assertKeyword(Page page, int block, int pos, String expected) {
         BytesRefBlock b = (BytesRefBlock) page.getBlock(block);
         assertFalse("block " + block + " pos " + pos + " should not be null", b.isNull(pos));

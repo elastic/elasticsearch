@@ -3436,7 +3436,7 @@ public class ExternalSourceResolver {
      * javadoc disclosed a different residual here, which does not exist: a strict dataset
      * declaring FEWER columns than the file was believed to ERROR on {@code COUNT(*)} under {@code FAIL_FAST}
      * (rows overflowing the declared width), which a foreign declaration's warm count would then mask. The premise
-     * is false: a DECLARED schema binds by name, and the row-width limit it carries is the FILE's own column count,
+     * is false: such a read binds by name, and the row-width limit it carries is the FILE's own column count,
      * never the declaration's ({@code CsvFormatReader#initProjection} takes the bound from the bound file's header,
      * or lifts it entirely for a headerless file, which supplies no width) — so declaring FEWER columns than the file
      * does not shrink how wide a row may be, and no row overflows a narrower declaration. A declared column the file

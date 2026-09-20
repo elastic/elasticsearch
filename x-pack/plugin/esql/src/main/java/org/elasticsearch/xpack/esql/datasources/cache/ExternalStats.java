@@ -66,6 +66,55 @@ public final class ExternalStats {
     public static final String ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY = "_stats.row_count_read_config_independent";
 
     /**
+     * The physical column names the producing read bound, in read-schema order. Identity data, never a measurement:
+     * it says WHICH columns the statistics beside it describe, so a per-column merge can pair them up by name instead
+     * of trusting a whole-schema hash to have been computed the same way on both sides.
+     */
+    public static final String READ_COLUMN_NAMES_KEY = "_stats.read_column_names";
+
+    /**
+     * The type each of {@link #READ_COLUMN_NAMES_KEY} was read at, in the same order ({@code DataType#typeName()}).
+     * A statistic measures values as some type produced them, so a column read at a different type describes
+     * different values even over identical bytes.
+     */
+    public static final String READ_COLUMN_TYPES_KEY = "_stats.read_column_types";
+
+    /**
+     * The declared date parse-pattern per physical column name, for the columns that declare one. Written only when
+     * non-empty. A pattern decides which timestamps parse, and therefore which cells are null and what the extrema
+     * are.
+     */
+    public static final String READ_COLUMN_DATE_FORMATS_KEY = "_stats.read_column_date_formats";
+
+    /**
+     * How the read bound its columns to the file: {@code "name"} or {@code "position"}. A by-name read takes the
+     * field a column names and null-fills one the file does not supply; a positional read takes the i-th field. Over
+     * the same bytes the two can measure different columns, so a statistic may not cross between them.
+     */
+    public static final String READ_BINDING_KEY = "_stats.read_binding";
+
+    /** {@link #READ_BINDING_KEY} value for a read that binds each column to the field it names. */
+    public static final String BINDING_BY_NAME = "name";
+
+    /** {@link #READ_BINDING_KEY} value for a read that binds the i-th column to the i-th physical field. */
+    public static final String BINDING_BY_POSITION = "position";
+
+    /**
+     * Set when the read held a present-but-empty cell on a string column as the empty string rather than
+     * {@code null}. Written only when true. It changes that column's value count, null count and extrema, so it
+     * separates two reads that agree on every name and type.
+     */
+    public static final String READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY = "_stats.read_blank_string_cell_is_empty_string";
+
+    /**
+     * Set on a cache ENTRY whose column order is the file's own physical order — an entry seeded from the file's own
+     * inferred schema. A positional contribution may only be paired with such an entry column by column, because
+     * position is what a positional read binds by; without this marker the entry's order is unknown and the pairing
+     * is refused.
+     */
+    public static final String COLUMNS_IN_FILE_ORDER_KEY = "_stats.columns_in_file_order";
+
+    /**
      * Set on per-chunk/per-segment contributions to mark them as a partial cover of the file (as
      * opposed to a whole-file read). {@code SourceStatsContribution.classify} routes a partial to the
      * stripe-fragment path: a stripe-addressed partial (carries {@link #STRIPE_SIZE_KEY} etc.) folds

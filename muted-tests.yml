@@ -219,6 +219,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/159745
 - class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
   issue: https://github.com/elastic/elasticsearch/issues/159788
+- class: org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignatureManagerTests
+  method: testSignAndVerifyDifferentPayloadFailsPKCS12orBCFKS
+  issue: https://github.com/elastic/elasticsearch/issues/159806
 
 # Examples:
 #

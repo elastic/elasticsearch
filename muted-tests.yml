@@ -811,3 +811,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:METRICS}
   issue: https://github.com/elastic/elasticsearch/issues/159827
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test {feature:METRICS}
+  issue: https://github.com/elastic/elasticsearch/issues/159827

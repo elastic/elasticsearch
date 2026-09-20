@@ -99,11 +99,13 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         // testStress generates large commits (3-5 MB). randomConcurrentMultiPartSettings can pick values as small as 1 KB threshold /
         // 792 B part size, producing ~3000-4000 upload tasks for a shared 5-thread pool. With multiple shards uploading concurrently
         // this overwhelms the pool, causing safeGet to exceed SAFE_AWAIT_TIMEOUT and triggering upload retries that outlive the 5-second
-        // shard lock check in assertAfterTest. Fixed values here keep the part count bounded (~20 parts for a 5 MB commit).
+        // shard lock check in assertAfterTest. Fixed values here keep the part count bounded (~5 parts for a 5 MB commit). The same
+        // pool also carries the translog uploads that every commit notification waits for, and testStress's real-time gets can force a
+        // commit each while the live version map archive is unsafe, so the part count is kept small to leave the pool headroom.
         return super.nodeSettings().put(
             ConcurrentMultiPartUploadsMockFsRepository.MULTIPART_UPLOAD_THRESHOLD_SIZE,
             ByteSizeValue.of(128, ByteSizeUnit.KB)
-        ).put(ConcurrentMultiPartUploadsMockFsRepository.MULTIPART_UPLOAD_PART_SIZE, ByteSizeValue.of(256, ByteSizeUnit.KB));
+        ).put(ConcurrentMultiPartUploadsMockFsRepository.MULTIPART_UPLOAD_PART_SIZE, ByteSizeValue.of(1, ByteSizeUnit.MB));
     }
 
     public void testGet() {
@@ -515,7 +517,11 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
                     try {
                         id = randomBoolean() ? ids.poll(1, TimeUnit.SECONDS) : ids.peek();
                         if (id != null) {
-                            var getResponse = client().prepareGet(indexName, id).get(timeValueSeconds(30));
+                            // A real-time get for a document that is not in the live version map has to wait until the search shard
+                            // has seen a commit that contains it. While the live version map archive is unsafe, concurrent gets force a
+                            // commit and every one of them queues behind the flush lock and the commit notifications of the others,
+                            // so on a loaded CI agent a single get can take well over 30 seconds (see #159458).
+                            var getResponse = client().prepareGet(indexName, id).get(timeValueSeconds(45));
                             assertTrue(Strings.format("could not GET id '%s'", id), getResponse.isExists());
                             safeSleep(randomLongBetween(1, 100));
                         }

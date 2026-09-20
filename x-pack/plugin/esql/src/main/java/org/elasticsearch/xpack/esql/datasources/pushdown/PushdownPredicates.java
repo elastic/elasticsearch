@@ -265,20 +265,12 @@ public final class PushdownPredicates {
     }
 
     /**
-     * The multivalue comparison functions are <em>any-value existentials</em>: {@code mv_contains(f, v)} is true when
-     * some value of {@code f} equals {@code v}. Each therefore implies exactly the same statistics bound as its scalar
-     * sibling, which is why a format can push one by building the predicate it already builds for the sibling. The
-     * verdict is never {@code YES}: the pushed bound is a superset, so the exact predicate must stay in
-     * {@code FilterExec}, which is what {@code Pushability.RECHECK} means.
+     * {@code mv_contains(f, v)} — some value of {@code f} equals {@code v}, so the bound is the one {@link #isComparison}
+     * carries. A superset, never {@code YES}: the exact predicate stays in {@code FilterExec}.
      * <p>
-     * They are the vocabulary the out-of-band request {@code filter} translates into, so recognising them is what makes
-     * a Kibana filter prune rather than scan. Recognition is deliberately identical in shape to
-     * {@link #isComparison} / {@link #isIn} / {@link #isRange} — a non-virtual {@link NamedExpression} field of a
-     * supported type and foldable, agreeing literals. The {@link NamedExpression} requirement is load-bearing rather
-     * than incidental: a case-insensitive DSL term translates to {@code mv_contains(TO_LOWER(f), lowered)}, whose field
-     * is a function rather than a column, and it must not push — file statistics, dictionaries and partition values
-     * hold original-case values, so pruning against the lowered literal would under-match, and a pruned unit cannot be
-     * recovered by the retained filter.
+     * The {@link NamedExpression} requirement is load-bearing. A case-insensitive term arrives as
+     * {@code mv_contains(TO_LOWER(f), lowered)}, and statistics hold original-case values, so pruning on the lowered
+     * literal would under-match — and a pruned unit cannot be recovered.
      */
     public static boolean isMvContains(MvContains mv, Predicate<DataType> typeSupported) {
         if (mv.left() instanceof NamedExpression ne
@@ -295,10 +287,8 @@ public final class PushdownPredicates {
     }
 
     /**
-     * {@code mv_intersects(f, [v...])} is true when some value of {@code f} is in the set — the {@code IN} bound. The
-     * value set arrives as a <em>single</em> list-valued {@code Literal},
-     * not as a list of literals the way {@link In} carries one, so a caller reads it with {@code literalValueOf} and
-     * unpacks rather than iterating children.
+     * The {@code IN} bound. The set arrives as a <em>single</em> list-valued literal, not {@link In}'s list of
+     * literals, so callers unpack it rather than iterating children.
      */
     public static boolean isMvIntersects(MvIntersects mv, Predicate<DataType> typeSupported) {
         if (mv.left() instanceof NamedExpression ne
@@ -321,15 +311,11 @@ public final class PushdownPredicates {
     }
 
     /**
-     * {@code mv_in_range(f, lo, hi)} is true when some value of {@code f} lies in the interval — the {@code Range}
-     * bound. This is the arm a time filter travels on: a DSL {@code range} with both bounds translates here, and so
-     * does equality on a date field, since a {@code term} on a date is the closed range spanning the value's rounding
-     * unit rather than a point.
+     * The {@code Range} bound, and the arm a time filter travels on — a two-sided DSL {@code range} lands here, and so
+     * does equality on a date, which is the closed range spanning the value's rounding unit rather than a point.
      * <p>
-     * Bound inclusivity is deliberately not read. The options carry {@code include_lower} / {@code include_upper}, but
-     * a closed interval is a superset of a half-open one, so pushing the inclusive bound prunes strictly fewer units
-     * and never drops a matching row; the retained filter computes the exact answer. The cost is a unit whose extreme
-     * equals the bound being read rather than skipped.
+     * Inclusivity is not read: a closed interval is a superset of a half-open one, so the inclusive bound prunes fewer
+     * units and never drops a row.
      */
     public static boolean isMvInRange(MvInRange mv, Predicate<DataType> typeSupported) {
         return mv.field() instanceof NamedExpression ne
@@ -344,13 +330,9 @@ public final class PushdownPredicates {
     }
 
     /**
-     * {@code mv_greater} / {@code mv_less} — the one-sided forms a DSL {@code range} with a single bound translates
-     * into. One helper covers both because the structure they present is identical; the direction is the subclass, so
-     * a caller dispatches on {@code instanceof MvGreater} / {@code instanceof MvLess} at the point where it chooses a
-     * comparison operator, rather than here where it would only be carried through.
-     * <p>
-     * {@link MvCompare#INCLUDE_BOUND} is not read, for the reason given on {@link #isMvInRange}: the inclusive bound
-     * is the safe superset, and reading the option would buy only the unit sitting exactly on the boundary.
+     * The one-sided forms. One helper covers both: they present the same structure, and the direction is the subclass,
+     * which callers read where they pick a comparison operator. {@link MvCompare#INCLUDE_BOUND} is not read — see
+     * {@link #isMvInRange}.
      */
     public static boolean isMvCompare(MvCompare mv, Predicate<DataType> typeSupported) {
         return mv.field() instanceof NamedExpression ne

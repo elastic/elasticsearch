@@ -3032,12 +3032,9 @@ public class FileSplitProvider implements SplitProvider {
                 }
                 yield partitionValues.get(columnName) != null;
             }
-            // The multivalue comparison functions — what the out-of-band request filter translates into. A partition
-            // value is a single value, so each reads exactly as its scalar sibling does, with two differences handled
-            // in the helpers below: each is read as `field OP literal` only, and the ordered forms answer a value
-            // exactly on the bound from their default inclusivity, or unknown when options override it. Reading one
-            // way round is required for mv_contains, whose operands are a superset and a subset and so mean different
-            // things when swapped; for the symmetric mv_intersects it is merely conservative.
+            // A partition value is single, so each of these reads as its scalar sibling does. Two differences live in
+            // the helpers below: they read `field OP literal` only, and the ordered forms take a value exactly on the
+            // bound from their default inclusivity.
             case MvContains mvContains -> evaluateMvLeaf(
                 mvContains.left(),
                 mvContains.right(),

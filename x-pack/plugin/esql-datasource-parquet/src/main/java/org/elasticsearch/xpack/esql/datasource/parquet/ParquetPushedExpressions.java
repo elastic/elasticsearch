@@ -354,13 +354,10 @@ final class ParquetPushedExpressions {
             return translateRange(ne.name(), ne.dataType(), range, schema, formats);
         }
         // ---- multivalue comparison functions -------------------------------------------------
-        // Each is an any-value existential, so the bound is its scalar sibling's. These feed the STATISTICS path
-        // only: they are deliberately absent from evaluateExpression, because the late-materialization row evaluator
-        // keeps a position only when getValueCount(i) == 1 — right for `f == v`, wrong for mv_contains(f, v), where it
-        // would drop genuinely matching multivalued rows before FilterExec ever sees them. An unrecognised shape there
-        // returns null, meaning "all rows survive", so the omission is safe by construction. They ARE collected by
-        // collectColumnNames: being unevaluable row-by-row is not the same as not being a predicate column, and that
-        // set also drives the dictionary and bloom pre-warm and the per-column materialization accounting.
+        // STATISTICS path only. Absent from evaluateExpression because the row evaluator keeps a position only when
+        // getValueCount(i) == 1 — right for `f == v`, wrong for mv_contains(f, v), which would lose matching
+        // multivalued rows; an unrecognised shape there returns null, so all rows survive. Still collected by
+        // collectColumnNames, which also drives the dictionary and bloom pre-warm.
         if (expr instanceof MvContains mvContains && mvContains.left() instanceof NamedExpression ne) {
             Object value = literalValueOf(mvContains.right());
             if (value == null || value instanceof List) {

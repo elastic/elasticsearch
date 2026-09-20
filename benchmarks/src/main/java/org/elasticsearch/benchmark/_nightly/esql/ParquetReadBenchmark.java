@@ -177,7 +177,8 @@ public class ParquetReadBenchmark {
         return out.toByteArray();
     }
 
-    private static OutputFile byteArrayOutputFile(ByteArrayOutputStream out) {
+    /** Package-private so the filter-pushdown benchmark beside this one can build its own fixture. */
+    static OutputFile byteArrayOutputFile(ByteArrayOutputStream out) {
         return new OutputFile() {
             @Override
             public PositionOutputStream create(long blockSizeHint) {

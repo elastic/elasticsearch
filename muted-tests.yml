@@ -514,3 +514,5 @@ tests:
 - class: org.elasticsearch.xpack.security.transport.CrossClusterSigningConfigReloaderIntegTests
   method: testRemoveFileWithConfig
   issue: https://github.com/elastic/elasticsearch/issues/159810
+- class: org.elasticsearch.xpack.security.transport.CrossClusterSigningConfigReloaderIntegTests
+  issue: https://github.com/elastic/elasticsearch/issues/159811

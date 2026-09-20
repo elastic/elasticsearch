@@ -793,3 +793,24 @@ tests:
 - class: org.elasticsearch.xpack.prometheus.PrometheusQueryRangeRestIT
   method: testRangeExplicitOnMatchesRetainedMetricNames
   issue: https://github.com/elastic/elasticsearch/issues/159798
+- class: org.elasticsearch.xpack.esql.action.HeterogeneousRelationClassIT
+  method: testGroupingOnClassSeparatesTheBranches
+  issue: https://github.com/elastic/elasticsearch/issues/159800
+- class: org.elasticsearch.xpack.esql.action.HeterogeneousRelationClassIT
+  method: testWildcardMatchingBothAnswersPerLeaf
+  issue: https://github.com/elastic/elasticsearch/issues/159801
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForkBucketIncludeEmptyBucketsIT
+  method: test {csv-spec:bucket_include_empty_buckets.Large number of buckets doesn't OOM - stats}
+  issue: https://github.com/elastic/elasticsearch/issues/158639
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForkBucketIncludeEmptyBucketsIT
+  method: test {csv-spec:bucket_include_empty_buckets.No empty buckets}
+  issue: https://github.com/elastic/elasticsearch/issues/159812
+- class: org.elasticsearch.compute.aggregation.BytesRefArrayStatePartitionTests
+  method: testPagedRoundTrip
+  issue: https://github.com/elastic/elasticsearch/issues/159813
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:prometheus-k8s-increase.increase_of_double_no_grouping_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/159814
+- class: org.elasticsearch.xpack.esql.parser.LookupJoinParserTests
+  method: testValidJoinPatternWithRemoteExpressionJoin
+  issue: https://github.com/elastic/elasticsearch/issues/159818

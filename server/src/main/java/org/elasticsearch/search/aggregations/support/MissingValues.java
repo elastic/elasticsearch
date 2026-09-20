@@ -79,6 +79,13 @@ public enum MissingValues {
             }
 
             @Override
+            public ValueOrder getValueOrder() {
+                // A document without a value yields the single missing value, which is ordered whatever this says.
+                // One that has values yields the delegate's, in the delegate's order, so that is what this reports.
+                return values.getValueOrder();
+            }
+
+            @Override
             public String toString() {
                 return "anon SortableBinaryDocValues of [" + super.toString() + "]";
             }

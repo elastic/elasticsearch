@@ -81,6 +81,11 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
         return found;
     }
 
+    @Override
+    public int slotCount() throws IOException {
+        return Math.toIntExact(reader.valueCount(iterator.rank()));
+    }
+
     /** The document {@link #firstAddress} was looked up for, so reading its slots does not look it up again. */
     private int firstAddressRank = -1;
     private long firstAddress;

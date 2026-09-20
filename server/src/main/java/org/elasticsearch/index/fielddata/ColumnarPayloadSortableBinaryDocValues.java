@@ -57,6 +57,8 @@ public final class ColumnarPayloadSortableBinaryDocValues extends SortableBinary
     private int index;
     /** The next slot of the current document for the column route to read, null slots included. */
     private int slot;
+    /** The document's slot count, kept while assertions are on so {@link #nextValue()} can bound {@link #slot}. */
+    private int slotCount;
 
     public ColumnarPayloadSortableBinaryDocValues(BinaryDocValues binary) {
         this(binary, null, Sparsity.UNKNOWN, ValueMode.UNKNOWN);
@@ -118,6 +120,7 @@ public final class ColumnarPayloadSortableBinaryDocValues extends SortableBinary
         if (source != null) {
             slot = 0;
             count = source.nonNullValueCount();
+            assert trackSlotCount();
             return count > 0;
         }
         decodePayload();
@@ -138,19 +141,28 @@ public final class ColumnarPayloadSortableBinaryDocValues extends SortableBinary
         }
         BytesRef value;
         do {
-            // The column counted this document's non-null slots, so one is always left to find.
+            // The column counted this document's non-null slots, so one is always left to find. Past the last
+            // slot the source would hand back the next document's value rather than fail, so this holds it here.
+            assert slot < slotCount : "slot " + slot + " beyond the document's " + slotCount;
             value = source.slotAt(slot++);
         } while (value == null);
         return value;
     }
 
+    /** Records the document's slot count so {@link #nextValue()} can bound {@link #slot}. Assertions only. */
+    private boolean trackSlotCount() throws IOException {
+        slotCount = source.slotCount();
+        assert slotCount >= count : "a document of " + slotCount + " slots cannot hold " + count + " values";
+        return true;
+    }
+
     /** Reads the document's values out of the payload, for values that do not come from a column this can walk. */
     private void decodePayload() throws IOException {
-        final int slotCount = decoder.reset(binary.binaryValue());
+        final int payloadSlots = decoder.reset(binary.binaryValue());
         // Size the scratch to the slot count — an upper bound on the surviving non-null values — then trim to the non-null total.
-        grow(slotCount);
+        grow(payloadSlots);
         int nonNull = 0;
-        for (int i = 0; i < slotCount; i++) {
+        for (int i = 0; i < payloadSlots; i++) {
             final BytesRef value = decoder.next();
             if (value == null) {
                 continue; // null slot

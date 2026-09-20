@@ -227,12 +227,7 @@ public class BinaryRangeAggregatorTests extends ESTestCase {
                 ords[ords.length - 1] = ords[randomInt(ords.length - 2)];
             }
             if (valueOrder == SortableBinaryDocValues.ValueOrder.SORTED) {
-                if (valueOrder == SortableBinaryDocValues.ValueOrder.SORTED) {
-                    Arrays.sort(ords);
-                } else {
-                    // Array order: the collector has no low bound to carry from one value to the next.
-                    shuffle(ords);
-                }
+                Arrays.sort(ords);
             } else {
                 // Array order: the collector cannot carry a low bound from one value to the next.
                 shuffle(ords);

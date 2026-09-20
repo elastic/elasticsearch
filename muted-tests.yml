@@ -522,3 +522,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
   method: testLongLivedPitRelocation
   issue: https://github.com/elastic/elasticsearch/issues/155740
+- class: org.elasticsearch.xpack.logsdb.qa.BulkStoredSourceChallengeRestIT
+  method: testTermsAggregation
+  issue: https://github.com/elastic/elasticsearch/issues/159817

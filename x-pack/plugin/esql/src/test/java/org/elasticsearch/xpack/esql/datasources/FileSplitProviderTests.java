@@ -716,6 +716,22 @@ public class FileSplitProviderTests extends ESTestCase {
         assertNull(FileSplitProvider.evaluateFilter(new MvContains(SRC, fieldAttr("status"), intLiteral(200)), Map.of("year", 2024)));
     }
 
+    public void testMvInRangeOnAFileMetadataColumnPrunes() {
+        // The matcher's value map is not partition columns alone — buildFileTasks overlays the file-metadata
+        // columns, and _file.modified is a DATETIME. A request filter naming it binds when the query carries
+        // METADATA _file.modified, so it reaches this arm. The value is the file's real mtime, one per file, so the
+        // comparison is exact and pruning on it is correct rather than merely safe.
+        Expression modified = new ExternalMetadataAttribute(SRC, FileMetadataColumns.MODIFIED, DataType.DATETIME);
+        Expression filter = new MvInRange(
+            SRC,
+            modified,
+            new Literal(SRC, 1_000L, DataType.DATETIME),
+            new Literal(SRC, 2_000L, DataType.DATETIME)
+        );
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(filter, Map.of(FileMetadataColumns.MODIFIED, 1_500L)));
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(filter, Map.of(FileMetadataColumns.MODIFIED, 3_000L)));
+    }
+
     public void testMatchesPartitionFiltersAllMatch() {
         Map<String, Object> values = Map.of("year", 2024, "month", 6);
         List<Expression> filters = List.of(

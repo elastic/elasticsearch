@@ -3789,6 +3789,16 @@ public class EsqlCapabilities {
         METADATA_SLICE(SliceIndexing.SLICE_FEATURE_FLAG),
 
         /**
+         * Support for the {@code _class} and {@code _name} metadata fields: {@code _class} is the kind
+         * of relation the row came from and {@code _name} is that relation's own name. Enables
+         * {@code FROM <relation> METADATA _class, _name} on an index and on a dataset. A view answers
+         * neither: referencing either column on a query that names one fails with
+         * {@code Unknown column}, unless the view resolves to its own branch alongside another source,
+         * where they bind and the view's rows answer NULL.
+         */
+        METADATA_CLASS_AND_NAME,
+
+        /**
          * Support LAST and LATEST aggregation on the same extended field types as FIRST and EARLIEST
          * (version, unsigned_long, spatial, spatial-grid, dense_vector, exponential_histogram, tdigest,
          * flattened).

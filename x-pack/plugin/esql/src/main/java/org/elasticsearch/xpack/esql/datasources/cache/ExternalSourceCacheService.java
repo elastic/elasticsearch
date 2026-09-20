@@ -804,6 +804,175 @@ public class ExternalSourceCacheService implements Closeable {
      * The count tier deliberately carries ONLY the row count across: writing the foreign read configuration or its column
      * families would relabel this entry as a read it did not come from.
      */
+    /**
+     * What a contribution whose read configuration differs from the entry's may still enrich it with.
+     * <p>
+     * A differing configuration used to mean "discard everything". It now means "look closer": the two reads may
+     * still have observed the same rows, and the same cells in some columns. What survives is decided per column,
+     * from what each side says it did, rather than from one hash over the whole schema that can only answer same or
+     * different.
+     * <p>
+     * Nothing crosses unless the contribution carries the row-count licence: a column statistic is a measurement over
+     * rows, so it is meaningless unless both sides counted the same rows. Given that, the row count crosses, and a
+     * column crosses only when the two reads must have seen the same cells in it:
+     * <ol>
+     *   <li>the entry holds a column of that name at the same type;</li>
+     *   <li>neither side parsed it with a declared date pattern, which decides which values parse at all;</li>
+     *   <li>it is the same physical field — either the contribution bound by name, or it bound by position into an
+     *       entry whose columns are the file's own, at the same index (a part whose header permutes the anchor's
+     *       columns fails this, and is refused);</li>
+     *   <li>for a string column, both reads made the same thing of a blank cell.</li>
+     * </ol>
+     * Every returned map carries the licence, which is true by construction because nothing crosses without it, and
+     * is load-bearing: an entry's fold licence is the AND over what it holds, so a crossed map lacking it would take
+     * the whole entry, and every dataset fold over it, off the warm path.
+     *
+     * @return the map that may enrich the entry, or null when nothing may
+     */
+    @Nullable
+    private static Map<String, Object> crossingStats(
+        SchemaCacheEntry existing,
+        Map<String, Object> stats,
+        boolean licensed,
+        @Nullable SourceStatsContribution.ReadIdentity identity,
+        boolean stripeRail,
+        String path
+    ) {
+        if (licensed == false) {
+            logger.debug("[{}] foreign contribution refused: not licensed", path);
+            return null;
+        }
+        Object rowCount = stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT);
+        Map<String, Object> crossed = new HashMap<>();
+        if (identity == null) {
+            // A producer that does not say what it did — a columnar reader, or a node older than this change. Today's
+            // behaviour: the whole-file rail carries the licensed row count across and the stripe rail carries nothing.
+            if (stripeRail || rowCount instanceof Number == false) {
+                logger.debug("[{}] foreign contribution refused: no read identity", path);
+                return null;
+            }
+            crossed.put(SourceStatisticsSerializer.STATS_ROW_COUNT, rowCount);
+            crossed.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            return crossed;
+        }
+        if (rowCount instanceof Number) {
+            crossed.put(SourceStatisticsSerializer.STATS_ROW_COUNT, rowCount);
+        }
+        String[] entryNames = existing.columnNames();
+        DataType[] entryTypes = existing.columnTypes();
+        boolean entryInFileOrder = Boolean.TRUE.equals(existing.safeMetadata().get(ExternalStats.COLUMNS_IN_FILE_ORDER_KEY));
+        boolean boundByName = ExternalStats.BINDING_BY_NAME.equals(identity.binding());
+        List<String> crossedColumns = new ArrayList<>();
+        List<String> refused = new ArrayList<>();
+        for (int read = 0; read < identity.columnNames().size(); read++) {
+            String column = identity.columnNames().get(read);
+            int entryIndex = indexOf(entryNames, column);
+            if (entryIndex < 0) {
+                refused.add(column + " (not a column of the entry)");
+                continue;
+            }
+            if (entryTypes == null || entryIndex >= entryTypes.length || entryTypes[entryIndex] == null) {
+                refused.add(column + " (the entry holds no type for it)");
+                continue;
+            }
+            DataType entryType = entryTypes[entryIndex];
+            if (entryType.typeName().equals(identity.columnTypes().get(read)) == false) {
+                refused.add(column + " (read at [" + identity.columnTypes().get(read) + "], entry holds [" + entryType.typeName() + "])");
+                continue;
+            }
+            if (identity.dateFormats().containsKey(column)) {
+                refused.add(column + " (a declared date pattern decides which of its values parse)");
+                continue;
+            }
+            if (boundByName == false) {
+                if (entryInFileOrder == false) {
+                    refused.add(column + " (a positional read cannot be paired with an entry not in the file's order)");
+                    continue;
+                }
+                if (read != entryIndex) {
+                    refused.add(column + " (positional read holds it at [" + read + "], the entry at [" + entryIndex + "])");
+                    continue;
+                }
+            }
+            if (DataType.isString(entryType) && identity.blankStringCellIsEmptyString() != blankPolicyOf(existing)) {
+                refused.add(column + " (the two reads disagree on what a blank cell holds)");
+                continue;
+            }
+            String prefix = SourceStatisticsSerializer.STATS_COL_PREFIX + column + ".";
+            for (Map.Entry<String, Object> e : stats.entrySet()) {
+                if (e.getKey().startsWith(prefix)) {
+                    crossed.put(e.getKey(), e.getValue());
+                }
+            }
+            crossedColumns.add(column);
+        }
+        if (crossed.isEmpty()) {
+            logger.debug("[{}] foreign contribution crossed nothing; refused: {}", path, refused);
+            return null;
+        }
+        crossed.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+        logger.debug(
+            "[{}] foreign contribution crossed: entry read config [{}], contribution [{}], columns crossed {}, refused {}",
+            path,
+            existing.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY),
+            identity.binding(),
+            crossedColumns,
+            refused
+        );
+        return crossed;
+    }
+
+    /**
+     * Merges a crossed stripe into whatever the entry already committed at that ordinal: absent keys are added,
+     * present keys are kept. The entry's own read is authoritative about its own stripes, so a crossed contribution
+     * can only add to it.
+     *
+     * @return the merged stripe, or null when the two disagree on a shared key — which the crossing rules should
+     *         have made impossible, so it is an assertion in tests and a refusal in production
+     */
+    @Nullable
+    private static Map<String, Object> mergeCrossedStripe(
+        @Nullable Object committed,
+        Map<String, Object> crossed,
+        String stripeKey,
+        String path
+    ) {
+        if (committed instanceof Map<?, ?> existingStripe) {
+            Map<String, Object> merged = new HashMap<>(crossed);
+            for (Map.Entry<?, ?> e : existingStripe.entrySet()) {
+                if (e.getKey() instanceof String k) {
+                    Object crossedValue = merged.get(k);
+                    if (crossedValue != null && Objects.equals(crossedValue, e.getValue()) == false) {
+                        assert false
+                            : "crossed stripe disagrees with the entry's own on [" + k + "]: " + crossedValue + " vs " + e.getValue();
+                        logger.warn("[{}] crossed stripe [{}] disagrees with the entry's own on [{}]; not committed", path, stripeKey, k);
+                        return null;
+                    }
+                    merged.put(k, e.getValue());
+                }
+            }
+            return merged;
+        }
+        return crossed;
+    }
+
+    /** What the entry's own read made of a blank string cell; absent means the default, {@code null}. */
+    private static boolean blankPolicyOf(SchemaCacheEntry entry) {
+        return Boolean.TRUE.equals(entry.safeMetadata().get(ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY));
+    }
+
+    private static int indexOf(@Nullable String[] names, String column) {
+        if (names == null) {
+            return -1;
+        }
+        for (int i = 0; i < names.length; i++) {
+            if (column.equals(names[i])) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     @Nullable
     private static Map<String, Object> applicableStats(SchemaCacheEntry entry, Map<String, Object> contribution) {
         Object entryReadConfig = entry.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
@@ -811,11 +980,16 @@ public class ExternalSourceCacheService implements Closeable {
         if (Objects.equals(entryReadConfig, contributionReadConfig)) {
             return contribution;
         }
-        if (Boolean.TRUE.equals(contribution.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY))
-            && contribution.get(SourceStatisticsSerializer.STATS_ROW_COUNT) instanceof Number rowCount) {
-            return Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, rowCount);
-        }
-        return null;
+        // Different configurations no longer mean discard: crossingStats decides per column what the two reads
+        // must have observed alike, and carries the licence on whatever it returns.
+        return crossingStats(
+            entry,
+            contribution,
+            Boolean.TRUE.equals(contribution.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)),
+            SourceStatsContribution.ReadIdentity.from(contribution),
+            false,
+            entry.location()
+        );
     }
 
     /**
@@ -1119,12 +1293,11 @@ public class ExternalSourceCacheService implements Closeable {
         for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matchingEntries) {
             SchemaCacheKey key = match.getKey();
             SchemaCacheEntry existing = match.getValue();
-            // Read-shape gate, stricter than the whole-file path's: stripe state is an accumulating per-entry fold,
-            // so a foreign-configured delta cannot contribute even its row count without mixing two reads' stripes into
-            // one cover. Same-shape only; anything else safe-misses to a scan.
-            if (Objects.equals(existing.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY), delta.readConfig()) == false) {
-                continue;
-            }
+            // Same read configuration is the fast path: everything merges, exactly as before. A differing one no
+            // longer means discard — crossingStats decides per stripe what the two reads must have observed alike,
+            // and the entry keeps its OWN identity, so nothing here relabels it as the foreign read.
+            Object entryReadConfig = existing.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
+            boolean sameRead = Objects.equals(entryReadConfig, delta.readConfig());
             Map<String, Object> enriched = new HashMap<>(existing.safeMetadata());
             // Grid identity gate: stripe ordinals are only comparable within one grid. If the entry's
             // committed stripe state was accumulated on a DIFFERENT grid (data nodes running different
@@ -1138,18 +1311,57 @@ public class ExternalSourceCacheService implements Closeable {
                 clearStripeState(enriched);
             }
             enriched.put(ExternalStats.STRIPE_GRID_KEY, delta.stripeSize());
+            boolean crossedAnything = false;
             for (Map.Entry<Long, Map<String, Object>> stripe : delta.stripes().entrySet()) {
+                Map<String, Object> contribution = stripe.getValue();
+                if (sameRead == false) {
+                    Map<String, Object> crossed = crossingStats(
+                        existing,
+                        contribution,
+                        delta.rowCountReadConfigIndependent(),
+                        delta.readIdentity(),
+                        true,
+                        path
+                    );
+                    if (crossed == null) {
+                        continue;
+                    }
+                    // Stored under the ENTRY's own identity: the stripes of an entry describe that entry's read, and
+                    // the fold below re-keys from them. Writing the foreign read's configuration here is what would
+                    // relabel the entry as a read it never made.
+                    contribution = new HashMap<>(crossed);
+                    contribution.put(ExternalStats.MTIME_MILLIS_KEY, delta.mtimeMillis());
+                    contribution.put(ExternalStats.CONFIG_FINGERPRINT_KEY, delta.fingerprint());
+                    if (entryReadConfig != null) {
+                        contribution.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, entryReadConfig);
+                    }
+                }
                 // Push the resolved column type down to each stripe's min/max before it is stored, so the
                 // 0..K fold (foldCommittedStripes -> mergeStatistics) never folds a Long extremum against a
                 // Double one for the same column. dropUnrepresentable=false: an unrepresentable value is left
                 // for that fold's POISON to safe-miss the whole column (a per-stripe drop would fold a subset).
                 Map<String, Object> stripeStats = coerceColumnStatsToResolvedTypes(
-                    stripe.getValue(),
+                    contribution,
                     existing.columnNames(),
                     existing.columnTypes(),
                     false
                 );
-                enriched.put(ExternalStats.STRIPE_ENTRY_PREFIX + stripe.getKey(), stripeStats);
+                String stripeKey = ExternalStats.STRIPE_ENTRY_PREFIX + stripe.getKey();
+                if (sameRead == false) {
+                    // A crossed stripe adds to what the entry's own read measured; it never replaces it with a
+                    // subset. A key both carry must agree — they describe the same rows of the same file — and a
+                    // disagreement means the crossing rules admitted something they should not have.
+                    Map<String, Object> merged = mergeCrossedStripe(enriched.get(stripeKey), stripeStats, stripeKey, path);
+                    if (merged == null) {
+                        continue;
+                    }
+                    stripeStats = merged;
+                }
+                enriched.put(stripeKey, stripeStats);
+                crossedAnything = true;
+            }
+            if (sameRead == false && crossedAnything == false) {
+                continue; // nothing of this delta may enrich this entry
             }
             if (delta.lastStripeOrdinal() >= 0) {
                 enriched.put(ExternalStats.STRIPE_LAST_INDEX_KEY, delta.lastStripeOrdinal());
@@ -1317,6 +1529,20 @@ public class ExternalSourceCacheService implements Closeable {
      */
     private static Map<String, Object> foldCommittedStripes(Map<String, Object> enriched, StripeDelta delta) {
         long lastIndex = enriched.get(ExternalStats.STRIPE_LAST_INDEX_KEY) instanceof Number n ? n.longValue() : -1L;
+        // The fold describes THIS entry, so it is keyed with the entry's own read configuration rather than the
+        // configuration of whichever delta happened to complete it. Taking the delta's would relabel the entry as a
+        // read it never made, which is exactly what a crossed contribution must not do.
+        Object entryReadConfig = enriched.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
+        String readConfig = entryReadConfig instanceof String c ? c : delta.readConfig();
+        // And the licence is the AND over what the entry actually holds: one committed stripe whose count is a
+        // survivor count makes the folded count one too. The multi-stripe merge already ANDs it; this makes the
+        // single-stripe branch agree instead of trusting the last delta to speak for all of them.
+        boolean licensed = true;
+        for (long k = 0; k <= lastIndex; k++) {
+            if (enriched.get(ExternalStats.STRIPE_ENTRY_PREFIX + k) instanceof Map<?, ?> stripe) {
+                licensed &= Boolean.TRUE.equals(stripe.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
+            }
+        }
         // The stripes folded here went through coerceColumnStatsToResolvedTypes when committed — see the
         // TRIPWIRE on foldQueryDeltaStripes for the coercion asymmetry between the two foldStripes callers.
         return foldStripes(lastIndex, k -> {
@@ -1326,7 +1552,7 @@ public class ExternalSourceCacheService implements Closeable {
                 return stripeMap;
             }
             return null; // ordinal missing — knowledge incomplete, keep accumulating
-        }, delta.mtimeMillis(), delta.fingerprint(), delta.readConfig(), delta.rowCountReadConfigIndependent());
+        }, delta.mtimeMillis(), delta.fingerprint(), readConfig, licensed);
     }
 
     /**

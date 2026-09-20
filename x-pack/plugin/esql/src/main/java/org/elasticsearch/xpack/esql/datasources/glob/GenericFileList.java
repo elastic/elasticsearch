@@ -29,6 +29,7 @@ final class GenericFileList implements FileList {
     @Nullable
     private final FileSetFingerprint fileSetFingerprint;
     private final List<String> listingWarnings;
+    private final boolean truncated;
 
     GenericFileList(List<StorageEntry> files, String originalPattern) {
         this(files, originalPattern, null);
@@ -44,6 +45,21 @@ final class GenericFileList implements FileList {
         @Nullable PartitionMetadata partitionMetadata,
         List<String> listingWarnings
     ) {
+        this(files, originalPattern, partitionMetadata, listingWarnings, false);
+    }
+
+    /**
+     * @param truncated whether listing stopped at a bound before the end of the glob, so {@code files} is a
+     *                  prefix of what the pattern matches. See {@link FileList#isTruncated()} for the
+     *                  invariants that keep such a list away from the listing cache and from row reads.
+     */
+    GenericFileList(
+        List<StorageEntry> files,
+        String originalPattern,
+        @Nullable PartitionMetadata partitionMetadata,
+        List<String> listingWarnings,
+        boolean truncated
+    ) {
         if (files == null) {
             throw new IllegalArgumentException("files cannot be null");
         }
@@ -55,7 +71,12 @@ final class GenericFileList implements FileList {
         // single-file listings so the common single-file resolve does not pay for machinery it cannot use.
         // Computed eagerly (once per listing build) rather than lazily: consumers need it O(1) at resolve
         // time, and construction is the one place the entry walk is already paid.
-        this.fileSetFingerprint = files.size() >= 2 ? FileSetFingerprints.compute(files) : null;
+        // A truncated listing gets no fingerprint. The fingerprint identifies a file SET and keys
+        // dataset-level derived state such as the warm COUNT(*) aggregate; folded over a prefix it would
+        // name the whole dataset while describing a fraction of it, and the aggregate cached under it would
+        // be silently wrong. Absent is correct-or-miss; present-and-partial is not.
+        this.fileSetFingerprint = truncated == false && files.size() >= 2 ? FileSetFingerprints.compute(files) : null;
+        this.truncated = truncated;
         this.listingWarnings = listingWarnings == null || listingWarnings.isEmpty() ? List.of() : List.copyOf(listingWarnings);
     }
 
@@ -107,6 +128,11 @@ final class GenericFileList implements FileList {
     @Override
     public List<String> listingWarnings() {
         return listingWarnings;
+    }
+
+    @Override
+    public boolean isTruncated() {
+        return truncated;
     }
 
     @Override

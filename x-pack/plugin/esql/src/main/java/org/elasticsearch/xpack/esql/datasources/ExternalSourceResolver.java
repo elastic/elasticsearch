@@ -185,6 +185,7 @@ public class ExternalSourceResolver {
     private final IntSupplier maxDiscoveredFiles;
     private final IntSupplier maxGlobExpansion;
     private final IntSupplier maxListedObjects;
+    private final IntSupplier schemaDiscoveryMaxKeys;
     private final ExternalSourceCacheService cacheService;
     /** Node telemetry sink, taken from the module ({@link ExternalSourceMetrics#NOOP} when no module is wired, e.g. tests). */
     private final ExternalSourceMetrics metrics;
@@ -477,6 +478,7 @@ public class ExternalSourceResolver {
         this.maxDiscoveredFiles = capOrSettings(maxDiscoveredFiles, ExternalSourceSettings.MAX_DISCOVERED_FILES, settings);
         this.maxGlobExpansion = capOrSettings(maxGlobExpansion, ExternalSourceSettings.MAX_GLOB_EXPANSION, settings);
         this.maxListedObjects = capOrSettings(maxListedObjects, ExternalSourceSettings.MAX_LISTED_OBJECTS, settings);
+        this.schemaDiscoveryMaxKeys = () -> ExternalSourceSettings.SCHEMA_DISCOVERY_MAX_KEYS.get(settings);
         this.cacheService = cacheService;
         this.isCancelled = isCancelled;
         this.metrics = dataSourceModule == null ? ExternalSourceMetrics.NOOP : dataSourceModule.externalSourceMetrics();
@@ -555,7 +557,19 @@ public class ExternalSourceResolver {
         @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
         ActionListener<ExternalSourceResolution> listener
     ) {
-        resolve(paths, pathConfigs, filterHints, null, null, listener);
+        resolve(paths, pathConfigs, filterHints, null, null, null, listener);
+    }
+
+    /** As below, with no query-shape information: every path resolves as a reading query. */
+    public void resolve(
+        List<String> paths,
+        Map<String, Map<String, Object>> pathConfigs,
+        @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+        @Nullable Map<String, DatasetMapping> declaredMappings,
+        @Nullable Set<String> pathsRequiringStats,
+        ActionListener<ExternalSourceResolution> listener
+    ) {
+        resolve(paths, pathConfigs, filterHints, declaredMappings, pathsRequiringStats, null, listener);
     }
 
     /**
@@ -571,6 +585,10 @@ public class ExternalSourceResolver {
      *        sites and tests. When non-null, a path absent from the set defers the per-file footer
      *        reads (keeping {@code STATS_FILE_COUNT}, marking stats partial). See
      *        {@link ExternalStatsRequirementExtractor#pathsRequiringEagerStats}.
+     * @param pathsReadingNoRows paths whose rows the query all discards, so resolution owes them a schema and
+     *        nothing else and may stop listing once it has one. {@code null} leaves every path resolving as a
+     *        reading query, which is what every existing call site does. See
+     *        {@link SchemaOnlyPathExtractor#pathsReadingNoRows}.
      */
     public void resolve(
         List<String> paths,
@@ -578,6 +596,7 @@ public class ExternalSourceResolver {
         @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
         @Nullable Map<String, DatasetMapping> declaredMappings,
         @Nullable Set<String> pathsRequiringStats,
+        @Nullable Set<String> pathsReadingNoRows,
         ActionListener<ExternalSourceResolution> listener
     ) {
         if (paths == null || paths.isEmpty()) {
@@ -622,7 +641,17 @@ public class ExternalSourceResolver {
             : new ContextPreservingActionListener<>(restorableContext, listener);
         Map<String, ExternalSourceResolution.ResolvedSource> resolved = Maps.newHashMapWithExpectedSize(paths.size());
         metadataReadExecutor.execute(
-            () -> resolveNextPath(paths, 0, pathConfigs, filterHints, declaredMappings, pathsRequiringStats, resolved, resolveListener)
+            () -> resolveNextPath(
+                paths,
+                0,
+                pathConfigs,
+                filterHints,
+                declaredMappings,
+                pathsRequiringStats,
+                pathsReadingNoRows,
+                resolved,
+                resolveListener
+            )
         );
     }
 
@@ -637,6 +666,7 @@ public class ExternalSourceResolver {
         @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
         @Nullable Map<String, DatasetMapping> declaredMappings,
         @Nullable Set<String> pathsRequiringStats,
+        @Nullable Set<String> pathsReadingNoRows,
         Map<String, ExternalSourceResolution.ResolvedSource> resolved,
         ActionListener<ExternalSourceResolution> listener
     ) {
@@ -647,8 +677,9 @@ public class ExternalSourceResolver {
         String path = paths.get(index);
         Map<String, Object> config = pathConfigs.getOrDefault(path, Map.of());
         List<PartitionFilterHintExtractor.PartitionFilterHint> hints = filterHints != null ? filterHints.get(path) : null;
-        // null => legacy eager for every path; non-null => eager only for listed paths.
-        boolean requiresStats = pathsRequiringStats == null || pathsRequiringStats.contains(path);
+        // How much of this path the query actually needs. The two sets are exclusive by construction, so they
+        // collapse into one value here rather than travelling down the resolution rails side by side.
+        ResolutionDemand demand = ResolutionDemand.of(path, pathsRequiringStats, pathsReadingNoRows);
         DatasetMapping declaredMapping = declaredMappings != null ? declaredMappings.get(path) : null;
         // The declared mapping's read-instructions (logical->physical column renames, date formats) travel as a
         // typed DeclaredReadSpec on the ResolvedSource -> ExternalRelation -> ExternalSourceExec seam, rather than as
@@ -656,7 +687,7 @@ public class ExternalSourceResolver {
         // physicalization (PhysicalNames) and the pushdown planner rules (readers stay rename-agnostic).
         DeclaredReadSpec declaredReadSpec = declaredReadSpecOf(declaredMapping);
 
-        resolveSource(path, config, hints, declaredMapping, requiresStats, ActionListener.wrap(resolvedSource -> {
+        resolveSource(path, config, hints, declaredMapping, demand, ActionListener.wrap(resolvedSource -> {
             // Strict is built directly from the declaration inside resolveSource; non-strict infers first and then
             // overlays the declaration onto the resolved result (works the same for single- and multi-file).
             ExternalSourceResolution.ResolvedSource finalSource = declaredMapping != null && isDeclaredSchema(declaredMapping) == false
@@ -664,7 +695,17 @@ public class ExternalSourceResolver {
                 : resolvedSource;
             resolved.put(path, finalSource.withDeclaredReadSpec(declaredReadSpec));
             LOGGER.debug("Successfully resolved external source: {}", path);
-            resolveNextPath(paths, index + 1, pathConfigs, filterHints, declaredMappings, pathsRequiringStats, resolved, listener);
+            resolveNextPath(
+                paths,
+                index + 1,
+                pathConfigs,
+                filterHints,
+                declaredMappings,
+                pathsRequiringStats,
+                pathsReadingNoRows,
+                resolved,
+                listener
+            );
         }, e -> listener.onFailure(mapResolveFailure(path, e))));
     }
 
@@ -821,13 +862,13 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         @Nullable DatasetMapping declaredMapping,
-        boolean requiresStats,
+        ResolutionDemand demand,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) {
         LOGGER.debug("Resolving external source: path=[{}]", path);
         try {
             bufferConfigWarnings(path, config);
-            resolveSourceInner(path, config, hints, declaredMapping, requiresStats, listener);
+            resolveSourceInner(path, config, hints, declaredMapping, demand, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -838,7 +879,7 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         @Nullable DatasetMapping declaredMapping,
-        boolean requiresStats,
+        ResolutionDemand demand,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) throws Exception {
         // A query cancelled before resolution starts must do no storage I/O at all: bail before glob
@@ -846,7 +887,7 @@ public class ExternalSourceResolver {
         throwIfCancelled();
 
         if (GlobExpander.isMultiFile(path)) {
-            resolveMultiFileSource(path, config, hints, declaredMapping, requiresStats, listener);
+            resolveMultiFileSource(path, config, hints, declaredMapping, demand, listener);
         } else {
             resolveSingleFileSource(path, config, declaredMapping, listener);
         }
@@ -959,7 +1000,7 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         @Nullable DatasetMapping declaredMapping,
-        boolean requiresStats,
+        ResolutionDemand demand,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) throws Exception {
         StoragePath storagePath = StoragePath.of(path);
@@ -976,10 +1017,10 @@ public class ExternalSourceResolver {
             // Strict declaration is the whole schema for every file, so inference is skipped — listing plus,
             // for columnar formats, one anchor footer read. The non-strict overlay is applied by the caller.
             if (isDeclaredSchema(declaredMapping) && datasetFormat != null) {
-                listener.onResponse(resolveStrictMultiFile(path, storagePath, provider, hints, fileConfig, declaredMapping));
+                listener.onResponse(resolveStrictMultiFile(path, storagePath, provider, hints, fileConfig, declaredMapping, demand));
                 return;
             }
-            FileList listing = listAndRecord(path, storagePath, provider, hints, fileConfig, schemaResolution, cacheable);
+            FileList listing = listAndRecord(path, storagePath, provider, hints, fileConfig, schemaResolution, cacheable, demand);
             if (listing.fileCount() == 0) {
                 throw noFilesMatched(path, listing);
             }
@@ -1011,7 +1052,7 @@ public class ExternalSourceResolver {
                     finalListing,
                     fileConfig,
                     declaredMapping,
-                    requiresStats,
+                    demand,
                     cacheable,
                     datasetFormat,
                     listener
@@ -1050,14 +1091,14 @@ public class ExternalSourceResolver {
         FileList listing,
         Map<String, Object> config,
         @Nullable DatasetMapping declaredMapping,
-        boolean requiresStats,
+        ResolutionDemand demand,
         boolean cacheable,
         @Nullable String datasetFormat,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) {
         try {
             final ExternalSourceMetadata base = withSourceType(enrichWithFileCount(anchorMetadata, listing.fileCount()), datasetFormat);
-            if (listing.fileCount() > 1 && requiresStats) {
+            if (listing.fileCount() > 1 && demand.requiresStats()) {
                 // For multi-file FIRST_FILE_WINS, read all files' metadata during Phase 1 to aggregate statistics
                 // across all files. This allows aggregate pushdown (COUNT/MIN/MAX) to use accurate global stats and
                 // to skip Phase 2 (split discovery) entirely for those queries.
@@ -1361,6 +1402,16 @@ public class ExternalSourceResolver {
      * and inferred STRICT share this so a cacheable provider hits {@link #cachedListing} regardless of
      * merge strategy. Declared-schema resolution stays in {@link #resolveStrictMultiFile}.
      */
+    /**
+     * Lists the glob and publishes the discovery telemetry for it.
+     *
+     * <p>A listing that only has to answer a schema is bounded, and a bounded listing is a prefix of the dataset
+     * rather than the dataset. That makes the shared cache the hazard: an entry is keyed by the path and its
+     * filters, not by what the query that created it happened to need, so caching a prefix would serve it to the
+     * next query over the same glob and that query would read a fraction of the data and report success. Bounded
+     * listings therefore never touch the cache — not written to it, and not read from it, since a cache hit would
+     * silently hand back the full listing and lose the saving the bound exists for.
+     */
     private FileList listAndRecord(
         String path,
         StoragePath storagePath,
@@ -1368,15 +1419,45 @@ public class ExternalSourceResolver {
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         Map<String, Object> config,
         FormatReader.SchemaResolution schemaResolution,
-        boolean cacheable
+        boolean cacheable,
+        ResolutionDemand demand
     ) throws Exception {
         long discoveryStartNanos = System.nanoTime();
-        FileList listing = cacheable
+        int listingBound = listingBoundFor(demand, schemaSpansEveryFile(schemaResolution));
+        FileList listing = cacheable && listingBound == Integer.MAX_VALUE
             ? cachedListing(path, storagePath, provider, hints, config)
-            : expandAndCompact(path, provider, hints, config, storagePath);
+            : expandAndCompact(path, provider, hints, config, storagePath, listingBound);
+        assert listing.isTruncated() == false || listingBound != Integer.MAX_VALUE
+            : "a listing was truncated without a bound being asked for";
         pendingListingWarnings.addAll(listing.listingWarnings());
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), schemaResolution);
         return listing;
+    }
+
+    /**
+     * How many keys this resolution may visit, or {@link Integer#MAX_VALUE} for the whole glob.
+     *
+     * <p>Bounding is the intersection of two conditions, and both are about correctness rather than cost. The
+     * query must read no rows from this path, because split discovery takes its file set from the listing that
+     * resolution produced. And the resolution mode must be one whose schema does not depend on the file count:
+     * {@code union_by_name} and {@code strict} reconcile every file by contract, so a prefix would answer with a
+     * narrower schema than the dataset has — a wrong answer, and the one the modes exist to prevent.
+     */
+    private int listingBoundFor(ResolutionDemand demand, boolean schemaSpansEveryFile) {
+        return demand.schemaOnly() && schemaSpansEveryFile == false ? schemaDiscoveryMaxKeys.getAsInt() : Integer.MAX_VALUE;
+    }
+
+    /**
+     * Whether this mode's schema is defined over the whole dataset rather than over one file. Only that makes a
+     * prefix the wrong answer: {@code union_by_name} and {@code strict} reconcile every file by contract, so a
+     * bounded enumeration would report a narrower schema than the dataset has, which is the thing those modes
+     * exist to prevent.
+     */
+    private static boolean schemaSpansEveryFile(FormatReader.SchemaResolution schemaResolution) {
+        return switch (schemaResolution) {
+            case FIRST_FILE_WINS -> false;
+            case UNION_BY_NAME, STRICT -> true;
+        };
     }
 
     /**
@@ -1402,6 +1483,17 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         StoragePath storagePath
     ) throws Exception {
+        return expandAndCompact(path, provider, hints, config, storagePath, Integer.MAX_VALUE);
+    }
+
+    private FileList expandAndCompact(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Map<String, Object> config,
+        StoragePath storagePath,
+        int listingBound
+    ) throws Exception {
         return GlobExpander.expandAndCompact(
             path,
             provider,
@@ -1410,7 +1502,8 @@ public class ExternalSourceResolver {
             storagePath,
             maxDiscoveredFiles.getAsInt(),
             maxGlobExpansion.getAsInt(),
-            maxListedObjects.getAsInt()
+            maxListedObjects.getAsInt(),
+            listingBound
         );
     }
 
@@ -1437,6 +1530,11 @@ public class ExternalSourceResolver {
             GlobExpander.listingCacheDiscriminator(path, hints, config)
         );
         FileList listing = cacheService.getOrComputeListing(listingKey, k -> expandAndCompact(path, provider, hints, config, storagePath));
+        // The compute above lists the whole glob, which is what keeps a bounded listing out of this cache. That is
+        // a property of one lambda, and the failure if it ever changes is silent: an entry here is keyed by the
+        // path and its filters, so a prefix stored under one would be served to a query that reads rows, which
+        // would scan part of the dataset and report success. Asserted rather than commented for that reason.
+        assert listing.isTruncated() == false : "a truncated listing must never enter the shared listing cache: " + path;
         // Caps are not part of the listing key: a raise must keep hitting. A later drop still has
         // to fail closed, or a cached FileList computed under a looser cap would bypass the setting
         // until TTL. Expand already checked; this re-check is for the hit path.
@@ -3568,7 +3666,8 @@ public class ExternalSourceResolver {
         StorageProvider provider,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         Map<String, Object> config,
-        DatasetMapping declaredMapping
+        DatasetMapping declaredMapping,
+        ResolutionDemand demand
     ) throws Exception {
         // Fail closed on an ambiguous pattern before listing. Same helper as the inferred rail.
         String sourceType = FormatNameResolver.datasetFormat(config, path, dataSourceModule.formatReaderRegistry());
@@ -3576,6 +3675,14 @@ public class ExternalSourceResolver {
         // Strict multi-file still does the same glob listing as the inferred path — record it as discovery too, so
         // strict resolutions are not invisible in the discovery telemetry (mirrors resolveMultiFileSource).
         long discoveryStartNanos = System.nanoTime();
+        // A declaration is the whole schema for every file, so this listing exists only to find the anchor the
+        // coercibility check reads, to count files, and to derive partition columns from the paths. None of that
+        // grows with the dataset, so a schema-only query bounds it exactly as the inferred rail does. The
+        // cache is bypassed for the same reason it is there: a prefix must never be served to a reading query.
+        // A declaration is the schema for every file, so it spans no files at all and schema_resolution is not
+        // consulted on this rail — the declared mapping is used whatever it says. Passing the mode here would
+        // leave a dataset that declared a mapping AND set union_by_name enumerating in full for no reason.
+        int listingBound = listingBoundFor(demand, false);
         if (path.indexOf(',') >= 0) {
             listing = GlobExpander.expand(
                 path,
@@ -3584,12 +3691,13 @@ public class ExternalSourceResolver {
                 config,
                 maxDiscoveredFiles.getAsInt(),
                 maxGlobExpansion.getAsInt(),
-                maxListedObjects.getAsInt()
+                maxListedObjects.getAsInt(),
+                listingBound
             );
-        } else if (isCacheable(provider)) {
+        } else if (isCacheable(provider) && listingBound == Integer.MAX_VALUE) {
             listing = cachedListing(path, storagePath, provider, hints, config);
         } else {
-            listing = expandAndCompact(path, provider, hints, config, storagePath);
+            listing = expandAndCompact(path, provider, hints, config, storagePath, listingBound);
         }
         pendingListingWarnings.addAll(listing.listingWarnings());
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), effectiveSchemaResolution(config));

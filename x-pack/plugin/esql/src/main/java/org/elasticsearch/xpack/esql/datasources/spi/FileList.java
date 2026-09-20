@@ -153,6 +153,21 @@ public interface FileList {
     long estimatedBytes();
 
     /**
+     * Whether listing stopped at a caller-supplied bound rather than reaching the end of the glob, so this
+     * list is a prefix of the files the pattern matches and {@link #fileCount()} is a floor, not a total.
+     * <p>
+     * Only a schema-only resolution ever asks for a bound, because the schema of a dataset does not depend on
+     * how many files carry it. Two invariants keep a truncated list away from everything else, and both are
+     * enforced where the list is produced rather than left to callers: it is never written to the shared
+     * listing cache, where an unbounded query would later read it and scan a fraction of the dataset, and it
+     * is never built for a query that reads rows. A reader reached by a truncated list returns silently wrong
+     * results, so treat both as correctness invariants, not optimisations.
+     */
+    default boolean isTruncated() {
+        return false;
+    }
+
+    /**
      * The 128-bit fingerprint identifying the resolved file SET: a commutative fold over every file's
      * {@code (path, mtime, size)} plus the file count, computed once when the listing is built. The same
      * set listed in any order yields the same fingerprint; any file added, removed, or modified (mtime

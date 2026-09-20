@@ -3403,4 +3403,228 @@ public class GlobExpanderTests extends ESTestCase {
         @Override
         public void close() {}
     }
+
+    // ---------------------------------------------------------------------------------------------------------
+    // Bounded listing. Every assertion below is paired with the count of keys the provider was actually asked
+    // for: a bound that filtered keys it had already read would satisfy a fileCount assertion and save nothing,
+    // and the count is the only thing that tells the two apart.
+    // ---------------------------------------------------------------------------------------------------------
+
+    /** A glob wide enough that the bound bites, under the default listing order. */
+    private static List<StorageEntry> wideListing(int count) {
+        List<StorageEntry> entries = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            entries.add(entry(String.format(Locale.ROOT, "s3://bucket/data/part-%06d.parquet", i), 100));
+        }
+        return entries;
+    }
+
+    public void testBoundStopsListingAndMarksTruncated() throws IOException {
+        CountingStubProvider provider = new CountingStubProvider(wideListing(5000));
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/*.parquet",
+            provider,
+            null,
+            HIVE_OFF,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            1000
+        );
+
+        assertEquals("the bound is a key budget, so it decides the file count here", 1000, result.fileCount());
+        assertTrue("a listing cut short must say so", result.isTruncated());
+        assertEquals("keys past the bound must never be pulled from the provider", 1000, provider.keysPulled());
+        assertNull("a truncated listing identifies no file set, so it carries no fingerprint", result.fileSetFingerprint());
+    }
+
+    /**
+     * The positive control for the test above: the same glob and the same provider with no bound reads every key
+     * and reports an untruncated listing. Without this, a bound that silently did nothing would still look green.
+     */
+    public void testUnboundedListingReadsEveryKeyAndIsNotTruncated() throws IOException {
+        CountingStubProvider provider = new CountingStubProvider(wideListing(5000));
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/*.parquet",
+            provider,
+            null,
+            HIVE_OFF,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE
+        );
+
+        assertEquals(5000, result.fileCount());
+        assertFalse(result.isTruncated());
+        assertEquals(5000, provider.keysPulled());
+        assertNotNull("a complete multi-file listing still identifies its file set", result.fileSetFingerprint());
+    }
+
+    /**
+     * The ordering gate. A bound keeps the first keys the provider reports, so it is only sound where the
+     * dataset's order IS listing order. Under {@code file_sort_by: name, file_order: desc} the anchor
+     * FIRST_FILE_WINS would pick sits at the far end of the glob, so the bound is dropped and everything listed.
+     */
+    public void testBoundIsDroppedWhenFileOrderIsNotListingOrder() throws IOException {
+        CountingStubProvider provider = new CountingStubProvider(wideListing(5000));
+        Map<String, Object> config = new HashMap<>();
+        config.put(PartitionConfig.CONFIG_PARTITIONING_DETECTION, "none");
+        config.put(FileOrderConfig.CONFIG_FILE_SORT_BY, "name");
+        config.put(FileOrderConfig.CONFIG_FILE_ORDER, "desc");
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/*.parquet",
+            provider,
+            null,
+            config,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            1000
+        );
+
+        assertEquals("a dataset ordering the glob itself cannot be answered from a prefix of it", 5000, result.fileCount());
+        assertFalse(result.isTruncated());
+        assertEquals(5000, provider.keysPulled());
+        assertEquals("file_order still decides the anchor", "s3://bucket/data/part-004999.parquet", result.path(0).toString());
+    }
+
+    /**
+     * A bounded page holding nothing the glob matches is not an empty dataset. Reporting one would turn a working
+     * query into "matched no files" for any dataset whose first keys happen to be another format.
+     */
+    public void testBoundedListingMatchingNothingRelistsInFull() throws IOException {
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < 1000; i++) {
+            listing.add(entry(String.format(Locale.ROOT, "s3://bucket/data/part-%06d.csv", i), 50));
+        }
+        listing.add(entry("s3://bucket/data/zzz.parquet", 100));
+        CountingStubProvider provider = new CountingStubProvider(listing);
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/*.parquet",
+            provider,
+            null,
+            HIVE_OFF,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            1000
+        );
+
+        assertEquals("the file past the bound is still found", 1, result.fileCount());
+        assertEquals("s3://bucket/data/zzz.parquet", result.path(0).toString());
+        assertFalse("the re-list was unbounded, so its answer is complete", result.isTruncated());
+    }
+
+    /** Partition columns come from the paths visited, so a bound decides them along with the file set. */
+    public void testBoundedListingDetectsPartitionsFromTheKeysItVisited() throws IOException {
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < 1000; i++) {
+            listing.add(entry(String.format(Locale.ROOT, "s3://bucket/data/year=2024/f-%04d.parquet", i), 100));
+        }
+        listing.add(entry("s3://bucket/data/year=2025/late.parquet", 100));
+        CountingStubProvider provider = new CountingStubProvider(listing);
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/" + "**/*.parquet",
+            provider,
+            null,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            1000
+        );
+
+        assertTrue(result.isTruncated());
+        assertNotNull("the column is still detected from the keys that were read", result.partitionMetadata());
+        assertEquals(Set.of("year"), result.partitionMetadata().partitionColumns().keySet());
+        assertEquals(1000, provider.keysPulled());
+    }
+
+    /**
+     * The property that keeps FIRST_FILE_WINS's answer identical under a bound: the anchor it reads is the file
+     * at index 0, a bound keeps a prefix in listing order, and the compacted encodings reproduce each file at the
+     * index it was listed at. So the bounded and unbounded enumerations must agree on index 0 — and on every
+     * index the bounded one has — even though only the unbounded one is compacted.
+     */
+    public void testBoundedExpansionAgreesWithAnUnboundedOneOnEveryIndexItHas() throws IOException {
+        List<StorageEntry> entries = new ArrayList<>();
+        for (int i = 0; i < 3000; i++) {
+            entries.add(entry(String.format(Locale.ROOT, "s3://bucket/data/year=2024/month=%02d/f-%05d.parquet", i % 12 + 1, i), 100));
+        }
+        String pattern = "s3://bucket/data/" + "**/*.parquet";
+        StoragePath storagePath = StoragePath.of(pattern);
+
+        FileList bounded = GlobExpander.expandAndCompact(
+            pattern,
+            new CountingStubProvider(entries),
+            null,
+            HIVE_ON,
+            storagePath,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            1000
+        );
+        FileList full = GlobExpander.expandAndCompact(
+            pattern,
+            new CountingStubProvider(entries),
+            null,
+            HIVE_ON,
+            storagePath,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE
+        );
+
+        assertTrue(bounded.isTruncated());
+        assertFalse(full.isTruncated());
+        assertEquals(3000, full.fileCount());
+        assertEquals(1000, bounded.fileCount());
+        assertEquals("the anchor FIRST_FILE_WINS reads must not move", full.path(0), bounded.path(0));
+        for (int i = 0; i < bounded.fileCount(); i++) {
+            assertEquals("index " + i + " must name the same file in both", full.path(i), bounded.path(i));
+        }
+    }
+
+    /** Counts what the drain actually pulled, which is what separates a saved request from a filtered key. */
+    private static class CountingStubProvider extends StubProvider {
+        private int keysPulled;
+
+        CountingStubProvider(List<StorageEntry> listing) {
+            super(listing);
+        }
+
+        int keysPulled() {
+            return keysPulled;
+        }
+
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+            StorageIterator delegate = super.listObjects(prefix, recursive);
+            return new StorageIterator() {
+                @Override
+                public boolean hasNext() {
+                    return delegate.hasNext();
+                }
+
+                @Override
+                public StorageEntry next() {
+                    keysPulled++;
+                    return delegate.next();
+                }
+
+                @Override
+                public void close() throws IOException {
+                    delegate.close();
+                }
+            };
+        }
+    }
 }

@@ -115,8 +115,44 @@ public final class GlobExpander {
         int maxGlobExpansion,
         int maxListedObjects
     ) throws IOException {
-        FileList expanded = expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion, maxListedObjects);
+        return expandAndCompact(
+            path,
+            provider,
+            hints,
+            config,
+            storagePath,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            Integer.MAX_VALUE
+        );
+    }
+
+    /**
+     * As above, stopping after {@code listingBound} keys have been visited rather than draining the glob.
+     * <p>
+     * The bound truncates where {@code maxListedObjects} fails: reaching it is the expected outcome, not an error.
+     * The result is a prefix of the matching files in listing order, flagged {@link FileList#isTruncated()}, and it
+     * is left uncompacted — compaction shrinks large listings and a bounded one is already small. Only a
+     * schema-only resolution may pass a bound; {@code Integer.MAX_VALUE} is the unbounded path every reading query
+     * takes, byte for byte as before.
+     */
+    public static FileList expandAndCompact(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        StoragePath storagePath,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        int listingBound
+    ) throws IOException {
+        FileList expanded = expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion, maxListedObjects, listingBound);
         if (expanded.isResolved() == false || expanded.fileCount() == 0) {
+            return expanded;
+        }
+        if (expanded.isTruncated()) {
             return expanded;
         }
         if (expanded instanceof GenericFileList raw) {
@@ -155,9 +191,28 @@ public final class GlobExpander {
         int maxGlobExpansion,
         int maxListedObjects
     ) throws IOException {
+        return expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion, maxListedObjects, Integer.MAX_VALUE);
+    }
+
+    public static FileList expand(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        int listingBound
+    ) throws IOException {
         PartitionConfig partitionConfig = PartitionConfig.fromConfig(config);
         ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
         FileOrderConfig fileOrder = FileOrderConfig.forListing(config);
+        // The ordering gate. A bound keeps the first keys the provider reports, so it composes with file_order
+        // only where that order IS listing order. Under NAME, MTIME, or any DESC the dataset's chosen anchor can
+        // sit anywhere in the glob, and truncating would hand FIRST_FILE_WINS a different file than the query
+        // asked for — a wrong schema, not a slower one. Those shapes drop the bound and list in full.
+        int effectiveBound = fileOrder.equals(FileOrderConfig.DEFAULT) ? listingBound : Integer.MAX_VALUE;
+        // A comma list is several globs; a key budget has no single meaning across them, so it resolves unbounded.
         return isTopLevelCommaList(path)
             ? doExpandCommaSeparated(
                 path,
@@ -179,22 +234,30 @@ public final class GlobExpander {
                 maxGlobExpansion,
                 maxListedObjects,
                 nameFilter,
-                fileOrder
+                fileOrder,
+                effectiveBound
             );
     }
 
     /**
-     * Expands a single glob, falling back to the un-rewritten glob if — and only if — a partition rewrite narrowed it
-     * to nothing. Hint-based narrowing is only an optimisation: the query's filter is still evaluated on the rows, so
-     * listing a superset is always correct while listing a subset is a wrong answer.
+     * Expands a single glob, re-listing without narrowing if — and only if — a narrowed listing came back empty.
      *
-     * <p>Only the glob rewrite ({@link #effectivePattern}/{@link #rewriteSegment}) can hide files: it spells a value
-     * with {@link String#valueOf}, so {@code WHERE month == 6} narrows the glob to {@code month=6} while the Hive
-     * convention writes a zero-padded {@code month=06}. Reporting empty there would be silent zero rows on an ordinary
-     * dataset, so we re-list the un-rewritten glob — keeping the {@code _file.*} filters, which are exact and cannot
-     * hide anything — and let the row filter decide. If the un-rewritten glob is empty too, the pattern genuinely
-     * matches nothing and the caller's "matched no files" error stands. When the rewrite did not change the pattern
-     * there is nothing to disambiguate, so we expand once with no retry.
+     * <p>Two things narrow a listing, and neither is allowed to decide that a dataset is empty. The glob rewrite
+     * ({@link #effectivePattern}/{@link #rewriteSegment}) spells a hint value with {@link String#valueOf}, so
+     * {@code WHERE month == 6} narrows the glob to {@code month=6} while the Hive convention writes a zero-padded
+     * {@code month=06}. The listing bound keeps only the first keys the provider reports, so a prefix holding
+     * nothing but litter or another format matches nothing while the dataset is full of files. Both report empty
+     * for a dataset that has data, which is silent zero rows rather than a slow query.
+     *
+     * <p>So emptiness is decided on the un-narrowed glob: drop the rewrite and the bound and list once more.
+     * The {@code _file.*} filters are kept — they are exact and can hide nothing. If that is empty too the pattern
+     * genuinely matches nothing and the caller's "matched no files" error stands. A full re-list can exceed
+     * {@code max_discovered_files} and throw, exactly as the unfiltered query would; that is deliberate, because
+     * telling a narrowing miss from a genuinely empty dataset needs the whole listing.
+     *
+     * <p>Narrowing is only ever an optimisation: the query's filter still runs on the rows, so listing a superset
+     * is always correct while listing a subset is a wrong answer. When nothing narrowed the glob there is nothing
+     * to disambiguate and this expands once, with no retry.
      */
     private static FileList expandGlobWithRewriteFallback(
         String pattern,
@@ -205,9 +268,12 @@ public final class GlobExpander {
         int maxGlobExpansion,
         int maxListedObjects,
         ExclusionConfig.NameFilter nameFilter,
-        FileOrderConfig fileOrder
+        FileOrderConfig fileOrder,
+        int listingBound
     ) throws IOException {
-        if (effectivePattern(pattern, hints, partitionConfig).equals(pattern)) {
+        boolean rewritten = effectivePattern(pattern, hints, partitionConfig).equals(pattern) == false;
+        boolean bounded = listingBound != Integer.MAX_VALUE;
+        if (rewritten == false && bounded == false) {
             return doExpandGlob(
                 pattern,
                 provider,
@@ -217,15 +283,17 @@ public final class GlobExpander {
                 maxGlobExpansion,
                 maxListedObjects,
                 nameFilter,
-                fileOrder
+                fileOrder,
+                Integer.MAX_VALUE
             );
         }
-        // The retry drops the rewrite but keeps the exact _file.* filters, so it can only come back empty when the
-        // un-rewritten glob genuinely matches nothing.
-        List<PartitionFilterHint> fileHintsOnly = fileMetadataHints(hints);
-        FileList expanded;
+
+        FileList narrowed = null;
+        // A rewritten prefix may name a folder that does not exist; the local filesystem throws where object stores
+        // return empty. That is the rewrite failing, not the dataset, so it takes the same path as an empty result.
+        IOException failure = null;
         try {
-            expanded = doExpandGlob(
+            narrowed = doExpandGlob(
                 pattern,
                 provider,
                 hints,
@@ -234,46 +302,41 @@ public final class GlobExpander {
                 maxGlobExpansion,
                 maxListedObjects,
                 nameFilter,
-                fileOrder
+                fileOrder,
+                listingBound
             );
         } catch (IOException e) {
-            // The rewritten prefix may name a folder that does not exist; the local filesystem throws where object
-            // stores return empty. Both mean the rewrite, not the dataset, emptied the listing — retry either way.
-            logger.debug(() -> "Rewritten listing of [" + pattern + "] failed; re-listing without the glob rewrite", e);
-            try {
-                return doExpandGlob(
-                    pattern,
-                    provider,
-                    fileHintsOnly,
-                    partitionConfig,
-                    maxDiscoveredFiles,
-                    maxGlobExpansion,
-                    maxListedObjects,
-                    nameFilter,
-                    fileOrder
-                );
-            } catch (IOException retryFailure) {
-                retryFailure.addSuppressed(e);
-                throw retryFailure;
-            }
+            failure = e;
         }
-        if (expanded.isResolved() && expanded.fileCount() == 0) {
-            logger.debug("Rewrite of [{}] narrowed to an empty listing; re-listing without the glob rewrite", pattern);
-            // A full re-list can exceed max_discovered_files and throw, exactly as the un-filtered query would; that
-            // cap error is preserved deliberately — deciding spelling-miss vs genuinely-empty needs the full listing.
+        if (failure == null && (narrowed.isResolved() == false || narrowed.fileCount() > 0)) {
+            return narrowed;
+        }
+
+        final IOException narrowedFailure = failure;
+        logger.debug(
+            () -> "Narrowed listing of [" + pattern + "] yielded no files; re-listing without the glob rewrite and without the key bound",
+            narrowedFailure
+        );
+        try {
             return doExpandGlob(
                 pattern,
                 provider,
-                fileHintsOnly,
+                // The rewrite is dropped; the exact _file.* filters are kept.
+                rewritten ? fileMetadataHints(hints) : hints,
                 partitionConfig,
                 maxDiscoveredFiles,
                 maxGlobExpansion,
                 maxListedObjects,
                 nameFilter,
-                fileOrder
+                fileOrder,
+                Integer.MAX_VALUE
             );
+        } catch (IOException retryFailure) {
+            if (failure != null) {
+                retryFailure.addSuppressed(failure);
+            }
+            throw retryFailure;
         }
-        return expanded;
     }
 
     /**
@@ -353,7 +416,8 @@ public final class GlobExpander {
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
             nameFilter,
-            fileOrder
+            fileOrder,
+            Integer.MAX_VALUE
         );
     }
 
@@ -388,7 +452,8 @@ public final class GlobExpander {
             maxGlobExpansion,
             maxListedObjects,
             nameFilter,
-            fileOrder
+            fileOrder,
+            Integer.MAX_VALUE
         );
     }
 
@@ -401,7 +466,8 @@ public final class GlobExpander {
         int maxGlobExpansion,
         int maxListedObjects,
         ExclusionConfig.NameFilter nameFilter,
-        FileOrderConfig fileOrder
+        FileOrderConfig fileOrder,
+        int listingBound
     ) throws IOException {
         Check.notNull(pattern, "pattern cannot be null");
         Check.notNull(provider, "provider cannot be null");
@@ -466,7 +532,9 @@ public final class GlobExpander {
         // A glob leading with the recursive wildcard names no partition key the textual rewrite could act on, so
         // the walk narrows the enumeration itself. Every declined or failed shape falls through to the flat listing
         // below; see PartitionPruningWalk for the fail-closed rules and the trust boundary.
-        if (globstarLeads(glob) && walkableStrategy(partitionConfig)) {
+        // A bounded listing skips the walk. The walk narrows by descending the partition tree, which costs several
+        // requests; the flat path under a bound costs one page and is what the bound was asked for.
+        if (listingBound == Integer.MAX_VALUE && globstarLeads(glob) && walkableStrategy(partitionConfig)) {
             List<PartitionFilterHint> partitionHints = partitionPruningHints(hints);
             if (partitionHints.isEmpty() == false) {
                 PartitionPruningWalk.WalkResult walk = PartitionPruningWalk.tryWalk(
@@ -536,8 +604,17 @@ public final class GlobExpander {
         String excludedExampleEntry = null;
         int listed = 0;
 
+        // Set when the drain stopped at listingBound rather than exhausting the glob.
+        boolean truncated = false;
         try (StorageIterator iterator = provider.listObjects(prefix, recursive)) {
             while (iterator.hasNext()) {
+                if (listed >= listingBound) {
+                    // Every provider's iterator fetches a page only when the current one is exhausted, so
+                    // returning here is what makes the bound an I/O saving rather than a filter over keys we
+                    // already paid to read.
+                    truncated = true;
+                    break;
+                }
                 StorageEntry entry = iterator.next();
                 listed++;
                 checkListedObjectsLimit(listed, maxListedObjects);
@@ -601,7 +678,7 @@ public final class GlobExpander {
 
         PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig, listingWarnings::add);
 
-        return new GenericFileList(matched, pattern, partitionMetadata, listingWarnings);
+        return new GenericFileList(matched, pattern, partitionMetadata, listingWarnings, truncated);
     }
 
     /**
@@ -878,7 +955,10 @@ public final class GlobExpander {
                     nameFilter,
                     // Discovery order only. fileOrder is applied once on the concatenated list so
                     // list+desc is reverse(concat) rather than reverse(concat(reverse(g1), reverse(g2))).
-                    FileOrderConfig.DEFAULT
+                    FileOrderConfig.DEFAULT,
+                    // A key budget has no single meaning across the segments of a comma list, so each
+                    // segment lists in full; expand() never hands this path a bound.
+                    Integer.MAX_VALUE
                 );
                 listingWarnings.addAll(expanded.listingWarnings());
                 if (expanded instanceof GenericFileList g && expanded.fileCount() > 0) {

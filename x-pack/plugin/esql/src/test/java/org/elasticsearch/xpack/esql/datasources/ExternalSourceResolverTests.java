@@ -2005,6 +2005,93 @@ public class ExternalSourceResolverTests extends ESTestCase {
         return resolveFfwWithConfig(resolver, pathsRequiringStats, config);
     }
 
+    /**
+     * A cacheable provider is the shape that matters here: the local filesystem does not support stable metadata,
+     * so it never consults the listing cache and a filesystem-backed test cannot see this at all. S3 does.
+     *
+     * <p>The second resolve is the assertion. It runs over the same glob, through the same cache, immediately
+     * after a schema-only resolve that listed a prefix — so if that prefix had been written to the cache it would
+     * be served here, and a query that reads rows would scan 1,000 files of a 2,500-file dataset and report
+     * success.
+     */
+    public void testSchemaOnlyResolveIsBoundedAndLeavesTheListingCacheClean() throws Exception {
+        int wide = 2500;
+        List<StorageEntry> listing = new ArrayList<>();
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        Map<String, Long> rowCounts = new HashMap<>();
+        for (int i = 0; i < wide; i++) {
+            String path = String.format(Locale.ROOT, "s3://bucket/data/part-%06d.parquet", i);
+            listing.add(entry(path, 100));
+            schemas.put(path, List.of(attr("x", DataType.INTEGER)));
+            rowCounts.put(path, 1L);
+        }
+        ThreeFileStats stats = new ThreeFileStats(schemas, rowCounts);
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            CountingStorageProvider provider = new CountingStorageProvider(Map.of(PREFIX, listing), schemas);
+            ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, cacheService);
+
+            ExternalSourceResolution schemaOnly = resolveWithNoRowPaths(resolver, Set.of(GLOB));
+            ExternalSourceResolution.ResolvedSource bounded = schemaOnly.resolvedSource(GLOB);
+            assertNotNull(bounded);
+            assertEquals("schema discovery stops at the key bound", 1000, bounded.fileList().fileCount());
+            assertTrue("and says that it did", bounded.fileList().isTruncated());
+
+            ExternalSourceResolution reading = resolveWithNoRowPaths(resolver, Set.of());
+            ExternalSourceResolution.ResolvedSource full = reading.resolvedSource(GLOB);
+            assertNotNull(full);
+            assertEquals("a query that reads rows sees the whole dataset", wide, full.fileList().fileCount());
+            assertFalse(full.fileList().isTruncated());
+        }
+    }
+
+    /** As above, but for the resolution modes whose schema is defined over every file: those are never bounded. */
+    public void testUnionByNameAndStrictAreNeverBoundedEvenWhenNoRowsAreRead() throws Exception {
+        int wide = 1200;
+        List<StorageEntry> listing = new ArrayList<>();
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        Map<String, Long> rowCounts = new HashMap<>();
+        for (int i = 0; i < wide; i++) {
+            String path = String.format(Locale.ROOT, "s3://bucket/data/part-%06d.parquet", i);
+            listing.add(entry(path, 100));
+            schemas.put(path, List.of(attr("x", DataType.INTEGER)));
+            rowCounts.put(path, 1L);
+        }
+        ThreeFileStats stats = new ThreeFileStats(schemas, rowCounts);
+
+        for (FormatReader.SchemaResolution mode : List.of(
+            FormatReader.SchemaResolution.UNION_BY_NAME,
+            FormatReader.SchemaResolution.STRICT
+        )) {
+            StubStorageProvider provider = new StubStorageProvider(Map.of(PREFIX, listing), schemas);
+            ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, null);
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(GLOB), Map.of(GLOB, new HashMap<>(configFor(mode))), null, null, Set.of(), Set.of(GLOB), future);
+            ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(GLOB);
+            assertNotNull(resolved);
+            assertEquals(
+                mode + " reconciles every file by contract, so a prefix would answer a narrower schema",
+                wide,
+                resolved.fileList().fileCount()
+            );
+            assertFalse(mode + " must not be truncated", resolved.fileList().isTruncated());
+        }
+    }
+
+    private ExternalSourceResolution resolveWithNoRowPaths(ExternalSourceResolver resolver, Set<String> pathsReadingNoRows) {
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(
+            List.of(GLOB),
+            Map.of(GLOB, new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))),
+            null,
+            null,
+            Set.of(),
+            pathsReadingNoRows,
+            future
+        );
+        return future.actionGet();
+    }
+
     private ExternalSourceResolution resolveFfw(ExternalSourceResolver resolver, Set<String> pathsRequiringStats) {
         return resolveFfwWithConfig(resolver, pathsRequiringStats, configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
     }

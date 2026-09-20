@@ -85,6 +85,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtractor;
 import org.elasticsearch.xpack.esql.datasources.FoldDateFunctionFiltersForListing;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
+import org.elasticsearch.xpack.esql.datasources.SchemaOnlyPathExtractor;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter;
@@ -1967,12 +1968,19 @@ public class EsqlSession {
         // planning time; the rest defer (see ExternalStatsRequirementExtractor).
         Set<String> pathsRequiringStats = ExternalStatsRequirementExtractor.pathsRequiringEagerStats(plan);
 
+        // Always non-null (empty when every relation is read for its rows). A path in this set is one whose rows
+        // the query all discards, so its resolution owes a schema and nothing else and may stop listing as soon
+        // as it has one. What "having one" means is the dataset's business, not the query's: see
+        // ExternalSourceResolver#listingBoundFor.
+        Set<String> pathsReadingNoRows = SchemaOnlyPathExtractor.pathsReadingNoRows(plan);
+
         externalSourceResolver.resolve(
             preAnalysis.icebergPaths(),
             pathConfigs,
             filterHints.isEmpty() ? null : filterHints,
             declaredMappings.isEmpty() ? null : declaredMappings,
             pathsRequiringStats,
+            pathsReadingNoRows,
             listener.map(result::withExternalSourceResolution)
         );
     }

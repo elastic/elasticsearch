@@ -4065,6 +4065,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (chunkMode) {
                 base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
             }
+            // What this read DID, beside the hash of it: the per-column merge pairs columns by name and compares the
+            // behaviours, which a hash cannot be taken apart into.
+            SourceStatisticsSerializer.stampReadIdentity(
+                base,
+                resolvedSchema,
+                declaredDateFormats,
+                schemaFieldIndex != null ? ExternalStats.BINDING_BY_NAME : ExternalStats.BINDING_BY_POSITION,
+                emptyCellIsEmptyString
+            );
             Map<String, Object> flat = SourceStatisticsSerializer.embedStatistics(base, sourceStats);
             ExternalStatsCapture.record(filePath, flat);
         }

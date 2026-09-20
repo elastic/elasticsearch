@@ -1577,6 +1577,10 @@ public class ExternalSourceResolver {
         }
         Map<String, Object> stamped = new HashMap<>(entry.safeMetadata());
         stamped.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
+        // This entry's columns are the file's own, in the file's own order — it was seeded from the schema inferred
+        // from that file. A positional contribution may only be paired with such an entry column by column, because
+        // position is exactly what a positional read binds by.
+        stamped.put(ExternalStats.COLUMNS_IN_FILE_ORDER_KEY, Boolean.TRUE);
         return entry.withSafeMetadata(stamped);
     }
 

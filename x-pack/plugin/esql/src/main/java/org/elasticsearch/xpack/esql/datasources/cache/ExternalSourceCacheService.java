@@ -884,6 +884,7 @@ public class ExternalSourceCacheService implements Closeable {
         String fingerprint,
         String readConfig,
         boolean rowCountReadConfigIndependent,
+        @Nullable SourceStatsContribution.ReadIdentity readIdentity,
         long stripeSize
     ) {}
 
@@ -914,6 +915,12 @@ public class ExternalSourceCacheService implements Closeable {
         long mtime = -1L;
         String fingerprint = null;
         String readConfig = null;
+        // Taken from the first fragment, NOT required to agree across them. The identity is not a function of the
+        // read configuration when that configuration is UNKNOWN: fragments of one file captured by scans that
+        // resolved its schema differently (an inferred header scan and a non-first split handed the planner's
+        // schema) carry different column types and fold together today. Whether such a fold may then CROSS into an
+        // entry is decided where crossing is decided, not here.
+        SourceStatsContribution.ReadIdentity readIdentity = null;
         // ordinal -> (start offset -> fragments starting there). Multiple fragments can share a start
         // (the same stripe prefix observed by two scans), so the value is a list.
         Map<Long, Map<Long, List<SourceStatsContribution.StripeFragment>>> byStripe = new HashMap<>();
@@ -926,6 +933,7 @@ public class ExternalSourceCacheService implements Closeable {
                 mtime = f.mtimeMillis();
                 fingerprint = f.configFingerprint();
                 readConfig = f.readConfig();
+                readIdentity = f.readIdentity();
             } else if (stripeSize != f.stripeSize()) {
                 return null; // mixed grids (mid-upgrade settings skew) — bail rather than guess
             } else if (mtime != f.mtimeMillis() || Objects.equals(fingerprint, f.configFingerprint()) == false
@@ -965,7 +973,7 @@ public class ExternalSourceCacheService implements Closeable {
         // carried it — one unlicensed fragment means part of this cover came from a policy that can drop rows.
         boolean licensed = fragments.isEmpty() == false
             && fragments.stream().allMatch(SourceStatsContribution.StripeFragment::rowCountReadConfigIndependent);
-        return new StripeDelta(complete, lastOrdinal, mtime, fingerprint, readConfig, licensed, stripeSize);
+        return new StripeDelta(complete, lastOrdinal, mtime, fingerprint, readConfig, licensed, readIdentity, stripeSize);
     }
 
     /**

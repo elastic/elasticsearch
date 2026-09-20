@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -41,8 +45,70 @@ sealed interface SourceStatsContribution {
         long mtimeMillis,
         String configFingerprint,
         String readConfig,
-        boolean rowCountReadConfigIndependent
+        boolean rowCountReadConfigIndependent,
+        @Nullable ReadIdentity readIdentity
     ) implements SourceStatsContribution {}
+
+    /**
+     * What the producing read DID, spelled out, beside the {@code readConfig} hash of the same thing. A hash can only
+     * answer "same" or "different" for the whole schema at once; a per-column merge needs the parts, so the reader
+     * stamps them and {@link #classify} lifts them back out.
+     * <p>
+     * Absent (null) on a contribution from a producer that does not stamp it — a columnar reader, or an older node.
+     * Absence is not a licence to pair columns up: it means the read did not say what it did.
+     *
+     * @param columnNames  physical column names the read bound, in read-schema order
+     * @param columnTypes  the type each was read at, positionally aligned with {@code columnNames}
+     * @param dateFormats  declared date parse-patterns by physical column name; empty when none was declared
+     * @param binding      {@link ExternalStats#BINDING_BY_NAME} or {@link ExternalStats#BINDING_BY_POSITION}
+     * @param blankStringCellIsEmptyString whether a blank string cell held the empty string on this read
+     */
+    record ReadIdentity(
+        List<String> columnNames,
+        List<String> columnTypes,
+        Map<String, String> dateFormats,
+        @Nullable String binding,
+        boolean blankStringCellIsEmptyString
+    ) {
+        /** Lifts the identity out of a raw contribution, or null when the producer stamped none. */
+        @Nullable
+        static ReadIdentity from(Map<String, Object> raw) {
+            List<String> names = stringList(raw.get(ExternalStats.READ_COLUMN_NAMES_KEY));
+            List<String> types = stringList(raw.get(ExternalStats.READ_COLUMN_TYPES_KEY));
+            if (names == null || types == null || names.size() != types.size()) {
+                return null;
+            }
+            Map<String, String> dateFormats = Map.of();
+            if (raw.get(ExternalStats.READ_COLUMN_DATE_FORMATS_KEY) instanceof Map<?, ?> m) {
+                Map<String, String> collected = new HashMap<>(m.size());
+                for (Map.Entry<?, ?> e : m.entrySet()) {
+                    if (e.getKey() instanceof String k && e.getValue() instanceof String v) {
+                        collected.put(k, v);
+                    }
+                }
+                dateFormats = Map.copyOf(collected);
+            }
+            String binding = raw.get(ExternalStats.READ_BINDING_KEY) instanceof String b ? b : null;
+            boolean blank = Boolean.TRUE.equals(raw.get(ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY));
+            return new ReadIdentity(names, types, dateFormats, binding, blank);
+        }
+
+        @Nullable
+        private static List<String> stringList(Object value) {
+            if (value instanceof List<?> list) {
+                List<String> out = new ArrayList<>(list.size());
+                for (Object element : list) {
+                    if (element instanceof String s) {
+                        out.add(s);
+                    } else {
+                        return null;
+                    }
+                }
+                return List.copyOf(out);
+            }
+            return null;
+        }
+    }
 
     /**
      * The records of one canonical stripe that a single chunk observed — the unit of the orthogonal
@@ -74,6 +140,7 @@ sealed interface SourceStatsContribution {
         String configFingerprint,
         String readConfig,
         boolean rowCountReadConfigIndependent,
+        @Nullable ReadIdentity readIdentity,
         long stripeSize,
         long ordinal,
         long start,
@@ -118,8 +185,9 @@ sealed interface SourceStatsContribution {
         String fingerprint = raw.get(ExternalStats.CONFIG_FINGERPRINT_KEY) instanceof String s ? s : null;
         String readConfig = raw.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY) instanceof String s ? s : null;
         boolean rowCountReadConfigIndependent = Boolean.TRUE.equals(raw.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
+        ReadIdentity readIdentity = ReadIdentity.from(raw);
         if (Boolean.TRUE.equals(raw.get(ExternalStats.PARTIAL_CHUNK_KEY)) == false) {
-            return new WholeFile(stats, mtime, fingerprint, readConfig, rowCountReadConfigIndependent);
+            return new WholeFile(stats, mtime, fingerprint, readConfig, rowCountReadConfigIndependent, readIdentity);
         }
         long stripeSize = raw.get(ExternalStats.STRIPE_SIZE_KEY) instanceof Number n ? n.longValue() : -1L;
         long ordinal = raw.get(ExternalStats.STRIPE_ORDINAL_KEY) instanceof Number n ? n.longValue() : -1L;
@@ -134,6 +202,7 @@ sealed interface SourceStatsContribution {
             fingerprint,
             readConfig,
             rowCountReadConfigIndependent,
+            readIdentity,
             stripeSize,
             ordinal,
             start,

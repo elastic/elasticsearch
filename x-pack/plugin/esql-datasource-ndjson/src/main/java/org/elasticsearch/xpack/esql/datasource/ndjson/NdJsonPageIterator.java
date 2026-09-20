@@ -764,6 +764,9 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         if (chunkMode) {
             base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
         }
+        // NDJSON binds every column by object key, and has no present-but-empty cell: a key the record omits is
+        // absent, not blank.
+        SourceStatisticsSerializer.stampReadIdentity(base, fullSchema, declaredDateFormats, ExternalStats.BINDING_BY_NAME, false);
         Map<String, Object> flat = SourceStatisticsSerializer.embedStatistics(base, sourceStats);
         ExternalStatsCapture.record(sourceLocation, flat);
     }

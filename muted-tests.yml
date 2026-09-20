@@ -748,3 +748,18 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/156004
 - class: org.elasticsearch.xpack.esql.qa.mixed.RemoteFetchTopNIT
   issue: https://github.com/elastic/elasticsearch/issues/159173
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: "test {p0=aggregations/terms_text_docvalues/Terms aggregation on text field with doc_values}"
+  issue: https://github.com/elastic/elasticsearch/issues/159560
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: "test {p0=aggregations/terms_text_docvalues/Terms aggregation on text field with doc_values - multi value}"
+  issue: https://github.com/elastic/elasticsearch/issues/159560
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: "test {p0=aggregations/terms_text_docvalues/Indexing disabled}"
+  issue: https://github.com/elastic/elasticsearch/issues/159560
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: "test {p0=search/400_synthetic_source/text with doc_values}"
+  issue: https://github.com/elastic/elasticsearch/issues/159560
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: "test {p0=search/400_synthetic_source/text with doc_values multi-value}"
+  issue: https://github.com/elastic/elasticsearch/issues/159560

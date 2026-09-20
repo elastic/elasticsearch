@@ -57,7 +57,7 @@ public class AuditIT extends ESRestTestCase {
 
     private static final String ENCRYPTION_PASSWORD_ID = "test";
 
-    /** A permitted endpoint that routes nowhere: loopback, admitted by the allowlist set on the cluster below. */
+    /** Loopback, admitted by the allowlist below: a permitted endpoint that routes nowhere. */
     private static final String FIXTURE_ENDPOINT = "https://127.0.0.1:9000";
 
     @ClassRule
@@ -71,9 +71,7 @@ public class AuditIT extends ESRestTestCase {
         .setting("xpack.security.audit.logfile.events.include", "[ \"_all\" ]")
         .setting("xpack.security.audit.logfile.events.emit_request_body", "true")
         .setting("esql.federation.enabled", "true")
-        // Endpoints are confined to AWS hosts, so permit loopback the way every other suite in this
-        // repository does. Nothing is dialled here — these tests assert on the audit event, which is
-        // written before the handler runs — and a loopback fixture keeps it that way.
+        // Endpoints are confined to AWS hosts, so permit loopback the way the other suites here do.
         .setting("esql.external.allowed_endpoint_hosts", "127.0.0.1:*,[::1]:*,localhost:*")
         .keystore("cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID, "audit-it-encryption-password")
         .keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID)

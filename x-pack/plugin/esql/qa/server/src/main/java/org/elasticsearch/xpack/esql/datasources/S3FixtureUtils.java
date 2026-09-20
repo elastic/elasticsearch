@@ -50,9 +50,8 @@ public final class S3FixtureUtils {
      * and every fixture in the repository binds a loopback address, so a test cluster names loopback here the
      * same way {@code reindex.remote.whitelist} is set for reindex's own suites.
      *
-     * <p>Taken from the setting rather than respelled, because a re-declared literal would leave every
-     * cluster that uses it pointing at a setting that no longer exists if the key is ever renamed: a green
-     * compile, an empty allowlist, and a refusal that names the endpoint rather than the cause.
+     * <p>Taken from the setting rather than respelled: a re-declared literal would survive a rename of
+     * the key as a green compile and an empty allowlist.
      */
     public static final String ALLOWED_ENDPOINT_HOSTS_SETTING = ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY;
 

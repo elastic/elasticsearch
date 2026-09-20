@@ -1320,9 +1320,8 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
 
     public void testValidateDatasetAcceptsBucketNamesThatMerelyResembleDirectoryBuckets() {
         // These resolve to the ordinary regional host, so refusing them would take away a legitimate
-        // bucket name. The --op-s3 one is below the length at which the ruleset reads an outpost id out
-        // of the name, which testValidateDatasetRefusesBucketNameThatRoutesToOutposts covers; each name
-        // here is asserted to reach the plain regional host rather than assumed to.
+        // bucket name. Asserted rather than assumed, because the boundary is what the Outposts test below
+        // turns on.
         for (String bucket : List.of(
             "mybucket--use1-az4--x-s3-suffix",
             "mybucket--use1-az4--xa-s3-suffix",
@@ -1449,18 +1448,15 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasetOutpostsAlias() {
-        // Short enough that the ruleset never reads an outpost id out of it, so it is an ordinary
-        // bucket name and stays accepted. Asserted, because the boundary is what the next test is about.
+        // Too short for the ruleset to read an outpost id out of, so an ordinary bucket name.
         assertEquals("s3.us-east-1.amazonaws.com", resolvedHostOf("my-access-po-o01ac--op-s3"));
         assertNotNull(validator.validateDataset(Map.of(), "s3://my-access-po-o01ac--op-s3/data/f.parquet", Map.of()));
     }
 
     /**
-     * A bucket name long enough to carry an outpost id moves the request to an {@code s3-outposts} host,
-     * which is a family the endpoint rule refuses by name — and no {@code endpoint} setting suppresses
-     * it, unlike an S3 Express name. The fixture is proved to reach that family by resolving it here,
-     * rather than by looking like an Outposts alias: the ruleset is positional, so a shorter name of the
-     * same shape resolves to the ordinary regional host and would make this test vacuous.
+     * A name long enough to carry an outpost id reaches {@code s3-outposts}, which the endpoint rule
+     * refuses by name and which no {@code endpoint} setting suppresses. The fixture is resolved here
+     * rather than trusted to look right: a shorter name of the same shape would make this test vacuous.
      */
     public void testValidateDatasetRefusesBucketNameThatRoutesToOutposts() {
         String bucket = "oop-01234567890123aaaaaaaaaaaaaaaaaaaaaaaaa--op-s3";
@@ -1475,11 +1471,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertThat(e.getMessage(), not(containsString("looks like an S3 Express directory bucket")));
     }
 
-    /**
-     * One character longer again and the ruleset throws instead of resolving, because the outpost id it
-     * reads out of the name is malformed. Such a name reaches no endpoint at all, so it is refused too,
-     * with a message that says so rather than naming a host.
-     */
+    /** One longer again and the outpost id is malformed, so the ruleset throws and the name is refused too. */
     public void testValidateDatasetRefusesBucketNameTheSdkCannotRoute() {
         String bucket = "oop-01234567890123aaaaaaaaaaaaaaaaaaaaaaaaaaa--op-s3";
         expectThrows(RuntimeException.class, () -> resolvedHostOf(bucket));
@@ -1491,11 +1483,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertThat(e.getMessage(), containsString("cannot route to any endpoint"));
     }
 
-    /**
-     * The host the pinned SDK builds for a bucket name on its own, path-style so that an ordinary bucket
-     * leaves the host bare. This is the same question {@code S3ResourceCheck} asks; asking it here is
-     * what stops a fixture drifting into a different branch than the test it is named for.
-     */
+    /** The same question {@code S3ResourceCheck} asks, so a fixture cannot drift out of its branch unnoticed. */
     private static String resolvedHostOf(String bucket) {
         URI url = S3EndpointProvider.defaultProvider()
             .resolveEndpoint(

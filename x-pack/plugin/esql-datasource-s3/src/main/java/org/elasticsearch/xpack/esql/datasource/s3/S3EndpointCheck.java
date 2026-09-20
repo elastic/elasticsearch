@@ -148,14 +148,13 @@ final class S3EndpointCheck {
         // The global endpoints, which name no region — the class javadoc has why they do not relax the
         // region requirement. Only the bare service label has a global form; an enabled family does not
         // acquire one.
-        // This lookup answers for the commercial partition whichever global pseudo-region it is given:
-        // every one the pinned SDK carries, aws-cn-global and aws-us-gov-global included, reports partition
-        // aws and suffix amazonaws.com. So the value is right and the call is not partition-aware, which
-        // matters the moment another partition's global form is admitted.
+        // This answers for the commercial partition whichever global pseudo-region it is given — every
+        // one the pinned SDK carries reports partition aws — so it is not partition-aware, which matters
+        // the moment another partition's global form is admitted.
         String globalSuffix = PartitionMetadata.of(Region.AWS_GLOBAL).dnsSuffix();
         if (Strings.hasText(globalSuffix) == false) {
-            // Unreachable at the pinned SDK. Dropping the two global literals in silence would refuse a
-            // value the docs list as accepted, which is the same class of outage as the empty check below.
+            // Unreachable at the pinned SDK; dropping the global literals in silence would refuse a value
+            // the docs list as accepted.
             throw new IllegalStateException("no global AWS partition suffix available");
         }
         globalSuffix = globalSuffix.toLowerCase(Locale.ROOT);
@@ -241,9 +240,8 @@ final class S3EndpointCheck {
      * The {@code host:port} the allowlist is matched against, with the scheme's default port supplied when the
      * value carries none, so an entry never has to guess which spelling the user wrote.
      *
-     * <p>Only the operator allowlist is matched on this. The AWS host rule above matches on the host alone,
-     * so {@code https://s3.us-east-1.amazonaws.com:8443} is accepted: the destination is still an AWS S3
-     * host, and nothing is widened by the port.
+     * <p>Only the operator allowlist is matched on this; the AWS host rule above matches on the host
+     * alone, so {@code https://s3.us-east-1.amazonaws.com:8443} is accepted.
      */
     private static String hostAndPort(URI uri) {
         int port = uri.getPort();

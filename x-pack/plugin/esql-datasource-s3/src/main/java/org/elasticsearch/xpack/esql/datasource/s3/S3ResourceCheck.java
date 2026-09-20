@@ -21,14 +21,13 @@ import java.util.Locale;
  * Provider-specific resource validation for S3 URIs, invoked at {@code PUT /_query/dataset} time
  * via {@link org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator#withResourceCheck}.
  *
- * <p>Refuses five forms that pass the scheme check and are not usable: an empty location, a
- * multi-region access point, an ARN, an S3 Express directory bucket, and any other bucket name that
- * steers the request off the regional object endpoint. The last two are here rather than with the
- * endpoint rule because the bucket name alone moves the request, so no endpoint setting can confine it.
+ * <p>Refuses five forms that pass the scheme check and are not usable: an empty location, a multi-region
+ * access point, an ARN, an S3 Express directory bucket, and any other bucket name that steers the request
+ * off the regional object endpoint. The last two are here rather than with the endpoint rule because the
+ * bucket name alone moves the request, so no endpoint setting can confine it.
  *
- * <p>Parsing is on the raw string: {@code StoragePath.of} throws {@code Malformed authority in location}
- * on an ARN before any check could run. The SDK's {@code Arn.fromString} is also not used — the string
- * checks below cover all cases.
+ * <p>Parsing is on the raw string: {@code StoragePath.of} throws on an ARN before any check could run, and
+ * the SDK's {@code Arn.fromString} is not needed — the string checks below cover all cases.
  */
 class S3ResourceCheck {
 
@@ -55,10 +54,9 @@ class S3ResourceCheck {
     private S3ResourceCheck() {}
 
     /**
-     * Adds an error per problem found; does not throw. The order is load-bearing twice over: an empty
-     * authority is refused before format inference can report it as "cannot determine a format", and an
-     * MRAP is refused before the generic ARN branch can suggest an access point alias, which MRAPs do
-     * not have.
+     * Adds an error per problem found; does not throw. The order is load-bearing twice: an empty authority
+     * is refused before format inference reports "cannot determine a format", and an MRAP before the ARN
+     * branch can suggest an access point alias, which MRAPs do not have.
      */
     static void validate(String resource, ValidationException errors) {
         int schemeEnd = resource.indexOf("://");
@@ -116,13 +114,11 @@ class S3ResourceCheck {
     }
 
     /**
-     * The host the SDK builds for this bucket name alone. Asking the resolver rather than listing
-     * spellings is what keeps this from going stale: the SDK's rules are positional, so a name reaches
-     * {@code s3-outposts} only once it is long enough to carry an outpost id.
-     *
-     * <p>Path-style so an ordinary bucket sits in the path and leaves the host bare, which is the
-     * spelling {@link S3EndpointCheck#isPermittedHost} accepts. No endpoint, because one does not
-     * suppress the steering this looks for.
+     * The host the SDK builds for this bucket name alone. Asking the resolver rather than listing spellings
+     * keeps this from going stale: the SDK's rules are positional, so a name reaches {@code s3-outposts}
+     * only once it is long enough to carry an outpost id. Path-style so an ordinary bucket leaves the host
+     * bare, which is what {@link S3EndpointCheck#isPermittedHost} accepts; no endpoint, because one does
+     * not suppress this steering.
      *
      * @throws RuntimeException if the ruleset cannot resolve the name at all
      */

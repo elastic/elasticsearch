@@ -24,29 +24,19 @@ import java.util.function.Predicate;
  * {@code PUT /_query/data_source} time, via
  * {@link org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator#withDatasourceCheck}.
  *
- * <p>Both settings become an endpoint override on an AWS SDK client builder, so whatever host they name is
- * one this node connects to. For {@code sts_endpoint} that host receives the node's own OIDC token as a
- * bearer credential, because the STS client authenticates with nothing else.
+ * <p>Both settings become an endpoint override on an SDK client builder, so whatever host they name is one
+ * this node connects to — and for {@code sts_endpoint} that host receives the node's own OIDC token, the
+ * STS client having nothing else to authenticate with.
  *
- * <p>A regional endpoint is matched by <em>membership</em> rather than by parsing: {@link #S3_ENDPOINT_HOSTS}
- * and {@link #STS_ENDPOINT_HOSTS} are built at class load by crossing the enabled service labels with every
- * region the SDK knows, so admitting a host means finding it in a set the SDK's own metadata generated. A
- * region the pinned SDK has never heard of is therefore refused, not pattern-matched — {@code us-east-99} is
- * a well-formed region token and names nothing. That is the intended direction: a new AWS region is readmitted
- * by an SDK upgrade, and in the meantime by an operator naming the host in
- * {@code esql.external.allowed_endpoint_hosts}.
+ * <p>A host is admitted by <em>membership</em>, not by parsing: {@link #S3_ENDPOINT_HOSTS} and
+ * {@link #STS_ENDPOINT_HOSTS} are built at class load by crossing the enabled service labels with every
+ * region the SDK knows, so a region the pinned SDK has not heard of is refused rather than pattern-matched.
+ * PrivateLink is the one shape with no such source, so it is matched against a generated tail with only the
+ * endpoint id and its prefix read from the name. The two global endpoints are literals.
  *
- * <p>PrivateLink is the one shape with no such source — {@code vpce} appears in none of the SDK jars, and the
- * endpoint id is minted per customer — so {@code [<prefix>.]vpce-<id>.<service>.<region>.vpce} is matched
- * against a generated tail, leaving only the id and its optional prefix to be read from the name.
- *
- * <p>The two global endpoints, {@code s3.amazonaws.com} and {@code sts.amazonaws.com}, are admitted as
- * literals. They name no region, so they reach a {@code us-east-1} bucket and fail for any other rather
- * than being sent elsewhere: the cross-region redirect S3 answers with is not followed, and the one-shot
- * region-discovery retry re-signs against the same endpoint. Everywhere else a region must follow the
- * service label, and that is load-bearing: without it a bucket anyone can create named {@code sts-anything}
- * answers to {@code sts-anything.s3.us-east-1.amazonaws.com} and would be admitted. Every other AWS endpoint
- * family is refused — see {@link #S3_SERVICE_LABELS}.
+ * <p>Everywhere else a region must follow the service label, which is load-bearing: without it a bucket
+ * anyone can create named {@code sts-anything} answers to {@code sts-anything.s3.us-east-1.amazonaws.com}.
+ * Every other family is refused — see {@link #S3_SERVICE_LABELS}.
  */
 final class S3EndpointCheck {
 
@@ -54,22 +44,14 @@ final class S3EndpointCheck {
     static final String STS_SERVICE = "sts";
 
     /**
-     * Every S3 endpoint family AWS serves, with only the regional object endpoint enabled. The list is
-     * load-bearing rather than documentary: each enabled label is crossed with every region to build
-     * {@link #S3_ENDPOINT_HOSTS}. Uncommenting a line is the first step in readmitting a family, not the
-     * whole of it, for every entry: the single enabled element carries no trailing comma, so nothing below it
-     * compiles until that is fixed. Three need more than that. {@code s3express} carries an availability-zone
-     * token rather than a fixed label, so there is no label to enable; {@code s3-external-1} and the transfer
-     * acceleration forms are not spelled {@code <label>.<region>.<suffix>} in the SDK's own metadata, which
-     * is the only shape this crossing builds.
+     * Every S3 endpoint family AWS serves, with only the regional object endpoint enabled: each enabled
+     * label is crossed with every region to build {@link #S3_ENDPOINT_HOSTS}. Uncommenting a line is the
+     * first step in readmitting a family, never the whole of it — the enabled element carries no trailing
+     * comma, and {@code s3express}, {@code s3-external-1} and the acceleration forms are not spelled
+     * {@code <label>.<region>.<suffix>}, which is the only shape this crossing builds. The historical
+     * {@code s3-<region>} spelling and dual-stack are absent for the same reason.
      *
-     * <p>The historical {@code s3-<region>} spelling is absent because it is not a label of its own — it
-     * carries the region inside the service label, and is generated separately. Dual-stack is absent because
-     * it is a label between the service and the region, so no host built from this list can contain it.
-     *
-     * <p>{@code s3-fips} and dual-stack are disabled for the same reason as the rest: nothing here has been
-     * tested against them. Naming one does reach it — AWS serves both, in commercial regions as well as in
-     * GovCloud — so this is a decision about what is supported rather than a technical limit.
+     * <p>All are disabled because nothing has been tested against them, not because they cannot be reached.
      */
     // tag::
     private static final Set<String> S3_SERVICE_LABELS = Set.of(
@@ -105,9 +87,8 @@ final class S3EndpointCheck {
     private static final Set<String> STS_ENDPOINT_HOSTS;
 
     /**
-     * The fixed tails of a PrivateLink interface endpoint, {@code .<service>.<region>.vpce.<suffix>}, one per
-     * region. What precedes a tail is the customer's endpoint id and its optional prefix, which is all this
-     * class reads out of such a name.
+     * The fixed tails of a PrivateLink interface endpoint, {@code .<service>.<region>.vpce.<suffix>}, one
+     * per region. What precedes a tail is the customer's endpoint id and its optional prefix.
      */
     private static final Set<String> S3_VPCE_TAILS;
     private static final Set<String> STS_VPCE_TAILS;
@@ -118,9 +99,8 @@ final class S3EndpointCheck {
         Set<String> s3Tails = new TreeSet<>();
         Set<String> stsTails = new TreeSet<>();
         for (Region region : Region.regions()) {
-            // The pseudo-regions Region.regions() also carries are an input to the SDK's resolver rather
-            // than endpoints anyone configures, and each resolves to a region-less global host, which this
-            // class refuses for naming no region.
+            // The pseudo-regions Region.regions() also carries are resolver input, not endpoints anyone
+            // configures, and each is region-less, which this class refuses anyway.
             if (region.isGlobalRegion()) {
                 continue;
             }
@@ -136,20 +116,15 @@ final class S3EndpointCheck {
             for (String label : STS_SERVICE_LABELS) {
                 stsHosts.add(label + "." + id + "." + suffix);
             }
-            // The historical spelling, which S3 still answers to where it was configured years ago. It is
-            // generated for every region rather than for the regions that serve it, so the set holds some
-            // names that resolve to nothing. Every one of them is still built from a region id and a
-            // partition suffix this metadata supplied, never from anything the configured value carried,
-            // which is the property the rule rests on.
+            // The historical spelling. Generated for every region rather than the ones that serve it, so
+            // some entries resolve to nothing — but each is still built from SDK metadata rather than from
+            // anything the configured value carried, which is the property the rule rests on.
             s3Hosts.add(S3_SERVICE + "-" + id + "." + suffix);
             s3Tails.add("." + S3_SERVICE + "." + id + ".vpce." + suffix);
             stsTails.add("." + STS_SERVICE + "." + id + ".vpce." + suffix);
         }
-        // The global endpoints, which name no region — the class javadoc has why they do not relax the
-        // region requirement. Only the bare service label has a global form; an enabled family does not
-        // acquire one.
-        // This answers for the commercial partition whichever global pseudo-region it is given — every
-        // one the pinned SDK carries reports partition aws — so it is not partition-aware, which matters
+        // The global endpoints. Only the bare service label has one. This lookup answers for the commercial
+        // partition whichever global pseudo-region it is given, so it is not partition-aware — which matters
         // the moment another partition's global form is admitted.
         String globalSuffix = PartitionMetadata.of(Region.AWS_GLOBAL).dnsSuffix();
         if (Strings.hasText(globalSuffix) == false) {
@@ -161,9 +136,8 @@ final class S3EndpointCheck {
         s3Hosts.add(S3_SERVICE + "." + globalSuffix);
         stsHosts.add(STS_SERVICE + "." + globalSuffix);
         if (s3Hosts.isEmpty() || stsHosts.isEmpty()) {
-            // Both come from SDK metadata. Empty would silently refuse every endpoint value on the node,
-            // which reads as a product outage rather than as a missing dependency. This class is first
-            // touched by a data-source PUT, so the failure surfaces there rather than at node startup.
+            // Both come from SDK metadata. Empty would silently refuse every endpoint on the node, which
+            // reads as an outage rather than a missing dependency.
             throw new IllegalStateException("no AWS partition metadata available");
         }
         S3_ENDPOINT_HOSTS = Set.copyOf(s3Hosts);
@@ -193,10 +167,9 @@ final class S3EndpointCheck {
         if (Strings.hasText(value) == false) {
             return;
         }
-        // Both refusals below are unreachable today: the shared URL check in S3Configuration.validateSettings
-        // throws on an unparseable value, and on one with no host, before the configuration object this runs
-        // on exists. The invariant lives in another class, so this refuses rather than permits — a value this
-        // method cannot read is one it cannot vouch for.
+        // Unreachable today: S3Configuration.validateSettings throws on an unparseable value, and on one
+        // with no host, before this runs. That invariant lives in another class, so refuse rather than
+        // permit what this cannot read.
         URI uri;
         try {
             uri = URI.create(value);
@@ -209,10 +182,9 @@ final class S3EndpointCheck {
             return;
         }
         if (allowedByOperator.test(hostAndPort(uri))) {
-            // Named by the node's own configuration, so the scheme is not examined either — see
-            // ExternalSourceSettings#ALLOWED_ENDPOINT_HOSTS. The match is exact where the AWS rule below
-            // normalises: an operator writes the host as the SDK will send it, so a differing case or a
-            // trailing root dot falls through to that rule rather than being waived here.
+            // Named by the node's own configuration, so the scheme is not examined either. The match is
+            // exact where the AWS rule below normalises, so a differing case or trailing root dot falls
+            // through to that rule rather than being waived here.
             return;
         }
         if ("https".equalsIgnoreCase(uri.getScheme()) == false) {
@@ -237,11 +209,9 @@ final class S3EndpointCheck {
     }
 
     /**
-     * The {@code host:port} the allowlist is matched against, with the scheme's default port supplied when the
-     * value carries none, so an entry never has to guess which spelling the user wrote.
-     *
-     * <p>Only the operator allowlist is matched on this; the AWS host rule above matches on the host
-     * alone, so {@code https://s3.us-east-1.amazonaws.com:8443} is accepted.
+     * The {@code host:port} the allowlist is matched against, with the scheme's default port supplied when
+     * the value carries none. Only the allowlist uses this; the AWS host rule matches on the host alone, so
+     * {@code https://s3.us-east-1.amazonaws.com:8443} is accepted.
      */
     private static String hostAndPort(URI uri) {
         int port = uri.getPort();
@@ -272,20 +242,18 @@ final class S3EndpointCheck {
      * service and region come from the matched tail, so the only thing read out of the name is the endpoint
      * id and its optional prefix, each of which must be a single label.
      *
-     * <p>All four checks below do work no other one does, which is why none of them may be dropped.
-     * {@code testRefusesVpcFormsOutsideTheExactShape} holds a literal for each: the tail alone refuses
-     * {@code vpce-0a1b.ec2.us-east-1.vpce.amazonaws.com}, whose label before the region names another
-     * service; the {@code vpce-} requirement alone refuses {@code evil.s3.us-east-1.vpce.amazonaws.com},
-     * whose tail matches and whose id position holds an arbitrary label; the {@code vpce-svc-} refusal
-     * alone refuses {@code vpce-svc-0c2d.s3.us-east-1.vpce.amazonaws.com}, whose tail matches and whose id
-     * begins {@code vpce-}; and the single-label limit alone refuses
-     * {@code a.b.vpce-0a1b.s3.us-east-1.vpce.amazonaws.com}, which is otherwise the exact shape. A
-     * customer-published PrivateLink service is refused by whichever of the four its spelling reaches.
+     * <p>None of the four checks below may be dropped; {@code testRefusesVpcFormsOutsideTheExactShape}
+     * holds a host that only that check refuses:
      *
-     * <p>The tail names the bare service, so an interface endpoint for one of the other S3 families —
-     * {@code s3-outposts}, say — is refused even if that family is later enabled above. No source of truth
-     * here establishes what AWS serves for those, and refusing a form nobody has confirmed is the direction
-     * that cannot admit a host we did not mean to reach.
+     * <ul>
+     *   <li>the tail — {@code vpce-0a1b.ec2.us-east-1.vpce.amazonaws.com}, naming another service</li>
+     *   <li>requiring {@code vpce-} — {@code evil.s3.us-east-1.vpce.amazonaws.com}</li>
+     *   <li>rejecting {@code vpce-svc-} — {@code vpce-svc-0c2d.s3.us-east-1.vpce.amazonaws.com}</li>
+     *   <li>the single-label limit — {@code a.b.vpce-0a1b.s3.us-east-1.vpce.amazonaws.com}</li>
+     * </ul>
+     *
+     * <p>The tail names the bare service, so an interface endpoint for another S3 family is refused even if
+     * that family is later enabled above: nothing here establishes what AWS serves for those.
      */
     private static boolean isVpcInterfaceEndpoint(String host, String service) {
         for (String tail : vpceTails(service)) {

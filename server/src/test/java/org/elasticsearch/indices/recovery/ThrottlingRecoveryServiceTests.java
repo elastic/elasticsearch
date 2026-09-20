@@ -55,6 +55,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -338,7 +339,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(peakConcurrent.get(), equalTo(maxConcurrentRecoveries));
     }
 
-    public void testMaxConcurrentRelocationsSetting() {
+    public void testRelocationRecoveriesMaxProportion() {
         final var taskQueue = new DeterministicTaskQueue();
         final int maxConcurrentRecoveries = between(5, 10);
         // Ensure that there are at least two slots for any recovery and at least two slots for recoveries from unassigned only.
@@ -469,12 +470,12 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(service.currentQueueSize(), equalTo(0));
     }
 
-    public void testIncreasingMaxConcurrentRelocationRecoveriesStartsPendingTasks() {
+    public void testIncreasingRelocationRecoveriesMaxProportionStartsPendingTasks() {
         final var taskQueue = new DeterministicTaskQueue();
-        // ceil(10 * 0.2) = 2 relocation slots initially.
+        // A zero proportion must prevent relocation recoveries from starting.
         Settings settings = Settings.builder()
             .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 10)
-            .put(INDICES_RECOVERY_RELOCATION_RECOVERIES_MAX_PROPORTION_SETTING.getKey(), 0.2)
+            .put(INDICES_RECOVERY_RELOCATION_RECOVERIES_MAX_PROPORTION_SETTING.getKey(), 0.0)
             .build();
         final var clusterService = newClusterService(settings);
         final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
@@ -497,7 +498,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         }
 
         taskQueue.runAllRunnableTasks();
-        assertThat(started.get(), equalTo(2));
+        assertThat(started.get(), equalTo(0));
 
         // Increase proportion to 4 relocation slots.
         clusterService.getClusterSettings()
@@ -506,6 +507,41 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(started.get(), equalTo(4));
         taskQueue.runAllTasks();
         assertThat(started.get(), equalTo(10));
+        assertThat(service.currentQueueSize(), equalTo(0));
+    }
+
+    public void testRelocationRecoveriesMaxProportionRoundsUp() {
+        final var taskQueue = new DeterministicTaskQueue();
+        // ceil(3 * 0.5) = 2 relocation slots.
+        final var clusterService = newClusterService(
+            Settings.builder()
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 3)
+                .put(INDICES_RECOVERY_RELOCATION_RECOVERIES_MAX_PROPORTION_SETTING.getKey(), 0.5)
+                .build()
+        );
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
+        final Set<RecoveryListener> runningRecoveries = new HashSet<>();
+
+        for (int i = 0; i < 3; i++) {
+            service.enqueue(
+                ProjectId.DEFAULT,
+                noopRecoveryListener(),
+                mockIndexShard(newRelocationRecoveryState(), UUIDs.randomBase64UUID(), stats),
+                newIndexMetadata(),
+                runningRecoveries::add
+            );
+        }
+
+        taskQueue.runAllRunnableTasks();
+        assertThat(runningRecoveries.size(), equalTo(2));
+
+        final var initialListeners = Set.copyOf(runningRecoveries);
+        runningRecoveries.clear();
+        initialListeners.forEach(listener -> listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY));
+        taskQueue.runAllRunnableTasks();
+        assertThat(runningRecoveries.size(), equalTo(1));
+        runningRecoveries.forEach(listener -> listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY));
+        taskQueue.runAllRunnableTasks();
         assertThat(service.currentQueueSize(), equalTo(0));
     }
 
@@ -1060,13 +1096,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         for (int iteration = 0; iteration < 20; iteration++) {
             maxConcurrentRecoveries.set(randomBoolean() ? between(1, 50) : Integer.MAX_VALUE);
             final int newMax = maxConcurrentRecoveries.get();
-            final double proportion = randomDoubleBetween(0.0, 1.0, true);
-            final int newRelocationMax;
-            if (newMax == Integer.MAX_VALUE) {
-                newRelocationMax = Integer.MAX_VALUE;
-            } else {
-                newRelocationMax = (int) Math.max(1, Math.ceil(newMax * proportion));
-            }
+            final double proportion = randomDoubleBetween(0.01, 1.0, true);
+            final int newRelocationMax = (int) Math.ceil(newMax * proportion);
             maxConcurrentRelocations.set(newRelocationMax);
             clusterService.getClusterSettings()
                 .applySettings(

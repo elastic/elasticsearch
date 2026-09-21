@@ -386,8 +386,8 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
         record Cell(String name, MessageType schema, @Nullable String declaredFormat, long scale) {}
         List<Cell> cells = List.of(
             // Identity cells only. This unit harness reads a bare projection, which cannot faithfully set up a
-            // RESCALED sort column: it has no way to declare the ESQL type (only a format), and the descriptor it
-            // hands the iterator does not carry the file's timestamp unit the way the production read path does. So
+            // RESCALED sort column: the descriptor it hands the iterator does not carry the file's timestamp unit
+            // the way the production read path does. So
             // the rescaling cells are proven end to end instead, over a real declaration: the declared-FORMAT rescale
             // (epoch_second over a bare int64) by FromDatasetIT#testScalingDifferentialAcrossFilterSortAndAggregate,
             // and the ANNOTATION rescale (TIMESTAMP(MICROS) -> date_nanos / declared date / declared long) by

@@ -89,7 +89,7 @@ import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
@@ -761,7 +761,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             assertNotNull(fieldData);
 
             LeafFieldData leafData = fieldData.load(reader.leaves().get(0));
-            SortedBinaryDocValues values = leafData.getBytesValues();
+            SortableBinaryDocValues values = leafData.getBytesValues();
             assertTrue(values.advanceExact(0));
             assertEquals(new BytesRef("test value"), values.nextValue());
         });
@@ -970,7 +970,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             assertNotNull(fieldData);
 
             LeafFieldData leafData = fieldData.load(reader.leaves().get(0));
-            SortedBinaryDocValues values = leafData.getBytesValues();
+            SortableBinaryDocValues values = leafData.getBytesValues();
             assertTrue(values.advanceExact(0));
             assertEquals(2, values.docValueCount());
             assertEquals(new BytesRef("value1"), values.nextValue());
@@ -2426,7 +2426,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             ).build(null, null);
             LeafFieldData lfd = sfd.load(getOnlyLeafReader(searcher.getIndexReader()).getContext());
             TextDocValuesField scriptDV = (TextDocValuesField) lfd.getScriptFieldFactory("field");
-            SortedBinaryDocValues dv = scriptDV.getInput();
+            SortableBinaryDocValues dv = scriptDV.getInput();
             assertFalse(dv.advanceExact(0));
             assertTrue(dv.advanceExact(1));
             assertTrue(dv.advanceExact(2));

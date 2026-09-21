@@ -43,6 +43,7 @@ public abstract class AbstractXpackRollingUpgradeTestCase extends ParameterizedR
     }
 
     protected static boolean isOriginalClusterCurrent() {
-        return getOldClusterVersion().equals(Build.current().version());
+        // remove -SNAPSHOT for bcUpgradeTest
+        return getOldClusterVersion().replace("-SNAPSHOT", "").equals(Build.current().version());
     }
 }

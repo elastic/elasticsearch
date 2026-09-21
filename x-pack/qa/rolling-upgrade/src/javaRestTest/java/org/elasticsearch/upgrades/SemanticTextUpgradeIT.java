@@ -106,6 +106,7 @@ public class SemanticTextUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
         if (isOldCluster()) {
             createAndPopulateIndex();
         } else {
+            assumeTrue("Skipping because index was not created in the old cluster phase", indexExists(getIndexName()));
             performIndexQueryHighlightOps();
         }
     }
@@ -236,6 +237,10 @@ public class SemanticTextUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
 
             builder.field("highlight", highlightBuilder);
         }
+        // Use the fields parameter to get _inference_fields for compatibility with old stack versions
+        builder.startArray("fields");
+        builder.value("_inference_fields");
+        builder.endArray();
         builder.endObject();
 
         Request request = new Request("GET", getIndexName() + "/_search");

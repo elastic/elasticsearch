@@ -139,6 +139,35 @@ public class AuditIT extends ESRestTestCase {
     }
 
     /**
+     * Verifies that credentials in a {@code POST /_query/data_source/_test} body are masked in the audit log.
+     * The handler implements {@link org.elasticsearch.rest.RestRequestFilter} with the same secret-field mask
+     * as the PUT handler, so {@code access_key}, {@code secret_key}, etc. must not appear in the audit event
+     * even when {@code emit_request_body} is enabled. The probe itself will fail (no real S3 at the endpoint),
+     * but the audit event fires at authentication time and is written regardless of the probe outcome.
+     */
+    public void testFilteringOfTestConnectionCredentials() throws Exception {
+        final String accessKey = randomAlphaOfLength(20);
+        final String secretKey = randomAlphaOfLength(40);
+        final Request request = new Request("POST", "/_query/data_source/_test");
+        request.setJsonEntity(
+            "{\"type\":\"s3\",\"settings\":{\"access_key\":\""
+                + accessKey
+                + "\",\"secret_key\":\""
+                + secretKey
+                + "\",\"endpoint\":\"http://localhost:12345\"}}"
+        );
+        request.addParameter("ignore", "400,500");
+        executeAndVerifyAudit(request, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
+            String body = asInstanceOf(String.class, event.get(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME));
+            assertThat(body, containsString("\"type\""));
+            assertThat(body, not(containsString(accessKey)));
+            assertThat(body, not(containsString(secretKey)));
+            assertThat(toJson(event), not(containsString(accessKey)));
+            assertThat(toJson(event), not(containsString(secretKey)));
+        });
+    }
+
+    /**
      * Verifies that a data source PUT via the {@code source} query parameter is rejected with HTTP 400.
      * Using {@code contentParser()} instead of {@code contentOrSourceParamParser()} in the REST handler
      * prevents successful registration from a query string, which is the primary goal: credentials in

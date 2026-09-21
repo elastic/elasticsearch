@@ -190,7 +190,7 @@ teardown:
 "test-connection-local-untestable":
   # The "local" type has no connectivity probe — it uses the local filesystem, which is either
   # permitted or denied by esql.external.local_allowed_paths at query time, not via a network probe.
-  # After our fix (removing the empty lambda that returned success), it correctly returns untestable.
+  # The local type has no connectivity probe — it always returns untestable.
   # Requires the esql_external_datasources_local feature flag (snapshot-on, release-off).
   - requires:
       capabilities:

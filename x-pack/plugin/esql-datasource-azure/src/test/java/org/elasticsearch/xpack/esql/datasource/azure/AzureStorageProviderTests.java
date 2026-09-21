@@ -478,8 +478,17 @@ public class AzureStorageProviderTests extends ESTestCase {
         return snapshot::get;
     }
 
+    public void testAnonymousDefersBuildWhenAccountOnlyFromPath() {
+        // auth=anonymous with no endpoint/account in settings must not throw at construction.
+        // The account is supplied by the wasbs:// dataset URI at query time. Prior to deferring
+        // the anonymous build, AzureStorageProvider threw ISE here, breaking all queries for
+        // anonymous datasources that had no endpoint/account in their settings.
+        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, null, "anonymous");
+        AzureStorageProvider provider = new AzureStorageProvider(config, null, null);
+        assertNotNull(provider);
+    }
+
     public void testTestConnectionAnonymousIsUntestable() {
-        // Anonymous config without account/endpoint: constructor defers client build (no ISE at construction).
         // testConnection() short-circuits on isAnonymous() before attempting to build the client.
         AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, null, "anonymous");
         AzureStorageProvider provider = new AzureStorageProvider(config, null, null);
@@ -500,5 +509,17 @@ public class AzureStorageProviderTests extends ESTestCase {
             provider::testConnection
         );
         assertThat(ex.getMessage(), containsString("managed_identity"));
+    }
+
+    public void testTestConnectionFederatedIdentityWithoutAccountIsUntestable() {
+        // federated_identity without account or endpoint: constructor now defers (same as managed_identity),
+        // and the pre-check in testConnection() short-circuits before any client call.
+        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, null, "federated_identity");
+        AzureStorageProvider provider = new AzureStorageProvider(config, null, null);
+        TestConnectionNotSupportedException ex = expectThrows(
+            TestConnectionNotSupportedException.class,
+            provider::testConnection
+        );
+        assertThat(ex.getMessage(), containsString("federated_identity"));
     }
 }

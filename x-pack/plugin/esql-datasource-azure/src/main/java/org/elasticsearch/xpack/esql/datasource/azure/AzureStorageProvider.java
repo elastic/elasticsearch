@@ -163,14 +163,22 @@ public final class AzureStorageProvider implements StorageProvider {
         this.environment = environment;
         this.executor = executor;
         this.maxConnections = maxConnections;
-        // Build the client eagerly so misconfigurations are caught early — with two exceptions:
-        // auth=managed_identity and auth=anonymous defer to first use, because the account endpoint is
-        // only resolvable from the per-query wasbs://<account>... path (unavailable at construction).
-        // auth=anonymous is additionally always untestable at the data-source level (testConnection()
-        // short-circuits before calling clients()), so eager construction would just throw needlessly.
-        // With no configuration (config is null), also defer.
+        // Build the client eagerly so misconfigurations are caught early — with three exceptions that defer
+        // to first use via clients(accountFromPath):
+        //
+        // auth=managed_identity and auth=federated_identity: the account endpoint is derived from the
+        // per-query wasbs://<account>... path (unavailable at construction), so the client cannot be built
+        // without it when neither account nor endpoint appears in the settings.
+        //
+        // auth=anonymous: the account endpoint is similarly path-derived. Additionally, anonymous is always
+        // untestable at the data-source level (testConnection() short-circuits before calling clients()),
+        // so eager construction would throw ISE needlessly. Prior to this deferral, anonymous datasources
+        // with no endpoint/account in settings threw at construction, breaking all queries through them.
+        //
+        // null config: defer so the plugin can load even without a configuration present.
         if (config != null
             && config.resolveAuthMode() != FileDataSourceConfiguration.AuthMode.MANAGED_IDENTITY
+            && config.resolveAuthMode() != FileDataSourceConfiguration.AuthMode.FEDERATED_IDENTITY
             && config.resolveAuthMode() != FileDataSourceConfiguration.AuthMode.ANONYMOUS) {
             BlobServiceClientBuilder builder = configureBlobServiceClientBuilder(config, null);
             this.clients = new Clients(builder.buildClient(), builder.buildAsyncClient());

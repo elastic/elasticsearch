@@ -254,15 +254,10 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     /**
-     * Test-only: accepts a configuration and pre-built S3 client.
-     * Pass {@code null} for the client when testing short-circuits that fire before any client call
-     * (e.g. {@code testConnection()} with {@code auth=anonymous}).
+     * Test-only: accepts a configuration and pre-built (or null) S3 client.
+     * Pass {@code null} for the client when the test expects testConnection() to short-circuit
+     * before any client call (e.g. {@code auth=anonymous}).
      */
-    static S3StorageProvider forTestingWithConfig(S3Configuration config, S3Client s3Client) {
-        return new S3StorageProvider(config, s3Client);
-    }
-
-    /** Test-only: config + pre-built (or null) client, no production client construction. */
     S3StorageProvider(S3Configuration config, S3Client s3Client) {
         this.config = config;
         this.credentials = null;

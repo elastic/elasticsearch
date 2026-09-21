@@ -120,6 +120,7 @@ class BuildLogicTestCoverageArchUnitSpec extends AbstractArchUnitSpec {
         "org.elasticsearch.gradle.internal.test.LegacyRestTestBasePlugin",
         "org.elasticsearch.gradle.internal.test.StandaloneTestPlugin",
         "org.elasticsearch.gradle.internal.test.TestWithDependenciesPlugin",
+        "org.elasticsearch.gradle.internal.test.InternalResourceExhaustionTestPlugin",
         "org.elasticsearch.gradle.internal.test.rest.InternalJavaRestTestPlugin",
         "org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin",
         "org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin",

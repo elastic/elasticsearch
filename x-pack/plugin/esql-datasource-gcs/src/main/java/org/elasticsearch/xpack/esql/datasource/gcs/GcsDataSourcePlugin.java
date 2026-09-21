@@ -73,4 +73,9 @@ public class GcsDataSourcePlugin extends Plugin implements DataSourcePlugin {
         DataSourceValidator v = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, supportedSchemes());
         return Map.of(v.type(), v);
     }
+
+    @Override
+    public Set<String> datasourceSecretSettingNames() {
+        return GcsConfiguration.secretFieldNames();
+    }
 }

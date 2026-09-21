@@ -174,15 +174,14 @@ public final class SimdJsonDirectWalker {
                         handler.endArray();
                     }
                     case '"' -> {
-                        int off = valIdx + 1;
-                        int len = scalarStringLength(buffer, off);
-                        boolean hasEscape = containsBackslash(buffer, off, len);
-                        if (hasEscape) {
-                            int parsed = stringParser.parseString(buffer, valIdx, ensureStringBuf(len));
+                        int len = stringParser.scanUnescapedLength(buffer, valIdx);
+                        if (len >= 0) {
+                            handler.stringField(fieldName, buffer, valIdx + 1, len);
+                        } else {
+                            int rawLen = scalarStringLength(buffer, valIdx + 1);
+                            int parsed = stringParser.parseString(buffer, valIdx, ensureStringBuf(rawLen));
                             byte[] copy = Arrays.copyOf(stringBuf, parsed);
                             handler.stringField(fieldName, copy, 0, parsed);
-                        } else {
-                            handler.stringField(fieldName, buffer, off, len);
                         }
                     }
                     case 't' -> {
@@ -225,14 +224,13 @@ public final class SimdJsonDirectWalker {
 
             switch (b) {
                 case '"' -> {
-                    int off = idx + 1;
-                    int len = scalarStringLength(buffer, off);
-                    boolean hasEscape = containsBackslash(buffer, off, len);
-                    if (hasEscape) {
-                        int parsed = stringParser.parseString(buffer, idx, ensureStringBuf(len));
-                        handler.arrayElemString(Arrays.copyOf(stringBuf, parsed), 0, parsed);
+                    int len = stringParser.scanUnescapedLength(buffer, idx);
+                    if (len >= 0) {
+                        handler.arrayElemString(buffer, idx + 1, len);
                     } else {
-                        handler.arrayElemString(buffer, off, len);
+                        int rawLen = scalarStringLength(buffer, idx + 1);
+                        int parsed = stringParser.parseString(buffer, idx, ensureStringBuf(rawLen));
+                        handler.arrayElemString(Arrays.copyOf(stringBuf, parsed), 0, parsed);
                     }
                 }
                 case 't' -> {
@@ -308,14 +306,13 @@ public final class SimdJsonDirectWalker {
 
             switch (valByte) {
                 case '"' -> {
-                    int off = valIdx + 1;
-                    int len = scalarStringLength(buffer, off);
-                    boolean hasEscape = containsBackslash(buffer, off, len);
-                    if (hasEscape) {
-                        int parsed = stringParser.parseString(buffer, valIdx, ensureStringBuf(len));
-                        handler.stringField(fieldName, Arrays.copyOf(stringBuf, parsed), 0, parsed);
+                    int len = stringParser.scanUnescapedLength(buffer, valIdx);
+                    if (len >= 0) {
+                        handler.stringField(fieldName, buffer, valIdx + 1, len);
                     } else {
-                        handler.stringField(fieldName, buffer, off, len);
+                        int rawLen = scalarStringLength(buffer, valIdx + 1);
+                        int parsed = stringParser.parseString(buffer, valIdx, ensureStringBuf(rawLen));
+                        handler.stringField(fieldName, Arrays.copyOf(stringBuf, parsed), 0, parsed);
                     }
                 }
                 case 't' -> {

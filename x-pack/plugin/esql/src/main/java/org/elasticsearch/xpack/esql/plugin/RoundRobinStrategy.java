@@ -47,16 +47,22 @@ public final class RoundRobinStrategy implements ExternalDistributionStrategy {
             return ExternalDistributionPlan.LOCAL;
         }
 
-        return assignRoundRobin(splits, nodes);
+        int stride = context.placement().stride(splits.size(), nodes.size());
+        return assignRoundRobin(splits, nodes, stride);
     }
 
     static ExternalDistributionPlan assignRoundRobin(List<ExternalSplit> splits, List<DiscoveryNode> nodes) {
+        return assignRoundRobin(splits, nodes, 0);
+    }
+
+    static ExternalDistributionPlan assignRoundRobin(List<ExternalSplit> splits, List<DiscoveryNode> nodes, int rotation) {
         Map<String, List<ExternalSplit>> assignments = new LinkedHashMap<>();
         for (DiscoveryNode node : nodes) {
             assignments.put(node.getId(), new ArrayList<>());
         }
+        int n = nodes.size();
         for (int i = 0; i < splits.size(); i++) {
-            String nodeId = nodes.get(i % nodes.size()).getId();
+            String nodeId = nodes.get(Math.floorMod(i + rotation, n)).getId();
             assignments.get(nodeId).add(splits.get(i));
         }
         return new ExternalDistributionPlan(assignments, true);

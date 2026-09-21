@@ -18,7 +18,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -33,14 +33,14 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
 
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
-    protected final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
+    protected final ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory;
     protected final IndexVersion indexVersion;
     protected final BinaryDocValuesFormat binaryFormat;
 
     public BytesBinaryIndexFieldData(
         String fieldName,
         ValuesSourceType valuesSourceType,
-        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+        ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory,
         IndexVersion indexVersion
     ) {
         this(fieldName, valuesSourceType, toScriptFieldFactory, indexVersion, BinaryDocValuesFormat.SEPARATE_COUNT);
@@ -49,7 +49,7 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
     public BytesBinaryIndexFieldData(
         String fieldName,
         ValuesSourceType valuesSourceType,
-        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+        ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory,
         IndexVersion indexVersion,
         BinaryDocValuesFormat binaryFormat
     ) {
@@ -132,7 +132,7 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
 
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
-        private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
+        private final ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory;
         private final ValuesSourceType valuesSourceType;
         private final IndexVersion indexVersion;
         private final BinaryDocValuesFormat binaryFormat;
@@ -140,7 +140,7 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
         public Builder(
             String name,
             ValuesSourceType valuesSourceType,
-            ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+            ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory,
             IndexVersion indexVersion
         ) {
             this(name, valuesSourceType, toScriptFieldFactory, indexVersion, BinaryDocValuesFormat.SEPARATE_COUNT);
@@ -149,7 +149,7 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
         public Builder(
             String name,
             ValuesSourceType valuesSourceType,
-            ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+            ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory,
             IndexVersion indexVersion,
             BinaryDocValuesFormat binaryFormat
         ) {

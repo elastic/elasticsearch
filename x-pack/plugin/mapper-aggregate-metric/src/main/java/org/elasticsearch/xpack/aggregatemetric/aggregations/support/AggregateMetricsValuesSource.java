@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.aggregatemetric.aggregations.support;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.fielddata.DocValueBits;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -34,7 +34,7 @@ public class AggregateMetricsValuesSource {
             }
 
             @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
+            public SortableBinaryDocValues bytesValues(LeafReaderContext context) {
                 return indexFieldData.load(context).getBytesValues();
             }
 

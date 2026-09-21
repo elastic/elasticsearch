@@ -19,6 +19,8 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 
+import org.elasticsearch.core.Nullable;
+
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Optional;
@@ -119,6 +121,71 @@ public class AllocationDeciders {
             decider -> decider.canRemain(indexMetadata, shardRouting, node, allocation),
             (decider, decision) -> Strings.format("Can not remain [%s] on node [%s]. [%s]: %s", shardRouting, node, decider, decision)
         );
+    }
+
+    /**
+     * Pairs a {@link Decision} with the name of the first {@link AllocationDecider} that produced the overall
+     * (most-negative) result — populated when the result is {@link Decision.Type#NO} or
+     * {@link Decision.Type#NOT_PREFERRED}, {@code null} otherwise.
+     */
+    public record CanRemainWithDeciderLabel(Decision decision, @Nullable String deciderLabel) {}
+
+    /**
+     * Equivalent to {@link #canRemain(ShardRouting, RoutingNode, RoutingAllocation)} but also returns the
+     * {@link Class#getSimpleName()} of the first {@link AllocationDecider} that produced the most-negative result
+     * (either {@link Decision.Type#NO} or {@link Decision.Type#NOT_PREFERRED}), or {@code null} when the overall
+     * decision is {@link Decision.Type#YES} or {@link Decision.Type#THROTTLE}.
+     */
+    public CanRemainWithDeciderLabel canRemainWithDeciderLabel(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        final IndexMetadata indexMetadata = allocation.metadata().indexMetadata(shardRouting.index());
+        final String[] labelHolder = { null };
+        final Decision.Type[] worstSeen = { Decision.Type.YES };
+        final Decision decision = withDecidersCheckingShardIgnoredNodes(
+            allocation,
+            shardRouting,
+            node,
+            decider -> {
+                Decision d = decider.canRemain(indexMetadata, shardRouting, node, allocation);
+                if ((d.type() == Decision.Type.NOT_PREFERRED || d.type() == Decision.Type.NO)
+                    && worstSeen[0].compareToBetweenDecisions(d.type()) > 0) {
+                    worstSeen[0] = d.type();
+                    labelHolder[0] = decider.getClass().getSimpleName();
+                }
+                return d;
+            },
+            (decider, dec) -> Strings.format("Can not remain [%s] on node [%s]. [%s]: %s", shardRouting, node, decider, dec)
+        );
+        final boolean relevant = decision.type() == Decision.Type.NOT_PREFERRED || decision.type() == Decision.Type.NO;
+        return new CanRemainWithDeciderLabel(decision, relevant ? labelHolder[0] : null);
+    }
+
+    /**
+     * Returns the {@link Class#getSimpleName()} of the first {@link AllocationDecider} that returned
+     * {@link Decision.Type#NOT_PREFERRED} for
+     * {@link AllocationDecider#canAllocate(ShardRouting, RoutingNode, RoutingAllocation)}, or {@code null} when the
+     * overall decision is not {@code NOT_PREFERRED}. Used to label metrics for forced moves where the only viable
+     * target node is not preferred.
+     */
+    public @Nullable String canAllocateNotPreferredDeciderLabel(
+        ShardRouting shardRouting,
+        RoutingNode node,
+        RoutingAllocation allocation
+    ) {
+        final String[] labelHolder = { null };
+        final Decision decision = withDecidersCheckingShardIgnoredNodes(
+            allocation,
+            shardRouting,
+            node,
+            decider -> {
+                Decision d = decider.canAllocate(shardRouting, node, allocation);
+                if (d.type() == Decision.Type.NOT_PREFERRED && labelHolder[0] == null) {
+                    labelHolder[0] = decider.getClass().getSimpleName();
+                }
+                return d;
+            },
+            (decider, dec) -> Strings.format("Can not allocate [%s] on node [%s]. [%s]: %s", shardRouting, node.node(), decider, dec)
+        );
+        return decision.type() == Decision.Type.NOT_PREFERRED ? labelHolder[0] : null;
     }
 
     public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {

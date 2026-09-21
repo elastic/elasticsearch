@@ -102,6 +102,7 @@ import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -189,7 +190,8 @@ public class ClusterModule extends AbstractModule {
             this::explainShardAllocation,
             desiredBalanceMetrics,
             balancingRoundMetrics,
-            shardRelocationOrder
+            shardRelocationOrder,
+            telemetryProvider.getMeterRegistry()
         );
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadPool.getThreadContext(), systemIndices, projectResolver);
@@ -541,18 +543,19 @@ public class ClusterModule extends AbstractModule {
         ShardAllocationExplainer shardAllocationExplainer,
         DesiredBalanceMetrics desiredBalanceMetrics,
         AllocationBalancingRoundMetrics balancingRoundMetrics,
-        ShardRelocationOrder shardRelocationOrder
+        ShardRelocationOrder shardRelocationOrder,
+        MeterRegistry meterRegistry
     ) {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
         allocators.put(
             BALANCED_ALLOCATOR,
-            () -> new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, balancingWeightsFactory)
+            () -> new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, balancingWeightsFactory, meterRegistry)
         );
         allocators.put(
             DESIRED_BALANCE_ALLOCATOR,
             () -> new DesiredBalanceShardsAllocator(
                 clusterSettings,
-                new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, balancingWeightsFactory),
+                new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, balancingWeightsFactory, meterRegistry),
                 threadPool,
                 clusterService,
                 reconciler,

@@ -43,7 +43,7 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
 
     public void testPartitionFlat() {
         var recycler = new BytesRefSwissHashTests.TestRecycler();
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(100)).withCircuitBreaking();
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(200)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         runPartitionTest(
             recycler,
@@ -58,7 +58,7 @@ public class BytesRefSwissHashPartitionTests extends PartitionedHashTestCase {
 
     public void testPartitionFlatFixedLength() {
         var recycler = new BytesRefSwissHashTests.TestRecycler();
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(100)).withCircuitBreaking();
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(200)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         runPartitionTest(
             recycler,

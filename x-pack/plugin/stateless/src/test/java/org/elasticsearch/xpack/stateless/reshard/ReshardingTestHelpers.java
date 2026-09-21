@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.stateless.reshard;
 
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -23,20 +22,6 @@ public class ReshardingTestHelpers {
         IndexMetadata indexMetadata = indexMetadata(state, index);
         var indexMetadataPostSplit = IndexMetadata.builder(indexMetadata).reshardAddShards(targetShardCount).build();
         return IndexRouting.fromIndexMetadata(indexMetadataPostSplit);
-    }
-
-    public static String makeIdThatRoutesToShard(IndexRouting indexRouting, int shardId) {
-        return makeIdThatRoutesToShard(indexRouting, shardId, "");
-    }
-
-    public static String makeIdThatRoutesToShard(IndexRouting indexRouting, int shardId, String prefix) {
-        while (true) {
-            String documentId = prefix + ESTestCase.randomAlphaOfLength(5);
-            int routedShard = indexRouting.indexShard(new IndexRequest().id(documentId).routing(null));
-            if (routedShard == shardId) {
-                return documentId;
-            }
-        }
     }
 
     public static IndexMetadata indexMetadata(ClusterState state, Index index) {

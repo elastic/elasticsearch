@@ -64,24 +64,15 @@ final class TermSelection {
                 break;
             }
             terms.get(id, scratch);
-            if (bytes + cost(scratch) > quota.budget()) {
+            if (bytes + TermQuota.cost(scratch) > quota.budget()) {
                 break;
             }
-            bytes += cost(scratch);
+            bytes += TermQuota.cost(scratch);
             keptCount++;
         }
         final int[] kept = ArrayUtil.copyOfSubArray(byFrequency, 0, keptCount);
         sort(kept, 0, keptCount, terms, null);
         return kept;
-    }
-
-    /**
-     * What a term costs the budget. The empty term is charged a byte it does not occupy, as the survey
-     * charges it one in a column's bytes: it costs an entry wherever it is held, and a budget of nothing
-     * has to buy nothing.
-     */
-    private static long cost(BytesRef term) {
-        return Math.max(1, term.length);
     }
 
     private static long[] widen(int[] counts, int size) {

@@ -153,7 +153,7 @@ public class VocabularyTests extends ColumnarStringTestCase {
         assertEquals("one ordinal a term", sorted.size(), known.size());
         assertTrue("counts were given", known.counted());
         assertEquals("coverage is kept as given", 0.75, known.coverage(), 0.0);
-        assertEquals("dictionary bytes are the terms' own", 0 + 5 + 5 + 7, known.dictionaryBytes());
+        assertEquals("the terms' own bytes, the empty one charged the byte it costs", 1 + 5 + 5 + 7, known.dictionaryBytes());
         assertEquals("column bytes are kept as given", 1000, known.columnBytes());
 
         final BytesRef scratch = new BytesRef();
@@ -264,6 +264,7 @@ public class VocabularyTests extends ColumnarStringTestCase {
         assertNotNull(surveyed);
         assertEquals(1, surveyed.size());
         assertEquals("all values are the covered empty string", 1.0, surveyed.coverage(), 1e-9);
+        assertEquals("the byte the selection was charged for it", 1, surveyed.dictionaryBytes());
         assertTrue(ROOMY.worthKeeping(surveyed.coverage(), surveyed.dictionaryBytes(), surveyed.columnBytes()));
     }
 

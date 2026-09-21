@@ -119,7 +119,7 @@ public final class Vocabulary {
             }
             dictionaryIds[ordinal] = id;
             ordinalOfId[id] = ordinal;
-            dictionaryBytes += sortedTerms.get(ordinal).length;
+            dictionaryBytes += TermQuota.cost(sortedTerms.get(ordinal));
             if (counts != null) {
                 counts[id] = countsPerTerm[ordinal];
             }
@@ -172,7 +172,7 @@ public final class Vocabulary {
             ordinalOfId[id] = ordinal;
             terms.get(id, scratch);
             coveredValues += occurrences[id];
-            dictionaryBytes += scratch.length;
+            dictionaryBytes += TermQuota.cost(scratch);
         }
         return new Terms(
             terms,
@@ -215,7 +215,7 @@ public final class Vocabulary {
                 }
                 // NOTE: empty strings occupy an ordinal slot and a plain-path entry, so they count
                 // as one virtual byte to keep the denominator positive and the metric meaningful.
-                columnBytes += Math.max(1, value.length);
+                columnBytes += TermQuota.cost(value);
                 if (hasPrevious && previous.get().bytesEquals(value)) {
                     if (previousId != ABSENT) {
                         counts[previousId]++;
@@ -276,8 +276,8 @@ public final class Vocabulary {
             final int id = dictionaryIds[ordinal];
             ordinalOfId[id] = ordinal;
             terms.get(id, scratch);
-            coveredBytes += (long) counts[id] * Math.max(1, scratch.length);
-            keptBytes += scratch.length;
+            coveredBytes += counts[id] * TermQuota.cost(scratch);
+            keptBytes += TermQuota.cost(scratch);
         }
         return new Terms(
             terms,

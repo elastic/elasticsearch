@@ -9,6 +9,8 @@
 
 package org.elasticsearch.columnar.string;
 
+import org.apache.lucene.util.BytesRef;
+
 /**
  * What one consumer of a survey asks of it: how many term bytes it will pay for, and how rare a term it
  * will still admit.
@@ -20,6 +22,11 @@ package org.elasticsearch.columnar.string;
  * @param minCount how often a term must have been seen to be admitted at all
  */
 record TermQuota(long budget, int minCount) {
+
+    /** What {@code term} costs a budget. The empty term is charged a byte so a budget of nothing buys nothing. */
+    static long cost(BytesRef term) {
+        return Math.max(1, term.length);
+    }
 
     /**
      * What a dictionary asks. It admits no term held once, which would cost its own bytes to buy a single

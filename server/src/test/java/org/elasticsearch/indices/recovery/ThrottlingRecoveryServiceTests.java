@@ -488,7 +488,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var taskQueue = new DeterministicTaskQueue();
         Settings settings = Settings.builder()
             .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 10)
-            .put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), Double.MIN_VALUE)
+            .put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), Double.MIN_NORMAL / 100.0)
             .build();
         final var clusterService = newClusterService(settings);
         final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
@@ -511,7 +511,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         }
 
         taskQueue.runAllRunnableTasks();
-        // ceil(10 * Double.MIN_VALUE) = 1, the minimum proportion still allows 1 slot.
+        // ceil(10 * (Double.MIN_NORMAL / 100.0)) = 1, the minimum proportion still allows 1 slot.
         assertThat(started.get(), equalTo(1));
 
         // Increase proportion to 4 relocation slots.
@@ -531,7 +531,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var clusterService = newClusterService(
             Settings.builder()
                 .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
-                .put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), Double.MIN_VALUE)
+                .put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), Double.MIN_NORMAL / 100.0)
                 .build()
         );
         final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
@@ -549,7 +549,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         );
 
         taskQueue.runAllRunnableTasks();
-        // ceil(Integer.MAX_VALUE * Double.MIN_VALUE) = 1, the minimum proportion still allows 1 slot.
+        // ceil(Integer.MAX_VALUE * (Double.MIN_NORMAL / 100.0)) = 1, the minimum proportion still allows 1 slot.
         assertThat(started.get(), equalTo(1));
 
         clusterService.getClusterSettings()

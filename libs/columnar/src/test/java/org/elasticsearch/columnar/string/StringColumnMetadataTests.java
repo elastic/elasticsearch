@@ -96,8 +96,15 @@ public class StringColumnMetadataTests extends ColumnarStringTestCase {
         assertEquals("layout", metadata.layout(), read.layout());
         assertEquals("stored values", plainOf(metadata).values().numValues(), plainOf(read).values().numValues());
         assertEquals("values per block", plainOf(metadata).values().valuesPerBlock(), plainOf(read).values().valuesPerBlock());
-        assertEquals("lengths per block", plainOf(metadata).values().lengths().blockSize(), plainOf(read).values().lengths().blockSize());
-        assertTableRoundTrips("value starts", plainOf(metadata).values().starts(), plainOf(read).values().starts());
+        assertEquals("constant length", plainOf(metadata).values().constantLength(), plainOf(read).values().constantLength());
+        if (plainOf(metadata).values().constant() == false) {
+            assertEquals(
+                "lengths per block",
+                plainOf(metadata).values().lengths().blockSize(),
+                plainOf(read).values().lengths().blockSize()
+            );
+            assertTableRoundTrips("value starts", plainOf(metadata).values().starts(), plainOf(read).values().starts());
+        }
         assertEquals("multi-valued", metadata.multiValued(), read.multiValued());
         assertEquals("has value addresses", metadata.hasValueAddresses(), read.hasValueAddresses());
         assertEquals("has null slots", metadata.hasNullSlots(), read.hasNullSlots());

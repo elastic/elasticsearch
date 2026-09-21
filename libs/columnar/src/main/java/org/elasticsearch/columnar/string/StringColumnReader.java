@@ -37,8 +37,7 @@ import java.util.function.Predicate;
  * <p>A null slot holds an address like any other, and {@link #isNullSlot} says whether one does — but the two
  * layouts answer it differently, which is why it is theirs to answer. A dictionary column names a null with a
  * reserved ordinal, so the ordinal already read to resolve the value settles it. A plain column has no spare
- * byte string to mean null with, so it stores one as a zero-length value and keeps a table of the addresses
- * that hold one.
+ * byte string to mean null with, so it stores a null as a code of its own in its lengths.
  *
  * <p>A column either stores its values or names them with ordinals into a dictionary, and the two answer
  * every read and every filter differently. This holds what does not depend on that choice: how documents map

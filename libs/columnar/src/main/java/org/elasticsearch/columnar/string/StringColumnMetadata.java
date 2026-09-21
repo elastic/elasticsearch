@@ -37,7 +37,7 @@ import java.io.IOException;
  * it holds most.
  *
  * <p>Where the nulls are is not shared, because the two layouts can afford different answers. {@link Plain}
- * stores a null as a zero-length value and keeps a table of the addresses that hold one. {@link Dictionary}
+ * stores a null as a code of its own in its lengths, below every length. {@link Dictionary}
  * names a null with a reserved ordinal, which costs no table and keeps a null out of every term's ordinal
  * range — so a query answered from the ordinals alone is not also answering for the empty term.
  */

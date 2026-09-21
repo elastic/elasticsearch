@@ -1,0 +1,35 @@
+# Smoke tests for the data_stream_lifecycle health indicator. Yellow aggregation
+# across projects is covered by MultiProjectDataStreamLifecycleHealthIndicatorIT.
+---
+"Green data stream lifecycle on a healthy cluster":
+  - requires:
+      cluster_features: "gte_v8.13.0"
+      reason: "the data stream lifecycle health indicator was added in 8.13.0"
+
+  - do:
+      health_report:
+        feature: data_stream_lifecycle
+
+  - is_true: cluster_name
+  - match: { indicators.data_stream_lifecycle.status: "green" }
+  - is_true: indicators.data_stream_lifecycle.symptom
+  - is_false: indicators.data_stream_lifecycle.impacts
+  - is_false: indicators.data_stream_lifecycle.diagnosis
+
+---
+"Data stream lifecycle verbose false omits details":
+  - requires:
+      cluster_features: "gte_v8.13.0"
+      reason: "the data stream lifecycle health indicator was added in 8.13.0"
+
+  - do:
+      health_report:
+        feature: data_stream_lifecycle
+        verbose: false
+
+  - is_true: cluster_name
+  - match: { indicators.data_stream_lifecycle.status: "green" }
+  - is_true: indicators.data_stream_lifecycle.symptom
+  - is_false: indicators.data_stream_lifecycle.details
+  - is_false: indicators.data_stream_lifecycle.impacts
+  - is_false: indicators.data_stream_lifecycle.diagnosis

@@ -848,6 +848,16 @@ public class ExternalSourceCacheService implements Closeable {
             logger.debug("[{}] foreign contribution refused: not licensed", path);
             return null;
         }
+        // The licence above says the CONTRIBUTION counted every record of the file. It says nothing about the read
+        // this entry describes. Where the entry has already measured a row count that is NOT the file's — a survivor
+        // count from a read that dropped rows — the two describe different row sets, and a per-column measurement of
+        // one does not describe the other. An entry that has measured no count yet contradicts nothing.
+        boolean entryHasSurvivorCount = existing.safeMetadata().containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            && Boolean.TRUE.equals(existing.safeMetadata().get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)) == false;
+        if (entryHasSurvivorCount) {
+            logger.debug("[{}] foreign contribution refused: the entry's own count is a survivor count", path);
+            return null;
+        }
         Object rowCount = stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT);
         Map<String, Object> crossed = new HashMap<>();
         if (identity == null) {

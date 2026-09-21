@@ -1078,6 +1078,45 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * The licence on a contribution says that contribution counted every record of the file. It says nothing about
+     * the read the entry describes. An entry already holding a survivor count — a read that dropped rows — measures
+     * a different row set, so another read's per-column measurements do not describe it.
+     */
+    public void testCrossingIsRefusedIntoAnEntryHoldingASurvivorCount() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/survivor.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.TRUE, null, false)
+            );
+            Map<String, Object> own = new LinkedHashMap<>();
+            own.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+            own.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-A");
+            own.put(ExternalStats.COLUMNS_IN_FILE_ORDER_KEY, Boolean.TRUE);
+            // A count with no licence: this read dropped rows, so 999 is its survivors, not the file's records.
+            own.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 999L);
+            service.getOrComputeSchema(key, k -> SchemaCacheEntry.from(schema, "csv", path, own, Map.of()));
+
+            Map<String, Object> foreign = wholeFileStats(mtime, "fp", 1000L);
+            foreign.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-B");
+            foreign.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            foreign.put(ExternalStats.READ_COLUMN_NAMES_KEY, List.of("id"));
+            foreign.put(ExternalStats.READ_COLUMN_TYPES_KEY, List.of("long"));
+            foreign.put(ExternalStats.READ_BINDING_KEY, ExternalStats.BINDING_BY_POSITION);
+            foreign.put(SourceStatisticsSerializer.columnMaxKey("id"), 999L);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(foreign)));
+
+            SchemaCacheEntry after = service.getOrComputeSchema(key, k -> { throw new AssertionError("cached"); });
+            assertNull(
+                "a column measured over another read's rows must not describe an entry whose own count is survivors",
+                after.safeMetadata().get(SourceStatisticsSerializer.columnMaxKey("id"))
+            );
+            assertEquals(999L, after.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private static Map<String, Object> stripeAt(SchemaCacheEntry entry, long ordinal) {
         Object stripe = entry.safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + ordinal);

@@ -243,6 +243,31 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
         assertWarmCountShortCircuits(dataset, total);
     }
 
+    /**
+     * Two datasets over the same files with the same settings, one declaring its schema and one inferring it. They
+     * bind their columns differently — by name against each file's own header, or by position — so they bound a
+     * row's width differently and need not count the same rows. Neither may be served the other's memoized count.
+     * <p>Fails if the dataset key stops carrying the binding mode: the strict dataset is then handed the inferred
+     * one's count and answers its first query without reading anything.
+     */
+    public void testStrictAndInferredDatasetsOverOneGlobNeverShareAnAggregate() throws Exception {
+        Path dir = createTempDir();
+        long total = writeCsvCorpus(dir, true);
+        String uri = globUri(dir, "*.csv");
+        Map<String, Object> settings = Map.of("format", "csv", "error_mode", "null_field");
+
+        String inferred = registerDataset("shared_glob_inferred_csv", uri, settings);
+        assertWarmCountShortCircuits(inferred, total);
+
+        // The inferred dataset's count is now memoized. A strict declaration over the same files must not receive it.
+        String strict = registerStrictDataset("shared_glob_strict_csv", uri, declaredColumns(), settings);
+        String countQuery = "FROM " + strict + " | STATS c = COUNT(*)";
+        try (var response = run(syncEsqlQueryRequest(countQuery).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertSingleLong(response, total);
+            assertThat("a strict dataset must not be served the count another binding measured", response.documentsFound(), equalTo(total));
+        }
+    }
+
     public void testCsvHeterogeneousCorpusWarmCountServedUnderNullFieldDeclaredStrict() throws Exception {
         Path dir = createTempDir();
         long total = writeCsvCorpus(dir, true);

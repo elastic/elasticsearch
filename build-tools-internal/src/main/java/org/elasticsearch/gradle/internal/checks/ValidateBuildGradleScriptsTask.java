@@ -206,7 +206,9 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
                             "The validateBuildGradleScripts ignore entry no longer matches any violation. Ignore entries must shrink as scripts are cleaned up."
                         )
                         .fileLocation(rootBuildFile.getAbsolutePath())
-                        .solution("Remove the stale ignore entry from the validateBuildGradleScripts task configuration in the root build.gradle file.")
+                        .solution(
+                            "Remove the stale ignore entry from the validateBuildGradleScripts task configuration in the root build.gradle file."
+                        )
                 )
             );
         }
@@ -222,9 +224,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
             for (String path : paths) {
                 String trimmedPath = path.trim();
                 if (trimmedPath.isEmpty()) {
-                    throw new GradleException(
-                        String.format(Locale.ROOT, "Ignore path for rule [%s] must not be blank", trimmedRuleId)
-                    );
+                    throw new GradleException(String.format(Locale.ROOT, "Ignore path for rule [%s] must not be blank", trimmedRuleId));
                 }
                 entries.add(new IgnoreEntry(trimmedRuleId, trimmedPath));
             }

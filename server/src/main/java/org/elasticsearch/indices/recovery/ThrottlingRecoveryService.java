@@ -82,13 +82,14 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     );
 
     /// Controls the max proportion of [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING] that may be used for
-    /// relocation recoveries. Accepts values like `0.5` or `"50%"`.
+    /// relocation recoveries. Accepts values like `0.5` or `"50%"`. Must be strictly positive: 0 is disallowed (consistent
+    /// with the minimum of 1 on [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING]).
     /// The effective limit is `ceil(max_concurrent_incoming_recoveries * proportion)`.
     ///
     public static final Setting<RatioValue> INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING = Setting.ratioSetting(
         "indices.recovery.incoming_recoveries_max_relocation_proportion",
         RatioValue.ONE_HUNDRED_PERCENT,
-        RatioValue.ZERO_PERCENT,
+        RatioValue.ofPercent(Double.MIN_VALUE),
         RatioValue.ONE_HUNDRED_PERCENT,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope

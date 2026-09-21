@@ -25,6 +25,7 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.SliceIndexing;
@@ -889,7 +890,7 @@ public class CsvTestsDataLoader {
 
     public static void deleteViews(RestClient client) throws IOException {
         if (clusterSupportsViews(client)) {
-            var views = listViews(client);
+            var views = Sets.intersection(listViews(client), VIEW_CONFIGS.keySet());
             if (views.isEmpty() == false) {
                 logger.debug("Deleting views {}", views);
                 deleteViews(client, views);

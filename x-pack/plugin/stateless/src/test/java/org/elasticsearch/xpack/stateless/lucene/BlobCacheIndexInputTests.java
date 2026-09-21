@@ -1162,11 +1162,11 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         final int expectedReadAgeSamples = expectedBypasses > 0 ? 0 : (int) expectedReads;
         final int expectedMissAgeSamples = expectedBypasses > 0 ? 0 : (int) expectedMisses;
         assertThat(
-            recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BlobCacheMetrics.BLOB_CACHE_READ_AGE),
+            recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, BlobCacheMetrics.BLOB_CACHE_READ_AGE),
             hasSize(expectedReadAgeSamples)
         );
         assertThat(
-            recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, BlobCacheMetrics.BLOB_CACHE_MISS_AGE),
+            recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, BlobCacheMetrics.BLOB_CACHE_MISS_AGE),
             hasSize(expectedMissAgeSamples)
         );
     }

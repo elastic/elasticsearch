@@ -1277,15 +1277,12 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         final long lastGenerationBeforeMerge = indexEngine.getCurrentGeneration();
 
         // Step 2: Intercept post-merge notifications on the search node to keep it on the pre-merge commit.
-        // Only the first notification for gen > lastGenerationBeforeMerge is delayed; later notifications
-        // (if any) pass through normally to avoid leaking unprocessed entries in delayedNotifications.
         final var notificationCaptured = new CountDownLatch(1);
         final var delayedNotifications = new LinkedBlockingQueue<CheckedRunnable<Exception>>();
-        final var firstNotificationCaptured = new AtomicBoolean(false);
         MockTransportService.getInstance(searchNode)
             .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
                 var notification = asInstanceOf(NewCommitNotificationRequest.class, request);
-                if (notification.getGeneration() > lastGenerationBeforeMerge && firstNotificationCaptured.compareAndSet(false, true)) {
+                if (notification.getGeneration() > lastGenerationBeforeMerge) {
                     delayedNotifications.add(() -> handler.messageReceived(request, channel, task));
                     notificationCaptured.countDown();
                 } else {

@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -2076,7 +2077,13 @@ public class TransportSearchActionTests extends ESTestCase {
                 threadPool,
                 null
             );
-            clusterService.getClusterApplierService().setInitialState(ClusterState.EMPTY_STATE);
+            DiscoveryNode localNode = DiscoveryNodeUtils.create("local_node");
+            clusterService.getClusterApplierService()
+                .setInitialState(
+                    ClusterState.builder(ClusterState.EMPTY_STATE)
+                        .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()))
+                        .build()
+                );
 
             TransportSearchAction action = new TransportSearchAction(
                 threadPool,
@@ -2101,7 +2108,8 @@ public class TransportSearchActionTests extends ESTestCase {
             );
 
             CountDownLatch latch = new CountDownLatch(1);
-            action.doExecute(null, searchRequest, new ActionListener<>() {
+            SearchTask task = new SearchTask(1, "search", "search", () -> "desc", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+            action.doExecute(task, searchRequest, new ActionListener<>() {
 
                 @Override
                 public void onResponse(SearchResponse response) {

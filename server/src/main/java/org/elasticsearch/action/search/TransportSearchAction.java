@@ -78,6 +78,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -776,22 +777,19 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final boolean allowPartialSearchResults = original.allowPartialSearchResults() != null
             ? original.allowPartialSearchResults()
             : searchService.defaultAllowPartialSearchResults();
-        Rewriteable.rewriteAndFetch(
-            original,
-            searchService.getRewriteContext(
-                timeProvider::absoluteStartMillis,
-                clusterState.getMinTransportVersion(),
-                original.getLocalClusterAlias(),
-                resolvedIndices,
-                original.pointInTimeBuilder(),
-                shouldMinimizeRoundtrips(original),
-                isExplain,
-                isProfile,
-                allowPartialSearchResults
-            ),
-            threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
-            rewriteListener
+        final QueryRewriteContext rewriteContext = searchService.getRewriteContext(
+            timeProvider::absoluteStartMillis,
+            clusterState.getMinTransportVersion(),
+            original.getLocalClusterAlias(),
+            resolvedIndices,
+            original.pointInTimeBuilder(),
+            shouldMinimizeRoundtrips(original),
+            isExplain,
+            isProfile,
+            allowPartialSearchResults
         );
+        rewriteContext.setParentTask(new TaskId(clusterService.localNode().getId(), task.getId()));
+        Rewriteable.rewriteAndFetch(original, rewriteContext, threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION), rewriteListener);
     }
 
     /**

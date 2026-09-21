@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceResults;
@@ -76,24 +77,31 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
 
     @Override
     protected void doExecute(Task task, CoordinatedInferenceAction.Request request, ActionListener<InferModelAction.Response> listener) {
+        // the inference requests are child tasks of this one so that cancelling the caller also cancels them
+        final Client parentClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
         if (request.getRequestModelType() == CoordinatedInferenceAction.Request.RequestModelType.NLP_MODEL) {
             // must be an inference service model or ml hosted model
-            forNlp(request, listener);
+            forNlp(parentClient, request, listener);
         } else if (request.hasObjects()) {
             // Inference service models do not accept a document map
             // If this fails check if the model is an inference service
             // model and error accordingly
-            doInClusterModel(request, wrapCheckForServiceModelOnMissing(request.getModelId(), listener));
+            doInClusterModel(parentClient, request, wrapCheckForServiceModelOnMissing(request.getModelId(), listener));
         } else {
-            forNlp(request, listener);
+            forNlp(parentClient, request, listener);
         }
     }
 
-    private void forNlp(CoordinatedInferenceAction.Request request, ActionListener<InferModelAction.Response> listener) {
+    private void forNlp(
+        Client parentClient,
+        CoordinatedInferenceAction.Request request,
+        ActionListener<InferModelAction.Response> listener
+    ) {
         var clusterState = clusterService.state();
         var assignments = TrainedModelAssignmentUtils.modelAssignments(request.getModelId(), clusterState);
         if (assignments == null || assignments.isEmpty()) {
             doInferenceServiceModel(
+                parentClient,
                 request,
                 ActionListener.wrap(
                     listener::onResponse,
@@ -108,15 +116,19 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
                 )
             );
         } else {
-            doInClusterModel(request, listener);
+            doInClusterModel(parentClient, request, listener);
         }
     }
 
-    private void doInferenceServiceModel(CoordinatedInferenceAction.Request request, ActionListener<InferModelAction.Response> listener) {
+    private void doInferenceServiceModel(
+        Client parentClient,
+        CoordinatedInferenceAction.Request request,
+        ActionListener<InferModelAction.Response> listener
+    ) {
         var inputType = convertPrefixToInputType(request.getPrefixType());
 
         executeAsyncWithOrigin(
-            client,
+            parentClient,
             INFERENCE_ORIGIN,
             InferenceAction.INSTANCE,
             new InferenceAction.Request(
@@ -143,9 +155,13 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
         return inputType;
     }
 
-    private void doInClusterModel(CoordinatedInferenceAction.Request request, ActionListener<InferModelAction.Response> listener) {
+    private void doInClusterModel(
+        Client parentClient,
+        CoordinatedInferenceAction.Request request,
+        ActionListener<InferModelAction.Response> listener
+    ) {
         var inferModelRequest = translateRequest(request);
-        executeAsyncWithOrigin(client, ML_ORIGIN, InferModelAction.INSTANCE, inferModelRequest, listener);
+        executeAsyncWithOrigin(parentClient, ML_ORIGIN, InferModelAction.INSTANCE, inferModelRequest, listener);
     }
 
     static InferModelAction.Request translateRequest(CoordinatedInferenceAction.Request request) {

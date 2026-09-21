@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexingPressure;
@@ -30,7 +29,6 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.xcontent.ParsedMediaType;
 
 import java.util.List;
 
@@ -59,7 +57,7 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
 
     /**
      * Remote Write 1.0 senders omit {@code proto} or set {@code proto=prometheus.WriteRequest}.
-     * {@link ParsedMediaType} lowercases parameter values, so comparisons use that form.
+     * {@link org.elasticsearch.xcontent.ParsedMediaType} lowercases parameter values, so comparisons use that form.
      */
     private static final String REMOTE_WRITE_V1_PROTO = "prometheus.writerequest";
 
@@ -95,7 +93,7 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
     @Override
     public boolean mediaTypesValid(RestRequest request) {
         // Accept any application/x-protobuf, including proto=io.prometheus.write.v2.Request.
-        // Unsupported proto parameters are rejected with 415 in prepareRequest so Prometheus
+        // Unsupported proto parameters are rejected with 415 after the body is consumed so Prometheus
         // senders can fall back to remote write 1.0. Rejecting here would yield 406 instead.
         return request.getXContentType() == null
             && request.getParsedContentType().mediaTypeWithoutParameters().equals("application/x-protobuf");
@@ -106,12 +104,13 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
         String dataset = DataStream.sanitizeDataset(request.param(DataStream.DATASET, "generic"));
         String namespace = DataStream.sanitizeNamespace(request.param(DataStream.NAMESPACE, "default"));
 
+        String proto = request.getParsedContentType().getParameters().get("proto");
+        boolean unsupportedProto = proto != null && proto.equals(REMOTE_WRITE_V1_PROTO) == false;
+
         // while the remote write spec mandates snappy, we intentionally want to allow additional compression formats
-        var bodyPostProcessor = "snappy".equals(request.header(HttpHeaders.CONTENT_ENCODING))
+        var bodyPostProcessor = unsupportedProto == false && "snappy".equals(request.header(HttpHeaders.CONTENT_ENCODING))
             ? new SnappyBlockDecoder(recycler)
             : IndexingPressureAwareContentAggregator.BodyPostProcessor.NOOP;
-
-        String unsupportedProto = unsupportedRemoteWriteProto(request);
 
         return new IndexingPressureAwareContentAggregator(
             request,
@@ -120,9 +119,16 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
             new IndexingPressureAwareContentAggregator.CompletionHandler() {
                 @Override
                 public void onComplete(RestChannel channel, ReleasableBytesReference content, Releasable indexingPressureRelease) {
-                    if (unsupportedProto != null) {
+                    if (unsupportedProto) {
                         Releasables.closeExpectNoException(content, indexingPressureRelease);
-                        channel.sendResponse(unsupportedRemoteWriteResponse(unsupportedProto));
+                        channel.sendResponse(
+                            new RestResponse(
+                                RestStatus.UNSUPPORTED_MEDIA_TYPE,
+                                "Unsupported Prometheus remote write protobuf ["
+                                    + proto
+                                    + "]; this endpoint only supports prometheus.WriteRequest (remote write 1.0)"
+                            )
+                        );
                         return;
                     }
                     var transportRequest = new PrometheusRemoteWriteTransportAction.RemoteWriteRequest(
@@ -170,29 +176,5 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
             },
             bodyPostProcessor
         );
-    }
-
-    /**
-     * Returns the Content-Type {@code proto} parameter when it is not a Remote Write 1.0 request,
-     * otherwise {@code null}.
-     */
-    @Nullable
-    private static String unsupportedRemoteWriteProto(RestRequest request) {
-        ParsedMediaType parsed = request.getParsedContentType();
-        if (parsed == null) {
-            return null;
-        }
-        String proto = parsed.getParameters().get("proto");
-        if (proto == null || proto.equals(REMOTE_WRITE_V1_PROTO)) {
-            return null;
-        }
-        return proto;
-    }
-
-    private static RestResponse unsupportedRemoteWriteResponse(String proto) {
-        String message = "Unsupported Prometheus remote write protobuf ["
-            + proto
-            + "]; this endpoint only supports prometheus.WriteRequest (remote write 1.0)";
-        return new RestResponse(RestStatus.UNSUPPORTED_MEDIA_TYPE, RestResponse.TEXT_CONTENT_TYPE, new BytesArray(message));
     }
 }

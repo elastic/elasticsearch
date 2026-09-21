@@ -57,21 +57,8 @@ public class PrometheusRemoteWriteRestActionTests extends ESTestCase {
         assertEquals(0, indexingPressure.stats().getCurrentCoordinatingBytes());
     }
 
-    @SuppressWarnings("unchecked")
     public void testSuccessfulWrite() {
-        client = new NoOpNodeClient(threadPool) {
-            @Override
-            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                ActionType<Response> actionType,
-                Request req,
-                ActionListener<Response> listener
-            ) {
-                assertThat(actionType, equalTo(PrometheusRemoteWriteTransportAction.TYPE));
-                var remoteWriteRequest = (PrometheusRemoteWriteTransportAction.RemoteWriteRequest) req;
-                remoteWriteRequest.close();
-                listener.onResponse((Response) new PrometheusRemoteWriteTransportAction.RemoteWriteResponse());
-            }
-        };
+        useSucceedingRemoteWriteClient();
         try (var response = executeRemoteWrite(1024, 64)) {
             assertThat(response.status(), equalTo(RestStatus.NO_CONTENT));
         }
@@ -197,26 +184,13 @@ public class PrometheusRemoteWriteRestActionTests extends ESTestCase {
     }
 
     public void testRemoteWriteV1ExplicitProtoAccepted() {
-        client = new NoOpNodeClient(threadPool) {
-            @Override
-            @SuppressWarnings("unchecked")
-            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                ActionType<Response> actionType,
-                Request req,
-                ActionListener<Response> listener
-            ) {
-                assertThat(actionType, equalTo(PrometheusRemoteWriteTransportAction.TYPE));
-                var remoteWriteRequest = (PrometheusRemoteWriteTransportAction.RemoteWriteRequest) req;
-                remoteWriteRequest.close();
-                listener.onResponse((Response) new PrometheusRemoteWriteTransportAction.RemoteWriteResponse());
-            }
-        };
+        useSucceedingRemoteWriteClient();
         try (var response = executeRemoteWrite(1024, 64, true, "application/x-protobuf;proto=prometheus.WriteRequest")) {
             assertThat(response.status(), equalTo(RestStatus.NO_CONTENT));
         }
     }
 
-    public void testMediaTypesValidAcceptsRemoteWriteV2SoControllerDoesNotReturn406() {
+    public void testMediaTypesValidAcceptsRemoteWriteV2ContentType() {
         var action = new PrometheusRemoteWriteRestAction(indexingPressure, 1024, BytesRefRecycler.NON_RECYCLING_INSTANCE);
         var httpRequest = new FakeRestRequest.FakeHttpRequest(
             RestRequest.Method.POST,
@@ -247,6 +221,23 @@ public class PrometheusRemoteWriteRestActionTests extends ESTestCase {
         try (var response = executeRemoteWrite(1024, 64, false)) {
             assertThat(response.status(), equalTo(RestStatus.NO_CONTENT));
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void useSucceedingRemoteWriteClient() {
+        client = new NoOpNodeClient(threadPool) {
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> actionType,
+                Request req,
+                ActionListener<Response> listener
+            ) {
+                assertThat(actionType, equalTo(PrometheusRemoteWriteTransportAction.TYPE));
+                var remoteWriteRequest = (PrometheusRemoteWriteTransportAction.RemoteWriteRequest) req;
+                remoteWriteRequest.close();
+                listener.onResponse((Response) new PrometheusRemoteWriteTransportAction.RemoteWriteResponse());
+            }
+        };
     }
 
     private RestResponse executeRemoteWrite(int maxSize, int bodySize) {

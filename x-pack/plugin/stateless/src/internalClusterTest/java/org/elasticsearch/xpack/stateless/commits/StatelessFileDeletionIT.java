@@ -1228,8 +1228,12 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
 
     /**
      * Exercises the scenario that caused the original sporadic CI failure for
-     * {@link #testBlobsNotDeletedDuringFailedRelocation}: the search node has not yet acknowledged the
-     * post-merge commit when the relocation runs, so it still holds the pre-merge blobs.
+     * {@link #testBlobsNotDeletedDuringFailedRelocation} (issue #158959): the search node has not yet
+     * acknowledged the post-merge commit when the relocation runs, so it still holds the pre-merge blobs.
+     * Because the search-node hold prevents the blobs from reaching a zero reference count during
+     * RELOCATING, they are never added to the deferred-deletion list and therefore survive
+     * {@code markRelocationFailed}. They are finally reclaimed once the delayed notification is processed
+     * and the search node's hold is dropped, proving that no blobs are permanently lost.
      */
     public void testBlobsDeletedAfterFailedRelocationWhenCommitNotificationIsDelayed() throws Exception {
         startMasterOnlyNode();
@@ -1273,12 +1277,15 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         final long lastGenerationBeforeMerge = indexEngine.getCurrentGeneration();
 
         // Step 2: Intercept post-merge notifications on the search node to keep it on the pre-merge commit.
+        // Only the first notification for gen > lastGenerationBeforeMerge is delayed; later notifications
+        // (if any) pass through normally to avoid leaking unprocessed entries in delayedNotifications.
         final var notificationCaptured = new CountDownLatch(1);
         final var delayedNotifications = new LinkedBlockingQueue<CheckedRunnable<Exception>>();
+        final var firstNotificationCaptured = new AtomicBoolean(false);
         MockTransportService.getInstance(searchNode)
             .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
                 var notification = asInstanceOf(NewCommitNotificationRequest.class, request);
-                if (notification.getGeneration() > lastGenerationBeforeMerge) {
+                if (notification.getGeneration() > lastGenerationBeforeMerge && firstNotificationCaptured.compareAndSet(false, true)) {
                     delayedNotifications.add(() -> handler.messageReceived(request, channel, task));
                     notificationCaptured.countDown();
                 } else {
@@ -1306,13 +1313,24 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         readers.forEach(shardLocalReadersTracker::onLocalReaderClosed);
         proceedWithHandOff.countDown();
         ensureGreen(indexName);
-        // The initial commit's blob was held only by its mock reader, so it went through the deferred list and markRelocationFailed
-        // reclaimed it. The blobs from the user flushes are still held by the search node and must have survived.
-        assertThat(
-            "pre-merge blobs held by the search node should survive the failed relocation",
-            Sets.intersection(shardCommitsContainer.listBlobs(operationPurpose).keySet(), blobsBeforeMerge),
-            not(empty())
-        );
+        // Wait until markRelocationFailed has processed the deferred list: the initial commit's blob (held only
+        // by its mock reader) should be deleted, while the user-flush blobs (still held by the search node)
+        // must survive. Using assertBusy because the actual deletion is asynchronous.
+        assertBusy(() -> {
+            final var remaining = shardCommitsContainer.listBlobs(operationPurpose).keySet();
+            // At least one pre-merge blob was reclaimed by markRelocationFailed via the deferred list
+            assertThat(
+                "no pre-merge blob was deleted by markRelocationFailed; deferred list may be empty",
+                Sets.difference(blobsBeforeMerge, remaining),
+                not(empty())
+            );
+            // The blobs still held by the search node survived the failed relocation
+            assertThat(
+                "all pre-merge blobs were deleted; search-node hold did not protect them",
+                Sets.intersection(remaining, blobsBeforeMerge),
+                not(empty())
+            );
+        });
 
         // Step 5: Release the delayed notification. The search node drops its hold on the pre-merge blobs;
         // their ref count reaches zero while the shard is RUNNING, so they are deleted immediately.

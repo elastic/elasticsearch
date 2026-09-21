@@ -40,7 +40,6 @@ import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
@@ -183,8 +182,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.jar.JarInputStream;
 import java.util.regex.Pattern;
@@ -1151,7 +1152,7 @@ public final class EsqlTestUtils {
      * Resolves a single classpath resource by its exact name, stripping
      * any leading "/" (resource names looked up via the classloader must
      * not start with "/"). This is a fast alternative to
-     * {@link #classpathResources(String)} for callers who already know
+     * {@link #classpathResources(String...)} for callers who already know
      * the exact resource name and don't need pattern matching.
      */
     public static URL classpathResource(String name) {
@@ -1176,85 +1177,75 @@ public final class EsqlTestUtils {
      * sets) rather than a genuine duplicate.
      */
     @SuppressForbidden(reason = "classpath discovery")
-    public static List<URL> classpathResources(String pattern) throws IOException {
+    public static List<URL> classpathResources(String... patterns) throws IOException {
+        assert patterns.length > 0 : "Must supply at least a single pattern";
         String[] classpathEntries = System.getProperty("java.class.path").split(Pattern.quote(System.getProperty("path.separator")));
-        return classpathResources(pattern, Arrays.stream(classpathEntries).map(PathUtils::get).toList());
+        return classpathResources(List.of(patterns), Arrays.stream(classpathEntries).map(PathUtils::get).toList());
     }
 
     /**
-     * Resolves {@code pattern} against explicit classpath roots. Kept package-private so tests can
-     * exercise exploded directories and JARs without mutating the JVM's real classpath.
+     * Resolves {@code patterns} against explicit classpath roots.
+     * Ensures resources are uniquely matched (not referenced by several patterns).
+     * Kept package-private so tests can exercise exploded directories and JARs without mutating the JVM's real classpath.
      */
     @SuppressForbidden(reason = "classpath discovery")
-    static List<URL> classpathResources(String pattern, List<Path> classpathRoots) throws IOException {
-        while (pattern.startsWith("/")) {
-            pattern = pattern.substring(1);
-        }
-
-        Tuple<String, String> split = pathAndName(pattern);
-        final String root = split.v1();
-        final String filePattern = split.v2();
-
-        Map<String, ResourceMatch> matches = new TreeMap<>();
+    static List<URL> classpathResources(List<String> patterns, List<Path> classpathRoots) throws IOException {
+        long start = System.nanoTime();
+        final var preparedPatterns = (Collection<PathAndName>) patterns.stream()
+            .map(EsqlTestUtils::normalizeResourcePath)
+            .map(PathAndName::from)
+            .toList();
+        Map<String, URL> matches = new TreeMap<>();
         for (Path path : classpathRoots) {
             if (path.toString().endsWith(".jar")) {
                 try (JarInputStream jar = jarInputStream(path.toUri().toURL())) {
                     ZipEntry entry;
                     while ((entry = jar.getNextEntry()) != null) {
-                        if (entry.isDirectory()) {
-                            continue;
-                        }
-                        String name = normalizeResourcePath(entry.getName());
-                        Tuple<String, String> entrySplit = pathAndName(name);
-                        if (root.equals(entrySplit.v1()) && Regex.simpleMatch(filePattern, entrySplit.v2())) {
-                            addClasspathResource(
-                                matches,
-                                name,
-                                new URL("jar:" + path.toUri() + "!/" + name),
-                                path.toAbsolutePath().normalize().toString()
-                            );
+                        if (entry.isDirectory() == false) {
+                            String normalizedResourcePath = normalizeResourcePath(entry.getName());
+                            var resource = PathAndName.from(normalizedResourcePath);
+                            for (var preparedPattern : preparedPatterns) {
+                                if (Objects.equals(preparedPattern.path(), resource.path())
+                                    && Regex.simpleMatch(preparedPattern.name(), resource.name())) {
+                                    var previous = matches.put(
+                                        normalizedResourcePath,
+                                        new URL("jar:" + path.toUri() + "!/" + normalizedResourcePath)
+                                    );
+                                    if (previous != null) {
+                                        throw new IllegalStateException("Duplicate classpath resource [" + normalizedResourcePath + "]");
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             } else if (Files.isDirectory(path)) {
-                Path requestedDirectory = root.isEmpty() ? path : path.resolve(root);
-                if (Files.isDirectory(requestedDirectory) == false) {
-                    continue;
-                }
-                try (DirectoryStream<Path> children = Files.newDirectoryStream(requestedDirectory)) {
-                    for (Path child : children) {
-                        if (Files.isRegularFile(child) == false) {
-                            continue;
-                        }
-                        String fileName = child.getFileName().toString();
-                        if (Regex.simpleMatch(filePattern, fileName)) {
-                            String logicalPath = root.isEmpty() ? fileName : root + "/" + fileName;
-                            addClasspathResource(matches, logicalPath, child.toUri().toURL(), path.toAbsolutePath().normalize().toString());
+                for (PathAndName preparedPattern : preparedPatterns) {
+                    Path requestedDirectory = preparedPattern.path().isEmpty() ? path : path.resolve(preparedPattern.path());
+                    if (Files.isDirectory(requestedDirectory)) {
+                        try (DirectoryStream<Path> children = Files.newDirectoryStream(requestedDirectory)) {
+                            for (Path child : children) {
+                                if (Files.isRegularFile(child)) {
+                                    String fileName = child.getFileName().toString();
+                                    if (Regex.simpleMatch(preparedPattern.name(), fileName)) {
+                                        String logicalPath = preparedPattern.path().isEmpty()
+                                            ? fileName
+                                            : preparedPattern.path() + "/" + fileName;
+                                        var previous = matches.put(logicalPath, child.toUri().toURL());
+                                        if (previous != null) {
+                                            throw new IllegalStateException("Duplicate classpath resource [" + logicalPath + "]");
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
         }
-        return matches.values().stream().map(ResourceMatch::url).toList();
-    }
-
-    private static void addClasspathResource(Map<String, ResourceMatch> matches, String logicalPath, URL url, String origin) {
-        ResourceMatch previous = matches.putIfAbsent(logicalPath, new ResourceMatch(url, origin));
-        if (previous != null) {
-            throw new IllegalStateException(
-                "Duplicate classpath resource ["
-                    + logicalPath
-                    + "] found in ["
-                    + previous.origin()
-                    + "] at ["
-                    + previous.url()
-                    + "] and in ["
-                    + origin
-                    + "] at ["
-                    + url
-                    + "]"
-            );
-        }
+        long end = System.nanoTime();
+        LOGGER.debug("Detected {} matching resources in {} ms", matches.size(), TimeUnit.SECONDS.toMillis(end - start));
+        return List.copyOf(matches.values());
     }
 
     private static String normalizeResourcePath(String resourcePath) {
@@ -1264,22 +1255,22 @@ public final class EsqlTestUtils {
         return resourcePath.replace('\\', '/');
     }
 
-    private record ResourceMatch(URL url, String origin) {}
-
     @SuppressForbidden(reason = "need to open jar")
     public static JarInputStream jarInputStream(URL resource) throws IOException {
         return new JarInputStream(inputStream(resource));
     }
 
-    public static Tuple<String, String> pathAndName(String string) {
-        String folder = StringUtils.EMPTY;
-        String file = string;
-        int lastIndexOf = string.lastIndexOf('/');
-        if (lastIndexOf >= 0) {
-            folder = string.substring(0, lastIndexOf);
-            file = string.substring(lastIndexOf + 1);
+    public record PathAndName(String path, String name) {
+        public static PathAndName from(String string) {
+            String folder = StringUtils.EMPTY;
+            String file = string;
+            int lastIndexOf = string.lastIndexOf('/');
+            if (lastIndexOf >= 0) {
+                folder = string.substring(0, lastIndexOf);
+                file = string.substring(lastIndexOf + 1);
+            }
+            return new PathAndName(folder, file);
         }
-        return new Tuple<>(folder, file);
     }
 
     /**

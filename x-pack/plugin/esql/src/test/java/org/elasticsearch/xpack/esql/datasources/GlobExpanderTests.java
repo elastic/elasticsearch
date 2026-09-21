@@ -807,6 +807,229 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://bucket/year=*/*.parquet", rewritten);
     }
 
+    /** A closed integral span becomes a brace so those days never enter the file list. */
+    public void testRewriteGlobWithClosedDayRange() {
+        var hints = List.of(
+            hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 13),
+            hint("day", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 15)
+        );
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/year=*/month=*/day=*/*.parquet", hints);
+        assertEquals("s3://bucket/year=*/month=*/day={13,14,15}/*.parquet", rewritten);
+    }
+
+    /** Single-digit months keep the zero-padded folder spelling the IN rewrite already emits. */
+    public void testRewriteGlobWithClosedMonthRangeEmitsZeroPaddedSpellings() {
+        var hints = List.of(
+            hint("month", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 6),
+            hint("month", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 8)
+        );
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/month=*/*.parquet", hints);
+        assertEquals("s3://bucket/month={6,06,7,07,8,08}/*.parquet", rewritten);
+    }
+
+    public void testRewriteGlobWithHalfOpenRange() {
+        String pattern = "s3://bucket/day=*/*.parquet";
+        String expected = "s3://bucket/day={13,14,15}/*.parquet";
+        var exclusive = List.of(
+            hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN, 12),
+            hint("day", PartitionFilterHintExtractor.Operator.LESS_THAN, 16)
+        );
+        assertEquals(expected, GlobExpander.rewriteGlobWithHints(pattern, exclusive));
+        var mixed = List.of(
+            hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 13),
+            hint("day", PartitionFilterHintExtractor.Operator.LESS_THAN, 16)
+        );
+        assertEquals(expected, GlobExpander.rewriteGlobWithHints(pattern, mixed));
+    }
+
+    /** Several bounds on one side fold to the tightest inclusive span. */
+    public void testRewriteGlobWithTightestClosedRange() {
+        var hints = List.of(
+            hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2020),
+            hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2024),
+            hint("year", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 2030),
+            hint("year", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 2026)
+        );
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/year=*/*.parquet", hints);
+        assertEquals("s3://bucket/year={2024,2025,2026}/*.parquet", rewritten);
+    }
+
+    /**
+     * Point, one-sided, contradictory, and non-integral bounds stay wildcards. A single value would take the concrete
+     * {@code key=value} path and drop the zero-padded spelling; a span wider than 31 values is left for the row filter.
+     */
+    public void testRewriteGlobWithClosedRangeRefused() {
+        String day = "s3://bucket/day=*/*.parquet";
+        String year = "s3://bucket/year=*/*.parquet";
+        assertEquals(
+            "a span of one value stays a wildcard",
+            year,
+            GlobExpander.rewriteGlobWithHints(
+                year,
+                List.of(
+                    hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2026),
+                    hint("year", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 2026)
+                )
+            )
+        );
+        assertEquals(
+            day,
+            GlobExpander.rewriteGlobWithHints(day, List.of(hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 13)))
+        );
+        assertEquals(
+            day,
+            GlobExpander.rewriteGlobWithHints(day, List.of(hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN, 10)))
+        );
+        assertEquals(
+            "a contradiction lists the wildcard and the row filter returns empty",
+            day,
+            GlobExpander.rewriteGlobWithHints(
+                day,
+                List.of(
+                    hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 15),
+                    hint("day", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 10)
+                )
+            )
+        );
+        assertEquals(
+            day,
+            GlobExpander.rewriteGlobWithHints(
+                day,
+                List.of(
+                    hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 13.0),
+                    hint("day", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 15.0)
+                )
+            )
+        );
+        assertEquals(
+            "s3://bucket/region=*/*.parquet",
+            GlobExpander.rewriteGlobWithHints(
+                "s3://bucket/region=*/*.parquet",
+                List.of(
+                    hint("region", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, "M"),
+                    hint("region", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, "P")
+                )
+            )
+        );
+        assertEquals(
+            "s3://bucket/flag=*/*.parquet",
+            GlobExpander.rewriteGlobWithHints(
+                "s3://bucket/flag=*/*.parquet",
+                List.of(
+                    hint("flag", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, false),
+                    hint("flag", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, true)
+                )
+            )
+        );
+        assertEquals(
+            "day >= 1 AND day <= 32 is 32 values, past the brace span",
+            day,
+            GlobExpander.rewriteGlobWithHints(
+                day,
+                List.of(
+                    hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 1),
+                    hint("day", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 32)
+                )
+            )
+        );
+    }
+
+    /** {@code day >= 1 AND day <= 31} is 31 values, the widest span the brace rewrite accepts. */
+    public void testRewriteGlobWithClosedRangeAtSpanLimit() {
+        String pattern = "s3://bucket/day=*/*.parquet";
+        var rangeHints = List.of(
+            hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 1),
+            hint("day", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 31)
+        );
+        Object[] days = new Object[31];
+        for (int day = 1; day <= 31; day++) {
+            days[day - 1] = day;
+        }
+        var inHints = List.of(hint("day", PartitionFilterHintExtractor.Operator.IN, days));
+        String rewritten = GlobExpander.rewriteGlobWithHints(pattern, rangeHints);
+        assertEquals(GlobExpander.rewriteGlobWithHints(pattern, inHints), rewritten);
+        assertThat(rewritten, containsString("day={1,01"));
+        assertThat(rewritten, containsString("31}/*.parquet"));
+    }
+
+    /** An existing {@code EQUALS} or {@code IN} hint wins; the range is not intersected into it. */
+    public void testRewriteGlobClosedRangeYieldsToEqualsOrIn() {
+        String pattern = "s3://bucket/year=*/*.parquet";
+        var equalsAndRange = List.of(
+            hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2020),
+            hint("year", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 2030),
+            hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2019)
+        );
+        assertEquals("s3://bucket/year=2019/*.parquet", GlobExpander.rewriteGlobWithHints(pattern, equalsAndRange));
+
+        var inAndRange = List.of(
+            hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2020),
+            hint("year", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 2026),
+            hint("year", PartitionFilterHintExtractor.Operator.IN, 2018, 2019)
+        );
+        assertEquals("s3://bucket/year={2018,2019}/*.parquet", GlobExpander.rewriteGlobWithHints(pattern, inAndRange));
+    }
+
+    /** Under TEMPLATE the year slot becomes a brace; a one-sided bound still leaves it a wildcard. */
+    public void testRewriteGlobWithTemplateClosedRange() {
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}");
+        String pattern = "s3://bucket/*/*.parquet";
+        var closed = List.of(
+            hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2024),
+            hint("year", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 2026)
+        );
+        assertEquals("s3://bucket/{2024,2025,2026}/*.parquet", GlobExpander.rewriteGlobWithHints(pattern, closed, config));
+
+        var oneSided = List.of(hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2024));
+        assertEquals(pattern, GlobExpander.rewriteGlobWithHints(pattern, oneSided, config));
+    }
+
+    /**
+     * The brace narrows which keys the matcher keeps, and the LIST prefix stays {@code s3://bucket/data/}. A brace and
+     * a star both stop {@code patternPrefix} at the same slash, so the listing is still one recursive list of that prefix.
+     */
+    public void testClosedRangeBraceKeepsListingPrefix() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/data/",
+                List.of(
+                    entry("s3://bucket/data/day=12/a.parquet", 100),
+                    entry("s3://bucket/data/day=13/b.parquet", 100),
+                    entry("s3://bucket/data/day=15/c.parquet", 100),
+                    entry("s3://bucket/data/day=16/d.parquet", 100)
+                )
+            )
+        );
+        var hints = List.of(
+            hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 13),
+            hint("day", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 15)
+        );
+
+        FileList result = GlobExpander.expand("s3://bucket/data/day=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
+
+        assertEquals(List.of("s3://bucket/data/day=13/b.parquet", "s3://bucket/data/day=15/c.parquet"), paths(result));
+        assertEquals(List.of("s3://bucket/data/"), provider.listedPrefixes);
+    }
+
+    /**
+     * A closed integral range changes the effective pattern, so it must not share the unhinted listing-cache entry.
+     * The same column with only one bound does not rewrite, and the key stays put.
+     */
+    public void testListingCacheDiscriminatorReflectsClosedIntegralRange() {
+        String pattern = "s3://bucket/year=*/*.parquet";
+        String unhinted = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON);
+        var closed = List.of(
+            hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2024),
+            hint("year", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 2026)
+        );
+        String closedKey = GlobExpander.listingCacheDiscriminator(pattern, closed, HIVE_ON);
+        assertNotEquals(unhinted, closedKey);
+        assertThat(closedKey, containsString("year={2024,2025,2026}"));
+
+        var open = List.of(hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2024));
+        assertEquals(unhinted, GlobExpander.listingCacheDiscriminator(pattern, open, HIVE_ON));
+    }
+
     public void testRewriteGlobMultipleHints() {
         var hints = List.of(
             hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024),
@@ -890,7 +1113,7 @@ public class GlobExpanderTests extends ESTestCase {
     public void testRewriteGlobWithTemplateRangeHintsNoRewrite() {
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2020));
         PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}");
-        // Range hints are not rewritable, so pattern should be unchanged
+        // A one-sided range is not a closed span, so the template slot stays a wildcard.
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/*/*/*.parquet", hints, config);
         assertEquals("s3://bucket/*/*/*.parquet", rewritten);
     }
@@ -2068,6 +2291,7 @@ public class GlobExpanderTests extends ESTestCase {
         }
 
         private final Map<String, List<StorageEntry>> listingsByPrefix;
+        final List<String> listedPrefixes = new ArrayList<>();
         boolean throwOnUnknownPrefix = false;
         int listCallCount = 0;
 
@@ -2093,6 +2317,7 @@ public class GlobExpanderTests extends ESTestCase {
         @Override
         public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
             listCallCount++;
+            listedPrefixes.add(prefix.toString());
             List<StorageEntry> entries = listingsByPrefix.get(prefix.toString());
             if (entries == null) {
                 if (throwOnUnknownPrefix) {

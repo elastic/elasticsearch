@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.HivePartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
 import org.elasticsearch.xpack.esql.datasources.PartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
+import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
@@ -1396,7 +1397,107 @@ public final class GlobExpander {
                 byColumn.putIfAbsent(hint.columnName(), hint);
             }
         }
+        synthesizeClosedRangeHints(hints, byColumn);
         return byColumn;
+    }
+
+    // distance == 30 is 31 values, so day >= 1 AND day <= 31 rewrites and day >= 1 AND day <= 32 does not.
+    private static final int MAX_RANGE_BRACE_SPAN = 30;
+
+    static void synthesizeClosedRangeHints(List<PartitionFilterHint> hints, Map<String, PartitionFilterHint> byColumn) {
+        Map<String, List<PartitionFilterHint>> rangesByColumn = null;
+        for (PartitionFilterHint hint : hints) {
+            if (byColumn.containsKey(hint.columnName()) || rangeOperator(hint.operator()) == false) {
+                continue;
+            }
+            if (rangesByColumn == null) {
+                rangesByColumn = Maps.newHashMapWithExpectedSize(hints.size());
+            }
+            List<PartitionFilterHint> columnHints = rangesByColumn.get(hint.columnName());
+            if (columnHints == null) {
+                columnHints = new ArrayList<>();
+                rangesByColumn.put(hint.columnName(), columnHints);
+            }
+            columnHints.add(hint);
+        }
+        if (rangesByColumn == null) {
+            return;
+        }
+        for (Map.Entry<String, List<PartitionFilterHint>> entry : rangesByColumn.entrySet()) {
+            PartitionFilterHint synthesized = closedRangeInHint(entry.getKey(), entry.getValue());
+            if (synthesized != null) {
+                byColumn.put(entry.getKey(), synthesized);
+            }
+        }
+    }
+
+    private static boolean rangeOperator(Operator operator) {
+        return switch (operator) {
+            case GREATER_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN, LESS_THAN_OR_EQUAL -> true;
+            case EQUALS, NOT_EQUALS, IN -> false;
+        };
+    }
+
+    private static PartitionFilterHint closedRangeInHint(String column, List<PartitionFilterHint> bounds) {
+        boolean hasLower = false;
+        boolean hasUpper = false;
+        long lower = 0;
+        long upper = 0;
+        for (PartitionFilterHint hint : bounds) {
+            List<Object> values = hint.values();
+            if (values.size() != 1 || integralBound(values.get(0)) == false) {
+                return null;
+            }
+            long value = ((Number) values.get(0)).longValue();
+            switch (hint.operator()) {
+                case GREATER_THAN_OR_EQUAL -> {
+                    lower = hasLower ? Math.max(lower, value) : value;
+                    hasLower = true;
+                }
+                case GREATER_THAN -> {
+                    if (value == Long.MAX_VALUE) {
+                        return null;
+                    }
+                    long inclusive = value + 1;
+                    lower = hasLower ? Math.max(lower, inclusive) : inclusive;
+                    hasLower = true;
+                }
+                case LESS_THAN_OR_EQUAL -> {
+                    upper = hasUpper ? Math.min(upper, value) : value;
+                    hasUpper = true;
+                }
+                case LESS_THAN -> {
+                    if (value == Long.MIN_VALUE) {
+                        return null;
+                    }
+                    long inclusive = value - 1;
+                    upper = hasUpper ? Math.min(upper, inclusive) : inclusive;
+                    hasUpper = true;
+                }
+                case EQUALS, NOT_EQUALS, IN -> throw new IllegalArgumentException("not a range operator [" + hint.operator() + "]");
+            }
+        }
+        if (hasLower == false || hasUpper == false || upper < lower) {
+            return null;
+        }
+        long distance = upper - lower;
+        // distance < 0 is long subtraction overflow: upper > lower, but the span does not fit in a long.
+        if (distance < 0 || distance == 0 || distance > MAX_RANGE_BRACE_SPAN) {
+            return null;
+        }
+        List<Object> enumerated = new ArrayList<>((int) distance + 1);
+        for (long v = lower;;) {
+            enumerated.add(Long.valueOf(v));
+            if (v == upper) {
+                break;
+            }
+            v++;
+        }
+        return new PartitionFilterHint(column, Operator.IN, enumerated);
+    }
+
+    private static boolean integralBound(Object value) {
+        return value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long;
     }
 
     private static String rewriteSegment(String segment, Map<String, PartitionFilterHint> rewritableHints) {

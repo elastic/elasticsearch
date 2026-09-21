@@ -21,12 +21,13 @@ import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoveryGate;
 import org.elasticsearch.indices.recovery.RecoveryGateMonitor;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
-import org.elasticsearch.indices.recovery.TestRecoverySchedulingListener;
+import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider;
 import org.elasticsearch.xpack.stateless.memory.ShardsMappingSizeCollector;
@@ -36,7 +37,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.allOf;
@@ -64,6 +64,8 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
     @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING.getKey(), true)
+            // Read time directly so a short sleep after the block notification yields a positive duration.
+            .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), TimeValue.ZERO)
             .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true)
             // Ensure the gate is enabled even for the small (512 MB) test JVM.
             .put(EstimatedHeapUsageAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT.getKey(), "100mb")
@@ -76,22 +78,18 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
         final TestTelemetryPlugin telemetry = getTelemetryPlugin(indexNodeName);
         telemetry.resetMeter();
         final String indexName = createIndexWithBlockedRecovery(indexNodeName);
-        assertBusy(
-            () -> assertThat(
-                "a gate-deferred recovery must identify its gate in the recovery API",
-                indicesAdmin().prepareRecoveries(indexName).get().toString(),
-                allOf(containsString("\"gate\" : \"estimated_heap\""), containsString("\"blocked_for_millis\""))
-            )
+        safeSleep(randomIntBetween(5, 50));
+        assertThat(
+            "a gate-deferred recovery must identify its gate in the recovery API",
+            indicesAdmin().prepareRecoveries(indexName).get().toString(),
+            allOf(containsString("\"gate\" : \"estimated_heap\""), containsString("\"blocked_for_millis\""))
         );
 
-        assertBusy(() -> {
-            // retry in case the gate is just be blocked and duration is 0ms
-            telemetry.collect();
-            assertThat(
-                getLastLongGaugeValue(RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC, telemetry),
-                greaterThan(0L)
-            );
-        });
+        telemetry.collect();
+        assertThat(
+            getLastLongGaugeValue(RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC, telemetry),
+            greaterThan(0L)
+        );
         assertThat(getLastLongGaugeValue(RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_METRIC, telemetry), equalTo(1L));
         assertThat(telemetry.getLongHistogramMeasurement(RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_DURATION_METRIC), empty());
         final List<Measurement> blockCount = telemetry.getLongCounterMeasurement(
@@ -245,8 +243,7 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
         return indexNodeName;
     }
 
-    /// Creates an index without waiting for it and asserts its recovery is deferred: the node's gate decides BLOCK and the
-    /// index does not go green while the gate stays closed.
+    /// Creates an index and waits for its recovery to be blocked, then checks that it is queued and the index remains red.
     private String createIndexWithBlockedRecovery(String indexNodeName) throws Exception {
         safeAwait(awaitGateOutcome(indexNodeName, RecoveryGate.Outcome.BLOCK));
         final RecoveryGate.Decision decision = gateDecision(indexNodeName);
@@ -254,13 +251,25 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
         assertEquals("estimated_heap", decision.gateName());
 
         final String indexName = randomIdentifier();
-        prepareCreate(indexName).setSettings(indexSettings(1, 0).build()).setWaitForActiveShards(ActiveShardCount.NONE).get();
-        awaitRecoveryStats(
-            indexNodeName,
-            indexName,
-            stats -> stats.currentFromStoreQueued() + stats.currentAsTargetQueued() == 1
-                && stats.currentFromStore() + stats.currentAsTarget() == 0
-        );
+        final CountDownLatch recoveriesBlocked = new CountDownLatch(1);
+        final var schedulingListeners = internalCluster().getInstance(CompositeRecoverySchedulingListener.class, indexNodeName);
+        final var listener = new RecoverySchedulingListener() {
+            @Override
+            public void onRecoveriesBlocked(String gateName) {
+                recoveriesBlocked.countDown();
+            }
+        };
+        schedulingListeners.addListener(listener);
+        try {
+            prepareCreate(indexName).setSettings(indexSettings(1, 0).build()).setWaitForActiveShards(ActiveShardCount.NONE).get();
+            safeAwait(recoveriesBlocked);
+        } finally {
+            schedulingListeners.removeListener(listener);
+        }
+        final RecoveryStats stats = recoveryStatsOrNull(indexNodeName, indexName);
+        assertNotNull("missing recovery stats for " + indexName, stats);
+        assertThat(stats.currentFromStoreQueued() + stats.currentAsTargetQueued(), equalTo(1));
+        assertThat(stats.currentFromStore() + stats.currentAsTarget(), equalTo(0));
         ensureRed(indexName);
         return indexName;
     }
@@ -273,31 +282,7 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
         return latch;
     }
 
-    /// Event-driven wait on the index's recovery stats: re-checked on every recovery scheduling change on the node (enqueue,
-    /// start, cancellation, completion) instead of polling.
-    private void awaitRecoveryStats(String nodeName, String indexName, Predicate<RecoveryStats> predicate) {
-        final CountDownLatch conditionLatch = new CountDownLatch(1);
-        final var schedulingListeners = internalCluster().getInstance(CompositeRecoverySchedulingListener.class, nodeName);
-        final var listener = new TestRecoverySchedulingListener() {
-            @Override
-            public void onRecoverySchedulingChange() {
-                final RecoveryStats recoveryStats = recoveryStatsOrNull(nodeName, indexName);
-                if (recoveryStats != null && predicate.test(recoveryStats)) {
-                    conditionLatch.countDown();
-                }
-            }
-        };
-        schedulingListeners.addListener(listener);
-        try {
-            // in case the condition was already met before the listener was registered
-            listener.onRecoverySchedulingChange();
-            safeAwait(conditionLatch);
-        } finally {
-            schedulingListeners.removeListener(listener);
-        }
-    }
-
-    /// Null until the node has created the shard; the scheduling listener re-checks on each event.
+    /// Null until the node has created the shard
     private RecoveryStats recoveryStatsOrNull(String nodeName, String indexName) {
         final var indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
         for (final var indexService : indicesService) {

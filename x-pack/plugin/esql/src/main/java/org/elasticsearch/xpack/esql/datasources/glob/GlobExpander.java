@@ -1404,6 +1404,11 @@ public final class GlobExpander {
     // distance == 30 is 31 values, so day >= 1 AND day <= 31 rewrites and day >= 1 AND day <= 32 does not.
     private static final int MAX_RANGE_BRACE_SPAN = 30;
 
+    // The brace is a superset. NOT_EQUALS stays in the row filter, and a column that already has EQUALS or IN keeps
+    // that hint. Spellings are the IN set (6 and 06). An empty match still re-lists through expandGlobWithRewriteFallback,
+    // same prefix: that retry is what keeps an unemitted spelling (month=6.0) from becoming silent zero rows when
+    // nothing else matched.
+
     static void synthesizeClosedRangeHints(List<PartitionFilterHint> hints, Map<String, PartitionFilterHint> byColumn) {
         Map<String, List<PartitionFilterHint>> rangesByColumn = null;
         for (PartitionFilterHint hint : hints) {

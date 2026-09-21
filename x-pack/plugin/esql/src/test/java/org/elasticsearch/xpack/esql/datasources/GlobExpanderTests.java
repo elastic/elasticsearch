@@ -817,6 +817,19 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://bucket/year=*/month=*/day={13,14,15}/*.parquet", rewritten);
     }
 
+    /** {@code !=} stays in the row filter. The brace still lists the excluded value. */
+    public void testRewriteGlobClosedRangeKeepsNotEqualsInTheBrace() {
+        var hints = List.of(
+            hint("day", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 13),
+            hint("day", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 15),
+            hint("day", PartitionFilterHintExtractor.Operator.NOT_EQUALS, 14)
+        );
+        assertEquals(
+            "s3://bucket/day={13,14,15}/*.parquet",
+            GlobExpander.rewriteGlobWithHints("s3://bucket/day=*/*.parquet", hints)
+        );
+    }
+
     /** Single-digit months keep the zero-padded folder spelling the IN rewrite already emits. */
     public void testRewriteGlobWithClosedMonthRangeEmitsZeroPaddedSpellings() {
         var hints = List.of(

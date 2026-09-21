@@ -319,7 +319,7 @@ public abstract class ViewResolutionBenchmarkBase {
         LogicalPlan parsed = parsePlan(queryString);
 
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(parsed, null, viewParser, future);
+        viewResolver.replaceViews(parsed, null, true, viewParser, future);
         LogicalPlan resolved = future.actionGet().plan();
 
         LogicalPlan analyzed = analyzer.analyze(resolved);

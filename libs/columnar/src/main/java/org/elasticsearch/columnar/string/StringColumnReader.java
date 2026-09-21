@@ -16,6 +16,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnIteratorReader;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -59,7 +60,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     private final SlotAddressReader addresses;
 
     /** Held so a summary can be read on demand; a merge reads it, an ordinary search never does. */
-    protected final IndexInput data;
+    protected final ColumnInputs inputs;
 
     /** Carried across page reads, which arrive in document order; see {@link #ranksOfAll}. */
     private ColumnIterator pageIterator;
@@ -104,19 +105,19 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     private int slotGeneration;
     private int slotMask;
 
-    StringColumnReader(StringColumnMetadata meta, IndexInput data, int blockSize) throws IOException {
+    StringColumnReader(StringColumnMetadata meta, ColumnInputs inputs, int blockSize) throws IOException {
         this.meta = meta;
-        this.data = data;
+        this.inputs = inputs;
         this.blockSize = blockSize;
-        this.iteratorReader = new ColumnIteratorReader(meta.iterator(), data);
-        this.addresses = meta.hasValueAddresses() ? new SlotAddressReader(meta.addressing(), meta.numDocsWithField(), data) : null;
+        this.iteratorReader = new ColumnIteratorReader(meta.iterator(), inputs.addressing());
+        this.addresses = meta.hasValueAddresses() ? new SlotAddressReader(meta.addressing(), meta.numDocsWithField(), inputs) : null;
     }
 
     /** A reader for {@code meta}, which decides whether the column has a dictionary to read through. */
-    public static StringColumnReader open(StringColumnMetadata meta, IndexInput data) throws IOException {
+    public static StringColumnReader open(StringColumnMetadata meta, ColumnInputs inputs) throws IOException {
         return switch (meta) {
-            case StringColumnMetadata.Dictionary column -> new DictionaryStringColumnReader(column, data);
-            case StringColumnMetadata.Plain column -> new PlainStringColumnReader(column, data);
+            case StringColumnMetadata.Dictionary column -> new DictionaryStringColumnReader(column, inputs);
+            case StringColumnMetadata.Plain column -> new PlainStringColumnReader(column, inputs);
         };
     }
 
@@ -224,7 +225,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      */
     public void readSummary(List<BytesRef> terms, List<Long> counts) throws IOException {
         final StringColumnMetadata.Summary summary = meta.summary();
-        final ValueStream.Reader source = summary.terms() == null ? summarisedTerms() : summary.terms().open(data);
+        final ValueStream.Reader source = summary.terms() == null ? summarisedTerms() : summary.terms().open(inputs);
         final int size = summary.terms() == null ? summarisedTermCount() : Math.toIntExact(summary.terms().numValues());
         final BytesRef term = new BytesRef();
         for (int ordinal = 0; ordinal < size; ordinal++) {
@@ -232,7 +233,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
             terms.add(BytesRef.deepCopyOf(term));
         }
         // Cloned rather than read in place: the caller's own reads are interleaved with these.
-        final IndexInput in = data.clone();
+        final IndexInput in = inputs.data().clone();
         in.seek(summary.countsOffset());
         for (int ordinal = 0; ordinal < size; ordinal++) {
             counts.add(in.readVLong());

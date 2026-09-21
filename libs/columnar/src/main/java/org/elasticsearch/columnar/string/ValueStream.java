@@ -14,8 +14,6 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
@@ -25,6 +23,8 @@ import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.columnar.substrate.ChunkIndexMetadata;
 import org.elasticsearch.columnar.substrate.ChunkedBytesReader;
 import org.elasticsearch.columnar.substrate.ChunkedBytesWriter;
+import org.elasticsearch.columnar.substrate.ColumnInputs;
+import org.elasticsearch.columnar.substrate.ColumnOutputs;
 import org.elasticsearch.columnar.substrate.MonotonicReader;
 import org.elasticsearch.columnar.substrate.MonotonicWriter;
 import org.elasticsearch.columnar.substrate.internal.ByteArrayInts;
@@ -136,14 +136,14 @@ public final class ValueStream {
             return new Metadata(numValues, valueBytes, valuesPerBlock, chunks, new MonotonicWriter.Table(dataOffset, dataLength, meta));
         }
 
-        public Reader open(IndexInput data) throws IOException {
+        public Reader open(ColumnInputs inputs) throws IOException {
             if (numValues == 0) {
                 return new Reader(null, null, 0, valuesPerBlock);
             }
             final long blocks = (numValues + valuesPerBlock - 1) / valuesPerBlock;
             return new Reader(
-                chunks.open(data),
-                MonotonicReader.open(data, offsets.meta(), blocks + 1L, offsets.dataOffset(), offsets.dataLength()),
+                chunks.open(inputs),
+                MonotonicReader.open(inputs.navigation(), offsets.meta(), blocks + 1L, offsets.dataOffset(), offsets.dataLength()),
                 numValues,
                 valuesPerBlock
             );
@@ -154,7 +154,7 @@ public final class ValueStream {
     public static final class Writer implements Closeable {
 
         private final ChunkedBytesWriter chunks;
-        private final IndexOutput data;
+        private final ColumnOutputs outputs;
         private final MonotonicWriter offsets;
         private final int valuesPerBlock;
         private long count = 0;
@@ -183,10 +183,10 @@ public final class ValueStream {
             Directory dir,
             IOContext ctx,
             String prefix,
-            IndexOutput data
+            ColumnOutputs outputs
         ) throws IOException {
             this.valuesPerBlock = valuesPerBlock;
-            this.data = data;
+            this.outputs = outputs;
             this.pending = new int[valuesPerBlock];
             // Both hold a temporary file of their own. Whichever opens first is closed here if the one after
             // it fails, since a writer that never finished being built is one nothing else can close.
@@ -194,7 +194,7 @@ public final class ValueStream {
             MonotonicWriter offsets = null;
             boolean success = false;
             try {
-                chunks = new ChunkedBytesWriter(codec, chunkBounds, dir, ctx, prefix, data);
+                chunks = new ChunkedBytesWriter(codec, chunkBounds, dir, ctx, prefix, outputs.data());
                 final long blocks = (numValues + valuesPerBlock - 1) / valuesPerBlock;
                 offsets = new MonotonicWriter(dir, ctx, prefix, blocks + 1L);
                 success = true;
@@ -381,8 +381,8 @@ public final class ValueStream {
                 flushBlock();
             }
             offsets.add(chunks.uncompressedLength());
-            final ChunkIndexMetadata index = ChunkIndexMetadata.of(chunks.finish());
-            return new Metadata(count, valueBytes, valuesPerBlock, index, offsets.finish(data));
+            final ChunkIndexMetadata index = ChunkIndexMetadata.of(chunks.finish(outputs.navigation()));
+            return new Metadata(count, valueBytes, valuesPerBlock, index, offsets.finish(outputs.navigation()));
         }
 
         @Override

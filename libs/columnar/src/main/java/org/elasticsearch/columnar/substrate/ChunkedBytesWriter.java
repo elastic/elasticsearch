@@ -120,8 +120,8 @@ public final class ChunkedBytesWriter implements Closeable {
         }
     }
 
-    /** Emits any pending chunk, writes the index tables into {@code data}, and returns where everything is. */
-    public Chunks finish() throws IOException {
+    /** Emits any pending chunk, writes the chunk index into {@code navigation}, and returns where everything is. */
+    public Chunks finish(IndexOutput navigation) throws IOException {
         assert finished == false : "already finished";
         finished = true;
         if (pendingLength > 0) {
@@ -150,8 +150,8 @@ public final class ChunkedBytesWriter implements Closeable {
                 startsOut.add(staged.readVLong());
                 offsetsOut.add(staged.readVLong());
             }
-            startsTable = startsOut.finish(data);
-            offsetsTable = offsetsOut.finish(data);
+            startsTable = startsOut.finish(navigation);
+            offsetsTable = offsetsOut.finish(navigation);
         }
         return new Chunks(codec.id(), numChunks, uncompressedLength, dataOffset, startsTable, offsetsTable);
     }

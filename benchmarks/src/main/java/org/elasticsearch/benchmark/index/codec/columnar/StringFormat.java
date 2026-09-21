@@ -158,7 +158,12 @@ public enum StringFormat {
         }
         long bytes = 0;
         for (String file : directory.listAll()) {
-            if (file.endsWith(".dvd") || file.endsWith(".dvm") || file.endsWith(".cnd") || file.endsWith(".cnm")) {
+            if (file.endsWith(".dvd")
+                || file.endsWith(".dvm")
+                || file.endsWith(".cnd")
+                || file.endsWith(".cna")
+                || file.endsWith(".cnn")
+                || file.endsWith(".cnm")) {
                 bytes += directory.fileLength(file);
             }
         }
@@ -180,7 +185,12 @@ public enum StringFormat {
         }
         long bytes = 0;
         for (String file : directory.listAll()) {
-            if (file.endsWith(".dvd") || file.endsWith(".dvm") || file.endsWith(".cnd") || file.endsWith(".cnm")) {
+            if (file.endsWith(".dvd")
+                || file.endsWith(".dvm")
+                || file.endsWith(".cnd")
+                || file.endsWith(".cna")
+                || file.endsWith(".cnn")
+                || file.endsWith(".cnm")) {
                 bytes += directory.fileLength(file);
             }
         }
@@ -291,7 +301,7 @@ public enum StringFormat {
         }
         long bytes = 0;
         for (String file : directory.listAll()) {
-            if (file.endsWith(".cnd") || file.endsWith(".cnm")) {
+            if (file.endsWith(".cnd") || file.endsWith(".cna") || file.endsWith(".cnn") || file.endsWith(".cnm")) {
                 bytes += directory.fileLength(file);
             }
         }

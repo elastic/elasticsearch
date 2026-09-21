@@ -23,6 +23,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.FileTypeHint;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
@@ -31,6 +32,7 @@ import org.elasticsearch.columnar.numeric.NumericColumnReader;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
 import org.elasticsearch.columnar.string.StringColumnMetadata;
 import org.elasticsearch.columnar.string.StringColumnReader;
+import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
@@ -47,7 +49,10 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
 
     private final int maxDoc;
     private final IndexInput data;
+    private final IndexInput addressing;
+    private final IndexInput navigation;
     private final IndexInput skipIndex;
+    private final ColumnInputs inputs;
     private final Map<Integer, Column> columns = new HashMap<>();
     private boolean closed = false;
 
@@ -84,51 +89,58 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
 
         boolean success = false;
         try {
-            String dataName = IndexFileNames.segmentFileName(
-                state.segmentInfo.name,
-                state.segmentSuffix,
-                ColumNARDocValuesFormat.DATA_EXTENSION
+            data = openInput(state, state.context, ColumNARDocValuesFormat.DATA_EXTENSION, ColumNARDocValuesFormat.DATA_CODEC, metaVersion);
+            addressing = openInput(
+                state,
+                state.context,
+                ColumNARDocValuesFormat.ADDRESSING_EXTENSION,
+                ColumNARDocValuesFormat.ADDRESSING_CODEC,
+                metaVersion
             );
-            data = state.directory.openInput(dataName, state.context);
-            final FormatVersion dataVersion = ColumnarCodecUtil.checkHeader(
-                data,
-                ColumNARDocValuesFormat.DATA_CODEC,
-                state.segmentInfo.getId(),
-                state.segmentSuffix
+            // Index-like: every read consults the navigation, and the skip index decides what to read.
+            navigation = openInput(
+                state,
+                state.context.withHints(FileTypeHint.INDEX),
+                ColumNARDocValuesFormat.NAVIGATION_EXTENSION,
+                ColumNARDocValuesFormat.NAVIGATION_CODEC,
+                metaVersion
             );
-            if (metaVersion.equals(dataVersion) == false) {
-                throw new CorruptIndexException(
-                    "Format versions mismatch: meta=" + metaVersion.version() + ", data=" + dataVersion.version(),
-                    data
-                );
-            }
-            CodecUtil.retrieveChecksum(data);
-
-            String skipName = IndexFileNames.segmentFileName(
-                state.segmentInfo.name,
-                state.segmentSuffix,
-                ColumNARDocValuesFormat.SKIP_EXTENSION
-            );
-            // Index-like rather than data-like: the skip index is consulted to decide what to read, so a
-            // directory that distinguishes the two should treat it as it treats the terms index.
-            skipIndex = state.directory.openInput(skipName, state.context.withHints(FileTypeHint.INDEX));
-            final FormatVersion skipVersion = ColumnarCodecUtil.checkHeader(
-                skipIndex,
+            skipIndex = openInput(
+                state,
+                state.context.withHints(FileTypeHint.INDEX),
+                ColumNARDocValuesFormat.SKIP_EXTENSION,
                 ColumNARDocValuesFormat.SKIP_CODEC,
-                state.segmentInfo.getId(),
-                state.segmentSuffix
+                metaVersion
             );
-            if (metaVersion.equals(skipVersion) == false) {
-                throw new CorruptIndexException(
-                    "Format versions mismatch: meta=" + metaVersion.version() + ", skip=" + skipVersion.version(),
-                    skipIndex
-                );
-            }
-            CodecUtil.retrieveChecksum(skipIndex);
+            inputs = new ColumnInputs(data, addressing, navigation);
             success = true;
         } finally {
             if (success == false) {
                 IOUtils.closeWhileHandlingException(this);
+            }
+        }
+    }
+
+    /** Opens one of the segment's files, checking its header against the metadata's format version. */
+    private static IndexInput openInput(SegmentReadState state, IOContext context, String extension, String codec, FormatVersion expected)
+        throws IOException {
+        final String name = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, extension);
+        final IndexInput in = state.directory.openInput(name, context);
+        boolean success = false;
+        try {
+            final FormatVersion version = ColumnarCodecUtil.checkHeader(in, codec, state.segmentInfo.getId(), state.segmentSuffix);
+            if (expected.equals(version) == false) {
+                throw new CorruptIndexException(
+                    "Format versions mismatch: meta=" + expected.version() + ", " + extension + "=" + version.version(),
+                    in
+                );
+            }
+            CodecUtil.retrieveChecksum(in);
+            success = true;
+            return in;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(in);
             }
         }
     }
@@ -155,12 +167,12 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
     }
 
     private BinaryDocValues stringBinary(StringColumnMetadata metadata) throws IOException {
-        StringColumnReader reader = StringColumnReader.open(metadata, data);
+        StringColumnReader reader = StringColumnReader.open(metadata, inputs);
         return new ColumnarStringBinaryDocValues(reader, reader.iterator());
     }
 
     private BinaryDocValues numericBinary(NumericColumnMetadata metadata) throws IOException {
-        NumericColumnReader reader = new NumericColumnReader(metadata, data);
+        NumericColumnReader reader = new NumericColumnReader(metadata, inputs);
         ColumnIterator iterator = reader.iterator();
         return new ColumnarNumericBinaryDocValues(reader, iterator, maxDoc, metadata.skipper(), skipIndex);
     }
@@ -203,6 +215,8 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
     @Override
     public void checkIntegrity() throws IOException {
         CodecUtil.checksumEntireFile(data);
+        CodecUtil.checksumEntireFile(addressing);
+        CodecUtil.checksumEntireFile(navigation);
         CodecUtil.checksumEntireFile(skipIndex);
     }
 
@@ -212,6 +226,6 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
             return;
         }
         closed = true;
-        IOUtils.close(data, skipIndex);
+        IOUtils.close(data, addressing, navigation, skipIndex);
     }
 }

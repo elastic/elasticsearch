@@ -11,11 +11,11 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.numeric.LongBlocks;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
+import org.elasticsearch.columnar.substrate.ColumnOutputs;
 import org.elasticsearch.columnar.substrate.MonotonicWriter;
 
 import java.io.Closeable;
@@ -122,7 +122,7 @@ final class AddressingWriter implements Closeable {
     }
 
     /**
-     * Writes the counts and the bases into {@code data}, {@code writtenSlots} being the number of slots the
+     * Writes the counts into the addressing and the bases, one a block of counts, into the navigation, {@code writtenSlots} being the number of slots the
      * caller actually wrote — the address one past the column's last slot, which closes the last document's
      * count.
      *
@@ -131,7 +131,7 @@ final class AddressingWriter implements Closeable {
      * fill; one that reported the wrong slot total would close the last document on the wrong count, and
      * every read of that document would answer wrongly in a release build with nothing to say so.
      */
-    SlotAddressing finish(long writtenSlots, IndexOutput data) throws IOException {
+    SlotAddressing finish(long writtenSlots, ColumnOutputs outputs) throws IOException {
         if (written != numDocsWithField) {
             throw new IllegalStateException("wrote " + written + " documents, counted " + numDocsWithField);
         }
@@ -142,8 +142,8 @@ final class AddressingWriter implements Closeable {
             return SlotAddressing.NONE;
         }
         counts.add(writtenSlots - previousAddress);
-        final MonotonicWriter.Table basesTable = bases.finish(data);
-        return new SlotAddressing(counts.finish(data), basesTable);
+        final MonotonicWriter.Table basesTable = bases.finish(outputs.navigation());
+        return new SlotAddressing(counts.finish(outputs.addressing(), outputs.navigation()), basesTable);
     }
 
     @Override

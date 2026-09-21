@@ -14,9 +14,8 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.ChunkBounds;
-import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
+import org.elasticsearch.columnar.substrate.ColumnTestFiles;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -32,14 +31,13 @@ import static org.hamcrest.Matchers.greaterThan;
 public class StringColumnTempFileTests extends ColumnarStringTestCase {
 
     private static final DictionaryPolicy ROOMY = new DictionaryPolicy(512 * 1024, 0.5, 0.2);
-    private static final String DATA_FILE = "column.cnd";
+    private static final String COLUMN_FILES = "column";
 
     /** Writes {@code docSlots} as a dictionary column into {@code dir}. */
     private void write(Directory dir, BytesRef[][] docSlots) throws IOException {
         final byte[] segmentId = new byte[16];
         random().nextBytes(segmentId);
-        try (IndexOutput out = dir.createOutput(DATA_FILE, IOContext.DEFAULT)) {
-            ColumnarCodecUtil.writeHeader(out, "ColumNARStringData", FormatVersion.CURRENT, segmentId, "");
+        try (ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, COLUMN_FILES, segmentId)) {
             StringColumnWriter.write(
                 docSlots.length,
                 numDocsWithField(docSlots),
@@ -62,7 +60,7 @@ public class StringColumnTempFileTests extends ColumnarStringTestCase {
                 null,
                 dir,
                 IOContext.DEFAULT,
-                out
+                out.outputs()
             );
         }
     }

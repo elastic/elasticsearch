@@ -11,9 +11,9 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TwoPhaseIterator;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
+import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.MonotonicReader;
 
@@ -48,14 +48,14 @@ public final class PlainStringColumnReader extends StringColumnReader {
     private long nullCursorAddress;
     private long lastNullQuery = -1;
 
-    PlainStringColumnReader(StringColumnMetadata.Plain column, IndexInput data) throws IOException {
-        super(column, data, column.values().valuesPerBlock());
+    PlainStringColumnReader(StringColumnMetadata.Plain column, ColumnInputs inputs) throws IOException {
+        super(column, inputs, column.values().valuesPerBlock());
         this.valuesWorthNaming = column.valuesWorthNaming();
-        this.values = column.numDocsWithField() == 0 ? null : column.values().open(data);
+        this.values = column.numDocsWithField() == 0 ? null : column.values().open(inputs);
         this.numNullSlots = column.numNullSlots();
         this.nullSlots = column.hasNullSlots()
             ? MonotonicReader.open(
-                data,
+                inputs.navigation(),
                 column.nullSlots().meta(),
                 column.numNullSlots(),
                 column.nullSlots().dataOffset(),

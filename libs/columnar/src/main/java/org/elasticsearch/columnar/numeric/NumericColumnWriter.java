@@ -18,6 +18,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIteratorMetadata;
 import org.elasticsearch.columnar.substrate.ColumnIteratorWriter;
+import org.elasticsearch.columnar.substrate.ColumnOutputs;
 import org.elasticsearch.columnar.substrate.MonotonicWriter;
 
 import java.io.IOException;
@@ -56,7 +57,8 @@ public final class NumericColumnWriter {
      *                         to write no skip index
      * @param directory        directory used for the temporary table files
      * @param context          IO context for the temporary table files
-     * @param data             data output (iterator, value blocks, and tables are appended)
+     * @param outputs          value blocks to its data, the iterator and value addresses to its addressing,
+     *                         block offsets to its navigation
      * @param skipIndex        skip-index output (the skip region is appended)
      */
     public static NumericColumnMetadata write(
@@ -70,10 +72,11 @@ public final class NumericColumnWriter {
         SkipIndexCodec skipCodec,
         Directory directory,
         IOContext context,
-        IndexOutput data,
+        ColumnOutputs outputs,
         IndexOutput skipIndex
     ) throws IOException {
-        ColumnIteratorMetadata iterator = ColumnIteratorWriter.write(cursors.get(), numDocsWithField, maxDoc, data);
+        final IndexOutput data = outputs.data();
+        ColumnIteratorMetadata iterator = ColumnIteratorWriter.write(cursors.get(), numDocsWithField, maxDoc, outputs.addressing());
         if (numDocsWithField == 0) {
             return NumericColumnMetadata.empty(iterator, blockBytesCodec.id());
         }
@@ -121,8 +124,8 @@ public final class NumericColumnWriter {
             if (tableAddresses) {
                 valueAddresses.add(valueAddress);
             }
-            final LongBlocks.Metadata written = blocks.finish(data);
-            MonotonicWriter.Table addresses = tableAddresses ? valueAddresses.finish(data) : MonotonicWriter.Table.NONE;
+            final LongBlocks.Metadata written = blocks.finish(data, outputs.navigation());
+            MonotonicWriter.Table addresses = tableAddresses ? valueAddresses.finish(outputs.addressing()) : MonotonicWriter.Table.NONE;
 
             // The writer buffered the skip bytes while being fed inline; they are flushed here, so the
             // recorded offset is the skip-index file's pointer.

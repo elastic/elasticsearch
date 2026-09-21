@@ -9,18 +9,16 @@
 
 package org.elasticsearch.columnar.string;
 
-import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
+import org.elasticsearch.columnar.substrate.ColumnTestFiles;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 import org.elasticsearch.test.ESTestCase;
 
@@ -44,9 +42,8 @@ import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
  */
 public abstract class ColumnarStringTestCase extends ESTestCase {
 
-    private static final String DATA_FILE = "str.cnd";
+    private static final String COLUMN_FILES = "str";
     private static final String META_FILE = "str.cnm";
-    private static final String DATA_CODEC = "ColumnarStringTestData";
     private static final String META_CODEC = "ColumnarStringTestMeta";
 
     /** What a test does with the column it asked for. */
@@ -193,8 +190,8 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         random().nextBytes(segmentId);
         try (Directory dir = newDirectory()) {
             final StringColumnMetadata metadata = writeColumn(dir, segmentId, docSlots, options);
-            try (IndexInput data = openData(dir, segmentId)) {
-                check.check(metadata, StringColumnReader.open(metadata, data));
+            try (ColumnTestFiles.Inputs inputs = ColumnTestFiles.open(dir, COLUMN_FILES, segmentId)) {
+                check.check(metadata, StringColumnReader.open(metadata, inputs.inputs()));
             }
         }
     }
@@ -322,8 +319,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         final StringColumnOptions options
     ) throws IOException {
         final StringColumnMetadata written;
-        try (IndexOutput out = dir.createOutput(DATA_FILE, IOContext.DEFAULT)) {
-            ColumnarCodecUtil.writeHeader(out, DATA_CODEC, FormatVersion.CURRENT, segmentId, "");
+        try (ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, COLUMN_FILES, segmentId)) {
             written = StringColumnWriter.write(
                 docSlots.length,
                 numDocsWithField(docSlots),
@@ -334,9 +330,8 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
                 null,
                 dir,
                 IOContext.DEFAULT,
-                out
+                out.outputs()
             );
-            ColumnarCodecUtil.writeFooter(out);
         }
         try (IndexOutput meta = dir.createOutput(META_FILE, IOContext.DEFAULT)) {
             ColumnarCodecUtil.writeHeader(meta, META_CODEC, FormatVersion.CURRENT, segmentId, "");
@@ -348,21 +343,6 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
             final StringColumnMetadata read = StringColumnMetadata.readFrom(in, docSlots.length, version);
             ColumnarCodecUtil.checkFooter(in);
             return read;
-        }
-    }
-
-    private static IndexInput openData(final Directory dir, final byte[] segmentId) throws IOException {
-        final IndexInput data = dir.openInput(DATA_FILE, IOContext.DEFAULT);
-        boolean success = false;
-        try {
-            CodecUtil.checksumEntireFile(data);
-            ColumnarCodecUtil.checkHeader(data, DATA_CODEC, segmentId, "");
-            success = true;
-            return data;
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(data);
-            }
         }
     }
 

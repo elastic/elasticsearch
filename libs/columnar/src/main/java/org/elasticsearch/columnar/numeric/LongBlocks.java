@@ -196,8 +196,8 @@ public final class LongBlocks {
             }
         }
 
-        /** Copies the blocks into {@code data} and answers where they landed. */
-        public Metadata finish(IndexOutput data) throws IOException {
+        /** Copies the blocks into {@code data}, writes where each begins into {@code navigation}, and answers where they landed. */
+        public Metadata finish(IndexOutput data, IndexOutput navigation) throws IOException {
             if (inBlock > 0) {
                 // The last block holds fewer than blockSize values; the encoder is told the real count and
                 // never sees padding, so each stage fits only the real data.
@@ -206,7 +206,7 @@ public final class LongBlocks {
             blockOffsets.add(written());
             finished = true;
             final long valuesOffset = staged == null ? directOffset : staged.copyInto(data);
-            final MonotonicWriter.Table offsets = blockOffsets.finish(data);
+            final MonotonicWriter.Table offsets = blockOffsets.finish(navigation);
             return new Metadata(
                 added,
                 blockSize,
@@ -247,7 +247,7 @@ public final class LongBlocks {
 
         private long cachedBlock = -1;
 
-        public Reader(Metadata meta, IndexInput data) throws IOException {
+        public Reader(Metadata meta, IndexInput data, IndexInput navigation) throws IOException {
             this.meta = meta;
             this.data = data.clone();
             this.blockBytesCodec = BlockBytesCodec.forId(meta.blockBytesCodecId());
@@ -257,7 +257,7 @@ public final class LongBlocks {
             );
             this.blockBuffer = new long[meta.blockSize()];
             this.blockOffsets = MonotonicReader.open(
-                data,
+                navigation,
                 meta.blockOffsets().meta(),
                 meta.numBlocks() + 1L,
                 meta.blockOffsets().dataOffset(),

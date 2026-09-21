@@ -64,6 +64,12 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
     static final String META_EXTENSION = "cnm";
     static final String SKIP_CODEC = "ColumNARSkipIndex";
     static final String SKIP_EXTENSION = "cns";
+    /** What is kept per document: presence, slot counts, value addresses. */
+    static final String ADDRESSING_CODEC = "ColumNARAddressing";
+    static final String ADDRESSING_EXTENSION = "cna";
+    /** What is kept per block or per chunk and locates everything else; small, and read up front. */
+    static final String NAVIGATION_CODEC = "ColumNARNavigation";
+    static final String NAVIGATION_EXTENSION = "cnn";
 
     private final NumericPipelineSelector pipelineSelector;
     private final ColumnarFieldTypeSelector typeSelector;

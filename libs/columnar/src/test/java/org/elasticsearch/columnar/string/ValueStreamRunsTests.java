@@ -11,11 +11,10 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
+import org.elasticsearch.columnar.substrate.ColumnTestFiles;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -30,7 +29,8 @@ import static org.hamcrest.Matchers.lessThan;
  */
 public class ValueStreamRunsTests extends ESTestCase {
 
-    private static final String FILE = "runs.bin";
+    private static final String FILE = "runs";
+    private static final byte[] SEGMENT_ID = new byte[16];
 
     /** Long runs, as a column sorted on this field holds. */
     public void testLongRuns() throws IOException {
@@ -113,7 +113,7 @@ public class ValueStreamRunsTests extends ESTestCase {
 
     private long write(List<BytesRef> values, ChunkCodec codec) throws IOException {
         try (Directory dir = newDirectory()) {
-            try (IndexOutput out = dir.createOutput(FILE, IOContext.DEFAULT)) {
+            try (ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, FILE, SEGMENT_ID)) {
                 try (
                     ValueStream.Writer writer = new ValueStream.Writer(
                         codec,
@@ -123,7 +123,7 @@ public class ValueStreamRunsTests extends ESTestCase {
                         dir,
                         IOContext.DEFAULT,
                         "runs",
-                        out
+                        out.outputs()
                     )
                 ) {
                     for (BytesRef value : values) {
@@ -132,7 +132,7 @@ public class ValueStreamRunsTests extends ESTestCase {
                     writer.finish();
                 }
             }
-            return dir.fileLength(FILE);
+            return ColumnTestFiles.length(dir, FILE);
         }
     }
 
@@ -151,7 +151,7 @@ public class ValueStreamRunsTests extends ESTestCase {
         for (int perBlock : new int[] { 8, 128, 512 }) {
             try (Directory dir = newDirectory()) {
                 final ValueStream.Metadata metadata;
-                try (IndexOutput out = dir.createOutput(FILE, IOContext.DEFAULT)) {
+                try (ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, FILE, SEGMENT_ID)) {
                     try (
                         ValueStream.Writer writer = new ValueStream.Writer(
                             randomFrom(ChunkCodec.IDENTITY, ChunkCodec.ZSTD),
@@ -161,7 +161,7 @@ public class ValueStreamRunsTests extends ESTestCase {
                             dir,
                             IOContext.DEFAULT,
                             "runs",
-                            out
+                            out.outputs()
                         )
                     ) {
                         for (BytesRef value : values) {
@@ -172,8 +172,8 @@ public class ValueStreamRunsTests extends ESTestCase {
                 }
                 final String label = "perBlock=" + perBlock + " n=" + values.size();
                 assertEquals(label + " numValues", values.size(), metadata.numValues());
-                try (IndexInput in = dir.openInput(FILE, IOContext.DEFAULT)) {
-                    final ValueStream.Reader reader = metadata.open(in);
+                try (ColumnTestFiles.Inputs in = ColumnTestFiles.open(dir, FILE, SEGMENT_ID)) {
+                    final ValueStream.Reader reader = metadata.open(in.inputs());
                     final BytesRef read = new BytesRef();
                     for (int i = 0; i < values.size(); i++) {
                         reader.get(i, read);

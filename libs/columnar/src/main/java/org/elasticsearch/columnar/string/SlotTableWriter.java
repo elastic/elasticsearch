@@ -57,11 +57,11 @@ abstract class SlotTableWriter implements Closeable {
     }
 
     /**
-     * Closes the table into the data output, or answers {@link MonotonicWriter.Table#NONE} when the column
+     * Closes the table into the navigation output, or answers {@link MonotonicWriter.Table#NONE} when the column
      * needs none. Subclasses check their totals before calling this.
      */
-    final MonotonicWriter.Table finishTable(org.apache.lucene.store.IndexOutput data) throws IOException {
-        return table == null ? MonotonicWriter.Table.NONE : table.finish(data);
+    final MonotonicWriter.Table finishTable(org.apache.lucene.store.IndexOutput navigation) throws IOException {
+        return table == null ? MonotonicWriter.Table.NONE : table.finish(navigation);
     }
 
     /** Adds a final entry, for a table whose last value is a sentinel rather than an address of its own. */

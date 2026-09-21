@@ -30,6 +30,7 @@ import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.columnar.substrate.ColumnIteratorMetadata;
 import org.elasticsearch.columnar.substrate.ColumnIteratorWriter;
+import org.elasticsearch.columnar.substrate.ColumnOutputs;
 import org.elasticsearch.columnar.substrate.MonotonicWriter;
 
 import java.io.IOException;
@@ -88,7 +89,8 @@ public final class StringColumnWriter {
      * @param known                     a vocabulary already worked out for these values, or null to survey them
      * @param directory                 directory used for the temporary table files
      * @param context                   IO context for the temporary table files
-     * @param data                      data output (iterator, value blocks, and the tables are appended)
+     * @param outputs                   values to its data, per-document tables to its addressing, per-block
+     *                                  and per-chunk tables to its navigation
      */
     public static StringColumnMetadata write(
         int maxDoc,
@@ -100,13 +102,14 @@ public final class StringColumnWriter {
         Vocabulary.Terms known,
         Directory directory,
         IOContext context,
-        IndexOutput data
+        ColumnOutputs outputs
     ) throws IOException {
+        final IndexOutput data = outputs.data();
         final DictionaryPolicy policy = options.dictionary();
         final ChunkCodec chunkCodec = options.chunkCodec();
         final StringColumnOptions.Sizes sizes = options.sizes();
         final int valuesPerBlock = sizes.valuesPerBlock();
-        ColumnIteratorMetadata iterator = ColumnIteratorWriter.write(cursors.get(), numDocsWithField, maxDoc, data);
+        ColumnIteratorMetadata iterator = ColumnIteratorWriter.write(cursors.get(), numDocsWithField, maxDoc, outputs.addressing());
         if (numDocsWithField == 0) {
             return StringColumnMetadata.empty(iterator);
         }
@@ -130,7 +133,7 @@ public final class StringColumnWriter {
                         sizes,
                         directory,
                         context,
-                        data
+                        outputs
                     ),
                     surveyed,
                     numValues,
@@ -138,7 +141,7 @@ public final class StringColumnWriter {
                     sizes,
                     directory,
                     context,
-                    data
+                    outputs
                 );
             }
         }
@@ -163,7 +166,7 @@ public final class StringColumnWriter {
                 directory,
                 context,
                 data.getName(),
-                data
+                outputs
             );
             AddressingWriter slots = AddressingWriter.open(
                 numDocsWithField,
@@ -213,8 +216,8 @@ public final class StringColumnWriter {
             }
             written = stream.finish();
             valuesWorthNaming = policy.enabled() == false || stream.runs() * StringColumnReader.MIN_PAGE_REPEAT <= numValues;
-            addressing = slots.finish(valueAddress, data);
-            nullSlotTable = nullSlots.finish(data);
+            addressing = slots.finish(valueAddress, outputs);
+            nullSlotTable = nullSlots.finish(outputs.navigation());
         }
         return withSummary(
             StringColumnMetadata.plain(
@@ -234,7 +237,7 @@ public final class StringColumnWriter {
             sizes,
             directory,
             context,
-            data
+            outputs
         );
     }
 
@@ -253,8 +256,9 @@ public final class StringColumnWriter {
         StringColumnOptions.Sizes sizes,
         Directory directory,
         IOContext context,
-        IndexOutput data
+        ColumnOutputs outputs
     ) throws IOException {
+        final IndexOutput data = outputs.data();
         if (vocabulary == null || vocabulary.counted() == false || vocabulary.size() == 0) {
             return metadata;
         }
@@ -273,7 +277,7 @@ public final class StringColumnWriter {
                     directory,
                     context,
                     data.getName(),
-                    data
+                    outputs
                 )
             ) {
                 for (int ordinal = 0; ordinal < size; ordinal++) {
@@ -309,8 +313,9 @@ public final class StringColumnWriter {
         StringColumnOptions.Sizes sizes,
         Directory directory,
         IOContext context,
-        IndexOutput data
+        ColumnOutputs outputs
     ) throws IOException {
+        final IndexOutput data = outputs.data();
         final int escapeRankBlockSize = sizes.escapeRankBlockSize();
         final int dictionarySize = vocabulary.size();
         // The terms start above the reserved null, and the escape marker sits one past the last of them.
@@ -336,7 +341,7 @@ public final class StringColumnWriter {
                 directory,
                 context,
                 data.getName(),
-                data
+                outputs
             )
         ) {
             for (int ordinal = 0; ordinal < dictionarySize; ordinal++) {
@@ -456,9 +461,9 @@ public final class StringColumnWriter {
                         ranks.add(escapes);
                     }
                 }
-                addressing = slots.finish(index, data);
-                escapeStream = replayEscapes(directory, context, escapeTempName, escapes, chunkCodec, sizes, data);
-                escapeRanks = escapes == 0 ? MonotonicWriter.Table.NONE : ranks.finish(data);
+                addressing = slots.finish(index, outputs);
+                escapeStream = replayEscapes(directory, context, escapeTempName, escapes, chunkCodec, sizes, outputs);
+                escapeRanks = escapes == 0 ? MonotonicWriter.Table.NONE : ranks.finish(outputs.navigation());
             }
 
             final String staged = ordinalTempName;
@@ -481,7 +486,7 @@ public final class StringColumnWriter {
                 null,
                 directory,
                 context,
-                data,
+                outputs,
                 null
             );
             return StringColumnMetadata.dictionary(
@@ -518,8 +523,9 @@ public final class StringColumnWriter {
         long count,
         ChunkCodec chunkCodec,
         StringColumnOptions.Sizes sizes,
-        IndexOutput data
+        ColumnOutputs outputs
     ) throws IOException {
+        final IndexOutput data = outputs.data();
         if (count == 0) {
             return ValueStream.Metadata.empty();
         }
@@ -533,7 +539,7 @@ public final class StringColumnWriter {
                 directory,
                 context,
                 data.getName(),
-                data
+                outputs
             )
         ) {
             final BytesRef value = new BytesRef();

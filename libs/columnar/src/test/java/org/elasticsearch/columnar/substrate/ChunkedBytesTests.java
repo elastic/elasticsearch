@@ -170,7 +170,10 @@ public class ChunkedBytesTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             final long[] offsets = new long[values.size() + 1];
             final ChunkIndexMetadata index = writeStream(dir, ChunkCodec.ZSTD, 16 * 1024, values, offsets);
-            try (IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT)) {
+            try (
+                IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT);
+                IndexInput nav = dir.openInput("chunks.nav", IOContext.DEFAULT)
+            ) {
                 final int threads = 8;
                 final CountDownLatch start = new CountDownLatch(1);
                 final AtomicReference<Throwable> failure = new AtomicReference<>();
@@ -179,7 +182,7 @@ public class ChunkedBytesTests extends ESTestCase {
                     final int seed = t;
                     final Thread worker = new Thread(() -> {
                         try {
-                            final ChunkedBytesReader reader = index.open(in);
+                            final ChunkedBytesReader reader = index.open(new ColumnInputs(in, null, nav));
                             final Random random = new Random(seed);
                             start.await();
                             byte[] scratch = new byte[0];
@@ -232,8 +235,11 @@ public class ChunkedBytesTests extends ESTestCase {
                 try (IndexOutput out = dir.createOutput("corrupt.bin", IOContext.DEFAULT)) {
                     out.writeBytes(file, 0, file.length);
                 }
-                try (IndexInput in = dir.openInput("corrupt.bin", IOContext.DEFAULT)) {
-                    final ChunkedBytesReader reader = index.open(in);
+                try (
+                    IndexInput in = dir.openInput("corrupt.bin", IOContext.DEFAULT);
+                    IndexInput nav = dir.openInput("chunks.nav", IOContext.DEFAULT)
+                ) {
+                    final ChunkedBytesReader reader = index.open(new ColumnInputs(in, null, nav));
                     byte[] scratch = new byte[0];
                     for (int i = 0; i < values.size(); i++) {
                         final int span = (int) (offsets[i + 1] - offsets[i]);
@@ -270,9 +276,12 @@ public class ChunkedBytesTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             final long[] offsets = new long[values.size() + 1];
             final ChunkIndexMetadata index = writeStream(dir, ChunkCodec.ZSTD, 4096, values, offsets);
-            try (IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT)) {
-                final ChunkedBytesReader first = index.open(in);
-                final ChunkedBytesReader second = index.open(in);
+            try (
+                IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT);
+                IndexInput nav = dir.openInput("chunks.nav", IOContext.DEFAULT)
+            ) {
+                final ChunkedBytesReader first = index.open(new ColumnInputs(in, null, nav));
+                final ChunkedBytesReader second = index.open(new ColumnInputs(in, null, nav));
                 byte[] a = new byte[0];
                 byte[] b = new byte[0];
                 // Interleaved, and from opposite ends, so one reader's seeks would derail the other's.
@@ -307,7 +316,10 @@ public class ChunkedBytesTests extends ESTestCase {
     /** An aborted write must still clean up after itself. */
     public void testTemporaryFilesAreRemovedWhenUnfinished() throws IOException {
         try (Directory dir = newDirectory()) {
-            try (IndexOutput out = dir.createOutput("chunks.bin", IOContext.DEFAULT)) {
+            try (
+                IndexOutput out = dir.createOutput("chunks.bin", IOContext.DEFAULT);
+                IndexOutput nav = dir.createOutput("chunks.nav", IOContext.DEFAULT)
+            ) {
                 try (
                     ChunkedBytesWriter writer = new ChunkedBytesWriter(
                         ChunkCodec.ZSTD,
@@ -408,7 +420,10 @@ public class ChunkedBytesTests extends ESTestCase {
         long[] offsets,
         int perGroup
     ) throws IOException {
-        try (IndexOutput out = dir.createOutput("chunks.bin", IOContext.DEFAULT)) {
+        try (
+            IndexOutput out = dir.createOutput("chunks.bin", IOContext.DEFAULT);
+            IndexOutput nav = dir.createOutput("chunks.nav", IOContext.DEFAULT)
+        ) {
             try (ChunkedBytesWriter writer = new ChunkedBytesWriter(codec, bounds, dir, IOContext.DEFAULT, "chunks", out)) {
                 for (int i = 0; i < values.size(); i++) {
                     if (i % perGroup == 0) {
@@ -419,7 +434,7 @@ public class ChunkedBytesTests extends ESTestCase {
                     writer.append(values.get(i), 0, values.get(i).length);
                 }
                 offsets[values.size()] = writer.uncompressedLength();
-                return ChunkIndexMetadata.of(writer.finish());
+                return ChunkIndexMetadata.of(writer.finish(nav));
             }
         }
     }
@@ -439,8 +454,11 @@ public class ChunkedBytesTests extends ESTestCase {
                 try (Directory dir = newDirectory()) {
                     final long[] offsets = new long[values.size() + 1];
                     final ChunkIndexMetadata index = writeStream(dir, codec, target, values, offsets);
-                    try (IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT)) {
-                        final ChunkedBytesReader reader = index.open(in);
+                    try (
+                        IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT);
+                        IndexInput nav = dir.openInput("chunks.nav", IOContext.DEFAULT)
+                    ) {
+                        final ChunkedBytesReader reader = index.open(new ColumnInputs(in, null, nav));
                         final BytesRef span = new BytesRef();
                         final String label = "codec=" + codec + " target=" + target;
                         for (int i = 0; i < values.size(); i++) {
@@ -476,9 +494,12 @@ public class ChunkedBytesTests extends ESTestCase {
                 final List<byte[]> values = List.of(bytes("a"), bytes("b"));
                 final long[] offsets = new long[values.size() + 1];
                 final ChunkIndexMetadata index = writeStream(dir, codec, 64, values, offsets);
-                try (IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT)) {
+                try (
+                    IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT);
+                    IndexInput nav = dir.openInput("chunks.nav", IOContext.DEFAULT)
+                ) {
                     final BytesRef span = new BytesRef("untouched");
-                    index.open(in).span(0, 0, span);
+                    index.open(new ColumnInputs(in, null, nav)).span(0, 0, span);
                     assertEquals("codec=" + codec, 0, span.length);
                 }
             }
@@ -496,8 +517,11 @@ public class ChunkedBytesTests extends ESTestCase {
             try (Directory dir = newDirectory()) {
                 final long[] offsets = new long[values.size() + 1];
                 final ChunkIndexMetadata index = writeStream(dir, codec, 64 * 1024, values, offsets);
-                try (IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT)) {
-                    final ChunkedBytesReader reader = index.open(in);
+                try (
+                    IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT);
+                    IndexInput nav = dir.openInput("chunks.nav", IOContext.DEFAULT)
+                ) {
+                    final ChunkedBytesReader reader = index.open(new ColumnInputs(in, null, nav));
                     final BytesRef span = new BytesRef();
                     for (int i = 0; i < values.size(); i++) {
                         final int length = (int) (offsets[i + 1] - offsets[i]);
@@ -704,8 +728,11 @@ public class ChunkedBytesTests extends ESTestCase {
 
     private void assertReads(Directory dir, ChunkIndexMetadata index, List<byte[]> values, long[] offsets, String label)
         throws IOException {
-        try (IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT)) {
-            final ChunkedBytesReader reader = index.open(in);
+        try (
+            IndexInput in = dir.openInput("chunks.bin", IOContext.DEFAULT);
+            IndexInput nav = dir.openInput("chunks.nav", IOContext.DEFAULT)
+        ) {
+            final ChunkedBytesReader reader = index.open(new ColumnInputs(in, null, nav));
             byte[] scratch = new byte[0];
 
             // In order: the access pattern a scan uses, and the one the chunk cache is built for.

@@ -43,14 +43,14 @@ final class NullSlotWriter extends SlotTableWriter {
     }
 
     /**
-     * Closes the table into {@code data}, or {@link MonotonicWriter.Table#NONE} when nothing was null.
+     * Closes the table into {@code navigation}, or {@link MonotonicWriter.Table#NONE} when nothing was null.
      * Checked rather than asserted, for the same reason the addressing table checks its own totals: a
      * cursor that miscounts its nulls would otherwise write a table the reader trusts.
      */
-    MonotonicWriter.Table finish(IndexOutput data) throws IOException {
+    MonotonicWriter.Table finish(IndexOutput navigation) throws IOException {
         if (written() != numNullSlots) {
             throw new IllegalStateException("wrote " + written() + " null slots, counted " + numNullSlots);
         }
-        return finishTable(data);
+        return finishTable(navigation);
     }
 }

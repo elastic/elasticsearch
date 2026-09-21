@@ -14,11 +14,10 @@ import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
-import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
+import org.elasticsearch.columnar.substrate.ColumnTestFiles;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -756,8 +755,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         try (Directory dir = newDirectory()) {
             final BytesRef[][] docSlots = singleValued(docValues);
             final StringColumnMetadata metadata;
-            try (IndexOutput out = dir.createOutput("column.cnd", IOContext.DEFAULT)) {
-                ColumnarCodecUtil.writeHeader(out, "ColumNARStringData", FormatVersion.CURRENT, segmentId, "");
+            try (ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, "column", segmentId)) {
                 metadata = StringColumnWriter.write(
                     docSlots.length,
                     numDocsWithField(docSlots),
@@ -780,9 +778,8 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
                     known,
                     dir,
                     IOContext.DEFAULT,
-                    out
+                    out.outputs()
                 );
-                ColumnarCodecUtil.writeFooter(out);
             }
             assertEquals("a vocabulary in hand does not make a dictionary", StringColumnLayout.PLAIN, metadata.layout());
             assertFalse("nothing recorded for the next merge", metadata.hasSummary());

@@ -44,6 +44,7 @@ import org.elasticsearch.columnar.string.StringColumnValues;
 import org.elasticsearch.columnar.string.StringColumnWriter;
 import org.elasticsearch.columnar.string.Vocabulary;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
+import org.elasticsearch.columnar.substrate.ColumnOutputs;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
 import java.io.IOException;
@@ -67,8 +68,11 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     private final Directory directory;
     private final IOContext context;
     private final IndexOutput data;
+    private final IndexOutput addressing;
+    private final IndexOutput navigation;
     private final IndexOutput meta;
     private final IndexOutput skipIndex;
+    private final ColumnOutputs outputs;
     private final List<FieldEntry> fields = new ArrayList<>();
     private final NumericPipelineSelector pipelineSelector;
     private final ColumnarFieldTypeSelector typeSelector;
@@ -95,51 +99,31 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         this.context = state.context;
         boolean success = false;
         try {
-            String dataName = IndexFileNames.segmentFileName(
-                state.segmentInfo.name,
-                state.segmentSuffix,
-                ColumNARDocValuesFormat.DATA_EXTENSION
-            );
-            data = state.directory.createOutput(dataName, state.context);
-            ColumnarCodecUtil.writeHeader(
-                data,
-                ColumNARDocValuesFormat.DATA_CODEC,
-                FormatVersion.CURRENT,
-                state.segmentInfo.getId(),
-                state.segmentSuffix
-            );
-
-            String skipName = IndexFileNames.segmentFileName(
-                state.segmentInfo.name,
-                state.segmentSuffix,
-                ColumNARDocValuesFormat.SKIP_EXTENSION
-            );
-            skipIndex = state.directory.createOutput(skipName, state.context);
-            ColumnarCodecUtil.writeHeader(
-                skipIndex,
-                ColumNARDocValuesFormat.SKIP_CODEC,
-                FormatVersion.CURRENT,
-                state.segmentInfo.getId(),
-                state.segmentSuffix
-            );
-
-            String metaName = IndexFileNames.segmentFileName(
-                state.segmentInfo.name,
-                state.segmentSuffix,
-                ColumNARDocValuesFormat.META_EXTENSION
-            );
-            meta = state.directory.createOutput(metaName, state.context);
-            ColumnarCodecUtil.writeHeader(
-                meta,
-                ColumNARDocValuesFormat.META_CODEC,
-                FormatVersion.CURRENT,
-                state.segmentInfo.getId(),
-                state.segmentSuffix
-            );
+            data = createOutput(state, ColumNARDocValuesFormat.DATA_EXTENSION, ColumNARDocValuesFormat.DATA_CODEC);
+            addressing = createOutput(state, ColumNARDocValuesFormat.ADDRESSING_EXTENSION, ColumNARDocValuesFormat.ADDRESSING_CODEC);
+            navigation = createOutput(state, ColumNARDocValuesFormat.NAVIGATION_EXTENSION, ColumNARDocValuesFormat.NAVIGATION_CODEC);
+            skipIndex = createOutput(state, ColumNARDocValuesFormat.SKIP_EXTENSION, ColumNARDocValuesFormat.SKIP_CODEC);
+            meta = createOutput(state, ColumNARDocValuesFormat.META_EXTENSION, ColumNARDocValuesFormat.META_CODEC);
+            outputs = new ColumnOutputs(data, addressing, navigation);
             success = true;
         } finally {
             if (success == false) {
                 IOUtils.closeWhileHandlingException(this);
+            }
+        }
+    }
+
+    private static IndexOutput createOutput(SegmentWriteState state, String extension, String codec) throws IOException {
+        final String name = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, extension);
+        final IndexOutput out = state.directory.createOutput(name, state.context);
+        boolean success = false;
+        try {
+            ColumnarCodecUtil.writeHeader(out, codec, FormatVersion.CURRENT, state.segmentInfo.getId(), state.segmentSuffix);
+            success = true;
+            return out;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(out);
             }
         }
     }
@@ -643,7 +627,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID),
             directory,
             context,
-            data,
+            outputs,
             skipIndex
         );
         fields.add(new FieldEntry(field.number, type.id(), metadata));
@@ -690,7 +674,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             known,
             directory,
             context,
-            data
+            outputs
         );
         fields.add(new FieldEntry(field.number, type.id(), metadata));
     }
@@ -739,13 +723,15 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             meta.writeInt(-1);
             CodecUtil.writeFooter(meta);
             CodecUtil.writeFooter(data);
+            CodecUtil.writeFooter(addressing);
+            CodecUtil.writeFooter(navigation);
             CodecUtil.writeFooter(skipIndex);
             success = true;
         } finally {
             if (success) {
-                IOUtils.close(data, skipIndex, meta);
+                IOUtils.close(data, addressing, navigation, skipIndex, meta);
             } else {
-                IOUtils.closeWhileHandlingException(data, skipIndex, meta);
+                IOUtils.closeWhileHandlingException(data, addressing, navigation, skipIndex, meta);
             }
         }
     }

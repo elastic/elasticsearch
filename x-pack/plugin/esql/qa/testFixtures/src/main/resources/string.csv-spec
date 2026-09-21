@@ -38,6 +38,18 @@ emp_no:integer | l:integer
 10003 | 5
 ;
 
+// k8s maps `event` as keyword but never indexes it.
+lengthMissingKeywordField
+required_capability: fn_length_missing_keyword_field
+FROM k8s
+| WHERE LENGTH(event) <= 42
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
 bitLength
 required_capability: fn_bit_length
 row a = "hello", b = "" | eval y = bit_length(a) + bit_length(b);

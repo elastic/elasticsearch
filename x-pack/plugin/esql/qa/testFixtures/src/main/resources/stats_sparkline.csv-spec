@@ -127,6 +127,21 @@ sparkline:long | emp_no:integer
 [0, 2, 0, 0, 1, 0, 1, 0, 1, 2, 4, 0] | 10003
 ;
 
+sparklineAndFoldableAbsentInInlineStats
+required_capability: fn_sparkline_inline_stats_foldable_agg
+FROM employees
+| INLINE STATS a = ABSENT(null),
+               s = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+| KEEP emp_no, a, s
+| SORT emp_no
+| LIMIT 2
+;
+
+emp_no:integer | a:boolean | s:long
+10001          | true      | [0, 2, 0, 0, 1, 0, 1, 0, 1, 2, 4, 0]
+10002          | true      | [0, 2, 0, 0, 1, 0, 1, 0, 1, 2, 4, 0]
+;
+
 
 sparklineInInlineStatsByMvField
 required_capability: fn_sparkline
@@ -293,6 +308,35 @@ ROW hire_date = to_datetime("1985-06-01T00:00:00Z"), y = null
 
 s:long | t:null
 1      | null
+;
+
+withCompanionAggAndNullGroupKey
+required_capability: fn_sparkline_from_partial_null_keys
+FROM employees
+| WHERE emp_no == 10001 OR emp_no == 10010
+| STATS t = MIN(gender), s = SPARKLINE(COUNT(*), hire_date, 10, "1985-01-01T00:00:00Z", "2000-01-01T00:00:00Z") BY emp_no
+| KEEP emp_no, t
+| SORT emp_no
+;
+
+emp_no:integer | t:keyword
+10001          | M
+10010          | null
+;
+
+sparklineWithCompanionOnEmptyInput
+required_capability: fn_sparkline_from_partial_empty_input
+FROM employees
+| WHERE emp_no == -1
+| STATS t = TOP(NOW(), 3, "desc"),
+        s = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z"),
+        c = COUNT(*),
+        m = MIN(gender),
+        sum = SUM(salary)
+;
+
+t:datetime | s:long                               | c:long | m:keyword | sum:long
+null       | [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] | 0      | null      | null
 ;
 
 sparklineComplexWithGroupingMapped

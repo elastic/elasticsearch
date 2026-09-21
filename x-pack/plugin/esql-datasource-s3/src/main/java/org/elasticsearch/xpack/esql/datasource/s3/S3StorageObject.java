@@ -95,8 +95,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     // Retries: the sync S3Client path relies on the SDK RetryStrategy (pinned to Standard in
     // S3StorageProvider#configureCommon). The async client is pinned to doNotRetry and readBytesAsync drives
     // asyncRetryStrategy (AWS Standard semantics) itself, so that every attempt gets a fresh
-    // KnownLengthAsyncResponseTransformer — see that class's javadoc for why a transformer must not span
-    // attempts. The provider-agnostic RetryPolicy + ResumingInputStream layer that wraps this object adds
+    // CrossRegionAwareResponseTransformer (which creates a fresh KnownLengthAsyncResponseTransformer
+    // internally). See KnownLengthAsyncResponseTransformer's javadoc for why a transformer must not span
+    // attempts, and CrossRegionAwareResponseTransformer's javadoc for how cross-region redirects are handled.
+    // The provider-agnostic RetryPolicy + ResumingInputStream layer that wraps this object adds
     // cross-provider retry/resume on top.
 
     public S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path) {
@@ -814,14 +816,17 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     /**
      * Runs one {@code getObject} attempt. Retries are driven here — with AWS Standard semantics via
      * {@link #asyncRetryStrategy} — instead of inside the SDK, so that every attempt gets its own
-     * {@link KnownLengthAsyncResponseTransformer}. The SDK reuses a single transformer across its
+     * {@link CrossRegionAwareResponseTransformer} (which in turn owns a fresh
+     * {@link KnownLengthAsyncResponseTransformer}). The SDK reuses a single transformer across its
      * internal retry attempts, and a stale {@code exceptionOccurred} from a finished attempt (netty
      * notifies the response handler after the subscriber's terminal signal, and again on channel
      * teardown) cannot be attributed to an attempt, so a shared transformer could spuriously fail a
-     * healthy retry and free its buffer mid-write. One transformer per attempt removes that class of
+     * healthy retry and free its buffer mid-write. One wrapper per attempt removes that class of
      * race by construction; the async client is pinned to {@code doNotRetry} in
-     * {@code S3StorageProvider}. Trade-off vs SDK-internal retries: no clock-skew adjustment on
-     * retry, and the {@code amz-sdk-request} attempt header always reads {@code attempt=1}.
+     * {@code S3StorageProvider}. Cross-region redirects ({@code S3CrossRegionAsyncClient}) are
+     * handled inside the wrapper — see {@link CrossRegionAwareResponseTransformer}'s javadoc.
+     * Trade-off vs SDK-internal retries: no clock-skew adjustment on retry, and the
+     * {@code amz-sdk-request} attempt header always reads {@code attempt=1}.
      */
     private void readAttempt(
         GetObjectRequest request,
@@ -846,8 +851,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         // Use a custom transformer instead of AsyncResponseTransformer.toBytes() so each chunk is
         // copied straight into a pre-sized destination ByteBuffer (single chunk-to-destination copy),
         // rather than the SDK's default BAOS-based pipeline which materializes the body 3+ times.
-        // See KnownLengthAsyncResponseTransformer for the full rationale.
-        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(
+        // See KnownLengthAsyncResponseTransformer for the full rationale. The wrapper handles
+        // cross-region redirects from S3CrossRegionAsyncClient — see CrossRegionAwareResponseTransformer.
+        CrossRegionAwareResponseTransformer<GetObjectResponse> transformer = new CrossRegionAwareResponseTransformer<>(
             length,
             factory,
             path

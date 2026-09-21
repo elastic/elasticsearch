@@ -89,7 +89,7 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         assertEquals(List.of("id", ColumnExtractor.ROW_POSITION_COLUMN), narrowedNames);
 
         // The paired-exec flag — not _rowPosition presence — is the operator factory's signal to
-        // enable deferred extraction. InjectRowPositionForExternalId produces the same projection
+        // enable deferred extraction. InjectRowPositionForRecordRef produces the same projection
         // shape with no extract operator downstream, where deferred mode would create a
         // SourceExtractors registry nothing ever closes.
         assertTrue("narrowed source must carry the deferred-extraction flag", narrowed.deferredExtraction());
@@ -97,8 +97,8 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
 
     /**
      * A source whose projection contains {@code _rowPosition} but that was never paired with an
-     * {@code ExternalFieldExtractExec} (the InjectRowPositionForExternalId shape — plain
-     * {@code METADATA _id}, no TopN) must NOT carry the deferred-extraction flag: with no extract
+     * {@code ExternalFieldExtractExec} (the InjectRowPositionForRecordRef shape — plain
+     * {@code METADATA _file.record_ref}, no TopN) must NOT carry the deferred-extraction flag: with no extract
      * operator downstream, deferred mode would leak the SourceExtractors registry, its
      * ColumnExtractors, and the factory's onClose budget.
      */
@@ -518,7 +518,7 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
     /** A source reading with the given {@code error_mode} and declared-type columns — the pair the row-drop guard keys on. */
     private static ExternalSourceExec parquetSource(List<Attribute> schema, String errorMode, Set<String> declaredTypeColumns) {
         return parquetSource(schema, null, Map.of(), Map.of(ErrorPolicy.CONFIG_ERROR_MODE, errorMode)).withDeclaredReadSpec(
-            DeclaredReadSpec.of(Map.of(), null, Map.of(), declaredTypeColumns)
+            DeclaredReadSpec.of(Map.of(), Map.of(), declaredTypeColumns)
         );
     }
 

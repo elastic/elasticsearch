@@ -394,7 +394,7 @@ final class PageColumnReader implements Releasable {
             if (trailing > 0) {
                 try {
                     skipRows(trailing);
-                } catch (RuntimeException skipEx) {
+                } catch (Throwable skipEx) {
                     ParquetReadFailures.closePreservingCause(skipEx, result);
                     throw skipEx;
                 }

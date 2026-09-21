@@ -768,19 +768,6 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
     }
 
     /**
-     * @param pageSize page size in bytes; {@code 0} means writer default (~1 MB).
-     */
-    private static byte[] buildParquet(
-        MessageType schema,
-        int rowCount,
-        java.util.function.IntFunction<Group> rowFactory,
-        CompressionCodecName codec,
-        int pageSize
-    ) throws IOException {
-        return buildParquet(schema, rowCount, rowFactory, codec, pageSize, 0);
-    }
-
-    /**
      * @param pageSize Parquet page size in bytes; {@code 0} means the writer default (~1 MB).
      * @param pageRowCountLimit max rows per page; {@code 0} means writer default. When non-zero,
      *                          used to pin page boundaries (e.g. so a survivor cut does not fall

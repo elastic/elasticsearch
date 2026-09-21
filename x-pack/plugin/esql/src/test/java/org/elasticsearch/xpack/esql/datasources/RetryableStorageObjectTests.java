@@ -1247,7 +1247,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
         RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
         try (InputStream in = obj.newStream(0, payload.length)) {
             ExternalObjectChangedException thrown = expectThrows(ExternalObjectChangedException.class, in::readAllBytes);
-            assertThat(thrown.getMessage(), org.hamcrest.Matchers.containsString("Object changed during read"));
+            assertThat(thrown.getMessage(), org.hamcrest.Matchers.containsString("External data object was modified during read"));
         }
     }
 

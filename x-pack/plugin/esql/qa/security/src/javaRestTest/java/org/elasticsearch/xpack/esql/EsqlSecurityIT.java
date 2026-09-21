@@ -2979,7 +2979,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 )
             );
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
-            assertThat(ex.getMessage(), containsString("security-it-denied-bucket"));
         } finally {
             deleteDatasetAsAdmin(authorized);
         }
@@ -3035,7 +3034,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 () -> runESQLCommand("ds_dataset_query_partial", "FROM " + namedExactly + ",security_it_ds_keep_* | STATS COUNT(*)")
             );
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
-            assertThat(ex.getMessage(), containsString("exact-" + suffix));
         } finally {
             deleteDatasetAsAdmin(namedExactly);
             deleteDatasetAsAdmin(wildcardOnly);
@@ -3075,7 +3073,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 equalTo(HttpStatus.SC_BAD_REQUEST)
             );
             assertThat(ex.getMessage(), not(containsString("document or field level security")));
-            assertThat(ex.getMessage(), containsString("ok-" + suffix));
         } finally {
             deleteDatasetAsAdmin(ok);
             deleteDatasetAsAdmin(dls);

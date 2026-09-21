@@ -86,6 +86,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.PushbackInputStream;
 import java.io.Reader;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -1982,13 +1983,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
         boolean useRecordReaderPath = useBracketAware
             || rowPositionProjected
             || (useDirectBlock == false && jacksonGrammarApplies() == false);
+        // Strip the BOM at the raw stream level, before CsvRecordCappingInputStream is applied,
+        // so the three BOM bytes do not count against the per-record size cap.
+        InputStream streamAfterBom = context.firstSplit() ? stripLeadingBomFromStream(stream) : stream;
         InputStream capped = (useRecordReaderPath || useDirectBlock)
-            ? stream
-            : new CsvRecordCappingInputStream(stream, context.maxRecordBytes());
+            ? streamAfterBom
+            : new CsvRecordCappingInputStream(streamAfterBom, context.maxRecordBytes());
         BufferedReader reader = new BufferedReader(new InputStreamReader(capped, options.encoding()), READER_BUFFER_SIZE);
-        if (context.firstSplit()) {
-            stripLeadingBomFromReader(reader);
-        }
         CsvLogicalRecordReader recordReader = recordEscapeAware
             ? new CsvLogicalRecordReader(
                 reader,
@@ -2761,10 +2762,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     /**
      * Reads and discards a leading UTF-8 byte-order mark from {@code reader} if one is present.
-     * Called at the two {@link java.io.InputStreamReader} construction sites that own the file's start,
-     * so the BOM is gone before any per-record logic (comment detection, blank test, schema inference)
-     * runs. {@link BufferedReader} supports {@link java.io.Reader#mark(int)}, so the peek is safe to
-     * reverse when the first character is not a mark.
+     * Used on the {@code readSchema} path, where the underlying stream has no per-record cap. On
+     * the data-read path use {@link #stripLeadingBomFromStream} instead, so the BOM bytes are
+     * removed before {@link CsvRecordCappingInputStream} is applied and do not count against the
+     * record size limit. {@link BufferedReader} supports {@link java.io.Reader#mark(int)}, so the
+     * peek is safe to reverse when the first character is not a BOM.
      */
     private static void stripLeadingBomFromReader(BufferedReader reader) throws IOException {
         reader.mark(1);
@@ -2772,6 +2774,26 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if (first != BOM) {
             reader.reset();
         }
+    }
+
+    /**
+     * Reads and discards a leading UTF-8 byte-order mark (three bytes {@code EF BB BF}) from
+     * {@code stream} if one is present. Returns the same stream positioned after the BOM, or a
+     * {@link java.io.PushbackInputStream} that has restored the peeked bytes when no BOM is found.
+     * Called in the data-read path <em>before</em> {@link CsvRecordCappingInputStream} is applied
+     * so the BOM bytes never enter the capping stream and do not count against the per-record limit.
+     */
+    private static InputStream stripLeadingBomFromStream(InputStream stream) throws IOException {
+        byte[] probe = new byte[3];
+        int n = stream.readNBytes(probe, 0, 3);
+        if (n == 3 && (probe[0] & 0xFF) == 0xEF && (probe[1] & 0xFF) == 0xBB && (probe[2] & 0xFF) == 0xBF) {
+            return stream;
+        }
+        PushbackInputStream pb = new PushbackInputStream(stream, n);
+        if (n > 0) {
+            pb.unread(probe, 0, n);
+        }
+        return pb;
     }
 
     /**

@@ -471,6 +471,19 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(service.currentQueueSize(), equalTo(0));
     }
 
+    public void testRelocationRecoveriesMaxProportionRejectsZero() {
+        for (final var zeroValue : List.of("0", "0%")) {
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.get(
+                    Settings.builder()
+                        .put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), zeroValue)
+                        .build()
+                )
+            );
+        }
+    }
+
     public void testIncreasingRelocationRecoveriesMaxProportionStartsPendingTasks() {
         final var taskQueue = new DeterministicTaskQueue();
         Settings settings = Settings.builder()

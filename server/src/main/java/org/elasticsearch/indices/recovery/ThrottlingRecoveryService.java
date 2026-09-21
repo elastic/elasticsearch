@@ -90,7 +90,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     public static final Setting<RatioValue> INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING = Setting.ratioSetting(
         "indices.recovery.incoming_recoveries_max_relocation_proportion",
         RatioValue.ONE_HUNDRED_PERCENT,
-        RatioValue.ofPercent(Double.MIN_VALUE),
+        RatioValue.ofPercent(100*Double.MIN_VALUE),
         RatioValue.ONE_HUNDRED_PERCENT,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope

@@ -20,9 +20,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecUnmappedLoadIT
   method: test {csv-spec:unmapped-load.loadUnmappedFieldsMultiIndexForkWithMvExpand}
   issue: https://github.com/elastic/elasticsearch/issues/155505
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecUnmappedLoadIT
-  method: test {csv-spec:unmapped-load.partiallyUnmappedSmallNumericFieldIsWidened}
-  issue: https://github.com/elastic/elasticsearch/issues/155505
 - class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
   method: testOpenAiEmbeddings {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/144440

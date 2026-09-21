@@ -12,6 +12,7 @@ package org.elasticsearch.columnar.string;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 
@@ -58,6 +59,7 @@ public final class PlainStringColumnReader extends StringColumnReader {
      * the answer to one term.
      */
     private static final class LastSeen {
+        private final BytesRef value = new BytesRef();
         private long identity = -1;
         private int length = -1;
         private boolean matched;
@@ -119,56 +121,92 @@ public final class PlainStringColumnReader extends StringColumnReader {
     }
 
     /**
-     * Compares the values, for a column with no order to bisect and no ordinals to match instead. A
-     * two-phase iterator, so a scorer fills a window at a time rather than asking one document at a time.
+     * Documents whose value equals {@code exact}, or starts with {@code prefix} when {@code exact} is null, in
+     * two phases. The approximation is the documents holding a slot whose length could match, found a block of
+     * stored lengths at a time; the confirmation compares the bytes. An empty term or prefix is settled by the
+     * length, so its confirmation is free.
      */
     @Override
     protected DocIdSetIterator unorderedMatches(BytesRef prefix, BytesRef exact) throws IOException {
-        final ColumnIterator presence = iterator();
+        final BytesRef target = exact != null ? exact : prefix;
+        final SlotWindow window = lengthWindow(target.length, exact != null ? target.length : Integer.MAX_VALUE);
+        final Slots candidates = slotsHeld(window);
+        final boolean settled = target.length == 0;
         final LastSeen lastSeen = new LastSeen();
-        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(presence) {
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(candidates) {
             @Override
             public boolean matches() throws IOException {
-                return matchesRank(presence.rank(), prefix, exact, lastSeen);
+                if (settled) {
+                    return true;
+                }
+                final long first = candidates.firstSlot();
+                final long count = candidates.slotCount();
+                for (long i = 0; i < count; i++) {
+                    final long slot = first + i;
+                    if (window.holds(slot) && matchesSlot(slot, prefix, exact, lastSeen)) {
+                        return true;
+                    }
+                }
+                return false;
             }
 
             @Override
             public float matchCost() {
-                return 10f;
+                return settled ? 0f : target.length;
             }
 
+            @Override
+            public int docIDRunEnd() throws IOException {
+                // Settled by the window, so every document of a run it holds matches.
+                return settled ? candidates.docIDRunEnd() : super.docIDRunEnd();
+            }
+
+            @Override
+            public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                if (settled) {
+                    candidates.intoBitSet(upTo, bitSet, offset);
+                } else {
+                    super.intoBitSet(upTo, bitSet, offset);
+                }
+            }
         });
     }
 
-    /** Whether any of a document's values matches, comparing the bytes of each one. */
-    private boolean matchesRank(int rank, BytesRef prefix, BytesRef exact, LastSeen lastSeen) throws IOException {
-        final long first = firstValueAddress(rank);
-        final long count = valueCount(rank);
-        // A document holding the same value as the one before it matches exactly as it did. On a column of
-        // runs that answers most documents without looking at a value at all. A lone null is turned away
-        // first: it is stored as no bytes, so it would otherwise be compared as an empty string.
-        if (count == 1) {
-            if (isNullSlot(first)) {
-                return false;
-            }
-            final long identity = values.read(first, scratch);
-            if (identity == lastSeen.identity && scratch.length == lastSeen.length) {
-                return lastSeen.matched;
-            }
-            final boolean matched = matches(scratch, prefix, exact);
-            lastSeen.identity = identity;
-            lastSeen.length = scratch.length;
-            lastSeen.matched = matched;
-            return matched;
+    /** Whether the value at {@code slot}, which is not null, matches; a value read from the same bytes as the last answers as it did. */
+    private boolean matchesSlot(long slot, BytesRef prefix, BytesRef exact, LastSeen lastSeen) throws IOException {
+        final long identity = values.read(slot, lastSeen.value);
+        if (identity == lastSeen.identity && lastSeen.value.length == lastSeen.length) {
+            return lastSeen.matched;
         }
-        for (long i = 0; i < count; i++) {
-            final BytesRef value = valueAt(first + i);
-            // A null is no term and starts with no prefix, so it is passed over rather than compared.
-            if (value != null && matches(value, prefix, exact)) {
-                return true;
+        final boolean matched = matches(lastSeen.value, prefix, exact);
+        lastSeen.identity = identity;
+        lastSeen.length = lastSeen.value.length;
+        lastSeen.matched = matched;
+        return matched;
+    }
+
+    /**
+     * The slots whose value is {@code [min, max]} bytes long, compared on the stored codes. A null's code is
+     * below every length's, so no range holds one; a repeat's code says nothing of its length, so it takes the
+     * answer of the slot before it.
+     */
+    private SlotWindow lengthWindow(long min, long max) {
+        return new SlotWindow(values.codes(), PlainValues.code(min), PlainValues.code(max)) {
+            @Override
+            protected void adjust(long[] block, int count, long[] bits) {
+                // A block never starts with a repeat.
+                for (int i = 1; i < count; i++) {
+                    if (block[i] == PlainValues.REPEAT) {
+                        final int before = i - 1;
+                        if ((bits[before >>> 6] & (1L << before)) != 0) {
+                            bits[i >>> 6] |= 1L << i;
+                        } else {
+                            bits[i >>> 6] &= ~(1L << i);
+                        }
+                    }
+                }
             }
-        }
-        return false;
+        };
     }
 
     /**

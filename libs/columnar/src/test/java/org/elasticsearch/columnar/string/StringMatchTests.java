@@ -46,6 +46,50 @@ public class StringMatchTests extends ColumnarStringTestCase {
     }
 
     /**
+     * A term on a plain column is answered in two phases, and its approximation offers only documents of
+     * the term's length. A wider approximation still returns correct results, so this counts it directly.
+     */
+    public void testATermIsApproximatedByItsLength() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(800, 2000)];
+        int empties = 0;
+        int ofThree = 0;
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = switch (d % 20) {
+                case 0 -> new BytesRef("");
+                case 1 -> new BytesRef("abc");
+                case 2 -> new BytesRef("xyz");
+                default -> new BytesRef("a-much-longer-value-" + d);
+            };
+            if (docValues[d].length == 0) {
+                empties++;
+            } else if (docValues[d].length == 3) {
+                ofThree++;
+            }
+        }
+        final int expectedEmpty = empties;
+        final int expectedOfThree = ofThree;
+        withColumn(
+            docValues,
+            randomValidBlockSize(),
+            randomChunkCodec(),
+            randomTargetChunkBytes(),
+            DictionaryPolicy.NONE,
+            (metadata, reader) -> {
+                assertFalse("a plain column, not a dictionary", reader.hasDictionary());
+                assertFalse("unsorted, so nothing bisects the term", reader.valuesSorted());
+
+                final TwoPhaseIterator empty = TwoPhaseIterator.unwrap(reader.matchTerm(new BytesRef("")));
+                assertNotNull("the empty term is answered in two phases", empty);
+                assertEquals("the approximation offers only the empty values", expectedEmpty, count(empty.approximation()));
+
+                final TwoPhaseIterator three = TwoPhaseIterator.unwrap(reader.matchTerm(new BytesRef("abc")));
+                assertNotNull("any term is answered in two phases", three);
+                assertEquals("the approximation offers only values of the term's length", expectedOfThree, count(three.approximation()));
+            }
+        );
+    }
+
+    /**
      * A term on a dictionary column is approximated by the ordinals: a term the dictionary holds offers only the
      * documents naming it, and one it does not hold only the documents whose value escaped it.
      */
@@ -99,7 +143,7 @@ public class StringMatchTests extends ColumnarStringTestCase {
                 d++;
             }
         }
-        for (DictionaryPolicy policy : List.of(ROOMY)) {
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
             withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
                 final TwoPhaseIterator empty = TwoPhaseIterator.unwrap(reader.matchTerm(new BytesRef("")));
                 assertNotNull(empty);
@@ -119,6 +163,82 @@ public class StringMatchTests extends ColumnarStringTestCase {
                 assertTrue("expected several runs, saw " + runs, runs > 2);
             });
         }
+    }
+
+    /**
+     * A plain column stores a repeat without its length and a null as a code below every length, so the window
+     * over lengths has to give a repeat the answer of the value before it and never offer a null, and a column
+     * of one length stores no lengths at all. Runs of equal values, nulls among a document's slots and columns
+     * of one length are checked against every term, prefix and substring asked of them.
+     */
+    public void testLengthWindowOverRepeatsNullsAndOneLength() throws IOException {
+        final boolean oneLength = randomBoolean();
+        final String[] vocabulary = oneLength
+            ? new String[] { "abcd", "abce", "xbcd", "dcba", "aaaa" }
+            : new String[] { "", "a", "ab", "abc", "abd", "xyz", "abcdef", "a-longer-value", "zz" };
+        final BytesRef[][] docSlots = new BytesRef[between(600, 3000)][];
+        String current = randomFrom(vocabulary);
+        for (int d = 0; d < docSlots.length; d++) {
+            if (random().nextInt(8) == 0) {
+                current = randomFrom(vocabulary);
+            }
+            final boolean multi = oneLength == false && random().nextInt(6) == 0;
+            docSlots[d] = new BytesRef[multi ? between(1, 4) : 1];
+            for (int s = 0; s < docSlots[d].length; s++) {
+                docSlots[d][s] = multi && random().nextInt(4) == 0 ? null : new BytesRef(multi ? randomFrom(vocabulary) : current);
+            }
+        }
+        final List<String> probes = new ArrayList<>(List.of(vocabulary));
+        probes.add(oneLength ? "qqqq" : "abx");
+        probes.add("b");
+        withColumn(
+            docSlots,
+            randomValidBlockSize(),
+            randomChunkCodec(),
+            randomTargetChunkBytes(),
+            DictionaryPolicy.NONE,
+            (metadata, reader) -> {
+                assertFalse(reader.hasDictionary());
+                assertEquals(
+                    "a column of one length stores no lengths",
+                    oneLength,
+                    ((StringColumnMetadata.Plain) metadata).values().constant()
+                );
+                for (String probe : probes) {
+                    final BytesRef term = new BytesRef(probe);
+                    assertEquals("term [" + probe + "]", expected(docSlots, v -> v.equals(probe)), matched(reader.matchTerm(term)));
+                    assertEquals("prefix [" + probe + "]", expected(docSlots, v -> v.startsWith(probe)), matched(reader.matchPrefix(term)));
+                    assertEquals(
+                        "contains [" + probe + "]",
+                        expected(docSlots, v -> v.contains(probe)),
+                        matched(reader.matchContains(term))
+                    );
+                    assertWindowedAgrees("term [" + probe + "]", docSlots.length, () -> reader.matchTerm(term));
+                    assertWindowedAgrees("prefix [" + probe + "]", docSlots.length, () -> reader.matchPrefix(term));
+                    final TwoPhaseIterator twoPhase = TwoPhaseIterator.unwrap(reader.matchTerm(term));
+                    if (twoPhase != null) {
+                        assertEquals(
+                            "the approximation of [" + probe + "] offers only documents holding a value of its length",
+                            expected(docSlots, v -> v.length() == probe.length()),
+                            matched(twoPhase.approximation())
+                        );
+                    }
+                }
+            }
+        );
+    }
+
+    private static List<Integer> expected(BytesRef[][] docSlots, Predicate<String> test) {
+        final List<Integer> docs = new ArrayList<>();
+        for (int d = 0; d < docSlots.length; d++) {
+            for (BytesRef slot : docSlots[d]) {
+                if (slot != null && test.test(slot.utf8ToString())) {
+                    docs.add(d);
+                    break;
+                }
+            }
+        }
+        return docs;
     }
 
     private static int count(DocIdSetIterator iterator) throws IOException {
@@ -302,7 +422,7 @@ public class StringMatchTests extends ColumnarStringTestCase {
         for (int d = 0; d < docValues.length; d++) {
             docValues[d] = random().nextDouble() < 0.88 ? new BytesRef("") : new BytesRef("phrase " + random().nextInt(200));
         }
-        for (DictionaryPolicy policy : List.of(ROOMY)) {
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
             withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
                 assertEquals("empty term", expected(docValues, "", true), matched(reader.matchTerm(new BytesRef(""))));
                 for (String probe : new String[] { "phrase 1", "phrase 42", "phrase 199" }) {
@@ -690,7 +810,7 @@ public class StringMatchTests extends ColumnarStringTestCase {
             java.util.Collections.shuffle(slots, random());
             docSlots[d] = slots.toArray(new BytesRef[0]);
         }
-        for (DictionaryPolicy policy : List.of(ROOMY)) {
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
             withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
                 assertTrue("expected a multi-valued column", metadata.multiValued());
                 assertTrue("expected null slots", metadata.hasNullSlots());
@@ -804,7 +924,7 @@ public class StringMatchTests extends ColumnarStringTestCase {
             at += width;
         }
         final BytesRef[][] docSlots = rows.toArray(new BytesRef[0][]);
-        for (DictionaryPolicy policy : List.of(ROOMY)) {
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
             withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
                 assertTrue("expected a multi-valued column", metadata.multiValued());
                 assertTrue("expected the slots to be in term order", reader.valuesSorted());
@@ -837,7 +957,7 @@ public class StringMatchTests extends ColumnarStringTestCase {
             // documents and nothing widens the column into a multi-valued one.
             docSlots[d] = new BytesRef[] { random().nextDouble() < 0.25 ? null : new BytesRef(TERMS[d % TERMS.length]) };
         }
-        for (DictionaryPolicy policy : List.of(ROOMY)) {
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
             withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
                 assertFalse("expected the slots to stay in step with the documents", metadata.multiValued());
                 assertTrue("expected null slots", metadata.hasNullSlots());
@@ -880,7 +1000,7 @@ public class StringMatchTests extends ColumnarStringTestCase {
         for (int d = 0; d < docSlots.length; d++) {
             docSlots[d] = d % 5 == 0 ? new BytesRef[0] : new BytesRef[] { new BytesRef(TERMS[(d * (TERMS.length - 1)) / docSlots.length]) };
         }
-        for (DictionaryPolicy policy : List.of(ROOMY)) {
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
             withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
                 assertFalse("fewer slots than documents is not multi-valued", metadata.multiValued());
                 assertTrue("but a rank is no longer its own address", metadata.hasValueAddresses());
@@ -922,7 +1042,7 @@ public class StringMatchTests extends ColumnarStringTestCase {
             }
             docSlots[d] = slots;
         }
-        for (DictionaryPolicy policy : List.of(ROOMY)) {
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
             withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
                 assertTrue("expected a multi-valued column", metadata.multiValued());
                 assertTrue("expected null slots", metadata.hasNullSlots());

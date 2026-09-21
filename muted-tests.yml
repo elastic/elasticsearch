@@ -722,17 +722,11 @@ tests:
 - class: org.elasticsearch.index.shard.IndexShardIT
   method: testNodeWriteLoadsArePresent
   issue: https://github.com/elastic/elasticsearch/issues/159553
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
-  method: testTargetWillTransitionToSplitIfSearchShardsActiveTimesOut
-  issue: https://github.com/elastic/elasticsearch/issues/159556
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/159560
 - class: org.elasticsearch.xpack.security.apikey.ApiKeyRestIT
   method: testGrantTargetCanUpdateApiKey
   issue: https://github.com/elastic/elasticsearch/issues/159567
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
-  method: testDeleteAndRecreateIndexDuringReshard
-  issue: https://github.com/elastic/elasticsearch/issues/159601
 - class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
   method: testTranslogIsolatedNodeOnlyStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch/issues/159687
@@ -808,18 +802,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:METRICS}
   issue: https://github.com/elastic/elasticsearch/issues/159827
-- class: org.elasticsearch.xpack.security.transport.CrossClusterSigningConfigReloaderIntegTests
-  method: testAddSecureSettingsConfigRuntime
-  issue: https://github.com/elastic/elasticsearch/issues/159808
-- class: org.elasticsearch.xpack.security.transport.CrossClusterSigningConfigReloaderIntegTests
-  method: testInitialBadDependentFileAvailableAfterUpdate
-  issue: https://github.com/elastic/elasticsearch/issues/159809
-- class: org.elasticsearch.xpack.security.transport.CrossClusterSigningConfigReloaderIntegTests
-  method: testAddAndRemoveClusterConfigsRuntime
-  issue: https://github.com/elastic/elasticsearch/issues/159837
-- class: org.elasticsearch.xpack.security.transport.CrossClusterSigningConfigReloaderIntegTests
-  method: testDependentKeyConfigFilesUpdated
-  issue: https://github.com/elastic/elasticsearch/issues/159838
 - class: org.elasticsearch.xpack.stateless.engine.StatelessLiveVersionMapTests
   method: testLiveVersionMapMemoryUsed
   issue: https://github.com/elastic/elasticsearch/issues/159839
@@ -841,3 +823,18 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {p0=search/400_synthetic_source/text with doc_values multi-value}"
   issue: https://github.com/elastic/elasticsearch/issues/159560
+- class: org.elasticsearch.xpack.logsdb.qa.BulkStoredSourceChallengeRestIT
+  method: testEsqlTermsAggregationByMethod
+  issue: https://github.com/elastic/elasticsearch/issues/159868
+- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
+  method: testEsqlTermsAggregationByMethod
+  issue: https://github.com/elastic/elasticsearch/issues/159816
+- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusLogsdbFieldLevelSecurityChallengeRestIT
+  method: testEsqlTermsAggregationByMethod
+  issue: https://github.com/elastic/elasticsearch/issues/159869
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecNullIT
+  method: test {csv-spec:null.nullFieldArgInMultiInputAggs}
+  issue: https://github.com/elastic/elasticsearch/issues/159877
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecNullIT
+  method: test {csv-spec:null.nullLiteralArgInMultiInputAggs}
+  issue: https://github.com/elastic/elasticsearch/issues/159878

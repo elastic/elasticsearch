@@ -68,7 +68,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
     /// Controls the max number of concurrent recoveries allowed on this data node. Excludes peer recoveries for which this
     /// node is the source, see [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING]. Includes
-    /// both recoveries of unassigned shards and relocations. See also [#INDICES_RECOVERY_RELOCATION_RECOVERIES_MAX_PROPORTION_SETTING]
+    /// both recoveries of unassigned shards and relocations. See also [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING]
     /// which imposes an additional throttle on relocations only.
     ///
     public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING = Setting.intSetting(
@@ -84,8 +84,8 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     /// relocation recoveries. Accepts values like `0.5` or `"50%"`.
     /// The effective limit is `ceil(max_concurrent_incoming_recoveries * proportion)`.
     ///
-    public static final Setting<RatioValue> INDICES_RECOVERY_RELOCATION_RECOVERIES_MAX_PROPORTION_SETTING = Setting.ratioSetting(
-        "indices.recovery.relocation_recoveries_max_proportion",
+    public static final Setting<RatioValue> INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING = Setting.ratioSetting(
+        "indices.recovery.incoming_recoveries_max_relocation_proportion",
         RatioValue.ONE_HUNDRED_PERCENT,
         RatioValue.ZERO_PERCENT,
         RatioValue.ONE_HUNDRED_PERCENT,
@@ -139,7 +139,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             .initializeAndWatchIfRegistered(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING, this::setMaxConcurrentRecoveries);
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(
-                INDICES_RECOVERY_RELOCATION_RECOVERIES_MAX_PROPORTION_SETTING,
+                INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING,
                 this::setRelocationRecoveriesMaxProportion
             );
     }
@@ -575,7 +575,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         /// See [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING].
         private int maxConcurrentRecoveries;
         /// The maximum proportion of maxConcurrentRecoveries slots that may be used for relocation recoveries.
-        /// See [#INDICES_RECOVERY_RELOCATION_RECOVERIES_MAX_PROPORTION_SETTING].
+        /// See [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING].
         private double relocationRecoveriesMaxProportion;
         /// The number of concurrent recoveries currently running, including recoveries from unassigned + relocations.
         private int runningRecoveries = 0;

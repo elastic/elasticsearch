@@ -74,8 +74,8 @@ import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 import static org.elasticsearch.indices.recovery.RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING;
+import static org.elasticsearch.indices.recovery.ThrottlingRecoveryService.INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING;
 import static org.elasticsearch.indices.recovery.ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING;
-import static org.elasticsearch.indices.recovery.ThrottlingRecoveryService.INDICES_RECOVERY_RELOCATION_RECOVERIES_MAX_PROPORTION_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -279,7 +279,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         Settings.Builder settings = Settings.builder()
             .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), maxConcurrentRecoveries);
         if (randomBoolean()) {
-            settings.put(INDICES_RECOVERY_RELOCATION_RECOVERIES_MAX_PROPORTION_SETTING.getKey(), "100%");
+            settings.put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), "100%");
         }
         final var service = newStartedService(
             taskQueue.getThreadPool(),
@@ -348,7 +348,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final double relocationProportion = (double) maxConcurrentRelocationRecoveries / maxConcurrentRecoveries;
         Settings settings = Settings.builder()
             .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), maxConcurrentRecoveries)
-            .put(INDICES_RECOVERY_RELOCATION_RECOVERIES_MAX_PROPORTION_SETTING.getKey(), relocationProportion)
+            .put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), relocationProportion)
             .build();
         final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, newClusterService(settings));
 
@@ -475,7 +475,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         // A zero proportion must prevent relocation recoveries from starting.
         Settings settings = Settings.builder()
             .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 10)
-            .put(INDICES_RECOVERY_RELOCATION_RECOVERIES_MAX_PROPORTION_SETTING.getKey(), 0.0)
+            .put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), 0.0)
             .build();
         final var clusterService = newClusterService(settings);
         final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
@@ -502,7 +502,9 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
         // Increase proportion to 4 relocation slots.
         clusterService.getClusterSettings()
-            .applySettings(Settings.builder().put(INDICES_RECOVERY_RELOCATION_RECOVERIES_MAX_PROPORTION_SETTING.getKey(), 0.4).build());
+            .applySettings(
+                Settings.builder().put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), 0.4).build()
+            );
         taskQueue.runAllRunnableTasks();
         assertThat(started.get(), equalTo(4));
         taskQueue.runAllTasks();
@@ -516,7 +518,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var clusterService = newClusterService(
             Settings.builder()
                 .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 3)
-                .put(INDICES_RECOVERY_RELOCATION_RECOVERIES_MAX_PROPORTION_SETTING.getKey(), 0.5)
+                .put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), 0.5)
                 .build()
         );
         final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
@@ -1065,7 +1067,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), maxConcurrentRecoveries.get())
             .put(
-                INDICES_RECOVERY_RELOCATION_RECOVERIES_MAX_PROPORTION_SETTING.getKey(),
+                INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(),
                 (double) maxConcurrentRelocations.get() / maxConcurrentRecoveries.get()
             )
             .build();
@@ -1103,7 +1105,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 .applySettings(
                     Settings.builder()
                         .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), newMax)
-                        .put(INDICES_RECOVERY_RELOCATION_RECOVERIES_MAX_PROPORTION_SETTING.getKey(), proportion)
+                        .put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), proportion)
                         .build()
                 );
 
@@ -1678,7 +1680,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             settings,
             Set.of(
                 INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING,
-                INDICES_RECOVERY_RELOCATION_RECOVERIES_MAX_PROPORTION_SETTING
+                INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING
             )
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);

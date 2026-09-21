@@ -39,34 +39,34 @@ import static org.hamcrest.Matchers.instanceOf;
  * What a column says about its own shape, which is what lets a single value check rewrite itself away
  * rather than ask every document.
  */
-public class ColumnarPayloadSortedBinaryDocValuesTests extends ESTestCase {
+public class ColumnarPayloadSortableBinaryDocValuesTests extends ESTestCase {
 
     private static final String FIELD = "kw";
 
     public void testOneSlotADocumentIsSingleValued() throws IOException {
         withColumn(new String[][] { { "a" }, { "b" }, { "c" } }, values -> {
-            assertEquals(SortedBinaryDocValues.ValueMode.SINGLE_VALUED, values.getValueMode());
-            assertEquals(SortedBinaryDocValues.Sparsity.DENSE, values.getSparsity());
+            assertEquals(SortableBinaryDocValues.ValueMode.SINGLE_VALUED, values.getValueMode());
+            assertEquals(SortableBinaryDocValues.Sparsity.DENSE, values.getSparsity());
         });
     }
 
     /** A null slot is no value, and single valued says at most one, so a column holding them still qualifies. */
     public void testANullSlotIsStillSingleValued() throws IOException {
         withColumn(new String[][] { { "a" }, { null }, { "c" } }, values -> {
-            assertEquals(SortedBinaryDocValues.ValueMode.SINGLE_VALUED, values.getValueMode());
+            assertEquals(SortableBinaryDocValues.ValueMode.SINGLE_VALUED, values.getValueMode());
         });
     }
 
     public void testASecondSlotIsNotSingleValued() throws IOException {
         withColumn(new String[][] { { "a" }, { "b", "c" } }, values -> {
-            assertNotEquals(SortedBinaryDocValues.ValueMode.SINGLE_VALUED, values.getValueMode());
+            assertNotEquals(SortableBinaryDocValues.ValueMode.SINGLE_VALUED, values.getValueMode());
         });
     }
 
     /** A document the field is absent from leaves the column short of the segment, which is sparse. */
     public void testAColumnMissingDocumentsIsSparse() throws IOException {
         withColumn(new String[][] { { "a" }, null, { "c" } }, values -> {
-            assertEquals(SortedBinaryDocValues.Sparsity.SPARSE, values.getSparsity());
+            assertEquals(SortableBinaryDocValues.Sparsity.SPARSE, values.getSparsity());
         });
     }
 
@@ -88,23 +88,103 @@ public class ColumnarPayloadSortedBinaryDocValuesTests extends ESTestCase {
         });
     }
 
-    /** The values are still there once something asks for them, sorted, after a count that did not. */
+    /** The values are still there once something asks for them, after a count that did not. */
     public void testValuesSurviveACountThatDidNotReadThem() throws IOException {
         withColumn(new String[][] { { "b", "a" }, { "d", null, "c" } }, values -> {
             assertTrue(values.advanceExact(0));
             assertEquals(2, values.docValueCount());
             assertTrue(values.advanceExact(1));
             assertEquals(2, values.docValueCount());
-            assertEquals(new BytesRef("c"), values.nextValue());
             assertEquals(new BytesRef("d"), values.nextValue());
+            assertEquals(new BytesRef("c"), values.nextValue());
             assertTrue(values.advanceExact(0));
+            assertEquals(new BytesRef("b"), values.nextValue());
+            assertEquals(new BytesRef("a"), values.nextValue());
+        });
+    }
+
+    /** Nothing is put in order on the way out: the slots come back as the column holds them. */
+    public void testValuesComeBackInTheOrderTheyWereWritten() throws IOException {
+        withColumn(new String[][] { { "c", "a", "b" } }, values -> {
+            assertEquals(SortableBinaryDocValues.ValueOrder.ARRAY, values.getValueOrder());
+            assertTrue(values.advanceExact(0));
+            assertEquals(3, values.docValueCount());
+            assertEquals(new BytesRef("c"), values.nextValue());
             assertEquals(new BytesRef("a"), values.nextValue());
             assertEquals(new BytesRef("b"), values.nextValue());
         });
     }
 
+    /** Values that happen to have been written ascending are handed back as they are, like any others. */
+    public void testValuesWrittenAscendingComeBackAscending() throws IOException {
+        withColumn(new String[][] { { "a", "b", "c" } }, values -> {
+            assertTrue(values.advanceExact(0));
+            assertEquals(new BytesRef("a"), values.nextValue());
+            assertEquals(new BytesRef("b"), values.nextValue());
+            assertEquals(new BytesRef("c"), values.nextValue());
+        });
+    }
+
+    /** A document holding one value is handed it straight off the column, and every document gets its own. */
+    public void testEveryDocumentReadsItsOwnValue() throws IOException {
+        final String[][] docs = { { "a" }, { "b" }, { null }, { "c" }, null, { "d" } };
+        withColumn(docs, values -> {
+            assertEquals(SortableBinaryDocValues.ValueMode.SINGLE_VALUED, values.getValueMode());
+            assertTrue(values.advanceExact(0));
+            assertEquals(new BytesRef("a"), values.nextValue());
+            assertTrue(values.advanceExact(1));
+            assertEquals(new BytesRef("b"), values.nextValue());
+            assertFalse(values.advanceExact(2));
+            assertTrue(values.advanceExact(3));
+            assertEquals(new BytesRef("c"), values.nextValue());
+            assertFalse(values.advanceExact(4));
+            assertTrue(values.advanceExact(5));
+            assertEquals(new BytesRef("d"), values.nextValue());
+        });
+    }
+
+    /** Reading a document twice gives the same value both times. */
+    public void testADocumentCanBeReadAgain() throws IOException {
+        withColumn(new String[][] { { "a" }, { "b" } }, values -> {
+            assertTrue(values.advanceExact(1));
+            assertEquals(new BytesRef("b"), values.nextValue());
+            assertTrue(values.advanceExact(1));
+            assertEquals(new BytesRef("b"), values.nextValue());
+        });
+    }
+
+    /** This surface does not deduplicate, so a repeated value comes back as many times as it was written. */
+    public void testDuplicatesAreKept() throws IOException {
+        withColumn(new String[][] { { "b", "a", "b" } }, values -> {
+            assertTrue(values.advanceExact(0));
+            assertEquals(3, values.docValueCount());
+            assertEquals(new BytesRef("b"), values.nextValue());
+            assertEquals(new BytesRef("a"), values.nextValue());
+            assertEquals(new BytesRef("b"), values.nextValue());
+        });
+    }
+
+    /** Counting one document and reading the next, back and forth, over a column holding both shapes. */
+    public void testCountingAndReadingInterleaved() throws IOException {
+        withColumn(new String[][] { { "b", "a" }, { "c" }, { "e", null, "d" }, { "f" } }, values -> {
+            assertTrue(values.advanceExact(0));
+            assertEquals(2, values.docValueCount());
+            assertTrue(values.advanceExact(1));
+            assertEquals(new BytesRef("c"), values.nextValue());
+            assertTrue(values.advanceExact(2));
+            assertEquals(2, values.docValueCount());
+            assertEquals(new BytesRef("e"), values.nextValue());
+            assertEquals(new BytesRef("d"), values.nextValue());
+            assertTrue(values.advanceExact(3));
+            assertEquals(new BytesRef("f"), values.nextValue());
+            assertTrue(values.advanceExact(0));
+            assertEquals(new BytesRef("b"), values.nextValue());
+            assertEquals(new BytesRef("a"), values.nextValue());
+        });
+    }
+
     private interface Check {
-        void check(SortedBinaryDocValues values) throws IOException;
+        void check(SortableBinaryDocValues values) throws IOException;
     }
 
     /** {@code null} in place of a document's slots writes no field for it at all. */
@@ -123,7 +203,7 @@ public class ColumnarPayloadSortedBinaryDocValuesTests extends ESTestCase {
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 final LeafReader leaf = reader.leaves().get(0).reader();
                 assertThat("the field is a column", leaf.getBinaryDocValues(FIELD), instanceOf(StringColumnSource.class));
-                check.check(ColumnarPayloadSortedBinaryDocValues.from(leaf, FIELD));
+                check.check(ColumnarPayloadSortableBinaryDocValues.from(leaf, FIELD));
             }
         }
     }

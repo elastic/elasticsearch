@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichLim
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.InsertEmptyBucketsAfterAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.MaterializeRelationClassAndName;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PartiallyFoldCase;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEquals;
@@ -125,6 +126,17 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     private static final List<RuleExecutor.Batch<LogicalPlan>> RULES = List.of(
         substitutions(),
         operators(),
+        // After operators() has converged, so the UnionAll pushdowns gated on PushDownUtils.isLeafUnionAll
+        // see the plain relation shape. This rule replaces a relation with Project > Eval > relation, and
+        // that Eval stops the gate matching, which would switch those pushdowns off for the rest of a batch.
+        new Batch<>(
+            "Materialize Relation Columns",
+            Limiter.ONCE,
+            new MaterializeRelationClassAndName(),
+            // The rule emits a Project restoring the relation's output shape, which sits under whatever
+            // projection the query already had. operators() has converged by now, so combine them here.
+            new CombineProjections()
+        ),
         new Batch<>("Skip Compute", new SkipQueryOnLimitZero()),
         cleanup(),
         warnings(),

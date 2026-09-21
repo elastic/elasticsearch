@@ -309,7 +309,7 @@ public abstract class ViewResolutionBenchmarkBase {
     @Benchmark
     public void resolveViews(Blackhole blackhole) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(preParsedPlan, null, viewParser, future);
+        viewResolver.replaceViews(preParsedPlan, null, true, viewParser, future);
         blackhole.consume(future.actionGet());
     }
 

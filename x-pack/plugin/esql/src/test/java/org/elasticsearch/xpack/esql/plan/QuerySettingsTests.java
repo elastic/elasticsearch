@@ -739,7 +739,8 @@ public class QuerySettingsTests extends ESTestCase {
                     "esql.query.settings.unmapped_fields",
                     "esql.query.settings.column_metadata",
                     "esql.query.settings.approximation",
-                    "esql.query.settings.wildcards_match_datasets"
+                    "esql.query.settings.wildcards_match_datasets",
+                    "esql.query.settings.wildcards_match_views"
                 )
             )
         );

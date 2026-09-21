@@ -21,8 +21,8 @@ import java.io.Closeable;
 import java.io.IOException;
 
 /**
- * A column's files in a test directory: its data, addressing, lengths and navigation, each with a header and a footer
- * the way the format writes them, so a test reads back exactly what a segment would hold.
+ * A column's files in a test directory — data, addressing, lengths and navigation — with headers and footers as
+ * the format writes them.
  */
 public final class ColumnTestFiles {
 
@@ -31,7 +31,7 @@ public final class ColumnTestFiles {
 
     private ColumnTestFiles() {}
 
-    /** The three outputs of a column, closed with their footers. */
+    /** A column's outputs, closed with their footers. */
     public static final class Outputs implements Closeable {
         private final ColumnOutputs outputs;
 
@@ -62,7 +62,7 @@ public final class ColumnTestFiles {
         }
     }
 
-    /** The three inputs of a column, each checksummed whole and its header checked. */
+    /** A column's inputs, each checksummed whole and its header checked. */
     public static final class Inputs implements Closeable {
         private final ColumnInputs inputs;
 

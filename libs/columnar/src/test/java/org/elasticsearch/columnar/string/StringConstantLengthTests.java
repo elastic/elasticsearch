@@ -21,8 +21,7 @@ import java.io.IOException;
 
 /**
  * A plain column whose values all have one length and none of them null keeps no lengths: a value begins at its
- * address times that length. Hashes, trace ids and fixed-width codes are that shape, and they are read one
- * document at a time more than most.
+ * address times that length.
  */
 public class StringConstantLengthTests extends ColumnarStringTestCase {
 
@@ -36,6 +35,30 @@ public class StringConstantLengthTests extends ColumnarStringTestCase {
             assertSame("no starts stored", MonotonicWriter.Table.NONE, values.starts());
             assertEquals(length, metadata.minLength());
             assertEquals(length, metadata.maxLength());
+            assertEverySlotReadsBack(docSlots, reader);
+        });
+    }
+
+    /** Every value empty: a length of zero, so no bytes and no lengths are stored at all. */
+    public void testOnlyEmptyValues() throws IOException {
+        final BytesRef[][] docSlots = slots(between(1, 3000), 0, randomBoolean(), false, false);
+        withColumn(docSlots, (metadata, reader) -> {
+            assertEquals(0, plainOf(metadata).values().constantLength());
+            assertEquals(0, plainOf(metadata).values().chunks().numChunks());
+            assertEverySlotReadsBack(docSlots, reader);
+        });
+    }
+
+    /** Documents holding empty arrays and no value at all: nothing to take a length from. */
+    public void testNoValues() throws IOException {
+        final BytesRef[][] docSlots = new BytesRef[between(1, 500)][];
+        for (int d = 0; d < docSlots.length; d++) {
+            docSlots[d] = new BytesRef[0];
+        }
+        withColumn(docSlots, (metadata, reader) -> {
+            assertEquals(0, metadata.numValues());
+            assertEquals(-1, metadata.minLength());
+            assertEquals(-1, metadata.maxLength());
             assertEverySlotReadsBack(docSlots, reader);
         });
     }

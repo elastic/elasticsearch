@@ -275,9 +275,8 @@ public class StringColumnMergeTests extends ESTestCase {
     }
 
     /**
-     * A plain column is written without a temporary file, on flush and on merge alike: its values, slot counts,
-     * null slots and every table go straight into their files. Documents of several slots and nulls among them,
-     * so each of those is written.
+     * A plain column is written without a temporary file, on flush and on merge alike. Documents of several slots
+     * and nulls among them, so slot counts and null lengths are written too.
      */
     public void testAPlainColumnWritesNoTemporaryFile() throws IOException {
         final int numDocs = 300;

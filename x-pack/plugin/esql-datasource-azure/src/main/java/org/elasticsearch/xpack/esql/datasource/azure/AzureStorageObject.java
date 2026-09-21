@@ -551,13 +551,13 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
 
         void cancel() {
             cancelled = true;
-            if (tryFail()) {
-                counters.addRequest(System.nanoTime() - startNanos, 0L);
-                listener.onFailure(new TaskCancelledException("read cancelled"));
-            }
-            FutureUtils.cancel(inFlight.get());
-            if (completion.get() == Completion.FAILED) {
-                closeBuffer();
+            try {
+                notifyCancelled();
+            } finally {
+                FutureUtils.cancel(inFlight.get());
+                if (completion.get() == Completion.FAILED) {
+                    closeBuffer();
+                }
             }
         }
 

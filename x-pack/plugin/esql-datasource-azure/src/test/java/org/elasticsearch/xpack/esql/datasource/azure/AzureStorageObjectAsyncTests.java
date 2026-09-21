@@ -265,6 +265,48 @@ public class AzureStorageObjectAsyncTests extends ESTestCase {
         }
     }
 
+    public void testCancelDisposesWhenListenerThrows() throws Exception {
+        AtomicInteger closeCount = new AtomicInteger(0);
+        DirectBufferFactory trackingFactory = len -> new DirectReadBuffer(ByteBuffer.allocateDirect(len), closeCount::incrementAndGet);
+        AzureStorageObject obj = new AzureStorageObject(blobClient(), blobAsyncClient(), "container", "blob.parquet", PATH);
+
+        AtomicBoolean subscriptionCancelled = new AtomicBoolean();
+        String hookKey = "azure-cancel-listener-throws-test";
+        Thread testThread = Thread.currentThread();
+        Hooks.onEachOperator(hookKey, publisher -> {
+            if (Thread.currentThread() == testThread) {
+                if (publisher instanceof Mono<?>) {
+                    return new ParkingMono(subscriptionCancelled);
+                }
+                if (publisher instanceof Flux<?>) {
+                    return Flux.never();
+                }
+                throw new IllegalStateException("unexpected publisher: " + publisher.getClass());
+            }
+            return publisher;
+        });
+
+        try {
+            Releasable cancel = obj.startReadBytesAsync(0, 100, trackingFactory, Runnable::run, new ActionListener<>() {
+                @Override
+                public void onResponse(DirectReadBuffer buffer) {
+                    fail("expected failure");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new IllegalStateException("listener boom");
+                }
+            });
+            IllegalStateException thrown = expectThrows(IllegalStateException.class, cancel::close);
+            assertEquals("listener boom", thrown.getMessage());
+            assertTrue("in-flight publisher must still be cancelled", subscriptionCancelled.get());
+            assertEquals("buffer must still be closed exactly once", 1, closeCount.get());
+        } finally {
+            Hooks.resetOnEachOperator(hookKey);
+        }
+    }
+
     /**
      * Parks forever and records {@link Subscription#cancel()}. Constructed with {@code new} so
      * {@link Hooks#onEachOperator} can return it without {@code Mono.never()} assembly wrapping.

@@ -392,11 +392,11 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
 
         void cancel() {
             cancelled = true;
-            if (tryCompleteListener()) {
-                counters.addRequest(System.nanoTime() - startNanos, 0L);
-                listener.onFailure(new TaskCancelledException("read cancelled"));
+            try {
+                notifyCancelled();
+            } finally {
+                IOUtils.closeWhileHandlingException(channel.get());
             }
-            IOUtils.closeWhileHandlingException(channel.get());
         }
 
         boolean isCancelled() {

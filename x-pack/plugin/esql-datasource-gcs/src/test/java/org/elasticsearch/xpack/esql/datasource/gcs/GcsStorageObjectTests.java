@@ -846,6 +846,62 @@ public class GcsStorageObjectTests extends ESTestCase {
         }
     }
 
+    public void testCancelClosesChannelWhenListenerThrows() throws Exception {
+        ReadChannel mockReader = mock(ReadChannel.class);
+        when(mockStorage.reader(any(BlobId.class))).thenReturn(mockReader);
+        CountDownLatch inRead = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        CountDownLatch unblockedByClose = new CountDownLatch(1);
+        when(mockReader.read(any(ByteBuffer.class))).thenAnswer(invocation -> {
+            inRead.countDown();
+            if (release.await(5, TimeUnit.SECONDS) == false) {
+                throw new IOException("read was not unblocked by close");
+            }
+            unblockedByClose.countDown();
+            throw new ClosedChannelException();
+        });
+        doAnswer(invocation -> {
+            release.countDown();
+            return null;
+        }).when(mockReader).close();
+
+        GcsStorageObject obj = new GcsStorageObject(
+            mockStorage,
+            "my-bucket",
+            "data/file.parquet",
+            StoragePath.of("gs://my-bucket/data/file.parquet")
+        );
+        AtomicInteger closeCount = new AtomicInteger();
+        DirectBufferFactory trackingFactory = len -> new DirectReadBuffer(ByteBuffer.allocateDirect(len), closeCount::incrementAndGet);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Releasable cancel = obj.startReadBytesAsync(0, 10, trackingFactory, executor, new ActionListener<>() {
+                @Override
+                public void onResponse(DirectReadBuffer buffer) {
+                    fail("expected failure");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new IllegalStateException("listener boom");
+                }
+            });
+            assertTrue("read must park", inRead.await(5, TimeUnit.SECONDS));
+            IllegalStateException thrown = expectThrows(IllegalStateException.class, cancel::close);
+            assertEquals("listener boom", thrown.getMessage());
+            assertTrue("close must still unblock read", unblockedByClose.await(5, TimeUnit.SECONDS));
+            verify(mockReader, atLeastOnce()).close();
+        } finally {
+            executor.shutdown();
+            try {
+                assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
+                assertEquals("buffer must be closed exactly once", 1, closeCount.get());
+            } finally {
+                terminate(executor);
+            }
+        }
+    }
+
     public void testSupportsNativeAsyncReturnsTrue() {
         StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);

@@ -1483,6 +1483,34 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertThat(e.getMessage(), containsString("cannot route to any endpoint"));
     }
 
+    /**
+     * The bucket the check reads must be the bucket the read binds to. {@code StoragePath.of} strips a port
+     * and a {@code userInfo}, so a refusal that tests the raw authority is bypassed by appending {@code :443}
+     * — and every bucket refusal tests it.
+     */
+    public void testValidateDatasetRefusesSteeredBucketsWithAPort() {
+        for (String bucket : List.of(
+            "mybucket--use1-az4--x-s3",
+            "mybucket--use1-az4--xa-s3",
+            "oop-01234567890123aaaaaaaaaaaaaaaaaaaaaaaaa--op-s3",
+            "my-ap.mrap"
+        )) {
+            expectThrows(
+                ValidationException.class,
+                bucket,
+                () -> validator.validateDataset(Map.of(), "s3://" + bucket + ":443/data/f.parquet", Map.of())
+            );
+        }
+    }
+
+    /** The mirror: a {@code userInfo} must not turn an ordinary bucket into a refusal. */
+    public void testValidateDatasetAcceptsOrdinaryBucketBehindUserInfo() {
+        String bucket = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb--op-s3";
+        assertEquals("s3.us-east-1.amazonaws.com", resolvedHostOf(bucket));
+        validator.validateDataset(Map.of(), "s3://" + bucket + "/data/f.parquet", Map.of());
+        validator.validateDataset(Map.of(), "s3://abcdef@" + bucket + "/data/f.parquet", Map.of());
+    }
+
     /** The same question {@code S3ResourceCheck} asks, so a fixture cannot drift out of its branch unnoticed. */
     private static String resolvedHostOf(String bucket) {
         URI url = S3EndpointProvider.defaultProvider()

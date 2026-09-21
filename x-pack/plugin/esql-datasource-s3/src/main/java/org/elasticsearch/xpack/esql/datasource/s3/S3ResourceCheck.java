@@ -12,6 +12,7 @@ import software.amazon.awssdk.services.s3.endpoints.S3EndpointParams;
 import software.amazon.awssdk.services.s3.endpoints.S3EndpointProvider;
 
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.net.URI;
 import java.util.List;
@@ -26,8 +27,11 @@ import java.util.Locale;
  * off the regional object endpoint. The last two are here rather than with the endpoint rule because the
  * bucket name alone moves the request, so no endpoint setting can confine it.
  *
- * <p>Parsing is on the raw string: {@code StoragePath.of} throws on an ARN before any check could run, and
- * the SDK's {@code Arn.fromString} is not needed — the string checks below cover all cases.
+ * <p>The ARN branches read the raw string, because {@code StoragePath.of} throws on an ARN authority before
+ * any check could run; the SDK's {@code Arn.fromString} is not needed for them. Every branch after that
+ * reads {@link StoragePath#host()}, which is the bucket the read itself binds to. Testing the raw authority
+ * instead let a {@code :443} suffix walk past all four bucket refusals while the read bound to the bucket
+ * they refused, and let a {@code userInfo@} prefix refuse one they admit.
  */
 class S3ResourceCheck {
 
@@ -39,6 +43,7 @@ class S3ResourceCheck {
     static final String STEERED_MESSAGE_PREFIX = "[resource] names a bucket that the AWS SDK routes to [";
     static final String STEERED_MESSAGE_SUFFIX = "], which is not a supported AWS S3 endpoint, but was [";
     static final String UNROUTABLE_MESSAGE_PREFIX = "[resource] names a bucket the AWS SDK cannot route to any endpoint but was [";
+    static final String UNPARSEABLE_MESSAGE_PREFIX = "[resource] is not a location this data source can read but was [";
 
     /**
      * The exact spellings the SDK keys off, both of which build an S3 Express endpoint. It matches the
@@ -80,28 +85,43 @@ class S3ResourceCheck {
             firstPathSegmentLower = (nextSlash < 0 ? afterAuthority : afterAuthority.substring(0, nextSlash)).toLowerCase(Locale.ROOT);
         }
 
-        if (authorityLower.endsWith(".mrap")
-            || authorityLower.endsWith(".mrap.accesspoint.s3-global.amazonaws.com")
-            || (authorityLower.startsWith("arn:") && firstPathSegmentLower.endsWith(".mrap"))) {
+        // The two ARN forms, refused before the parse below, which throws on an ARN authority. MRAP first,
+        // so the generic branch cannot suggest an access point alias, which MRAPs do not have.
+        if (authorityLower.startsWith("arn:")) {
+            if (firstPathSegmentLower.endsWith(".mrap")) {
+                errors.addValidationError(MRAP_MESSAGE_PREFIX + resource + "].");
+            } else {
+                errors.addValidationError(ARN_MESSAGE_PREFIX + resource + ARN_MESSAGE_SUFFIX);
+            }
+            return;
+        }
+
+        // From here the bucket is whatever the read will bind to, not whatever the authority spells: a port
+        // and a userInfo belong to the location, not to the bucket name.
+        String bucket;
+        try {
+            bucket = StoragePath.of(resource).host();
+        } catch (IllegalArgumentException e) {
+            errors.addValidationError(UNPARSEABLE_MESSAGE_PREFIX + resource + "].");
+            return;
+        }
+        String bucketLower = bucket.toLowerCase(Locale.ROOT);
+
+        if (bucketLower.endsWith(".mrap") || bucketLower.endsWith(".mrap.accesspoint.s3-global.amazonaws.com")) {
             errors.addValidationError(MRAP_MESSAGE_PREFIX + resource + "].");
             return;
         }
 
         for (String suffix : DIRECTORY_BUCKET_SUFFIXES) {
-            if (authorityLower.endsWith(suffix)) {
+            if (bucketLower.endsWith(suffix)) {
                 errors.addValidationError(EXPRESS_MESSAGE_PREFIX + resource + "].");
                 return;
             }
         }
 
-        if (authorityLower.startsWith("arn:")) {
-            errors.addValidationError(ARN_MESSAGE_PREFIX + resource + ARN_MESSAGE_SUFFIX);
-            return;
-        }
-
         String bucketHost;
         try {
-            bucketHost = resolvedHost(authority);
+            bucketHost = resolvedHost(bucket);
         } catch (RuntimeException e) {
             // Thrown for a malformed outpost id. The name reaches no endpoint, so say so rather than
             // admit a resource no read could use.

@@ -1981,12 +1981,12 @@ required_capability: highlight_implicit_query_and_fields
 required_capability: fn_to_text_analyzer
 required_capability: fn_match_runtime_analyzer
 
-ROW title = to_text("The Lord of the Rings", {"analyzer": "english"}), author = to_text("J.R.R. Tolkien wrote about rings", {"analyzer": "english"})
-| HIGHLIGHT MATCH(title, "ring", { "analyzer": "english" }) AND MATCH(author, "ring", { "analyzer": "english" }) ON title, author
-| KEEP highlight_title, highlight_author
+ROW title = to_text("The Lord of the Rings", {"analyzer": "english"}), bio = to_text("J.R.R. Tolkien wrote about rings", {"analyzer": "english"})
+| HIGHLIGHT MATCH(title, "ring", { "analyzer": "english" }) AND MATCH(bio, "ring", { "analyzer": "english" }) ON title, bio
+| KEEP highlight_title, highlight_bio
 ;
 
-highlight_title:keyword        | highlight_author:keyword
+highlight_title:keyword        | highlight_bio:keyword
 The Lord of the <em>Rings</em> | Tolkien wrote about <em>rings</em>
 ;
 
@@ -2080,8 +2080,7 @@ Return of the King Being the Third Part of The Lord of the Rings | 2012 | <em>Re
 implicitQueryOnRuntimeColumnsIgnoresNonTextConjunct
 required_capability: highlight_implicit_query_and_fields
 
-ROW id = 1
-| EVAL msg = "On-call found it after a search ranking", year = 1989
+ROW msg = "On-call found it after a search ranking", year = 1989
 | EVAL note = TO_TEXT(msg)
 | WHERE MATCH(note, "On") AND MATCH(year, 1989)
 | HIGHLIGHT
@@ -2198,20 +2197,19 @@ Return of the Shadow                                             | <em>Return</e
 ;
 
 
-# ON * includes multi-fields (author.keyword).
+# ON * includes multi-fields (author.keyword); a borrowed conjunct targeting it highlights a non-null value too.
 highlightOnStar
 required_capability: highlight_implicit_query_and_fields
 
 FROM books
-| WHERE MATCH(title, "Return")
+| WHERE MATCH(title, "Return") AND MATCH(`author.keyword`, "J. R. R. Tolkien")
 | HIGHLIGHT ON *
 | KEEP highlight_*
 | SORT highlight_title
 ;
 
-highlight_author:keyword | highlight_author.keyword:keyword | highlight_book_no:keyword | highlight_collection:keyword | highlight_description:keyword | highlight_publisher:keyword | highlight_title:keyword
-null                     | null                             | null                      | null                         | null                          | null                        | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
-null                     | null                             | null                      | null                         | null                          | null                        | <em>Return</em> of the Shadow
+highlight_author:keyword | highlight_author.keyword:keyword                   | highlight_book_no:keyword | highlight_collection:keyword | highlight_description:keyword | highlight_publisher:keyword | highlight_title:keyword
+null                     | <em>J</em>. <em>R</em>. <em>R</em>. <em>Tolkien</em> | null                      | null                         | null                          | null                        | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
 ;
 
 
@@ -2411,6 +2409,24 @@ FROM semantic_text
 ;
 
 semantic_text_field:text | highlight_semantic_text_field:keyword
+all we have to decide is what to do with the time that is given to us | null
+be excellent to each other                                            | null
+live long and prosper                                                 | live long and <em>prosper</em>
+;
+
+
+# Same as above but on a dense-inference semantic_text field, to cover both inference kinds.
+implicitOnSemanticTextDenseViaStar
+required_capability: highlight_implicit_query_and_fields
+
+FROM semantic_text
+| WHERE MATCH(semantic_text_dense_field, "prosper")
+| HIGHLIGHT ON *
+| KEEP semantic_text_dense_field, highlight_semantic_text_dense_field
+| SORT semantic_text_dense_field
+;
+
+semantic_text_dense_field:text | highlight_semantic_text_dense_field:keyword
 all we have to decide is what to do with the time that is given to us | null
 be excellent to each other                                            | null
 live long and prosper                                                 | live long and <em>prosper</em>

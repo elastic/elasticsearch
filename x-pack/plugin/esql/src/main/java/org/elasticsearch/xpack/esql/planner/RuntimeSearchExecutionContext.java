@@ -76,6 +76,8 @@ public final class RuntimeSearchExecutionContext extends SearchExecutionContext 
     }
 
     /**
+     * Creates a context whose fields are exactly {@code fieldNames}.
+     *
      * @param lenientFields when {@code true}, {@link #getMatchingFieldNames} returns an empty set for an exact field
      *                      name outside {@code fieldNames} instead of throwing, so a query referencing such a field
      *                      translates to a match-none clause rather than failing translation. Used for implicit

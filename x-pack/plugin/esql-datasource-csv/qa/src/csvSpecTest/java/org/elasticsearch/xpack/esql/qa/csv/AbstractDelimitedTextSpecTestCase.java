@@ -28,7 +28,7 @@ import org.junit.rules.TestRule;
  * {@code INGEST} guard in {@code EsqlSpecTestCase} fire exactly once: data is loaded on the
  * first suite and the cluster remains live for subsequent suites without re-loading.
  */
-abstract class AbstractCsvExternalSpecTestCase extends AbstractExternalSourceSpecTestCase {
+abstract class AbstractDelimitedTextSpecTestCase extends AbstractExternalSourceSpecTestCase {
 
     protected static final BwcMatrixPolicy UNCOMPRESSED_BWC_MATRIX_POLICY = BwcMatrixPolicy.uncompressed(
         StorageBackend.S3,
@@ -50,7 +50,7 @@ abstract class AbstractCsvExternalSpecTestCase extends AbstractExternalSourceSpe
         cluster
     );
 
-    protected AbstractCsvExternalSpecTestCase(
+    protected AbstractDelimitedTextSpecTestCase(
         String fileName,
         String groupName,
         String testName,

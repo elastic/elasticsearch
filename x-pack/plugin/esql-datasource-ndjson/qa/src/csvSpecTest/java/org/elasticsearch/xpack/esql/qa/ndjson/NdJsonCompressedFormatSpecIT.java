@@ -15,14 +15,13 @@ import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureMatrix;
 import org.elasticsearch.xpack.esql.qa.rest.BwcMatrixPolicy;
 import org.elasticsearch.xpack.esql.qa.rest.BwcMatrixPolicy.BwcTestId;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceCodecEligibility;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 
-import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Parameterized integration tests for compressed NDJSON files (.ndjson.gz, .ndjson.zst, .ndjson.zstd, .ndjson.bz2, .ndjson.bz).
@@ -39,21 +38,12 @@ public class NdJsonCompressedFormatSpecIT extends AbstractNdJsonExternalSpecTest
         "gzip",
         new BwcTestId("external-basic.csv-spec", "readAllEmployees")
     );
-    private static final List<String> COMPRESSED_FORMATS = EsqlDataSourceCodecEligibility.textCompressionFormats("ndjson");
-
-    /** Same SchemaAdaptingIterator limitation as the uncompressed NDJSON IT — see {@link NdJsonFormatSpecIT}. */
-    private static final Set<String> SKIPPED_TESTS = Set.of(
-        "strictCount",
-        "strictFilterAndSort",
-        "strictSalaryStats",
-        "strictAggregateByGender",
-        "omittedCount",
-        "ubnExplicitCount",
-        "readAllEmployeesMultiFile",
-        "multiFileDistinctFileCount",
-        "multiFileGroupByFile",
-        "multiFileMetadataSizePositive"
-    );
+    // Codecs come from the declaration, which also records that bzip2 is outside the GA text-format
+    // codec surface and is therefore snapshot-only. See elastic/esql-planning#938. WHICH codecs are
+    // snapshot-only is declared; WHETHER snapshot-only ones may run is a build question, and in a mixed
+    // run both distributions have to be snapshots.
+    private static final List<String> COMPRESSED_FORMATS = FixtureMatrix.get()
+        .textCodecFormats("ndjson", EsqlDataSourceCodecEligibility.experimentalCodecsEligible());
 
     public NdJsonCompressedFormatSpecIT(
         String fileName,
@@ -69,29 +59,19 @@ public class NdJsonCompressedFormatSpecIT extends AbstractNdJsonExternalSpecTest
     }
 
     @Override
+    protected String exclusionSuiteToken() {
+        // This suite's format is not its declaration token, so the default would resolve to
+        // another suite's exclusions.
+        return "ndjson-compressed";
+    }
+
+    @Override
     protected BwcMatrixPolicy bwcMatrixPolicy() {
         return BWC_MATRIX_POLICY;
     }
 
-    @Override
-    protected void shouldSkipTest(String testName) throws IOException {
-        if (SKIPPED_TESTS.contains(testName)) {
-            assumeTrue(testName + " not supported by NDJSON multi-file path (SchemaAdaptingIterator limitation)", false);
-        }
-        super.shouldSkipTest(testName);
-    }
-
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTestsWithFormats(
-            BWC_MATRIX_POLICY,
-            COMPRESSED_FORMATS,
-            "/datasources/external-basic.csv-spec",
-            "/datasources/external-declared-schema.csv-spec",
-            "/datasources/external-multifile.csv-spec",
-            "/datasources/external-multifile-resolution.csv-spec",
-            "/datasources/external-multivalue.csv-spec",
-            "/ndjson-declared-schema.csv-spec"
-        );
+        return readExternalSpecTestsWithFormatsForSuite(BWC_MATRIX_POLICY, COMPRESSED_FORMATS, "ndjson-compressed");
     }
 }

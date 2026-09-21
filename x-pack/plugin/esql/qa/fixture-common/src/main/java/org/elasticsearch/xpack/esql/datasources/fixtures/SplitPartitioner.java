@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.datasource.csv;
+package org.elasticsearch.xpack.esql.datasources.fixtures;
 
 /**
  * Tiny shared helper for the {@code *FixtureGenerator} build-time tools. Each generator implements

@@ -15,6 +15,7 @@ import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureMatrix;
 import org.elasticsearch.xpack.esql.qa.rest.BwcMatrixPolicy;
 import org.elasticsearch.xpack.esql.qa.rest.BwcMatrixPolicy.BwcTestId;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceCodecEligibility;
@@ -42,7 +43,9 @@ public class ParquetCompressedFormatSpecIT extends AbstractParquetExternalSpecTe
         "gzip",
         new BwcTestId("external-basic.csv-spec", "readAllEmployees")
     );
-    private static final List<String> CODECS = EsqlDataSourceCodecEligibility.parquetCodecs("snappy", "gzip", "zstd", "lz4raw");
+    private static final List<String> CODECS = EsqlDataSourceCodecEligibility.parquetCodecs(
+        FixtureMatrix.get().parquetCodecs("parquet-compressed").toArray(String[]::new)
+    );
 
     private final String codecName;
 
@@ -80,13 +83,18 @@ public class ParquetCompressedFormatSpecIT extends AbstractParquetExternalSpecTe
         return BWC_MATRIX_POLICY;
     }
 
+    /**
+     * This suite routes its own spec set, so its exclusions are declared under its own token.
+     * Without the override the lookup falls back to parquet and would read another suite's
+     * exclusion set, silently applying entries never written for this suite.
+     */
+    @Override
+    protected String exclusionSuiteToken() {
+        return "parquet-compressed";
+    }
+
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTestsWithCodecs(
-            BWC_MATRIX_POLICY,
-            CODECS,
-            "/datasources/external-basic.csv-spec",
-            "/datasources/external-multivalue.csv-spec"
-        );
+        return readExternalSpecTestsWithCodecsForSuite(BWC_MATRIX_POLICY, CODECS, "parquet-compressed");
     }
 }

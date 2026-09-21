@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureMatrix;
 import org.elasticsearch.xpack.esql.qa.rest.BwcMatrixPolicy;
 import org.elasticsearch.xpack.esql.qa.rest.BwcMatrixPolicy.BwcTestId;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceCodecEligibility;
@@ -32,7 +33,9 @@ public class ParquetCompressedMultifileSpecIT extends AbstractParquetExternalSpe
         "gzip",
         new BwcTestId("external-multifile.csv-spec", "readAllEmployeesMultiFile")
     );
-    private static final List<String> CODECS = EsqlDataSourceCodecEligibility.parquetCodecs("gzip", "zstd");
+    private static final List<String> CODECS = EsqlDataSourceCodecEligibility.parquetCodecs(
+        FixtureMatrix.get().parquetCodecs("parquet-compressed-multifile").toArray(String[]::new)
+    );
 
     private final String codecName;
 
@@ -65,13 +68,18 @@ public class ParquetCompressedMultifileSpecIT extends AbstractParquetExternalSpe
         return BWC_MATRIX_POLICY;
     }
 
+    /**
+     * This suite routes its own spec set, so its exclusions are declared under its own token.
+     * Without the override the lookup falls back to parquet and would read another suite's
+     * exclusion set, silently applying entries never written for this suite.
+     */
+    @Override
+    protected String exclusionSuiteToken() {
+        return "parquet-compressed-multifile";
+    }
+
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTestsWithCodecs(
-            BWC_MATRIX_POLICY,
-            CODECS,
-            "/datasources/external-multifile.csv-spec",
-            "/datasources/external-multifile-resolution.csv-spec"
-        );
+        return readExternalSpecTestsWithCodecsForSuite(BWC_MATRIX_POLICY, CODECS, "parquet-compressed-multifile");
     }
 }

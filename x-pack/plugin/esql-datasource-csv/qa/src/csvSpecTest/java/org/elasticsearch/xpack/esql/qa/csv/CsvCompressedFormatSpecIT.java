@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureMatrix;
 import org.elasticsearch.xpack.esql.qa.rest.BwcMatrixPolicy;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceCodecEligibility;
 
@@ -23,10 +24,13 @@ import java.util.List;
  * Each csv-spec test is run against every configured storage backend and compression format.
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
-public class CsvCompressedFormatSpecIT extends AbstractCsvExternalSpecTestCase {
+public class CsvCompressedFormatSpecIT extends AbstractDelimitedTextSpecTestCase {
 
     private static final BwcMatrixPolicy BWC_MATRIX_POLICY = COMPRESSED_BWC_MATRIX_POLICY;
-    private static final List<String> COMPRESSED_FORMATS = EsqlDataSourceCodecEligibility.textCompressionFormats("csv");
+    // Codecs come from the declaration, which also records that bzip2 is outside the GA text-format
+    // codec surface and is therefore snapshot-only. See elastic/esql-planning#938.
+    private static final List<String> COMPRESSED_FORMATS = FixtureMatrix.get()
+        .textCodecFormats("csv", EsqlDataSourceCodecEligibility.experimentalCodecsEligible());
 
     public CsvCompressedFormatSpecIT(
         String fileName,
@@ -41,6 +45,16 @@ public class CsvCompressedFormatSpecIT extends AbstractCsvExternalSpecTestCase {
         super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, format);
     }
 
+    /**
+     * This suite routes its own spec set, so its exclusions are declared under its own token.
+     * Without the override the lookup falls back to csv and would read another suite's
+     * exclusion set, silently applying entries never written for this suite.
+     */
+    @Override
+    protected String exclusionSuiteToken() {
+        return "csv-compressed";
+    }
+
     @Override
     protected BwcMatrixPolicy bwcMatrixPolicy() {
         return BWC_MATRIX_POLICY;
@@ -52,19 +66,6 @@ public class CsvCompressedFormatSpecIT extends AbstractCsvExternalSpecTestCase {
         // parse as CSV under the default multi_value_syntax: none. Use the scalar twin (csv-basic),
         // csv-headerless, and csv-multifile (both opt into brackets explicitly where they read bracket
         // data) to restore the equivalent coverage.
-        return readExternalSpecTestsWithFormats(
-            BWC_MATRIX_POLICY,
-            COMPRESSED_FORMATS,
-            "/csv-basic.csv-spec",
-            "/csv-declared-schema.csv-spec",
-            "/datasources/external-declared-schema.csv-spec",
-            "/csv-declared-schema-multifile.csv-spec",
-            "/csv-headerless.csv-spec",
-            "/csv-skip-rows.csv-spec",
-            "/csv-multifile.csv-spec",
-            "/csv-multifile-resolution.csv-spec",
-            "/csv-multivalue.csv-spec",
-            "/csv-only-declared-dialect.csv-spec"
-        );
+        return readExternalSpecTestsWithFormatsForSuite(BWC_MATRIX_POLICY, COMPRESSED_FORMATS, "csv-compressed");
     }
 }

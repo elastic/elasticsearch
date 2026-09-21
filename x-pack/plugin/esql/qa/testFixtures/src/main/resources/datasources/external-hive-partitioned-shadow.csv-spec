@@ -1,0 +1,46 @@
+// Hive-partition cases where the partition key COLLIDES with a same-named payload column, so the reader
+// has to decide which wins. Shared rather than Parquet-local: the substitution and its warning are decided
+// by the partition-detection layer, not by any one reader, so every format should agree.
+//
+// Only scalar columns are projected, so the cases carry no multi-value dependency.
+//
+// Fixture: {{employees_hive_shadow}} -> hive-partitioned-shadow/languages=*/
+
+shadowedColumnSubstitutionAndWarning
+required_capability: dataset_in_from_command
+dataset: employees_hive_shadow_ds: "{{employees_hive_shadow}}"
+
+FROM employees_hive_shadow_ds
+| STATS count = COUNT(*) BY languages
+| SORT languages NULLS LAST;
+
+warningRegex:.*one or more physical columns are shadowed by same-named Hive partition keys.*
+warningRegex:.*physical column \[languages\] is shadowed by a same-named Hive partition key.*
+
+count:long | languages:integer
+15         | 1
+19         | 2
+17         | 3
+18         | 4
+21         | 5
+10         | null
+;
+
+// The documented opt-out stops the substitution: with partition_detection none nothing is path-derived,
+// so the physical column is read and no shadow warning is emitted.
+noneStopsTheColumnSubstitution
+required_capability: dataset_in_from_command
+dataset: employees_hive_shadow_none: "{{employees_hive_shadow}}" WITH {"partition_detection": "none"}
+
+FROM employees_hive_shadow_none
+| STATS count = COUNT(*) BY languages
+| SORT languages NULLS LAST;
+
+count:long | languages:integer
+15         | 1
+19         | 2
+17         | 3
+18         | 4
+21         | 5
+10         | null
+;

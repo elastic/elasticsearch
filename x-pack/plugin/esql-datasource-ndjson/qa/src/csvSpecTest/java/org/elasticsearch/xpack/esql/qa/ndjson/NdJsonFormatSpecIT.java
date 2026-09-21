@@ -16,9 +16,7 @@ import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.BwcMatrixPolicy;
 import org.elasticsearch.xpack.esql.qa.rest.BwcMatrixPolicy.BwcTestId;
 
-import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Parameterized integration tests for standalone NDJSON files.
@@ -39,13 +37,6 @@ public class NdJsonFormatSpecIT extends AbstractNdJsonExternalSpecTestCase {
      * fixture/STRICT-semantics gap, unrelated to the empty-projection fix. The empty-projection
      * multi-file tests ({@code COUNT(*)} / {@code _file.*}-only) previously muted here now run.
      */
-    private static final Set<String> SKIPPED_TESTS = Set.of(
-        // STRICT resolution rejects the divergent-schema fixture at resolution time.
-        "strictCount",
-        "strictFilterAndSort",
-        "strictSalaryStats",
-        "strictAggregateByGender"
-    );
 
     public NdJsonFormatSpecIT(
         String fileName,
@@ -59,33 +50,8 @@ public class NdJsonFormatSpecIT extends AbstractNdJsonExternalSpecTestCase {
         super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, "ndjson");
     }
 
-    @Override
-    protected BwcMatrixPolicy bwcMatrixPolicy() {
-        return BWC_MATRIX_POLICY;
-    }
-
-    @Override
-    protected void shouldSkipTest(String testName) throws IOException {
-        if (SKIPPED_TESTS.contains(testName)) {
-            assumeTrue(testName + " not supported by NDJSON multi-file path (SchemaAdaptingIterator limitation)", false);
-        }
-        super.shouldSkipTest(testName);
-    }
-
-    // The ndjson- owner prefix is globbed, so a new ndjson-*.csv-spec is picked up without touching
-    // this factory. The shared datasources/external-* picks stay curated: each suite names the files
-    // its reader and fixtures can serve rather than globbing that directory wholesale.
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTests(
-            BWC_MATRIX_POLICY,
-            "/datasources/external-basic.csv-spec",
-            "/ndjson-*.csv-spec",
-            "/datasources/external-declared-schema.csv-spec",
-            "/datasources/external-heavy-aggregates.csv-spec",
-            "/datasources/external-multifile.csv-spec",
-            "/datasources/external-multifile-resolution.csv-spec",
-            "/datasources/external-multivalue.csv-spec"
-        );
+        return readExternalSpecTestsForSuite(BWC_MATRIX_POLICY, "ndjson");
     }
 }

@@ -8,14 +8,18 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -124,6 +128,306 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
             + " | EVAL g = TO_STRING(gender)";
         LogicalPlan plan = defaultAnalyzer().query(query);
         optimize(plan); // must not throw IllegalStateException
+    }
+
+    public void testTotalBranchCountWithNestedSubqueryAtOrBeyondLimit() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String query = """
+            FROM test, (FROM test, (FROM languages))
+            | STATS c = COUNT(*)
+            """;
+
+        // Three sources; the inner UnionAll is a merge segment, not a leaf.
+        planSubquery(query, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 3).build());
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> planSubquery(query, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 2).build())
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "query resolved to 3 branches in total, exceeding the limit of 2 set by the [max_branch_count] query pragma. "
+                    + "Reduce the number of sources"
+            )
+        );
+
+        String threeDeep = """
+            FROM test, (FROM test, (FROM test, (FROM languages)))
+            | STATS c = COUNT(*)
+            """;
+        planSubquery(threeDeep, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 4).build());
+        e = expectThrows(
+            VerificationException.class,
+            () -> planSubquery(threeDeep, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 3).build())
+        );
+        assertThat(e.getMessage(), containsString("query resolved to 4 branches in total, exceeding the limit of 3"));
+    }
+
+    public void testTotalBranchCountIgnoresPlansWithoutUnions() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        planSubquery("""
+            FROM test
+            | WHERE emp_no > 10000
+            """, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 1).build());
+    }
+
+    public void testTotalBranchCountDoesNotCountLookupJoinAsLeaf() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String query = """
+            FROM test, (FROM test)
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            """;
+
+        planSubquery(query, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 2).build());
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> planSubquery(query, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 1).build())
+        );
+        assertThat(e.getMessage(), containsString("query resolved to 2 branches in total, exceeding the limit of 1"));
+    }
+
+    public void testTotalBranchCountDoesNotCountEnrichAsLeaf() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String query = """
+            FROM test, (FROM test)
+            | ENRICH languages_idx ON first_name
+            """;
+
+        planSubquery(query, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 2).build());
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> planSubquery(query, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 1).build())
+        );
+        assertThat(e.getMessage(), containsString("query resolved to 2 branches in total, exceeding the limit of 1"));
+    }
+
+    public void testTotalBranchCountWithViewAtOrBeyondLimit() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String query = "FROM view_0, view_1, test";
+
+        planSubquery(viewAnalyzer(), query, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 3).build());
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> planSubquery(viewAnalyzer(), query, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 2).build())
+        );
+        assertThat(e.getMessage(), containsString("query resolved to 3 branches in total, exceeding the limit of 2"));
+    }
+
+    public void testNestingLevelAtOrBeyondLimit() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String flat = """
+            FROM test, (FROM test), (FROM languages)
+            | STATS c = COUNT(*)
+            """;
+        planSubquery(flat, Settings.builder().put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 1).build());
+
+        String nested = """
+            FROM test, (FROM test, (FROM test, (FROM languages)))
+            | STATS c = COUNT(*)
+            """;
+
+        planSubquery(nested, Settings.builder().put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 3).build());
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> planSubquery(nested, Settings.builder().put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 2).build())
+        );
+        assertThat(e.getMessage(), containsString("query resolved to 3 nested union levels, exceeding the limit of 2"));
+        assertThat(e.getMessage(), containsString("[max_branch_level] query pragma"));
+        assertThat(e.getMessage(), containsString("Reduce the nesting of sources"));
+    }
+
+    public void testNestingLevelIgnoresPlansWithoutUnions() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        planSubquery("""
+            FROM test
+            | WHERE emp_no > 10000
+            """, Settings.builder().put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 1).build());
+    }
+
+    public void testBothNestedSubqueryLimitsAtOrBeyondLimit() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String query = """
+            FROM test, (FROM test, (FROM test, (FROM languages)))
+            | STATS c = COUNT(*)
+            """;
+        Settings atLimit = Settings.builder()
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 4)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 3)
+            .build();
+        Settings beyondBranchLimit = Settings.builder()
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 3)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 3)
+            .build();
+        Settings beyondNestingLimit = Settings.builder()
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 4)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 2)
+            .build();
+        Settings beyondBothLimits = Settings.builder()
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 3)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 2)
+            .build();
+
+        planSubquery(query, atLimit);
+        VerificationException e = expectThrows(VerificationException.class, () -> planSubquery(query, beyondBranchLimit));
+        assertThat(e.getMessage(), containsString("query resolved to 4 branches in total, exceeding the limit of 3"));
+        e = expectThrows(VerificationException.class, () -> planSubquery(query, beyondNestingLimit));
+        assertThat(e.getMessage(), containsString("query resolved to 3 nested union levels, exceeding the limit of 2"));
+        e = expectThrows(VerificationException.class, () -> planSubquery(query, beyondBothLimits));
+        assertThat(e.getMessage(), containsString("Found 2 problems"));
+        assertThat(e.getMessage(), containsString("query resolved to 4 branches in total, exceeding the limit of 3"));
+        assertThat(e.getMessage(), containsString("query resolved to 3 nested union levels, exceeding the limit of 2"));
+    }
+
+    public void testBothNestedSubqueryLimitsWithViewAtOrBeyondLimit() {
+        assumeTrue("Requires IN subquery with view support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String query = """
+            FROM test, (FROM test, (FROM languages))
+            | WHERE emp_no IN (FROM view_0, view_1 | KEEP emp_no)
+            """;
+        Settings atLimit = Settings.builder()
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 3)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 2)
+            .build();
+        Settings beyondBranchLimit = Settings.builder()
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 2)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 2)
+            .build();
+        Settings beyondNestingLimit = Settings.builder()
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 3)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 1)
+            .build();
+        Settings beyondBothLimits = Settings.builder()
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 2)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 1)
+            .build();
+
+        planSubquery(viewAnalyzer(), query, atLimit);
+        VerificationException e = expectThrows(VerificationException.class, () -> planSubquery(viewAnalyzer(), query, beyondBranchLimit));
+        assertThat(e.getMessage(), containsString("query resolved to 3 branches in total, exceeding the limit of 2"));
+        e = expectThrows(VerificationException.class, () -> planSubquery(viewAnalyzer(), query, beyondNestingLimit));
+        assertThat(e.getMessage(), containsString("query resolved to 2 nested union levels, exceeding the limit of 1"));
+        e = expectThrows(VerificationException.class, () -> planSubquery(viewAnalyzer(), query, beyondBothLimits));
+        assertThat(e.getMessage(), containsString("Found 2 problems"));
+        assertThat(e.getMessage(), containsString("query resolved to 3 branches in total, exceeding the limit of 2"));
+        assertThat(e.getMessage(), containsString("query resolved to 2 nested union levels, exceeding the limit of 1"));
+    }
+
+    public void testNestedSubqueryLimitsWithinInSubquery() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String query = """
+            FROM (FROM test
+                  | WHERE emp_no IN (
+                      FROM test, (FROM test, (FROM test))
+                      | KEEP emp_no
+                    )
+                 ),
+                 (FROM test)
+            """;
+        assertNestedSubqueryLimits(query, subqueryAnalyzer(), 3, 2);
+    }
+
+    public void testNestedSubqueryLimitsWithinInSubqueryWithView() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String query = """
+            FROM (FROM test
+                  | WHERE emp_no IN (
+                      FROM view_0, (FROM view_1, (FROM test))
+                      | KEEP emp_no
+                    )
+                 ),
+                 (FROM test)
+            """;
+        assertNestedSubqueryLimits(query, viewAnalyzer(), 3, 2);
+    }
+
+    public void testNestedSubqueryLimitsForMultipleInSubqueriesAreIndependent() {
+        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String query = """
+            FROM test
+            | WHERE emp_no IN (
+                FROM test, (FROM test, (FROM test))
+                | KEEP emp_no
+              )
+              AND languages IN (
+                FROM test, (FROM test), (FROM test, (FROM test | WHERE languages > 0))
+                | KEEP languages
+              )
+            """;
+        Settings atLimit = Settings.builder()
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 4)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 2)
+            .build();
+        Settings beyondBothLimits = Settings.builder()
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 2)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 1)
+            .build();
+
+        planSubquery(query, atLimit);
+        VerificationException e = expectThrows(VerificationException.class, () -> planSubquery(query, beyondBothLimits));
+        assertThat(e.getMessage(), containsString("Found 4 problems"));
+        assertThat(e.getMessage(), containsString("query resolved to 3 branches in total, exceeding the limit of 2"));
+        assertThat(e.getMessage(), containsString("query resolved to 4 branches in total, exceeding the limit of 2"));
+        assertThat(e.getMessage(), containsString("query resolved to 2 nested union levels, exceeding the limit of 1"));
+    }
+
+    private void assertNestedSubqueryLimits(String query, TestAnalyzer analyzer, int branches, int levels) {
+        Settings atLimit = Settings.builder()
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), branches)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), levels)
+            .build();
+        Settings beyondBranchLimit = Settings.builder()
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), branches - 1)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), levels)
+            .build();
+        Settings beyondNestingLimit = Settings.builder()
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), branches)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), levels - 1)
+            .build();
+        Settings beyondBothLimits = Settings.builder()
+            .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), branches - 1)
+            .put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), levels - 1)
+            .build();
+
+        planSubquery(analyzer, query, atLimit);
+        VerificationException e = expectThrows(VerificationException.class, () -> planSubquery(analyzer, query, beyondBranchLimit));
+        assertThat(
+            e.getMessage(),
+            containsString("query resolved to " + branches + " branches in total, exceeding the limit of " + (branches - 1))
+        );
+        e = expectThrows(VerificationException.class, () -> planSubquery(analyzer, query, beyondNestingLimit));
+        assertThat(
+            e.getMessage(),
+            containsString("query resolved to " + levels + " nested union levels, exceeding the limit of " + (levels - 1))
+        );
+        e = expectThrows(VerificationException.class, () -> planSubquery(analyzer, query, beyondBothLimits));
+        assertThat(e.getMessage(), containsString("Found 2 problems"));
+        assertThat(
+            e.getMessage(),
+            containsString("query resolved to " + branches + " branches in total, exceeding the limit of " + (branches - 1))
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("query resolved to " + levels + " nested union levels, exceeding the limit of " + (levels - 1))
+        );
+    }
+
+    private LogicalPlan planSubquery(String query, Settings pragmaSettings) {
+        return planSubquery(subqueryAnalyzer(), query, pragmaSettings);
+    }
+
+    private LogicalPlan planSubquery(TestAnalyzer analyzer, String query, Settings pragmaSettings) {
+        var context = new LogicalOptimizerContext(
+            configuration(new QueryPragmas(pragmaSettings), query),
+            logicalOptimizerCtx.foldCtx(),
+            logicalOptimizerCtx.minimumVersion()
+        );
+        return new LogicalPlanOptimizer(context).optimize(analyzer.query(query));
+    }
+
+    private TestAnalyzer viewAnalyzer() {
+        return subqueryAnalyzer().addView("view_0", "FROM test").addView("view_1", "FROM test");
     }
 
     private String error(String query) {

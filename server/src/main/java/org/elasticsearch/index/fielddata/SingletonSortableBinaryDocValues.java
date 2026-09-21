@@ -14,11 +14,11 @@ import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 
-final class SingletonSortedBinaryDocValues extends SortedBinaryDocValues {
+final class SingletonSortableBinaryDocValues extends SortableBinaryDocValues {
 
     private final BinaryDocValues in;
 
-    SingletonSortedBinaryDocValues(BinaryDocValues in) {
+    SingletonSortableBinaryDocValues(BinaryDocValues in) {
         super(in);
         this.in = in;
     }

@@ -335,8 +335,8 @@ public class StringColumnTests extends ColumnarStringTestCase {
             (metadata, reader) -> {
                 // The column must round-trip regardless of whether the dictionary was accepted.
                 int seenDocs = 0;
-                final org.elasticsearch.columnar.substrate.ColumnIterator it = reader.iterator();
-                for (int doc = it.nextDoc(); doc != org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
+                final ColumnIterator it = reader.iterator();
+                for (int doc = it.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
                     final BytesRef[] expected = docSlots[doc];
                     final int rank = it.rank();
                     assertEquals("slot count at doc " + doc, expected.length, reader.valueCount(rank));

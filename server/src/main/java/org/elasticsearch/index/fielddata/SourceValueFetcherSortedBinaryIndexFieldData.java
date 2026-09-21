@@ -25,16 +25,16 @@ import java.util.Iterator;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-public class SourceValueFetcherSortedBinaryIndexFieldData extends SourceValueFetcherIndexFieldData<SortedBinaryDocValues> {
+public class SourceValueFetcherSortedBinaryIndexFieldData extends SourceValueFetcherIndexFieldData<SortableBinaryDocValues> {
 
-    public static class Builder extends SourceValueFetcherIndexFieldData.Builder<SortedBinaryDocValues> {
+    public static class Builder extends SourceValueFetcherIndexFieldData.Builder<SortableBinaryDocValues> {
 
         public Builder(
             String fieldName,
             ValuesSourceType valuesSourceType,
             ValueFetcher valueFetcher,
             SourceProvider sourceProvider,
-            ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory
+            ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory
         ) {
             super(fieldName, valuesSourceType, valueFetcher, sourceProvider, toScriptFieldFactory);
         }
@@ -56,7 +56,7 @@ public class SourceValueFetcherSortedBinaryIndexFieldData extends SourceValueFet
         ValuesSourceType valuesSourceType,
         ValueFetcher valueFetcher,
         SourceProvider sourceProvider,
-        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory
+        ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory
     ) {
         super(fieldName, valuesSourceType, valueFetcher, sourceProvider, toScriptFieldFactory);
     }
@@ -66,10 +66,10 @@ public class SourceValueFetcherSortedBinaryIndexFieldData extends SourceValueFet
         return new SourceValueFetcherSortedBinaryLeafFieldData(toScriptFieldFactory, context, valueFetcher, sourceProvider);
     }
 
-    public static class SourceValueFetcherSortedBinaryLeafFieldData extends SourceValueFetcherLeafFieldData<SortedBinaryDocValues> {
+    public static class SourceValueFetcherSortedBinaryLeafFieldData extends SourceValueFetcherLeafFieldData<SortableBinaryDocValues> {
 
         public SourceValueFetcherSortedBinaryLeafFieldData(
-            ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+            ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory,
             LeafReaderContext leafReaderContext,
             ValueFetcher valueFetcher,
             SourceProvider sourceProvider
@@ -80,13 +80,13 @@ public class SourceValueFetcherSortedBinaryIndexFieldData extends SourceValueFet
         @Override
         public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
             return toScriptFieldFactory.getScriptFieldFactory(
-                new SourceValueFetcherSortedBinaryDocValues(leafReaderContext, valueFetcher, sourceProvider),
+                new SourceValueFetcherSortableBinaryDocValues(leafReaderContext, valueFetcher, sourceProvider),
                 name
             );
         }
     }
 
-    public static class SourceValueFetcherSortedBinaryDocValues extends SortedBinaryDocValues implements ValueFetcherDocValues {
+    public static class SourceValueFetcherSortableBinaryDocValues extends SortableBinaryDocValues implements ValueFetcherDocValues {
 
         private final LeafReaderContext leafReaderContext;
 
@@ -96,7 +96,7 @@ public class SourceValueFetcherSortedBinaryIndexFieldData extends SourceValueFet
         private final SortedSet<BytesRef> values;
         private Iterator<BytesRef> iterator;
 
-        public SourceValueFetcherSortedBinaryDocValues(
+        public SourceValueFetcherSortableBinaryDocValues(
             LeafReaderContext leafReaderContext,
             ValueFetcher valueFetcher,
             SourceProvider sourceProvider

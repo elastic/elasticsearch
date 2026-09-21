@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggrega
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.UnaryAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
@@ -3924,7 +3925,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * LimitExec[1000[INTEGER],8]
      * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count()#3],SINGLE,[$$count()$count{r}#4, $$count()$
      * seen{r}#5],8]
-     *   \_MergeExec[[]]
+     *   \_MergeExec[[],UNION]
      *     |_ExchangeExec[[],false]
      *     | \_ProjectExec[[]]
      *     |   \_EsQueryExec[no_fields_index], ...]
@@ -10302,7 +10303,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(reason, aggField.dataType(), equalTo(fieldType));
     }
 
-    private static AggregateFunction assertAggregation(PhysicalPlan plan, String aliasName, Class<? extends AggregateFunction> aggClass) {
+    private static UnaryAggregateFunction assertAggregation(
+        PhysicalPlan plan,
+        String aliasName,
+        Class<? extends AggregateFunction> aggClass
+    ) {
         var agg = as(plan, AggregateExec.class);
         var aggExp = agg.aggregates().stream().filter(a -> {
             var alias = as(a, Alias.class);
@@ -10310,7 +10315,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         }).findFirst().orElseThrow(() -> new AssertionError("Expected aggregation " + aliasName + " not found"));
         var alias = as(aggExp, Alias.class);
         assertThat(alias.name(), is(aliasName));
-        var aggFunc = as(alias.child(), AggregateFunction.class);
+        var aggFunc = as(alias.child(), UnaryAggregateFunction.class);
         assertThat(aggFunc, instanceOf(aggClass));
         return aggFunc;
     }
@@ -10856,7 +10861,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * {@snippet lang="text":
      * ProjectExec[[]]
      * \_LimitExec[1000[INTEGER],1]
-     *   \_MergeExec[[]]
+     *   \_MergeExec[[],UNION]
      *     \_ProjectExec[[]]
      *       \_LimitExec[1000[INTEGER],1]
      *         \_ExchangeExec[[],false]
@@ -10895,7 +10900,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * {@snippet lang="text":
      * LimitExec[10000[INTEGER],8]
      * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS y#10],SINGLE,[$$y$count{r}#46, $$y$seen{r}#47],8]
-     *   \_MergeExec[[]]
+     *   \_MergeExec[[],UNION]
      *     \_ProjectExec[[]]
      *       \_TopNExec[[Order[x{r}#4,ASC,LAST]],10[INTEGER],4]
      *         \_ExchangeExec[[x{r}#4],false]
@@ -10942,7 +10947,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * {@snippet lang="text":
      * LimitExec[10000[INTEGER],8]
      * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS y#14],SINGLE,[$$y$count{r}#87, $$y$seen{r}#88],8]
-     *   \_MergeExec[[]]
+     *   \_MergeExec[[],UNION]
      *     |_AggregateExec[[first_name{f}#16],[],FINAL,[first_name{f}#16],1]
      *     | \_ExchangeExec[[first_name{f}#16],true]
      *     |   \_AggregateExec[[first_name{f}#16],[first_name{f}#16],INITIAL,[first_name{f}#16],50]

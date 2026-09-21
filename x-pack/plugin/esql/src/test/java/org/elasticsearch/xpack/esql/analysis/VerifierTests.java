@@ -3892,6 +3892,10 @@ public class VerifierTests extends AnalyzerTestCase {
             "from test metadata _score | stats c = max(_score) where " + functionInvocation,
             containsString("cannot use _score aggregations with a WHERE filter in a STATS command")
         );
+        fullText().error(
+            "from test metadata _score | stats c = weighted_avg(id, _score) where " + functionInvocation,
+            containsString("cannot use _score aggregations with a WHERE filter in a STATS command")
+        );
     }
 
     public void testVectorSimilarityFunctionsNullArgs() throws Exception {
@@ -5076,6 +5080,31 @@ public class VerifierTests extends AnalyzerTestCase {
         supportsHighlight(fullText()).query("FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title");
         supportsHighlight(fullText()).query(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title WITH { \"analyzer\": \"standard\" }"
+        );
+        // Full-text functions inside a HIGHLIGHT query are used to define highlighting terms, not as Lucene filter predicates.
+        // They must be allowed on non-STANDARD (e.g. time-series) indices.
+        supportsHighlight(k8s()).query("TS k8s | HIGHLIGHT MATCH(event_log, \"fox\") ON event_log");
+        supportsHighlight(k8s()).query("TS k8s | HIGHLIGHT event_log : \"fox\" ON event_log");
+        supportsHighlight(k8s()).query("TS k8s | HIGHLIGHT (event_log : \"fox\") OR (event_log : \"dog\") ON event_log");
+        supportsHighlight(k8s()).query(
+            "TS k8s | LIMIT 100 | HIGHLIGHT MATCH(event_log, \"fox\") OR MATCH(event_log, \"dog\") ON event_log"
+        );
+    }
+
+    public void testHighlightOnTimeSeriesStillRejectsWhereClause() {
+        // The HIGHLIGHT exemption is narrow: full-text functions in WHERE remain rejected on non-STANDARD indices.
+        k8s().error(
+            "TS k8s | WHERE MATCH(event_log, \"fox\")",
+            allOf(containsString("[MATCH] function cannot operate on [event_log]"), containsString("non-STANDARD mode"))
+        );
+        k8s().error(
+            "TS k8s | WHERE event_log : \"fox\"",
+            allOf(containsString("cannot operate on [event_log]"), containsString("non-STANDARD mode"))
+        );
+        // A WHERE violation is still reported when a valid HIGHLIGHT on the same field is present.
+        supportsHighlight(k8s()).error(
+            "TS k8s | WHERE MATCH(event_log, \"fox\") | HIGHLIGHT MATCH(event_log, \"fox\") ON event_log",
+            allOf(containsString("[MATCH] function cannot operate on [event_log]"), containsString("non-STANDARD mode"))
         );
     }
 

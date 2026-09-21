@@ -46,7 +46,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.N
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.IndexType;
@@ -97,8 +97,8 @@ public class FunctionScoreTests extends ESTestCase {
                 }
 
                 @Override
-                public SortedBinaryDocValues getBytesValues() {
-                    return new SortedBinaryDocValues(null) {
+                public SortableBinaryDocValues getBytesValues() {
+                    return new SortableBinaryDocValues(null) {
                         @Override
                         public boolean advanceExact(int docId) {
                             return true;
@@ -213,7 +213,7 @@ public class FunctionScoreTests extends ESTestCase {
                 }
 
                 @Override
-                public SortedBinaryDocValues getBytesValues() {
+                public SortableBinaryDocValues getBytesValues() {
                     throw new UnsupportedOperationException(UNSUPPORTED);
                 }
 

@@ -58,7 +58,8 @@ import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 /// Limit the number of concurrent recoveries. Slots are filled when dispatching a recovery task to the executor and
 /// released when the recovery's [RecoveryListener] completes.
 /// The max number of concurrent recovery slots is controlled by the [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING]
-/// dynamic setting.
+/// dynamic setting. [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING] then controls the max proportion
+/// of those concurrent recovery slots that may be used for relocation recoveries.
 ///
 /// Dispatch is also subject to the node's recovery gates: while they block, no queued recovery is dispatched, and [#doFillSlots]
 /// registers a listener with the [RecoveryGateMonitor] so dispatch resumes as soon as they allow recoveries again.

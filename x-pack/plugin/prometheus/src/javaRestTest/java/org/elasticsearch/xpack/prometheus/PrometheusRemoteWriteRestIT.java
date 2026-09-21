@@ -234,6 +234,43 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
         assertThat(new ObjectPath(docs.getFirst()).evaluate("metrics." + metricName), equalTo(42.5));
     }
 
+    public void testRemoteWriteV2ContentTypeRejected() throws Exception {
+        String dataStream = "metrics-prwv2reject.prometheus-default";
+        Request request = new Request("POST", "/_prometheus/metrics/prwv2reject/api/v1/write");
+        request.setEntity(
+            new ByteArrayEntity(
+                snappyEncode(simpleWriteRequest("v2_rejected_metric").toByteArray()),
+                ContentType.parse("application/x-protobuf;proto=io.prometheus.write.v2.Request")
+            )
+        );
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.CONTENT_ENCODING, "snappy").build());
+        addWriteAuth(request);
+
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(415));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("io.prometheus.write.v2.request"));
+        assertFalse("PRW 2.0 requests must not be accepted as empty 1.0 writes", dataStreamExists(dataStream));
+    }
+
+    public void testRemoteWriteV1ExplicitProtoAccepted() throws Exception {
+        String metricName = "v1_explicit_proto_metric";
+        Request request = new Request("POST", "/_prometheus/metrics/prwv1proto/api/v1/write");
+        request.setEntity(
+            new ByteArrayEntity(
+                snappyEncode(simpleWriteRequest(metricName).toByteArray()),
+                ContentType.parse("application/x-protobuf;proto=prometheus.WriteRequest")
+            )
+        );
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.CONTENT_ENCODING, "snappy").build());
+        addWriteAuth(request);
+
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(204));
+
+        ObjectPath source = searchSingleDoc("metrics-prwv1proto.prometheus-default", metricName);
+        assertThat(source.evaluate("metrics." + metricName), equalTo(1.0));
+    }
+
     public void testRemoteWriteMissingNameLabelReturns400() throws Exception {
         long timestamp = System.currentTimeMillis();
 

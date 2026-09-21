@@ -571,6 +571,9 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
         assertThat(e.validationErrors(), hasSize(2));
         assertThat(e.validationErrors(), hasItem(containsString("must use one of the supported URI schemes")));
+        // The second error is a value error, not an unknown-setting error: error_mode is a coordinator
+        // key and its value is independently validated regardless of the resource scheme.
+        assertThat(e.validationErrors(), hasItem(containsString("Invalid value for [error_mode]")));
     }
 
     // --- Coordinator data-shape key validation (strict, via the owning query-path parsers) ---
@@ -1315,6 +1318,23 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertThat(e.getMessage(), containsString("is not a complete object location"));
         assertThat(e.getMessage(), not(containsString("cannot determine")));
         assertEquals(1, e.validationErrors().size());
+    }
+
+    public void testResourceCheckFailureWithNoExtensionDoesNotAlsoReportFormatKeyUnknown() {
+        // s3:// has a valid scheme but fails the resourceCheck (no bucket). The resource has no
+        // extension, so the format cannot be inferred. The format-inference error is suppressed
+        // (it is a consequence of the broken resource, not an independent finding), and a
+        // format-specific key must not appear as an unknown setting either.
+        FileDataSourceValidator v = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+            .withResourceCheck(S3ResourceCheck::validate)
+            .withFormatConfigKeyResolver(CSV_RESOLVER)
+            .withFormatReaderRegistry(csvGzipRegistry());
+        var e = expectThrows(
+            ValidationException.class,
+            () -> v.validateDataset(Map.of(), "s3://", Map.of("delimiter", "|"))
+        );
+        assertThat(e.validationErrors(), hasSize(1));
+        assertThat(e.validationErrors().get(0), containsString("is not a complete object location"));
     }
 
     public void testValidateDatasetRejectsAccessPointArn() {

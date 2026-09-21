@@ -497,7 +497,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
     ) {
         ValidationException errors = new ValidationException();
 
-        validateResource(resource, errors);
+        boolean schemeCheckFailed = validateResource(resource, errors);
 
         if (datasetSettings == null) {
             datasetSettings = Map.of();
@@ -505,7 +505,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
         Map<String, Object> settings = datasetSettings;
 
-        Set<String> acceptedFields = resolveAcceptedFields(resource, settings, errors);
+        Set<String> acceptedFields = resolveAcceptedFields(resource, settings, errors, schemeCheckFailed);
         if (acceptedFields == null) {
             // Bad explicit format: a single "unknown format" error is already recorded. Skip field
             // rejection, per-key parsing and storage so the PUT fails on that one clear reason.
@@ -728,7 +728,12 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * messages.
      */
     @Nullable
-    private Set<String> resolveAcceptedFields(@Nullable String resource, Map<String, Object> settings, ValidationException errors) {
+    private Set<String> resolveAcceptedFields(
+        @Nullable String resource,
+        Map<String, Object> settings,
+        ValidationException errors,
+        boolean schemeCheckFailed
+    ) {
         if (formatConfigKeyResolver == null) {
             // No registry to validate formats against: reject `format` and every format-specific key.
             Set<String> effective = effectiveDatasetKeys(DATASET_FIELDS_WITHOUT_FORMAT);
@@ -756,11 +761,14 @@ public class FileDataSourceValidator implements DataSourceValidator {
             rejectUnknownFields(settings, effective, errors);
             return effective;
         }
-        // A resource that failed the scheme/URI check is in the same dead end, but format-specific
-        // keys must not be reported as unknown: they are only unresolvable because the resource
-        // already failed, and the scheme error is the one the user should act on. Genuinely
+        // A resource whose URI scheme is not recognised cannot have its format inferred, so
+        // format-specific keys must not be reported as unknown — they are only unresolvable because
+        // the resource failed, and the scheme error is the one the user should act on. Genuinely
         // independent coordinator-level faults (e.g. a malformed error_mode) still accumulate.
-        if (errors.validationErrors().isEmpty() == false) {
+        // Resources that pass the scheme check but fail the provider-level resourceCheck (empty
+        // S3 authority, ARN, MRAP) are not suppressed here: their scheme is valid so the format
+        // can still be inferred from the file extension.
+        if (schemeCheckFailed) {
             Set<String> effective = effectiveDatasetKeys(COORDINATOR_DATASET_KEYS);
             Set<String> allFormatKeys = allFormatConfigKeys();
             Map<String, Object> nonFormatSettings = new HashMap<>();
@@ -777,7 +785,13 @@ public class FileDataSourceValidator implements DataSourceValidator {
             Set<String> formatKeys = formatConfigKeyResolver.configKeysForFormat(impliedFormat);
             return acceptForFormat(settings, impliedFormat, formatKeys != null ? formatKeys : Set.of(), errors);
         } catch (IllegalArgumentException e) {
-            errors.addValidationError(e.getMessage());
+            if (errors.validationErrors().isEmpty()) {
+                // No prior error: the format-inference message stands alone and is informative.
+                errors.addValidationError(e.getMessage());
+            }
+            // If prior errors exist (e.g. a resourceCheck failure already recorded), suppress the
+            // format-inference error: "cannot determine format" is a consequence of the broken
+            // resource, not an independent finding. The PUT fails on the already-recorded reason.
             return null;
         }
     }
@@ -984,10 +998,16 @@ public class FileDataSourceValidator implements DataSourceValidator {
         return name != null ? name : "uncompressed";
     }
 
-    private void validateResource(String resource, ValidationException errors) {
+    /**
+     * Validates the resource field. Returns {@code true} if and only if the resource was
+     * non-null/non-blank and the scheme check specifically failed (no registered scheme prefix
+     * matched). Returns {@code false} in all other cases: missing resource, or a resource whose
+     * scheme matched but whose provider-level check ({@link #resourceCheck}) recorded an error.
+     */
+    private boolean validateResource(String resource, ValidationException errors) {
         if (resource == null || resource.isBlank()) {
             errors.addValidationError("[resource] is required");
-            return;
+            return false;
         }
         // Case-insensitive scheme match. Each plugin declares scheme names without "://" via supportedSchemes();
         // we append "://" here to ensure prefix matching is unambiguous (so e.g. "s3foo://" doesn't match "s3").
@@ -1011,9 +1031,10 @@ public class FileDataSourceValidator implements DataSourceValidator {
             }
             sb.append(']');
             errors.addValidationError("[resource] must use one of the supported URI schemes " + sb + " but was [" + resource + "]");
-        } else {
-            resourceCheck.accept(resource, errors);
+            return true;
         }
+        resourceCheck.accept(resource, errors);
+        return false;
     }
 
     /**

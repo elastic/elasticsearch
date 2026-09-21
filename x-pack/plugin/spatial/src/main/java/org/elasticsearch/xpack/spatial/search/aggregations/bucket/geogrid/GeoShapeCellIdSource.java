@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -53,7 +53,7 @@ public class GeoShapeCellIdSource extends ValuesSource.Numeric {
     }
 
     @Override
-    public SortedBinaryDocValues bytesValues(LeafReaderContext ctx) {
+    public SortableBinaryDocValues bytesValues(LeafReaderContext ctx) {
         throw new UnsupportedOperationException();
     }
 }

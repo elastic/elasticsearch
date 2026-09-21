@@ -29,7 +29,7 @@ import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -80,11 +80,11 @@ public class LuceneOperatorSingleValueQueryWarningsTests extends ComputeTestCase
         when(fieldData.getFieldName()).thenReturn(fieldName);
         LeafFieldData leafFieldData = mock(LeafFieldData.class);
         when(fieldData.load(any())).thenReturn(leafFieldData);
-        SortedBinaryDocValues sortedBinaryDocValues = mock(SortedBinaryDocValues.class);
+        SortableBinaryDocValues sortedBinaryDocValues = mock(SortableBinaryDocValues.class);
         when(leafFieldData.getBytesValues()).thenReturn(sortedBinaryDocValues);
         // Report as multi-valued only for rewrite() purposes (see javadoc above) -- that check only
         // looks at getValueMode()/getSparsity(), not at any real per-doc values.
-        when(sortedBinaryDocValues.getValueMode()).thenReturn(SortedBinaryDocValues.ValueMode.MULTI_VALUED);
+        when(sortedBinaryDocValues.getValueMode()).thenReturn(SortableBinaryDocValues.ValueMode.MULTI_VALUED);
         // When actually scoring, alternate between single-valued (1) and multi-valued (2) docs.
         // Single-valued docs match the query and fill pages normally -- so operators yield at page
         // boundaries and both get a fair share of the slice queue. Multi-valued docs trigger

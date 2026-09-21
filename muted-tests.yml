@@ -32,12 +32,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:spatial.convertCartesianFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/144580
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecSpatialShapesIT
-  method: test {csv-spec:spatial_shapes.convertFromStringParseError}
-  issue: https://github.com/elastic/elasticsearch/issues/144672
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecSpatialShapesIT
-  method: test {csv-spec:spatial_shapes.convertFromStringParseError}
-  issue: https://github.com/elastic/elasticsearch/issues/144672
 - class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
   method: testScaleWhileShrinking
   issue: https://github.com/elastic/elasticsearch/issues/145669

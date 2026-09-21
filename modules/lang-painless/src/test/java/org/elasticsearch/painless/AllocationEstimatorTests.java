@@ -152,6 +152,106 @@ public class AllocationEstimatorTests extends AllocationTestCase {
         PainlessLookupBuilder.buildFromWhitelists(whitelists, new HashMap<>(), new HashMap<>());
     }
 
+    // ---- java.time tiers: flat value, composite chain, and the text-sized formatter members. ----
+
+    public void testFlatTimeValueCharged() {
+        assertEquals(TimeAllocationEstimators.FLAT_VALUE_BYTES, allocatedBytes("Instant.ofEpochMilli(0); return 'x';"));
+    }
+
+    public void testFlatTimeValueChargedPerCall() {
+        // Two flat allocations, one per call, even though the second one only shifts the value.
+        assertEquals(
+            2 * TimeAllocationEstimators.FLAT_VALUE_BYTES,
+            allocatedBytes("Instant i = Instant.ofEpochMilli(0); i.plusSeconds(1); return 'x';")
+        );
+    }
+
+    public void testFlatTimeValueTripsLimit() {
+        assertTripsLimit("Instant.ofEpochMilli(0); return 'x';");
+    }
+
+    public void testAtZoneChargesTheWholeChain() {
+        // The flat Instant plus the zoned date-time chain it builds: the outer object, a LocalDateTime, a LocalDate and a LocalTime.
+        assertEquals(
+            TimeAllocationEstimators.FLAT_VALUE_BYTES + TimeAllocationEstimators.ZONED_DATE_TIME_BYTES,
+            allocatedBytes("Instant.ofEpochMilli(0).atZone(ZoneId.of('UTC')); return 'x';")
+        );
+    }
+
+    public void testAtOffsetChargesTheOffsetChain() {
+        assertEquals(
+            TimeAllocationEstimators.FLAT_VALUE_BYTES + TimeAllocationEstimators.OFFSET_DATE_TIME_BYTES,
+            allocatedBytes("Instant.ofEpochMilli(0).atOffset(ZoneOffset.UTC); return 'x';")
+        );
+    }
+
+    public void testZonedDateTimeArithmeticChargesTheChain() {
+        assertEquals(
+            TimeAllocationEstimators.FLAT_VALUE_BYTES + 2 * TimeAllocationEstimators.ZONED_DATE_TIME_BYTES,
+            allocatedBytes("Instant.ofEpochMilli(0).atZone(ZoneId.of('UTC')).plusDays(1); return 'x';")
+        );
+    }
+
+    public void testZonedDateTimeChainTripsLimit() {
+        assertTripsLimit("Instant.ofEpochMilli(0).atZone(ZoneId.of('UTC')); return 'x';");
+    }
+
+    public void testZonedDateTimeParseChargedFromText() {
+        String text = "2020-01-01T00:00:00Z";
+        assertEquals(
+            TimeAllocationEstimators.parseZonedDateTimeBytes(text),
+            allocatedBytes("ZonedDateTime.parse('" + text + "'); return 'x';")
+        );
+    }
+
+    public void testInstantParseChargedFromText() {
+        String text = "2020-01-01T00:00:00Z";
+        assertEquals(TimeAllocationEstimators.parseFlatValueBytes(text), allocatedBytes("Instant.parse('" + text + "'); return 'x';"));
+    }
+
+    public void testOfPatternChargeGrowsWithThePattern() {
+        long shortPattern = allocatedBytes("DateTimeFormatter.ofPattern('yyyy'); return 'x';");
+        long longPattern = allocatedBytes("DateTimeFormatter.ofPattern('yyyy-MM-dd HH:mm:ss.SSS'); return 'x';");
+        assertEquals(TimeAllocationEstimators.ofPatternBytes("yyyy"), shortPattern);
+        assertEquals(TimeAllocationEstimators.ofPatternBytes("yyyy-MM-dd HH:mm:ss.SSS"), longPattern);
+        assertTrue("a longer pattern must cost more", longPattern > shortPattern);
+    }
+
+    public void testFormatChargedAsABoundedString() {
+        long expected = TimeAllocationEstimators.ofPatternBytes("yyyy") + TimeAllocationEstimators.formatBytes(null, null)
+            + TimeAllocationEstimators.FLAT_VALUE_BYTES + TimeAllocationEstimators.ZONED_DATE_TIME_BYTES;
+        assertEquals(
+            expected,
+            allocatedBytes(
+                "DateTimeFormatter f = DateTimeFormatter.ofPattern('yyyy');"
+                    + "f.format(Instant.ofEpochMilli(0).atZone(ZoneId.of('UTC'))); return 'x';"
+            )
+        );
+    }
+
+    public void testFormatterParseChargedFromText() {
+        String text = "2020";
+        long expected = TimeAllocationEstimators.ofPatternBytes("yyyy") + TimeAllocationEstimators.formatterParseBytes(null, text);
+        assertEquals(expected, allocatedBytes("DateTimeFormatter.ofPattern('yyyy').parse('" + text + "'); return 'x';"));
+    }
+
+    public void testDeclinedTimeMembersChargeNothing() {
+        // Fields and accessors that hand back an existing object carry no annotation, so they cost nothing.
+        assertEquals(0L, allocatedBytes("ZoneOffset z = ZoneOffset.UTC; Instant e = Instant.EPOCH; return 'x';"));
+        assertEquals(
+            TimeAllocationEstimators.FLAT_VALUE_BYTES + TimeAllocationEstimators.ZONED_DATE_TIME_BYTES,
+            allocatedBytes("Instant.ofEpochMilli(0).atZone(ZoneId.of('UTC')).toLocalDate(); return 'x';")
+        );
+    }
+
+    public void testTimeEstimatorChargedThroughDefDispatch() {
+        // def resolution uses the same estimator index as a statically typed call, so the charge must match.
+        assertEquals(
+            TimeAllocationEstimators.FLAT_VALUE_BYTES + TimeAllocationEstimators.ZONED_DATE_TIME_BYTES,
+            allocatedBytes("def i = Instant.ofEpochMilli(0); i.atZone(ZoneId.of('UTC')); return 'x';")
+        );
+    }
+
     public void testEstimatorInNonAllowlistedClassCharged() {
         // The estimator class is only named by the annotation, never allowlisted, like the x-pack ones.
         assertEquals(5 * 8L, allocatedBytes("new AllocationEstimatorTestObject().externallyEstimated(5); return \"x\";"));

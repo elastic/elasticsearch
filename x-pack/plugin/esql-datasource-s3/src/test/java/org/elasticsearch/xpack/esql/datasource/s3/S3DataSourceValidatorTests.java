@@ -1329,10 +1329,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             .withResourceCheck(S3ResourceCheck::validate)
             .withFormatConfigKeyResolver(CSV_RESOLVER)
             .withFormatReaderRegistry(csvGzipRegistry());
-        var e = expectThrows(
-            ValidationException.class,
-            () -> v.validateDataset(Map.of(), "s3://", Map.of("delimiter", "|"))
-        );
+        var e = expectThrows(ValidationException.class, () -> v.validateDataset(Map.of(), "s3://", Map.of("delimiter", "|")));
         assertThat(e.validationErrors(), hasSize(1));
         assertThat(e.validationErrors().get(0), containsString("is not a complete object location"));
     }

@@ -73,7 +73,7 @@ public class BlobCacheMetrics {
     public static final String BLOB_CACHE_READ_TOTAL = "es.blob_cache.read.total";
     public static final String BLOB_CACHE_MISS_TOTAL = "es.blob_cache.miss.total";
     /**
-     * Age of each cache-path read in milliseconds, bucketed with the {@link TimeRangeBucket} thresholds.
+     * Age of each cache-path read in hours, bucketed with the {@link TimeRangeBucket} thresholds.
      * Warming does not record here (same as {@link #BLOB_CACHE_READ_TOTAL}). Sentinel timestamps
      * (negative) and {@linkplain #recordBypassRead() bypass} reads are omitted so the distribution
      * reflects region ages that hit the cache. Those events still increment {@link #BLOB_CACHE_READ_TOTAL};
@@ -81,7 +81,7 @@ public class BlobCacheMetrics {
      */
     public static final String BLOB_CACHE_READ_AGE = "es.blob_cache.read.age.histogram";
     /**
-     * Age of each cache-path miss in milliseconds, bucketed with the {@link TimeRangeBucket} thresholds.
+     * Age of each cache-path miss in hours, bucketed with the {@link TimeRangeBucket} thresholds.
      * Warming does not record here (same as {@link #BLOB_CACHE_MISS_TOTAL}). Sentinel timestamps
      * (negative) and {@linkplain #recordBypassRead() bypass} reads are omitted so the distribution
      * reflects region ages that missed the cache. Those events still increment {@link #BLOB_CACHE_MISS_TOTAL};
@@ -126,8 +126,8 @@ public class BlobCacheMetrics {
     private final DoubleHistogram evictionScanTime;
     private final LongHistogram evictionScannedEntries;
     private final DoubleHistogram lockAcquireTime;
-    private final LongHistogram readAgeHistogram;
-    private final LongHistogram missAgeHistogram;
+    private final DoubleHistogram readAgeHistogram;
+    private final DoubleHistogram missAgeHistogram;
 
     private final LongAdder missCount = new LongAdder();
     private final LongAdder readCount = new LongAdder();
@@ -289,18 +289,18 @@ public class BlobCacheMetrics {
                     + "]",
                 "microseconds"
             ),
-            meterRegistry.registerLongHistogram(
+            meterRegistry.registerDoubleHistogram(
                 BLOB_CACHE_READ_AGE,
-                "The age of data served by a cache read (warming not included), in milliseconds; "
+                "The age of data served by a cache read (warming not included), in hours; "
                     + "sentinel timestamps and bypasses are omitted",
-                "milliseconds",
+                "hours",
                 TimeRangeBucket.histogramBoundaries()
             ),
-            meterRegistry.registerLongHistogram(
+            meterRegistry.registerDoubleHistogram(
                 BLOB_CACHE_MISS_AGE,
-                "The age of data that missed the cache (warming not included), in milliseconds; "
+                "The age of data that missed the cache (warming not included), in hours; "
                     + "sentinel timestamps and bypasses are omitted",
-                "milliseconds",
+                "hours",
                 TimeRangeBucket.histogramBoundaries()
             ),
             timeProvider
@@ -348,8 +348,8 @@ public class BlobCacheMetrics {
         DoubleHistogram evictionScanTime,
         LongHistogram evictionScannedEntries,
         DoubleHistogram lockAcquireTime,
-        LongHistogram readAgeHistogram,
-        LongHistogram missAgeHistogram,
+        DoubleHistogram readAgeHistogram,
+        DoubleHistogram missAgeHistogram,
         TimeProvider timeProvider
     ) {
         this.cacheMissCounter = cacheMissCounter;
@@ -453,7 +453,7 @@ public class BlobCacheMetrics {
      * @param regionTimestampMillis the representative data timestamp of the region (epoch millis), or one of
      *                              the sentinel values defined in {@code SharedBlobCacheService} which
      *                              are negative and are omitted from the age histogram; non-negative values
-     *                              are recorded as {@code now - timestamp} milliseconds. Bypass reads are
+     *                              are recorded as {@code (now - timestamp)} hours. Bypass reads are
      *                              recorded via {@link #recordBypassRead()} and are also omitted.
      */
     public void recordRead(long regionTimestampMillis) {
@@ -481,10 +481,10 @@ public class BlobCacheMetrics {
         cacheBypassCounter.increment();
     }
 
-    private static void recordAccess(LongAdder count, LongHistogram ageHistogram, long regionTimestampMillis, long nowMillis) {
+    private static void recordAccess(LongAdder count, DoubleHistogram ageHistogram, long regionTimestampMillis, long nowMillis) {
         count.increment();
         if (regionTimestampMillis >= 0) {
-            ageHistogram.record(nowMillis - regionTimestampMillis);
+            ageHistogram.record(TimeRangeBucket.toHours(nowMillis - regionTimestampMillis));
         }
     }
 

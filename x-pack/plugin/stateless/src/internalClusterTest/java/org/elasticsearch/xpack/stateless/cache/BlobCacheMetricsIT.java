@@ -437,12 +437,12 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
 
             assertThat(
                 "read age histogram should include a sample in bucket '" + bc.bucket().label() + "'",
-                plugin.getLongHistogramMeasurement(BLOB_CACHE_READ_AGE).stream().anyMatch(m -> isAgeInBucket(m.getLong(), bc.bucket())),
+                plugin.getDoubleHistogramMeasurement(BLOB_CACHE_READ_AGE).stream().anyMatch(m -> isAgeInBucket(m.getDouble(), bc.bucket())),
                 equalTo(true)
             );
             assertThat(
                 "miss age histogram should include a sample in bucket '" + bc.bucket().label() + "'",
-                plugin.getLongHistogramMeasurement(BLOB_CACHE_MISS_AGE).stream().anyMatch(m -> isAgeInBucket(m.getLong(), bc.bucket())),
+                plugin.getDoubleHistogramMeasurement(BLOB_CACHE_MISS_AGE).stream().anyMatch(m -> isAgeInBucket(m.getDouble(), bc.bucket())),
                 equalTo(true)
             );
 
@@ -468,8 +468,8 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
 
         executeSearch(otherIndexName);
 
-        assertThat("sentinel reads should not record a read age", plugin.getLongHistogramMeasurement(BLOB_CACHE_READ_AGE), empty());
-        assertThat("sentinel misses should not record a miss age", plugin.getLongHistogramMeasurement(BLOB_CACHE_MISS_AGE), empty());
+        assertThat("sentinel reads should not record a read age", plugin.getDoubleHistogramMeasurement(BLOB_CACHE_READ_AGE), empty());
+        assertThat("sentinel misses should not record a miss age", plugin.getDoubleHistogramMeasurement(BLOB_CACHE_MISS_AGE), empty());
 
         plugin.collect();
         assertThat(
@@ -552,19 +552,15 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
     }
 
     /**
-     * Whether {@code ageMillis} falls in {@code bucket}'s exclusive-lower, inclusive-upper window.
+     * Whether {@code ageHours} falls in {@code bucket}'s exclusive-lower, inclusive-upper window.
      * {@link TimeRangeBucket#FifteenMinutes} also includes negative (future) ages;
      * {@link TimeRangeBucket#OlderThan14Days} is the overflow bucket above 14 days.
      */
-    private static boolean isAgeInBucket(long ageMillis, TimeRangeBucket bucket) {
-        return switch (bucket) {
-            case FifteenMinutes -> ageMillis <= bucket.millis();
-            case OneHour, TwelveHours, OneDay, ThreeDays, SevenDays, FourteenDays -> {
-                TimeRangeBucket previous = TimeRangeBucket.values()[bucket.ordinal() - 1];
-                yield ageMillis > previous.millis() && ageMillis <= bucket.millis();
-            }
-            case OlderThan14Days -> ageMillis > TimeRangeBucket.FourteenDays.millis();
-        };
+    private static boolean isAgeInBucket(double ageHours, TimeRangeBucket bucket) {
+        List<Double> bounds = TimeRangeBucket.histogramBoundaries();
+        double upper = bounds.get(bucket.ordinal());
+        double lower = bucket.ordinal() == 0 ? Double.NEGATIVE_INFINITY : bounds.get(bucket.ordinal() - 1);
+        return ageHours > lower && ageHours <= upper;
     }
 
     /**

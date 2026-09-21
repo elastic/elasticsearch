@@ -11,12 +11,28 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Arrays;
+import java.util.List;
 
 public class TimeRangeBucketTests extends ESTestCase {
 
-    public void testHistogramBoundariesMatchEveryThreshold() {
-        assertEquals(Arrays.stream(TimeRangeBucket.values()).map(TimeRangeBucket::millis).toList(), TimeRangeBucket.histogramBoundaries());
+    public void testHistogramBoundariesAreHoursWithDoubleMaxOverflow() {
+        List<Double> bounds = TimeRangeBucket.histogramBoundaries();
+        assertEquals(TimeRangeBucket.values().length, bounds.size());
+        assertEquals(0.25, bounds.get(0), 0.0);
+        assertEquals(1.0, bounds.get(1), 0.0);
+        assertEquals(12.0, bounds.get(2), 0.0);
+        assertEquals(24.0, bounds.get(3), 0.0);
+        assertEquals(72.0, bounds.get(4), 0.0);
+        assertEquals(168.0, bounds.get(5), 0.0);
+        assertEquals(336.0, bounds.get(6), 0.0);
+        assertEquals(Double.MAX_VALUE, bounds.get(7), 0.0);
+    }
+
+    public void testToHours() {
+        assertEquals(0.25, TimeRangeBucket.toHours(TimeRangeBucket.FifteenMinutes.millis()), 0.0);
+        assertEquals(1.0, TimeRangeBucket.toHours(TimeRangeBucket.OneHour.millis()), 0.0);
+        assertEquals(336.0, TimeRangeBucket.toHours(TimeRangeBucket.FourteenDays.millis()), 0.0);
+        assertEquals(-1_000 / 3_600_000.0, TimeRangeBucket.toHours(-1_000), 0.0);
     }
 
     public void testResolveClampsNegativeAndOverflowAges() {

@@ -218,32 +218,37 @@ public class BlobCacheMetricsTests extends ESTestCase {
 
         List<Measurement> readAges = ageMeasurements(BLOB_CACHE_READ_AGE);
         assertThat(readAges, hasSize(2));
-        assertEquals(now - SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP, readAges.get(0).getLong());
-        assertEquals(TimeValue.timeValueHours(2).getMillis(), readAges.get(1).getLong());
+        assertEquals(TimeRangeBucket.toHours(now - SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP), readAges.get(0).getDouble(), 0.0);
+        assertEquals(2.0, readAges.get(1).getDouble(), 0.0);
 
         List<Measurement> missAges = ageMeasurements(BLOB_CACHE_MISS_AGE);
         assertThat(missAges, hasSize(1));
-        assertEquals(now - java.time.Instant.parse("2026-01-01T00:00:00Z").toEpochMilli(), missAges.getFirst().getLong());
+        assertEquals(
+            TimeRangeBucket.toHours(now - java.time.Instant.parse("2026-01-01T00:00:00Z").toEpochMilli()),
+            missAges.getFirst().getDouble(),
+            0.0
+        );
     }
 
     public void testAgeHistogramRecordsThresholdAges() {
         long now = fakeNowMillis.get();
-        // Skip OlderThan14Days (Long.MAX_VALUE): now - MAX_VALUE overflows. That last bucket is
-        // covered by testAgesOlderThan14DaysLandInLastHistogramBucket.
-        List<Long> finiteBounds = TimeRangeBucket.histogramBoundaries()
-            .stream()
-            .filter(boundary -> boundary != TimeRangeBucket.OlderThan14Days.millis())
+        // Skip OlderThan14Days (Double.MAX_VALUE hours): now - that overflow bound is not a
+        // meaningful timestamp. That last bucket is covered by testAgesOlderThan14DaysLandInLastHistogramBucket.
+        List<TimeRangeBucket> finiteBuckets = Arrays.stream(TimeRangeBucket.values())
+            .filter(bucket -> bucket != TimeRangeBucket.OlderThan14Days)
             .toList();
-        for (long boundary : finiteBounds) {
-            metrics.recordRead(now - boundary);
+        for (TimeRangeBucket bucket : finiteBuckets) {
+            metrics.recordRead(now - bucket.millis());
         }
-        List<Long> recorded = ageMeasurements(BLOB_CACHE_READ_AGE).stream().map(Measurement::getLong).toList();
-        assertEquals(finiteBounds, recorded);
+        List<Double> recorded = ageMeasurements(BLOB_CACHE_READ_AGE).stream().map(Measurement::getDouble).toList();
+        assertEquals(finiteBuckets.stream().map(b -> TimeRangeBucket.toHours(b.millis())).toList(), recorded);
     }
 
     public void testAgesOlderThan14DaysLandInLastHistogramBucket() {
-        assertThat(TimeRangeBucket.histogramBoundaries(), hasItem(TimeRangeBucket.OlderThan14Days.millis()));
-        assertEquals(Arrays.stream(TimeRangeBucket.values()).map(TimeRangeBucket::millis).toList(), TimeRangeBucket.histogramBoundaries());
+        List<Double> bounds = TimeRangeBucket.histogramBoundaries();
+        assertThat(bounds, hasItem(Double.MAX_VALUE));
+        assertEquals(Double.MAX_VALUE, bounds.getLast(), 0.0);
+        assertEquals(336.0, bounds.get(bounds.size() - 2), 0.0);
 
         long now = fakeNowMillis.get();
         long justOver14Days = TimeValue.timeValueDays(14).getMillis() + 1;
@@ -256,8 +261,14 @@ public class BlobCacheMetricsTests extends ESTestCase {
 
         metrics.recordRead(now - justOver14Days);
         metrics.recordMiss(now - oneYear);
-        assertThat(ageMeasurements(BLOB_CACHE_READ_AGE).stream().map(Measurement::getLong).toList(), contains(justOver14Days));
-        assertThat(ageMeasurements(BLOB_CACHE_MISS_AGE).stream().map(Measurement::getLong).toList(), contains(oneYear));
+        assertThat(
+            ageMeasurements(BLOB_CACHE_READ_AGE).stream().map(Measurement::getDouble).toList(),
+            contains(TimeRangeBucket.toHours(justOver14Days))
+        );
+        assertThat(
+            ageMeasurements(BLOB_CACHE_MISS_AGE).stream().map(Measurement::getDouble).toList(),
+            contains(TimeRangeBucket.toHours(oneYear))
+        );
     }
 
     public void testFutureDatedTimestampRecordsNegativeAge() {
@@ -265,7 +276,7 @@ public class BlobCacheMetricsTests extends ESTestCase {
         metrics.recordRead(now + 1_000);
         List<Measurement> readAges = ageMeasurements(BLOB_CACHE_READ_AGE);
         assertThat(readAges, hasSize(1));
-        assertEquals(-1_000L, readAges.getFirst().getLong());
+        assertEquals(TimeRangeBucket.toHours(-1_000), readAges.getFirst().getDouble(), 0.0);
     }
 
     public void testGaugesEmitOneUnattributedObservation() {
@@ -276,7 +287,7 @@ public class BlobCacheMetricsTests extends ESTestCase {
         metrics.recordMiss(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP);
 
         assertThat(ageMeasurements(BLOB_CACHE_READ_AGE), hasSize(1));
-        assertEquals(TimeValue.timeValueHours(2).getMillis(), ageMeasurements(BLOB_CACHE_READ_AGE).getFirst().getLong());
+        assertEquals(2.0, ageMeasurements(BLOB_CACHE_READ_AGE).getFirst().getDouble(), 0.0);
         assertThat(ageMeasurements(BLOB_CACHE_MISS_AGE), empty());
 
         collectAndReset();
@@ -405,7 +416,7 @@ public class BlobCacheMetricsTests extends ESTestCase {
     }
 
     private List<Measurement> ageMeasurements(String metricName) {
-        return recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, metricName);
+        return recordingMeterRegistry.getRecorder().getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, metricName);
     }
 
     private static void assertExpectedAttributesPresent(

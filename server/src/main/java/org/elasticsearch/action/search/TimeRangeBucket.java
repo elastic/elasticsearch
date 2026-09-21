@@ -22,10 +22,10 @@ import java.util.List;
  * and the blob-cache read/miss age histogram bucket boundaries.
  *
  * <p>{@link #resolve} maps negative ages (future timestamps) to {@link #FifteenMinutes} and
- * everything beyond 14 days to {@link #OlderThan14Days}. The same upper-inclusive bounds are
- * passed to OpenTelemetry explicit-bucket histograms: values {@code <=} the first bound
+ * everything beyond 14 days to {@link #OlderThan14Days}. The same thresholds converted to hours
+ * are passed to OpenTelemetry explicit-bucket histograms: values {@code <=} the first bound
  * (including negatives) land in the first bucket, and {@link #OlderThan14Days} uses
- * {@code Long.MAX_VALUE} so every larger finite age lands in the last explicit bucket rather
+ * {@code Double.MAX_VALUE} so every larger finite age lands in the last explicit bucket rather
  * than an implicit overflow bucket that some export paths drop.
  */
 public enum TimeRangeBucket {
@@ -39,7 +39,8 @@ public enum TimeRangeBucket {
     OlderThan14Days(Long.MAX_VALUE, "older_than_14_days");
 
     private static final TimeRangeBucket[] VALUES = values();
-    private static final List<Long> HISTOGRAM_BOUNDARIES = buildHistogramBoundaries();
+    private static final double MILLIS_PER_HOUR = TimeValue.timeValueHours(1).getMillis();
+    private static final List<Double> HISTOGRAM_BOUNDARIES = buildHistogramBoundaries();
 
     private final long millis;
     private final String label;
@@ -60,11 +61,18 @@ public enum TimeRangeBucket {
     }
 
     /**
-     * Explicit upper-inclusive histogram bucket boundaries matching every threshold,
-     * including {@link #OlderThan14Days} ({@code Long.MAX_VALUE}), so implementations
-     * without an implicit overflow bucket still have a last bucket.
+     * Converts an age in milliseconds to hours for the blob-cache age histograms.
      */
-    public static List<Long> histogramBoundaries() {
+    public static double toHours(long ageMillis) {
+        return ageMillis / MILLIS_PER_HOUR;
+    }
+
+    /**
+     * Explicit upper-inclusive histogram bucket boundaries in hours, matching every threshold.
+     * {@link #OlderThan14Days} is {@code Double.MAX_VALUE} so implementations without an implicit
+     * overflow bucket still have a last bucket.
+     */
+    public static List<Double> histogramBoundaries() {
         return HISTOGRAM_BOUNDARIES;
     }
 
@@ -80,7 +88,7 @@ public enum TimeRangeBucket {
         throw new AssertionError("unreachable: OlderThan14Days has threshold Long.MAX_VALUE");
     }
 
-    private static List<Long> buildHistogramBoundaries() {
-        return Arrays.stream(VALUES).map(TimeRangeBucket::millis).toList();
+    private static List<Double> buildHistogramBoundaries() {
+        return Arrays.stream(VALUES).map(b -> b == OlderThan14Days ? Double.MAX_VALUE : toHours(b.millis)).toList();
     }
 }

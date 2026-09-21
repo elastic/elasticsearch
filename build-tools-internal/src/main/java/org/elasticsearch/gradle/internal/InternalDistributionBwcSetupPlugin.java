@@ -223,8 +223,8 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             String wrapperDistributionPath = WRAPPER_DISTS_RELATIVE_PATH + "/" + currentWrapperDistributionDirName(project);
             task.doLast(t -> {
                 File uniqueGradleUserHome = new File(gradleUserHome.getAbsolutePath() + "-" + projectName);
-                File wrapperDir = new File(uniqueGradleUserHome, "wrapper");
-                if (wrapperDir.exists()) {
+                File wrapperDistributionDir = new File(uniqueGradleUserHome, wrapperDistributionPath);
+                if (wrapperDistributionDir.exists()) {
                     return;
                 }
                 fileSystemOperations.copy(copy -> {

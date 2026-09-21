@@ -81,13 +81,23 @@ abstract class AbstractGitAwareGradleFuncTest extends AbstractGradleInternalPlug
         if (testKitWrapperDistributionDir.exists()) {
             return
         }
-        File localWrapperDistributionDir = new File(
-            System.getProperty("user.home"),
-            ".gradle/${WRAPPER_DISTS_RELATIVE_PATH}/${currentWrapperDistributionDirName}"
-        )
+        File gradleUserHome = resolveGradleUserHome()
+        File localWrapperDistributionDir = new File(gradleUserHome, "${WRAPPER_DISTS_RELATIVE_PATH}/${currentWrapperDistributionDirName}")
         if (localWrapperDistributionDir.exists()) {
             FileUtils.copyDirectory(localWrapperDistributionDir, testKitWrapperDistributionDir)
         }
+    }
+
+    private static File resolveGradleUserHome() {
+        String explicitGradleUserHome = System.getProperty("gradle.user.home")
+        if (explicitGradleUserHome != null) {
+            return new File(explicitGradleUserHome)
+        }
+        String envGradleUserHome = System.getenv("GRADLE_USER_HOME")
+        if (envGradleUserHome != null) {
+            return new File(envGradleUserHome)
+        }
+        return new File(System.getProperty("user.home"), ".gradle")
     }
 
     GradleRunner gradleRunner(String... arguments) {

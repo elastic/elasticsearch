@@ -824,10 +824,7 @@ public class GlobExpanderTests extends ESTestCase {
             hint("day", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 15),
             hint("day", PartitionFilterHintExtractor.Operator.NOT_EQUALS, 14)
         );
-        assertEquals(
-            "s3://bucket/day={13,14,15}/*.parquet",
-            GlobExpander.rewriteGlobWithHints("s3://bucket/day=*/*.parquet", hints)
-        );
+        assertEquals("s3://bucket/day={13,14,15}/*.parquet", GlobExpander.rewriteGlobWithHints("s3://bucket/day=*/*.parquet", hints));
     }
 
     /** Single-digit months keep the zero-padded folder spelling the IN rewrite already emits. */

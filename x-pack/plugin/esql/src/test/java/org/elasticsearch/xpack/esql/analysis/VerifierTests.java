@@ -2089,10 +2089,10 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFullTextFunctionsRuntimeAnalyzerOptionOnNonTextExpression() throws Exception {
-        // options (including analyzer) are still rejected on non-TEXT runtime expressions; concat returns keyword
+        // MATCH only allows lenient on non-TEXT runtime expressions; MATCH_PHRASE still rejects all options. concat returns keyword.
         fullText().error(
             "from test | eval k = concat(title, body) | where match(k, \"cat\", {\"analyzer\": \"whitespace\"})",
-            containsString("Options are not supported for [MATCH] function call on non-index-mapped, non-TEXT field [k]")
+            containsString("[analyzer] option is not supported for [MATCH] on non-index-mapped, non-TEXT field [k]")
         );
         fullText().error(
             "from test | eval k = concat(title, body) | where match_phrase(k, \"cat\", {\"analyzer\": \"whitespace\"})",

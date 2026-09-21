@@ -2270,6 +2270,48 @@ book_no:keyword | new_title:text
 7140            | TITLE: The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
 ;
 
+// Non-text runtime match: incompatible query values do not match by default. Only lenient is a valid option.
+
+matchRuntimeNonTextIncompatibleValueIsLenientByDefault
+required_capability: match_function
+required_capability: fn_match_runtime_lenient_non_text
+
+ROW n = 5
+| EVAL m = to_long(n)
+| WHERE match(m, "not_a_number")
+| KEEP m
+;
+
+m:long
+;
+
+matchRuntimeNonTextIncompatibleValueWithExplicitLenientTrue
+required_capability: match_function
+required_capability: fn_match_runtime_lenient_non_text
+
+ROW n = 5
+| EVAL m = to_long(n)
+| WHERE match(m, "not_a_number", {"lenient": true})
+| KEEP m
+;
+
+m:long
+;
+
+matchRuntimeNonTextCompatibleValueWithLenient
+required_capability: match_function
+required_capability: fn_match_runtime_lenient_non_text
+
+ROW n = 5
+| EVAL m = to_long(n)
+| WHERE match(m, 5, {"lenient": true})
+| KEEP m
+;
+
+m:long
+5
+;
+
 // The values analyzer of a runtime text column is declared through TO_TEXT's analyzer option; match's own
 // analyzer option covers the query string only and defaults to the values analyzer. This change shipped
 // with fn_to_text_analyzer, so that capability gates the query-only semantics too.

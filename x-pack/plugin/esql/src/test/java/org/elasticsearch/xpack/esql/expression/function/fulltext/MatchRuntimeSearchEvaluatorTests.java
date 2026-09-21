@@ -232,6 +232,11 @@ public class MatchRuntimeSearchEvaluatorTests extends AbstractRuntimeSearchEvalu
         assertThat(match.toEvaluator(toEvaluator()), instanceOf(ConstantEvaluators.CONSTANT_FALSE_FACTORY.getClass()));
     }
 
+    public void testNonTextLenientUnconvertibleValueUsesConstantFalse() {
+        Match match = runtimeMatch(LONG, new BytesRef("not_a_number"), KEYWORD);
+        assertThat(match.toEvaluator(toEvaluator()), instanceOf(ConstantEvaluators.CONSTANT_FALSE_FACTORY.getClass()));
+    }
+
     /**
      * {@code match(field, "! ! !", {"zero_terms_query": "none"})} produces a Lucene {@code MatchNoDocsQuery}
      * after analysis, so {@code textEvaluatorForQuery} returns the constant-false factory directly rather

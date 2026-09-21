@@ -787,7 +787,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testMatchRuntimeEvalNonTextTypeWithOptionsThrowsError() {
+    public void testMatchRuntimeEvalNonTextTypeWithUnsupportedOptionThrowsError() {
         var query = """
              FROM test
              | EVAL new_id = to_long(id)
@@ -796,23 +796,50 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(
             error.getMessage(),
-            containsString("Options are not supported for [MATCH] function call on non-index-mapped, non-TEXT field [new_id]")
+            containsString("[analyzer] option is not supported for [MATCH] on non-index-mapped, non-TEXT field [new_id]")
         );
     }
 
-    public void testMatchRuntimeEvalWithIncompatibleLongValueThrowsError() {
+    public void testMatchRuntimeEvalWithIncompatibleLongValueIsLenientByDefault() {
         var query = """
             FROM test
             | EVAL new_id = to_long(id)
             | WHERE match(new_id, "not_a_number")
+            | KEEP id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertThat(getValuesList(resp), Matchers.empty());
+        }
+    }
+
+    public void testMatchRuntimeEvalWithIncompatibleLongValueAndLenientFalseThrowsError() {
+        var query = """
+            FROM test
+            | EVAL new_id = to_long(id)
+            | WHERE match(new_id, "not_a_number", {"lenient": false})
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertEquals(
-            "Found 1 problem\n"
-                + "line 3:23: [MATCH] query value [\"not_a_number\"] does not match the type ([long]) of non-index-mapped field [new_id]",
-            error.getMessage()
+        assertThat(
+            error.getMessage(),
+            containsString("[MATCH] query value [\"not_a_number\"] does not match the type ([long]) of non-index-mapped field [new_id]")
         );
+    }
+
+    public void testMatchRuntimeEvalWithIncompatibleLongValueAndLenientTrue() {
+        var query = """
+            FROM test
+            | EVAL new_id = to_long(id)
+            | WHERE match(new_id, "not_a_number", {"lenient": true})
+            | KEEP id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertThat(getValuesList(resp), Matchers.empty());
+        }
     }
 
     public void testMatchRuntimeWithAnalyzerOption() {
@@ -989,7 +1016,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(
             error.getMessage(),
-            containsString("Options are not supported for [MATCH] function call on non-index-mapped, non-TEXT field [content]")
+            containsString("[fuzziness] option is not supported for [MATCH] on non-index-mapped, non-TEXT field [content]")
         );
     }
 

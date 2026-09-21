@@ -108,7 +108,14 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Match.class)
         .ternary(Match::new)
-        .capabilities("runtime_filter", "unmapped_fields_pushdown_fix", "runtime_options", "runtime_analyzer", "runtime_score")
+        .capabilities(
+            "runtime_filter",
+            "unmapped_fields_pushdown_fix",
+            "runtime_options",
+            "runtime_analyzer",
+            "runtime_score",
+            "runtime_lenient_non_text"
+        )
         .name("match");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
         NULL,
@@ -189,7 +196,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             created, through `TO_TEXT`'s `analyzer` option, and the query analyzer defaults to that values
             analyzer (`standard` when none is declared). Analyzer names must name a registered analyzer
             (prebuilt or plugin-contributed); per-index custom analyzers cannot be used because the
-            expression is not backed by an index. On other expression types options are not supported.
+            expression is not backed by an index. On non-text expressions only the `lenient` option is supported.
 
             {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
             When using `METADATA _score`, `MATCH` on an expression contributes to the relevance score:
@@ -276,8 +283,8 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
                     name = "lenient",
                     type = "boolean",
                     valueHint = { "true", "false" },
-                    description = "If false, format-based errors, such as providing a text query value for a numeric field, are returned. "
-                        + "Defaults to false."
+                    description = "If false, format-based errors, such as a text query value for a numeric field, are returned. "
+                        + "If true, such values do not match. Defaults to true."
                 ),
                 @MapParam.MapParamEntry(
                     name = "max_expansions",
@@ -410,6 +417,10 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         return matchOptions;
     }
 
+    private boolean isLenient() {
+        return Boolean.TRUE.equals(matchQueryOptions().get(LENIENT_FIELD.getPreferredName()));
+    }
+
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, Match::new, field(), query(), options(), queryBuilder());
@@ -509,27 +520,26 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             try {
                 verifyRuntimeQueryValue();
             } catch (InvalidArgumentException | IllegalArgumentException e) {
-                failures.add(
-                    Failure.fail(
-                        query(),
-                        "[MATCH] query value [{}] does not match the type ([{}]) of non-index-mapped field [{}]",
-                        query().sourceText(),
-                        field.dataType().typeName(),
-                        field.sourceText()
-                    )
-                );
+                if (isLenient() == false) {
+                    failures.add(
+                        Failure.fail(
+                            query(),
+                            "[MATCH] query value [{}] does not match the type ([{}]) of non-index-mapped field [{}]",
+                            query().sourceText(),
+                            field.dataType().typeName(),
+                            field.sourceText()
+                        )
+                    );
+                }
             }
         }
 
-        if (options() != null && field().dataType() == TEXT) {
-            verifyRuntimeOptions(function, field, analysisRegistry, failures);
-        } else if (options() != null) {
-            failures.add(
-                Failure.fail(
-                    field,
-                    "Options are not supported for [MATCH] function call on non-index-mapped, non-TEXT field [" + field.sourceText() + "]"
-                )
-            );
+        if (options() != null) {
+            if (field().dataType() == TEXT) {
+                verifyRuntimeOptions(function, field, analysisRegistry, failures);
+            } else {
+                verifyRuntimeNonTextOptions(field, failures);
+            }
         }
     }
 
@@ -573,6 +583,24 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     }
 
     /**
+     * Rejects every option except {@code lenient} on a non-{@code text} runtime match.
+     */
+    private void verifyRuntimeNonTextOptions(Expression field, Failures failures) {
+        for (String option : matchQueryOptions().keySet()) {
+            if (option.equals(LENIENT_FIELD.getPreferredName()) == false) {
+                failures.add(
+                    Failure.fail(
+                        field,
+                        "[{}] option is not supported for [MATCH] on non-index-mapped, non-TEXT field [{}]",
+                        option,
+                        field.sourceText()
+                    )
+                );
+            }
+        }
+    }
+
+    /**
      * Verifies that the (foldable) query value can be converted to the runtime field's type, throwing if not.
      * Only used for {@link #isRuntimeSearch()}. The converted value itself is discarded here; it's recomputed
      * (cheaply, since the query value is a constant) by {@link #queryAsRuntimeSearchValue} when building the evaluator.
@@ -605,7 +633,15 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             );
         }
 
-        Object queryValue = queryAsRuntimeSearchValue(field.dataType(), query().dataType(), Foldables.queryAsObject(query(), sourceText()));
+        Object queryValue;
+        try {
+            queryValue = queryAsRuntimeSearchValue(field.dataType(), query().dataType(), Foldables.queryAsObject(query(), sourceText()));
+        } catch (InvalidArgumentException | IllegalArgumentException e) {
+            if (isLenient()) {
+                return ConstantEvaluators.CONSTANT_FALSE_FACTORY;
+            }
+            throw e;
+        }
         return switch (PlannerUtils.toElementType(field.dataType())) {
             case BYTES_REF -> new RuntimeSearchBytesRefEvaluator.Factory(
                 source(),

@@ -54,26 +54,30 @@ public class ChangesDoubleAggregatorTests extends OperatorTests {
         }
     }
 
-    public void testIntermediateKeepsUpToThreePointsUncompacted() {
+    public void testCountsInterleavedChangesAcrossIntermediateMerge() {
         DriverContext driverContext = driverContext();
         try (
             var selected = driverContext.blockFactory().newConstantIntVector(0, 1);
-            var state = newAggregator(driverContext);
+            var left = newAggregator(driverContext);
+            var right = newAggregator(driverContext);
+            var merged = newIntermediateAggregator(driverContext);
             var evalContext = new GroupingAggregatorEvaluationContext(driverContext)
         ) {
-            addRaw(state, driverContext, new double[] { 3.0, 2.0, 1.0 }, new long[] { 30, 20, 10 });
+            addRaw(left, driverContext, new double[] { 0, 0, 0, 0 }, new long[] { 8, 6, 4, 2 });
+            addRaw(right, driverContext, new double[] { 1, 1, 1, 1 }, new long[] { 7, 5, 3, 1 });
 
-            Block[] intermediate = new Block[state.intermediateBlockCount()];
-            state.prepareEvaluateIntermediate(selected, evalContext).evaluate(intermediate, 0, selected);
-            try (
-                LongBlock timestamps = (LongBlock) intermediate[0];
-                DoubleBlock values = (DoubleBlock) intermediate[1];
-                LongBlock changes = (LongBlock) intermediate[2]
-            ) {
-                assertEquals(3, timestamps.getValueCount(0));
-                assertEquals(3, values.getValueCount(0));
-                assertEquals(1, changes.getValueCount(0));
-                assertEquals(-3L, changes.getLong(0));
+            for (var source : List.of(left, right)) {
+                Block[] intermediate = new Block[source.intermediateBlockCount()];
+                source.prepareEvaluateIntermediate(selected, evalContext).evaluate(intermediate, 0, selected);
+                try (Page page = new Page(intermediate)) {
+                    merged.addIntermediateInput(0, selected, page);
+                }
+            }
+
+            Block[] resultBlocks = new Block[1];
+            merged.prepareEvaluateFinal(selected, evalContext).evaluate(resultBlocks, 0, selected);
+            try (LongBlock result = (LongBlock) resultBlocks[0]) {
+                assertEquals(7L, result.getLong(0));
             }
         } finally {
             driverContext.finish();
@@ -81,26 +85,20 @@ public class ChangesDoubleAggregatorTests extends OperatorTests {
         }
     }
 
-    public void testIntermediateCompactsFourPointsToInterval() {
+    public void testCountsInterleavedChangesAcrossRawPages() {
         DriverContext driverContext = driverContext();
         try (
             var selected = driverContext.blockFactory().newConstantIntVector(0, 1);
             var state = newAggregator(driverContext);
             var evalContext = new GroupingAggregatorEvaluationContext(driverContext)
         ) {
-            addRaw(state, driverContext, new double[] { 1.0, 1.0, 2.0, 1.0 }, new long[] { 40, 30, 20, 10 });
+            addRaw(state, driverContext, new double[] { 0, 0, 0, 0 }, new long[] { 8, 6, 4, 2 });
+            addRaw(state, driverContext, new double[] { 1, 1, 1, 1 }, new long[] { 7, 5, 3, 1 });
 
-            Block[] intermediate = new Block[state.intermediateBlockCount()];
-            state.prepareEvaluateIntermediate(selected, evalContext).evaluate(intermediate, 0, selected);
-            try (
-                LongBlock timestamps = (LongBlock) intermediate[0];
-                DoubleBlock values = (DoubleBlock) intermediate[1];
-                LongBlock changes = (LongBlock) intermediate[2]
-            ) {
-                assertEquals(2, timestamps.getValueCount(0));
-                assertEquals(2, values.getValueCount(0));
-                assertEquals(1, changes.getValueCount(0));
-                assertEquals(2L, changes.getLong(0));
+            Block[] resultBlocks = new Block[1];
+            state.prepareEvaluateFinal(selected, evalContext).evaluate(resultBlocks, 0, selected);
+            try (LongBlock result = (LongBlock) resultBlocks[0]) {
+                assertEquals(7L, result.getLong(0));
             }
         } finally {
             driverContext.finish();
@@ -134,7 +132,7 @@ public class ChangesDoubleAggregatorTests extends OperatorTests {
     }
 
     private static GroupingAggregatorFunction newIntermediateAggregator(DriverContext driverContext) {
-        return new ChangesDoubleAggregatorFunctionSupplier().groupingAggregator(driverContext, List.of(0, 1, 2));
+        return new ChangesDoubleAggregatorFunctionSupplier().groupingAggregator(driverContext, List.of(0, 1));
     }
 
     private static void addRaw(GroupingAggregatorFunction aggregator, DriverContext driverContext, double[] values, long[] timestamps) {

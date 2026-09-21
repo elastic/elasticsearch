@@ -36,7 +36,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 
 /**
  * Implements the PromQL {@code changes()} range-vector function for per-series numeric values.
@@ -125,10 +124,10 @@ public class Changes extends TimeSeriesAggregateFunction implements OptionalArgu
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> (dt.isNumeric() || DataType.isCounter(dt)) && dt != AGGREGATE_METRIC_DOUBLE,
+            dt -> dt == DataType.LONG || dt == DataType.INTEGER || dt == DataType.DOUBLE || DataType.isCounter(dt),
             sourceText(),
             DEFAULT,
-            "numeric or counter except aggregate_metric_double"
+            "long, integer, double, counter_long, counter_integer or counter_double"
         );
     }
 

@@ -9,19 +9,25 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
+import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.query.IntervalQueryBuilder;
 import org.elasticsearch.index.query.IntervalsSourceProvider;
 import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -127,6 +133,11 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
         }
     }
 
+    /** The body of a test that runs over an index of {@link #documents} for one layout. */
+    protected interface IndexBody {
+        void accept(Layout layout, MapperService mapperService, DirectoryReader reader, List<List<String>> documents) throws IOException;
+    }
+
     /** The body of a test that runs against one layout. */
     protected interface LayoutBody {
         void accept(MappedFieldType field, SearchExecutionContext context, Hits hits) throws IOException;
@@ -151,7 +162,7 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
      * repeat and an all-null document in them, since those are what the layouts frame differently; the
      * single-valued layout is given the same values one to a document.
      */
-    private static List<List<String>> documents(Layout layout) {
+    protected static List<List<String>> documents(Layout layout) {
         if (layout.multiValue) {
             return List.of(
                 Arrays.asList("alpha", "beta"),
@@ -249,6 +260,74 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
     }
 
     /**
+     * The values themselves, read back through the reader the layout names. Every reader here goes through one of
+     * those, and one handed the wrong layout does not fail, it returns other bytes - which shows up as a document
+     * holding something it was not given. Compared without regard to order, which belongs to the layout rather
+     * than to the values.
+     */
+    public void testValuesAreReadBackThroughTheLayoutsReader() throws IOException {
+        forEachLayoutIndex(false, (layout, mapperService, reader, documents) -> {
+            final SortableBinaryDocValues values = mapperService.fieldType(FIELD)
+                .fielddataBuilder(FieldDataContext.noRuntimeFields("test", "test"))
+                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+                .load(reader.leaves().get(0))
+                .getBytesValues();
+            for (int doc = 0; doc < documents.size(); doc++) {
+                final List<String> actual = new ArrayList<>();
+                if (values.advanceExact(doc)) {
+                    final int count = values.docValueCount();
+                    for (int i = 0; i < count; i++) {
+                        actual.add(values.nextValue().utf8ToString());
+                    }
+                }
+                Collections.sort(actual);
+                assertEquals(layout + " doc " + doc, storedValues(documents, doc), actual);
+            }
+        });
+    }
+
+    /**
+     * Runs {@code body} once per layout this build writes, over an index of {@link #documents}, having checked the
+     * field really resolved to that layout. Fails if no layout could be reached at all.
+     */
+    protected void forEachLayoutIndex(boolean indexed, IndexBody body) throws IOException {
+        int ran = 0;
+        for (Layout layout : Layout.values()) {
+            if (layout.isAvailable() == false) {
+                continue;
+            }
+            final MapperService mapperService = mapperService(layout, indexed);
+            assertEquals(layout.toString(), layout.format, binaryFormatOf(mapperService.fieldType(FIELD)));
+            final List<List<String>> documents = documents(layout);
+            withIndex(mapperService, documents, reader -> body.accept(layout, mapperService, reader, documents));
+            ran++;
+        }
+        assertThat("no layout could be reached", ran, greaterThan(0));
+    }
+
+    /** The values of {@code documents.get(doc)} that were actually stored, sorted so order does not enter into it. */
+    protected static List<String> storedValues(List<List<String>> documents, int doc) {
+        final List<String> values = new ArrayList<>();
+        for (String value : documents.get(doc)) {
+            if (value != null) {
+                values.add(value);
+            }
+        }
+        Collections.sort(values);
+        return values;
+    }
+
+    /** Indexes {@code documents} into {@code mapperService}'s index and hands the reader to {@code body}. */
+    protected void withIndex(MapperService mapperService, List<List<String>> documents, CheckedConsumer<DirectoryReader, IOException> body)
+        throws IOException {
+        withLuceneIndex(mapperService, iw -> {
+            for (List<String> values : documents) {
+                iw.addDocument(mapperService.documentMapper().parse(source(b -> writeValues(b, values))).rootDoc());
+            }
+        }, body::accept);
+    }
+
+    /**
      * Runs {@code body} once per layout this build writes, over a field with no inverted index so that its queries
      * are answered from its doc values. Fails if no layout could be reached at all, so a build that writes none of
      * them is not read as coverage.
@@ -289,11 +368,11 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
     }
 
     private void withSearcher(MapperService mapperService, List<List<String>> documents, CheckedSearcherConsumer body) throws IOException {
-        withLuceneIndex(mapperService, iw -> {
-            for (List<String> values : documents) {
-                iw.addDocument(mapperService.documentMapper().parse(source(b -> writeValues(b, values))).rootDoc());
-            }
-        }, reader -> body.accept(new IndexSearcher(reader), createSearchExecutionContext(mapperService, newSearcher(reader))));
+        withIndex(
+            mapperService,
+            documents,
+            reader -> body.accept(new IndexSearcher(reader), createSearchExecutionContext(mapperService, newSearcher(reader)))
+        );
     }
 
     private interface CheckedSearcherConsumer {

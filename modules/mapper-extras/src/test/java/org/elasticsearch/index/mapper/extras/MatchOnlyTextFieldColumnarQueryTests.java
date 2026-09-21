@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper.extras;
 
+import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.index.mapper.AbstractColumnarBinaryLayoutTestCase;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -16,7 +17,9 @@ import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.plugins.Plugin;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
@@ -42,6 +45,31 @@ public class MatchOnlyTextFieldColumnarQueryTests extends AbstractColumnarBinary
     @Override
     protected boolean confirmsPhrasesFromValues() {
         return true;
+    }
+
+    /**
+     * The values a phrase is confirmed against, taken straight from the fetcher that reads them. A decoder handed
+     * the wrong layout returns other bytes, and here that is the document holding something it was not given -
+     * which a phrase query cannot always show, since the analyser drops the framing bytes a mis-read blob carries
+     * and can leave the same terms behind.
+     */
+    public void testTheFetcherReadsTheFieldsValues() throws IOException {
+        // The fetcher reads the doc values whether or not the field is indexed, so this reads them without an index.
+        forEachLayoutIndex(false, (layout, mapperService, reader, documents) -> {
+            final MatchOnlyTextFieldMapper.MatchOnlyTextFieldType field = (MatchOnlyTextFieldMapper.MatchOnlyTextFieldType) mapperService
+                .fieldType(FIELD);
+            final CheckedIntFunction<List<Object>, IOException> fetcher = field.getValueFetcherProvider(
+                createSearchExecutionContext(mapperService)
+            ).apply(reader.leaves().get(0));
+            for (int doc = 0; doc < documents.size(); doc++) {
+                final List<String> actual = new ArrayList<>();
+                for (Object value : fetcher.apply(doc)) {
+                    actual.add(value.toString());
+                }
+                Collections.sort(actual);
+                assertEquals(layout + " doc " + doc, storedValues(documents, doc), actual);
+            }
+        });
     }
 
     /** A range over a match_only_text field is answered from terms, so without them it is refused. */

@@ -1122,8 +1122,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return VectorData.fromBytes(vector);
         }
 
-        VectorData parseEncodedVector(DocumentParserContext context, int dims, VectorSimilarity similarity)
-            throws IOException {
+        VectorData parseEncodedVector(DocumentParserContext context, int dims, VectorSimilarity similarity) throws IOException {
             XContentString.UTF8Bytes utfBytes = context.parser().optimizedText().bytes();
             byte[] decoded;
             try {
@@ -1461,8 +1460,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return new VectorDataAndMagnitude(VectorData.fromFloats(vector), squaredMagnitude);
         }
 
-        VectorDataAndMagnitude parseBase64EncodedVector(DocumentParserContext context, int dims)
-            throws IOException {
+        VectorDataAndMagnitude parseBase64EncodedVector(DocumentParserContext context, int dims) throws IOException {
             XContentString.UTF8Bytes utfBytes = context.parser().optimizedText().bytes();
             float[] decodedVector;
             try {

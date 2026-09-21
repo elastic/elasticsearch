@@ -12,9 +12,11 @@ import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.nio.ByteBuffer;
@@ -79,6 +81,17 @@ final class ColumnChunkPrefetcher {
         CircuitBreaker breaker,
         ParquetIoWatermark ioWatermark
     ) {
+        return fetchSync(storageObject, block, projectedColumns, breaker, ioWatermark, null);
+    }
+
+    static PrefetchedChunks fetchSync(
+        StorageObject storageObject,
+        BlockMetaData block,
+        Set<String> projectedColumns,
+        CircuitBreaker breaker,
+        ParquetIoWatermark ioWatermark,
+        @Nullable FooterByteCache footerBytes
+    ) {
         try {
             List<CoalescedRangeReader.ByteRange> ranges = computeColumnChunkRanges(block, projectedColumns);
             if (ranges.isEmpty()) {
@@ -97,7 +110,8 @@ final class ColumnChunkPrefetcher {
                     ranges,
                     CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
                     breaker,
-                    ioWatermark
+                    ioWatermark,
+                    footerBytes
                 )
             );
         } catch (Exception e) {
@@ -125,7 +139,7 @@ final class ColumnChunkPrefetcher {
         CircuitBreaker breaker,
         ParquetIoWatermark ioWatermark
     ) {
-        return prefetchAsync(storageObject, block, projectedColumns, breaker, ioWatermark, null);
+        return prefetchAsync(storageObject, block, projectedColumns, breaker, ioWatermark, null, null);
     }
 
     static CompletableFuture<PrefetchedChunks> prefetchAsync(
@@ -135,6 +149,18 @@ final class ColumnChunkPrefetcher {
         CircuitBreaker breaker,
         ParquetIoWatermark ioWatermark,
         ParquetIoWatermark.AdmitHold admitHold
+    ) {
+        return prefetchAsync(storageObject, block, projectedColumns, breaker, ioWatermark, admitHold, null);
+    }
+
+    static CompletableFuture<PrefetchedChunks> prefetchAsync(
+        StorageObject storageObject,
+        BlockMetaData block,
+        Set<String> projectedColumns,
+        CircuitBreaker breaker,
+        ParquetIoWatermark ioWatermark,
+        ParquetIoWatermark.AdmitHold admitHold,
+        @Nullable FooterByteCache footerBytes
     ) {
         List<CoalescedRangeReader.ByteRange> ranges = computeColumnChunkRanges(block, projectedColumns);
         if (ranges.isEmpty()) {
@@ -148,7 +174,7 @@ final class ColumnChunkPrefetcher {
             block.getTotalByteSize()
         );
 
-        return prefetchCoalesced(storageObject, ranges, breaker, ioWatermark, admitHold);
+        return prefetchCoalesced(storageObject, ranges, breaker, ioWatermark, admitHold, footerBytes);
     }
 
     /**
@@ -328,6 +354,32 @@ final class ColumnChunkPrefetcher {
         CircuitBreaker breaker,
         ParquetIoWatermark ioWatermark
     ) {
+        return fetchSync(
+            storageObject,
+            block,
+            projectedColumns,
+            rowRanges,
+            metadata,
+            rowGroupOrdinal,
+            rowGroupRowCount,
+            breaker,
+            ioWatermark,
+            null
+        );
+    }
+
+    static PrefetchedChunks fetchSync(
+        StorageObject storageObject,
+        BlockMetaData block,
+        Set<String> projectedColumns,
+        RowRanges rowRanges,
+        PreloadedRowGroupMetadata metadata,
+        int rowGroupOrdinal,
+        long rowGroupRowCount,
+        CircuitBreaker breaker,
+        ParquetIoWatermark ioWatermark,
+        @Nullable FooterByteCache footerBytes
+    ) {
         try {
             List<CoalescedRangeReader.ByteRange> ranges = computeFilteredPageRanges(
                 block,
@@ -354,7 +406,8 @@ final class ColumnChunkPrefetcher {
                     ranges,
                     CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
                     breaker,
-                    ioWatermark
+                    ioWatermark,
+                    footerBytes
                 )
             );
         } catch (Exception e) {
@@ -412,8 +465,36 @@ final class ColumnChunkPrefetcher {
         ParquetIoWatermark ioWatermark,
         ParquetIoWatermark.AdmitHold admitHold
     ) {
+        return prefetchAsync(
+            storageObject,
+            block,
+            projectedColumns,
+            rowRanges,
+            metadata,
+            rowGroupOrdinal,
+            rowGroupRowCount,
+            breaker,
+            ioWatermark,
+            admitHold,
+            null
+        );
+    }
+
+    static CompletableFuture<PrefetchedChunks> prefetchAsync(
+        StorageObject storageObject,
+        BlockMetaData block,
+        Set<String> projectedColumns,
+        RowRanges rowRanges,
+        PreloadedRowGroupMetadata metadata,
+        int rowGroupOrdinal,
+        long rowGroupRowCount,
+        CircuitBreaker breaker,
+        ParquetIoWatermark ioWatermark,
+        ParquetIoWatermark.AdmitHold admitHold,
+        @Nullable FooterByteCache footerBytes
+    ) {
         if (rowRanges == null || rowRanges.isAll()) {
-            return prefetchAsync(storageObject, block, projectedColumns, breaker, ioWatermark, admitHold);
+            return prefetchAsync(storageObject, block, projectedColumns, breaker, ioWatermark, admitHold, footerBytes);
         }
 
         List<CoalescedRangeReader.ByteRange> ranges = computeFilteredPageRanges(
@@ -430,7 +511,7 @@ final class ColumnChunkPrefetcher {
 
         logger.debug("Async prefetching [{}] filtered page ranges for row group at [{}]", ranges.size(), block.getStartingPos());
 
-        return prefetchCoalesced(storageObject, ranges, breaker, ioWatermark, admitHold);
+        return prefetchCoalesced(storageObject, ranges, breaker, ioWatermark, admitHold, footerBytes);
     }
 
     /**
@@ -441,7 +522,8 @@ final class ColumnChunkPrefetcher {
         List<CoalescedRangeReader.ByteRange> ranges,
         CircuitBreaker breaker,
         ParquetIoWatermark ioWatermark,
-        ParquetIoWatermark.AdmitHold admitHold
+        ParquetIoWatermark.AdmitHold admitHold,
+        @Nullable FooterByteCache footerBytes
     ) {
         CompletableFuture<PrefetchedChunks> result = new CompletableFuture<>();
         Releasable cancelIo = CoalescedRangeReader.readCoalesced(
@@ -451,6 +533,7 @@ final class ColumnChunkPrefetcher {
             breaker,
             ioWatermark,
             admitHold,
+            footerBytes,
             Runnable::run,
             new ActionListener<>() {
                 @Override

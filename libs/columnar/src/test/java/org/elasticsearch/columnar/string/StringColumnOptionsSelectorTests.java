@@ -73,9 +73,7 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
         final StringColumnOptionsSelector selector = (fieldName, type) -> new StringColumnOptions(
             StringColumnOptions.DEFAULT_DICTIONARY,
             fieldName.equals(NAMED) ? ChunkCodec.ZSTD : ChunkCodec.IDENTITY,
-            StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES,
-            StringColumnOptions.DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES,
-            StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE
+            StringColumnOptions.DEFAULT_SIZES
         );
 
         try (Directory dir = newDirectory()) {
@@ -88,61 +86,90 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
         }
     }
 
-    public void testOptionsRejectABlockSizeNoReaderCouldDecode() {
-        for (int blockSize : new int[] { 0, 64, 1000, 16384 }) {
-            expectThrows(
-                IllegalArgumentException.class,
-                () -> new StringColumnOptions(
-                    StringColumnOptions.DEFAULT_DICTIONARY,
-                    ChunkCodec.ZSTD,
-                    StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES,
-                    StringColumnOptions.DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES,
-                    blockSize
-                )
-            );
+    /** Every block size is read back by shifting, so every one of them has to be a power of two in range. */
+    public void testSizesRejectABlockSizeNoReaderCouldDecode() {
+        final StringColumnOptions.Sizes sizes = StringColumnOptions.DEFAULT_SIZES;
+        for (int blockSize : new int[] { 0, -1, 64, 1000, 16384 }) {
+            expectThrows(IllegalArgumentException.class, () -> withValuesPerBlock(sizes, blockSize));
+            expectThrows(IllegalArgumentException.class, () -> withPackedOrdinalBlockSize(sizes, blockSize));
+            expectThrows(IllegalArgumentException.class, () -> withCompressedOrdinalBlockSize(sizes, blockSize));
+            expectThrows(IllegalArgumentException.class, () -> withEscapeRankBlockSize(sizes, blockSize));
+            expectThrows(IllegalArgumentException.class, () -> withSlotCountsBlockSize(sizes, blockSize));
         }
     }
 
     public void testOptionsRejectWhatWouldNotRoundTrip() {
         expectThrows(
             IllegalArgumentException.class,
-            () -> new StringColumnOptions(
-                null,
-                ChunkCodec.ZSTD,
-                StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES,
-                StringColumnOptions.DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES,
-                StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE
-            )
+            () -> new StringColumnOptions(null, ChunkCodec.ZSTD, StringColumnOptions.DEFAULT_SIZES)
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new StringColumnOptions(
-                StringColumnOptions.DEFAULT_DICTIONARY,
-                null,
-                StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES,
-                StringColumnOptions.DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES,
-                StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE
-            )
+            () -> new StringColumnOptions(StringColumnOptions.DEFAULT_DICTIONARY, null, StringColumnOptions.DEFAULT_SIZES)
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new StringColumnOptions(
-                StringColumnOptions.DEFAULT_DICTIONARY,
-                ChunkCodec.ZSTD,
-                0,
-                StringColumnOptions.DEFAULT_PLAIN_PATH_TARGET_CHUNK_BYTES,
-                StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE
-            )
+            () -> new StringColumnOptions(StringColumnOptions.DEFAULT_DICTIONARY, ChunkCodec.ZSTD, null)
         );
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new StringColumnOptions(
-                StringColumnOptions.DEFAULT_DICTIONARY,
-                ChunkCodec.ZSTD,
-                StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES,
-                0,
-                StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE
-            )
+    }
+
+    private static StringColumnOptions.Sizes withValuesPerBlock(StringColumnOptions.Sizes sizes, int size) {
+        return new StringColumnOptions.Sizes(
+            size,
+            sizes.plainChunks(),
+            sizes.escapeChunks(),
+            sizes.packedOrdinalBlockSize(),
+            sizes.compressedOrdinalBlockSize(),
+            sizes.escapeRankBlockSize(),
+            sizes.slotCountsBlockSize()
+        );
+    }
+
+    private static StringColumnOptions.Sizes withPackedOrdinalBlockSize(StringColumnOptions.Sizes sizes, int size) {
+        return new StringColumnOptions.Sizes(
+            sizes.valuesPerBlock(),
+            sizes.plainChunks(),
+            sizes.escapeChunks(),
+            size,
+            sizes.compressedOrdinalBlockSize(),
+            sizes.escapeRankBlockSize(),
+            sizes.slotCountsBlockSize()
+        );
+    }
+
+    private static StringColumnOptions.Sizes withCompressedOrdinalBlockSize(StringColumnOptions.Sizes sizes, int size) {
+        return new StringColumnOptions.Sizes(
+            sizes.valuesPerBlock(),
+            sizes.plainChunks(),
+            sizes.escapeChunks(),
+            sizes.packedOrdinalBlockSize(),
+            size,
+            sizes.escapeRankBlockSize(),
+            sizes.slotCountsBlockSize()
+        );
+    }
+
+    private static StringColumnOptions.Sizes withEscapeRankBlockSize(StringColumnOptions.Sizes sizes, int size) {
+        return new StringColumnOptions.Sizes(
+            sizes.valuesPerBlock(),
+            sizes.plainChunks(),
+            sizes.escapeChunks(),
+            sizes.packedOrdinalBlockSize(),
+            sizes.compressedOrdinalBlockSize(),
+            size,
+            sizes.slotCountsBlockSize()
+        );
+    }
+
+    private static StringColumnOptions.Sizes withSlotCountsBlockSize(StringColumnOptions.Sizes sizes, int size) {
+        return new StringColumnOptions.Sizes(
+            sizes.valuesPerBlock(),
+            sizes.plainChunks(),
+            sizes.escapeChunks(),
+            sizes.packedOrdinalBlockSize(),
+            sizes.compressedOrdinalBlockSize(),
+            sizes.escapeRankBlockSize(),
+            size
         );
     }
 

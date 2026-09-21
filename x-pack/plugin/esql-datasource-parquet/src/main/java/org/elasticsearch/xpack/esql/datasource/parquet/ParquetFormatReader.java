@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.ParquetReadOptions;
-import org.apache.parquet.bytes.HeapByteBufferAllocator;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnReader;
 import org.apache.parquet.column.impl.ColumnReadStoreImpl;
@@ -161,6 +160,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      */
     private final ParquetIoWatermark ioWatermark;
 
+    /**
+     * Node-wide pool of parquet-mr heap {@code ByteBuffer}s. Shared by derived readers the same
+     * way as {@link #ioWatermark}, so sequential file opens reuse arrays instead of churning a
+     * file-count-scaled trail of dead heap buffers into the parent breaker.
+     */
+    private final PoolingHeapByteBufferAllocator heapBufferPool;
+
     private final BlockFactory blockFactory;
     private final FilterCompat.Filter pushedFilter;
     private final ParquetPushedExpressions pushedExpressions;
@@ -214,6 +220,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
     /** Peeks a cached parsed footer. Test assertions only. */
     ParquetMetadata parsedFooterForTests(FooterByteCache.Key key) {
         return parsedFooters.get(key);
+    }
+
+    /** The footer byte cache shared by this reader and all readers derived from it. */
+    FooterByteCache footerBytes() {
+        return footerBytes;
     }
 
     /** The footer byte cache shared by this reader and all readers derived from it. Test assertions only. */
@@ -317,8 +328,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      * Resolves the {@link ColumnInfo} for a column by name within a parquet {@link MessageType},
      * applying the same primitive-type mapping that the iterator uses (see
      * {@link #convertParquetTypeToEsql}). Returns {@code null} when the column is absent or maps
-     * to {@link DataType#UNSUPPORTED} / {@link DataType#NULL}. The returned descriptor carries
-     * {@code maxRepetitionLevel} so callers can route flat vs list paths off of it.
+     * to {@link DataType#UNSUPPORTED} / {@link DataType#NULL}. A {@code null} result is not a
+     * caller error: {@link ParquetColumnExtractor} emits a constant-null block for that column
+     * rather than throwing. The returned descriptor carries {@code maxRepetitionLevel} so callers
+     * can route flat vs list paths off of it.
      * <p>
      * {@code columnName} may be a dotted struct-leaf path (e.g. {@code "event.action"}) — the
      * same D2 resolution rule as {@link #resolveFieldType} applies: literal top-level match wins
@@ -346,8 +359,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         for (ColumnDescriptor desc : schema.getColumns()) {
             String[] path = desc.getPath();
             // Non-top-level names are matched against the flattener's logical leaf name (which stops
-            // at an enclosing LIST/MAP group) rather than the raw descriptor path, so a struct-nested
-            // list leaf (answers.text -> answers.text.list.element) resolves instead of returning null.
+            // at an enclosing LIST/MAP/VARIANT group) rather than the raw descriptor path, so a
+            // struct-nested list leaf (answers.text -> answers.text.list.element) resolves instead of
+            // returning null.
             if (isTopLevel ? (path.length > 0 && path[0].equals(columnName)) : logicalLeafName(schema, path).equals(columnName)) {
                 descriptor = desc;
                 break;
@@ -385,6 +399,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             FooterByteCache.fromSettings(settings),
             ParsedFooterCache.fromSettings(settings, ParquetFormatReader::estimateFooterWeightBytes),
             ParquetIoWatermark.forHeap(),
+            PoolingHeapByteBufferAllocator.forHeap(),
             MAX_FOOTER_READ_BYTES
         );
     }
@@ -408,6 +423,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             FooterByteCache.fromSettings(Settings.EMPTY),
             ParsedFooterCache.fromSettings(Settings.EMPTY, ParquetFormatReader::estimateFooterWeightBytes),
             ParquetIoWatermark.forHeap(),
+            PoolingHeapByteBufferAllocator.forHeap(),
             MAX_FOOTER_READ_BYTES
         );
     }
@@ -429,6 +445,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             FooterByteCache.fromSettings(Settings.EMPTY),
             ParsedFooterCache.fromSettings(Settings.EMPTY, ParquetFormatReader::estimateFooterWeightBytes),
             ParquetIoWatermark.forHeap(),
+            PoolingHeapByteBufferAllocator.forHeap(),
             maxFooterReadBytes
         );
     }
@@ -445,6 +462,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         FooterByteCache footerBytes,
         ParsedFooterCache<ParquetMetadata> parsedFooters,
         ParquetIoWatermark ioWatermark,
+        PoolingHeapByteBufferAllocator heapBufferPool,
         int maxFooterReadBytes
     ) {
         this.blockFactory = blockFactory;
@@ -461,6 +479,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             throw new IllegalArgumentException("ioWatermark");
         }
         this.ioWatermark = ioWatermark;
+        if (heapBufferPool == null) {
+            throw new IllegalArgumentException("heapBufferPool");
+        }
+        this.heapBufferPool = heapBufferPool;
         this.maxFooterReadBytes = maxFooterReadBytes;
     }
 
@@ -483,6 +505,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             footerBytes,
             parsedFooters,
             ioWatermark,
+            heapBufferPool,
             maxFooterReadBytes
         );
     }
@@ -505,6 +528,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             footerBytes,
             parsedFooters,
             ioWatermark,
+            heapBufferPool,
             maxFooterReadBytes
         );
     }
@@ -527,6 +551,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 footerBytes,
                 parsedFooters,
                 ioWatermark,
+                heapBufferPool,
                 maxFooterReadBytes
             );
         }
@@ -543,6 +568,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 footerBytes,
                 parsedFooters,
                 ioWatermark,
+                heapBufferPool,
                 maxFooterReadBytes
             );
         }
@@ -559,6 +585,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 footerBytes,
                 parsedFooters,
                 ioWatermark,
+                heapBufferPool,
                 maxFooterReadBytes
             );
         }
@@ -579,6 +606,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             footerBytes,
             parsedFooters,
             ioWatermark,
+            heapBufferPool,
             maxFooterReadBytes
         );
     }
@@ -607,6 +635,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             footerBytes,
             parsedFooters,
             ioWatermark,
+            heapBufferPool,
             maxFooterReadBytes
         );
     }
@@ -636,6 +665,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             footerBytes,
             parsedFooters,
             ioWatermark,
+            heapBufferPool,
             maxFooterReadBytes
         );
     }
@@ -657,12 +687,39 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             footerBytes,
             parsedFooters,
             watermark,
+            heapBufferPool,
             maxFooterReadBytes
         );
     }
 
     ParquetIoWatermark ioWatermark() {
         return ioWatermark;
+    }
+
+    /**
+     * Test-only: share a heap-buffer pool across readers so reuse and cap can be asserted with a
+     * tiny limit. Production readers keep the heap-derived instance from the root constructor.
+     */
+    ParquetFormatReader withHeapBufferPool(PoolingHeapByteBufferAllocator pool) {
+        return new ParquetFormatReader(
+            blockFactory,
+            pushedFilter,
+            pushedExpressions,
+            forceBaselinePath,
+            optimizedReader,
+            dynamicThreshold,
+            declaredDateFormats,
+            declaredTypeColumns,
+            footerBytes,
+            parsedFooters,
+            ioWatermark,
+            pool,
+            maxFooterReadBytes
+        );
+    }
+
+    PoolingHeapByteBufferAllocator heapBufferPool() {
+        return heapBufferPool;
     }
 
     @Override
@@ -761,8 +818,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         // direct delegate returns the breaker charge but leaves the memory to a Cleaner -- reclamation
         // becomes a function of GC frequency, which a large heap starves. Nothing reads these buffers
         // natively either: they are footers and dictionary-page copies, both copied to the heap next step.
+        // The heap delegate is a node-wide capped pool so sequential file opens reuse arrays instead of
+        // leaving a file-count-scaled trail of dead byte[] for the parent breaker.
         var breaker = LocalCircuitBreaker.forAsyncIo(blockFactory.breaker());
-        var allocator = new CircuitBreakerByteBufferAllocator(new HeapByteBufferAllocator(), breaker);
+        var allocator = new CircuitBreakerByteBufferAllocator(heapBufferPool, breaker);
         return PlainParquetReadOptions.builder(codecFactory).withAllocator(allocator);
     }
 
@@ -1228,7 +1287,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      * offered to the cache best-effort after a successful parse so a later split-discovery pass can
      * reuse them, but correctness never depends on that. Callers of this listener seed
      * {@link #parsedFooters} after a successful metadata convert or range extract. {@code release}
-     * uncharges the GET (or the heap copy) after parse, success or failure.
+     * uncharges the GET (or the heap copy) after parse, success or failure, and always before
+     * {@code listener} is notified so a parse-time {@link CircuitBreakingException} cannot complete
+     * with leftover request-breaker charge.
      */
     private void parseTailOnExecutor(
         StorageObject object,
@@ -1239,30 +1300,19 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         Executor executor,
         ActionListener<ParquetMetadata> listener
     ) {
+        ActionListener<ParquetMetadata> released = ActionListener.releaseBefore(release, listener);
         try {
             executor.execute(() -> {
-                boolean closed = false;
                 try {
                     ParquetMetadata footer = parseParsedFooterFromTail(object, length, tailBytes);
                     footerBytes.put(cacheKey, tailBytes);
-                    release.close();
-                    closed = true;
-                    listener.onResponse(footer);
+                    released.onResponse(footer);
                 } catch (Exception e) {
-                    listener.onFailure(e);
-                } finally {
-                    if (closed == false) {
-                        release.close();
-                    }
+                    released.onFailure(e);
                 }
             });
         } catch (Exception e) {
-            try {
-                release.close();
-            } catch (Exception closeEx) {
-                e.addSuppressed(closeEx);
-            }
-            listener.onFailure(e);
+            released.onFailure(e);
         }
     }
 
@@ -1513,11 +1563,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             for (ColumnChunkMetaData col : rowGroup.getColumns()) {
                 String[] path = col.getPath().toArray();
                 ColumnDescriptor desc = parquetSchema.getColumnDescription(path);
-                if (desc != null && isMapDescendedLeaf(parquetSchema, path)) {
-                    // A MAP's key and value leaves collapse to the same logical name (both stop at the
-                    // enclosing MAP group) and are heterogeneously typed, so folding their footer stats into
-                    // one entry throws in the min/max merge. A MAP is UNSUPPORTED downstream and its stats are
-                    // never consumed, so skip every map-descended leaf entirely. See isMapDescendedLeaf.
+                if (desc != null && isMapOrVariantDescendedLeaf(parquetSchema, path)) {
+                    // A MAP's key/value leaves — and a VARIANT's metadata/value/typed_value.* leaves — all
+                    // collapse to the same logical name (they stop at the enclosing MAP/VARIANT group) and can
+                    // be heterogeneously typed, so folding their footer stats into one entry trips the
+                    // heterogeneity net in the min/max merge. Both groups are UNSUPPORTED downstream and their
+                    // stats are never consumed, so skip those leaves entirely. See isMapOrVariantDescendedLeaf.
                     continue;
                 }
                 if (desc != null && desc.getMaxRepetitionLevel() > 0 && isTopLevelListLeaf(parquetSchema, path)) {
@@ -1534,9 +1585,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 }
                 // Key non-top-level leaves on the flattener's logical leaf name so the stats bind to the
                 // same attribute name the planner uses (a struct-nested list leaf answers.text.list.element
-                // is surfaced as answers.text). MAP leaves are excluded above (isMapDescendedLeaf) because
-                // their key and value share this name yet are heterogeneously typed, which would fold into one
-                // entry and throw in the min/max merge.
+                // is surfaced as answers.text). MAP and VARIANT leaves are excluded above
+                // (isMapOrVariantDescendedLeaf) because several of them share this one name yet can be
+                // heterogeneously typed, which would fold into one entry and trip the min/max merge net.
                 String colName = desc != null ? logicalLeafName(parquetSchema, path) : col.getPath().toDotString();
                 colSizes.merge(colName, new long[] { col.getTotalUncompressedSize() }, (a, b) -> {
                     a[0] += b[0];
@@ -1585,7 +1636,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         Map<String, SourceStatistics.ColumnStatistics> columnStats = new HashMap<>();
         // Publish stats keyed by every dotted leaf the flattener produced an addressable
         // attribute for. Skip UNSUPPORTED — they will not bind to a planner attribute the
-        // aggregate-pushdown layer can read stats off of, and over-depth / MAP / LIST<STRUCT>
+        // aggregate-pushdown layer can read stats off of, and over-depth / MAP / VARIANT / LIST<STRUCT>
         // groups surface as UNSUPPORTED here exactly so this filter removes them. Names match
         // the collection-loop's col.getPath().toDotString() exactly because
         // {@link #collectAttributes} concatenates the same Parquet child names with '.'.
@@ -1878,10 +1929,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         for (ColumnChunkMetaData col : rowGroup.getColumns()) {
             String[] path = col.getPath().toArray();
             ColumnDescriptor desc = parquetSchema.getColumnDescription(path);
-            if (desc != null && isMapDescendedLeaf(parquetSchema, path)) {
-                // Skip map-descended leaves: a MAP's key/value collapse to one heterogeneously typed logical
-                // name that put() here would silently record as wrong value-over-key stats, and a MAP is
-                // UNSUPPORTED downstream so the stats are never consumed. Mirrors extractStatistics.
+            if (desc != null && isMapOrVariantDescendedLeaf(parquetSchema, path)) {
+                // Skip map- and variant-descended leaves: their several leaves collapse to one logical name
+                // that put() here would silently record as wrong last-writer-wins stats (value-over-key for a
+                // MAP, one Variant internal over another for a VARIANT), and both groups are UNSUPPORTED
+                // downstream so the stats are never consumed. Unlike extractStatistics there is no UNSUPPORTED
+                // publish filter here, so this skip is the only thing keeping those keys out of a split's
+                // serialized stats. Mirrors extractStatistics.
                 continue;
             }
             if (desc != null && desc.getMaxRepetitionLevel() > 0 && isTopLevelListLeaf(parquetSchema, path)) {
@@ -1896,10 +1950,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 continue;
             }
             // Publish non-top-level leaves under the flattener's logical leaf name (which stops at an
-            // enclosing LIST/MAP) so a COUNT/MIN/MAX(answers.text) lookup resolves. The raw leaf path
+            // enclosing LIST/MAP/VARIANT) so a COUNT/MIN/MAX(answers.text) lookup resolves. The raw leaf path
             // "answers.text.list.element" would never be found by the planner's attribute name.
-            // See extractStatistics for the logical-name keying rationale; MAP leaves are skipped above
-            // (isMapDescendedLeaf) since their key/value would collapse to one heterogeneously typed name.
+            // See extractStatistics for the logical-name keying rationale; MAP and VARIANT leaves are skipped
+            // above (isMapOrVariantDescendedLeaf) since several of theirs collapse to one shared name.
             String colName = desc != null ? logicalLeafName(parquetSchema, path) : col.getPath().toDotString();
             stats.put(SourceStatisticsSerializer.columnSizeBytesKey(colName), col.getTotalUncompressedSize());
             Statistics colStats = col.getStatistics();
@@ -1952,18 +2006,19 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         if (a instanceof String && b instanceof String) {
             return SourceStatisticsSerializer.compareKeywordUtf8(a, b);
         }
-        // Last-resort net: heterogeneously typed extrema (e.g. a MAP key String against a value Long) must not
-        // cross-cast into a raw ClassCastException. The statistics producers already skip map-descended leaves
-        // (isMapDescendedLeaf), so in production only same-type extrema reach here — a mismatch means a fold
-        // regression upstream. Fail loudly under -ea (tests/CI) to catch it, and fall back to a safe 0 in
-        // production rather than crashing on the cross-cast.
+        // Last-resort net: heterogeneously typed extrema (e.g. a MAP key String against a value Long, or a
+        // VARIANT's BINARY metadata against a shredded INT32 typed_value) must not cross-cast into a raw
+        // ClassCastException. The statistics producers already skip map- and variant-descended leaves
+        // (isMapOrVariantDescendedLeaf), so in production only same-type extrema reach here — a mismatch means
+        // a fold regression upstream. Fail loudly under -ea (tests/CI) to catch it, and fall back to a safe 0
+        // in production rather than crashing on the cross-cast.
         if (a.getClass() != b.getClass()) {
             assert false
                 : "heterogeneous stat extrema ["
                     + a.getClass()
                     + "] vs ["
                     + b.getClass()
-                    + "]; map-descended leaves must be skipped upstream";
+                    + "]; map- and variant-descended leaves must be skipped upstream";
             return 0;
         }
         return a.compareTo(b);
@@ -2397,7 +2452,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             indexColumnPaths.offsetIndexPaths(),
             offsetIndexRowGroupLimit,
             blockFactory.breaker(),
-            ioWatermark
+            ioWatermark,
+            footerBytes
         );
         boolean metadataHandedOff = false;
         try {
@@ -2815,9 +2871,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         for (ColumnDescriptor desc : projectedSchema.getColumns()) {
             String[] path = desc.getPath();
             descByDottedPath.put(String.join(".", path), desc);
-            // A LIST/MAP leaf reached through a STRUCT (e.g. answers.text.list.element) is surfaced
-            // by the flattener at its parent dotted path (answers.text); register that logical name
-            // too so the attribute binds to its descriptor instead of being dropped as absent.
+            // A LIST/MAP/VARIANT leaf reached through a STRUCT (e.g. answers.text.list.element) is
+            // surfaced by the flattener at its parent dotted path (answers.text); register that logical
+            // name too so the attribute binds to its descriptor instead of being dropped as absent.
             descByDottedPath.putIfAbsent(logicalLeafName(projectedSchema, path), desc);
             if (path.length > 0 && topLevelNames.contains(path[0])) {
                 descByTopLevel.putIfAbsent(path[0], desc);
@@ -2961,11 +3017,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
     /**
      * Returns the dotted attribute name at which the schema flattener ({@link #collectAttributes})
      * would surface the leaf reached by {@code descriptorPath}. It walks {@code schema} following
-     * the descriptor's path segments and stops at the first enclosing {@code LIST}/{@code MAP} group,
-     * returning that group's dotted path — because the flattener emits a {@code LIST}/{@code MAP} at
-     * its own dotted path and does not descend into the synthetic repetition wrapper (e.g. the
-     * {@code list.element} or {@code bag.array_element} suffix). For a leaf reached only through
-     * plain {@code STRUCT} groups the full descriptor path is returned unchanged.
+     * the descriptor's path segments and stops at the first enclosing {@code LIST}/{@code MAP}/
+     * {@code VARIANT} group, returning that group's dotted path — because the flattener emits each
+     * of those at its own dotted path and does not descend into it, whether the children are a
+     * synthetic repetition wrapper (e.g. the {@code list.element} or {@code bag.array_element}
+     * suffix) or the Variant encoding's internals ({@code metadata}/{@code value}/
+     * {@code typed_value.*}). For a leaf reached only through plain {@code STRUCT} groups the full
+     * descriptor path is returned unchanged.
      * <p>
      * This is the invariant that lets {@link #buildColumnInfos} and {@link #resolveColumnInfo} bind a
      * {@code struct<list<...>>} leaf: the attribute name is {@code answers.text} but the leaf column
@@ -2988,7 +3046,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             if (child.isPrimitive() == false) {
                 LogicalTypeAnnotation logical = child.asGroupType().getLogicalTypeAnnotation();
                 if (logical instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation
-                    || logical instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation) {
+                    || logical instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation
+                    || logical instanceof LogicalTypeAnnotation.VariantLogicalTypeAnnotation) {
                     return name.toString();
                 }
             }
@@ -3009,28 +3068,37 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
     }
 
     /**
-     * Whether the leaf reached by {@code descriptorPath} sits under a {@code MAP} group at any depth.
-     * <p>
-     * A Parquet {@code MAP<K,V>} has two physical leaves ({@code m.key_value.key}, {@code m.key_value.value})
-     * that {@link #logicalLeafName} collapses to the same enclosing-MAP dotted name. Their footer statistics
-     * are therefore heterogeneously typed (e.g. a keyword key and a long value) yet fold into a single entry
-     * keyed on that shared name — comparing a {@code String} key extremum against a {@code Long} value extremum
-     * throws {@link ClassCastException} in the min/max merge. A {@code MAP} group also resolves to
-     * {@link DataType#UNSUPPORTED} downstream, so these stats are never consumed. Collecting them is both
-     * pointless and harmful, so the statistics producers skip every map-descended leaf. Driven off the
-     * schema's {@code MAP} logical annotation (like {@link #logicalLeafName}), it covers homogeneous maps and
-     * every nested variant ({@code struct<map>}, {@code map<string,list>}, {@code map<string,struct>}) at any
-     * depth.
+     * Whether the leaf reached by {@code descriptorPath} sits under a {@code MAP} or {@code VARIANT} group at
+     * any depth. Both are groups whose several physical leaves {@link #logicalLeafName} collapses onto the
+     * group's single dotted name, and both resolve to {@link DataType#UNSUPPORTED} downstream — so their
+     * footer statistics are never consumed, and folding them is actively harmful in two ways:
+     * <ul>
+     *   <li>{@link #buildRowGroupStats} has no UNSUPPORTED filter, so it would {@code put} folded,
+     *       last-writer-wins min/max/null_count/size_bytes under the group's name into every split's
+     *       serialized statistics — wrong values a planner would then push down. This bites even when the
+     *       leaves happen to be homogeneously typed (an unshredded VARIANT is all BINARY).</li>
+     *   <li>{@link #extractStatistics} folds before its UNSUPPORTED publish filter, so differently typed
+     *       leaf extrema reach {@link #compareStatExtremum} — a {@code String} MAP key against a
+     *       {@code Long} MAP value, or a VARIANT's BINARY {@code metadata} against a shredded INT32
+     *       {@code typed_value}. That trips the last-resort net there (an assertion under {@code -ea},
+     *       a meaningless {@code 0} otherwise).</li>
+     * </ul>
+     * Driven off the schema's logical annotation (like {@link #logicalLeafName}) rather than a name or depth
+     * heuristic, so it covers every shape at any depth: {@code struct<map>}, {@code map<string,list>},
+     * {@code map<string,struct>}, and both unshredded and shredded VARIANT.
      */
-    private static boolean isMapDescendedLeaf(GroupType schema, String[] descriptorPath) {
+    private static boolean isMapOrVariantDescendedLeaf(GroupType schema, String[] descriptorPath) {
         Type current = schema;
         for (String segment : descriptorPath) {
             // The descriptor path is always resolvable within the schema it came from, so every
             // intermediate node is a group and getType() never throws here.
             Type child = current.asGroupType().getType(segment);
-            if (child.isPrimitive() == false
-                && child.asGroupType().getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation) {
-                return true;
+            if (child.isPrimitive() == false) {
+                LogicalTypeAnnotation logical = child.asGroupType().getLogicalTypeAnnotation();
+                if (logical instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation
+                    || logical instanceof LogicalTypeAnnotation.VariantLogicalTypeAnnotation) {
+                    return true;
+                }
             }
             current = child;
         }
@@ -3147,8 +3215,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
      * Recursively converts a Parquet {@link MessageType} into ESQL {@link Attribute}s, flattening
      * nested STRUCT groups into dotted attribute names (e.g. {@code event.action}). Primitive
      * fields and {@code LIST<primitive>} groups emit at their parent's dotted path; other groups
-     * (MAP, {@code LIST<STRUCT>}, UNION, anything not understood) surface as a single
+     * (MAP, VARIANT, {@code LIST<STRUCT>}, UNION, anything not understood) surface as a single
      * {@link DataType#UNSUPPORTED} attribute at the group's dotted path.
+     *
+     * <p>VARIANT is deliberately not descended into. Its children are the Variant encoding's own
+     * internals ({@code metadata}, {@code value}, and {@code typed_value.*} when shredded), not
+     * user fields: flattening them typed the raw binary encoding as {@code keyword}, so a query
+     * returned the encoding's bytes instead of the user's data. Surfacing the group as one
+     * UNSUPPORTED attribute gives a clear unsupported answer instead (esql-planning#1970).
      *
      * <p>Recursion is bounded by {@link #MAX_STRUCT_FLATTENING_DEPTH}; groups deeper than the cap
      * are emitted as a single UNSUPPORTED attribute and a DEBUG log line is recorded.
@@ -3194,7 +3268,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
         GroupType group = field.asGroupType();
         LogicalTypeAnnotation logical = group.getLogicalTypeAnnotation();
         if (logical instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation
-            || logical instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation) {
+            || logical instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation
+            || logical instanceof LogicalTypeAnnotation.VariantLogicalTypeAnnotation) {
             out.add(new ReferenceAttribute(Source.EMPTY, null, dottedPath, convertGroupTypeToEsql(group), leafNullability, null, false));
             return;
         }
@@ -3280,7 +3355,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
 
     /**
      * Handles Parquet group types. Supports LIST of primitives by extracting the element type;
-     * everything else (MAP, LIST&lt;STRUCT&gt;, UNION) is UNSUPPORTED.
+     * everything else (MAP, VARIANT, LIST&lt;STRUCT&gt;, UNION) is UNSUPPORTED.
      */
     private static DataType convertGroupTypeToEsql(GroupType groupType) {
         LogicalTypeAnnotation logical = groupType.getLogicalTypeAnnotation();
@@ -3361,7 +3436,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                     skipWarnings = new SkipWarnings(
                         "Parquet file ["
                             + fileLocation
-                            + "] has columns whose on-disk type is incompatible with the planner type; "
+                            + "] has columns whose on-disk type is incompatible with planner type; "
                             + "they are returned as null",
                         warningSink
                     );

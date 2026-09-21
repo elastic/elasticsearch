@@ -41,7 +41,7 @@ public class StructuralIndexerTests extends SimdJsonTestCase {
         try (StructuralIndexer indexer = new StructuralIndexer(buffer.length)) {
             BitIndexes bi = new BitIndexes(buffer.length);
             indexer.index(buffer, buffer.length, bi);
-            assertEquals(List.of('{', '"', ':', '1', '}'), drainStructurals(buffer, bi));
+            assertEquals(List.of('{', '"', '"', ':', '1', '}'), drainStructurals(buffer, bi));
         }
     }
 
@@ -70,11 +70,11 @@ public class StructuralIndexerTests extends SimdJsonTestCase {
             byte[] buf1 = "{\"a\":1}".getBytes(UTF_8);
             BitIndexes bi = new BitIndexes(64);
             indexer.index(buf1, buf1.length, bi);
-            assertEquals(List.of('{', '"', ':', '1', '}'), drainStructurals(buf1, bi));
+            assertEquals(List.of('{', '"', '"', ':', '1', '}'), drainStructurals(buf1, bi));
 
             byte[] buf2 = "{\"b\":2,\"c\":3}".getBytes(UTF_8);
             indexer.index(buf2, buf2.length, bi);
-            assertEquals(List.of('{', '"', ':', '2', ',', '"', ':', '3', '}'), drainStructurals(buf2, bi));
+            assertEquals(List.of('{', '"', '"', ':', '2', ',', '"', '"', ':', '3', '}'), drainStructurals(buf2, bi));
         }
     }
 

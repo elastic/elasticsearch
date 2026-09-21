@@ -148,6 +148,7 @@ public final class SimdJsonDirectWalker {
                 }
 
                 String fieldName = resolveFieldName(buffer, keyIdx);
+                consumeToCloseQuote(buffer, bi);
 
                 int colonIdx = bi.getAndAdvance();
                 if (buffer[colonIdx] != ':') {
@@ -174,11 +175,11 @@ public final class SimdJsonDirectWalker {
                         handler.endArray();
                     }
                     case '"' -> {
-                        int len = stringParser.scanUnescapedLength(buffer, valIdx);
-                        if (len >= 0) {
-                            handler.stringField(fieldName, buffer, valIdx + 1, len);
+                        int endIdx = bi.getAndAdvance();
+                        if (buffer[endIdx] == '"') {
+                            handler.stringField(fieldName, buffer, valIdx + 1, endIdx - valIdx - 1);
                         } else {
-                            int rawLen = scalarStringLength(buffer, valIdx + 1);
+                            int rawLen = skipEscapesToCloseQuote(buffer, bi) - valIdx - 1;
                             int parsed = stringParser.parseString(buffer, valIdx, ensureStringBuf(rawLen));
                             byte[] copy = Arrays.copyOf(stringBuf, parsed);
                             handler.stringField(fieldName, copy, 0, parsed);
@@ -224,11 +225,11 @@ public final class SimdJsonDirectWalker {
 
             switch (b) {
                 case '"' -> {
-                    int len = stringParser.scanUnescapedLength(buffer, idx);
-                    if (len >= 0) {
-                        handler.arrayElemString(buffer, idx + 1, len);
+                    int endIdx = bi.getAndAdvance();
+                    if (buffer[endIdx] == '"') {
+                        handler.arrayElemString(buffer, idx + 1, endIdx - idx - 1);
                     } else {
-                        int rawLen = scalarStringLength(buffer, idx + 1);
+                        int rawLen = skipEscapesToCloseQuote(buffer, bi) - idx - 1;
                         int parsed = stringParser.parseString(buffer, idx, ensureStringBuf(rawLen));
                         handler.arrayElemString(Arrays.copyOf(stringBuf, parsed), 0, parsed);
                     }
@@ -286,14 +287,14 @@ public final class SimdJsonDirectWalker {
             }
 
             int keyStart = keyIdx + 1;
-            int keyLen = scalarStringLength(buffer, keyStart);
-            boolean keyEscaped = containsBackslash(buffer, keyStart, keyLen);
+            int keyEnd = bi.getAndAdvance();
             String fieldName;
-            if (keyEscaped) {
+            if (buffer[keyEnd] == '"') {
+                fieldName = new String(buffer, keyStart, keyEnd - keyStart, StandardCharsets.UTF_8);
+            } else {
+                int keyLen = skipEscapesToCloseQuote(buffer, bi) - keyStart;
                 int parsed = stringParser.parseString(buffer, keyIdx, ensureStringBuf(keyLen));
                 fieldName = new String(stringBuf, 0, parsed, StandardCharsets.UTF_8);
-            } else {
-                fieldName = new String(buffer, keyStart, keyLen, StandardCharsets.UTF_8);
             }
 
             int colonIdx = bi.getAndAdvance();
@@ -306,11 +307,11 @@ public final class SimdJsonDirectWalker {
 
             switch (valByte) {
                 case '"' -> {
-                    int len = stringParser.scanUnescapedLength(buffer, valIdx);
-                    if (len >= 0) {
-                        handler.stringField(fieldName, buffer, valIdx + 1, len);
+                    int endIdx = bi.getAndAdvance();
+                    if (buffer[endIdx] == '"') {
+                        handler.stringField(fieldName, buffer, valIdx + 1, endIdx - valIdx - 1);
                     } else {
-                        int rawLen = scalarStringLength(buffer, valIdx + 1);
+                        int rawLen = skipEscapesToCloseQuote(buffer, bi) - valIdx - 1;
                         int parsed = stringParser.parseString(buffer, valIdx, ensureStringBuf(rawLen));
                         handler.stringField(fieldName, Arrays.copyOf(stringBuf, parsed), 0, parsed);
                     }
@@ -895,20 +896,29 @@ public final class SimdJsonDirectWalker {
     // String helpers
     // ------------------------------------------------------------------
 
-    private static int scalarStringLength(byte[] buffer, int start) {
-        int i = start;
-        while (buffer[i] != '"') {
-            if (buffer[i] == '\\') i += 2;
-            else i++;
-        }
-        return i - start;
+    /**
+     * Consumes the remaining index entries of a string whose first post-opening entry was already
+     * read and turned out to be a backslash, and returns the offset of the closing quote.
+     *
+     * <p>Stage 1 emits one entry per backslash inside a string followed by the closing quote, so a
+     * string is escaped exactly when its first entry is not the closing quote. Callers read that
+     * first entry themselves, which keeps the escape-free case to a single index read.
+     */
+    private static int skipEscapesToCloseQuote(byte[] buffer, BitIndexes bi) {
+        int idx;
+        do {
+            idx = bi.getAndAdvance();
+        } while (buffer[idx] != '"');
+        return idx;
     }
 
-    private static boolean containsBackslash(byte[] buffer, int off, int len) {
-        for (int i = off; i < off + len; i++) {
-            if (buffer[i] == '\\') return true;
-        }
-        return false;
+    /**
+     * Consumes all index entries belonging to the string that has just opened, returning the offset
+     * of its closing quote.
+     */
+    private static int consumeToCloseQuote(byte[] buffer, BitIndexes bi) {
+        int idx = bi.getAndAdvance();
+        return buffer[idx] == '"' ? idx : skipEscapesToCloseQuote(buffer, bi);
     }
 
     private byte[] ensureStringBuf(int minLen) {

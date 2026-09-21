@@ -440,6 +440,36 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         assertEquals(List.of("string(a=caf\u00e9)"), events);
     }
 
+    // The walker decides between the zero-copy and the unescaping path from the first index entry
+    // after the opening quote. An escape that lands well past the opening quote, in a later 64-byte
+    // stage-1 block, must still select the unescaping path.
+    public void testEscapeInLaterBlock() {
+        String head = "z".repeat(100);
+        List<String> events = walkJson("{\"a\":\"" + head + "\\ntail\"}");
+        assertEquals(List.of("string(a=" + head + "\ntail)"), events);
+    }
+
+    // Several escapes in one string leave several index entries to step over before the closing
+    // quote is reached.
+    public void testMultipleEscapesInOneString() {
+        List<String> events = walkJson("{\"a\":\"x\\ny\\tz\\\\w\\\"v\"}");
+        assertEquals(List.of("string(a=x\ny\tz\\w\"v)"), events);
+    }
+
+    // A field name is a string too, so its closing quote and escapes are indexed the same way and
+    // must be consumed before the colon is read.
+    public void testEscapedFieldName() {
+        List<String> events = walkJson("{\"a\\nb\":1}");
+        assertEquals(List.of("long(a\nb=1,fitsInt=true)"), events);
+    }
+
+    // A long escape-free value spanning several stage-1 blocks takes its length from the index.
+    public void testLongUnescapedValueSpanningBlocks() {
+        String value = "abcdefgh".repeat(40);
+        List<String> events = walkJson("{\"a\":\"" + value + "\"}");
+        assertEquals(List.of("string(a=" + value + ")"), events);
+    }
+
     public void testObjectsInNestedArray() {
         List<String> events = walkJson("{\"a\":[{\"x\":1},{\"y\":2}]}");
         assertEquals(

@@ -21,7 +21,12 @@
 # clang-21 codegen. Clang supplies intrinsics/SIMD headers; only C++ stdlib
 # headers and the link-time libstdc++.so ABI come from GCC 8.
 
-CXXFLAGS   = -std=c++17 -O3 -fpic -g -fstandalone-debug -DNDEBUG
+# SIMDJSON_INDEX_STRING_CLOSE_AND_ESCAPE makes stage 1 also index each string's closing quote and
+# the backslashes inside it, which lets the walker take a string's length and its need-unescaping
+# answer straight from the index. It is safe here because we only ever consume stage 1; an index
+# built with it set cannot be fed to simdjson's own stage 2.
+CXXFLAGS   = -std=c++17 -O3 -fpic -g -fstandalone-debug -DNDEBUG \
+             -DSIMDJSON_INDEX_STRING_CLOSE_AND_ESCAPE=1
 
 # GCC libstdc++ major version for Linux cross-compilation (RHEL 8 / glibc 2.28).
 LINUX_STDCXX_MAJOR ?= 8

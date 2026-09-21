@@ -643,9 +643,6 @@ tests:
 - class: org.elasticsearch.upgrades.UpgradeXpackClusterClientYamlTestSuiteIT
   method: test {upgradedNodes=1 yaml=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
   issue: https://github.com/elastic/elasticsearch/issues/158357
-- class: org.elasticsearch.xpack.slm.SLMHealthBlockedSnapshotIT
-  method: testSlmHealthYellowWithRepeatedSnapshotFailures
-  issue: https://github.com/elastic/elasticsearch/issues/159139
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
   method: testMixedOperationsDuringSplitWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/159143
@@ -736,9 +733,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testDeleteAndRecreateIndexDuringReshard
   issue: https://github.com/elastic/elasticsearch/issues/159601
-- class: org.elasticsearch.xpack.slm.SLMHealthBlockedSnapshotIT
-  method: testSlmHealthYellowWithBlockedSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/159679
 - class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
   method: testTranslogIsolatedNodeOnlyStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch/issues/159687
@@ -832,3 +826,18 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification multiple indexes}
   issue: https://github.com/elastic/elasticsearch/issues/159842
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: "test {p0=aggregations/terms_text_docvalues/Terms aggregation on text field with doc_values}"
+  issue: https://github.com/elastic/elasticsearch/issues/159560
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: "test {p0=aggregations/terms_text_docvalues/Terms aggregation on text field with doc_values - multi value}"
+  issue: https://github.com/elastic/elasticsearch/issues/159560
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: "test {p0=aggregations/terms_text_docvalues/Indexing disabled}"
+  issue: https://github.com/elastic/elasticsearch/issues/159560
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: "test {p0=search/400_synthetic_source/text with doc_values}"
+  issue: https://github.com/elastic/elasticsearch/issues/159560
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: "test {p0=search/400_synthetic_source/text with doc_values multi-value}"
+  issue: https://github.com/elastic/elasticsearch/issues/159560

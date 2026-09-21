@@ -840,3 +840,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.BulkDynamicMappingChallengeRestIT
   method: testRandomQueries
   issue: https://github.com/elastic/elasticsearch/issues/159925
+- class: org.elasticsearch.xpack.esql.action.NestedSubqueriesIT
+  method: testLimitSkipsUnstartedNestedMergeAndQueuedSiblingLeaves
+  issue: https://github.com/elastic/elasticsearch/issues/159932

@@ -451,6 +451,8 @@ public class EsqlQueryGenerator {
     }
 
     public static String agg(List<Column> previousOutput, List<CommandGenerator.CommandDescription> previousCommands) {
+        // Null previousCommands means we're in TimeSeriesStatsGenerator (always TS).
+        boolean isTimeSeries = previousCommands == null || previousCommands.stream().anyMatch(c -> "ts".equals(c.commandName()));
         boolean allowUnmapped = areUnmappedFieldsAllowed(previousCommands);
         String unmappedFieldName = randomUnmappedFieldName();
         // Only use unmapped field if allowed and it doesn't exist in the schema
@@ -491,7 +493,12 @@ public class EsqlQueryGenerator {
             String agg = result.toString();
             // Maybe wrap the whole thing in a sparkline
             String dateField = randomDateField(previousOutput);
-            if (randomBoolean() && agg.contains("null") == false && ops == 1 && dateField != null && useUnmappedFieldName == false) {
+            if (randomBoolean()
+                && ops == 1  // SPARKLINE doesn't support expressions, see Sparkline::resolveType
+                && dateField != null  // SPARKLINE requires a date field
+                && isTimeSeries == false  // SPARKLINE is not supported in a TS pipeline, see TimeSeriesAggregate::verify
+                && agg.contains("null") == false  // SPARKLINE doesn't support nulls, see Sparkline::resolveType
+                && useUnmappedFieldName == false) {
                 int buckets = randomIntBetween(1, 10);
                 long fromMillis = randomLongBetween(0L, Instant.now().toEpochMilli());
                 long toMillis = randomLongBetween(fromMillis, Instant.now().toEpochMilli());
@@ -550,9 +557,7 @@ public class EsqlQueryGenerator {
             case 9 -> {
                 String command = randomFrom("first", "last");
                 String dateField = randomNameOrNullOrConst(randomDateField(previousOutput));
-                // In a TS pipeline, first(field, datetime) is implicitly converted to FirstOverTime which requires
-                // numeric. Null previousCommands means we're in TimeSeriesStatsGenerator (always TS).
-                boolean isTimeSeries = previousCommands == null || previousCommands.stream().anyMatch(c -> "ts".equals(c.commandName()));
+                // In a TS pipeline, first/last(field, datetime) is implicitly converted to First/LastOverTime which requires numeric.
                 String firstField = isTimeSeries ? randomNameOrNullOrConst(randomNumericField(previousOutput)) : name;
                 yield command + "(" + firstField + ", " + dateField + ")";
             }

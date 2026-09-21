@@ -17,7 +17,7 @@
 
 set -euo pipefail
 
-VERSION="1.0.140"
+VERSION="1.0.149"
 
 LOCAL=false
 FORCE_UPLOAD=false

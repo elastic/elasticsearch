@@ -42,7 +42,6 @@ import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
 import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.string.StringColumnValues;
 import org.elasticsearch.columnar.string.StringColumnWriter;
-import org.elasticsearch.columnar.string.ValueStream;
 import org.elasticsearch.columnar.string.Vocabulary;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
@@ -76,7 +75,6 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     private final int blockSize;
     private final StringColumnOptionsSelector stringSelector;
 
-    /** Bytes a chunk of a string column's byte stream holds before it is closed and compressed. */
     private boolean closed = false;
 
     private record FieldEntry(int fieldNumber, byte fieldTypeId, ColumnMetadata metadata) {}
@@ -638,6 +636,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             maxDoc,
             numDocsWithField,
             numValues,
+            true,
             cursors,
             pipeline,
             BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
@@ -687,11 +686,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             totals.numValues(),
             totals.numNullSlots(),
             cursors,
-            ValueStream.VALUES_PER_BLOCK,
-            options.chunkCodec(),
-            options.targetChunkBytes(),
-            options.plainPathTargetChunkBytes(),
-            options.dictionary(),
+            options,
             known,
             directory,
             context,

@@ -86,6 +86,19 @@ public class ConcurrencyLimiterTests extends ESTestCase {
         limiter.release();
     }
 
+    public void testTimeoutMessageWhenParseFloorBinds() throws Exception {
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false, true), 50L);
+        limiter.acquire();
+        TimeoutException thrown = expectThrows(TimeoutException.class, limiter::acquire);
+        assertEquals(
+            "Timed out waiting for a concurrency permit for [s3] after [50]ms (max permits [1]). "
+                + "[esql.external.max_concurrent_requests] cannot raise this node's limit: "
+                + "the parse-floor of [4] is the binding constraint.",
+            thrown.getMessage()
+        );
+        limiter.release();
+    }
+
     public void testDisabledWithZeroPermits() throws Exception {
         ConcurrencyLimiter limiter = ConcurrencyLimiter.UNLIMITED;
         assertFalse(limiter.isEnabled());

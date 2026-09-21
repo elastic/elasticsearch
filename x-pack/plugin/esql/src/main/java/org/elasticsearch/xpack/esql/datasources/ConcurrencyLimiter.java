@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 
 import java.util.Objects;
 import java.util.concurrent.Semaphore;
@@ -28,7 +30,7 @@ class ConcurrencyLimiter {
 
     private static final Logger logger = LogManager.getLogger(ConcurrencyLimiter.class);
 
-    static final ConcurrencyLimiter UNLIMITED = new ConcurrencyLimiter(0, 60_000L);
+    static final ConcurrencyLimiter UNLIMITED = new ConcurrencyLimiter(60_000L);
 
     private final Semaphore semaphore;
     private final String scheme;
@@ -39,10 +41,7 @@ class ConcurrencyLimiter {
     private static final long WARN_LOG_INTERVAL_MS = 30_000;
     private static final long WARN_WAIT_THRESHOLD_MS = 5_000;
 
-    private ConcurrencyLimiter(int maxPermits, long acquireTimeoutMs) {
-        if (maxPermits != 0) {
-            throw new IllegalArgumentException("maxPermits must be 0");
-        }
+    private ConcurrencyLimiter(long acquireTimeoutMs) {
         this.scheme = null;
         this.concurrency = null;
         this.acquireTimeoutMs = acquireTimeoutMs;
@@ -65,6 +64,29 @@ class ConcurrencyLimiter {
         this.concurrency = concurrency;
         this.acquireTimeoutMs = acquireTimeoutMs;
         this.semaphore = new Semaphore(concurrency.permits(), true);
+    }
+
+    /**
+     * Acquires a permit, mapping limiter failures onto the exception types the storage retry
+     * layer understands. Timeout is node-local admission back-pressure, raised as a retryable
+     * {@link ExternalUnavailableException} ({@code RetryPolicy.execute} retries that type).
+     * {@code throttling=false}: this is a local semaphore, not a remote-store 429/503, so it
+     * must not feed the per-bucket adaptive backoff or the throttle budget. Interrupt is a
+     * shutdown/cancellation signal, not back-pressure: throw non-retryable so the retry layer
+     * does not loop on an interrupt flag that will fire again immediately. The interrupt is
+     * preserved as the cause ({@link EsRejectedExecutionException} has no cause constructor).
+     */
+    void acquireChecked() {
+        try {
+            acquire();
+        } catch (TimeoutException e) {
+            throw new ExternalUnavailableException(e.getMessage(), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            EsRejectedExecutionException rejected = new EsRejectedExecutionException("Interrupted while acquiring a concurrency permit");
+            rejected.initCause(e);
+            throw rejected;
+        }
     }
 
     void acquire() throws TimeoutException, InterruptedException {
@@ -122,6 +144,17 @@ class ConcurrencyLimiter {
                 acquireTimeoutMs,
                 maxPermits(),
                 key
+            );
+        }
+        if (concurrency.parseFloorBinds()) {
+            return Strings.format(
+                "Timed out waiting for a concurrency permit for [%s] after [%s]ms (max permits [%s]). "
+                    + "[%s] cannot raise this node's limit: the parse-floor of [%s] is the binding constraint.",
+                scheme,
+                acquireTimeoutMs,
+                maxPermits(),
+                key,
+                ExternalSourceSettings.BLOB_STORE_CONCURRENCY_FLOOR
             );
         }
         return Strings.format(

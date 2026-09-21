@@ -115,6 +115,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         ExternalSourceSettings.BlobStoreConcurrency info = ExternalSourceSettings.blobStoreConcurrencyInfo(configured, heapBytes, request);
         assertEquals(6, info.permits());
         assertFalse(info.settingCanRaiseLimit());
+        assertFalse(info.parseFloorBinds());
     }
 
     public void testBlobStoreConcurrencyInfoCpuClampBindsUnset() {
@@ -124,6 +125,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         ExternalSourceSettings.BlobStoreConcurrency info = ExternalSourceSettings.blobStoreConcurrencyInfo(configured, heapBytes, request);
         assertEquals(4, info.permits());
         assertTrue(info.settingCanRaiseLimit());
+        assertFalse(info.parseFloorBinds());
     }
 
     public void testBlobStoreConcurrencyInfoFloorBindsUnset() {
@@ -133,6 +135,17 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         ExternalSourceSettings.BlobStoreConcurrency info = ExternalSourceSettings.blobStoreConcurrencyInfo(configured, heapBytes, request);
         assertEquals(4, info.permits());
         assertFalse(info.settingCanRaiseLimit());
+        assertTrue(info.parseFloorBinds());
+    }
+
+    public void testBlobStoreConcurrencyInfoParseFloorDoesNotBindWhenRawSlotsEqualFloor() {
+        long heapBytes = ByteSizeValue.ofMb(160).getBytes();
+        long request = requestLimit(160);
+        int configured = ExternalSourceSettings.defaultBlobStoreConcurrency(16, heapBytes, request);
+        ExternalSourceSettings.BlobStoreConcurrency info = ExternalSourceSettings.blobStoreConcurrencyInfo(configured, heapBytes, request);
+        assertEquals(4, info.permits());
+        assertFalse(info.settingCanRaiseLimit());
+        assertFalse(info.parseFloorBinds());
     }
 
     public void testBlobStoreConcurrencyInfoExplicitMaxIsUnraisableWhenMemoryAllowsMore() {
@@ -141,6 +154,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         ExternalSourceSettings.BlobStoreConcurrency info = ExternalSourceSettings.blobStoreConcurrencyInfo(500, heapBytes, request);
         assertEquals(500, info.permits());
         assertFalse(info.settingCanRaiseLimit());
+        assertFalse(info.parseFloorBinds());
     }
 
     public void testBlobStoreConcurrencyInfoRequestBreakerBinds() {
@@ -154,6 +168,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         );
         assertEquals(4, info.permits());
         assertFalse(info.settingCanRaiseLimit());
+        assertFalse(info.parseFloorBinds());
     }
 
     public void testBlobStoreConcurrencyInfoSettingsOverloadMatchesLiveTerms() {
@@ -169,6 +184,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         );
         assertEquals(expected.permits(), info.permits());
         assertEquals(expected.settingCanRaiseLimit(), info.settingCanRaiseLimit());
+        assertEquals(expected.parseFloorBinds(), info.parseFloorBinds());
     }
 
     public void testDefaultBlobStoreConcurrencySettingsHonorsRequestLimit() {

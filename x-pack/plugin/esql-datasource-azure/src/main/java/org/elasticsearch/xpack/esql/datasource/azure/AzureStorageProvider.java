@@ -249,7 +249,8 @@ public final class AzureStorageProvider implements StorageProvider {
                 && Strings.hasText(config.account()) == false
                 && Strings.hasText(config.endpoint()) == false) {
                 throw new TestConnectionNotSupportedException(
-                    "auth=" + mode.name().toLowerCase(Locale.ROOT)
+                    "auth="
+                        + mode.name().toLowerCase(Locale.ROOT)
                         + " without account or endpoint cannot be verified at the data source level",
                     "The account or endpoint could not be resolved from the data source settings alone; "
                         + "create a dataset to validate access."

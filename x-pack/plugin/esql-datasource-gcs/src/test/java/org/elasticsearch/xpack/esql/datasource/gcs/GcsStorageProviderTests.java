@@ -292,10 +292,7 @@ public class GcsStorageProviderTests extends ESTestCase {
     public void testTestConnectionAnonymousIsUntestable() {
         GcsConfiguration config = GcsConfiguration.fromFields(null, null, null, null, "anonymous");
         GcsStorageProvider provider = new GcsStorageProvider(config, null);
-        TestConnectionNotSupportedException ex = expectThrows(
-            TestConnectionNotSupportedException.class,
-            provider::testConnection
-        );
+        TestConnectionNotSupportedException ex = expectThrows(TestConnectionNotSupportedException.class, provider::testConnection);
         assertThat(ex.getMessage(), containsString("anonymous"));
     }
 

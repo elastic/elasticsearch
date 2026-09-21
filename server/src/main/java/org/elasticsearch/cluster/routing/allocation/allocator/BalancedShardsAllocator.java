@@ -961,7 +961,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             null,
                             shardRouting.primary(),
                             nodeName(shardRouting.currentNodeId()),
-                            nodeName(moveDecision.getTargetNode())
+                            null
                         )
                     );
                     // Return after a single move so that the change can be simulated before further moves are made.
@@ -1187,7 +1187,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         private String nodeName(String nodeId) {
-            DiscoveryNode node = allocation.getClusterState().nodes().get(nodeId);
+            final var node = allocation.getClusterState().nodes().get(nodeId);
             if (node == null) {
                 return nodeId;
             }
@@ -1195,7 +1195,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         private String nodeName(DiscoveryNode node) {
-            final String name = node.getName();
+            final var name = node.getName();
             return name != null && name.isEmpty() == false ? name : node.getId();
         }
 

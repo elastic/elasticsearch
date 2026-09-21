@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.esql.datasource.http;
 
 import org.apache.http.HttpStatus;
-import org.elasticsearch.xpack.esql.datasources.DirectByteBufferCopies;
+import org.elasticsearch.xpack.esql.datasources.KnownLengthBodyFill;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
 import java.net.http.HttpResponse;
@@ -38,15 +40,25 @@ final class DirectByteBufferBodyHandlers {
      * {@code Range} header and responds with {@code 200 OK}, the first {@code skip} bytes are
      * discarded and the next {@code length} bytes are accumulated into a destination buffer.
      *
+     * <p>A truncated fill — a {@code 206} body shorter than {@code length}, or a {@code 200} body
+     * that does not cover {@code skip + length} — is a non-throttling
+     * {@link ExternalUnavailableException}. A {@code 206} body longer than {@code length} is the
+     * same typed overflow. Extra {@code 200} bytes after the fill window are ignored: the server
+     * sent the whole object after ignoring {@code Range}. {@code HttpStorageObject} preserves that
+     * typed exception rather than wrapping it as a generic retryable 503. A skip that lands past
+     * EOF is also an {@link ExternalUnavailableException}. A wrong fill length on our side still
+     * exhausts the retry budget.
+     *
      * @param factory factory used to produce the destination buffer on the 200/206 paths
+     * @param path named in both length-mismatch messages so the typed exception identifies the object
      */
-    static HttpResponse.BodyHandler<DirectReadBuffer> ofRangeRead(long skip, int length, DirectBufferFactory factory) {
+    static HttpResponse.BodyHandler<DirectReadBuffer> ofRangeRead(long skip, int length, DirectBufferFactory factory, StoragePath path) {
         return responseInfo -> {
             int status = responseInfo.statusCode();
             if (status == HttpStatus.SC_PARTIAL_CONTENT) {
-                return new FixedLengthDirectSubscriber(length, factory);
+                return new FixedLengthDirectSubscriber(length, factory, path);
             } else if (status == HttpStatus.SC_OK) {
-                return new SkipThenFillDirectSubscriber(skip, length, factory);
+                return new SkipThenFillDirectSubscriber(skip, length, factory, path);
             } else {
                 return new DiscardingSubscriber();
             }
@@ -55,25 +67,33 @@ final class DirectByteBufferBodyHandlers {
 
     /**
      * Accumulates exactly {@code expectedLength} bytes into a destination buffer. Used for {@code 206} responses.
+     * <p>
+     * Both mismatches are raised as {@link ExternalUnavailableException} (503, retryable): a body that does not
+     * match the range we asked for is a truncated or over-long response from the store, which the next attempt
+     * can well return correctly — the same typing S3 {@code KnownLengthAsyncResponseTransformer} gives a length
+     * mismatch. The cost of that choice is that a wrong {@code expectedLength} on our side is reported as the
+     * store being unavailable, but it re-trips on every attempt and still fails once the bounded retry budget
+     * is spent.
      */
     static final class FixedLengthDirectSubscriber implements HttpResponse.BodySubscriber<DirectReadBuffer> {
         private final int expectedLength;
         private final DirectBufferFactory factory;
+        private final KnownLengthBodyFill fill;
         private final CompletableFuture<DirectReadBuffer> body = new CompletableFuture<>();
         // Subscriber signals are serialized, but cancellation of body can arrive from another
         // thread and must not close the destination while onNext is copying into it.
         private final Object destinationLock = new Object();
         private DirectReadBuffer destinationBuf;
-        private int offset;
         private volatile Flow.Subscription subscription;
         private boolean failed;
 
-        FixedLengthDirectSubscriber(int expectedLength, DirectBufferFactory factory) {
+        FixedLengthDirectSubscriber(int expectedLength, DirectBufferFactory factory, StoragePath path) {
             if (expectedLength < 0) {
                 throw new IllegalArgumentException("expectedLength must be non-negative, got: " + expectedLength);
             }
             this.expectedLength = expectedLength;
             this.factory = factory;
+            this.fill = new KnownLengthBodyFill("HTTP", path, expectedLength);
             body.whenComplete((ignored, error) -> {
                 if (body.isCancelled()) {
                     releaseOnFailure();
@@ -130,25 +150,17 @@ final class DirectByteBufferBodyHandlers {
 
         @Override
         public void onNext(List<ByteBuffer> items) {
-            IOException overflow = null;
+            ExternalUnavailableException overflow = null;
             synchronized (destinationLock) {
                 for (ByteBuffer chunk : items) {
                     DirectReadBuffer drb = destinationBuf;
                     if (drb == null || failed) {
                         return;
                     }
-                    int remaining = chunk.remaining();
-                    if (remaining > expectedLength - offset) {
-                        overflow = new IOException(
-                            "HTTP response body exceeded expected length: cumulative="
-                                + ((long) offset + remaining)
-                                + ", expected="
-                                + expectedLength
-                        );
+                    overflow = fill.copyOrOverflow(drb, chunk);
+                    if (overflow != null) {
                         break;
                     }
-                    DirectByteBufferCopies.copyChunkIntoDestination(drb.buffer(), offset, chunk);
-                    offset += remaining;
                 }
             }
             if (overflow != null) {
@@ -164,20 +176,17 @@ final class DirectByteBufferBodyHandlers {
         @Override
         public void onComplete() {
             DirectReadBuffer transferred;
-            IOException shortRead;
+            ExternalUnavailableException shortRead;
             synchronized (destinationLock) {
                 if (failed) {
                     return;
                 }
-                if (offset != expectedLength) {
+                shortRead = fill.shortReadOrNull();
+                if (shortRead != null) {
                     transferred = null;
-                    shortRead = new IOException(
-                        "HTTP response body shorter than expected: received=" + offset + ", expected=" + expectedLength
-                    );
                 } else {
                     transferred = destinationBuf;
                     destinationBuf = null;
-                    shortRead = null;
                 }
             }
             if (shortRead != null) {
@@ -187,7 +196,7 @@ final class DirectByteBufferBodyHandlers {
             if (transferred == null) {
                 return;
             }
-            transferred.buffer().position(0).limit(offset);
+            transferred.buffer().position(0).limit(fill.offset());
             if (body.complete(transferred) == false) {
                 transferred.close();
             }
@@ -240,15 +249,15 @@ final class DirectByteBufferBodyHandlers {
         private final long skip;
         private final int length;
         private final DirectBufferFactory factory;
+        private final KnownLengthBodyFill fill;
         private final CompletableFuture<DirectReadBuffer> body = new CompletableFuture<>();
         private final Object destinationLock = new Object();
         private DirectReadBuffer destinationBuf;
         private long skipRemaining;
-        private int fillOffset;
         private volatile Flow.Subscription subscription;
         private boolean failed;
 
-        SkipThenFillDirectSubscriber(long skip, int length, DirectBufferFactory factory) {
+        SkipThenFillDirectSubscriber(long skip, int length, DirectBufferFactory factory, StoragePath path) {
             if (skip < 0) {
                 throw new IllegalArgumentException("skip must be non-negative, got: " + skip);
             }
@@ -259,6 +268,7 @@ final class DirectByteBufferBodyHandlers {
             this.length = length;
             this.skipRemaining = skip;
             this.factory = factory;
+            this.fill = new KnownLengthBodyFill("HTTP", path, length);
             body.whenComplete((ignored, error) -> {
                 if (body.isCancelled()) {
                     releaseOnFailure();
@@ -327,13 +337,8 @@ final class DirectByteBufferBodyHandlers {
                         chunk.position(chunk.position() + (int) toSkip);
                         skipRemaining -= toSkip;
                     }
-                    if (fillOffset < length && chunk.hasRemaining()) {
-                        int toCopy = Math.min(chunk.remaining(), length - fillOffset);
-                        ByteBuffer slice = chunk.slice();
-                        slice.limit(toCopy);
-                        DirectByteBufferCopies.copyChunkIntoDestination(drb.buffer(), fillOffset, slice);
-                        chunk.position(chunk.position() + toCopy);
-                        fillOffset += toCopy;
+                    if (chunk.hasRemaining()) {
+                        fill.copyBounded(drb, chunk);
                     }
                 }
             }
@@ -347,24 +352,22 @@ final class DirectByteBufferBodyHandlers {
         @Override
         public void onComplete() {
             DirectReadBuffer transferred;
-            IOException readFailure;
+            ExternalUnavailableException readFailure;
             synchronized (destinationLock) {
                 if (failed) {
                     return;
                 }
                 if (skipRemaining > 0) {
                     transferred = null;
-                    readFailure = new IOException("Position " + skip + " is beyond content length for HTTP response body");
-                } else if (fillOffset != length) {
-                    // Downstream consumers trust the requested length when slicing the returned buffer.
-                    transferred = null;
-                    readFailure = new IOException(
-                        "HTTP response body shorter than expected: received=" + fillOffset + ", expected=" + length
-                    );
+                    readFailure = fill.beyondContentLength(skip);
                 } else {
-                    transferred = destinationBuf;
-                    destinationBuf = null;
-                    readFailure = null;
+                    readFailure = fill.shortReadOrNull();
+                    if (readFailure != null) {
+                        transferred = null;
+                    } else {
+                        transferred = destinationBuf;
+                        destinationBuf = null;
+                    }
                 }
             }
             if (readFailure != null) {
@@ -374,7 +377,7 @@ final class DirectByteBufferBodyHandlers {
             if (transferred == null) {
                 return;
             }
-            transferred.buffer().position(0).limit(fillOffset);
+            transferred.buffer().position(0).limit(fill.offset());
             if (body.complete(transferred) == false) {
                 transferred.close();
             }

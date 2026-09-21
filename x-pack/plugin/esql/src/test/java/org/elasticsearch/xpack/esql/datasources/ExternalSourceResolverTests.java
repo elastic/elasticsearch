@@ -2250,6 +2250,46 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertTrue(resolved.fileList().isTruncated());
     }
 
+    /**
+     * A {@code _file.*} filter prunes no folder, so it is not a partition-pruning hint - but it decides which entry
+     * becomes the anchor: when nothing listed matches it, the first entry visited is stashed and used instead. Over a
+     * prefix that is the dataset's first key; over the whole glob it is the matching file. Bounding under such a hint
+     * therefore answers a schema request from a different file than the query that reads rows resolves, which under
+     * FIRST_FILE_WINS is a different schema. The bound must be declined.
+     */
+    public void testFileMetadataHintDeclinesTheBound() throws Exception {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/a.parquet", 100),
+            entry("s3://bucket/data/b.parquet", 200),
+            entry("s3://bucket/data/c.parquet", 300)
+        );
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        schemas.put("s3://bucket/data/a.parquet", List.of(attr("from_a", DataType.INTEGER)));
+        schemas.put("s3://bucket/data/b.parquet", List.of(attr("from_b", DataType.INTEGER)));
+        schemas.put("s3://bucket/data/c.parquet", List.of(attr("from_c", DataType.INTEGER)));
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            FileMetadataColumns.NAME,
+            PartitionFilterHintExtractor.Operator.EQUALS,
+            List.of("c.parquet")
+        );
+        // Small enough that the first key alone would exhaust it, so the defect does not need a thousand files.
+        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+        config.put(PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE, 1);
+
+        ExternalSourceResolver resolver = createResolver(schemas, Map.of("s3://bucket/data/", listing));
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(GLOB), Map.of(GLOB, config), Map.of(GLOB, List.of(hint)), null, Set.of(), Set.of(GLOB), future);
+        ExternalSourceResolution resolved = future.actionGet();
+
+        ExternalSourceResolution.ResolvedSource source = resolved.resolvedSource(GLOB);
+        assertFalse("a hinted listing must not be bounded - the hint picks the anchor", source.fileList().isTruncated());
+        assertEquals(
+            "the schema must come from the file the hint selects, not the first key visited",
+            List.of("from_c"),
+            source.metadata().schema().stream().map(Attribute::name).toList()
+        );
+    }
+
     private ExternalSourceResolution resolveForSchemaDiscovery(ExternalSourceResolver resolver, Map<String, Object> config) {
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
         resolver.resolve(List.of(GLOB), Map.of(GLOB, new HashMap<>(config)), null, null, Set.of(), Set.of(GLOB), future);

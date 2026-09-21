@@ -1471,7 +1471,11 @@ public class ExternalSourceResolver {
         if (FileOrderConfig.forListing(config).equals(FileOrderConfig.DEFAULT) == false) {
             return Integer.MAX_VALUE;
         }
-        if (GlobExpander.hasPartitionPruningHints(hints)) {
+        // Any hint, not only a pruning one. A _file.* filter prunes no folder, but it decides which entry becomes
+        // the anchor: when nothing in the listing matches it, the first entry visited is stashed and used. Over a
+        // prefix that is the first key of the dataset; over the whole glob it is the matching file. Bounding here
+        // would answer a schema request from a different file than the query that reads rows would use.
+        if (hints != null && hints.isEmpty() == false) {
             return Integer.MAX_VALUE;
         }
         return PartitionConfig.sampleSize(config);

@@ -15,7 +15,6 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleUserEventChannelHandler;
 import io.netty.handler.ssl.SslClientHelloHandler;
 import io.netty.handler.ssl.SslHandshakeCompletionEvent;
-import io.netty.util.ReferenceCounted;
 import io.netty.util.concurrent.Future;
 
 import org.apache.logging.log4j.LogManager;
@@ -237,14 +236,14 @@ class TlsHandshakeThrottleManager extends AbstractLifecycleComponent {
          * A Netty pipeline handler that aggregates inbound messages until it receives a full TLS {@code ClientHello} and then either
          * passes all the received messages on down the pipeline (if not throttled) or else delays that work until another TLS handshake
          * completes (if too many such handshakes are already in flight).
+         * <p>
+         * Delivery to the next handler relies entirely on {@link io.netty.handler.codec.ByteToMessageDecoder#handlerRemoved}, which fires
+         * {@code ctx.fireChannelRead(cumulation)} exactly once when this handler is removed. This guarantees single delivery regardless of
+         * how many {@code channelRead} calls were needed to assemble the full {@code ClientHello} (e.g. when it arrives across two TCP
+         * segments). {@link io.netty.handler.codec.ByteToMessageDecoder#decode} never advances {@code cumulation.readerIndex()}, so
+         * {@code cumulation} is always fully readable when {@code handlerRemoved} fires.
          */
         private class HandshakeThrottleHandler extends SslClientHelloHandler<Void> {
-
-            /**
-             * Promise which accumulates the messages received until we receive a full handshake. Completed when we receive a full
-             * handshake, at which point all the delayed messages are pushed down the pipeline for actual processing.
-             */
-            private final SubscribableListener<Void> handshakeStartedPromise = new SubscribableListener<>();
 
             /**
              * Promise which will be completed by the channel's matching {@link HandshakeCompletionWatcher} when the handshake we sent down
@@ -257,70 +256,22 @@ class TlsHandshakeThrottleManager extends AbstractLifecycleComponent {
             }
 
             @Override
-            public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-                if (msg instanceof ReferenceCounted referenceCounted) {
-                    referenceCounted.retain();
-                }
-                handshakeStartedPromise.addListener(new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void unused) {
-                        ctx.fireChannelRead(msg);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (msg instanceof ReferenceCounted referenceCounted) {
-                            referenceCounted.release();
-                        }
-                    }
-                });
-                super.channelRead(ctx, msg);
-            }
-
-            @Override
-            public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
-                handshakeStartedPromise.addListener(new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void unused) {
-                        ctx.fireChannelReadComplete();
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {}
-                });
-                super.channelReadComplete(ctx);
-            }
-
-            @Override
-            public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-                handshakeStartedPromise.onFailure(
-                    new NodeDisconnectedException(null, "connection closed before handshake started", null, null)
-                );
-                super.channelInactive(ctx);
-            }
-
-            @Override
             protected Future<Void> lookup(ChannelHandlerContext ctx, ByteBuf clientHello) {
                 if (clientHello == null) {
                     logger.debug("lookup with no ClientHello, closing [{}]", ctx.channel());
                     ctx.channel().close();
-                    final var exception = new IllegalArgumentException(
-                        "did not receive initial ClientHello on channel [" + ctx.channel() + "]"
-                    );
-                    handshakeStartedPromise.onFailure(exception);
-                    return ctx.executor().newFailedFuture(exception);
+                    return ctx.executor()
+                        .newFailedFuture(
+                            new IllegalArgumentException("did not receive initial ClientHello on channel [" + ctx.channel() + "]")
+                        );
                 }
 
                 if (ctx.channel().isActive() == false) {
                     logger.debug("lookup after channel inactive, ignoring [{}]", ctx.channel());
-                    final var exception = new NodeDisconnectedException(
-                        null,
-                        "lookup after channel inactive [" + ctx.channel() + "]",
-                        null,
-                        null
-                    );
-                    handshakeStartedPromise.onFailure(exception);
-                    return ctx.executor().newFailedFuture(exception);
+                    return ctx.executor()
+                        .newFailedFuture(
+                            new NodeDisconnectedException(null, "lookup after channel inactive [" + ctx.channel() + "]", null, null)
+                        );
                 }
 
                 final var maxInProgressTlsHandshakes = TlsHandshakeThrottleManager.this.maxInProgressTlsHandshakes; // single volatile read
@@ -329,7 +280,6 @@ class TlsHandshakeThrottleManager extends AbstractLifecycleComponent {
                     inProgressHandshakesCount += 1;
                     handshakeCompletePromise.addListener(ActionListener.running(TlsHandshakeThrottle.this::handleHandshakeCompletion));
                     ctx.channel().pipeline().remove(HandshakeThrottleHandler.this);
-                    handshakeStartedPromise.onResponse(null);
                 } else {
                     logger.debug(
                         "[{}] in-progress TLS handshakes already, enqueueing new handshake on [{}]",
@@ -361,7 +311,6 @@ class TlsHandshakeThrottleManager extends AbstractLifecycleComponent {
                                 ActionListener.running(TlsHandshakeThrottle.this::handleHandshakeCompletion)
                             );
                             ctx.pipeline().remove(HandshakeThrottleHandler.this);
-                            handshakeStartedPromise.onResponse(null);
                         }
 
                         @Override

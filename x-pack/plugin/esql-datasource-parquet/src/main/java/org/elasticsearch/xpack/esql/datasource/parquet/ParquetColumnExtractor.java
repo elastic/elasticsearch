@@ -542,7 +542,8 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 projection,
                 blockFactory.breaker(),
                 watermark,
-                hold
+                hold,
+                reader.footerBytes()
             );
             if (hold != null) {
                 future.whenComplete((ignored, error) -> hold.drop());

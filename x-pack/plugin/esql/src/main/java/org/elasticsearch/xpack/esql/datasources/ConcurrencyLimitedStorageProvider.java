@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -58,6 +59,17 @@ class ConcurrencyLimitedStorageProvider implements StorageProvider {
         } catch (Exception e) {
             limiter.release();
             throw e;
+        }
+    }
+
+    @Override
+    public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
+        // One remote call, fully materialized by the delegate: the permit brackets the call itself.
+        acquirePermit();
+        try {
+            return delegate.listChildren(prefix, limit);
+        } finally {
+            limiter.release();
         }
     }
 

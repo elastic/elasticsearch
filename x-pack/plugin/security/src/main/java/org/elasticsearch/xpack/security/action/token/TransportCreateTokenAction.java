@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.action.token;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -78,7 +77,12 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
                 Authentication authentication = securityContext.getAuthentication();
                 if (authentication.isServiceAccount()) {
                     // Service account itself cannot create OAuth2 tokens.
-                    listener.onFailure(new ElasticsearchException("OAuth2 token creation is not supported for service accounts"));
+                    listener.onFailure(
+                        new ElasticsearchSecurityException(
+                            "OAuth2 token creation is not supported for service accounts",
+                            RestStatus.BAD_REQUEST
+                        )
+                    );
                     return;
                 }
                 createToken(type, request, authentication, authentication, false, listener);

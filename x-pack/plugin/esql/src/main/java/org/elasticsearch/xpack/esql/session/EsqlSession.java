@@ -543,11 +543,10 @@ public class EsqlSession {
                     TransportVersion minimumVersion = analyzedPlan.minimumVersion();
 
                     // Apply the out-of-band request filter to external-source (dataset) leaves, translated
-                    // against each source's schema. Index leaves keep their existing filter path. Version-gated:
-                    // the translated predicate can contain mv_in_range / mv_greater / mv_less, which older
-                    // nodes cannot deserialize.
-                    // Fail-closed by default: an unsupported construct throws VerificationException (a 400).
-                    // With allow_partial_dsl_filter=true: applies only the translatable subset, emits a warning.
+                    // against each source's schema. Index leaves keep their existing filter path. Version-gated,
+                    // but the pin covers mv_in_range only: it predates mv_greater and mv_less, which the translator
+                    // also emits (elastic/elasticsearch#159672).
+                    // Applies the translatable subset and drops the rest with a warning naming each clause.
                     // This callback runs outside the SubscribableListener chain below, so a synchronous throw here
                     // would not be routed to the listener — catch it and fail the query explicitly.
                     final LogicalPlan plan;
@@ -555,10 +554,9 @@ public class EsqlSession {
                         LogicalPlan afterDatasetFilter = RequestFilterRewriter.rewrite(
                             analyzedPlan.inner(),
                             request.filter(),
-                            RequestFilterRewriter.REQUEST_FILTER_ON_DATASET_FEATURE_FLAG.isEnabled(),
                             finalConfiguration,
                             minimumVersion,
-                            Boolean.TRUE.equals(request.allowPartialDslFilter())
+                            true
                         );
                         // Apply the request filter to view subplan outputs: the filter is translated against each
                         // view's output schema and inserted as an ordinary Filter above the view's subplan, so it
@@ -1584,10 +1582,15 @@ public class EsqlSession {
         // EXTERNAL command. The resolver first read-authorizes the names through the security filter — they are
         // stripped from the plan here and would otherwise never reach authorization. Completes synchronously when
         // no FROM pattern can match a registered dataset.
-        datasetResolver.replaceDatasets(parsed, projectMetadata, logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
-            datasetResolutionProfile.stop();
-            analyzedPlanAfterDatasetResolution(rewritten, unmappedResolution, configuration, executionInfo, requestFilter, delegate);
-        }));
+        datasetResolver.replaceDatasets(
+            parsed,
+            projectMetadata,
+            QuerySettings.WILDCARDS_MATCH_DATASETS.get(configuration.resolvedSettings()),
+            logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
+                datasetResolutionProfile.stop();
+                analyzedPlanAfterDatasetResolution(rewritten, unmappedResolution, configuration, executionInfo, requestFilter, delegate);
+            })
+        );
     }
 
     private void analyzedPlanAfterDatasetResolution(

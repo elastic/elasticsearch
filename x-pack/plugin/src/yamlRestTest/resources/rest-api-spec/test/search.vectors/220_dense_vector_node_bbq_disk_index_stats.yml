@@ -105,3 +105,66 @@
   - is_false: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector3.veb_size_bytes
   - is_false: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector3.veq_size_bytes
   - is_false: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector3.vex_size_bytes
+
+---
+"index stats include_auto_calibration":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ optimized_scalar_quantization_bbq ]
+      test_runner_features: capabilities
+      reason: Feature requires DiskBBQ
+  - requires:
+      cluster_features: ["mapper.bbq_disk_support"]
+      reason: Needs mapper.bbq_disk_support feature
+  - requires:
+      cluster_features: ["mapper.bbq_disk_stats_support"]
+      reason: Needs bbq_disk DenseVectorStats support
+
+  - do:
+      indices.create:
+        index: bbq_stats
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              my_vector:
+                type: dense_vector
+                dims: 4
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: bbq_disk
+
+  - do:
+      index:
+        index: bbq_stats
+        id: "1"
+        body:
+          my_vector: [ 1.0, 2.0, 3.0, 4.0 ]
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      indices.stats:
+        index: bbq_stats
+
+  - is_false: indices.bbq_stats.primaries.dense_vector.off_heap.fielddata.my_vector.auto_calibration
+
+  - do:
+      indices.stats:
+        index: bbq_stats
+        include_auto_calibration: true
+
+  - is_true: indices.bbq_stats.primaries.dense_vector.off_heap.fielddata.my_vector.auto_calibration
+  - match: { indices.bbq_stats.primaries.dense_vector.off_heap.fielddata.my_vector.auto_calibration.0.calibrated: false }
+  - match: { indices.bbq_stats.primaries.dense_vector.off_heap.fielddata.my_vector.auto_calibration.0.type: "osq" }
+  - match: { indices.bbq_stats.primaries.dense_vector.off_heap.fielddata.my_vector.auto_calibration.0.number_of_vectors: 1 }
+  - match: { indices.bbq_stats.primaries.dense_vector.off_heap.fielddata.my_vector.auto_calibration.0.number_of_segments: 1 }
+  - gt:   { indices.bbq_stats.primaries.dense_vector.off_heap.fielddata.my_vector.auto_calibration.0.size_in_bytes: 0 }
+  - is_false: indices.bbq_stats.primaries.dense_vector.off_heap.fielddata.my_vector.auto_calibration.0.parameters

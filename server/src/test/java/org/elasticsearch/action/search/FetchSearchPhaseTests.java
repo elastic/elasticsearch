@@ -982,7 +982,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
                 @Override
                 public void process(FetchSubPhase.HitContext hitContext) {
-                    fetchContext.chargeScriptFieldsBytes(innerHitsLikeBytes);
+                    fetchContext.chargeInnerHitsBytes(innerHitsLikeBytes);
                     Source source = hitContext.source();
                     hitContext.hit().sourceRef(source.internalSourceRef());
                 }

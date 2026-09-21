@@ -10,6 +10,7 @@
 package org.elasticsearch.common.document;
 
 import org.apache.lucene.tests.util.RamUsageTester;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayDeque;
@@ -178,6 +179,42 @@ public class DocumentFieldRamUsageEstimatorTests extends ESTestCase {
                 "estimate under-counts retained heap: estimate=" + estimate + " actual=" + actual + " for values=" + field.getValues(),
                 estimate,
                 greaterThanOrEqualTo(actual)
+            );
+        }
+    }
+
+    /**
+     * Verify that the ClassValue-cached shallow-size path in sizeOfLeaf contributes at least
+     * shallowSizeOfInstance worth of bytes to the estimate for leaf types that aren't in Lucene's
+     * sizeOfObject fast path (Double, Float, Boolean, Short, Byte). An exact equality assertion
+     * isn't possible via the public API because estimateCollection adds backing-array overhead that
+     * differs between the empty and single-element cases (the else-if branch for unknown collections
+     * adds ARRAY_HEADER_BYTES + 10 * REF_BYTES for n &gt; 0). A greaterThanOrEqualTo check is
+     * sufficient to confirm the ClassValue path returns a sane positive value rather than 0 or
+     * throwing, while the tight upper-bound guarantee is already covered by testEstimateNeverUnderCountsActualHeap.
+     */
+    public void testLeafTypesViaClassValueMatchShallowSizeOfInstance() {
+        List<Object> leafValues = List.of(
+            3.14d,        // Double - not in Lucene's sizeOfObject fast path before this change
+            3.14f,        // Float
+            Boolean.TRUE, // Boolean
+            (short) 1,    // Short
+            (byte) 1      // Byte
+        );
+        DocumentField emptyField = new DocumentField("f", List.of());
+        long overhead = DocumentFieldRamUsageEstimator.estimate(emptyField);
+        for (Object v : leafValues) {
+            long expected = RamUsageEstimator.shallowSizeOfInstance(v.getClass());
+            // Route the value through the estimator so that sizeOfLeaf() is exercised.
+            DocumentField field = new DocumentField("f", List.of(v));
+            long estimate = DocumentFieldRamUsageEstimator.estimate(field);
+            // estimate - overhead is >= shallowSizeOfInstance: the leaf contributes at least its own
+            // shallow size on top of the fixed field overhead. It may be larger due to collection
+            // backing-array overhead added by the else-if (n > 0) branch in estimateCollection.
+            assertThat(
+                "sizeOfLeaf estimate for " + v.getClass().getSimpleName() + " should be at least shallowSizeOfInstance",
+                estimate - overhead,
+                greaterThanOrEqualTo(expected)
             );
         }
     }

@@ -79,7 +79,6 @@ public class PyTorchSandboxIT extends PyTorchModelRestTestCase {
      * asserts that, once that artifact is bundled, a deployment started under the default configuration
      * reaches a healthy state and serves inference correctly.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/3188")
     public void testDefaultSandboxDisabledStartsAndInfersSuccessfully() throws IOException {
         String modelId = "sandbox_default_disabled";
         createPassThroughModel(modelId);
@@ -115,7 +114,6 @@ public class PyTorchSandboxIT extends PyTorchModelRestTestCase {
      * <p>Limitation: "no automatic fallback" to a disabled/degraded sandbox is enforced entirely in
      * ml-cpp and cannot be verified here without the paired controller-protocol artifact.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/3188")
     public void testExplicitSandboxEnabledStartsAndInfersSuccessfully() throws IOException {
         Request clusterSettings = new Request("PUT", "_cluster/settings");
         clusterSettings.setJsonEntity("""
@@ -157,7 +155,6 @@ public class PyTorchSandboxIT extends PyTorchModelRestTestCase {
      * paths directly, so this checks the functional proxy instead - two concurrent deployments both
      * starting healthy and serving correct, uncorrupted inference independently.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/3188")
     public void testConcurrentDeploymentsDoNotCollideUnderLegacyPipeNaming() throws Exception {
         String modelIdA = "sandbox_legacy_pipe_naming_a";
         String modelIdB = "sandbox_legacy_pipe_naming_b";

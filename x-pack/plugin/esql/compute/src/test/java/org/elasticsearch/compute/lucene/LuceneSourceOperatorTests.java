@@ -422,7 +422,8 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
             2,
             maxPageSize,
             limit,
-            scoring
+            scoring,
+            QueryWarnings.EMIT
         );
         assertThat(factory.taskConcurrency(), equalTo(2));
 

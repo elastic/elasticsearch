@@ -32,7 +32,6 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 /**
  * BlockTree statistics for a single field returned by {@link FieldReader#getStats()}.
  *
- * @lucene.internal
  */
 public class Stats {
     /** Byte size of the index. */

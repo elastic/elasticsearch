@@ -54,7 +54,6 @@ import java.util.Arrays;
 /**
  * {@link StoredFieldsReader} impl for {@link Lucene50CompressingStoredFieldsFormat}.
  *
- * @lucene.experimental
  */
 public final class Lucene50CompressingStoredFieldsReader extends StoredFieldsReader {
 

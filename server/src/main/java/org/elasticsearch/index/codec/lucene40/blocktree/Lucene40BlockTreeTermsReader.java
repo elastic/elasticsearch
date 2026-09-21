@@ -33,9 +33,10 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.fst.ByteSequenceOutputs;
 import org.apache.lucene.util.fst.Outputs;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,7 +66,6 @@ import java.util.Map;
  *
  * <p>See {@code BlockTreeTermsWriter}.
  *
- * @lucene.experimental
  */
 public final class Lucene40BlockTreeTermsReader extends FieldsProducer {
 
@@ -272,7 +272,7 @@ public final class Lucene40BlockTreeTermsReader extends FieldsProducer {
                     if (metaIn != null) {
                         CodecUtil.checkFooter(metaIn, priorE);
                     } else if (priorE != null) {
-                        IOUtils.rethrowAlways(priorE);
+                        rethrowAlways(priorE);
                     }
                 }
             }
@@ -317,6 +317,11 @@ public final class Lucene40BlockTreeTermsReader extends FieldsProducer {
         input.seek(input.length() - CodecUtil.footerLength() - 8);
         long offset = input.readLong();
         input.seek(offset);
+    }
+
+    @SuppressForbidden(reason = "Lucene IOUtils.rethrowAlways has no ES equivalent")
+    private static Error rethrowAlways(Throwable th) throws IOException, RuntimeException {
+        return org.apache.lucene.util.IOUtils.rethrowAlways(th);
     }
 
     // for debugging

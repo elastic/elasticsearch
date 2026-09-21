@@ -31,8 +31,8 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.TermState;
 import org.apache.lucene.store.DataOutput;
-import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.lucene40.blocktree.Lucene40BlockTreeTermsReader;
 
 import java.io.IOException;
@@ -331,7 +331,6 @@ import java.io.IOException;
  *       </ul>
  * </dl>
  *
- * @lucene.experimental
  */
 public class Lucene84PostingsFormat extends PostingsFormat {
 
@@ -404,7 +403,6 @@ public class Lucene84PostingsFormat extends PostingsFormat {
      * Holds all state required for {@link Lucene84PostingsReader} to produce a {@link
      * org.apache.lucene.index.PostingsEnum} without re-seeking the terms dict.
      *
-     * @lucene.internal
      */
     public static final class IntBlockTermState extends BlockTermState {
         /** file pointer to the start of the doc ids enumeration, in {@link #DOC_EXTENSION} file */

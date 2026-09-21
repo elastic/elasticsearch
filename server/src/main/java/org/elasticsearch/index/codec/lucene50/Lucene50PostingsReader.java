@@ -36,7 +36,7 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.lucene50.Lucene50PostingsFormat.IntBlockTermState;
 
 import java.io.IOException;
@@ -56,7 +56,6 @@ import static org.elasticsearch.index.codec.lucene50.Lucene50PostingsFormat.VERS
 /**
  * Concrete class that reads docId(maybe frq,pos,offset,payloads) list with postings format.
  *
- * @lucene.experimental
  */
 public final class Lucene50PostingsReader extends PostingsReaderBase {
 

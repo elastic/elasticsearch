@@ -46,7 +46,6 @@ import org.elasticsearch.index.codec.lucene70.Lucene70SegmentInfoFormat;
  * Implements the Lucene 8.0 index format.
  *
  * @see org.apache.lucene.backward_codecs.lucene80 package documentation for file format details.
- * @lucene.experimental
  */
 public class Lucene80Codec extends Codec {
     private final TermVectorsFormat vectorsFormat = new Lucene50TermVectorsFormat();

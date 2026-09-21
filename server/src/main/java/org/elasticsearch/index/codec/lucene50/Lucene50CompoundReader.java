@@ -42,7 +42,6 @@ import java.util.Set;
  * Class for accessing a compound stream. This class implements a directory, but is limited to only
  * read operations. Directory methods that would normally modify data throw an exception.
  *
- * @lucene.experimental
  */
 final class Lucene50CompoundReader extends CompoundDirectory {
 

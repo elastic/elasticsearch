@@ -37,7 +37,6 @@ import java.io.IOException;
  * A compression mode that compromises on the compression ratio to provide fast compression and
  * decompression.
  *
- * @lucene.internal
  */
 public final class LZ4WithPresetDictCompressionMode extends CompressionMode {
 

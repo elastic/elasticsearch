@@ -36,7 +36,6 @@ import java.io.IOException;
  * A {@link TermVectorsFormat} that compresses chunks of documents together in order to improve the
  * compression ratio.
  *
- * @lucene.experimental
  */
 public class Lucene50CompressingTermVectorsFormat extends TermVectorsFormat {
 

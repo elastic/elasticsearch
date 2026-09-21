@@ -38,7 +38,6 @@ import java.util.zip.Inflater;
  * decompression might be slow, this compression mode should provide a good compression ratio. This
  * mode might be interesting if/when your index size is much bigger than your OS cache.
  *
- * @lucene.internal
  */
 public final class DeflateWithPresetDictCompressionMode extends CompressionMode {
 

@@ -45,7 +45,6 @@ import java.io.IOException;
  * See <a href="https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=173081898">this
  * wiki</a> for detailed data structures of the three files.
  *
- * @lucene.experimental
  */
 public class Lucene86PointsFormat extends PointsFormat {
 

@@ -29,8 +29,8 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.bkd.BKDReader;
+import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -122,7 +122,6 @@ public final class Lucene60PointsReader extends PointsReader {
     /**
      * Returns the underlying {@link PointValues}.
      *
-     * @lucene.internal
      */
     @Override
     public PointValues getValues(String fieldName) {

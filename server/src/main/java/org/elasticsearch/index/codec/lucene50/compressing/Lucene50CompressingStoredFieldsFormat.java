@@ -43,7 +43,6 @@ import java.io.IOException;
  * <p>For optimal performance, you should use a {@link MergePolicy} that returns segments that have
  * the biggest byte size first.
  *
- * @lucene.experimental
  */
 public class Lucene50CompressingStoredFieldsFormat extends StoredFieldsFormat {
 

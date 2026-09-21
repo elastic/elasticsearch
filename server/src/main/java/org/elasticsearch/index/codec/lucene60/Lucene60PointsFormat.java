@@ -77,7 +77,6 @@ import java.io.IOException;
  * <p>After all fields blocks + index data are written, {@link CodecUtil#writeFooter} writes the
  * checksum.
  *
- * @lucene.experimental
  */
 public class Lucene60PointsFormat extends PointsFormat {
 

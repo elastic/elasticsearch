@@ -88,7 +88,6 @@ import java.util.Set;
  * </ul>
  *
  * @see SegmentInfos
- * @lucene.experimental
  */
 public class Lucene70SegmentInfoFormat extends SegmentInfoFormat {
 

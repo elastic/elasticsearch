@@ -53,7 +53,6 @@ import java.util.Objects;
  * <p>If you want to reuse functionality of this codec in another codec, extend {@link FilterCodec}.
  *
  * @see org.elasticsearch.index.codec.lucene84 package documentation for file format details.
- * @lucene.experimental
  */
 public class Lucene84Codec extends Codec {
     private final TermVectorsFormat vectorsFormat = new Lucene50TermVectorsFormat();

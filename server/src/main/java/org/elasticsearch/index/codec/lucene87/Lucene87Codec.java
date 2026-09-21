@@ -52,7 +52,6 @@ import java.util.Objects;
  *
  * <p>If you want to reuse functionality of this codec in another codec, extend {@link FilterCodec}.
  *
- * @lucene.experimental
  */
 public class Lucene87Codec extends Codec {
 

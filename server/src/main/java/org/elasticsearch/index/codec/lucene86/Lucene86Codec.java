@@ -50,7 +50,6 @@ import java.util.Objects;
  *
  * <p>If you want to reuse functionality of this codec in another codec, extend {@link FilterCodec}.
  *
- * @lucene.experimental
  */
 public class Lucene86Codec extends Codec {
     private final TermVectorsFormat vectorsFormat = new Lucene50TermVectorsFormat();

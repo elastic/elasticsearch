@@ -92,7 +92,6 @@ import java.io.IOException;
  * <p>The rank structure for a given DENSE block is stored at the beginning of the DENSE block. This
  * ensures locality and keeps logistics simple.
  *
- * @lucene.internal
  */
 final class IndexedDISI extends DocIdSetIterator {
 

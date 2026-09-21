@@ -293,18 +293,6 @@ tasks.named("dependencyLicenses").configure {
     })
 }
 
-tasks.named("forbiddenApisMain").configure {
-    // Vendored Lucene 8.x read codecs still call Lucene IOUtils.
-    exclude 'org/elasticsearch/index/codec/lucene40/**'
-    exclude 'org/elasticsearch/index/codec/lucene50/**'
-    exclude 'org/elasticsearch/index/codec/lucene60/**'
-    exclude 'org/elasticsearch/index/codec/lucene70/**'
-    exclude 'org/elasticsearch/index/codec/lucene80/**'
-    exclude 'org/elasticsearch/index/codec/lucene84/**'
-    exclude 'org/elasticsearch/index/codec/lucene86/**'
-    exclude 'org/elasticsearch/index/codec/lucene87/**'
-}
-
 tasks.named("licenseHeaders").configure {
     // Ignore our vendored version of Google Guice
     excludes << 'org/elasticsearch/injection/guice/**/*'

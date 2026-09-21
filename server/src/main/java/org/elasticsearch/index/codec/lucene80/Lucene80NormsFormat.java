@@ -82,7 +82,6 @@ import java.io.IOException;
  *       </ul>
  * </ol>
  *
- * @lucene.experimental
  */
 public class Lucene80NormsFormat extends NormsFormat {
 

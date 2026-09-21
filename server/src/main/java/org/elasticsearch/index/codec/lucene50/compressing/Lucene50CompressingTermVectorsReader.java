@@ -46,10 +46,10 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.packed.BlockPackedReaderIterator;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -58,7 +58,6 @@ import java.util.NoSuchElementException;
 /**
  * {@link TermVectorsReader} for {@link Lucene50CompressingTermVectorsFormat}.
  *
- * @lucene.experimental
  */
 public final class Lucene50CompressingTermVectorsReader extends TermVectorsReader {
 

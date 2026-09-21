@@ -38,7 +38,6 @@ import static org.apache.lucene.util.fst.FST.readMetadata;
 /**
  * BlockTree's implementation of {@link Terms}.
  *
- * @lucene.internal
  */
 public final class FieldReader extends Terms {
 

@@ -150,7 +150,6 @@ import org.elasticsearch.index.codec.lucene87.Lucene87StoredFieldsFormat;
  *       </ul>
  * </ol>
  *
- * @lucene.experimental
  */
 public final class Lucene50TermVectorsFormat extends Lucene50CompressingTermVectorsFormat {
 

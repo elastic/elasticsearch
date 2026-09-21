@@ -107,7 +107,6 @@ import java.util.Map;
  *       points, e.g. using {@link org.apache.lucene.document.LongPoint}
  * </ul>
  *
- * @lucene.experimental
  */
 public final class Lucene60FieldInfosFormat extends FieldInfosFormat {
 

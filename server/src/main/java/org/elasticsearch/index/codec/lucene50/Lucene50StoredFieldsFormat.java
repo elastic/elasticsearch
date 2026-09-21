@@ -113,7 +113,6 @@ import java.util.Objects;
  * <p>This {@link StoredFieldsFormat} does not support individual documents larger than (<code>
  * 2<sup>31</sup> - 2<sup>14</sup></code>) bytes.
  *
- * @lucene.experimental
  */
 public class Lucene50StoredFieldsFormat extends StoredFieldsFormat {
 

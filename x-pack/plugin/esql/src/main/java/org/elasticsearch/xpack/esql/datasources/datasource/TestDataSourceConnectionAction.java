@@ -33,6 +33,11 @@ import java.util.Objects;
  * {@link org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory#open} call would require
  * interrupting a GENERIC-pool thread, which is connector-dependent and non-trivial. The connector's
  * own connect-timeout setting applies. A per-request timeout can be added in a follow-up.
+ *
+ * <p>The transport layer applies a per-node deadline of
+ * {@link TransportTestDataSourceConnectionAction#PROBE_TIMEOUT} (30 seconds). A node that exceeds
+ * this deadline contributes {@code untestable} to the aggregate rather than {@code failure} —
+ * a timeout is inconclusive, not a definitive connectivity problem.
  */
 public class TestDataSourceConnectionAction extends ActionType<TestDataSourceConnectionAction.Response> {
 

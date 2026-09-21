@@ -10,6 +10,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -19,6 +20,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -29,13 +31,23 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * is intended for validating a new configuration before saving it.
  * Response: {@code {"status": "success"}}, {@code {"status": "failure", "error": "..."}}, or
  * {@code {"status": "untestable"[, "message": "..."]}}. Returns 400 for an unregistered type.
+ *
+ * <p>Implements {@link RestRequestFilter} with the same secret-field mask as {@link RestPutDataSourceAction}
+ * so that credential values ({@code secret_key}, {@code sas_token}, etc.) are not written to the audit
+ * log in plain text when {@code emit_request_body} is enabled.
  */
 @ServerlessScope(Scope.PUBLIC)
-public class RestTestDataSourceConnectionAction extends BaseRestHandler {
+public class RestTestDataSourceConnectionAction extends BaseRestHandler implements RestRequestFilter {
 
     // Mirrors HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG without importing
     // the http-datasource plugin (wrong dependency direction). Both check the same JVM property.
     private static final FeatureFlag LOCAL_TYPE_FLAG = new FeatureFlag("esql_external_datasources_local");
+
+    private final Set<String> filteredFields;
+
+    public RestTestDataSourceConnectionAction(Set<String> secretSettingNames) {
+        this.filteredFields = secretSettingNames.stream().map(name -> "settings." + name).collect(Collectors.toUnmodifiableSet());
+    }
 
     @Override
     public List<Route> routes() {
@@ -51,6 +63,11 @@ public class RestTestDataSourceConnectionAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final TestDataSourceConnectionAction.Request req = TestDataSourceConnectionAction.Request.fromXContent(request.contentParser());
         return channel -> client.execute(TestDataSourceConnectionAction.INSTANCE, req, new RestToXContentListener<>(channel));
+    }
+
+    @Override
+    public Set<String> getFilteredFields() {
+        return filteredFields;
     }
 
     @Override

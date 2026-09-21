@@ -22,6 +22,7 @@ import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration.AuthMode;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.TestConnectionNotSupportedException;
 import org.junit.After;
 
 import java.io.IOException;
@@ -286,6 +287,16 @@ public class GcsStorageProviderTests extends ESTestCase {
             List.of(blob("data/a.parquet", 1), blob("data/b.parquet", 1), blob("data/c.parquet", 1))
         );
         assertNull(provider.listChildren(StoragePath.of("gs://bucket/data"), 2));
+    }
+
+    public void testTestConnectionAnonymousIsUntestable() {
+        GcsConfiguration config = GcsConfiguration.fromFields(null, null, null, null, "anonymous");
+        GcsStorageProvider provider = new GcsStorageProvider(config, null);
+        TestConnectionNotSupportedException ex = expectThrows(
+            TestConnectionNotSupportedException.class,
+            provider::testConnection
+        );
+        assertThat(ex.getMessage(), containsString("anonymous"));
     }
 
 }

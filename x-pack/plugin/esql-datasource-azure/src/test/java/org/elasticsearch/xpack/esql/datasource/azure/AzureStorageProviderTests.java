@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.TestConnectionNotSupportedException;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -475,5 +476,29 @@ public class AzureStorageProviderTests extends ESTestCase {
     private static java.util.function.Function<String, String> env(Map<String, String> values) {
         Map<String, String> snapshot = new HashMap<>(values);
         return snapshot::get;
+    }
+
+    public void testTestConnectionAnonymousIsUntestable() {
+        // Anonymous config without account/endpoint: constructor defers client build (no ISE at construction).
+        // testConnection() short-circuits on isAnonymous() before attempting to build the client.
+        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, null, "anonymous");
+        AzureStorageProvider provider = new AzureStorageProvider(config, null, null);
+        TestConnectionNotSupportedException ex = expectThrows(
+            TestConnectionNotSupportedException.class,
+            provider::testConnection
+        );
+        assertThat(ex.getMessage(), containsString("anonymous"));
+    }
+
+    public void testTestConnectionManagedIdentityWithoutAccountIsUntestable() {
+        // managed_identity without account or endpoint: pre-check in testConnection() short-circuits
+        // before calling clients(null), so no client is built and no network call is made.
+        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, null, "managed_identity");
+        AzureStorageProvider provider = new AzureStorageProvider(config, null, null);
+        TestConnectionNotSupportedException ex = expectThrows(
+            TestConnectionNotSupportedException.class,
+            provider::testConnection
+        );
+        assertThat(ex.getMessage(), containsString("managed_identity"));
     }
 }

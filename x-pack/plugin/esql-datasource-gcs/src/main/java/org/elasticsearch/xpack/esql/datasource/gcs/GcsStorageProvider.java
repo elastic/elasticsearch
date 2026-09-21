@@ -96,6 +96,16 @@ public class GcsStorageProvider implements StorageProvider {
     }
 
     /**
+     * Test-only: accepts a configuration and pre-built Storage client.
+     * Use when the test needs a non-null config (e.g. to exercise auth-mode short-circuits in
+     * {@code testConnection()}) but wants to supply a mock or null client to avoid network calls.
+     */
+    GcsStorageProvider(GcsConfiguration config, Storage storage) {
+        this.config = config;
+        this.storage = storage;
+    }
+
+    /**
      * Returns the Storage client, building it lazily on first access if needed.
      * This allows the plugin to load successfully even when no GCS credentials are configured;
      * the error is deferred to when a gs:// query is actually executed.

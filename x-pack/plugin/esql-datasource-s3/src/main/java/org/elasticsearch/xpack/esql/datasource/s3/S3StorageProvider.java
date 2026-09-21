@@ -254,6 +254,26 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     /**
+     * Test-only: accepts a configuration and pre-built S3 client.
+     * Pass {@code null} for the client when testing short-circuits that fire before any client call
+     * (e.g. {@code testConnection()} with {@code auth=anonymous}).
+     */
+    static S3StorageProvider forTestingWithConfig(S3Configuration config, S3Client s3Client) {
+        return new S3StorageProvider(config, s3Client);
+    }
+
+    /** Test-only: config + pre-built (or null) client, no production client construction. */
+    S3StorageProvider(S3Configuration config, S3Client s3Client) {
+        this.config = config;
+        this.credentials = null;
+        this.stsAsyncClient = null;
+        this.webIdentityTokenCredentialsProvider = null;
+        this.s3Client = s3Client;
+        this.s3AsyncClient = null;
+        this.maxConnections = ExternalSourceSettings.blobStoreConcurrency(Settings.EMPTY);
+    }
+
+    /**
      * Returns true when the provider should attempt a one-shot HeadBucket region-discovery retry
      * on {@code AuthorizationHeaderMalformed}. Fires only on the custom-endpoint path with no
      * explicit region — the scenario where stores like Scaleway reject wrong-region signing.

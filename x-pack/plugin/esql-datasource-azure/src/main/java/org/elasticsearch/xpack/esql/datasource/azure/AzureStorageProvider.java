@@ -163,10 +163,15 @@ public final class AzureStorageProvider implements StorageProvider {
         this.environment = environment;
         this.executor = executor;
         this.maxConnections = maxConnections;
-        // Build the client eagerly so misconfigurations are caught early — except auth=managed_identity, whose
-        // endpoint can be derived from the per-query wasbs://<account>... path (unavailable at construction), so it
-        // is deferred to first use like on the pre-refactor path. With no configuration (config is null), also defer.
-        if (config != null && config.resolveAuthMode() != FileDataSourceConfiguration.AuthMode.MANAGED_IDENTITY) {
+        // Build the client eagerly so misconfigurations are caught early — with two exceptions:
+        // auth=managed_identity and auth=anonymous defer to first use, because the account endpoint is
+        // only resolvable from the per-query wasbs://<account>... path (unavailable at construction).
+        // auth=anonymous is additionally always untestable at the data-source level (testConnection()
+        // short-circuits before calling clients()), so eager construction would just throw needlessly.
+        // With no configuration (config is null), also defer.
+        if (config != null
+            && config.resolveAuthMode() != FileDataSourceConfiguration.AuthMode.MANAGED_IDENTITY
+            && config.resolveAuthMode() != FileDataSourceConfiguration.AuthMode.ANONYMOUS) {
             BlobServiceClientBuilder builder = configureBlobServiceClientBuilder(config, null);
             this.clients = new Clients(builder.buildClient(), builder.buildAsyncClient());
         }
@@ -206,9 +211,12 @@ public final class AzureStorageProvider implements StorageProvider {
      * works with account-scoped read permissions. No container name is required.
      * Called from the factory's {@code testConnection} on a GENERIC thread — blocking I/O is expected.
      *
-     * <p>If the Azure client cannot be constructed from the data source settings alone (e.g. the
-     * account endpoint is only resolvable from a {@code wasbs://account…} URI, not from the settings),
-     * an {@link IllegalStateException} is thrown and surfaces as a {@code {status: "failure"}} response.
+     * <p>{@code auth=managed_identity} and {@code auth=federated_identity} without an account or endpoint
+     * in the data source settings are detected up front and reported as {@code untestable}: the account is
+     * only resolvable from the per-query {@code wasbs://account…} URI, which is unavailable at data-source
+     * registration time. Any other {@link IllegalStateException} from client construction (e.g. incomplete
+     * static credentials, workload-identity disabled on the node) propagates and is surfaced by
+     * {@code DataSourceModule} as {@code {status: "failure"}}.
      *
      * <p>A 403 from {@code Get Account Information} is treated as {@code untestable}: the principal
      * may have {@code Storage Blob Data Reader} at the container scope rather than the account scope,
@@ -221,6 +229,24 @@ public final class AzureStorageProvider implements StorageProvider {
                 "Azure anonymous access cannot be verified at the data source level",
                 "Anonymous access targets public containers; create a dataset to validate read access."
             );
+        }
+        if (config != null) {
+            FileDataSourceConfiguration.AuthMode mode = config.resolveAuthMode();
+            // managed_identity and federated_identity derive the account from the dataset URI
+            // (wasbs://account.blob.core.windows.net/...). Without an account or endpoint in the
+            // settings there is nothing to probe; any other ISE (e.g. workload-identity disabled)
+            // propagates as failure so the operator sees the actionable error message.
+            if ((mode == FileDataSourceConfiguration.AuthMode.MANAGED_IDENTITY
+                || mode == FileDataSourceConfiguration.AuthMode.FEDERATED_IDENTITY)
+                && Strings.hasText(config.account()) == false
+                && Strings.hasText(config.endpoint()) == false) {
+                throw new TestConnectionNotSupportedException(
+                    "auth=" + mode.name().toLowerCase(Locale.ROOT)
+                        + " without account or endpoint cannot be verified at the data source level",
+                    "The account or endpoint could not be resolved from the data source settings alone; "
+                        + "create a dataset to validate access."
+                );
+            }
         }
         try {
             clients(null).sync().getAccountInfo();

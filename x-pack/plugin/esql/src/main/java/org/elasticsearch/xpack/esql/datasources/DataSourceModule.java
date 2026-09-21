@@ -469,6 +469,11 @@ public final class DataSourceModule implements Closeable {
         } catch (TestConnectionNotSupportedException e) {
             return new TestConnectionResult.Untestable(e.userReason());
         } catch (IOException | RuntimeException e) {
+            // Surface the raw SDK message as the failure reason: probe failures carry user-relevant
+            // diagnostic info (e.g. "The AWS Access Key Id you provided does not exist in our records").
+            // Transport-level failures are intentionally NOT included here; they are mapped to
+            // untestable by the coordinator because they contain internal strings (action names, node
+            // addresses) that must not appear in a public response.
             String msg = e.getMessage() != null ? e.getMessage() : e.getClass().getName();
             return TestConnectionResult.failure(msg);
         }

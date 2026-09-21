@@ -13,6 +13,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.test.ESTestCase;
@@ -36,11 +37,15 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -613,9 +618,95 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertEquals(Literal.FALSE, translate(QueryBuilders.rangeQuery("status").gt(Integer.MAX_VALUE).lte(Integer.MAX_VALUE)));
     }
 
-    /** A range with neither bound is a tautology — it matches everything. */
-    public void testRangeWithNoBoundsMatchesEverything() {
-        assertEquals(Literal.TRUE, translate(QueryBuilders.rangeQuery("status")));
+    /**
+     * A translator whose binder returns the same attribute for the same name on every lookup, as the plan does. The shared
+     * {@link #BINDER} mints a fresh attribute per call, and a fresh attribute carries a fresh id, so two translations of
+     * the same field would never compare equal even when they are the same expression.
+     */
+    private static QueryDslTranslator translatorWithStableBinding() {
+        Map<String, Expression> bound = new HashMap<>();
+        return new QueryDslTranslator(name -> bound.computeIfAbsent(name, BINDER), FIELDS, CONFIG);
+    }
+
+    // Every field the binder knows, of every type, plus one it does not.
+    private static final List<String> ALL_BOUND_FIELDS = List.of(
+        "status",
+        "tags",
+        "bytes",
+        "score",
+        "@timestamp",
+        "ts_nanos",
+        "active",
+        "body",
+        "client_ip",
+        "nope"
+    );
+
+    /**
+     * A range with neither bound is an exists query, not a tautology: RangeQueryBuilder.doToQuery answers it that way.
+     * Pinned as identical to the exists translation for every field type, including text and boolean — where a bounded
+     * range degrades — and a missing field, where both must fold to false.
+     */
+    public void testRangeWithNoBoundsTranslatesExactlyAsExists() {
+        for (String field : ALL_BOUND_FIELDS) {
+            QueryDslTranslator translator = translatorWithStableBinding();
+            QueryDslTranslator.TranslationResult range = translator.translate(QueryBuilders.rangeQuery(field));
+            assertEquals("range on [" + field + "]", translator.translate(QueryBuilders.existsQuery(field)).applied(), range.applied());
+            assertThat("range on [" + field + "] translates in full", range.unsupported(), empty());
+        }
+    }
+
+    /** Negating it is the case that used to return no rows: it must negate the exists, not a literal true. */
+    public void testMustNotRangeWithNoBoundsNegatesExists() {
+        for (String field : ALL_BOUND_FIELDS) {
+            QueryDslTranslator translator = translatorWithStableBinding();
+            assertEquals(
+                "must_not range on [" + field + "]",
+                translator.translate(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery(field))).applied(),
+                translator.translate(QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery(field))).applied()
+            );
+        }
+    }
+
+    /**
+     * Options that only shape bounds leave a bound-less range meaning exists, because the index checks for missing
+     * bounds first. A time zone in particular must not make it untranslatable, as it does once a bound is present.
+     */
+    public void testRangeOptionsWithoutBoundsStillTranslateAsExists() {
+        QueryDslTranslator translator = translatorWithStableBinding();
+        Expression exists = translator.translate(QueryBuilders.existsQuery("@timestamp")).applied();
+        for (RangeQueryBuilder range : List.of(
+            QueryBuilders.rangeQuery("@timestamp").timeZone("+01:00"),
+            QueryBuilders.rangeQuery("@timestamp").format("yyyy-MM-dd"),
+            QueryBuilders.rangeQuery("@timestamp").includeLower(false).includeUpper(false),
+            QueryBuilders.rangeQuery("@timestamp").timeZone("Europe/Paris").format("yyyy").includeLower(false)
+        )) {
+            QueryDslTranslator.TranslationResult result = translator.translate(range);
+            assertEquals(range.toString(), exists, result.applied());
+            assertThat(range.toString(), result.unsupported(), empty());
+        }
+    }
+
+    /** One bound is a real range, not exists — the check keys on both bounds being absent, not either. */
+    public void testRangeWithOneBoundIsNotTreatedAsExists() {
+        for (RangeQueryBuilder range : List.of(
+            QueryBuilders.rangeQuery("status").gte(1),
+            QueryBuilders.rangeQuery("status").lt(1),
+            QueryBuilders.rangeQuery("bytes").gt(0L)
+        )) {
+            assertThat(range.toString(), translate(range), not(instanceOf(IsNotNull.class)));
+        }
+    }
+
+    /** Moving the bound-less check ahead of the time zone check must not stop a bounded range with a time zone degrading. */
+    public void testTimeZoneWithABoundStillDegrades() {
+        QueryDslTranslator.TranslationResult result = translateResult(
+            QueryBuilders.rangeQuery("@timestamp").gte("2020-01-01").timeZone("+01:00")
+        );
+        assertThat(
+            result.unsupported().stream().map(QueryDslTranslator.UnsupportedClause::construct).toList(),
+            contains("range[time_zone]")
+        );
     }
 
     /** When rounding pushes the lower bound past the upper (an exclusive one-day date range), it matches nothing. */

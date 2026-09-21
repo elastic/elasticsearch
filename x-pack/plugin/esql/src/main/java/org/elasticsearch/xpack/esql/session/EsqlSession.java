@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtractor;
+import org.elasticsearch.xpack.esql.datasources.FoldDateFunctionFiltersForListing;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
@@ -537,11 +538,10 @@ public class EsqlSession {
                     TransportVersion minimumVersion = analyzedPlan.minimumVersion();
 
                     // Apply the out-of-band request filter to external-source (dataset) leaves, translated
-                    // against each source's schema. Index leaves keep their existing filter path. Version-gated:
-                    // the translated predicate can contain mv_in_range / mv_greater / mv_less, which older
-                    // nodes cannot deserialize.
-                    // Fail-closed by default: an unsupported construct throws VerificationException (a 400).
-                    // With allow_partial_dsl_filter=true: applies only the translatable subset, emits a warning.
+                    // against each source's schema. Index leaves keep their existing filter path. Version-gated,
+                    // but the pin covers mv_in_range only: it predates mv_greater and mv_less, which the translator
+                    // also emits (elastic/elasticsearch#159672).
+                    // Applies the translatable subset and drops the rest with a warning naming each clause.
                     // This callback runs outside the SubscribableListener chain below, so a synchronous throw here
                     // would not be routed to the listener — catch it and fail the query explicitly.
                     final LogicalPlan plan;
@@ -549,10 +549,9 @@ public class EsqlSession {
                         plan = RequestFilterRewriter.rewrite(
                             analyzedPlan.inner(),
                             request.filter(),
-                            RequestFilterRewriter.REQUEST_FILTER_ON_DATASET_FEATURE_FLAG.isEnabled(),
                             finalConfiguration,
                             minimumVersion,
-                            Boolean.TRUE.equals(request.allowPartialDslFilter())
+                            true
                         );
                     } catch (Exception e) {
                         listener.onFailure(e);
@@ -1573,10 +1572,15 @@ public class EsqlSession {
         // EXTERNAL command. The resolver first read-authorizes the names through the security filter — they are
         // stripped from the plan here and would otherwise never reach authorization. Completes synchronously when
         // no FROM pattern can match a registered dataset.
-        datasetResolver.replaceDatasets(parsed, projectMetadata, logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
-            datasetResolutionProfile.stop();
-            analyzedPlanAfterDatasetResolution(rewritten, unmappedResolution, configuration, executionInfo, requestFilter, delegate);
-        }));
+        datasetResolver.replaceDatasets(
+            parsed,
+            projectMetadata,
+            QuerySettings.WILDCARDS_MATCH_DATASETS.get(configuration.resolvedSettings()),
+            logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
+                datasetResolutionProfile.stop();
+                analyzedPlanAfterDatasetResolution(rewritten, unmappedResolution, configuration, executionInfo, requestFilter, delegate);
+            })
+        );
     }
 
     private void analyzedPlanAfterDatasetResolution(
@@ -1701,7 +1705,7 @@ public class EsqlSession {
                     ExternalSourceResolution resolution = preAnalysisResult.externalSourceResolution();
                     externalSourceWarnings = resolution == null ? List.of() : resolution.warnings();
                     return preAnalysisResult;
-                }))
+                }), configuration, functionRegistry)
             )
             .<PreAnalysisResult>andThen((l, r) -> {
                 // Do not update PreAnalysisResult.minimumTransportVersion, that's already been determined during main index resolution.
@@ -1933,6 +1937,8 @@ public class EsqlSession {
      * Resolve external sources (Iceberg tables/Parquet files) if present in the query.
      * This runs in parallel with other resolution steps to avoid blocking.
      * Extracts partition filter hints from the WHERE clause for partition-aware glob rewriting.
+     * Date-function folding for listing is applied to a copy of Filter conditions only; the
+     * session plan stays unresolved for analysis.
      */
     // package-private static so EsqlSessionTests can drive the wiring with a capturing
     // ExternalSourceResolver and assert that the computed pathsRequiringStats set is forwarded.
@@ -1941,7 +1947,9 @@ public class EsqlSession {
         LogicalPlan plan,
         PreAnalyzer.PreAnalysis preAnalysis,
         PreAnalysisResult result,
-        ActionListener<PreAnalysisResult> listener
+        ActionListener<PreAnalysisResult> listener,
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry
     ) {
         if (preAnalysis.icebergPaths().isEmpty()) {
             listener.onResponse(result);
@@ -1951,7 +1959,8 @@ public class EsqlSession {
         Map<String, Map<String, Object>> pathConfigs = extractExternalConfigs(plan);
         Map<String, DatasetMapping> declaredMappings = extractDeclaredMappings(plan);
 
-        var filterHints = PartitionFilterHintExtractor.extract(plan);
+        LogicalPlan listingPlan = FoldDateFunctionFiltersForListing.fold(plan, configuration, functionRegistry);
+        var filterHints = PartitionFilterHintExtractor.extract(listingPlan);
 
         // Always non-null (empty when no ungrouped aggregate is present). A non-null set switches the
         // resolver to selective eager stats: only the listed paths read every file's footer at

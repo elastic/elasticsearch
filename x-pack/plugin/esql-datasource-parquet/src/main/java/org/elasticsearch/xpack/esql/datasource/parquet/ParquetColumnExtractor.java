@@ -62,20 +62,26 @@ import java.util.function.Consumer;
  *       bucket, and per-bucket sorting on a handful of positions is essentially free. Row groups
  *       with no surviving position are never opened. The bucket structure is column-agnostic, so
  *       it is reused across every requested column.</li>
- *   <li><b>Per-row-group async prefetch, dispatched in parallel.</b> One
+ *   <li><b>Per-row-group async prefetch, admitted then dispatched in parallel.</b> One
  *       {@link ColumnChunkPrefetcher#prefetchAsync} call per visited row group, each carrying the
- *       full multi-column projection. {@link CoalescedRangeReader} merges adjacent column-chunk
- *       ranges <em>within</em> the row group (column chunks in one row group are written
- *       contiguously, so the multi-column projection coalesces naturally) and dispatches the
- *       merged ranges to {@link StorageObject#readBytesAsync}. All buckets fan out at once: the
- *       extractor never blocks on row group {@code k}'s bytes before issuing row group
- *       {@code k+1}'s GET. Per-request RTT/TTFB cost goes from {@code O(row groups × columns)}
- *       down to roughly {@code O(row groups)}, and the wall-clock cost of the slowest GET is no
- *       longer additive across row groups.</li>
+ *       projection of columns {@link ParquetFormatReader#resolveColumnInfo} resolved (readable
+ *       columns only). Unresolved names are constant-null filled and never prefetched; if every
+ *       requested name is unresolved the extractor returns those nulls without I/O.
+ *       {@link CoalescedRangeReader} merges adjacent column-chunk ranges <em>within</em> the row
+ *       group (column chunks in one row group are written contiguously, so the multi-column
+ *       projection coalesces naturally) and dispatches the merged ranges to
+ *       {@link StorageObject#readBytesAsync}. Each bucket takes a {@link ParquetIoWatermark} hold
+ *       so TopN extraction competes with scan look-ahead for {@code heap / 8}; later buckets are
+ *       look-ahead and wait for a live group to decode when the cap would be exceeded. Within that
+ *       cap, buckets still fan out before decode: the extractor does not wait on row group
+ *       {@code k}'s bytes before issuing {@code k+1}'s GET. Per-request RTT/TTFB cost goes from
+ *       {@code O(row groups × columns)} down to roughly {@code O(admitted row groups)}, and the
+ *       wall-clock cost of the slowest in-flight GET is no longer additive across those
+ *       groups.</li>
  *   <li><b>Pipelined decode in arrival order.</b> A small bounded queue receives each
  *       per-bucket prefetch as it completes. The decode loop drains buckets in arrival order,
  *       running flat ({@link PageColumnReader#readBatchSparse}) or list (skip/read driven by a
- *       {@link ColumnReader}) decode for every requested column against that bucket's
+ *       {@link ColumnReader}) decode for every resolved column against that bucket's
  *       prefetched chunk map. Decoding bucket {@code i} therefore overlaps with the still
  *       in-flight S3 reads for the slower buckets — the synchronous barrier of
  *       <em>"wait for the slowest GET, then start any decode"</em> is removed.</li>
@@ -125,18 +131,20 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      */
     private final long[] rowGroupOffsets;
     /**
-     * Relay for per-value declared-coercion warnings, or {@code null} to fall back to emitting
-     * directly via {@code HeaderWarning}. The extractor runs on the
-     * driver thread, so direct emission is correct; a non-null sink is the budget-gated wrapper that
-     * caps the whole source. See {@link #coercionWarnings()}.
+     * Relay for read-time informational warnings, or {@code null} to fall back to emitting directly via
+     * {@code HeaderWarning}. Production always supplies one: it is the budget-gated wrapper that caps the whole
+     * source and ends in {@code DriverContext#addWarning}. Running on the driver thread is not enough to make the
+     * fallback correct — when the scan runs on a node other than the coordinator that thread's response headers do
+     * not reach the client (elastic/esql-planning#1837) — so the {@code null} case is for tests only.
+     * See {@link #coercionWarnings()}.
      */
     @Nullable
     private final Consumer<String> warningSink;
 
     /**
      * Delegates to {@link #ParquetColumnExtractor(StorageObject, ParquetFormatReader, ParquetMetadata, ErrorPolicy, Consumer)}
-     * with no warning sink, so coercion warnings emit directly via {@code HeaderWarning} (per-instance
-     * cap only). Used by tests and any on-driver-thread caller that does not centrally cap the channel.
+     * with no warning sink, so coercion warnings emit directly via {@code HeaderWarning} (per-instance cap only, and
+     * only visible when the scan happens to run on the coordinator). Tests only; production hands in a sink.
      */
     ParquetColumnExtractor(StorageObject storageObject, ParquetFormatReader reader, ParquetMetadata ownedFooter, ErrorPolicy errorPolicy) {
         this(storageObject, reader, ownedFooter, errorPolicy, null);
@@ -153,9 +161,8 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      * @param errorPolicy   the read's error policy, inherited from the iterator that produced the
      *                      row identities so the deferred columns fail (or warn+null) exactly like
      *                      the eagerly scanned ones
-     * @param warningSink   where per-value coercion warnings are relayed (budget-gated direct
-     *                      emission on the driver thread), or {@code null} for direct
-     *                      {@code HeaderWarning} emission
+     * @param warningSink   where read-time informational warnings are relayed (budget-gated, ending in the driver's
+     *                      warning sink), or {@code null} for direct {@code HeaderWarning} emission
      */
     ParquetColumnExtractor(
         StorageObject storageObject,
@@ -239,17 +246,31 @@ final class ParquetColumnExtractor implements ColumnExtractor {
 
         // Resolve every requested column to its {@link ColumnInfo} once so we have the descriptors
         // ready for the single coalesced fetch (we need their dotted paths to compute the byte
-        // ranges) and for the per-column decode loop afterwards.
+        // ranges) and for the per-column decode loop afterwards. A null info is not a caller error:
+        // the name is absent from this file or maps to UNSUPPORTED, matching the eager scan which
+        // constant-null-fills the slot. Keep the slot null and skip prefetch/decode/coerce for it.
         MessageType schema = ownedFooter.getFileMetaData().getSchema();
         ColumnInfo[] infos = new ColumnInfo[colCount];
+        int resolved = 0;
         for (int c = 0; c < colCount; c++) {
-            ColumnInfo info = ParquetFormatReader.resolveColumnInfo(schema, columnNames[c]);
-            if (info == null) {
-                throw new IllegalArgumentException(
-                    "column [" + columnNames[c] + "] is missing or has an unsupported type in [" + storageObject.path() + "]"
-                );
+            infos[c] = ParquetFormatReader.resolveColumnInfo(schema, columnNames[c]);
+            if (infos[c] != null) {
+                resolved++;
             }
-            infos[c] = info;
+        }
+        if (resolved == 0) {
+            // Empty projection has awkward prefetcher edge cases; with nothing to decode there is
+            // also no reason to open row groups.
+            Block[] nulls = new Block[colCount];
+            try {
+                for (int c = 0; c < colCount; c++) {
+                    nulls[c] = blockFactory.newConstantNullBlock(count);
+                }
+                return nulls;
+            } catch (Throwable e) {
+                ParquetReadFailures.closePreservingCause(e, nulls);
+                throw e;
+            }
         }
 
         // Bucket positions by row group once. Per-column decode walks the same buckets, so paying
@@ -269,38 +290,40 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         // just the column name; for LIST<primitive> it's e.g. "vals.list.element". This must match
         // ColumnChunkMetaData.getPath().toDotString(), which is what
         // ColumnChunkPrefetcher.computeColumnChunkRanges and PrefetchedRowGroupBuilder both key
-        // off. The combined projection covers every requested column for one row group;
+        // off. The combined projection covers every *resolved* column for one row group (unresolved
+        // names are omitted so the prefetcher never asks for a missing chunk);
         // CoalescedRangeReader merges physically-adjacent chunks (column chunks within one row
         // group are written contiguously in Parquet), so the per-bucket fetch typically resolves
         // to a single S3 GET per row group rather than one per (row group, column).
-        Set<String> projection = new java.util.LinkedHashSet<>(colCount);
+        Set<String> projection = new java.util.LinkedHashSet<>(resolved);
         for (ColumnInfo info : infos) {
-            projection.add(String.join(".", info.descriptor().getPath()));
+            if (info != null) {
+                projection.add(String.join(".", info.descriptor().getPath()));
+            }
         }
 
-        // Per-bucket async prefetch dispatch. We do NOT block on any one fetch before kicking
-        // off the next: every bucket's GET is in flight before we touch the first byte. This is
-        // the parallelism win — for N visited row groups end-to-end latency drops from
+        // Per-bucket async prefetch is admitted against the node watermark then dispatched.
+        // Within the cap we do NOT block on any one fetch before kicking off the next: every
+        // admitted bucket's GET is in flight before we touch the first byte. This is the
+        // parallelism win — for N admitted row groups end-to-end latency drops from
         // (slowest GET) + (sum of decodes) towards max(slowest GET, fastest GET + sum of decodes),
-        // bounded by the per-query concurrency budget which sits inside readBytesAsync.
-        List<BlockMetaData> blocks = ownedFooter.getBlocks();
+        // bounded by heap/8 and the per-query concurrency budget inside readBytesAsync.
         @SuppressWarnings("unchecked")
         CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks>[] futures = (CompletableFuture<
             ColumnChunkPrefetcher.PrefetchedChunks>[]) new CompletableFuture<?>[buckets.size()];
-        for (int i = 0; i < buckets.size(); i++) {
-            BlockMetaData block = blocks.get(buckets.get(i).rowGroupIndex);
-            futures[i] = ColumnChunkPrefetcher.prefetchAsync(storageObject, block, projection, blockFactory.breaker());
-        }
 
         // result[c][b] = block for column c in bucket b (bucket-visit order). We populate this
         // out of order as buckets' prefetches arrive; the per-column concat happens once every
         // bucket has been decoded so the layout-vs-arrival distinction is local to this method.
         Block[][] perBucketBlocks = new Block[colCount][buckets.size()];
         Block[] result = new Block[colCount];
-        boolean built = false;
         try {
             decodeBucketsAsTheyArrive(buckets, infos, schema, columnNames, projection, futures, perBucketBlocks, blockFactory);
             for (int c = 0; c < colCount; c++) {
+                if (infos[c] == null) {
+                    result[c] = blockFactory.newConstantNullBlock(count);
+                    continue;
+                }
                 // stitchAndGather releases its per-bucket blocks and nulls the array entries so
                 // the outer defensive cleanup is a no-op for already-stitched columns.
                 Block stitched = stitchAndGather(perBucketBlocks[c], buckets, count, blockFactory);
@@ -314,30 +337,36 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                     result[c] = coerceToTarget(stitched, infos[c].esqlType(), target, columnNames[c], count, blockFactory);
                 }
             }
-            built = true;
             return result;
-        } finally {
+        } catch (Throwable e) {
             // Defensive cleanup: anything left in perBucketBlocks (e.g. when decode partially
             // completed before failing, or stitchAndGather threw between two columns) needs
-            // releasing. Built columns in result are released only on the failure path.
+            // releasing. On success, resolved columns have their slots nulled by stitchAndGather;
+            // unresolved columns never enter stitch, so those rows stay null by construction.
+            // Either way this path is failure-only in practice.
             for (Block[] perBucket : perBucketBlocks) {
                 for (Block b : perBucket) {
                     if (b != null) {
-                        Releasables.closeExpectNoException(b);
+                        ParquetReadFailures.closePreservingCause(e, b);
                     }
                 }
             }
-            if (built == false) {
-                Releasables.closeExpectNoException(result);
+            for (Block b : result) {
+                if (b != null) {
+                    ParquetReadFailures.closePreservingCause(e, b);
+                }
             }
+            throw e;
         }
     }
 
     /**
-     * Drains the per-bucket prefetch futures in arrival order, decoding every requested column
-     * for each bucket as soon as its bytes land. Decode of bucket {@code i} therefore overlaps
-     * with the still in-flight S3 reads for the slower buckets — the wall-clock cost of the
-     * slowest GET is no longer additive with decode time.
+     * Admits and dispatches per-bucket prefetches against {@link ParquetIoWatermark}, then drains
+     * them in arrival order, decoding every resolved column for each bucket as soon as its bytes
+     * land. Later buckets are look-ahead: if the cap would be exceeded, dispatch waits until a
+     * live group is decoded and its buffers released. Decode of bucket {@code i} still overlaps
+     * with slower in-flight GETs that already admitted — the wall-clock cost of those GETs is no
+     * longer additive with decode time.
      *
      * <p>If any prefetch fails, every other in-flight prefetch is cancelled (or its result
      * discarded once it lands) and the original failure is rethrown.
@@ -360,6 +389,9 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         @SuppressWarnings("unchecked")
         Set<String>[] perColumnProjections = (Set<String>[]) new Set<?>[colCount];
         for (int c = 0; c < colCount; c++) {
+            if (infos[c] == null) {
+                continue;
+            }
             // Use the descriptor's first path segment as the top-level field name. For flat
             // columns and LIST<primitive> this equals columnNames[c]; for dotted struct-leaf
             // columns (e.g. "event.action") columnNames[c] is not a top-level schema field and
@@ -372,10 +404,26 @@ final class ParquetColumnExtractor implements ColumnExtractor {
 
         // Use CompletableFuture.anyOf in a draining loop so we always pick the next-completed
         // future. Track which slots are still pending via a mutable view over the futures array
-        // — completed slots get nulled out and skipped on subsequent iterations.
+        // — completed slots get nulled out and skipped on subsequent iterations. Dispatch is
+        // interleaved so a rejected look-ahead can retry after decode releases watermark bytes.
+        int dispatched = 0;
         int pending = futures.length;
         try {
             while (pending > 0) {
+                dispatched = dispatchAdmittedPrefetches(buckets, blocks, projection, blockFactory, futures, dispatched);
+                if (inFlightCount(futures) == 0) {
+                    if (dispatched >= buckets.size()) {
+                        throw new IllegalStateException("no in-flight prefetch but buckets remain");
+                    }
+                    futures[dispatched] = startBucketPrefetch(
+                        blocks.get(buckets.get(dispatched).rowGroupIndex),
+                        projection,
+                        blockFactory,
+                        false,
+                        false
+                    );
+                    dispatched++;
+                }
                 int bucketIdx = waitForNextCompleted(futures);
                 ColumnChunkPrefetcher.PrefetchedChunks prefetchedResult;
                 try {
@@ -403,11 +451,14 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 int rgRowCount = Math.toIntExact(block.getRowCount());
 
                 try {
-                    // Decode every requested column from this bucket's prefetched chunk map. Each
+                    // Decode every resolved column from this bucket's prefetched chunk map. Each
                     // call passes a single-column projection so PrefetchedRowGroupBuilder only
                     // materialises that column's bytes despite the prefetched map carrying every
                     // projected column for this row group.
                     for (int c = 0; c < colCount; c++) {
+                        if (infos[c] == null) {
+                            continue;
+                        }
                         perBucketBlocks[c][bucketIdx] = decodeBucket(
                             bucket,
                             block,
@@ -458,6 +509,93 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             }
             throw t;
         }
+    }
+
+    /**
+     * Dispatches later buckets as look-ahead until {@link ParquetIoWatermark#tryAdmit} refuses.
+     * The first in-flight group is current work and may take the node-wide overshoot.
+     */
+    private int dispatchAdmittedPrefetches(
+        List<Bucket> buckets,
+        List<BlockMetaData> blocks,
+        Set<String> projection,
+        BlockFactory blockFactory,
+        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks>[] futures,
+        int dispatched
+    ) {
+        while (dispatched < buckets.size()) {
+            boolean lookahead = inFlightCount(futures) > 0;
+            CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = startBucketPrefetch(
+                blocks.get(buckets.get(dispatched).rowGroupIndex),
+                projection,
+                blockFactory,
+                lookahead,
+                true
+            );
+            if (future == null) {
+                break;
+            }
+            futures[dispatched] = future;
+            dispatched++;
+        }
+        return dispatched;
+    }
+
+    /**
+     * Starts one bucket GET. When {@code requireHold} is true, a refused look-ahead returns
+     * {@code null} so the caller can decode and retry. When false, a refused admit still
+     * dispatches so extraction cannot stall if another query holds the overshoot slot.
+     */
+    @Nullable
+    private CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> startBucketPrefetch(
+        BlockMetaData block,
+        Set<String> projection,
+        BlockFactory blockFactory,
+        boolean lookahead,
+        boolean requireHold
+    ) {
+        long prefetchBytes = ColumnChunkPrefetcher.computePrefetchBytes(block, projection);
+        ParquetIoWatermark watermark = reader.ioWatermark();
+        final ParquetIoWatermark.AdmitHold hold;
+        if (prefetchBytes > 0L) {
+            hold = watermark.tryAdmit(prefetchBytes, lookahead);
+            if (hold == null && requireHold) {
+                return null;
+            }
+        } else {
+            hold = null;
+        }
+        boolean reserved = hold != null;
+        try {
+            CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = ColumnChunkPrefetcher.prefetchAsync(
+                storageObject,
+                block,
+                projection,
+                blockFactory.breaker(),
+                watermark,
+                hold,
+                reader.footerBytes()
+            );
+            if (hold != null) {
+                future.whenComplete((ignored, error) -> hold.drop());
+                reserved = false;
+            }
+            return future;
+        } finally {
+            if (reserved) {
+                hold.drop();
+            }
+        }
+    }
+
+    private static int inFlightCount(CompletableFuture<?>[] futures) {
+        int count = 0;
+        for (CompletableFuture<?> future : futures) {
+            if (future != null) {
+                count++;
+            }
+        }
+        return count;
     }
 
     /**
@@ -529,28 +667,30 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             }
             // The shared helper resolves the element type from the first non-NULL bucket block, so
             // an all-null leading bucket cannot poison a ConstantNullBlock builder. It closes the
-            // per-bucket blocks on success; null the slots so the finally below and the caller's
-            // defensive cleanup do not double-close. On a throw it leaves them for the finally.
+            // per-bucket blocks on success; null the slots so the catch below and the caller's
+            // defensive cleanup do not double-close. On a throw it leaves them for the catch.
             concatenated = BlockChunks.concat(Arrays.asList(perBucketBlocks), blockFactory);
             Arrays.fill(perBucketBlocks, null);
             int[] gather = buildGatherPermutation(buckets, totalCount);
             // mayContainDuplicates is true: the same bucket position may serve multiple caller
             // slots when localPositions repeats a row.
-            return concatenated.filter(true, gather);
-        } finally {
-            if (concatenated != null) {
-                Releasables.closeExpectNoException(concatenated);
-            }
+            Block filtered = concatenated.filter(true, gather);
+            Releasables.closeExpectNoException(concatenated);
+            concatenated = null;
+            return filtered;
+        } catch (Throwable e) {
+            ParquetReadFailures.closePreservingCause(e, concatenated);
             // Per-bucket blocks live until stitch completes; release any still-present slot here so
             // the caller doesn't have to track them. Null the slots out so the caller's defensive
             // cleanup doesn't double-close.
             for (int i = 0; i < perBucketBlocks.length; i++) {
                 Block b = perBucketBlocks[i];
                 if (b != null) {
-                    Releasables.closeExpectNoException(b);
+                    ParquetReadFailures.closePreservingCause(e, b);
                     perBucketBlocks[i] = null;
                 }
             }
+            throw e;
         }
     }
 
@@ -769,13 +909,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      * the row-group rows in source order, alternating skips and reads to produce exactly the
      * surviving rows.
      */
-    private static Block decodeFlat(
-        Bucket bucket,
-        ColumnInfo info,
-        PrefetchedPageReadStore store,
-        int rgRowCount,
-        BlockFactory blockFactory
-    ) {
+    private Block decodeFlat(Bucket bucket, ColumnInfo info, PrefetchedPageReadStore store, int rgRowCount, BlockFactory blockFactory) {
         PageReader pr = store.getPageReader(info.descriptor());
         try (
             PageColumnReader pageReader = new PageColumnReader(
@@ -784,7 +918,9 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 info,
                 // RowRanges.all() lets every page through loadNextPage()'s page-skip check; the
                 // sparse loop drives skip/read by in-group position from there.
-                RowRanges.all(rgRowCount)
+                RowRanges.all(rgRowCount),
+                null,
+                warningSink
             )
         ) {
             return pageReader.readBatchSparse(rgRowCount, blockFactory, bucket.uniquePositions, bucket.uniqueCount);
@@ -858,6 +994,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                         columnName,
                         null,
                         null,
+                        warningSink,
                         nullListElementWarnings()
                     )
                 );
@@ -878,7 +1015,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             return joined;
         } catch (RuntimeException e) {
             for (Block c : chunks) {
-                Releasables.closeExpectNoException(c);
+                ParquetReadFailures.closePreservingCause(e, c);
             }
             throw e;
         }

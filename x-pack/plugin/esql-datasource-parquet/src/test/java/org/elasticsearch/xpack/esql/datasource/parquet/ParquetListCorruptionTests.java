@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.SharedErrorBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
@@ -205,6 +206,40 @@ public class ParquetListCorruptionTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("[2] structural errors"));
     }
 
+    /**
+     * Verifies that a {@code recoveredOrphan} event followed by {@code completeBatch} for the same
+     * row count does not double-count rows in the {@link org.elasticsearch.xpack.esql.datasources.spi.SharedErrorBudget}.
+     * <p>
+     * Without the fix, {@code completeBatch} would call {@code addReaderBatch(100, 0)} which adds 100 to
+     * {@code rowCount}, but {@code recoveredOrphan} already called {@code ensureRowsAtLeast(100)} — leaving
+     * {@code rowCount = 200} for a 100-row batch. The fix uses {@code ensureRowsAtLeast(completedRows)}
+     * instead, so the max wins and {@code rowCount} stays at 100.
+     */
+    public void testSharedBudgetNoDoubleCountOrphanPlusCompleteBatch() {
+        ErrorPolicy policy = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, Long.MAX_VALUE, 0.1, false);
+        SharedErrorBudget budget = SharedErrorBudget.forPolicy(policy, "memory://test.parquet");
+        assertNotNull(budget);
+
+        List<String> warnings = new ArrayList<>();
+        ParquetColumnDecoding.ListCorruptionHandler handler = new ParquetColumnDecoding.ListCorruptionHandler(
+            policy,
+            "memory://test.parquet",
+            warnings::add,
+            false,
+            budget
+        );
+
+        // Orphan at row 100 in a 100-row group: ensureRowsAtLeast(100) → rowCount = 100
+        handler.recoveredOrphan("x", 0, 100, 100, 1);
+        assertEquals("orphan sets rowCount via ensureRowsAtLeast", 100L, budget.rowCount());
+        assertEquals("orphan charges 1 error", 1L, budget.errorCount());
+
+        // completeBatch(100, 0): ensureRowsAtLeast(100) → max(100, 100) = 100; addErrors(0) is a no-op
+        handler.completeBatch(100, 0, SkipWarnings.NOOP);
+        assertEquals("completeBatch must not double-count rowCount", 100L, budget.rowCount());
+        assertEquals("no dropped rows so error count unchanged", 1L, budget.errorCount());
+    }
+
     public void testListRecoveryAndDroppedRowShareErrorBudget() {
         ErrorPolicy policy = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 1, 0.0, false);
         List<String> warnings = new ArrayList<>();
@@ -295,7 +330,7 @@ public class ParquetListCorruptionTests extends ESTestCase {
      * notices the read paths pass in.
      */
     private Block readList(ParquetColumnDecoding.ListColumnReader input, ColumnInfo info, int rows) {
-        return ParquetColumnDecoding.readListColumn(input, info, rows, blockFactory, "x", null, null, SkipWarnings.NOOP);
+        return ParquetColumnDecoding.readListColumn(input, info, rows, blockFactory, "x", null, null, null, SkipWarnings.NOOP);
     }
 
     /**

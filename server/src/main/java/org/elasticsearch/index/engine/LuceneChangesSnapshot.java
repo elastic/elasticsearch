@@ -90,7 +90,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         this.lastSeenSeqNo = fromSeqNo - 1;
         final TopDocs topDocs = nextTopDocs();
         this.maxDocIndex = topDocs.scoreDocs.length;
-        this.syntheticVectorPatchLoader = mapperService.mappingLookup().getMapping().syntheticVectorsLoader(null);
+        this.syntheticVectorPatchLoader = mapperService.mappingLookup().syntheticVectorsLoader(null);
         RoutingFieldMapper routingMapper = (RoutingFieldMapper) mapperService.mappingLookup().getMapper(RoutingFieldMapper.NAME);
         boolean routingStoredAsDocValues = routingMapper != null && routingMapper.docValues();
         this.ordinalToRoutingLookup = routingStoredAsDocValues ? new DocValuesOrdinalToRoutingLookup() : null;

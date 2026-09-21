@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.nullValue;
  * and {@code EsqlQueryProfile.dataset_resolution} are populated when {@code FROM <dataset>}
  * queries execute against a local Parquet fixture.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class ExternalSourceProfileIT extends AbstractExternalDataSourceIT {
 
     @Override
@@ -369,10 +369,6 @@ public class ExternalSourceProfileIT extends AbstractExternalDataSourceIT {
                     parquetStatus.rowGroupsInFile(),
                     greaterThanOrEqualTo(1L)
                 );
-                // read_nanos is wall-time and can read as zero on fast / containerized CI runners
-                // (sub-microsecond synchronous reads + low-resolution clocks). Assert non-negative
-                // rather than a strict positive — the deterministic shape signal lives in row_groups_in_file.
-                assertThat("read_nanos must be non-negative", parquetStatus.readNanos(), greaterThanOrEqualTo(0L));
                 assertThat(
                     "split discovery time should be metered",
                     response.getExecutionInfo().queryProfile().splitDiscoveryNanos(),

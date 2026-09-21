@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.conn.ConnectTimeoutException;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
@@ -49,6 +50,7 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -93,7 +95,9 @@ public class ParquetTestingIT extends ESRestTestCase {
      * Excluded from this list:
      * <ul>
      *   <li>Encrypted files ({@code *.parquet.encrypted}, {@code aes256/})</li>
-     *   <li>Variant encodings ({@code variant/}, {@code shredded_variant/})</li>
+     *   <li>Variant encodings ({@code variant/}, {@code shredded_variant/}) -- except the two
+     *       {@code shredded_variant/} files listed in {@link #UNSUPPORTED_DATA_FILES}, which pin that a
+     *       VARIANT column resolves to {@code unsupported} rather than to its binary internals</li>
      *   <li>Geospatial types ({@code geospatial/*.parquet})</li>
      *   <li>Non-parquet files ({@code bloom_filter.bin}, {@code bloom_filter.xxhash.bin})</li>
      *   <li>{@code large_string_map.brotli.parquet} -- 2GB+, too large for CI</li>
@@ -166,8 +170,22 @@ public class ParquetTestingIT extends ESRestTestCase {
         "bad_data/PARQUET-1481.parquet"
     );
 
+    /**
+     * A valid file whose {@code column} holds a type ESQL cannot read, paired with that column's name.
+     * Such a column must resolve to {@code unsupported} -- readable as null when merely projected, and a
+     * 4xx when a query actually uses it. The name is carried per file because it differs across fixtures.
+     */
+    private record UnsupportedFile(String path, String column) {}
+
     /** Valid files whose nested types must be rejected when a query attempts to use them. */
-    private static final List<String> UNSUPPORTED_DATA_FILES = List.of("data/old_list_structure.parquet");
+    private static final List<UnsupportedFile> UNSUPPORTED_DATA_FILES = List.of(
+        // Legacy 2-level nested list: LIST<LIST<int>>.
+        new UnsupportedFile("data/old_list_structure.parquet", "a"),
+        // Parquet VARIANT (esql-planning#1970): the group must surface as one unsupported column rather
+        // than being flattened into the Variant encoding's binary internals. Both shredding forms.
+        new UnsupportedFile("shredded_variant/case-082.parquet", "var"),
+        new UnsupportedFile("shredded_variant/case-046.parquet", "var")
+    );
 
     /**
      * Files where timestamp value comparison is skipped because INT96 timestamp
@@ -178,7 +196,9 @@ public class ParquetTestingIT extends ESRestTestCase {
 
     /**
      * Bad data files that ESQL reads successfully (200 OK) -- the corruption is not
-     * detectable by or relevant to ESQL's reader.
+     * detectable by or relevant to ESQL's reader. {@code ARROW-GH-43605} is labeled
+     * "RLE bit-width 0" in parquet-testing; that encoding is valid (single-entry
+     * dictionary), not unreadable data.
      */
     private static final Set<String> BAD_DATA_READS_OK = Set.of(
         "bad_data/ARROW-GH-43605.parquet",
@@ -225,12 +245,13 @@ public class ParquetTestingIT extends ESRestTestCase {
 
     private final String parquetFile;
     private final boolean isBadData;
-    private final boolean isUnsupportedData;
+    /** The unsupported column's name for an {@link #UNSUPPORTED_DATA_FILES} entry; {@code null} otherwise. */
+    private final String unsupportedColumn;
 
-    public ParquetTestingIT(String testName, String parquetFile, boolean isBadData, boolean isUnsupportedData) {
+    public ParquetTestingIT(String testName, String parquetFile, boolean isBadData, String unsupportedColumn) {
         this.parquetFile = parquetFile;
         this.isBadData = isBadData;
-        this.isUnsupportedData = isUnsupportedData;
+        this.unsupportedColumn = unsupportedColumn;
     }
 
     @Override
@@ -243,15 +264,17 @@ public class ParquetTestingIT extends ESRestTestCase {
         List<Object[]> params = new ArrayList<>();
         for (String file : GOOD_DATA_FILES) {
             String name = file.replace("data/", "").replace(".parquet", "");
-            params.add(new Object[] { name, file, false, false });
+            params.add(new Object[] { name, file, false, null });
         }
         for (String file : BAD_DATA_FILES) {
             String name = "bad_" + file.replace("bad_data/", "").replace(".parquet", "");
-            params.add(new Object[] { name, file, true, false });
+            params.add(new Object[] { name, file, true, null });
         }
-        for (String file : UNSUPPORTED_DATA_FILES) {
-            String name = "unsupported_" + file.replace("data/", "").replace(".parquet", "");
-            params.add(new Object[] { name, file, false, true });
+        for (UnsupportedFile file : UNSUPPORTED_DATA_FILES) {
+            // These fixtures live in several directories, so strip the usual "data/" prefix and then flatten
+            // any remaining separator -- a '/' in a test name is not what the other params look like.
+            String name = "unsupported_" + file.path().replace("data/", "").replace(".parquet", "").replace('/', '_');
+            params.add(new Object[] { name, file.path(), false, file.column() });
         }
         return params;
     }
@@ -264,7 +287,7 @@ public class ParquetTestingIT extends ESRestTestCase {
         String dataset = DatasetRegistry.sanitizeDatasetName("pq_", parquetFile);
         DatasetRegistry.ensureDataset(client(), dataset, HTTP_DATA_SOURCE, url, null);
 
-        if (isUnsupportedData) {
+        if (unsupportedColumn != null) {
             testUnsupportedData(dataset);
         } else if (isBadData) {
             testBadData(dataset);
@@ -381,9 +404,8 @@ public class ParquetTestingIT extends ESRestTestCase {
             return;
         }
 
-        // Not using expectThrows here: a transient external-host failure (client-side timeout, or a
-        // server-side 503 after the cluster exhausts its own retry budget) must be told apart from the
-        // expected 4xx client error *before* asserting on the status code below.
+        // Not using expectThrows here: a network timeout or a 503 (cluster exhausted retries against
+        // GitHub) must skip before the 4xx assert; any other IOException must fail the test.
         ResponseException ex;
         try {
             runEsqlSync(requestObjectBuilder().query(query), new AssertWarnings.NoWarnings(), null);
@@ -408,7 +430,7 @@ public class ParquetTestingIT extends ESRestTestCase {
         Map<String, Object> projection;
         try {
             projection = runEsqlSync(
-                requestObjectBuilder().query("FROM " + dataset + " | KEEP a | LIMIT 5"),
+                requestObjectBuilder().query("FROM " + dataset + " | KEEP " + unsupportedColumn + " | LIMIT 5"),
                 new AssertWarnings.NoWarnings(),
                 null
             );
@@ -420,19 +442,22 @@ public class ParquetTestingIT extends ESRestTestCase {
         @SuppressWarnings("unchecked")
         List<List<Object>> values = (List<List<Object>>) projection.get("values");
         assertEquals(1, columns.size());
-        assertEquals("a", columns.get(0).get("name"));
+        assertEquals(unsupportedColumn, columns.get(0).get("name"));
         assertEquals("unsupported", columns.get(0).get("type"));
+        // Every fixture in UNSUPPORTED_DATA_FILES holds a single row.
         assertEquals(1, values.size());
         assertEquals(1, values.get(0).size());
         assertNull(values.get(0).get(0));
 
-        String query = "FROM " + dataset + " | EVAL count = MV_COUNT(a) | KEEP count | LIMIT 5";
+        String query = "FROM " + dataset + " | EVAL count = MV_COUNT(" + unsupportedColumn + ") | KEEP count | LIMIT 5";
         logger.info("Testing unsupported data: {}", parquetFile);
 
         ResponseException ex;
         try {
             runEsqlSync(requestObjectBuilder().query(query), new AssertWarnings.NoWarnings(), null);
-            throw new AssertionError("Expected " + parquetFile + " to reject use of its nested list column, but the query succeeded");
+            throw new AssertionError(
+                "Expected " + parquetFile + " to reject use of its [" + unsupportedColumn + "] column, but the query succeeded"
+            );
         } catch (ResponseException e) {
             ex = skipIfTransientFailure(e, "testing unsupported data");
         } catch (IOException e) {
@@ -442,38 +467,55 @@ public class ParquetTestingIT extends ESRestTestCase {
         assertTrue("Expected a 4xx response but got " + status + ": " + ex.getMessage(), status >= 400 && status < 500);
         assertTrue(
             "Expected an unsupported-type diagnostic but got: " + ex.getMessage(),
-            ex.getMessage().contains("found value [a] type [unsupported]")
+            ex.getMessage().contains("found value [" + unsupportedColumn + "] type [unsupported]")
         );
     }
 
     /**
-     * Whether {@code failure} is an environmental symptom of {@code raw.githubusercontent.com}
-     * throttling/slowness reaching the cluster's {@code http} data source read, rather than a query or
-     * reader defect: either the REST client gave up waiting on a response (a bare transport-level
-     * {@link IOException}, e.g. {@link java.net.SocketTimeoutException}, carrying no HTTP response), or
-     * the cluster itself gave up after exhausting its own retry budget against the throttled/unavailable
-     * host (surfaced as a {@code 503} -- see {@code ExternalUnavailableException#status()} in the ESQL
-     * datasources retry layer). Mirrors the handling already applied to {@link #downloadFile} failures.
+     * Whether {@code failure} is a <em>network</em> timeout (REST/HTTP socket or connect timeout
+     * talking to the cluster or to {@code raw.githubusercontent.com}), including when wrapped as a
+     * cause. A JUnit / RandomizedRunner / Gradle <em>test</em> timeout is a different type and is
+     * not an {@link IOException}; those must fail the test, not skip it.
      */
-    private static boolean isTransientExternalFailure(IOException failure) {
-        if (failure instanceof ResponseException responseException) {
-            return responseException.getResponse().getStatusLine().getStatusCode() == 503;
+    private static boolean isNetworkTimeout(Throwable failure) {
+        for (Throwable current = failure; current != null; current = current.getCause()) {
+            if (current instanceof SocketTimeoutException || current instanceof ConnectTimeoutException) {
+                return true;
+            }
+            if (current.getCause() == current) {
+                break;
+            }
         }
-        return true;
+        return false;
+    }
+
+    /**
+     * Whether {@code failure} is a 503 from the cluster after the {@code http} data source exhausted
+     * its retry budget against {@code raw.githubusercontent.com} (see
+     * {@code ExternalUnavailableException#status()}). Truncated GitHub bodies and similar transport
+     * faults surface this way; they are environmental, not a reader defect.
+     */
+    private static boolean isExternalUnavailable(IOException failure) {
+        return failure instanceof ResponseException responseException
+            && responseException.getResponse().getStatusLine().getStatusCode() == 503;
     }
 
     /**
      * Skips the test via {@code assumeNoException} if {@code failure} is a
-     * {@linkplain #isTransientExternalFailure transient external-host failure} encountered while
-     * {@code action} (e.g. {@code "querying"}); {@code assumeNoException} always throws, so this
-     * method never returns normally in that case. Otherwise returns {@code failure} unchanged, so
-     * callers can either {@code throw} it to propagate as-is, or assign it (the declared type is the
-     * caller's exception type, e.g. {@link ResponseException}, so no cast is needed) to keep handling
-     * it below -- centralizing the classify-and-skip logic that would otherwise be repeated at every
-     * {@code runEsqlSync} call site in this class.
+     * {@linkplain #isNetworkTimeout network timeout} or an {@linkplain #isExternalUnavailable
+     * external-host 503} encountered while {@code action} (e.g. {@code "querying"});
+     * {@code assumeNoException} always throws, so this method never returns normally in that case.
+     * Otherwise returns {@code failure} unchanged, so callers can either {@code throw} it to
+     * propagate as-is, or assign it (the declared type is the caller's exception type, e.g.
+     * {@link ResponseException}, so no cast is needed) to keep handling it below -- centralizing
+     * the classify-and-skip logic that would otherwise be repeated at every {@code runEsqlSync}
+     * call site in this class.
      */
     private <T extends IOException> T skipIfTransientFailure(T failure, String action) {
-        if (isTransientExternalFailure(failure)) {
+        if (isNetworkTimeout(failure)) {
+            assumeNoException("Network timeout while " + action + " [" + parquetFile + "]", failure);
+        }
+        if (isExternalUnavailable(failure)) {
             assumeNoException("External host unavailable while " + action + " [" + parquetFile + "]", failure);
         }
         return failure;

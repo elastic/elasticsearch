@@ -133,6 +133,7 @@ import org.elasticsearch.xpack.stateless.action.TransportEnsureDocsSearchableAct
 import org.elasticsearch.xpack.stateless.action.TransportFetchShardCommitsInUseAction;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.allocation.AbstractEstimatedHeapAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.DisableSimulationRebalancingDecider;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitor;
@@ -213,6 +214,8 @@ import org.elasticsearch.xpack.stateless.recovery.StatelessSearchNodeRecoveryLis
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction;
+import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction;
+import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationPrewarmAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction;
 import org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryRelocationMetricsCollector;
 import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
@@ -679,6 +682,14 @@ public class StatelessPlugin extends Plugin
 
             new ActionHandler(EnsureDocsSearchableAction.TYPE, TransportEnsureDocsSearchableAction.class),
             new ActionHandler(StatelessPrimaryRelocationAction.TYPE, TransportStatelessPrimaryRelocationAction.class),
+            new ActionHandler(
+                TransportStatelessPrimaryRelocationPrewarmAction.TYPE,
+                TransportStatelessPrimaryRelocationPrewarmAction.class
+            ),
+            new ActionHandler(
+                TransportStatelessPrimaryRelocationHandoffAction.TYPE,
+                TransportStatelessPrimaryRelocationHandoffAction.class
+            ),
             new ActionHandler(TransportRegisterCommitForRecoveryAction.TYPE, TransportRegisterCommitForRecoveryAction.class),
             new ActionHandler(TransportSendRecoveryCommitRegistrationAction.TYPE, TransportSendRecoveryCommitRegistrationAction.class),
             new ActionHandler(TransportConsistentClusterStateReadAction.TYPE, TransportConsistentClusterStateReadAction.class),
@@ -959,7 +970,12 @@ public class StatelessPlugin extends Plugin
         services.allocationService()
             .getClusterInfoService()
             .addListener(
-                new EstimatedHeapUsageMonitor(clusterService.getClusterSettings(), clusterService::state, rerouteService)::onNewInfo
+                new EstimatedHeapUsageMonitor(
+                    clusterService.getClusterSettings(),
+                    clusterService::state,
+                    rerouteService,
+                    EstimatedHeapUsageAllocationDecider.monitorConfiguration()
+                )::onNewInfo
             );
 
         services.allocationService()
@@ -976,7 +992,7 @@ public class StatelessPlugin extends Plugin
         recoveryCommitRegistrationHandler.set(new RecoveryCommitRegistrationHandler(client, clusterService));
 
         // Memory metrics service for heap usage tracking
-        var memoryMetricsService = new StatelessMemoryMetricsService(threadPool::relativeTimeInNanos, clusterService.getClusterSettings());
+        var memoryMetricsService = new StatelessMemoryMetricsService(threadPool::relativeTimeInNanos, clusterService);
         clusterService.addListener(memoryMetricsService);
         this.statelessMemoryMetricsService.set(memoryMetricsService);
         components.add(memoryMetricsService);
@@ -1026,13 +1042,15 @@ public class StatelessPlugin extends Plugin
         final StatelessPrimaryRelocationSourceService primaryRelocationSourceService = setAndGet(
             this.primaryRelocationSourceService,
             new StatelessPrimaryRelocationSourceService(
+                settings,
                 clusterService,
                 threadPool,
                 indicesService,
                 hollowShardsService,
                 commitServiceProvider,
                 indexShardCacheWarmer,
-                hollowShardMetrics.get()
+                hollowShardMetrics.get(),
+                services.client()
             )
         );
         components.add(primaryRelocationSourceService);
@@ -1425,8 +1443,8 @@ public class StatelessPlugin extends Plugin
             EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK,
             EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK,
             EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK_ENABLED,
-            EstimatedHeapUsageAllocationDecider.MINIMUM_LOGGING_INTERVAL,
-            EstimatedHeapUsageAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT,
+            AbstractEstimatedHeapAllocationDecider.MINIMUM_LOGGING_INTERVAL,
+            AbstractEstimatedHeapAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT,
             SharedCacheCapacityAllocationDecider.ENABLED_SETTING,
             SharedCacheCapacityAllocationDecider.CAN_REMAIN_ENABLED_SETTING,
             SharedCacheCapacityAllocationDecider.ACCOUNTING_MODE_SETTING,
@@ -1497,6 +1515,7 @@ public class StatelessPlugin extends Plugin
             PinnedWindowEvictionPolicy.PINNED_WINDOW_DURATION_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_DURATION_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_OBJECT_STORE_PREFETCH_ENABLED_SETTING,
             DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED_SETTING,
             UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_ENABLED,
             UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEXING_THROTTLING_ENABLED,
@@ -1504,7 +1523,8 @@ public class StatelessPlugin extends Plugin
             UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_THRESHOLD,
             UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_REMOVAL_THRESHOLD,
             UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_COOLDOWN,
-            PostRecoveryMerger.POST_RECOVERY_MERGER_DELAY
+            PostRecoveryMerger.POST_RECOVERY_MERGER_DELAY,
+            StatelessPrimaryRelocationSourceService.PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING
         );
     }
 
@@ -1576,6 +1596,7 @@ public class StatelessPlugin extends Plugin
                     relocationMetricsCollector.get()
                 )
             );
+            indexModule.addIndexEventListener(this.primaryRelocationSourceService.get().indexEventListener());
         }
         if (hasSearchRole) {
             indexModule.addIndexEventListener(

@@ -2804,6 +2804,59 @@ public class AuthorizationServiceTests extends ESTestCase {
         verifyNoMoreInteractions(auditTrail);
     }
 
+    public void testRemoteFetchExchangeSetupActionIsAuthorizedByName() {
+        assertRemoteFetchActionIsAuthorizedByName("indices:data/read/esql/remote_fetch/exchange_setup");
+    }
+
+    public void testRemoteFetchReleaseActionIsAuthorizedByName() {
+        assertRemoteFetchActionIsAuthorizedByName("indices:data/read/esql/remote_fetch/release");
+    }
+
+    public void testRemoteFetchActionRequiresIndexPrivileges() {
+        final String action = randomFrom(
+            "indices:data/read/esql/remote_fetch/exchange_setup",
+            "indices:data/read/esql/remote_fetch/release"
+        );
+        final TransportRequest request = new EmptyRequest();
+        final Authentication authentication = createAuthentication(new User("test user", "no_indices"));
+        final RoleDescriptor role = new RoleDescriptor("no_indices", null, null, null);
+        roleMap.put("no_indices", role);
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+
+        assertThrowsAuthorizationException(() -> authorize(authentication, action, request), action, "test user");
+        verify(auditTrail).accessDenied(
+            eq(requestId),
+            eq(authentication),
+            eq(action),
+            eq(request),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    private void assertRemoteFetchActionIsAuthorizedByName(String action) {
+        final TransportRequest request = new EmptyRequest();
+        final Authentication authentication = createAuthentication(new User("test user", "role"));
+        final RoleDescriptor role = new RoleDescriptor(
+            "role",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("index").privileges("read").build() },
+            null
+        );
+        roleMap.put("role", role);
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+
+        authorize(authentication, action, request);
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq(action),
+            eq(request),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verifyNoMoreInteractions(auditTrail);
+    }
+
     public void testCompositeActionsMustImplementCompositeIndicesRequest() {
         String action = randomCompositeRequest().v1();
         TransportRequest request = mock(TransportRequest.class);
@@ -4481,5 +4534,49 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(snapshot.getSearchProjectRoutingFailures(), equalTo(1L));
         assertThat(snapshot.getEsqlQueriesTotal(), equalTo(0L));
         assertThat(snapshot.getEsqlProjectRoutingFailures(), equalTo(0L));
+    }
+
+    public void testProjectRoutingFailureWithLocalApiKey() {
+        var origin = createRandomProjectWithAlias(randomAlphaOfLengthBetween(5, 10));
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            var callback = (ActionListener<TargetProjects>) invocation.getArguments()[0];
+            // local API key can only access the origin project
+            callback.onResponse(new TargetProjects(origin));
+            return null;
+        }).when(authorizedProjectsResolver).resolveAuthorizedProjects(anyActionListener());
+        when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
+        when(crossProjectModeDecider.resolvesCrossProject(any())).thenReturn(true);
+
+        var emptyResultResolver = new ProjectRoutingResolver() {
+            @Override
+            public void validate(String projectRouting, ProjectMetadata projectMetadata) {}
+
+            @Override
+            public TargetProjects resolve(String projectRouting, ProjectMetadata projectMetadata, TargetProjects authorizedProjects) {
+                return TargetProjects.EMPTY;
+            }
+        };
+
+        authorizationService = createCpsAuthorizationService(emptyResultResolver, new UsageService());
+        var authentication = Authentication.newApiKeyAuthentication(
+            AuthenticationResult.success(new User(randomAlphaOfLengthBetween(3, 8)), Map.of(API_KEY_ID_KEY, randomAlphaOfLength(20))),
+            randomAlphaOfLengthBetween(3, 8)
+        );
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        var request = new ResolveIndexAction.Request(
+            new String[] { randomAlphanumericOfLength(8) },
+            ResolveIndexAction.Request.DEFAULT_INDICES_OPTIONS,
+            null,
+            "_alias:linked"
+        );
+        var ex = expectThrows(
+            NoMatchingProjectException.class,
+            () -> authorize(authentication, ResolveIndexAction.NAME, request, true, null)
+        );
+        assertThat(
+            ex.getMessage(),
+            containsString("an Elasticsearch API key, which can only access the origin project and never linked projects")
+        );
     }
 }

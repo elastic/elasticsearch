@@ -178,6 +178,11 @@ public class TestAnalyzer {
      * Convenience overload of {@link #addLenientResolution(LinkedIndexPattern, IndexResolution)} for the
      * common no-exclusion case: keys the entry by an {@link IndexPattern} built from
      * {@code esIndex.name()} (which the test should match the local view name).
+     * <p>
+     * The shadow rules treat a resolution with no resolved indices as no-match, so a matched
+     * fixture's {@code EsIndex} must carry {@code indexProperties} (build it with the 3-arg
+     * {@code EsIndexGenerator.esIndex(name, mapping, indexNameWithModes)}); otherwise the shadow
+     * is stripped instead of resolved.
      */
     public TestAnalyzer addLenientResolution(EsIndex esIndex) {
         return addLenientResolution(
@@ -945,13 +950,20 @@ public class TestAnalyzer {
      * {@link Analyzer} and call {@link Analyzer#analyze} directly, possibly against several different queries.
      */
     public Analyzer buildAnalyzer(Verifier verifier) {
-        return new Analyzer(buildContext(), verifier) {
+        lastAnalyzer = new Analyzer(buildContext(), verifier) {
             @Override
             public LogicalPlan analyze(LogicalPlan plan) {
                 resolveEnrichResolution(plan);
                 return super.analyze(plan);
             }
         };
+        return lastAnalyzer;
+    }
+
+    private Analyzer lastAnalyzer;
+
+    public Analyzer lastAnalyzer() {
+        return lastAnalyzer;
     }
 
     /**

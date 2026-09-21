@@ -51,15 +51,6 @@ public abstract class AbstractTracesIT extends AbstractTelemetryIT {
     static final long CHILD_SPAN_GRACE_PERIOD_MS = 500;
 
     /**
-     * Per-test timeout (in seconds) used when waiting for telemetry to arrive. Defaults to
-     * {@link AbstractTelemetryIT#TELEMETRY_TIMEOUT}. Subclasses on an export path with a real
-     * programmatic flush may override to use a shorter value.
-     */
-    protected int telemetryTimeout() {
-        return TELEMETRY_TIMEOUT;
-    }
-
-    /**
      * Span attribute keys this exporter implementation must produce on the
      * {@code GET /_nodes/stats} root span. Subclasses may override to extend or replace the set.
      * Anything else (e.g. APM-agent-specific HTTP headers, intake-protocol metadata) is permitted
@@ -81,11 +72,23 @@ public abstract class AbstractTracesIT extends AbstractTelemetryIT {
     static final Set<String> FORBIDDEN_SPAN_KEYS = Set.of("otel.attributes.http.request.body", "otel.attributes.http.response.body");
 
     /**
-     * Resource attribute keys this exporter must produce on the {@code GET /_nodes/stats} resource.
-     * Subclasses override to match their export path.
+     * Resource attribute keys emitted by {@code OtelSdkResource} on the {@code GET /_nodes/stats} resource.
+     * Attribute values are covered by {@code OtelSdkResourceTests}; this only verifies they reach OTLP export.
      */
     protected Set<String> requiredResourceKeys() {
-        return Set.of("service.name", "service.version", "service.language.name", "service.agent.name", "service.agent.version");
+        return Set.of(
+            "service.name",
+            "service.version",
+            "service.instance.id",
+            "process.runtime.name",
+            "process.runtime.version",
+            "telemetry.distro.name",
+            "telemetry.distro.version",
+            "host.arch",
+            "os.type",
+            "process.pid",
+            "deployment.environment"
+        );
     }
 
     /**
@@ -108,7 +111,7 @@ public abstract class AbstractTracesIT extends AbstractTelemetryIT {
         return apmServer().await(
             ReceivedTelemetry.ReceivedSpan.class,
             s -> "GET /_nodes/stats".equals(s.name()) && traceIdValue.equals(s.traceId()),
-            telemetryTimeout(),
+            TELEMETRY_TIMEOUT,
             () -> {
                 Request nodeStatsRequest = new Request("GET", "/_nodes/stats");
                 RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder()
@@ -194,11 +197,10 @@ public abstract class AbstractTracesIT extends AbstractTelemetryIT {
 
     /**
      * Asserts that the resource (telemetry source) that emitted the {@code GET /_nodes/stats} span
-     * carries every entry in {@link #requiredResourceKeys()}. The APM-agent path produces these via its
-     * {@code metadata} intake event, the OTel SDK path produces them via the Resource on each
+     * carries every entry in {@link #requiredResourceKeys()}, produced via the Resource on each
      * {@code ResourceSpans} batch.
      *
-     * <p>Resource arrives on the first telemetry request from each path; we only need a short wait
+     * <p>Resource arrives on the first telemetry request; we only need a short wait
      * in case it hasn't arrived yet.
      */
     protected void assertNodeStatsResourceAttributes() throws Exception {
@@ -222,10 +224,8 @@ public abstract class AbstractTracesIT extends AbstractTelemetryIT {
     }
 
     /**
-     * Verifies that only the root (entry-point) span is exported and no child spans leak through.
-     *
-     * On the APM agent path this is enforced by {@code transaction_max_spans=0} (configured in
-     * {@code APMJvmOptions.CONFIG_DEFAULTS}). On the OTel SDK path it must be enforced by ES code.
+     * Verifies that only the root (entry-point) span is exported and no child spans leak through,
+     * which ES enforces through the default {@code telemetry.tracing.max_depth=0}.
      */
     public void testOnlyRootSpansExported() throws Exception {
         final String traceIdValue = "1234567890abcdef1234567890abcdef";
@@ -252,7 +252,7 @@ public abstract class AbstractTracesIT extends AbstractTelemetryIT {
         client().performRequest(nodeStatsRequest);
         client().performRequest(new Request("GET", "/_flush_telemetry"));
 
-        assertTrue("Root span should be received within timeout", rootSpanReceived.await(telemetryTimeout(), TimeUnit.SECONDS));
+        assertTrue("Root span should be received within timeout", rootSpanReceived.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS));
 
         Thread.sleep(CHILD_SPAN_GRACE_PERIOD_MS);
         // CopyOnWriteArrayList.add() does a volatile write and size() does a volatile read, so child spans

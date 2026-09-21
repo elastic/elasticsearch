@@ -49,9 +49,7 @@ public class IndicesMetricsIT extends AbstractStatelessPluginIntegTestCase {
     public static class TestAPMInternalSettings extends Plugin {
         @Override
         public List<Setting<?>> getSettings() {
-            return List.of(
-                Setting.timeSetting("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(0), Setting.Property.NodeScope)
-            );
+            return List.of(Setting.timeSetting("telemetry.export.interval", TimeValue.timeValueSeconds(0), Setting.Property.NodeScope));
         }
     }
 
@@ -67,7 +65,7 @@ public class IndicesMetricsIT extends AbstractStatelessPluginIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(0)) // disable metrics cache refresh delay
+            .put("telemetry.export.interval", TimeValue.timeValueSeconds(0)) // disable metrics cache refresh delay
             .build();
     }
 

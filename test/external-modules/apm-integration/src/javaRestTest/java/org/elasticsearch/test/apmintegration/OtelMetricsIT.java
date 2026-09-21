@@ -36,13 +36,12 @@ public class OtelMetricsIT extends AbstractMetricsIT {
     public static RecordingApmServer recordingApmServer = new RecordingApmServer();
 
     public static ElasticsearchCluster cluster = AbstractMetricsIT.baseClusterBuilder()
-        .systemProperty("telemetry.otel.metrics.enabled", "true")
         .systemProperty("telemetry.metrics.otel_jvm.enabled", "true")
         .setting("telemetry.export.endpoint", () -> recordingApmServer.getGrpcEndpoint())
         .setting("telemetry.export.interval", "1000ms")
         .setting("telemetry.export.send_timeout", "600ms")
         .setting("telemetry.metrics.buffer.disk_size", "0b")
-        // Mirrors the three labels ServerlessServerCli writes via telemetry.agent.global_labels.* on the APM-agent path,
+        // Mirrors the three resource attributes ServerlessServerCli writes via the telemetry.resource.* affix,
         // bridged here to the OTel resource via the telemetry.resource.* affix.
         .setting("telemetry.resource.elasticsearch.project.id", EXPECTED_PROJECT_ID)
         .setting("telemetry.resource.elasticsearch.project.type", EXPECTED_PROJECT_TYPE)

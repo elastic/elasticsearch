@@ -14,8 +14,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.OTLP_RETRY_INITIAL_BACKOFF;
+import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT;
 import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL;
 import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT;
+import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_EXPORT_VERIFY_SERVER_CERT;
 import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_TRACING_MAX_QUEUE_SIZE;
 import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE;
 import static org.hamcrest.Matchers.equalTo;
@@ -97,5 +99,15 @@ public class OtelSdkSettingsTests extends ESTestCase {
 
     public void testMaxQueueSizeDefault() {
         assertThat(TELEMETRY_TRACING_MAX_QUEUE_SIZE.get(Settings.EMPTY), equalTo(1024));
+    }
+
+    public void testEndpointFallsBackToAgentServerUrl() {
+        Settings settings = Settings.builder().put("telemetry.agent.server_url", "http://apm-server:8200").build();
+        assertThat(TELEMETRY_EXPORT_ENDPOINT.get(settings), equalTo("http://apm-server:8200"));
+    }
+
+    public void testVerifyServerCertFallsBackToAgentVerifyServerCert() {
+        Settings settings = Settings.builder().put("telemetry.agent.verify_server_cert", "false").build();
+        assertThat(TELEMETRY_EXPORT_VERIFY_SERVER_CERT.get(settings), equalTo(false));
     }
 }

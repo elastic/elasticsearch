@@ -27,9 +27,8 @@ import static org.hamcrest.Matchers.not;
 /**
  * Runs the shared {@link AbstractTracesIT} test suite against the OTel SDK export path.
  *
- * Activated by setting the JVM system property {@code telemetry.otel.traces.enabled=true}.
- * Spans are exported via {@code SdkTracerProvider} + OTLP/gRPC, bypassing the Elastic APM
- * Java agent. Child-span filtering is enforced by ES code in {@code APMTracer} when
+ * Spans are exported via {@code SdkTracerProvider} + OTLP/gRPC. Child-span filtering is
+ * enforced by ES code in {@code APMTracer} when
  * {@code telemetry.tracing.max_depth=0} (the default). Exception-stack suppression
  * is enforced by the same code when {@code telemetry.tracing.record_exception_stacks=false}
  * (the default); see {@code APMTracerTests} for coverage of that branch.
@@ -42,11 +41,12 @@ public class OtelSdkTracesIT extends AbstractTracesIT {
 
     public static RecordingApmServer recordingApmServer = new RecordingApmServer();
 
-    public static ElasticsearchCluster cluster = baseTracesClusterBuilder().systemProperty("telemetry.otel.traces.enabled", "true")
-        .setting("telemetry.export.endpoint", () -> recordingApmServer.getGrpcEndpoint())
+    public static ElasticsearchCluster cluster = baseTracesClusterBuilder().setting(
+        "telemetry.export.endpoint",
+        () -> recordingApmServer.getGrpcEndpoint()
+    )
         .setting("telemetry.tracing.sample_rate", "1.0")
-        // Mirrors the three labels ServerlessServerCli writes via telemetry.agent.global_labels.* on the APM-agent path,
-        // bridged here to the OTel resource via the telemetry.resource.* affix.
+        // Mirrors the three resource attributes ServerlessServerCli writes via the telemetry.resource.* affix.
         .setting("telemetry.resource.elasticsearch.project.id", EXPECTED_PROJECT_ID)
         .setting("telemetry.resource.elasticsearch.project.type", EXPECTED_PROJECT_TYPE)
         .setting("telemetry.resource.elasticsearch.node.tier", EXPECTED_NODE_TIER)
@@ -63,37 +63,6 @@ public class OtelSdkTracesIT extends AbstractTracesIT {
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
-    }
-
-    /**
-     * The SDK path uses {@code SdkTracerProvider.forceFlush()}, which actually flushes
-     * buffered spans. 15 s is sufficient; the 40 s default is reserved for the APM agent,
-     * which has no programmatic flush API.
-     */
-    @Override
-    protected int telemetryTimeout() {
-        return 15;
-    }
-
-    /**
-     * Resource attributes emitted by {@code OtelSdkResource}. Attribute values are covered by
-     * {@code OtelSdkResourceTests}; this integration test only verifies they reach OTLP export.
-     */
-    @Override
-    protected Set<String> requiredResourceKeys() {
-        return Set.of(
-            "service.name",
-            "service.version",
-            "service.instance.id",
-            "process.runtime.name",
-            "process.runtime.version",
-            "telemetry.distro.name",
-            "telemetry.distro.version",
-            "host.arch",
-            "os.type",
-            "process.pid",
-            "deployment.environment"
-        );
     }
 
     /**

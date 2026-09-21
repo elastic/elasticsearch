@@ -134,7 +134,7 @@ public class EncryptedDataHandlerProviderSpiIT extends ESRestTestCase {
 
         var snapshotRequest = new Request("PUT", "/_snapshot/test-repo-no-global-state/snap");
         snapshotRequest.addParameter("wait_for_completion", "true");
-        snapshotRequest.addParameter("include_global_state", "false");
+        snapshotRequest.setJsonEntity("{\"include_global_state\":false}");
         var response = client().performRequest(snapshotRequest);
 
         List<String> warningValues = Arrays.stream(response.getHeaders())

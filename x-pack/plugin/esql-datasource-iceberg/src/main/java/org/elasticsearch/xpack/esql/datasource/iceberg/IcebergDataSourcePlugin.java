@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.iceberg;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.TableCatalogFactory;
@@ -35,16 +36,38 @@ import java.util.Set;
  *
  * <p>Heavy dependencies (Iceberg, Arrow, Parquet, AWS SDK) are isolated in this module
  * to avoid jar hell issues in the core ESQL plugin.
+ *
+ * <p>Iceberg is not in the released ship set yet, so catalog registration is gated on
+ * {@link #ESQL_EXTERNAL_ICEBERG_FEATURE_FLAG}: the catalog is available in snapshot/development
+ * builds and disabled in release. When the gate is off neither {@code supportedCatalogs()} nor
+ * {@code tableCatalogs()} return any entry, so no extensionless S3 object path is claimed by the
+ * Iceberg catalog and the resolver applies the standard file-format check instead.
  */
 public class IcebergDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
+    /**
+     * Gates the Iceberg table catalog. Snapshot-on, release-off; override in release with
+     * {@code -Des.esql_external_iceberg_feature_flag_enabled=true}.
+     */
+    public static final FeatureFlag ESQL_EXTERNAL_ICEBERG_FEATURE_FLAG = new FeatureFlag("esql_external_iceberg");
+
+    private static boolean enabled() {
+        return ESQL_EXTERNAL_ICEBERG_FEATURE_FLAG.isEnabled();
+    }
+
     @Override
     public Set<String> supportedCatalogs() {
+        if (enabled() == false) {
+            return Set.of();
+        }
         return Set.of("iceberg");
     }
 
     @Override
     public Map<String, TableCatalogFactory> tableCatalogs(Settings settings) {
+        if (enabled() == false) {
+            return Map.of();
+        }
         return Map.of("iceberg", s -> new IcebergTableCatalog());
     }
 }

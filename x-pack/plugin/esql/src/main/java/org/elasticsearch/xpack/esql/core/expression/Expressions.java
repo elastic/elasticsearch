@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -158,6 +159,75 @@ public final class Expressions {
             canonical.add(exp.canonical());
         }
         return canonical;
+    }
+
+    /**
+     * Stable, total order on expressions that does not depend on runtime-assigned {@link NameId}s.
+     * Intended for canonicalization, which has to order operands the same way on every JVM.
+     *
+     * <p>The class name is compared first so the order stays transitive: an expression's own
+     * fields are only ever compared against another instance of the same concrete type. Leaves
+     * are then ordered by their stable fields and inner nodes by their children, so no strings
+     * are built along the way.
+     *
+     * <p>Only fields that cannot throw take part - notably not {@code dataType()}, which throws
+     * for unresolved attributes. Comparing too few fields is safe: a tie costs a missed
+     * canonical match, never a wrong one.
+     *
+     * <p>Null operands sort before everything else, as null qualifiers do, rather than throwing.
+     */
+    public static int compareStable(Expression a, Expression b) {
+        // TODO: figure out a better plan than walking subtrees field by field. This orders
+        // operands the same way on every JVM, but each comparison costs O(depth), and it cannot
+        // tell apart attributes differing only by NameId, so some equivalent expressions still
+        // end up with different canonical forms. A stable per-expression key computed once, or
+        // deterministic NameIds, would replace all of this with one cheap comparison.
+        if (a == null) {
+            return b == null ? 0 : -1;
+        }
+        if (b == null) {
+            return 1;
+        }
+
+        int c = a.getClass().getName().compareTo(b.getClass().getName());
+        if (c != 0) {
+            return c;
+        }
+
+        // equal class names mean equal concrete types, so the casts below cannot fail
+        if (a instanceof Attribute aa) {
+            Attribute bb = (Attribute) b;
+
+            c = aa.name().compareTo(bb.name());
+            return c != 0 ? c : compareNullsFirst(aa.qualifier(), bb.qualifier());
+        }
+
+        if (a instanceof Literal la) {
+            Literal lb = (Literal) b;
+
+            c = la.dataType().typeName().compareTo(lb.dataType().typeName());
+            return c != 0 ? c : Objects.toString(la.value()).compareTo(Objects.toString(lb.value()));
+        }
+
+        var ac = a.children();
+        var bc = b.children();
+        int n = Math.min(ac.size(), bc.size());
+
+        for (int i = 0; i < n; i++) {
+            c = compareStable(ac.get(i), bc.get(i));
+            if (c != 0) {
+                return c;
+            }
+        }
+
+        return Integer.compare(ac.size(), bc.size());
+    }
+
+    private static int compareNullsFirst(String a, String b) {
+        if (a == null) {
+            return b == null ? 0 : -1;
+        }
+        return b == null ? 1 : a.compareTo(b);
     }
 
     public static boolean foldable(List<? extends Expression> exps) {

@@ -97,7 +97,7 @@ final class ModelLoaderUtils {
             this(range, chunkSize, remaining -> getHttpOrHttpsInputStream(uri, remaining));
         }
 
-        // This ctor exists for testing purposes only. The stream cannot be reopened, so reads are not retried.
+        // This ctor exists for testing purposes only.
         HttpStreamChunker(InputStream inputStream, RequestRange range, int chunkSize) {
             this(range, chunkSize, null);
             this.inputStream = inputStream;

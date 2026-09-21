@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
@@ -49,7 +50,6 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.BitSet;
-import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -61,6 +61,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -143,6 +144,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
                 "cartesian_shape",
                 "date_range",
                 "double",
+                "double_range",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -164,6 +166,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
                 "cartesian_shape",
                 "date_range",
                 "double",
+                "double_range",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -309,7 +312,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
     protected Expression canonicalize() {
         // order values for commutative operators
         List<Expression> canonicalValues = Expressions.canonicalize(list);
-        Collections.sort(canonicalValues, (l, r) -> Integer.compare(l.hashCode(), r.hashCode()));
+        canonicalValues.sort(Expressions::compareStable);
         return new In(source(), value, canonicalValues);
     }
 
@@ -376,6 +379,9 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
         }
         if (commonType == DATE_RANGE) {
             return new InLongRangeEvaluator.Factory(source(), lhs, factories);
+        }
+        if (commonType == DOUBLE_RANGE) {
+            return new InDoubleRangeEvaluator.Factory(source(), lhs, factories);
         }
         if (commonType == NULL) {
             return ConstantEvaluators.CONSTANT_NULL_FACTORY;
@@ -499,13 +505,30 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
         return false;
     }
 
+    static boolean processDoubleRange(
+        BitSet nulls,
+        BitSet mvs,
+        DoubleRangeBlockBuilder.DoubleRange lhs,
+        DoubleRangeBlockBuilder.DoubleRange[] rhs
+    ) {
+        for (int i = 0; i < rhs.length; i++) {
+            if ((nulls != null && nulls.get(i)) || (mvs != null && mvs.get(i))) {
+                continue;
+            }
+            if (lhs.equals(rhs[i])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         if (Expressions.foldable(list()) == false) {
             return Translatable.NO;
         }
-        // date_range fields don't support scalar term/range queries; IN must be evaluated in the compute engine
-        if (value.dataType() == DATE_RANGE) {
+        // Range fields don't support scalar term/range queries; IN must be evaluated in the compute engine.
+        if (value.dataType() == DATE_RANGE || value.dataType() == DOUBLE_RANGE) {
             return Translatable.NO;
         }
         if (pushdownPredicates.isPushableAttribute(value)) {

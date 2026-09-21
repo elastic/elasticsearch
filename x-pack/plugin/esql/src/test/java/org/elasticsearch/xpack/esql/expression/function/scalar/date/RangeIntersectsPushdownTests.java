@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder.DoubleRange;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder.LongRange;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
@@ -38,12 +39,24 @@ public class RangeIntersectsPushdownTests extends ESTestCase {
         assertThat(fn.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.NO));
     }
 
+    public void testNotTranslatableTwoDoubles() {
+        RangeIntersects fn = new RangeIntersects(Source.EMPTY, doubleField("a"), doubleLiteral(1.0));
+        assertThat(fn.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.NO));
+    }
+
     public void testRecheckForDateRangeField() {
         // date_range fields use RECHECK so the evaluator can return null for multi-valued positions.
         RangeIntersects rangeLeft = new RangeIntersects(Source.EMPTY, rangeField("date_range"), rangeLiteral(FROM, TO));
         assertThat(rangeLeft.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.RECHECK));
         RangeIntersects dateRight = new RangeIntersects(Source.EMPTY, dateLiteral(DATE), rangeField("date_range"));
         assertThat(dateRight.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.RECHECK));
+    }
+
+    public void testRecheckForDoubleRangeField() {
+        RangeIntersects rangeLeft = new RangeIntersects(Source.EMPTY, doubleRangeField("double_range"), doubleRangeLiteral(0.5, 1.5));
+        assertThat(rangeLeft.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.RECHECK));
+        RangeIntersects doubleRight = new RangeIntersects(Source.EMPTY, doubleLiteral(1.0), doubleRangeField("double_range"));
+        assertThat(doubleRight.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.RECHECK));
     }
 
     public void testNotTranslatableTwoLiterals() {
@@ -124,6 +137,45 @@ public class RangeIntersectsPushdownTests extends ESTestCase {
         );
     }
 
+    public void testDoubleFieldWithLiteralRange() {
+        RangeIntersects fn = new RangeIntersects(Source.EMPTY, doubleField("height"), doubleRangeLiteral(0.5, 1.5));
+        var query = fn.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+        assertThat(query, equalTo(new RangeQuery(Source.EMPTY, "height", 0.5, true, 1.5, false, null, null, ShapeRelation.INTERSECTS)));
+    }
+
+    public void testDoubleRangeFieldWithLiteralDouble() {
+        RangeIntersects fn = new RangeIntersects(Source.EMPTY, doubleRangeField("height_range"), doubleLiteral(1.0));
+        var query = fn.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+        assertThat(
+            query,
+            equalTo(new RangeQuery(Source.EMPTY, "height_range", 1.0, true, 1.0, true, null, null, ShapeRelation.INTERSECTS))
+        );
+    }
+
+    public void testDoubleRangeFieldWithLiteralRange() {
+        RangeIntersects fn = new RangeIntersects(Source.EMPTY, doubleRangeField("height_range"), doubleRangeLiteral(0.5, 1.5));
+        var query = fn.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+        assertThat(
+            query,
+            equalTo(new RangeQuery(Source.EMPTY, "height_range", 0.5, true, 1.5, false, null, null, ShapeRelation.INTERSECTS))
+        );
+    }
+
+    public void testDoubleRangeFieldWithOpenLiteralRange() {
+        // Infinite bounds must translate to unbounded query sides: range queries on double fields
+        // reject non-finite values. RECHECK keeps the exact semantics.
+        RangeIntersects fn = new RangeIntersects(
+            Source.EMPTY,
+            doubleRangeField("height_range"),
+            doubleRangeLiteral(0.5, Double.POSITIVE_INFINITY)
+        );
+        var query = fn.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+        assertThat(
+            query,
+            equalTo(new RangeQuery(Source.EMPTY, "height_range", 0.5, true, null, false, null, null, ShapeRelation.INTERSECTS))
+        );
+    }
+
     private static FieldAttribute dateField(String name) {
         return new FieldAttribute(
             Source.EMPTY,
@@ -140,11 +192,31 @@ public class RangeIntersectsPushdownTests extends ESTestCase {
         );
     }
 
+    private static FieldAttribute doubleField(String name) {
+        return new FieldAttribute(Source.EMPTY, name, new EsField(name, DataType.DOUBLE, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+    }
+
+    private static FieldAttribute doubleRangeField(String name) {
+        return new FieldAttribute(
+            Source.EMPTY,
+            name,
+            new EsField(name, DataType.DOUBLE_RANGE, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+    }
+
     private static Literal dateLiteral(long millis) {
         return new Literal(Source.EMPTY, millis, DataType.DATETIME);
     }
 
     private static Literal rangeLiteral(long from, long to) {
         return new Literal(Source.EMPTY, new LongRange(from, to), DataType.DATE_RANGE);
+    }
+
+    private static Literal doubleLiteral(double value) {
+        return new Literal(Source.EMPTY, value, DataType.DOUBLE);
+    }
+
+    private static Literal doubleRangeLiteral(double from, double to) {
+        return new Literal(Source.EMPTY, new DoubleRange(from, to), DataType.DOUBLE_RANGE);
     }
 }

@@ -38,7 +38,7 @@ public final class OtelSdkSettings {
 
     // --- Resource attributes (all signals)
 
-    /** External OTel resource attributes attached to every metric, span and log record exported by the SDK path. */
+    /** External OTel resource attributes attached to every metric and span exported by the SDK path. */
     public static final Setting.AffixSetting<String> TELEMETRY_RESOURCE_ATTRIBUTES = Setting.prefixKeySetting(
         "telemetry.resource.",
         key -> Setting.simpleString(key, NodeScope)
@@ -224,6 +224,30 @@ public final class OtelSdkSettings {
                 if (value && ((String) settings.get(TELEMETRY_LOGS_ENDPOINT)).isEmpty()) {
                     throw new IllegalArgumentException(
                         TELEMETRY_LOGS_ENDPOINT.getKey() + " must be configured when telemetry.logs.audit.enabled=true"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(TELEMETRY_LOGS_ENDPOINT).iterator();
+            }
+        },
+        NodeScope
+    );
+
+    public static final Setting<Boolean> TELEMETRY_LOGS_QUERYLOG_ENABLED = Setting.boolSetting(
+        "telemetry.logs.querylog.enabled",
+        false,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Boolean value) {}
+
+            @Override
+            public void validate(Boolean value, Map<Setting<?>, Object> settings) {
+                if (value && ((String) settings.get(TELEMETRY_LOGS_ENDPOINT)).isEmpty()) {
+                    throw new IllegalArgumentException(
+                        TELEMETRY_LOGS_ENDPOINT.getKey() + " must be configured when telemetry.logs.querylog.enabled=true"
                     );
                 }
             }

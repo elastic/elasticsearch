@@ -26,6 +26,7 @@ import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -36,6 +37,7 @@ import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -52,7 +54,7 @@ import java.util.NoSuchElementException;
  *       and {@code service_account_impersonation_url}</li>
  *   <li>{@code auth=anonymous} — anonymous access to public buckets</li>
  *   <li>{@code auth=managed_identity} — the node's GCE/GKE metadata-server credentials
- *       ({@link ComputeEngineCredentials}); requires the {@code esql.datasource.managed_identity.enabled}
+ *       ({@link ComputeEngineCredentials}); requires the {@code esql.external.managed_identity.enabled}
  *       cluster setting</li>
  * </ul>
  * File-based ADC sources ({@code GOOGLE_APPLICATION_CREDENTIALS}, the well-known gcloud credential
@@ -249,6 +251,55 @@ public class GcsStorageProvider implements StorageProvider {
     }
 
     @Override
+    public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
+        validateGcsScheme(prefix);
+        String bucket = prefix.host();
+        String objectPrefix = extractObjectName(prefix);
+        if (objectPrefix.isEmpty() == false && objectPrefix.endsWith(StoragePath.PATH_SEPARATOR) == false) {
+            objectPrefix += StoragePath.PATH_SEPARATOR;
+        }
+
+        List<StorageEntry> files = new ArrayList<>();
+        List<StoragePath> directories = new ArrayList<>();
+        String pathPrefix = bucketPathPrefix(prefix.scheme(), bucket);
+        try {
+            var page = storage().list(bucket, Storage.BlobListOption.prefix(objectPrefix), Storage.BlobListOption.currentDirectory());
+            for (Blob blob : page.iterateAll()) {
+                if (files.size() + directories.size() >= limit) {
+                    return null; // too wide to buffer; the caller falls back to listObjects, which pages lazily
+                }
+                String name = blob.getName();
+                if (name.endsWith(StoragePath.PATH_SEPARATOR)) {
+                    // With currentDirectory(), a "/"-terminated name is a subdirectory pseudo-object; the listing
+                    // prefix's own marker is not a child and is skipped.
+                    if (name.equals(objectPrefix) == false) {
+                        directories.add(StoragePath.of(pathPrefix + name.substring(0, name.length() - 1)));
+                    }
+                    continue;
+                }
+                files.add(toStorageEntry(blob, pathPrefix));
+            }
+        } catch (Exception e) {
+            throw new IOException(
+                "Failed to list children in bucket [" + bucket + "] with prefix [" + objectPrefix + "]: " + GcsFailureDetail.of(e),
+                e
+            );
+        }
+        return new StorageChildren(files, directories);
+    }
+
+    /** The {@code scheme://bucket/} prefix full object paths are built from, shared with {@link GcsStorageIterator}. */
+    private static String bucketPathPrefix(String scheme, String bucket) {
+        return scheme + StoragePath.SCHEME_SEPARATOR + bucket + StoragePath.PATH_SEPARATOR;
+    }
+
+    /** One conversion from an SDK blob to a {@link StorageEntry}, shared by both listing shapes. */
+    private static StorageEntry toStorageEntry(Blob blob, String pathPrefix) {
+        Instant lastModified = blob.getUpdateTimeOffsetDateTime() != null ? blob.getUpdateTimeOffsetDateTime().toInstant() : null;
+        return new StorageEntry(StoragePath.of(pathPrefix + blob.getName()), blob.getSize(), lastModified);
+    }
+
+    @Override
     public boolean exists(StoragePath path) throws IOException {
         validateGcsScheme(path);
         String bucket = path.host();
@@ -264,7 +315,7 @@ public class GcsStorageProvider implements StorageProvider {
             if (e.getCode() == 403) {
                 return existsViaRead(bucket, objectName, path);
             }
-            throw new IOException("Failed to check existence of " + path + credentialHint(), e);
+            throw new IOException("Failed to check existence of " + path + ": " + GcsFailureDetail.of(e) + credentialHint(), e);
         }
     }
 
@@ -275,7 +326,14 @@ public class GcsStorageProvider implements StorageProvider {
             if (e.getCode() == 404) {
                 return false;
             }
-            throw new IOException("Failed to check existence of " + path + " (metadata denied, read also failed)" + credentialHint(), e);
+            throw new IOException(
+                "Failed to check existence of "
+                    + path
+                    + " (metadata denied, read also failed): "
+                    + GcsFailureDetail.of(e)
+                    + credentialHint(),
+                e
+            );
         }
     }
 
@@ -391,13 +449,7 @@ public class GcsStorageProvider implements StorageProvider {
                 if (blob.getName().endsWith(StoragePath.PATH_SEPARATOR)) {
                     continue;
                 }
-                String fullPath = baseDirectory.scheme() + StoragePath.SCHEME_SEPARATOR + bucket + StoragePath.PATH_SEPARATOR + blob
-                    .getName();
-                StoragePath objectPath = StoragePath.of(fullPath);
-
-                Instant lastModified = blob.getUpdateTimeOffsetDateTime() != null ? blob.getUpdateTimeOffsetDateTime().toInstant() : null;
-
-                return new StorageEntry(objectPath, blob.getSize(), lastModified);
+                return toStorageEntry(blob, bucketPathPrefix(baseDirectory.scheme(), bucket));
             }
             return null;
         }

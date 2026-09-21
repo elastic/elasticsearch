@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -65,6 +66,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -194,6 +196,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         assertEquals("abc", headers.get(Task.X_OPAQUE_ID_HTTP_HEADER).get(0));
         assertEquals(Integer.toString(resp.content().length()), headers.get(DefaultRestChannel.CONTENT_LENGTH).get(0));
         assertEquals(resp.contentType(), headers.get(DefaultRestChannel.CONTENT_TYPE).get(0));
+        assertTrue(headers.containsKey(HttpUtils.DATE));
     }
 
     public void testNormallyNoConnectionClose() {
@@ -395,6 +398,28 @@ public class DefaultRestChannelTests extends ESTestCase {
                 assertThat(responseReference.get().containsHeader("Warning"), is(false));
             }
         }
+    }
+
+    public void testClusterNameHeaderDisabledByDefault() {
+        final TestHttpResponse response = executeRequest(Settings.EMPTY, "localhost");
+        assertThat(response.containsHeader(DefaultRestChannel.CLUSTER_NAME_HEADER), is(false));
+    }
+
+    public void testClusterNameHeaderEmittedWhenEnabled() {
+        final String clusterName = randomAlphaOfLengthBetween(3, 12);
+        final TestHttpResponse response = executeRequest(clusterNameHeaderEnabled(clusterName), "localhost");
+        assertThat(response.headers().get(DefaultRestChannel.CLUSTER_NAME_HEADER), contains(clusterName));
+    }
+
+    public void testClusterNameHeaderWithheldFromUnauthenticatedResponses() {
+        final RestResponse unauthenticated = new RestResponse(randomFrom(RestStatus.UNAUTHORIZED, RestStatus.FORBIDDEN), "denied");
+        final TestHttpResponse response = executeRequest(
+            clusterNameHeaderEnabled(randomAlphaOfLengthBetween(3, 12)),
+            null,
+            "localhost",
+            unauthenticated
+        );
+        assertThat(response.containsHeader(DefaultRestChannel.CLUSTER_NAME_HEADER), is(false));
     }
 
     public void testUnsupportedHttpMethod() {
@@ -811,6 +836,15 @@ public class DefaultRestChannelTests extends ESTestCase {
     }
 
     private TestHttpResponse executeRequest(final Settings settings, final String originValue, final String host) {
+        return executeRequest(settings, originValue, host, testRestResponse());
+    }
+
+    private TestHttpResponse executeRequest(
+        final Settings settings,
+        final String originValue,
+        final String host,
+        final RestResponse restResponse
+    ) {
         HttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
         if (originValue != null) {
             httpRequest.getHeaders().put(CorsHandler.ORIGIN, Collections.singletonList(originValue));
@@ -830,12 +864,19 @@ public class DefaultRestChannelTests extends ESTestCase {
             httpTracer,
             instrumentation
         );
-        channel.sendResponse(testRestResponse());
+        channel.sendResponse(restResponse);
 
         // get the response
         ArgumentCaptor<TestHttpResponse> responseCaptor = ArgumentCaptor.forClass(TestHttpResponse.class);
         verify(httpChannel, atLeastOnce()).sendResponse(responseCaptor.capture(), any());
         return responseCaptor.getValue();
+    }
+
+    private static Settings clusterNameHeaderEnabled(final String clusterName) {
+        return Settings.builder()
+            .put(HttpTransportSettings.SETTING_HTTP_CLUSTER_NAME_HEADER_ENABLED.getKey(), true)
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName)
+            .build();
     }
 
     private static RestResponse testRestResponse() {

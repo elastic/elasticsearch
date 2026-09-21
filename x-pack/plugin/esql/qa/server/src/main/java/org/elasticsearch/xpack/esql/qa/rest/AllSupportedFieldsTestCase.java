@@ -59,6 +59,7 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse.RESOLVE_FIELDS_RESPONSE_CREATED_TV;
 import static org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse.RESOLVE_FIELDS_RESPONSE_USED_TV;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.HISTOGRAM;
 import static org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver.ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION;
 import static org.hamcrest.Matchers.allOf;
@@ -189,6 +190,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return clusterHasCapability("PUT", "/{index}", List.of(), List.of("vectordb_document_index_mode")).orElse(false);
     }
 
+    protected boolean fetchVectordbColumnarIndexModeSupported() throws IOException {
+        return clusterHasCapability("PUT", "/{index}", List.of(), List.of("vectordb_columnar_index_mode")).orElse(false);
+    }
+
     private static Boolean flattenedDatatypeSortedKeysSupported;
 
     private boolean flattenedDatatypeSortedKeysSupported() throws IOException {
@@ -276,16 +281,15 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 minVersion().supports(IndexMode.VECTORDB_DOCUMENT_INDEX_MODE)
             );
         }
-        if (indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.LOGSDB_COLUMNAR) {
-            // Gate on the cluster capability rather than the test runner build: columnar index modes are only available when the
-            // feature flag is enabled on the nodes (e.g. they are disabled in upgrade clusters), in which case these tests skip.
+        if (indexMode.isStrictColumnar()) {
+            // Gate on cluster capabilities rather than the test runner build. This also checks the remote cluster in CCQ tests.
+            boolean modeSupported = indexMode == IndexMode.VECTORDB_COLUMNAR
+                ? fetchVectordbColumnarIndexModeSupported()
+                : clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes")).orElse(false);
+            assumeTrue("Cluster does not support index.mode=" + indexMode.getName(), modeSupported);
             assumeTrue(
-                "Cluster does not have columnar index modes enabled",
-                clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes")).orElse(false)
-            );
-            assumeTrue(
-                "Cluster has nodes that do not support columnar index modes",
-                minVersion().supports(IndexMode.COLUMNAR_INDEX_MODES_ADDED)
+                "Cluster has nodes that do not support index.mode=" + indexMode.getName(),
+                minVersion().supports(indexMode.getMinimalSupportedVersion())
             );
             assumeTrue(
                 "Cluster has nodes that default to low-cardinality doc values in columnar index modes",
@@ -581,7 +585,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             String indexName = e.getKey();
             MapMatcher expectedValues = matchesMap();
             if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minVersion(), false)) {
-                // Tolerance to accommodate both FLOAT and BFLOAT16 element types (default in IndexMode.VECTORDB_DOCUMENT).
+                // Tolerance to accommodate both FLOAT and BFLOAT16 element types (default in vector database index modes).
                 expectedValues = expectedValues.entry(
                     "f_dense_vector",
                     matchesList().item(closeTo(0.5, 0.05)).item(closeTo(10.0, 0.05)).item(closeTo(5.9999995, 0.05))
@@ -1002,6 +1006,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     doc.field("lt", "2025-01-01");
                     doc.endObject();
                 }
+                case DOUBLE_RANGE -> {
+                    doc.startObject();
+                    doc.field("gte", 1.0);
+                    doc.field("lt", 2.0);
+                    doc.endObject();
+                }
                 case EXPONENTIAL_HISTOGRAM -> ExponentialHistogramXContent.serialize(doc, EXPONENTIAL_HISTOGRAM_VALUE);
                 case DENSE_VECTOR -> doc.value(List.of(0.5, 10, 6));
                 case HISTOGRAM -> createHistogramValue(doc);
@@ -1150,7 +1160,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 // See expectedType for an explanation
                 if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, false)
                     && coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV)) {
-                    // Tolerance to accommodate both FLOAT and BFLOAT16 element types (default in IndexMode.VECTORDB_DOCUMENT).
+                    // Tolerance to accommodate both FLOAT and BFLOAT16 element types (default in vector database index modes).
                     yield matchesList().item(closeTo(0.5, 0.05)).item(closeTo(10.0, 0.05)).item(closeTo(5.9999995, 0.05));
                 }
                 if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
@@ -1179,6 +1189,20 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                         equalTo("1989-01-01T00:00:00.000Z..2024-12-31T23:59:59.999Z"),
                         matchesMap().entry("gte", "1989-01-01T00:00:00.000Z").entry("lte", "2024-12-31T23:59:59.999Z")
                     );
+                }
+                yield nullValue();
+            }
+            case DOUBLE_RANGE -> {
+                // Indexed with an exclusive upper bound (lt), so the half-open loader round-trips cleanly.
+                if (DOUBLE_RANGE.supportedVersion().supportedOn(minimumVersion, false)) {
+                    yield equalTo("1.0..2.0");
+                }
+                if (DOUBLE_RANGE.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                    // Same dance as for DATE_RANGE: while the type was still under construction, old snapshot nodes
+                    // emit the formatted string, old release builds either return null (type unsupported) or the raw,
+                    // unformatted doc value map. Accept any of them rather than guessing which one a given old build
+                    // should produce.
+                    yield anyOf(nullValue(), equalTo("1.0..2.0"), instanceOf(Map.class));
                 }
                 yield nullValue();
             }
@@ -1290,8 +1314,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case AGGREGATE_METRIC_DOUBLE, SCALED_FLOAT,
                 // https://github.com/elastic/elasticsearch/issues/139255
                 EXPONENTIAL_HISTOGRAM, TDIGEST -> false;
-            // EnrichResultBuilderForLongRange was added with tech preview; old nodes throw on execution.
-            case DATE_RANGE -> DATE_RANGE.supportedVersion().supportedOn(minimumVersion, false);
+            // EnrichResultBuilderForLongRange/ForDoubleRange were added with tech preview; old nodes throw on execution.
+            case DATE_RANGE, DOUBLE_RANGE -> t.supportedVersion().supportedOn(minimumVersion, false);
             // EnrichResultBuilderForFloat was added to 9.x (PR #139774); DENSE_VECTOR maps to ElementType.FLOAT
             // which old 8.x nodes can't handle. Use the production version check (ESQL_DENSE_VECTOR_CREATED_VERSION
             // = 9183000) which correctly excludes 8.x nodes (max transport version 8841090).
@@ -1402,6 +1426,16 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 }
                 yield equalTo("unsupported");
             }
+            case DOUBLE_RANGE -> {
+                // Same dance as for DATE_RANGE.
+                if (DOUBLE_RANGE.supportedVersion().supportedOn(minimumVersion, false)) {
+                    yield equalTo("double_range");
+                }
+                if (DOUBLE_RANGE.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                    yield anyOf(equalTo("double_range"), equalTo("unsupported"));
+                }
+                yield equalTo("unsupported");
+            }
             case HISTOGRAM -> {
                 // support for histogram was added later
                 if (HISTOGRAM.supportedVersion().supportedOn(minimumVersion, false) == false) {
@@ -1430,7 +1464,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     private boolean syntheticSourceByDefault() {
         return switch (indexMode) {
-            case TIME_SERIES, LOGSDB, COLUMNAR, LOGSDB_COLUMNAR -> true;
+            case TIME_SERIES, LOGSDB, COLUMNAR, LOGSDB_COLUMNAR, VECTORDB_COLUMNAR -> true;
             case STANDARD, LOOKUP, VECTORDB_DOCUMENT -> false;
         };
     }
@@ -1560,6 +1594,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case AGGREGATE_METRIC_DOUBLE -> matchesList().item("column_at_a_time:BlockDocValuesReader.AggregateMetricDouble");
             case BOOLEAN -> matchesList().item("column_at_a_time:BooleansFromDocValues.Singleton");
             case DATE_RANGE -> matchesList().item("column_at_a_time:BlockDocValuesReader.DateRangeDocValuesReader");
+            case DOUBLE_RANGE -> matchesList().item("column_at_a_time:BlockDocValuesReader.DoubleRangeDocValuesReader");
             case DOUBLE, COUNTER_DOUBLE, FLOAT, HALF_FLOAT, SCALED_FLOAT -> useStoredLoader()
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Doubles")
                 : matchesList().item("column_at_a_time:DoublesFromDocValues.Singleton");
@@ -1567,7 +1602,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case FLATTENED -> useStoredLoader()
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
                 : matchesList().item("column_at_a_time:");
-            case DENSE_VECTOR -> indexMode.isStrictColumnar()
+            // vectordb_columnar keeps dense_vector indexed, so it loads from the normalized vector values like non-columnar
+            // modes; the other strict-columnar modes store the vector as binary doc values.
+            case DENSE_VECTOR -> indexMode.isStrictColumnar() && indexMode.isSearchOptimizedColumnar() == false
                 ? matchesList().item("column_at_a_time:FloatDenseVectorFromBinary.Bytes")
                 : matchesList().item("column_at_a_time:FloatDenseVectorFromDocValues.Normalized.Load");
             case GEO_POINT -> extractPreference == MappedFieldType.FieldExtractPreference.STORED || syntheticSourceByDefault() == false

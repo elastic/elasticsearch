@@ -17,7 +17,7 @@ public final class SourceValueType {
     // 0-byte fixed types.
     // ABSENT = 0x00 so a zero-initialized type-byte slot means "column not set in this document",
     // which must be distinguished from an explicit JSON null (NULL) so that field mappers can apply
-    // null_value substitutions when the source is mapped from an EIRF row.
+    // null_value substitutions when the source is mapped from a batch row.
     public static final byte ABSENT = 0x00;
     public static final byte NULL = 0x01;
     public static final byte TRUE = 0x02;

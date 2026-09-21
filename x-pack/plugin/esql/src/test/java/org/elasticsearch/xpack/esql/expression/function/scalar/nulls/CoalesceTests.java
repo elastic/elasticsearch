@@ -15,6 +15,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestHolder;
@@ -175,6 +176,19 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 ),
                 "CoalesceLongRangeEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
                 DataType.DATE_RANGE,
+                equalTo(first == null ? second : first)
+            );
+        }));
+        noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.DOUBLE_RANGE, DataType.DOUBLE_RANGE), () -> {
+            DoubleRangeBlockBuilder.DoubleRange first = randomBoolean() ? null : TestCaseSupplier.randomDoubleRange();
+            DoubleRangeBlockBuilder.DoubleRange second = TestCaseSupplier.randomDoubleRange();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(first, DataType.DOUBLE_RANGE, "first"),
+                    new TestCaseSupplier.TypedData(second, DataType.DOUBLE_RANGE, "second")
+                ),
+                "CoalesceDoubleRangeEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataType.DOUBLE_RANGE,
                 equalTo(first == null ? second : first)
             );
         }));

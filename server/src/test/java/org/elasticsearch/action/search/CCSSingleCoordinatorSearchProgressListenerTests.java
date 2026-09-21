@@ -15,14 +15,21 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregationsTests;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteTransportException;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.IntStream;
 
+import static org.elasticsearch.action.search.AbstractSearchAsyncAction.INTERNAL_PARTIAL_RESULTS_CANCEL_REASON;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -133,11 +140,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         var clusterAlias = "project-a";
         var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", randomBoolean(), null));
         var clusters = new SearchResponse.Clusters(clusterMap, false);
-        var indexExpression = "my-index";
-        var indexUUID = "uuid-a";
-        var shard0 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 0));
-        var shard1 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 1));
-        var shards = List.of(shard0, shard1);
+        var shards = getSearchShardListOneCluster(clusterAlias, 2);
 
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, TimeValue.timeValueMillis(1)::nanos);
         var listener = new CCSSingleCoordinatorSearchProgressListener();
@@ -157,11 +160,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         var clusterAlias = "project-a";
         var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", randomBoolean(), null));
         var clusters = new SearchResponse.Clusters(clusterMap, false);
-        var indexExpression = "my-index";
-        var indexUUID = "uuid-a";
-        var shard0 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 0));
-        var shard1 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 1));
-        var shards = List.of(shard0, shard1);
+        var shards = getSearchShardListOneCluster(clusterAlias, 2);
 
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, () -> TimeValue.timeValueMillis(1).nanos());
         var listener = new CCSSingleCoordinatorSearchProgressListener();
@@ -184,15 +183,77 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         assertClusterMetadataRunning(clusters.getCluster(clusterAlias), 2, 2, 0, true);
     }
 
+    public void testOnQueryResult_IsThreadSafe_WithOnPartialReduce() throws InterruptedException {
+        var clusterAlias = "project-a";
+        var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", randomBoolean(), null));
+        var clusters = new SearchResponse.Clusters(clusterMap, false);
+        var numberOfShards = 20;
+        var shards = getSearchShardListOneCluster(clusterAlias, numberOfShards);
+
+        var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, () -> TimeValue.timeValueMillis(1).nanos());
+        var listener = new CCSSingleCoordinatorSearchProgressListener();
+        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider);
+
+        // Confirm the initial state
+        assertClusterMetadataRunning(clusters.getCluster(clusterAlias), numberOfShards, 0, 0, false);
+
+        var threads = new ArrayList<Thread>();
+        var startOnQueryResult = new CountDownLatch(1);
+        var startOnPartialReduce = new CountDownLatch(1);
+        var partialReduceDone = new CountDownLatch(1);
+        var successfulShards = new AtomicInteger();
+        // Register success for each of the shards. Half of the shards will wait until onPartialReduce has been called to ensure that the
+        // calls are happening simultaneously
+        for (int i = 0; i < numberOfShards; ++i) {
+            final int shardIndex = i;
+            Thread onQueryResultThread = new Thread(() -> {
+                try {
+                    startOnQueryResult.await();
+                    if (shardIndex % 2 == 0) {
+                        partialReduceDone.await();
+                    }
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                onQueryResultForShardIndex(listener, shards, shardIndex);
+                if (successfulShards.incrementAndGet() == 5) {
+                    startOnPartialReduce.countDown();
+                }
+            });
+            onQueryResultThread.start();
+            threads.add(onQueryResultThread);
+        }
+
+        Thread partialReduceThread = new Thread(() -> {
+            try {
+                startOnPartialReduce.await();
+                listener.onPartialReduce(
+                    shards.subList(0, successfulShards.get()),
+                    new TotalHits(randomNonNegativeLong(), randomFrom(TotalHits.Relation.values())),
+                    InternalAggregationsTests.createTestInstance(),
+                    randomInt()
+                );
+                partialReduceDone.countDown();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+        partialReduceThread.start();
+        threads.add(partialReduceThread);
+
+        startOnQueryResult.countDown();
+        for (Thread t : threads) {
+            t.join(SAFE_AWAIT_TIMEOUT.millis());
+        }
+
+        assertClusterMetadataRunning(clusters.getCluster(clusterAlias), numberOfShards, numberOfShards, 0, false);
+    }
+
     public void testOnQueryFailure_DoesNothingWhenStatusIsNotRunning() {
         var clusterAlias = "project-a";
         var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", randomBoolean(), null));
         var clusters = new SearchResponse.Clusters(clusterMap, false);
-        var indexExpression = "my-index";
-        var indexUUID = "uuid-a";
-        var shard0 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 0));
-        var shard1 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 1));
-        var shards = List.of(shard0, shard1);
+        var shards = getSearchShardListOneCluster(clusterAlias, 2);
 
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, TimeValue.timeValueMillis(1)::nanos);
         var listener = new CCSSingleCoordinatorSearchProgressListener();
@@ -212,12 +273,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         var clusterAlias = "project-a";
         var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", randomBoolean(), null));
         var clusters = new SearchResponse.Clusters(clusterMap, false);
-        var indexExpression = "my-index";
-        var indexUUID = "uuid-a";
-        var shard0 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 0));
-        var shard1 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 1));
-        var shard2 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 2));
-        var shards = List.of(shard0, shard1, shard2);
+        var shards = getSearchShardListOneCluster(clusterAlias, 3);
 
         var tookMillis = TimeValue.timeValueMillis(1);
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, tookMillis::nanos);
@@ -264,8 +320,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         var clusterAlias = "project-a";
         var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", skipUnavailable, null));
         var clusters = new SearchResponse.Clusters(clusterMap, false);
-        var shard = new SearchShard(clusterAlias, new ShardId("my-index", "uuid-a", 0));
-        var shards = List.of(shard);
+        var shards = List.of(new SearchShard(clusterAlias, new ShardId("my-index", "uuid-a", 0)));
 
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, () -> TimeValue.timeValueMillis(1).nanos());
         var listener = new CCSSingleCoordinatorSearchProgressListener();
@@ -289,11 +344,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         var clusterAlias = "project-a";
         var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", randomBoolean(), null));
         var clusters = new SearchResponse.Clusters(clusterMap, false);
-        var indexExpression = "my-index";
-        var indexUUID = "uuid-a";
-        var shard0 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 0));
-        var shard1 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 1));
-        var shards = List.of(shard0, shard1);
+        var shards = getSearchShardListOneCluster(clusterAlias, 2);
 
         var tookMillis = TimeValue.timeValueMillis(1);
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, tookMillis::nanos);
@@ -314,6 +365,60 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         var failure = clusters.getCluster(clusterAlias).getFailures().getLast();
         assertThat(failure.shard(), is(shardTarget));
         assertThat(failure.getCause(), is(exception));
+    }
+
+    public void testOnQueryFailure_UpdatesClusterMetadata_DoesNotIncludeShardFailure_WhenFailureIsDueToInternalCancel() {
+        var clusterAlias = "project-a";
+        var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", false, null));
+        var clusters = new SearchResponse.Clusters(clusterMap, false);
+        var shards = getSearchShardListOneCluster(clusterAlias, 4);
+
+        var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, () -> TimeValue.timeValueMillis(1).nanos());
+        var listener = new CCSSingleCoordinatorSearchProgressListener();
+        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider);
+
+        // Confirm the initial state
+        assertClusterMetadataRunning(clusters.getCluster(clusterAlias), 4, 0, 0, false);
+
+        // Register a failure due to an internal TaskCancelledException and confirm the state
+        onQueryFailureForShardIndex(listener, shards, 0, new TaskCancelledException(INTERNAL_PARTIAL_RESULTS_CANCEL_REASON));
+
+        // Confirm the failure is included in failed shards count but not appended to the list of shard failures
+        assertClusterMetadata(clusters.getCluster(clusterAlias), SearchResponse.Cluster.Status.RUNNING, 4, 0, 1, 0, null, false);
+
+        // Register a failure due to a nested internal TaskCancelledException and confirm the state
+        onQueryFailureForShardIndex(
+            listener,
+            shards,
+            1,
+            new RemoteTransportException("test RTE", new TaskCancelledException(INTERNAL_PARTIAL_RESULTS_CANCEL_REASON))
+        );
+
+        // Confirm the failure is included in failed shards count but not appended to the list of shard failures
+        assertClusterMetadata(clusters.getCluster(clusterAlias), SearchResponse.Cluster.Status.RUNNING, 4, 0, 2, 0, null, false);
+
+        // Register a failure due to a non-internal TaskCancelledException and confirm the state
+        var exception = new TaskCancelledException("not internal cancel");
+        var shardTarget = onQueryFailureForShardIndex(listener, shards, 2, exception);
+
+        SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
+        assertClusterMetadata(cluster, SearchResponse.Cluster.Status.RUNNING, 4, 0, 3, 1, null, false);
+        // Confirm the failure is appended to the list of failures
+        var failure = clusters.getCluster(clusterAlias).getFailures().getLast();
+        assertThat(failure.shard(), is(shardTarget));
+        assertThat(failure.getCause(), is(exception));
+
+        // Register a failure due to a TaskCancelledException with a null message and confirm the state
+        String nullString = null;
+        var nullMessageException = new TaskCancelledException(nullString);
+        shardTarget = onQueryFailureForShardIndex(listener, shards, 3, nullMessageException);
+
+        cluster = clusters.getCluster(clusterAlias);
+        assertClusterMetadata(cluster, SearchResponse.Cluster.Status.FAILED, 4, 0, 4, 2, null, false);
+        // Confirm the failure is appended to the list of failures
+        failure = clusters.getCluster(clusterAlias).getFailures().getLast();
+        assertThat(failure.shard(), is(shardTarget));
+        assertThat(failure.getCause(), is(nullMessageException));
     }
 
     public void testOnPartialReduce_DoesNothingWhenStatusIsNotRunning() throws Exception {
@@ -356,12 +461,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         var clusterAlias = "project-a";
         var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", randomBoolean(), null));
         var clusters = new SearchResponse.Clusters(clusterMap, false);
-        var indexExpression = "my-index";
-        var indexUUID = "uuid-a";
-        var shard0 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 0));
-        var shard1 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 1));
-        var shard2 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 2));
-        var shards = List.of(shard0, shard1, shard2);
+        var shards = getSearchShardListOneCluster(clusterAlias, 3);
 
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, () -> TimeValue.timeValueMillis(1).nanos());
         var listener = new CCSSingleCoordinatorSearchProgressListener();
@@ -373,7 +473,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
 
         SearchResponse.Cluster initialClusterState = clusters.getCluster(clusterAlias);
 
-        List<SearchShard> partialShards = List.of(shard0, shard1);
+        List<SearchShard> partialShards = shards.subList(0, 2);
         listener.onPartialReduce(
             partialShards,
             new TotalHits(randomNonNegativeLong(), randomFrom(TotalHits.Relation.values())),
@@ -397,11 +497,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         var clusterAlias = "project-a";
         var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", randomBoolean(), null));
         var clusters = new SearchResponse.Clusters(clusterMap, false);
-        var indexExpression = "my-index";
-        var indexUUID = "uuid-a";
-        var shard0 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 0));
-        var shard1 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 1));
-        var shards = List.of(shard0, shard1);
+        var shards = getSearchShardListOneCluster(clusterAlias, 2);
 
         var tookMillis = TimeValue.timeValueMillis(1);
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, tookMillis::nanos);
@@ -417,9 +513,8 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
 
         assertClusterMetadataRunning(clusters.getCluster(clusterAlias), 2, 2, 0, timedOut);
 
-        List<SearchShard> partialShards = List.of(shard0, shard1);
         listener.onPartialReduce(
-            partialShards,
+            shards,
             new TotalHits(randomNonNegativeLong(), randomFrom(TotalHits.Relation.values())),
             InternalAggregationsTests.createTestInstance(),
             randomInt()
@@ -434,12 +529,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         var clusterAlias = "project-a";
         var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", randomBoolean(), null));
         var clusters = new SearchResponse.Clusters(clusterMap, false);
-        var indexExpression = "my-index";
-        var indexUUID = "uuid-a";
-        var shard0 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 0));
-        var shard1 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 1));
-        var shard2 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 2));
-        var shards = List.of(shard0, shard1, shard2);
+        var shards = getSearchShardListOneCluster(clusterAlias, 3);
 
         var tookMillis = TimeValue.timeValueMillis(1);
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, tookMillis::nanos);
@@ -455,7 +545,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         onQueryResultForShardIndex(listener, shards, 2);
 
         // Pass only successful shards to onPartialReduce()
-        List<SearchShard> partialShards = List.of(shard1, shard2);
+        List<SearchShard> partialShards = shards.subList(1, 3);
         listener.onPartialReduce(
             partialShards,
             new TotalHits(randomNonNegativeLong(), randomFrom(TotalHits.Relation.values())),
@@ -515,11 +605,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         var clusterAlias = "project-a";
         var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", randomBoolean(), null));
         var clusters = new SearchResponse.Clusters(clusterMap, false);
-        var indexExpression = "my-index";
-        var indexUUID = "uuid-a";
-        var shard0 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 0));
-        var shard1 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 1));
-        var shards = List.of(shard0, shard1);
+        var shards = getSearchShardListOneCluster(clusterAlias, 2);
 
         var tookMillis = TimeValue.timeValueMillis(1);
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, tookMillis::nanos);
@@ -535,9 +621,8 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
 
         assertClusterMetadataRunning(clusters.getCluster(clusterAlias), 2, 2, 0, timedOut);
 
-        List<SearchShard> finalShards = List.of(shard0, shard1);
         listener.onFinalReduce(
-            finalShards,
+            shards,
             new TotalHits(randomNonNegativeLong(), randomFrom(TotalHits.Relation.values())),
             InternalAggregationsTests.createTestInstance(),
             randomInt()
@@ -553,12 +638,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         var skipUnavailable = randomBoolean();
         var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", skipUnavailable, null));
         var clusters = new SearchResponse.Clusters(clusterMap, false);
-        var indexExpression = "my-index";
-        var indexUUID = "uuid-a";
-        var shard0 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 0));
-        var shard1 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 1));
-        var shard2 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 2));
-        var shards = List.of(shard0, shard1, shard2);
+        var shards = getSearchShardListOneCluster(clusterAlias, 3);
 
         var tookMillis = TimeValue.timeValueMillis(1);
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, tookMillis::nanos);
@@ -574,7 +654,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         onQueryResultForShardIndex(listener, shards, 2);
 
         // Pass only successful shards to onFinalReduce()
-        List<SearchShard> finalShards = List.of(shard1, shard2);
+        List<SearchShard> finalShards = shards.subList(1, 3);
         listener.onFinalReduce(
             finalShards,
             new TotalHits(randomNonNegativeLong(), randomFrom(TotalHits.Relation.values())),
@@ -590,9 +670,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         var clusterAlias = "project-a";
         var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", randomBoolean(), null));
         var clusters = new SearchResponse.Clusters(clusterMap, false);
-        var successfulShard = new SearchShard(clusterAlias, new ShardId("my-index", "uuid-a", 0));
-        var failedShard = new SearchShard(clusterAlias, new ShardId("my-index", "uuid-a", 1));
-        var shards = List.of(successfulShard, failedShard);
+        var shards = getSearchShardListOneCluster(clusterAlias, 2);
 
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, () -> TimeValue.timeValueMillis(1).nanos());
         var listener = new CCSSingleCoordinatorSearchProgressListener();
@@ -628,11 +706,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         var clusterAlias = "project-a";
         var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", randomBoolean(), null));
         var clusters = new SearchResponse.Clusters(clusterMap, false);
-        var indexExpression = "my-index";
-        var indexUUID = "uuid-a";
-        var shard0 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 0));
-        var shard1 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 1));
-        var shards = List.of(shard0, shard1);
+        var shards = getSearchShardListOneCluster(clusterAlias, 2);
 
         var tookMillis = TimeValue.timeValueMillis(1);
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, tookMillis::nanos);
@@ -659,12 +733,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         var clusterAlias = "project-a";
         var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", randomBoolean(), null));
         var clusters = new SearchResponse.Clusters(clusterMap, false);
-        var indexExpression = "my-index";
-        var indexUUID = "uuid-a";
-        var shard0 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 0));
-        var shard1 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 1));
-        var shard2 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 2));
-        var shards = List.of(shard0, shard1, shard2);
+        var shards = getSearchShardListOneCluster(clusterAlias, 3);
 
         var tookMillis = TimeValue.timeValueMillis(1);
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, tookMillis::nanos);
@@ -686,11 +755,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         var clusterAlias = "project-a";
         var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", skipUnavailable, null));
         var clusters = new SearchResponse.Clusters(clusterMap, false);
-        var indexExpression = "my-index";
-        var indexUUID = "uuid-a";
-        var shard0 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 0));
-        var shard1 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 1));
-        var shards = List.of(shard0, shard1);
+        var shards = getSearchShardListOneCluster(clusterAlias, 2);
 
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, () -> TimeValue.timeValueMillis(1).nanos());
         var listener = new CCSSingleCoordinatorSearchProgressListener();
@@ -870,6 +935,10 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
 
         assertThat(clusters.getCluster(localCluster).getTook().millis(), equalTo(0L));
         assertThat(clusters.getCluster(remoteCluster).getTook().millis(), equalTo(12L));
+    }
+
+    private static List<SearchShard> getSearchShardListOneCluster(String clusterAlias, int numShards) {
+        return IntStream.range(0, numShards).mapToObj(i -> new SearchShard(clusterAlias, new ShardId("my-index", "uuid-a", i))).toList();
     }
 
     private static void onQueryResultForShardIndex(

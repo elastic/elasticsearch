@@ -14,9 +14,14 @@ import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.lucene.search.cost.AutomatonQueryCostEstimator;
+import org.elasticsearch.lucene.search.cost.RegexpNfaRamEstimator;
 import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
 
 import java.util.ArrayList;
@@ -86,7 +91,7 @@ public class AutomatonQueries {
             nfa,
             Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
             circuitBreaker,
-            "wildcard-ci:" + wildcardquery.field()
+            ChildMemoryCircuitBreaker.CATEGORY_WILDCARD + "[ci]:" + wildcardquery.field()
         );
     }
 
@@ -100,13 +105,16 @@ public class AutomatonQueries {
             nfa,
             Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
             circuitBreaker,
-            "wildcard:" + wildcardquery.field()
+            ChildMemoryCircuitBreaker.CATEGORY_WILDCARD + ":" + wildcardquery.field()
         );
     }
 
     /**
-     * Build a deterministic automaton from a regular expression, checking a circuit breaker
-     * during determinization to prevent OOM from huge automatons.
+     * Build a deterministic automaton from a regular expression, using the circuit breaker to avoid running
+     * out of memory on huge patterns. Two steps can use a lot of heap and are each guarded:
+     * - Building the NFA ({@link #buildRegexpNfa}), which can blow up while expanding bounded repetitions
+     * - Determinizing it into a DFA ({@link CircuitBreakingOperations#determinize}), which accounts for the DFA as it grows.
+     * If either step would exceed the breaker's budget the query is rejected with a {@code CircuitBreakingException}.
      */
     public static Automaton toRegexpAutomaton(
         Term term,
@@ -115,8 +123,67 @@ public class AutomatonQueries {
         int maxDeterminizedStates,
         CircuitBreaker circuitBreaker
     ) {
-        Automaton nfa = new RegExp(term.text(), syntaxFlags, matchFlags).toAutomaton();
+        Automaton nfa = buildRegexpNfa(term.text(), syntaxFlags, matchFlags, circuitBreaker, term.field());
         return CircuitBreakingOperations.determinize(nfa, maxDeterminizedStates, circuitBreaker, "regexp:" + term.field());
+    }
+
+    /**
+     * Build a {@link ByteRunAutomaton} from a regular expression for the doc-values / script paths. This is the
+     * same idea as {@link #toRegexpAutomaton(Term, int, int, int, CircuitBreaker)} but with one extra step, so
+     * when a breaker is supplied three steps are guarded: building the NFA, determinizing it, and converting the
+     * DFA into a {@code ByteRunAutomaton} (which expands it to UTF-8 and determinizes again).
+     */
+    public static ByteRunAutomaton toRegexpByteRunAutomaton(
+        String field,
+        String pattern,
+        int syntaxFlags,
+        int matchFlags,
+        int maxDeterminizedStates,
+        @Nullable CircuitBreaker circuitBreaker
+    ) {
+        Automaton nfa = buildRegexpNfa(pattern, syntaxFlags, matchFlags, circuitBreaker, field);
+        if (circuitBreaker == null) {
+            return new ByteRunAutomaton(Operations.determinize(nfa, maxDeterminizedStates));
+        }
+
+        Automaton dfa = CircuitBreakingOperations.determinize(
+            nfa,
+            maxDeterminizedStates,
+            circuitBreaker,
+            ChildMemoryCircuitBreaker.CATEGORY_REGEXP
+        );
+        long reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
+        circuitBreaker.addEstimateBytesAndMaybeBreak(reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+        try {
+            return new ByteRunAutomaton(dfa);
+        } finally {
+            circuitBreaker.addWithoutBreaking(-reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+        }
+    }
+
+    /**
+     * Parse {@code pattern} into an NFA via {@link RegExp#toAutomaton()}, reserving a slight over-estimate of
+     * the build's peak heap on {@code circuitBreaker} beforehand and releasing it once the NFA is built. When
+     * {@code circuitBreaker} is {@code null} the NFA is built without accounting.
+     */
+    private static Automaton buildRegexpNfa(
+        String pattern,
+        int syntaxFlags,
+        int matchFlags,
+        @Nullable CircuitBreaker circuitBreaker,
+        String field
+    ) {
+        RegExp re = new RegExp(pattern, syntaxFlags, matchFlags);
+        if (circuitBreaker == null) {
+            return re.toAutomaton();
+        }
+        final long reservation = RegexpNfaRamEstimator.estimateRamBytes(re);
+        circuitBreaker.addEstimateBytesAndMaybeBreak(reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+        try {
+            return re.toAutomaton();
+        } finally {
+            circuitBreaker.addWithoutBreaking(-reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+        }
     }
 
     /**

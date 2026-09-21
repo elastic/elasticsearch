@@ -10,7 +10,6 @@
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
 import org.elasticsearch.telemetry.Measurement;
-import org.elasticsearch.telemetry.apm.APMMeterRegistry;
 import org.elasticsearch.telemetry.apm.RecordingOtelMeter;
 import org.elasticsearch.telemetry.metric.DoubleAsyncCounter;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
@@ -100,6 +99,26 @@ public class AsyncCountersAdapterTests extends ESTestCase {
 
         metrics = otelMeter.getRecorder().getMeasurements(doubleAsyncCounter);
         assertThat(metrics, hasSize(0));
+    }
+
+    public void testZeroValuedAsyncCountersAreNotRecorded() {
+        LongAsyncCounter longCounter = registry.registerLongAsyncCounter(
+            "es.test.long.total",
+            "desc",
+            "unit",
+            () -> new LongWithAttributes(0L)
+        );
+        DoubleAsyncCounter doubleCounter = registry.registerDoubleAsyncCounter(
+            "es.test.double.total",
+            "desc",
+            "unit",
+            () -> new DoubleWithAttributes(0.0)
+        );
+
+        otelMeter.collectMetrics();
+
+        assertThat(otelMeter.getRecorder().getMeasurements(longCounter), hasSize(0));
+        assertThat(otelMeter.getRecorder().getMeasurements(doubleCounter), hasSize(0));
     }
 
     public void testLongWithInvalidAttribute() {

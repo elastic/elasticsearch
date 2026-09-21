@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 148422
-summary: Fix Page leak on partial deserialization
-type: bug

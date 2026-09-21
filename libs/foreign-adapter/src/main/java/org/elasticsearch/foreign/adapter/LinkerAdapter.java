@@ -20,11 +20,12 @@ import java.lang.invoke.MethodType;
  */
 public final class LinkerAdapter {
 
-    static final Linker.Option[] NONE = new Linker.Option[0];
-
-    /** Returns an empty linker option array, since critical is only available since Java 22. */
-    public static Linker.Option[] critical() {
-        return NONE;
+    /**
+     * Returns {@code extra} unchanged; on JDK 21 {@code Linker.Option.critical} does not exist so
+     * the extra options are used as-is.
+     */
+    public static Linker.Option[] criticalWith(Linker.Option[] extra) {
+        return extra;
     }
 
     /**

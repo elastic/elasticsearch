@@ -19,7 +19,6 @@ import java.util.Map;
 import static org.elasticsearch.cluster.BoostedAndUnboostedCacheRequirements.NO_BOOSTED_OR_UNBOOSTED_CACHE_REQUIREMENT;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShardMoveNodeCacheCommitmentSimulatorTests extends ESTestCase {
@@ -287,13 +286,13 @@ public class ShardMoveNodeCacheCommitmentSimulatorTests extends ESTestCase {
     }
 
     /**
-     * The desired balance computer now always simulates relocating shards as started before deducting their commitment
-     * from the source (#154504), so a well-formed {@link ClusterInfo} snapshot should never produce a negative commitment.
-     * If it would, that signals a real bug rather than an expected stale-data scenario, so the simulator relies on an
-     * explicit {@code >= 0} assertion to catch it, instead of silently clamping. These two tests cover the boosted and
-     * unboosted components independently, since only the first failing assertion in the method actually throws.
+     * {@link ClusterInfo} snapshots can contain contradictory shard placement information, so a movement can
+     * make a node's cache commitment go negative even though the desired balance computer normally simulates
+     * relocating shards as started before deducting their commitment from the source (#154504). Rather than
+     * asserting this can't happen, the simulator clamps to 0. These two tests cover the boosted and unboosted
+     * components independently.
      */
-    public void testThrowsWhenBoostedCommitmentWouldGoNegative() {
+    public void testClampsWhenBoostedCommitmentWouldGoNegative() {
         var fromNodeId = "node-0";
         var toNodeId = "node-1";
         var shard = relocatingShard(fromNodeId, toNodeId);
@@ -318,11 +317,19 @@ public class ShardMoveNodeCacheCommitmentSimulatorTests extends ESTestCase {
             .build();
 
         var simulator = new ShardMoveNodeCacheCommitmentSimulator(clusterInfo);
-        var error = expectThrows(AssertionError.class, () -> simulator.simulateShardStarted(shard));
-        assertThat(error.getMessage(), containsString("boosted cache commitment for node [" + fromNodeId + "] went negative"));
+        simulator.simulateShardStarted(shard);
+
+        var updatedCommitments = simulator.getSimulatedNodeCacheSizeAndCommitments();
+        // boosted would go negative (fromNodeBoostedCommitment - boostedRequirement < 0) -> clamped to 0
+        assertThat(updatedCommitments.get(fromNodeId).boostedCacheCommitmentInBytes(), equalTo(0L));
+        // unboosted stays non-negative, so it's unaffected by the clamp
+        assertThat(
+            updatedCommitments.get(fromNodeId).unboostedCacheCommitmentInBytes(),
+            equalTo(fromNodeUnboostedCommitment - unboostedRequirement)
+        );
     }
 
-    public void testThrowsWhenUnboostedCommitmentWouldGoNegative() {
+    public void testClampsWhenUnboostedCommitmentWouldGoNegative() {
         var fromNodeId = "node-0";
         var toNodeId = "node-1";
         var shard = relocatingShard(fromNodeId, toNodeId);
@@ -347,8 +354,63 @@ public class ShardMoveNodeCacheCommitmentSimulatorTests extends ESTestCase {
             .build();
 
         var simulator = new ShardMoveNodeCacheCommitmentSimulator(clusterInfo);
-        var error = expectThrows(AssertionError.class, () -> simulator.simulateShardStarted(shard));
-        assertThat(error.getMessage(), containsString("unboosted cache commitment for node [" + fromNodeId + "] went negative"));
+        simulator.simulateShardStarted(shard);
+
+        var updatedCommitments = simulator.getSimulatedNodeCacheSizeAndCommitments();
+        // boosted stays non-negative, so it's unaffected by the clamp
+        assertThat(
+            updatedCommitments.get(fromNodeId).boostedCacheCommitmentInBytes(),
+            equalTo(fromNodeBoostedCommitment - boostedRequirement)
+        );
+        // unboosted would go negative (fromNodeUnboostedCommitment - unboostedRequirement < 0) -> clamped to 0
+        assertThat(updatedCommitments.get(fromNodeId).unboostedCacheCommitmentInBytes(), equalTo(0L));
+    }
+
+    /**
+     * A node touched by several shard moves within the same simulation should have its deltas accumulated and
+     * clamped only once against the initial value, not clamped after each individual move. Clamping after each
+     * move would lose information: e.g. -15 then +20 clamped step-by-step yields 20, but the correct net delta
+     * (+5) clamped once yields the same result as if no intermediate dip had ever occurred.
+     */
+    public void testClampsOnceAfterAccumulatingMultipleMoves() {
+        var nodeId = "node-0";
+        var otherNodeId = "node-1";
+        var initialBoostedCommitment = 10L;
+
+        var awayShard = relocatingShard(nodeId, otherNodeId, 0);
+        var firstIncomingShard = relocatingShard(otherNodeId, nodeId, 1);
+        var secondIncomingShard = relocatingShard(otherNodeId, nodeId, 2);
+
+        var clusterInfo = ClusterInfo.builder()
+            .nodeCacheSizeAndCommitments(
+                Map.of(
+                    nodeId,
+                    new NodeCacheSizeAndCommitments(500, initialBoostedCommitment, 0),
+                    otherNodeId,
+                    new NodeCacheSizeAndCommitments(500, 50, 0)
+                )
+            )
+            .shardCacheRequirements(
+                Map.of(
+                    awayShard.shardId(),
+                    new BoostedAndUnboostedCacheRequirements(15, NO_BOOSTED_OR_UNBOOSTED_CACHE_REQUIREMENT),
+                    firstIncomingShard.shardId(),
+                    new BoostedAndUnboostedCacheRequirements(10, NO_BOOSTED_OR_UNBOOSTED_CACHE_REQUIREMENT),
+                    secondIncomingShard.shardId(),
+                    new BoostedAndUnboostedCacheRequirements(10, NO_BOOSTED_OR_UNBOOSTED_CACHE_REQUIREMENT)
+                )
+            )
+            .build();
+
+        var simulator = new ShardMoveNodeCacheCommitmentSimulator(clusterInfo);
+        // -15, would dip nodeId's commitment to -5 if applied and clamped immediately
+        simulator.simulateShardStarted(awayShard);
+        // +10, +10: net delta across all three moves is -15+10+10=5
+        simulator.simulateShardStarted(firstIncomingShard);
+        simulator.simulateShardStarted(secondIncomingShard);
+
+        var updatedCommitments = simulator.getSimulatedNodeCacheSizeAndCommitments();
+        assertThat(updatedCommitments.get(nodeId).boostedCacheCommitmentInBytes(), equalTo(initialBoostedCommitment + 5));
     }
 
     private static ShardRouting createUnassignedShard(String nodeId) {
@@ -358,7 +420,11 @@ public class ShardMoveNodeCacheCommitmentSimulatorTests extends ESTestCase {
     }
 
     private static ShardRouting relocatingShard(String fromNodeId, String toNodeId) {
-        return shardRoutingBuilder(new ShardId("my-index", "_na_", 0), toNodeId, true, INITIALIZING).withRelocatingNodeId(fromNodeId)
+        return relocatingShard(fromNodeId, toNodeId, 0);
+    }
+
+    private static ShardRouting relocatingShard(String fromNodeId, String toNodeId, int shardNum) {
+        return shardRoutingBuilder(new ShardId("my-index", "_na_", shardNum), toNodeId, true, INITIALIZING).withRelocatingNodeId(fromNodeId)
             .withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE)
             .build();
     }

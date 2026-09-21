@@ -22,3 +22,4 @@ org.elasticsearch.cluster.routing.RoutingFeatures
 org.elasticsearch.action.admin.cluster.stats.ClusterStatsFeatures
 org.elasticsearch.ingest.IngestFeatures
 org.elasticsearch.action.admin.indices.resolve.ResolveIndexFeatures
+org.elasticsearch.indices.recovery.RecoveryFeatures

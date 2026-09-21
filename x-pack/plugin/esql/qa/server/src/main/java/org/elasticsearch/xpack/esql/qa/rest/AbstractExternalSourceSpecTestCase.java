@@ -6,19 +6,28 @@
  */
 package org.elasticsearch.xpack.esql.qa.rest;
 
+import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvSpecReader.DatasetSource;
+import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils.DataSourcesAzureHttpFixture;
 import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
+import org.elasticsearch.xpack.esql.datasources.EsqlDataSourcesCapabilities;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.GcsFixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.GcsFixtureUtils.DataSourcesGcsHttpFixture;
@@ -26,18 +35,26 @@ import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.S3RequestLog;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -77,18 +94,31 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      */
     public enum StorageBackend {
         /** S3 storage via S3HttpFixture */
-        S3,
+        S3(true),
         /** HTTP storage via S3HttpFixture (same endpoint, different protocol) */
-        HTTP,
+        HTTP(false),
         /** Local file system storage (direct classpath resource access) */
-        LOCAL,
+        LOCAL(true),
         /** Google Cloud Storage via GoogleCloudStorageHttpFixture */
-        GCS,
+        GCS(true),
         /** Azure Blob Storage via AzureHttpFixture */
-        AZURE
+        AZURE(true);
+
+        private final boolean supportsMultiFileGuard;
+
+        StorageBackend(boolean supportsMultiFileGuard) {
+            this.supportsMultiFileGuard = supportsMultiFileGuard;
+        }
+
+        /** Whether this backend can list the multi-file fixture used by the deterministic BWC guard. */
+        public boolean supportsMultiFileGuard() {
+            return supportsMultiFileGuard;
+        }
     }
 
     private static final List<StorageBackend> BACKENDS;
+    /** Guard keys already attempted by the current parameterized class. */
+    private static final Set<String> COMPLETED_BWC_PROFILE_GUARDS = new HashSet<>();
 
     static {
         List<StorageBackend> backends = new ArrayList<>(
@@ -106,78 +136,268 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * (fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend).
      */
     protected static List<Object[]> readExternalSpecTests(String... specPatterns) throws Exception {
-        List<URL> urls = new ArrayList<>();
-        for (String pattern : specPatterns) {
-            urls.addAll(classpathResources(pattern));
-        }
+        return expandExternalSpecTests(readBaseSpecTests(specPatterns), List.of());
+    }
+
+    /** Policy-aware counterpart used by BWC-enabled suites without an extra parameter column. */
+    protected static List<Object[]> readExternalSpecTests(BwcMatrixPolicy policy, String... specPatterns) throws Exception {
+        return expandExternalSpecTests(readBaseSpecTests(specPatterns), List.of(), policy);
+    }
+
+    /** Policy-aware counterpart used by BWC-enabled text-format suites. */
+    protected static List<Object[]> readExternalSpecTestsWithFormats(BwcMatrixPolicy policy, List<String> formats, String... specPatterns)
+        throws Exception {
+        return readExternalSpecTestsWithExtraParam(policy, formats, specPatterns);
+    }
+
+    /** Policy-aware counterpart used by BWC-enabled internal-codec suites. */
+    protected static List<Object[]> readExternalSpecTestsWithCodecs(BwcMatrixPolicy policy, List<String> codecs, String... specPatterns)
+        throws Exception {
+        return readExternalSpecTestsWithExtraParam(policy, codecs, specPatterns);
+    }
+
+    private static List<Object[]> readExternalSpecTestsWithExtraParam(
+        BwcMatrixPolicy policy,
+        List<String> extraParams,
+        String... specPatterns
+    ) throws Exception {
+        return expandExternalSpecTests(readBaseSpecTests(specPatterns), extraParams, policy);
+    }
+
+    private static List<Object[]> readBaseSpecTests(String... specPatterns) throws Exception {
+        List<URL> urls = classpathResources(specPatterns);
         if (urls.isEmpty()) {
             throw new IllegalStateException("No csv-spec files found for patterns: " + List.of(specPatterns));
         }
+        return SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
+    }
 
-        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
-        List<Object[]> parameterizedTests = new ArrayList<>();
-        for (Object[] baseTest : baseTests) {
-            for (StorageBackend backend : BACKENDS) {
-                int baseLength = baseTest.length;
-                Object[] parameterizedTest = new Object[baseLength + 1];
-                System.arraycopy(baseTest, 0, parameterizedTest, 0, baseLength);
-                parameterizedTest[baseLength] = backend;
-                parameterizedTests.add(parameterizedTest);
+    /**
+     * Expands the spec/codec/backend parameter matrix.
+     *
+     * <p>A current-version run keeps the whole Cartesian product. A BWC run keeps every base spec
+     * tuple on the policy's corpus backend and codec, then adds one explicitly named representative for
+     * every additional backend and codec, and finally checks the result still carries every guard cell
+     * the policy reaches (see {@link #verifyGuardCellCoverage}).
+     */
+    private static List<Object[]> expandExternalSpecTests(List<Object[]> baseTests, List<String> extraParams) {
+        return expandExternalSpecTests(baseTests, extraParams, BACKENDS, null);
+    }
+
+    private static List<Object[]> expandExternalSpecTests(List<Object[]> baseTests, List<String> extraParams, BwcMatrixPolicy policy) {
+        return expandExternalSpecTests(baseTests, extraParams, BACKENDS, policy);
+    }
+
+    static List<Object[]> expandExternalSpecTests(List<Object[]> baseTests, List<String> extraParams, List<StorageBackend> backends) {
+        return expandExternalSpecTests(baseTests, extraParams, backends, null);
+    }
+
+    static List<Object[]> expandExternalSpecTests(
+        List<Object[]> baseTests,
+        List<String> extraParams,
+        List<StorageBackend> backends,
+        BwcMatrixPolicy policy
+    ) {
+        validatePolicyShape(policy, extraParams);
+        if (EsqlDataSourceMixedClusterTestSupport.isBwcTest() == false) {
+            return cartesianExternalSpecTests(baseTests, extraParams, backends);
+        }
+
+        if (policy == null) {
+            throw new IllegalStateException("A BWC matrix policy is required for a mixed-version parameter factory");
+        }
+        if (backends.contains(policy.corpusBackend()) == false) {
+            throw new IllegalStateException("BWC corpus backend [" + policy.corpusBackend() + "] is not available");
+        }
+        Object[] representative = findBwcRepresentative(baseTests, policy);
+        Map<String, Object[]> parameterizedTests = new LinkedHashMap<>();
+        if (extraParams.isEmpty()) {
+            for (Object[] baseTest : baseTests) {
+                addParameterizedTest(parameterizedTests, baseTest, null, policy.corpusBackend());
+            }
+            for (StorageBackend backend : backends) {
+                addParameterizedTest(parameterizedTests, representative, null, backend);
+            }
+        } else {
+            String corpusExtra = corpusExtra(extraParams, policy);
+            for (Object[] baseTest : baseTests) {
+                addParameterizedTest(parameterizedTests, baseTest, corpusExtra, policy.corpusBackend());
+            }
+            for (StorageBackend backend : backends) {
+                addParameterizedTest(parameterizedTests, representative, corpusExtra, backend);
+            }
+            for (String extra : extraParams) {
+                addParameterizedTest(parameterizedTests, representative, extra, policy.corpusBackend());
             }
         }
-        return parameterizedTests;
+        List<Object[]> expanded = List.copyOf(parameterizedTests.values());
+        verifyGuardCellCoverage(expanded, extraParams, backends, policy);
+        return expanded;
     }
 
     /**
-     * Load csv-spec files and cross-product each test with all formats and storage backends.
-     * Returns parameter arrays suitable for a {@code @ParametersFactory} constructor with 8 arguments:
-     * (fileName, groupName, testName, lineNumber, testCase, instructions, format, storageBackend).
+     * Asserts that a BWC expansion carries every deterministic guard cell its policy reaches over
+     * {@code backends}, and that it reaches at least one.
+     *
+     * <p>Both terms are load-bearing. Set equality alone passes vacuously for a policy whose reachable
+     * guard set is empty — an uncompressed policy reduced to no guard backend via
+     * {@link BwcMatrixPolicy#withGuardBackends} — while non-emptiness alone would not notice an
+     * expansion that stopped emitting the representative on one backend or codec. Together they are the
+     * only evidence that a guard cell exists at all: {@link #shouldRunBwcReaderProfileGuard} can only
+     * ever see the cells this factory produced, so a narrowed expansion would otherwise shrink guard
+     * coverage silently while the task stayed green.
+     *
+     * <p>This reads no coordinator state, so a current-coordinator task expands and verifies exactly the
+     * same guard cells as its old-coordinator twin; only the guard <em>bodies</em> are gated on the
+     * coordinator direction.
      */
-    protected static List<Object[]> readExternalSpecTestsWithFormats(List<String> formats, String... specPatterns) throws Exception {
-        return readExternalSpecTestsWithExtraParam(formats, specPatterns);
-    }
-
-    /**
-     * Load csv-spec files and cross-product each test with all codecs and storage backends.
-     * Returns parameter arrays suitable for a {@code @ParametersFactory} constructor with 8 arguments:
-     * (fileName, groupName, testName, lineNumber, testCase, instructions, codecName, storageBackend).
-     * Identical shape to {@link #readExternalSpecTestsWithFormats}; the separate name documents the
-     * intent of the extra column ("codec" vs. "format") at the call site.
-     */
-    protected static List<Object[]> readExternalSpecTestsWithCodecs(List<String> codecs, String... specPatterns) throws Exception {
-        return readExternalSpecTestsWithExtraParam(codecs, specPatterns);
-    }
-
-    /**
-     * Shared cross-product helper used by {@link #readExternalSpecTestsWithFormats} and
-     * {@link #readExternalSpecTestsWithCodecs}. Builds the cross product on the un-expanded base tuple
-     * (so the resulting array is always {@code (baseTest..., extraParam, backend)}) rather than splicing
-     * into a tuple that already has the backend appended.
-     */
-    private static List<Object[]> readExternalSpecTestsWithExtraParam(List<String> extraParams, String... specPatterns) throws Exception {
-        List<URL> urls = new ArrayList<>();
-        for (String pattern : specPatterns) {
-            urls.addAll(classpathResources(pattern));
+    static void verifyGuardCellCoverage(
+        List<Object[]> parameterizedTests,
+        List<String> extraParams,
+        List<StorageBackend> backends,
+        BwcMatrixPolicy policy
+    ) {
+        Set<String> reachable = new LinkedHashSet<>();
+        for (StorageBackend backend : backends) {
+            if (extraParams.isEmpty()) {
+                addGuardCell(reachable, policy, backend, null);
+            } else {
+                for (String extra : extraParams) {
+                    addGuardCell(reachable, policy, backend, extra);
+                }
+            }
         }
-        if (urls.isEmpty()) {
-            throw new IllegalStateException("No csv-spec files found for patterns: " + List.of(specPatterns));
+        if (reachable.isEmpty()) {
+            throw new IllegalStateException("BWC policy [" + policy + "] reaches no guard cell over backends " + backends);
         }
 
-        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
+        Set<String> produced = new LinkedHashSet<>();
+        for (Object[] parameterizedTest : parameterizedTests) {
+            StorageBackend backend = (StorageBackend) parameterizedTest[parameterizedTest.length - 1];
+            String extra = extraParams.isEmpty() ? null : (String) parameterizedTest[parameterizedTest.length - 2];
+            addGuardCell(produced, policy, backend, extra);
+        }
+        if (produced.equals(reachable) == false) {
+            Set<String> missing = new LinkedHashSet<>(reachable);
+            missing.removeAll(produced);
+            Set<String> unexpected = new LinkedHashSet<>(produced);
+            unexpected.removeAll(reachable);
+            throw new IllegalStateException(
+                "BWC expansion for policy ["
+                    + policy
+                    + "] does not carry its guard cells; missing "
+                    + missing
+                    + ", unexpected "
+                    + unexpected
+            );
+        }
+    }
+
+    private static void addGuardCell(Set<String> guardCells, BwcMatrixPolicy policy, StorageBackend backend, String extra) {
+        String codec = matrixCodecIdentity(extra);
+        if (policy.isGuardCell(backend, codec)) {
+            guardCells.add(backend + ":" + codec);
+        }
+    }
+
+    private static void validatePolicyShape(BwcMatrixPolicy policy, List<String> extraParams) {
+        if (policy == null) {
+            return;
+        }
+        if (extraParams.isEmpty()) {
+            if (policy.corpusCodec() != null) {
+                throw new IllegalArgumentException("A parameter matrix without a codec column requires a null policy codec");
+            }
+            return;
+        }
+        if (policy.corpusCodec() == null) {
+            throw new IllegalArgumentException("A parameter matrix with a codec column requires a non-null policy codec");
+        }
+        if (extraParams.stream().map(EsqlDataSourceCodecEligibility::normalizeCodecToken).noneMatch(policy.corpusCodec()::equals)) {
+            throw new IllegalArgumentException("Corpus codec [" + policy.corpusCodec() + "] is not represented by " + extraParams);
+        }
+    }
+
+    private static List<Object[]> cartesianExternalSpecTests(
+        List<Object[]> baseTests,
+        List<String> extraParams,
+        List<StorageBackend> backends
+    ) {
         List<Object[]> parameterizedTests = new ArrayList<>();
         for (Object[] baseTest : baseTests) {
-            for (String extra : extraParams) {
-                for (StorageBackend backend : BACKENDS) {
-                    int baseLength = baseTest.length;
-                    Object[] parameterizedTest = new Object[baseLength + 2];
-                    System.arraycopy(baseTest, 0, parameterizedTest, 0, baseLength);
-                    parameterizedTest[baseLength] = extra;
-                    parameterizedTest[baseLength + 1] = backend;
-                    parameterizedTests.add(parameterizedTest);
+            if (extraParams.isEmpty()) {
+                for (StorageBackend backend : backends) {
+                    parameterizedTests.add(parameterizedTest(baseTest, null, backend));
+                }
+            } else {
+                for (String extra : extraParams) {
+                    for (StorageBackend backend : backends) {
+                        parameterizedTests.add(parameterizedTest(baseTest, extra, backend));
+                    }
                 }
             }
         }
         return parameterizedTests;
+    }
+
+    private static void addParameterizedTest(
+        Map<String, Object[]> parameterizedTests,
+        Object[] baseTest,
+        String extra,
+        StorageBackend backend
+    ) {
+        String key = baseTest[0] + ":" + baseTest[2] + ":" + baseTest[3] + ":" + extra + ":" + backend;
+        parameterizedTests.putIfAbsent(key, parameterizedTest(baseTest, extra, backend));
+    }
+
+    private static Object[] parameterizedTest(Object[] baseTest, String extra, StorageBackend backend) {
+        int baseLength = baseTest.length;
+        int extraColumns = extra == null ? 1 : 2;
+        Object[] parameterizedTest = new Object[baseLength + extraColumns];
+        System.arraycopy(baseTest, 0, parameterizedTest, 0, baseLength);
+        if (extra != null) {
+            parameterizedTest[baseLength] = extra;
+        }
+        parameterizedTest[parameterizedTest.length - 1] = backend;
+        return parameterizedTest;
+    }
+
+    private static String corpusExtra(List<String> extraParams, BwcMatrixPolicy policy) {
+        // Preserve owner declaration order when aliases share an identity. For zstd the current
+        // text lists therefore choose .zst while .zstd remains an ordinary representative tuple.
+        return extraParams.stream()
+            .filter(extra -> EsqlDataSourceCodecEligibility.normalizeCodecToken(extra).equals(policy.corpusCodec()))
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("Corpus codec [" + policy.corpusCodec() + "] is not in " + extraParams));
+    }
+
+    /**
+     * Codec identity of a produced parameter tuple, {@code none} for a matrix with no codec column.
+     * <p>
+     * Must agree with {@link #guardCodecIdentity()} and its overrides, since the two decide whether the
+     * same cell is a guard cell — this one in the factory, that one in the test instance. It does for all
+     * three shapes: an uncompressed suite passes a dotless format, on which {@code textCodecIdentity}
+     * also yields {@code none}; a text compressed suite passes {@code csv.gz}, which both
+     * {@code normalizeCodecToken} and {@code textCodecIdentity} map to {@code gzip}; and the two Parquet
+     * compressed suites, whose codec column is a bare internal codec name that
+     * {@code textCodecIdentity} would read as {@code none}, override {@link #guardCodecIdentity()} to
+     * {@code normalizeCodecToken} for exactly that reason.
+     */
+    static String matrixCodecIdentity(String extra) {
+        return extra == null ? "none" : EsqlDataSourceCodecEligibility.normalizeCodecToken(extra);
+    }
+
+    private static Object[] findBwcRepresentative(List<Object[]> baseTests, BwcMatrixPolicy policy) {
+        for (BwcMatrixPolicy.BwcTestId candidate : policy.representatives()) {
+            for (Object[] baseTest : baseTests) {
+                if (candidate.fileName().equals(baseTest[0]) && candidate.testName().equals(baseTest[2])) {
+                    return baseTest;
+                }
+            }
+        }
+        throw new IllegalStateException(
+            "None of the BWC representatives " + policy.representatives() + " is present in this parameter factory"
+        );
     }
 
     public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture();
@@ -299,6 +519,13 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * explicitly. The cluster-side delete is skipped when the test clusters are already known broken, but
      * the static caches are always cleared (in a {@code finally}) so a broken cluster — or a cleanup that
      * throws partway — cannot poison a later suite sharing this JVM fork.
+     * <p>
+     * The guard-coverage invariant deliberately does NOT live here: it is checked once, statically, by
+     * {@link #verifyGuardCellCoverage} in the parameter factory. A teardown assertion on the completed
+     * set could only be satisfied by a full suite run, so a CI {@code REPRODUCE WITH -Dtests.method=...}
+     * line pinned to a non-guard cell would turn a green reproduction red at teardown, and a setup
+     * {@code fail()} (which leaves {@code testClustersOk} set) would stack a bogus second failure onto
+     * the real one.
      */
     @AfterClass
     public static void cleanupRegisteredDatasets() throws IOException {
@@ -308,6 +535,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             }
         } finally {
             DatasetRegistry.clearCaches();
+            declaredSchemaSupported = null;
+            clearBwcReaderProfileGuardStateForTests();
         }
     }
 
@@ -331,6 +560,15 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      */
     private boolean useAzureHadoopForm;
 
+    /**
+     * Per-test memos for the two questions that would otherwise re-parse every directive's {@code WITH} JSON on
+     * each ask. {@code ensureDataset} deliberately keys its cache off the RAW text so a registration parses only
+     * on a cache miss; the declared-schema guards and the trim_spaces injector would have undone that by parsing
+     * per call. Both answers are fixed for a test instance -- the directives do not change mid-test.
+     */
+    private Boolean declaresMappingsMemo;
+    private final Map<DatasetSource, String> withJsonMemo = new IdentityHashMap<>();
+
     protected AbstractExternalSourceSpecTestCase(
         String fileName,
         String groupName,
@@ -346,10 +584,82 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         this.format = format;
     }
 
+    /**
+     * Bounded mixed-version matrix policy owned by the concrete parameterized suite.
+     *
+     * <p>Current-only subclasses may keep the default; a BWC instance fails clearly before use.
+     */
+    @Nullable
+    protected BwcMatrixPolicy bwcMatrixPolicy() {
+        return null;
+    }
+
+    /**
+     * Runs the deterministic guard before any concrete skip or csv-spec assumption can discard
+     * the representative parameter carrying it.
+     */
+    @Before
+    public void runBwcReaderProfileGuardBeforeSpec() throws Exception {
+        runGuardReportingClusterHealth(this::maybeRunBwcReaderProfileGuard, this::ensureTestClustersAreOk);
+    }
+
+    static void runGuardReportingClusterHealth(CheckedRunnable<Exception> guard, Consumer<Exception> healthCheck) throws Exception {
+        try {
+            guard.run();
+        } catch (Exception e) {
+            healthCheck.accept(e);
+            throw e;
+        }
+    }
+
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
+        assumeFalse(
+            "detached BWC builds do not configure the old nodes' local-path allowlist",
+            shouldSkipDetachedBwcLocalTuple(storageBackend)
+        );
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
-        assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
+        if (EsqlDataSourceMixedClusterTestSupport.isBwcTest()) {
+            CsvTestUtils.assumeTrueLogging(
+                "Inference test service cannot be installed on every BWC node",
+                requiresInferenceEndpointOnLocalCluster() == false
+            );
+            CsvTestUtils.assumeTrueLogging(
+                "Mixed-cluster data-source tests do not support local-cluster capability requirements",
+                testCase.missingCapabilitiesLocalCluster.isEmpty()
+            );
+            CsvTestUtils.assumeTrueLogging(
+                "Mixed-cluster data-source tests do not support remote-cluster capability requirements",
+                testCase.missingCapabilitiesRemoteCluster.isEmpty()
+            );
+            assumeFalse(
+                "source-field mappings are unavailable on the old side of this mixed cluster",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.SOURCE_FIELD_MAPPING.capabilityName())
+            );
+            assumeTrue(
+                "Test " + testName + " is skipped on " + EsqlDataSourceMixedClusterTestSupport.bwcVersion(),
+                isEnabled(testName, instructions, EsqlDataSourceMixedClusterTestSupport.bwcVersion())
+            );
+        } else {
+            assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
+        }
+    }
+
+    /**
+     * Returns all current-cluster addresses for normal tasks and only the coordinator version
+     * selected by the BWC convention for mixed-version tasks.
+     */
+    protected final String dataSourceTestClusterAddresses(ElasticsearchCluster cluster) {
+        if (EsqlDataSourceMixedClusterTestSupport.isBwcTest() == false) {
+            return cluster.getHttpAddresses();
+        }
+        HttpHost[] allHosts = parseClusterHosts(cluster.getHttpAddresses()).toArray(HttpHost[]::new);
+        try (RestClient probe = buildClient(restAdminSettings(), allHosts)) {
+            ObjectPath nodes = ObjectPath.createFromResponse(probe.performRequest(new Request("GET", "/_nodes")));
+            return EsqlDataSourceMixedClusterTestSupport.httpAddressesForCoordinator(nodes);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to resolve data-source BWC coordinator addresses from /_nodes", e);
+        }
     }
 
     /**
@@ -366,13 +676,6 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      */
     @Override
     protected void doTest() throws Throwable {
-        // ClickBench templates are resolved by ClickBenchParquetSpecIT, not by this class. After the FROM
-        // <dataset> migration the {{clickbench}} template lives in the dataset directive's resource rather
-        // than the query (which is now plain `FROM clickbench`), so check the declared sources too.
-        boolean clickBench = testCase.query.contains("{{clickbench}}")
-            || testCase.datasetSources.stream().anyMatch(source -> source.resource().contains("{{clickbench}}"));
-        assumeFalse("ClickBench templates require ClickBenchParquetSpecIT", clickBench);
-
         if (testCase.datasetSources.isEmpty() == false && forceExternalRebuild() == false) {
             runDatasetMode();
             return;
@@ -380,21 +683,35 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
         // A multi-source FROM <dataset> has no single-EXTERNAL equivalent, so a suite that rebuilds specs
         // into an EXTERNAL query cannot express it. Skip such specs here rather than failing in the rebuild.
+        // Unreachable while no suite overrides forceExternalRebuild(): only directive-free specs get this far,
+        // so datasetSources is empty. Kept paired with that hook -- see its javadoc.
         assumeFalse(
             "multi-source FROM <dataset> has no single-EXTERNAL equivalent; skipped on EXTERNAL-rebuild backends",
             testCase.datasetSources.size() > 1
+        );
+
+        // A declared schema is a property of the DATASET, not of a query: EXTERNAL has no clause that carries one, and
+        // copying the directive's reserved `mappings` key into an EXTERNAL WITH would fail option validation instead of
+        // declaring anything, so such a case is skipped rather than rebuilt. Unreachable for the same reason as the
+        // guard above.
+        assumeFalse(
+            "a declared schema cannot be expressed as an EXTERNAL ... WITH query; skipped on EXTERNAL-rebuild backends",
+            declaresMappings()
         );
 
         // Pick the Azure URI form once per test so wildcard expansion sees a single, consistent form.
         useAzureHadoopForm = storageBackend == StorageBackend.AZURE && randomBoolean();
 
         // Either a raw-EXTERNAL spec with no dataset: directive (the Iceberg holdout, left unchanged) or a
-        // holdout suite whose reader cannot be addressed via FROM <dataset> (parquet-rs — see
-        // forceExternalRebuild()): in the latter case rebuild the EXTERNAL query from the single dataset
-        // directive so the suite's reader override still applies. A spec with no directive is returned as-is.
+        // holdout suite whose reader cannot be addressed via FROM <dataset>: in the latter case rebuild the
+        // EXTERNAL query from the single dataset directive so the suite's reader override still applies.
+        // A spec with no directive is returned as-is.
         String query = rebuildExternalFromDatasets(testCase.query);
 
-        if (query.contains(MULTIFILE_SUFFIX) || query.contains(HIVE_SUFFIX + "}}")) {
+        // The dataset path below matches on the bare suffix; this one matches on suffix + "}}" because it reads the
+        // rebuilt query text. HIVE_SHADOW_SUFFIX therefore needs naming explicitly: it contains HIVE_SUFFIX but does
+        // not end with it, so "_hive}}" does not match "{{employees_hive_shadow}}".
+        if (query.contains(MULTIFILE_SUFFIX) || query.contains(HIVE_SUFFIX + "}}") || query.contains(HIVE_SHADOW_SUFFIX + "}}")) {
             // HTTP does not support directory listing, so skip multi-file/Hive-partitioned glob tests
             assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
         }
@@ -415,6 +732,222 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
         logger.debug("Transformed query for {} backend: {}", storageBackend, query);
         runColdThenWarm(query, isExternalQuery(query) && testCase.expectedDocumentsFound == null);
+    }
+
+    /**
+     * Once per reader/codec, proves that round-robin execution crossed the version
+     * boundary and that the typed reader status survived both coordinator directions.
+     * Compressed readers on nodes predating {@code external_compressed_reader_status}
+     * are identified by the enclosing external-source operator's processed-split status.
+     * <p>
+     * The guard is not a spec assertion, so it runs from {@link #runBwcReaderProfileGuardBeforeSpec()}
+     * before concrete skip logic. The key is marked completed before
+     * the guard body runs: a failure must be reported once, against one test, instead of being
+     * retried and re-reported by every remaining parameter sharing the key.
+     */
+    private void maybeRunBwcReaderProfileGuard() throws Exception {
+        String codec = guardCodecIdentity();
+        if (shouldRunBwcReaderProfileGuard(bwcMatrixPolicy(), storageBackend, codec) == false) {
+            return;
+        }
+
+        String guardKey = bwcReaderProfileGuardKey();
+        synchronized (COMPLETED_BWC_PROFILE_GUARDS) {
+            if (COMPLETED_BWC_PROFILE_GUARDS.add(guardKey) == false) {
+                return;
+            }
+        }
+
+        // Attribution: the enclosing test only happened to be first, so name the guard and its key.
+        // The failure type is preserved so a broken cluster still reaches the health check in
+        // EsqlSpecTestCase#test rather than being reported as a plain assertion failure.
+        String failure = "mixed-version reader/profile guard [" + guardKey + "] failed";
+        try {
+            runBwcReaderProfileGuard(readerFormat(), guardKey);
+        } catch (AssertionError e) {
+            throw new AssertionError(failure, e);
+        } catch (Exception e) {
+            throw new IllegalStateException(failure, e);
+        }
+    }
+
+    static boolean shouldRunBwcReaderProfileGuard(BwcMatrixPolicy policy, StorageBackend backend, String codec) {
+        if (EsqlDataSourceMixedClusterTestSupport.isBwcTest() == false) {
+            return false;
+        }
+        if (policy == null) {
+            throw new IllegalStateException("A BWC matrix policy is required for a mixed-version test instance");
+        }
+        if (EsqlDataSourceMixedClusterTestSupport.oldCoordinator() == false) {
+            return false;
+        }
+        if (EsqlDataSourceMixedClusterTestSupport.isDetachedBwcBuild() && backend == StorageBackend.LOCAL) {
+            return false;
+        }
+        return policy.isGuardCell(backend, codec);
+    }
+
+    static boolean shouldSkipDetachedBwcLocalTuple(StorageBackend backend) {
+        return EsqlDataSourceMixedClusterTestSupport.isBwcTest()
+            && EsqlDataSourceMixedClusterTestSupport.isDetachedBwcBuild()
+            && backend == StorageBackend.LOCAL;
+    }
+
+    /**
+     * Identifies one reader/codec/fixture combination. Compression <em>aliases</em> collapse onto
+     * one key: {@code .zst} and {@code .zstd} are the same codec on both node versions, and the
+     * extension-to-codec mapping itself is covered by the ordinary specs.
+     */
+    private String bwcReaderProfileGuardKey() {
+        return storageBackend + ":" + readerFormat() + ":" + guardCodecIdentity() + ":" + multifileSplitDir();
+    }
+
+    /** The reader that owns {@link #format}, with any compression extension stripped. */
+    private String readerFormat() {
+        return format.contains(".") ? format.substring(0, format.indexOf('.')) : format;
+    }
+
+    /**
+     * Codec identity carried by this instance's deterministic guard cell. Must agree with
+     * {@link #matrixCodecIdentity}, which answers the same question for the parameter factory — see its
+     * javadoc for the contract and why the Parquet compressed suites override this method.
+     */
+    protected String guardCodecIdentity() {
+        return EsqlDataSourceCodecEligibility.textCodecIdentity(format);
+    }
+
+    static void clearBwcReaderProfileGuardStateForTests() {
+        synchronized (COMPLETED_BWC_PROFILE_GUARDS) {
+            COMPLETED_BWC_PROFILE_GUARDS.clear();
+        }
+    }
+
+    private void runBwcReaderProfileGuard(String readerFormat, String guardKey) throws Exception {
+        String dataSource = ensureDataSourceForBackend();
+        String dataset = "bwc_profile_"
+            + storageBackend.name().toLowerCase(Locale.ROOT)
+            + "_"
+            + guardKey.replaceAll("[^a-zA-Z0-9]+", "_").toLowerCase(Locale.ROOT);
+        String settings = switch (readerFormat) {
+            case "csv", "tsv" -> "{\"trim_spaces\":true,\"multi_value_syntax\":\"brackets\"}";
+            case "ndjson", "parquet", "orc" -> null;
+            default -> throw new IllegalArgumentException("Unknown format-reader profile guard [" + readerFormat + "]");
+        };
+        DatasetRegistry.ensureDataset(client(), dataset, dataSource, resolveTemplatePath("employees_multifile_split"), settings);
+
+        ObjectPath nodesInfo = ObjectPath.createFromResponse(adminClient().performRequest(new Request("GET", "/_nodes")));
+        List<EsqlDataSourceMixedClusterTestSupport.Node> oldNodes = EsqlDataSourceMixedClusterTestSupport.nodesForCoordinator(
+            nodesInfo,
+            true
+        );
+        List<EsqlDataSourceMixedClusterTestSupport.Node> currentNodes = EsqlDataSourceMixedClusterTestSupport.nodesForCoordinator(
+            nodesInfo,
+            false
+        );
+
+        Map<String, Object> oldResponse;
+        Map<String, Object> currentResponse;
+        boolean oldReaderStatusSupported;
+        try (
+            RestClient oldClient = coordinatorClient(oldNodes.getFirst());
+            RestClient currentClient = coordinatorClient(currentNodes.getFirst())
+        ) {
+            oldReaderStatusSupported = "none".equals(guardCodecIdentity())
+                || clusterHasCapability(
+                    oldClient,
+                    "POST",
+                    "/_query",
+                    List.of(),
+                    List.of(EsqlCapabilities.Cap.EXTERNAL_COMPRESSED_READER_STATUS.capabilityName())
+                ).orElse(false);
+            oldResponse = runProfileGuardQuery(oldClient, dataset);
+            currentResponse = runProfileGuardQuery(currentClient, dataset);
+        }
+
+        assertEquals("coordinator versions must return identical columns", oldResponse.get("columns"), currentResponse.get("columns"));
+        assertEquals("coordinator versions must return identical rows", oldResponse.get("values"), currentResponse.get("values"));
+        assertReaderProfileCrossedVersions(oldResponse, readerFormat, oldNodes, currentNodes, oldReaderStatusSupported);
+        assertReaderProfileCrossedVersions(currentResponse, readerFormat, oldNodes, currentNodes, oldReaderStatusSupported);
+    }
+
+    private RestClient coordinatorClient(EsqlDataSourceMixedClusterTestSupport.Node node) throws IOException {
+        return buildClient(restClientSettings(), new HttpHost[] { HttpHost.create(node.httpAddress()) });
+    }
+
+    private static Map<String, Object> runProfileGuardQuery(RestClient coordinatorClient, String dataset) throws IOException {
+        Request request = new Request("POST", "/_query");
+        request.setJsonEntity(Strings.format("""
+            {
+              "query": "FROM %s | KEEP emp_no | SORT emp_no | LIMIT 1000",
+              "profile": true,
+              "accept_pragma_risks": true,
+              "pragma": {"external_distribution": "round_robin"}
+            }""", dataset));
+        return entityAsMap(coordinatorClient.performRequest(request));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void assertReaderProfileCrossedVersions(
+        Map<String, Object> response,
+        String readerFormat,
+        List<EsqlDataSourceMixedClusterTestSupport.Node> oldNodes,
+        List<EsqlDataSourceMixedClusterTestSupport.Node> currentNodes,
+        boolean oldReaderStatusSupported
+    ) {
+        Map<String, Object> profile = (Map<String, Object>) response.get("profile");
+        assertNotNull("profile is required", profile);
+        List<Map<String, Object>> drivers = (List<Map<String, Object>>) profile.get("drivers");
+        assertNotNull("profile drivers are required", drivers);
+
+        Set<String> scanNodes = new HashSet<>();
+        Set<String> readerStatusNodes = new HashSet<>();
+        for (Map<String, Object> driver : drivers) {
+            List<Map<String, Object>> operators = (List<Map<String, Object>>) driver.get("operators");
+            if (operators == null) {
+                continue;
+            }
+            for (Map<String, Object> operator : operators) {
+                Map<String, Object> status = (Map<String, Object>) operator.get("status");
+                if (status == null) {
+                    continue;
+                }
+                Number splitsProcessed = (Number) status.get("splits_processed");
+                if (splitsProcessed != null && splitsProcessed.intValue() > 0) {
+                    scanNodes.add((String) driver.get("node_name"));
+                }
+                Map<String, Object> formatReader = (Map<String, Object>) status.get("format_reader");
+                if (formatReader != null && readerFormat.equals(formatReader.get("format"))) {
+                    readerStatusNodes.add((String) driver.get("node_name"));
+                }
+            }
+        }
+
+        String statusName = switch (readerFormat) {
+            case "csv", "tsv" -> "CsvReaderStatus";
+            case "ndjson" -> "NdJsonReaderStatus";
+            case "parquet" -> "ParquetReaderStatus";
+            case "orc" -> "OrcReaderStatus";
+            default -> throw new IllegalArgumentException("Unknown format-reader status [" + readerFormat + "]");
+        };
+        assertFalse("profile must contain " + statusName, readerStatusNodes.isEmpty());
+        assertTrue(
+            "round_robin must execute the external scan on an old node; saw " + scanNodes,
+            oldNodes.stream().map(EsqlDataSourceMixedClusterTestSupport.Node::name).anyMatch(scanNodes::contains)
+        );
+        assertTrue(
+            "round_robin must execute the external scan on a current node; saw " + scanNodes,
+            currentNodes.stream().map(EsqlDataSourceMixedClusterTestSupport.Node::name).anyMatch(scanNodes::contains)
+        );
+        assertTrue(
+            "profile must contain " + statusName + " on a current node; saw " + readerStatusNodes,
+            currentNodes.stream().map(EsqlDataSourceMixedClusterTestSupport.Node::name).anyMatch(readerStatusNodes::contains)
+        );
+        if (oldReaderStatusSupported) {
+            assertTrue(
+                "profile must contain " + statusName + " on an old node; saw " + readerStatusNodes,
+                oldNodes.stream().map(EsqlDataSourceMixedClusterTestSupport.Node::name).anyMatch(readerStatusNodes::contains)
+            );
+        }
     }
 
     /**
@@ -447,8 +980,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * same idiom the raw-EXTERNAL flow uses. Each source's resource template is resolved to the backend
      * URI exactly as the EXTERNAL path resolves it. The format reader is selected by the resource's file
      * extension against the readers the cluster's installed datasource plugin registers; the dataset model
-     * exposes no {@code reader}/{@code format} selector, so a reader that registers no extension (e.g. the
-     * parquet-rs native reader) is not reachable on this path.
+     * exposes no {@code reader}/{@code format} selector, so a reader that registers no file extension
+     * is not reachable on this path.
      * <p>
      * Skipped (rather than failed) on a cluster that lacks {@code dataset_in_from_command}: that
      * capability gates resolving {@code FROM <dataset>} in {@code POST /_query}, which is what this path
@@ -465,6 +998,12 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             if (source.resource().contains(MULTIFILE_SUFFIX) || source.resource().contains(HIVE_SUFFIX)) {
                 assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
             }
+        }
+        if (declaresMappings()) {
+            assumeTrue(
+                "a declared schema requires the [" + EsqlDataSourcesCapabilities.DATASET_DECLARED_SCHEMA + "] capability",
+                clusterSupportsDeclaredSchema()
+            );
         }
         String dataSourceName = ensureDataSourceForBackend();
         for (DatasetSource source : testCase.datasetSources) {
@@ -531,7 +1070,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * Override to specify a reader implementation for the EXTERNAL query.
      * When non-null, a {@code "reader": "<name>"} parameter is injected into the WITH clause.
      *
-     * @return the reader name (e.g. "java", "parquet-rs"), or null for the default reader
+     * @return the reader name (e.g. "java"), or null for the default reader
      */
     protected String readerName() {
         return null;
@@ -541,15 +1080,59 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * Whether this suite must drive its specs through the raw {@code EXTERNAL} command rather than the
      * {@code FROM <dataset>} path, rebuilding the EXTERNAL query from each spec's {@code dataset:} directive.
      * <p>
-     * Defaults to {@code false}: every dataset-backed suite runs via {@code FROM <dataset>}. The sole opt-in
-     * is the parquet-rs suite: the parquet-rs native reader registers no file extension and the dataset model
-     * exposes no {@code reader}/{@code format} selector ({@code Dataset} carries only
-     * {@code data_source}/{@code resource}/{@code settings}, and settings are validated against the format's
-     * config keys), so parquet-rs is reachable only via {@code EXTERNAL ... WITH "reader": "parquet-rs"}. It is
-     * therefore a sanctioned EXTERNAL holdout, like gRPC/Flight and Iceberg.
+     * Defaults to {@code false}: every dataset-backed suite runs via {@code FROM <dataset>}. Override
+     * to {@code true} for a reader that registers no file extension and is therefore only reachable via
+     * {@code EXTERNAL ... WITH "reader": "<name>"}, making it a sanctioned EXTERNAL holdout like gRPC/Flight
+     * and Iceberg.
+     * <p>
+     * <b>No suite overrides this today.</b> The only one that did was the native parquet reader's, which has
+     * been removed, so {@link #doTest} now falls through to the EXTERNAL branch solely for specs that carry no
+     * {@code dataset:} directive at all (the Iceberg holdout). Consequently {@link #rebuildExternalFromDatasets}
+     * always returns its argument unchanged and the two dataset-shape guards in {@link #doTest} cannot fire.
+     * Kept as the hook for the next reader that is unaddressable via {@code FROM <dataset>}.
      */
     protected boolean forceExternalRebuild() {
         return false;
+    }
+
+    /** Whether any of this spec's {@code dataset:} directives declares a schema. Memoized: asked at two guard sites. */
+    private boolean declaresMappings() {
+        if (declaresMappingsMemo == null) {
+            declaresMappingsMemo = testCase.datasetSources.stream().anyMatch(source -> DatasetRegistry.declaresMappings(source.withJson()));
+        }
+        return declaresMappingsMemo;
+    }
+
+    /**
+     * Memoized support for a declared schema on {@code PUT /_query/dataset/<name>}.
+     * <p>
+     * The declared-schema capability is advertised on the dataset PUT/GET routes, NOT on {@code POST /_query}, so a
+     * spec file cannot gate on it: a {@code required_capability:} line resolves against the query endpoint and would
+     * skip such a case on every cluster, forever. The harness therefore asks the dataset route directly.
+     * <p>
+     * Cached because the sibling {@code dataset_in_from_command} check resolves through {@code hasCapabilities},
+     * which caches, and an uncached {@code GET _capabilities} per declaring test would add a round trip to each of
+     * them. Reset in the same {@code @AfterClass} that clears the registry's caches, so a later suite in the JVM
+     * fork cannot inherit a verdict about a cluster it is not talking to.
+     */
+    private static volatile Boolean declaredSchemaSupported;
+
+    private static boolean clusterSupportsDeclaredSchema() throws IOException {
+        // Racy single-check: read the volatile field ONCE into a local. Reading it twice would let the
+        // @AfterClass reset land between the assignment and the return and unbox null. A duplicate probe is
+        // harmless -- the capability is immutable for a cluster's lifetime.
+        Boolean supported = declaredSchemaSupported;
+        if (supported == null) {
+            supported = clusterHasCapability(
+                client(),
+                "PUT",
+                "/_query/dataset/{name}",
+                List.of(),
+                List.of(EsqlDataSourcesCapabilities.DATASET_DECLARED_SCHEMA)
+            ).orElse(false);
+            declaredSchemaSupported = supported;
+        }
+        return supported;
     }
 
     /**
@@ -593,6 +1176,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * ({@link #runDatasetMode()}) and when rebuilding an {@code EXTERNAL} query
      * ({@link #rebuildExternalFromDatasets}).
      * <p>
+     * Passed through as one blob: the reserved {@code mappings} key (a declared schema) is split out of it by
+     * {@code DatasetRegistry}, not here. The injection below therefore has to land at the TOP level of the object even
+     * when a nested {@code mappings} object is its last entry.
+     * <p>
      * The CSV/TSV test fixtures (employees.csv, books.csv, ...) are column-aligned with padding spaces for
      * readability, so their expected spec values assume trimming. The reader default is now no-trim (RFC
      * 4180 — spaces are part of a field), so read these aligned fixtures with {@code trim_spaces: true} to
@@ -601,21 +1188,27 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * exercise the no-trim default end to end).
      */
     private String withJsonForSource(DatasetSource source) {
-        // format is the base format or a codec-suffixed variant ("csv", "csv.gz", "tsv.zstd", ...). Other
-        // formats (parquet, ...) reject the trim_spaces key, so only the csv/tsv backends read the
-        // column-aligned fixtures with trimming; the shared injector adds the key.
-        boolean csvOrTsv = format.equals("csv") || format.startsWith("csv.") || format.equals("tsv") || format.startsWith("tsv.");
-        return csvOrTsv ? injectTrimSpaces(source.withJson()) : source.withJson();
+        // Memoized per source: injectTrimSpaces parses the JSON to decide whether the directive already sets
+        // trim_spaces, and this is asked once per registration and again when the query is built.
+        return withJsonMemo.computeIfAbsent(source, s -> {
+            // format is the base format or a codec-suffixed variant ("csv", "csv.gz", "tsv.zstd", ...). Other
+            // formats (parquet, ...) reject the trim_spaces key, so only the csv/tsv backends read the
+            // column-aligned fixtures with trimming; the shared injector adds the key.
+            boolean csvOrTsv = format.equals("csv") || format.startsWith("csv.") || format.equals("tsv") || format.startsWith("tsv.");
+            return csvOrTsv ? injectTrimSpaces(s.withJson()) : s.withJson();
+        });
     }
 
     /**
-     * Adds {@code "trim_spaces": true} to a dataset directive's {@code WITH} JSON, unless it already sets
-     * {@code trim_spaces} (matched as a key — the quoted name followed by a colon, so a value that merely
-     * equals {@code "trim_spaces"} still gets the injection). {@code withJson} is parser-guaranteed to be a
-     * brace-delimited object or {@code null}, so {@code lastIndexOf('}')} is always the structural closer.
+     * Adds {@code "trim_spaces": true} to a dataset directive's {@code WITH} JSON, unless the directive already sets
+     * that SETTING. Whether it does is decided by parsing rather than by matching the raw text: a directive may now
+     * carry a nested declared schema, and a same-named key inside {@code mappings} would otherwise suppress the
+     * injection and read the column-aligned fixtures untrimmed. Placement stays textual — {@code withJson} is
+     * parser-guaranteed to be a brace-delimited object or {@code null}, so {@code lastIndexOf('}')} is always the
+     * structural closer, outside any nested object.
      */
     static String injectTrimSpaces(String withJson) {
-        if (withJson != null && withJson.replaceAll("\\s", "").contains("\"trim_spaces\":")) {
+        if (DatasetRegistry.declaresSetting(withJson, "trim_spaces")) {
             return withJson;
         }
         if (withJson == null) {
@@ -746,12 +1339,19 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static final String HIVE_SUFFIX = "_hive";
 
     /**
+     * Hive-partitioned fixture whose partition key collides with a real payload column (see the
+     * {@code generateHiveShadowParquet_employees} fixture task). Checked before {@link #HIVE_SUFFIX}; the name still
+     * contains {@code _hive} so the HTTP glob-skip applies to it too.
+     */
+    private static final String HIVE_SHADOW_SUFFIX = "_hive_shadow";
+
+    /**
      * Resolve a template name to an actual path based on storage backend and format.
      *
      * @param templateName the template name (e.g., "employees", "employees_multifile", or "employees_multifile_ubn")
      * @return the resolved path
      */
-    private String resolveTemplatePath(String templateName) {
+    protected final String resolveTemplatePath(String templateName) {
         String relativePath;
         if (templateName.endsWith(MULTIFILE_TYPE_DRIFT_SUFFIX)) {
             relativePath = "multifile_type_drift/*." + format;
@@ -771,6 +1371,9 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         } else if (templateName.endsWith(MULTIFILE_SUFFIX)) {
             // Multi-file template: employees_multifile -> multifile/*.parquet
             relativePath = "multifile/*." + format;
+        } else if (templateName.endsWith(HIVE_SHADOW_SUFFIX)) {
+            // Hive layout whose partition key shadows a same-named payload column.
+            relativePath = "hive-partitioned-shadow/**/*." + format;
         } else if (templateName.endsWith(HIVE_SUFFIX)) {
             // Hive-partitioned template: employees_hive -> hive-partitioned/**/*.parquet
             // (uses ** so the glob recurses into lang=*/ partition directories; HivePartitionDetector
@@ -877,14 +1480,33 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     @Override
     protected void createInferenceEndpointsIfSupported() throws IOException {
+        if (EsqlDataSourceMixedClusterTestSupport.isBwcTest()) {
+            return;
+        }
         // Register only RERANK: external-basic.csv-spec uses test_reranker; full INFERENCE_CONFIGS includes task types
-        // not supported on these minimal clusters (e.g. SPARSE_EMBEDDING). Test clusters must load inference-service-test.
+        // not supported on these minimal clusters (e.g. SPARSE_EMBEDDING). Current-version test clusters load
+        // inference-service-test; BWC clusters omit it and capability-skip tests that require an endpoint.
         CsvTestsDataLoader.createInferenceEndpoints(adminClient(), List.of("test_reranker"));
     }
 
     @Override
     protected boolean supportsSemanticTextInference() {
         return false;
+    }
+
+    @Override
+    protected boolean supportsSourceFieldMapping() {
+        return EsqlDataSourceMixedClusterTestSupport.isBwcTest() == false;
+    }
+
+    @Override
+    protected boolean deduplicateExactWarnings() {
+        return EsqlDataSourceMixedClusterTestSupport.isBwcTest() || super.deduplicateExactWarnings();
+    }
+
+    @Override
+    protected boolean enableRoundingDoubleValuesOnAsserting() {
+        return EsqlDataSourceMixedClusterTestSupport.isBwcTest() || super.enableRoundingDoubleValuesOnAsserting();
     }
 
     // Static utility methods for fixture access

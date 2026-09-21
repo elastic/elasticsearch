@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 151751
-pr: 151767
-summary: "Support keyword/text in TOP(field,...,outputField)"
-type: feature

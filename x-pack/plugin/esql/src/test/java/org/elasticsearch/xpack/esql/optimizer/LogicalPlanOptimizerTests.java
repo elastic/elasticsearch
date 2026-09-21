@@ -53,7 +53,6 @@ import org.elasticsearch.xpack.esql.expression.function.WindowFilter;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DeltaOnlyHistogramMergeOverTime;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMerge;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMergeOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
@@ -61,6 +60,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongBase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
@@ -111,6 +112,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
@@ -140,7 +142,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -165,6 +166,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -185,7 +187,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.containsIgnoringIds;
@@ -236,7 +237,12 @@ import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
+
     private static final LiteralsOnTheRight LITERALS_ON_THE_RIGHT = new LiteralsOnTheRight();
+
+    public LogicalPlanOptimizerTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     public void testEvalWithScoreImplicitLimit() {
         var plan = plan("""
@@ -1023,7 +1029,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var aggs = agg.aggregates();
         assertThat(Expressions.names(aggs), contains("s", "f"));
         Alias as = as(aggs.get(0), Alias.class);
-        var aggFunc = as(as.child(), AggregateFunction.class);
+        var aggFunc = as(as.child(), Sum.class);
         assertThat(Expressions.name(aggFunc.field()), is("emp_no"));
         as = as(aggs.get(1), Alias.class);
         assertThat(Expressions.name(as.child()), is("first_name"));
@@ -3021,6 +3027,42 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(e.getMessage(), is(error));
     }
 
+    public void testSimplifyLikeNoWildcardFromConstantExpression() {
+        // After constant folding, LIKE CONCAT("foo", "") => LIKE "foo" => Equals
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where first_name like concat("foo", "")
+            """);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        assertTrue(filter.condition() instanceof Equals);
+    }
+
+    public void testSimplifyLikeMatchAllFromConstantExpression() {
+        // After constant folding, LIKE CONCAT("", "*") => LIKE "*" => IsNotNull
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where first_name like concat("", "*")
+            """);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        as(filter.condition(), IsNotNull.class);
+    }
+
+    public void testSimplifyRLikeMatchAllFromConstantExpression() {
+        // After constant folding, RLIKE CONCAT("", ".*") => RLIKE ".*" => IsNotNull
+        assumeTrue("requires like_rlike_constant_expression", EsqlCapabilities.Cap.LIKE_RLIKE_CONSTANT_EXPRESSION.isEnabled());
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where first_name rlike concat("", ".*")
+            """);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        as(filter.condition(), IsNotNull.class);
+    }
+
     public void testFoldNullInToLocalRelation() {
         LogicalPlan plan = optimizedPlan("""
             from test
@@ -4240,7 +4282,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.names(agg.aggregates()), contains("centroid"));
         assertTrue("Expected GEO_POINT aggregation for STATS", agg.aggregates().stream().allMatch(aggExp -> {
             var alias = as(aggExp, Alias.class);
-            var aggFunc = as(alias.child(), AggregateFunction.class);
+            var aggFunc = as(alias.child(), SpatialCentroid.class);
             var aggField = as(aggFunc.field(), FieldAttribute.class);
             return aggField.dataType() == GEO_POINT;
         }));
@@ -4267,7 +4309,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.names(agg.aggregates()), contains("centroid"));
         assertTrue("Expected GEO_POINT aggregation for STATS", agg.aggregates().stream().allMatch(aggExp -> {
             var alias = as(aggExp, Alias.class);
-            var aggFunc = as(alias.child(), AggregateFunction.class);
+            var aggFunc = as(alias.child(), SpatialCentroid.class);
             var aggField = as(aggFunc.field(), FieldAttribute.class);
             return aggField.dataType() == GEO_POINT;
         }));
@@ -4987,7 +5029,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                     s_null = count(null)
                     by w = emp_no % 2
             | keep s, s_expr, s_null, w
-            """, new TestSubstitutionOnlyOptimizer());
+            """, new TestSubstitutionOnlyOptimizer(logicalOptimizerCtx));
 
         var limit = as(plan, Limit.class);
         var topProject = as(limit.child(), Project.class);
@@ -5059,7 +5101,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                     s_null = sum(null)
                     by w = emp_no % 2
             | keep s, s_expr, s_null, w
-            """, new TestSubstitutionOnlyOptimizer());
+            """, new TestSubstitutionOnlyOptimizer(logicalOptimizerCtx));
 
         var limit = as(plan, Limit.class);
         var topProject = as(limit.child(), Project.class);
@@ -5164,7 +5206,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             );
             String query = LoggerMessageFormat.format(null, queryWithoutValues, "[1,2]", "314.0/100", "null");
 
-            var plan = plan(query, new TestSubstitutionOnlyOptimizer());
+            var plan = plan(query, new TestSubstitutionOnlyOptimizer(logicalOptimizerCtx));
 
             var limit = as(plan, Limit.class);
             var topProject = as(limit.child(), Project.class);
@@ -5212,7 +5254,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             );
             String query = LoggerMessageFormat.format(null, queryWithoutValues, "[1,2]", "314.0/100", "null");
 
-            var plan = plan(query, new TestSubstitutionOnlyOptimizer());
+            var plan = plan(query, new TestSubstitutionOnlyOptimizer(logicalOptimizerCtx));
 
             var limit = as(plan, Limit.class);
             var topProject = as(limit.child(), Project.class);
@@ -5922,7 +5964,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public static boolean releaseBuildForInlineStats(@Nullable String query) {
         if (EsqlCapabilities.Cap.INLINE_STATS.isEnabled() == false) {
             if (query != null) {
-                analyzer().addEmployees("test").error(query, ParsingException.class, containsString("mismatched input 'INLINE' expecting"));
+                // Parse error only; the transport version plays no part.
+                EsqlTestUtils.analyzer()
+                    .addEmployees("test")
+                    .error(query, ParsingException.class, containsString("mismatched input 'INLINE' expecting"));
             }
             return true;
         }
@@ -6520,7 +6565,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertSemanticMatching((BinaryComparison) ignoreIds(bc), (EsqlBinaryComparison) ignoreIds(extractPlannedBinaryComparison(exp)));
     }
 
-    private static void assertSemanticMatching(Expression fieldAttributeExp, Expression unresolvedAttributeExp) {
+    private void assertSemanticMatching(Expression fieldAttributeExp, Expression unresolvedAttributeExp) {
         Expression unresolvedUpdated = unresolvedAttributeExp.transformUp(
             LITERALS_ON_THE_RIGHT.expressionToken(),
             be -> LITERALS_ON_THE_RIGHT.rule(be, logicalOptimizerCtx)
@@ -7325,6 +7370,22 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit3 = asLimit(eval.child(), 1000, false);
     }
 
+    /**
+     * Regression for https://github.com/elastic/elasticsearch/issues/153507:
+     * a TS STATS aggregate alias that collides with a grouping key must be shadowed (grouping wins)
+     * when TranslateTimeSeriesAggregate builds the PackDims Project, matching non-TS STATS behavior.
+     */
+    public void testMetricsAggregateAliasCollidesWithGroupingKey() {
+        assumeTrue(
+            "Requires fix for TS STATS alias/grouping shadowing",
+            EsqlCapabilities.Cap.FIX_TS_STATS_ALIAS_GROUPING_SHADOW.isEnabled()
+        );
+        var plan = planMetrics("TS k8s | STATS pod = FIRST(events_received, @timestamp) BY pod");
+
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("pod")));
+        assertWarnings("Line 1:16: Field 'pod' shadowed by field at line 1:60");
+    }
+
     public void testTranslateMetricsWithoutGrouping() {
         var query = "TS k8s | STATS max(rate(network.total_bytes_in))";
         var plan = planMetrics(query);
@@ -7418,9 +7479,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Aggregate aggsByCluster = as(unpack.child(), Aggregate.class);
         assertThat(aggsByCluster, not(instanceOf(TimeSeriesAggregate.class)));
         assertThat(aggsByCluster.aggregates(), hasSize(2));
-        PackDims pack = as(aggsByCluster.child(), PackDims.class);
-        assertThat(pack.dims(), hasSize(1));
-        TimeSeriesAggregate aggsByTsid = as(pack.child(), TimeSeriesAggregate.class);
+        TimeSeriesAggregate aggsByTsid = packedTimeSeriesAggregate(aggsByCluster.child(), 1);
         assertThat(aggsByTsid.aggregates(), hasSize(2)); // _tsid is dropped
         assertNull(aggsByTsid.timeBucket());
         EsRelation relation = as(aggsByTsid.child(), EsRelation.class);
@@ -7432,8 +7491,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
-        DimensionValues values = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), DimensionValues.class);
-        assertThat(Expressions.attribute(values.field()).name(), equalTo("cluster"));
+        assertThat(Expressions.names(packedDims(aggsByTsid.aggregates())), contains("cluster"));
     }
 
     public void testTranslateMetricsGroupedByTwoDimension() {
@@ -7454,10 +7512,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Aggregate finalAggs = as(eval.child(), Aggregate.class);
         assertThat(finalAggs, not(instanceOf(TimeSeriesAggregate.class)));
         assertThat(finalAggs.aggregates(), hasSize(3)); // sum, count, packed grouping
-        PackDims pack = as(finalAggs.child(), PackDims.class);
-        assertThat(pack.dims(), hasSize(2));
-        TimeSeriesAggregate aggsByTsid = as(pack.child(), TimeSeriesAggregate.class);
-        assertThat(aggsByTsid.aggregates(), hasSize(3)); // _tsid is dropped
+        TimeSeriesAggregate aggsByTsid = packedTimeSeriesAggregate(finalAggs.child(), 2);
+        assertThat(aggsByTsid.aggregates(), hasSize(1 + packedDimAggregateCount(2))); // _tsid is dropped; rate, then the dims
         assertNull(aggsByTsid.timeBucket());
         EsRelation relation = as(aggsByTsid.child(), EsRelation.class);
         assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
@@ -7471,13 +7527,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.attribute(count.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
         assertThat(finalAggs.groupings(), hasSize(1)); // the two dimensions are packed into one grouping key
 
-        assertThat(aggsByTsid.aggregates(), hasSize(3)); // rates, values(cluster), values(pod)
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
-        DimensionValues values1 = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), DimensionValues.class);
-        assertThat(Expressions.attribute(values1.field()).name(), equalTo("cluster"));
-        DimensionValues values2 = as(Alias.unwrap(aggsByTsid.aggregates().get(2)), DimensionValues.class);
-        assertThat(Expressions.attribute(values2.field()).name(), equalTo("pod"));
+        assertThat(Expressions.names(packedDims(aggsByTsid.aggregates())), contains("cluster", "pod"));
     }
 
     public void testTranslateMetricsGroupedByTimeBucket() {
@@ -7526,9 +7578,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Div div = as(Alias.unwrap(eval.fields().get(0)), Div.class);
         Aggregate finalAgg = as(eval.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
-        PackDims pack = as(finalAgg.child(), PackDims.class);
-        assertThat(pack.dims(), hasSize(2));
-        TimeSeriesAggregate aggsByTsid = as(pack.child(), TimeSeriesAggregate.class);
+        TimeSeriesAggregate aggsByTsid = packedTimeSeriesAggregate(finalAgg.child(), 2);
         assertNotNull(aggsByTsid.timeBucket());
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
         Eval bucket = as(aggsByTsid.child(), Eval.class);
@@ -7544,11 +7594,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.attribute(count.field()).id(), equalTo(aggsByTsid.aggregates().get(0).id()));
         assertThat(finalAgg.groupings(), hasSize(2)); // bucket + packed grouping
 
-        assertThat(aggsByTsid.aggregates(), hasSize(4)); // rate, values(pod), values(cluster), bucket
+        assertThat(aggsByTsid.aggregates(), hasSize(2 + packedDimAggregateCount(2))); // rate, the dims, bucket
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
-        DimensionValues podValues = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), DimensionValues.class);
-        assertThat(Expressions.attribute(podValues.field()).name(), equalTo("pod"));
+        assertThat(Expressions.names(packedDims(aggsByTsid.aggregates())), contains("pod", "cluster"));
     }
 
     public void testTranslateSumOfTwoRates() {
@@ -7569,9 +7618,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Add sum = as(Alias.unwrap(eval.fields().get(0)), Add.class);
         assertThat(Expressions.name(sum.left()), equalTo("RATE_$1"));
         assertThat(Expressions.name(sum.right()), equalTo("RATE_$2"));
-        PackDims pack = as(eval.child(), PackDims.class);
-        assertThat(pack.dims(), hasSize(2));
-        TimeSeriesAggregate aggsByTsid = as(pack.child(), TimeSeriesAggregate.class);
+        TimeSeriesAggregate aggsByTsid = packedTimeSeriesAggregate(eval.child(), 2);
         assertThat(Expressions.name(aggsByTsid.aggregates().get(0)), equalTo("RATE_$1"));
         assertThat(Expressions.name(aggsByTsid.aggregates().get(1)), equalTo("RATE_$2"));
     }
@@ -7594,9 +7641,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Div div = as(Alias.unwrap(eval.fields().get(0)), Div.class);
         Aggregate finalAgg = as(eval.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
-        PackDims pack = as(finalAgg.child(), PackDims.class);
-        assertThat(pack.dims(), hasSize(1));
-        TimeSeriesAggregate aggsByTsid = as(pack.child(), TimeSeriesAggregate.class);
+        TimeSeriesAggregate aggsByTsid = packedTimeSeriesAggregate(finalAgg.child(), 1);
         assertNotNull(aggsByTsid.timeBucket());
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
         Eval bucket = as(aggsByTsid.child(), Eval.class);
@@ -7649,9 +7694,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Round round = as(Alias.unwrap(evalRound.fields().get(0)), Round.class);
         Mul mul = as(round.field(), Mul.class);
 
-        PackDims pack = as(evalRound.child(), PackDims.class);
-        assertThat(pack.dims(), hasSize(1));
-        TimeSeriesAggregate aggsByTsid = as(pack.child(), TimeSeriesAggregate.class);
+        TimeSeriesAggregate aggsByTsid = packedTimeSeriesAggregate(evalRound.child(), 1);
         assertThat(aggsByTsid.aggregates(), hasSize(3)); // rate, cluster, bucket
         assertThat(aggsByTsid.groupings(), hasSize(2));
         assertNotNull(aggsByTsid.timeBucket());
@@ -7678,8 +7721,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(mul.right().fold(FoldContext.small()), equalTo(1.05));
         Rate rate = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Rate.class);
         assertThat(Expressions.attribute(rate.field()).name(), equalTo("network.total_bytes_in"));
-        DimensionValues values = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), DimensionValues.class);
-        assertThat(Expressions.attribute(values.field()).name(), equalTo("cluster"));
+        assertThat(Expressions.names(packedDims(aggsByTsid.aggregates())), contains("cluster"));
     }
 
     public void testTranslateMaxOverTime() {
@@ -8152,6 +8194,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateOverTimeWithWindow() {
+        // multiple of the bucket (including equal): the plain window duration is preserved
         {
             int window = between(1, 20);
             var query = String.format(Locale.ROOT, """
@@ -8204,7 +8247,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             WindowFilter windowFilter = (WindowFilter) holder.get().filter();
             assertThat(((Duration) windowFilter.window().fold(FoldContext.small())).toMinutes(), equalTo((long) window));
         }
-        // non-multiple window (>= bucket) - now supported via GCD sub-bucketing
+        // non-multiple window (>= bucket): the plain window duration is preserved; the decomposition into a full
+        // and a partial aggregate happens during physical planning - see InsertPartialWindowAggregates
         {
             int window = randomValueOtherThanMany(n -> n % 5 == 0 || n < 5, () -> between(6, 30));
             var query = String.format(Locale.ROOT, """
@@ -8218,6 +8262,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             assertNotNull(holder.get());
             assertTrue(holder.get().hasWindow());
             assertThat(holder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(window)));
+            Holder<WindowFilter> windowFilterHolder = new Holder<>();
+            plan.forEachExpressionDown(WindowFilter.class, windowFilterHolder::set);
+            assertNull(windowFilterHolder.get());
         }
         // no time bucket
         {
@@ -8269,7 +8316,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         }
     }
 
-    public void testApplyWindowFilter() {
+    public void testApplyWindowFilterSmallWindows() {
         // single layer of aggregations
         {
             int window = randomIntBetween(1, 4);
@@ -8367,7 +8414,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateOverTimeWithNonMultipleWindow() {
-        // 7m window with 5m bucket -> GCD=1m internal bucket, 5m output bucket
+        // 7m window with 5m bucket: the logical plan keeps the plain window and the user bucket; the decomposition
+        // into a full and a partial aggregate happens during physical planning - see InsertPartialWindowAggregates
         {
             var query = """
                 TS k8s
@@ -8379,23 +8427,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
             assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
             TimeSeriesAggregate tsAgg = tsHolder.get();
-            // Internal bucket should be GCD(7m, 5m) = 1m
+            // The time bucket is always the user bucket; the window never rewrites it
             assertNotNull(tsAgg.timeBucket());
-            assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
-            // Output bucket should be the user-specified 5m
-            assertNotNull(tsAgg.outputTimeBucket());
-            assertThat(tsAgg.outputTimeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
-            // The 7m window must be preserved on the first-pass aggregate function
-            Holder<AggregateFunction> afHolder = new Holder<>();
-            tsAgg.forEachExpressionDown(AggregateFunction.class, af -> {
-                if (af.hasWindow()) {
-                    afHolder.set(af);
-                }
-            });
-            assertNotNull("expected an aggregate function with a window in the plan", afHolder.get());
-            assertThat(afHolder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(7)));
+            assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
+            assertPlainWindow(tsAgg, Duration.ofMinutes(7));
         }
-        // 12m window with 8m bucket -> GCD=4m internal bucket, 8m output bucket
+        // 12m window with 8m bucket
         {
             var query = """
                 TS k8s
@@ -8407,19 +8444,23 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
             assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
             TimeSeriesAggregate tsAgg = tsHolder.get();
-            assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(4)));
-            assertThat(tsAgg.outputTimeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(8)));
-            // The 12m window must be preserved on the first-pass aggregate function
-            Holder<AggregateFunction> afHolder = new Holder<>();
-            tsAgg.forEachExpressionDown(AggregateFunction.class, af -> {
-                if (af.hasWindow()) {
-                    afHolder.set(af);
-                }
-            });
-            assertNotNull("expected an aggregate function with a window in the plan", afHolder.get());
-            assertThat(afHolder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(12)));
+            assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(8)));
+            assertPlainWindow(tsAgg, Duration.ofMinutes(12));
         }
-        // Exact multiple: 10m window with 5m bucket -> GCD=5m, internal == output (no sub-bucketing)
+        // A window and bucket combination that used to exceed the GCD sub-bucket limit: 301s over a 5m bucket
+        {
+            var query = """
+                TS k8s
+                | STATS avg(last_over_time(network.bytes_in, 301 second)) BY tbucket(5 minute)
+                | LIMIT 10
+                """;
+            var plan = planMetrics(query);
+            Holder<TimeSeriesAggregate> tsHolder = new Holder<>();
+            plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
+            assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
+            assertPlainWindow(tsHolder.get(), Duration.ofSeconds(301));
+        }
+        // Exact multiple: 10m window with 5m bucket -> the plain window duration is preserved
         {
             var query = """
                 TS k8s
@@ -8431,51 +8472,50 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
             assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
             TimeSeriesAggregate tsAgg = tsHolder.get();
-            // When window is an exact multiple, internal and output buckets should both be the user bucket
             assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
-            assertThat(tsAgg.outputTimeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
-            // The 10m window must be preserved on the first-pass aggregate function
-            Holder<AggregateFunction> afHolder = new Holder<>();
-            tsAgg.forEachExpressionDown(AggregateFunction.class, af -> {
-                if (af.hasWindow()) {
-                    afHolder.set(af);
-                }
-            });
-            assertNotNull("expected an aggregate function with a window in the plan", afHolder.get());
-            assertThat(afHolder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
+            assertPlainWindow(tsAgg, Duration.ofMinutes(10));
         }
     }
 
-    public void testTranslateOverTimeWithCombinedSmallAndNonMultipleWindows() {
-        var e = expectThrows(IllegalArgumentException.class, () -> {
-            var query = """
-                TS k8s
-                | STATS min(max_over_time(network.bytes_in, 2 minute)), sum(rate(network.total_bytes_in, 7 minute)) BY TBUCKET(5 minute)
-                | LIMIT 10
-                """;
-            planMetrics(query);
+    private static void assertPlainWindow(TimeSeriesAggregate tsAgg, Duration window) {
+        Holder<AggregateFunction> afHolder = new Holder<>();
+        tsAgg.forEachExpressionDown(AggregateFunction.class, af -> {
+            if (af.hasWindow()) {
+                afHolder.set(af);
+            }
         });
-        assertThat(e.getMessage(), containsString("Combining windows smaller than the time bucket with non-multiple windows"));
+        assertNotNull("expected an aggregate function with a window in the plan", afHolder.get());
+        assertThat(afHolder.get().window().fold(FoldContext.small()), equalTo(window));
+        assertFalse(afHolder.get().hasFilter());
     }
 
-    public void testTranslateOverTimeWithTooManySubBuckets() {
-        // 301s window with 300s (5m) bucket -> GCD=1s -> 300 sub-buckets, exceeds limit of 128
-        var e = expectThrows(IllegalArgumentException.class, () -> {
-            var query = """
-                TS k8s
-                | STATS avg(last_over_time(network.bytes_in, 301 second)) BY tbucket(5 minute)
-                | LIMIT 10
-                """;
-            planMetrics(query);
-        });
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "The window [301 second] and bucket [5 minute] combination requires [300] internal sub-buckets of size [1s]"
-                    + " per output bucket, which exceeds the limit of [128];"
-                    + " use a larger time bucket or adjust the window to be an exact multiple of the time bucket"
-            )
-        );
+    /**
+     * Windows smaller than the bucket and non-multiple windows dispatch per aggregate, so combining them in the
+     * same STATS works: the small one becomes a row filter, the non-multiple one keeps its plain window for the
+     * physical decomposition.
+     */
+    public void testTranslateOverTimeWithCombinedSmallAndNonMultipleWindows() {
+        var query = """
+            TS k8s
+            | STATS min(max_over_time(network.bytes_in, 2 minute)), sum(rate(network.total_bytes_in, 7 minute)) BY TBUCKET(5 minute)
+            | LIMIT 10
+            """;
+        var plan = planMetrics(query);
+        Holder<Max> maxHolder = new Holder<>();
+        Holder<Rate> rateHolder = new Holder<>();
+        plan.forEachExpressionDown(Max.class, maxHolder::set);
+        plan.forEachExpressionDown(Rate.class, rateHolder::set);
+        assertNotNull(maxHolder.get());
+        assertNotNull(rateHolder.get());
+        // the 2m window became a row filter
+        assertFalse(maxHolder.get().hasWindow());
+        assertTrue(maxHolder.get().hasFilter());
+        WindowFilter smallWindowFilter = (WindowFilter) maxHolder.get().filter();
+        assertThat(smallWindowFilter.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(2)));
+        // the 7m window is preserved as is
+        assertTrue(rateHolder.get().hasWindow());
+        assertFalse(rateHolder.get().hasFilter());
+        assertThat(rateHolder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(7)));
     }
 
     public void testMvSortInvalidOrder() {
@@ -9630,9 +9670,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     private LogicalPlanOptimizer getCustomRulesLogicalPlanOptimizer(
         List<RuleExecutor.Batch<LogicalPlan>> batches,
-        TransportVersion minimumVersion
+        TransportVersion version
     ) {
-        LogicalOptimizerContext context = new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), minimumVersion);
+        LogicalOptimizerContext context = new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), version);
         LogicalPlanOptimizer customOptimizer = new LogicalPlanOptimizer(context) {
             @Override
             protected List<Batch<LogicalPlan>> batches() {
@@ -10193,6 +10233,138 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * Aligned {@code DATE_TRUNC(1 year, hire_date) == ...} becomes
+     * {@code hire_date >= start AND hire_date < next}.
+     */
+    public void testDateTruncEqualsInvertsToTimestampRange() {
+        assertDateTruncYearEqualsInverts("""
+            FROM test
+            | WHERE DATE_TRUNC(1 year, hire_date) == "1986-01-01T00:00:00Z"
+            """);
+    }
+
+    /**
+     * Listing cannot fold a quoted interval ({@code DATE_TRUNC("1 year", ...)} stays KEYWORD).
+     * After analysis ImplicitCasting, invert sees a Period and produces the same range.
+     */
+    public void testDateTruncQuotedIntervalEqualsInvertsToTimestampRange() {
+        assertDateTruncYearEqualsInverts("""
+            FROM test
+            | WHERE DATE_TRUNC("1 year", hire_date) == "1986-01-01T00:00:00Z"
+            """);
+    }
+
+    private void assertDateTruncYearEqualsInverts(String query) {
+        long start = Instant.parse("1986-01-01T00:00:00Z").toEpochMilli();
+        long next = Instant.parse("1987-01-01T00:00:00Z").toEpochMilli();
+
+        var plan = plan(query);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        assertHireDateHalfOpenRange(filter.condition(), start, next);
+        as(filter.child(), EsRelation.class);
+    }
+
+    /**
+     * Non-aligned {@code DATE_TRUNC} equality is the empty range {@code field >= start AND field < start}.
+     */
+    public void testDateTruncNonAlignedEqualsIsEmpty() {
+        long start = Instant.parse("1986-01-01T00:00:00Z").toEpochMilli();
+
+        var plan = plan("""
+            FROM test
+            | WHERE DATE_TRUNC(1 year, hire_date) == "1986-06-01T00:00:00Z"
+            """);
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        assertHireDateHalfOpenRange(filter.condition(), start, start);
+        as(filter.child(), EsRelation.class);
+    }
+
+    /**
+     * Monotonic {@code DATE_EXTRACT("year", hire_date) == 1986} is the same half-open year range.
+     */
+    public void testDateExtractYearEqualsInvertsToTimestampRange() {
+        assertDateExtractYearEqualsInverts("""
+            FROM test
+            | WHERE DATE_EXTRACT("year", hire_date) == 1986
+            """);
+    }
+
+    /**
+     * Literal on the left must move before invert; otherwise the comparison is skipped.
+     */
+    public void testDateExtractYearEqualsLiteralOnTheLeftInverts() {
+        assertDateExtractYearEqualsInverts("""
+            FROM test
+            | WHERE 1986 == DATE_EXTRACT("year", hire_date)
+            """);
+    }
+
+    private void assertDateExtractYearEqualsInverts(String query) {
+        long start = Instant.parse("1986-01-01T00:00:00Z").toEpochMilli();
+        long next = Instant.parse("1987-01-01T00:00:00Z").toEpochMilli();
+
+        var plan = plan(query);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        assertHireDateHalfOpenRange(filter.condition(), start, next);
+        as(filter.child(), EsRelation.class);
+    }
+
+    public void testDateTruncDayAndWeekEqualsInverts() {
+        var day = plan("""
+            FROM test
+            | WHERE DATE_TRUNC(1 day, hire_date) == "1986-01-01T00:00:00Z"
+            """);
+        assertHireDateHalfOpenRange(
+            as(as(day, Limit.class).child(), Filter.class).condition(),
+            Instant.parse("1986-01-01T00:00:00Z").toEpochMilli(),
+            Instant.parse("1986-01-02T00:00:00Z").toEpochMilli()
+        );
+
+        // 1985-12-30 is Monday; 1 week uses WEEK_OF_WEEKYEAR, not a 7-day epoch bucket.
+        var week = plan("""
+            FROM test
+            | WHERE DATE_TRUNC(1 week, hire_date) == "1985-12-30T00:00:00Z"
+            """);
+        assertHireDateHalfOpenRange(
+            as(as(week, Limit.class).child(), Filter.class).condition(),
+            Instant.parse("1985-12-30T00:00:00Z").toEpochMilli(),
+            Instant.parse("1986-01-06T00:00:00Z").toEpochMilli()
+        );
+    }
+
+    /**
+     * Cyclic extracts stay as function comparisons; they are not a single timestamp interval.
+     */
+    public void testDateExtractMonthOfYearNotInverted() {
+        var plan = plan("""
+            FROM test
+            | WHERE DATE_EXTRACT("month_of_year", hire_date) == 7
+            """);
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var eq = as(filter.condition(), Equals.class);
+        as(eq.left(), DateExtract.class);
+        as(filter.child(), EsRelation.class);
+    }
+
+    private static void assertHireDateHalfOpenRange(Expression condition, long start, long next) {
+        var and = as(condition, And.class);
+        var gte = as(and.left(), GreaterThanOrEqual.class);
+        var lt = as(and.right(), LessThan.class);
+        assertThat(Expressions.name(gte.left()), equalTo("hire_date"));
+        assertThat(Expressions.name(lt.left()), equalTo("hire_date"));
+        assertThat(gte.right().fold(FoldContext.small()), equalTo(start));
+        assertThat(lt.right().fold(FoldContext.small()), equalTo(next));
+        assertThat(gte.right().dataType(), equalTo(DataType.DATETIME));
+        assertThat(lt.right().dataType(), equalTo(DataType.DATETIME));
+    }
+
+    /**
      * {@snippet lang="text":
      * Project[[to_long{r}#2754, to_integer{r}#2757]]
      * \_Eval[[TOLONG(string{f}#2761) AS to_long#2754, TOINTEGER(string{f}#2761) AS to_integer#2757]]
@@ -10310,7 +10482,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * Nested subqueries are not supported yet.
      */
     public void testNestedSubqueries() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeFalse("Requires nested subquery in FROM command disabled", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         VerificationException e = expectThrows(VerificationException.class, () -> planSubquery("""
             FROM test, (FROM test, (FROM languages
                                                       | WHERE language_code > 0))
@@ -10505,6 +10677,34 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             )
         ).getMessage();
         assertThat(errorMessage, containsString("count_star [count(*)] can't be used with TS command; use count on a field instead"));
+    }
+
+    /**
+     * Limit[10000[INTEGER],false,false]
+     * \_Aggregate[[$$@timestamp$time_bucket{r}#120],[MAX(LASTOVERTIME_$1{r}#152,true[BOOLEAN],PT0S[TIME_DURATION])
+     *   AS max(network.cost)#122, $$@timestamp$time_bucket{r}#120 AS @timestamp#120]]
+     *   \_TimeSeriesAggregate[[_tsid{m}#151, $$@timestamp$time_bucket{r}#120],[LASTOVERTIME(network.cost{f}#142,true[BOOLEAN],
+     *     PT0S[TIME_DURATION],@timestamp{f}#125) AS LASTOVERTIME_$1#152, $$@timestamp$time_bucket{r}#120],
+     *     BUCKET(@timestamp{f}#125,PT1M[TIME_DURATION]),BUCKET(@timestamp{f}#125,PT1M[TIME_DURATION]),@timestamp{f}#125,TS_COMMAND]
+     *     \_Eval[[BUCKET(@timestamp{f}#125,PT1M[TIME_DURATION]) AS $$@timestamp$time_bucket#120]]
+     *       \_EsRelation[k8s][@timestamp{f}#125, client.ip{f}#129, cluster{f}#126, ..]
+     * }
+     */
+    public void testTranslateMetricsWithTimeBucketNamedAfterTimestamp() {
+        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query("""
+            TS k8s
+            | STATS max(network.cost) BY @timestamp = BUCKET(@timestamp, 1 minute)
+            """));
+
+        assertThat(Expressions.names(plan.output()), contains("max(network.cost)", "@timestamp"));
+
+        var tsStats = plan.collect(TimeSeriesAggregate.class).getFirst();
+        var timestamp = as(tsStats.timestamp(), FieldAttribute.class);
+        assertThat(tsStats.child().output(), hasItem(timestamp));
+        var eval = as(tsStats.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("$$@timestamp$time_bucket"));
+        LastOverTime lastOverTime = as(Alias.unwrap(tsStats.aggregates().getFirst()), LastOverTime.class);
+        assertThat(lastOverTime.timestamp(), equalTo(timestamp));
     }
 
     /**
@@ -11234,16 +11434,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(aggregate.aggregates(), hasSize(3));
         as(Alias.unwrap(aggregate.aggregates().get(0)), Max.class);
 
-        // PackDims[[p], packed_$1]
-        var pack = as(aggregate.child(), PackDims.class);
-        assertThat(pack.dims(), hasSize(1));
-
-        // TimeSeriesAggregate[[_tsid, bucket], [MAX(..) AS MAXOVERTIME_$1, DIMENSIONVALUES(pod) AS p, bucket]]
-        var timeSeriesAggregate = as(pack.child(), TimeSeriesAggregate.class);
+        // PackDims[[p], packed_$1] before pack_dims_agg; from then on PACKDIMSAGG(pod) sits inside the aggregate below
+        // TimeSeriesAggregate[[_tsid, bucket], [MAX(..) AS MAXOVERTIME_$1, DIMENSIONVALUES(pod) AS p or PACKDIMSAGG(pod), bucket]]
+        var timeSeriesAggregate = packedTimeSeriesAggregate(aggregate.child(), 1);
         assertThat(timeSeriesAggregate.groupings(), hasSize(2));
         assertThat(timeSeriesAggregate.aggregates(), hasSize(3));
-        var dimensionValues = as(Alias.unwrap(timeSeriesAggregate.aggregates().get(1)), DimensionValues.class);
-        assertThat(Expressions.attribute(dimensionValues.field()).name(), equalTo("pod"));
+        assertThat(Expressions.names(packedDims(timeSeriesAggregate.aggregates())), contains("pod"));
 
         // Eval[[BUCKET(@timestamp, PT1M) AS bucket(@timestamp, 1 minute)]]
         var eval3 = as(timeSeriesAggregate.child(), Eval.class);
@@ -11589,7 +11785,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTsWildcardStatsWithOptionalIndex() {
-        var testAnalyzer = EsqlTestUtils.analyzer().addIndex("*", "k8s-mappings.json", IndexMode.TIME_SERIES);
+        var testAnalyzer = analyzer().addIndex("*", "k8s-mappings.json", IndexMode.TIME_SERIES);
         var plan = logicalOptimizerWithLatestVersion.optimize(testAnalyzer.query("TS * | STATS count(events_received)"));
         Limit limit = as(plan, Limit.class);
         Aggregate finalAggs = as(limit.child(), Aggregate.class);
@@ -11603,23 +11799,23 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var mixedIndex = new EsIndex(
             "*",
             mapping,
-            Map.of("ts_index", IndexMode.TIME_SERIES, "standard_index", IndexMode.STANDARD),
+            Map.of("ts_index", new IndexProperties(IndexMode.TIME_SERIES, 0), "standard_index", new IndexProperties(IndexMode.STANDARD, 0)),
             Map.of(),
             Map.of()
         );
-        var testAnalyzer = EsqlTestUtils.analyzer().addIndex(IndexResolution.valid(mixedIndex));
+        var testAnalyzer = analyzer().addIndex(IndexResolution.valid(mixedIndex));
         var plan = logicalOptimizerWithLatestVersion.optimize(testAnalyzer.query("TS * | STATS count(events_received)"));
         assertNotNull(plan);
     }
 
     public void testTsWildcardWithRateAggregate() {
-        var testAnalyzer = EsqlTestUtils.analyzer().addIndex("*", "k8s-mappings.json", IndexMode.TIME_SERIES);
+        var testAnalyzer = analyzer().addIndex("*", "k8s-mappings.json", IndexMode.TIME_SERIES);
         var plan = logicalOptimizerWithLatestVersion.optimize(testAnalyzer.query("TS * | STATS max(rate(network.total_bytes_in))"));
         assertNotNull(plan);
     }
 
     public void testTsWildcardWithRateAndGrouping() {
-        var testAnalyzer = EsqlTestUtils.analyzer().addIndex("*", "k8s-mappings.json", IndexMode.TIME_SERIES);
+        var testAnalyzer = analyzer().addIndex("*", "k8s-mappings.json", IndexMode.TIME_SERIES);
         var plan = logicalOptimizerWithLatestVersion.optimize(
             testAnalyzer.query("TS * | STATS max(rate(network.total_bytes_in)) BY cluster")
         );
@@ -11627,13 +11823,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPromqlWithoutExplicitIndex() {
-        var testAnalyzer = EsqlTestUtils.analyzer().addIndex(DEFAULT_PROMQL_INDEX_PATTERN, "k8s-mappings.json", IndexMode.TIME_SERIES);
+        var testAnalyzer = analyzer().addIndex(DEFAULT_PROMQL_INDEX_PATTERN, "k8s-mappings.json", IndexMode.TIME_SERIES);
         var plan = logicalOptimizerWithLatestVersion.optimize(testAnalyzer.query("PROMQL step=5m avg(rate(network.total_bytes_in[5m]))"));
         assertNotNull(plan);
     }
 
     public void testPromqlWithoutExplicitIndexAndGrouping() {
-        var testAnalyzer = EsqlTestUtils.analyzer().addIndex(DEFAULT_PROMQL_INDEX_PATTERN, "k8s-mappings.json", IndexMode.TIME_SERIES);
+        var testAnalyzer = analyzer().addIndex(DEFAULT_PROMQL_INDEX_PATTERN, "k8s-mappings.json", IndexMode.TIME_SERIES);
         var plan = logicalOptimizerWithLatestVersion.optimize(
             testAnalyzer.query("PROMQL step=5m avg(rate(network.total_bytes_in[5m])) by (cluster)")
         );

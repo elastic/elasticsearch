@@ -28,7 +28,7 @@ setup:
       index:
         index: bbq_disk_slice
         id: "1"
-        _slice: s1
+        slice: s1
         body:
           vector: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
@@ -36,7 +36,7 @@ setup:
       index:
         index: bbq_disk_slice
         id: "3"
-        _slice: s1
+        slice: s1
         body:
           vector: [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
@@ -44,7 +44,7 @@ setup:
       index:
         index: bbq_disk_slice
         id: "2"
-        _slice: s2
+        slice: s2
         body:
           vector: [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
@@ -52,18 +52,18 @@ setup:
       index:
         index: bbq_disk_slice
         id: "4"
-        _slice: s2
+        slice: s2
         body:
           vector: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
 
   - do:
       indices.refresh: {}
 ---
-"KNN search with _slice only searches the requested slice":
+"KNN search with slice only searches the requested slice":
   - do:
       search:
         index: bbq_disk_slice
-        _slice: s1
+        slice: s1
         body:
           knn:
             field: vector
@@ -76,11 +76,11 @@ setup:
   - match: { hits.hits.0._id: "1" }
   - match: { hits.hits.1._id: "3" }
 ---
-"KNN search with a different _slice returns that slice's nearest neighbor":
+"KNN search with a different slice returns that slice's nearest neighbor":
   - do:
       search:
         index: bbq_disk_slice
-        _slice: s2
+        slice: s2
         body:
           knn:
             field: vector
@@ -93,11 +93,11 @@ setup:
   - match: { hits.hits.0._id: "2" }
   - match: { hits.hits.1._id: "4" }
 ---
-"KNN search with multiple _slice values searches across the requested slices":
+"KNN search with multiple slice values searches across the requested slices":
   - do:
       search:
         index: bbq_disk_slice
-        _slice: s1,s2
+        slice: s1,s2
         body:
           knn:
             field: vector
@@ -113,11 +113,11 @@ setup:
   - contains: { hits.hits: { _id: "4" } }
 
 ---
-"KNN search with multiple _slice values and duplicatessearches across the requested slices":
+"KNN search with multiple slice values and duplicatessearches across the requested slices":
   - do:
       search:
         index: bbq_disk_slice
-        _slice: s1,s2,s1,s2
+        slice: s1,s2,s1,s2
         body:
           knn:
             field: vector
@@ -137,7 +137,7 @@ setup:
   - do:
       search:
         index: bbq_disk_slice
-        _slice: _all
+        slice: _all
         body:
           knn:
             field: vector
@@ -152,7 +152,7 @@ setup:
   - contains: { hits.hits: { _id: "3" } }
   - contains: { hits.hits: { _id: "4" } }
 ---
-"Search without _slice defaults to _all on slice-enabled index":
+"Search without slice defaults to _all on slice-enabled index":
   - do:
       search:
         index: bbq_disk_slice
@@ -163,7 +163,7 @@ setup:
   - match: { hits.total.value: 4 }
 
 ---
-"KNN search without _slice defaults to _all on slice-enabled index":
+"KNN search without slice defaults to _all on slice-enabled index":
   - do:
       search:
         index: bbq_disk_slice
@@ -178,9 +178,9 @@ setup:
   - match: { hits.hits.0._id: "2" }
 
 ---
-"Index requires _slice when slice indexing is enabled":
+"Index requires slice when slice indexing is enabled":
   - do:
-      catch: /\[_slice\] is required when \[index.slice.enabled\] is true/
+      catch: /\[slice\] is required when \[index.slice.enabled\] is true/
       index:
         index: bbq_disk_slice
         id: "5"

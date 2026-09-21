@@ -72,10 +72,11 @@ public final class AutomataMatchEvaluator implements ExpressionEvaluator {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       BytesRef inputScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        if (inputBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (inputBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -113,7 +114,7 @@ public final class AutomataMatchEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

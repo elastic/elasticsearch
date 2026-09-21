@@ -26,10 +26,12 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexMode;
@@ -50,6 +52,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
@@ -101,6 +104,15 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
 
     private final Setup setup;
 
+    /**
+     * Target for warnings.
+     */
+    private final DriverContext warningsContext = new DriverContext(
+        BigArrays.NON_RECYCLING_INSTANCE,
+        TestBlockFactory.getNonBreakingInstance(),
+        null
+    );
+
     public SingleValueMatchQueryTests(Setup setup) {
         this.setup = setup;
     }
@@ -151,11 +163,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
             new TestWarningsSource("test"),
             "single-value function encountered multi-value"
         );
-        try (
-            Releasable ignored = bridge.bind(
-                Map.of(query, Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test")))
-            )
-        ) {
+        try (Releasable ignored = bridge.bind(Map.of(query, warningsContext.createWarnings(new TestWarningsSource("test"))))) {
             action.accept(query);
         }
     }
@@ -175,9 +183,13 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         // the SingleValueQuery.TwoPhaseIteratorForSortedNumericsAndTwoPhaseQueries can scan all docs - and generate warnings - even if
         // inner query matches none, so warn if MVs have been encountered within given range, OR if a full scan is required
         if (mvCountInRange > 0) {
-            assertWarnings(
-                "Line 1:1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+            warningsContext.finish();
+            assertThat(
+                warningsContext.warnings(),
+                containsInAnyOrder(
+                    "Line 1:1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+                )
             );
         }
     }

@@ -10,6 +10,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -22,7 +23,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Esq
 import java.time.ZoneId;
 import java.util.Map;
 
-public class LessThanOrEqual extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
+public class LessThanOrEqual extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison>, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "LessThanOrEqual",

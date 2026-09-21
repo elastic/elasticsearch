@@ -112,8 +112,39 @@ public class SymbolResolverClassTests extends ProcessorTestCase {
         CompilationResult result = compile("test.MyLib", source);
 
         assertFalse("Expected compilation to fail when resolver has no no-arg constructor", result.success());
-        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("must have a public no-arg constructor"));
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("must have a no-arg constructor reachable from package"));
         assertTrue("Expected error about no-arg constructor but got: " + result.errors(), hasError);
+    }
+
+    /**
+     * A package-private resolver relying on its implicit no-arg constructor is accepted when it shares the
+     * spec's package: {@code $Impl} is generated into that package, so {@code new PackagePrivateResolver()}
+     * links without either the class or the constructor being {@code public}.
+     */
+    public void testPackagePrivateResolverInSamePackageIsAccepted() {
+        String source = """
+            package test;
+            import java.lang.foreign.SymbolLookup;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.ResolvedSymbol;
+            import org.elasticsearch.foreign.SymbolResolver;
+            final class PackagePrivateResolver implements SymbolResolver {
+                @Override
+                public ResolvedSymbol resolve(String symbolName, SymbolLookup lookup) {
+                    return new ResolvedSymbol(symbolName, lookup.find(symbolName).orElseThrow());
+                }
+            }
+            @LibrarySpecification(name = "testlib", symbolResolver = PackagePrivateResolver.class)
+            public interface MyLib {
+                @Function("native_add")
+                int add(int a, int b);
+            }
+            """;
+
+        CompilationResult result = compile("test.MyLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
     }
 
     /**

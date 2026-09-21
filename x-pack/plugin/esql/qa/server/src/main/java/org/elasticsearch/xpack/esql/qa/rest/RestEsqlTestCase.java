@@ -275,7 +275,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     public void testGetAnswer() throws IOException {
         Map<String, Object> answer = runEsql(requestObjectBuilder().query("row a = 1, b = 2"));
-        assertEquals(13, answer.size());
+        assertEquals(14, answer.size());
         assertThat(((Integer) answer.get("took")).intValue(), greaterThanOrEqualTo(0));
         Map<String, String> colA = Map.of("name", "a", "type", "integer");
         Map<String, String> colB = Map.of("name", "b", "type", "integer");
@@ -288,6 +288,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 .entry("rows_emitted", IntOrLongMatcher.isIntOrLong())
                 .entry("bytes_read", IntOrLongMatcher.isIntOrLong())
                 .entry("read_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("read_cpu_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("cpu_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("columns", List.of(colA, colB))
                 .entry("values", List.of(List.of(1, 2)))
@@ -1354,8 +1355,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testTopLevelFilterWithSubqueriesInFromCommand() throws IOException {
-        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-
         bulkLoadTestData(10);
 
         String query = format(null, "FROM {} , (FROM {} | WHERE integer < 8) | STATS count(*)", testIndexName(), testIndexName());
@@ -1373,13 +1372,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testNestedSubqueries() throws IOException {
-        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-
         bulkLoadTestData(10);
-
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(
+        if (EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled()) {
+            // subquery1: 10(0-9) rows, subquery2: 8(0-7) rows, subquery3: 6(2-7) rows, total 24 rows
+            Map<String, Object> result = runEsql(
                 requestObjectBuilder().query(
                     format(
                         null,
@@ -1389,16 +1385,30 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                         testIndexName()
                     )
                 )
-            )
-        );
-        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
-        assertThat(error, containsString("VerificationException"));
-        assertThat(error, containsString("Nested subqueries are not supported"));
+            );
+            assertResultMap(result, matchesList().item(matchesMap().entry("name", "count(*)").entry("type", "long")), List.of(List.of(24)));
+        } else {
+            ResponseException re = expectThrows(
+                ResponseException.class,
+                () -> runEsqlSync(
+                    requestObjectBuilder().query(
+                        format(
+                            null,
+                            "from {}, (from {}, (from {} | where integer > 1) | where integer < 8) | stats count(*)",
+                            testIndexName(),
+                            testIndexName(),
+                            testIndexName()
+                        )
+                    )
+                )
+            );
+            String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+            assertThat(error, containsString("VerificationException"));
+            assertThat(error, containsString("Nested subqueries are not supported"));
+        }
     }
 
     public void testSubqueryWithFork() throws IOException {
-        assumeTrue("subqueries in from command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-
         bulkLoadTestData(10);
 
         ResponseException re = expectThrows(
@@ -2003,6 +2013,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         assertResultMap(
             result,
+            getResultMatcher(result).entry("approximation_applied", false),
             matchesList().item(matchesMap().entry("name", "count").entry("type", "long"))
                 .item(
                     matchesMap().entry("name", "_approximation_confidence_interval(count)")

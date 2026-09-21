@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.esql.qa.csv;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceMixedClusterTestSupport;
 
 import java.util.function.Supplier;
 
@@ -52,12 +54,16 @@ public class Clusters {
             // Basic cluster settings
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
+            // Every suite here queries external data, so the federation gate is pinned rather than left to the build
+            // default. This default is a supplier rather than a plain value so that a per-node override added later
+            // still wins: explicit settings beat suppliers.
+            .setting(Federation.FEDERATION_ENABLED.getKey(), () -> "true")
             // Disable ML to avoid native code loading issues in some environments
             .setting("xpack.ml.enabled", "false")
             // Allow the LOCAL storage backend to read fixture files from the test resources directory.
             // The esql-datasource-http plugin's entitlement policy uses shared_repo for file read access.
             .setting("path.repo", FixtureUtils.pathRepoRootForIcebergFixtures(Clusters.class))
-            .setting("esql.datasource.local_allowed_paths", FixtureUtils.pathRepoRootForIcebergFixtures(Clusters.class))
+            .setting("esql.external.local_allowed_paths", FixtureUtils.pathRepoRootForIcebergFixtures(Clusters.class))
             // S3 client configuration for accessing the S3HttpFixture
             .setting("s3.client.default.endpoint", s3EndpointSupplier)
             // S3 credentials must be stored in keystore, not as regular settings
@@ -80,6 +86,33 @@ public class Clusters {
 
     public static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier) {
         return testCluster(s3EndpointSupplier, config -> {});
+    }
+
+    /**
+     * Mixed old/current variant used only by the reusable data-source BWC tasks.
+     */
+    public static ElasticsearchCluster bwcTestCluster(Supplier<String> s3EndpointSupplier) {
+        String fixturesPath = FixtureUtils.pathRepoRootForIcebergFixtures(Clusters.class);
+        return EsqlDataSourceMixedClusterTestSupport.mixedCluster(
+            () -> fixturesPath,
+            builder -> builder.module("repository-s3")
+                .module("repository-gcs")
+                .setting("xpack.security.enabled", "false")
+                .setting("xpack.license.self_generated.type", "trial")
+                .setting("xpack.ml.enabled", "false")
+                .setting("path.repo", fixturesPath)
+                .setting("s3.client.default.endpoint", s3EndpointSupplier)
+                .keystore("s3.client.default.access_key", ACCESS_KEY)
+                .keystore("s3.client.default.secret_key", SECRET_KEY)
+                .setting("s3.client.default.protocol", "http")
+                .environment("AWS_CONFIG_FILE", "/dev/null/aws/config")
+                .environment("AWS_SHARED_CREDENTIALS_FILE", "/dev/null/aws/credentials")
+                .feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES_LOCAL)
+                .feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES_HTTP)
+                .feature(FeatureFlag.ESQL_EXTERNAL_GCS)
+                .feature(FeatureFlag.ESQL_EXTERNAL_AZURE),
+            (node, version, current) -> {}
+        );
     }
 
     /**
@@ -116,18 +149,17 @@ public class Clusters {
     }
 
     /**
-     * A split-role two-node cluster (coordinator-only node 0, master+data node 1) that boots the data node
-     * with the ES|QL federation kill switch engaged ({@code es.esql.register_federation_feature=false}) while
-     * the coordinator stays enabled. This reproduces the mixed / rolling-restart window the data-node backstop
-     * in {@code LocalExecutionPlanner.planExternalSource} guards: the enabled coordinator resolves
-     * {@code FROM <dataset>} into an external scan and dispatches it to the disabled data node, which must
-     * refuse it at operator build rather than reading external storage. The property is a static, read-once
-     * lever, so it must be supplied per node at boot rather than toggled at runtime.
+     * A split-role two-node cluster (coordinator-only node 0, master+data node 1) that boots the data node with
+     * federation turned off while the coordinator keeps it on. This reproduces the rolling-restart window the data-node
+     * backstop in {@code LocalExecutionPlanner.planExternalSource} guards: the enabled coordinator resolves
+     * {@code FROM <dataset>} into an external scan and dispatches it to the data node, which must refuse it at operator
+     * build rather than reading external storage. Federation is read once at boot, so the override is supplied per node
+     * rather than toggled at runtime.
      */
     public static ElasticsearchCluster multiNodeCoordinatorEnabledDataNodeDisabledCluster(Supplier<String> s3EndpointSupplier) {
         return baseBuilder(s3EndpointSupplier, config -> {}).withNode(node -> node.name("coordinator").setting("node.roles", "[]"))
             .withNode(node -> node.name("data-node").setting("node.roles", "[master, data]"))
-            .systemProperty(Federation.REGISTER_PROPERTY, () -> "false", nodeSpec -> "data-node".equals(nodeSpec.getName()))
+            .setting(Federation.FEDERATION_ENABLED.getKey(), () -> "false", nodeSpec -> "data-node".equals(nodeSpec.getName()))
             .build();
     }
 }

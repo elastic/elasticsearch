@@ -6,13 +6,18 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,7 +27,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-public class UnionAll extends Fork implements PostOptimizationPlanVerificationAware {
+public class UnionAll extends MergePlan implements PostOptimizationPlanVerificationAware {
 
     public UnionAll(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children, output);
@@ -54,7 +59,7 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
     }
 
     /**
-     * Override of {@link Fork#pruneEmptyBranches(Predicate)} that returns a {@link UnionAll}
+     * Override of {@link MergePlan#pruneEmptyBranches(Predicate)} that returns a {@link UnionAll}
      * (rather than letting the base implementation produce whatever {@link #replaceChildren}
      * would). Mirrors the base behaviour otherwise: single-survivor wrappers are preserved
      * (callers that want to collapse to the lone child do so explicitly).
@@ -97,9 +102,15 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
     }
 
     private static void checkUnionAll(LogicalPlan plan, Failures failures) {
-        Fork.checkBranchCount(plan, failures);
+        if (EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled() == false) {
+            checkBranchCount(plan, failures);
+        }
         // Check that all UnionAll branches have compatible data types for each column
         if (plan instanceof UnionAll unionAll) {
+            if (EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled() && plan.children().isEmpty()) {
+                failures.add(Failure.fail(plan, "{} requires at least one branch", plan.getClass().getSimpleName()));
+            }
+
             Map<String, DataType> outputTypes = unionAll.output().stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));
 
             unionAll.children().forEach(subPlan -> {
@@ -135,24 +146,168 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
     }
 
     /**
-     * Defer the check for nested UnionAlls until after logical planner as some of the nested subqueries can be flattened
-     * by logical planner in the future.
+     * Nested {@link UnionAll}s (subqueries within subqueries) are supported; this check only rejects the shapes that remain
+     * unsupported below a {@link UnionAll}: a {@link ViewUnionAll} (a {@code FROM} pattern expanding to multiple sources) and a
+     * bare {@link Fork} ({@code FORK} inside a subquery). It runs after the logical planner because some nested subqueries will be
+     * flattened by optimizer rules and only the surviving plan shape matters.
      */
     private static void checkNestedUnionAlls(LogicalPlan logicalPlan, Failures failures) {
         if (logicalPlan instanceof UnionAll unionAll) {
-            unionAll.forEachDown(Fork.class, otherForkOrUnionAll -> {
-                if (unionAll == otherForkOrUnionAll) {
+            forEachMergePlanSkippingSubqueries(unionAll, nested -> {
+                if (unionAll == nested) {
                     return;
                 }
-                failures.add(
-                    Failure.fail(
-                        otherForkOrUnionAll,
-                        otherForkOrUnionAll instanceof UnionAll
-                            ? "Nested subqueries are not supported"
-                            : "FORK inside subquery is not supported"
-                    )
-                );
+                // When nested subqueries in FROM are supported, plain nested UnionAlls are allowed; only ViewUnionAll and Fork reject.
+                if (EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled()
+                    && nested instanceof UnionAll
+                    && nested instanceof ViewUnionAll == false) {
+                    return;
+                }
+                failures.add(nestedUnionAllFailure(nested));
             });
         }
+    }
+
+    /** Checks both {@link UnionAll} limits independently for the main query and every {@code IN} subquery. */
+    public static void checkNestedSubqueryLimits(LogicalPlan optimizedPlan, int maxBranches, int maxLevels, Failures failures) {
+        UnionStats stats = unionStats(optimizedPlan);
+        checkTotalBranchCount(stats, maxBranches, failures);
+        checkMaxNestingLevel(stats, maxLevels, failures);
+        checkInSubqueryLimits(optimizedPlan, maxBranches, maxLevels, failures);
+    }
+
+    private static void checkInSubqueryLimits(LogicalPlan plan, int maxBranches, int maxLevels, Failures failures) {
+        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+            checkNestedSubqueryLimits(subqueryJoin.right(), maxBranches, maxLevels, failures);
+            checkInSubqueryLimits(subqueryJoin.left(), maxBranches, maxLevels, failures);
+            return;
+        }
+        for (LogicalPlan child : plan.children()) {
+            checkInSubqueryLimits(child, maxBranches, maxLevels, failures);
+        }
+    }
+
+    /**
+     * Rejects a query whose leaf branches exceed {@code maxBranches}, the {@link QueryPragmas#MAX_BRANCH_COUNT} query pragma.
+     * <p>
+     * Only producer leaves are counted — {@link UnionAll} nodes themselves are coordinator merge segments, not branches, and are
+     * bounded separately by the maximum nesting-level check. Each leaf becomes a data node query (or a coordinator-local source), so
+     * the total is what a single request commits the coordinator to. {@link Fork#MAX_BRANCHES} bounds one {@code FROM} but
+     * subqueries nest, so without a query-wide limit the leaf total grows as a power of the nesting depth.
+     * <p>
+     * Unlike the other checks here this one looks at a complete independently executed query rather than a single node, so it is called
+     * from {@code LogicalVerifier} instead of through {@link #postOptimizationPlanVerification()}, which applies each registered check to
+     * every node. The main query and each {@code IN} subquery are checked separately because each is executed independently by the
+     * compute service. It counts leaves under {@link ViewUnionAll}s too: a union produced by expanding a {@code FROM} pattern or view costs
+     * exactly the same at execution time as one the user wrote.
+     */
+    private static void checkTotalBranchCount(UnionStats stats, int maxBranches, Failures failures) {
+        if (stats.first() == null || stats.leaves() <= maxBranches) {
+            return;
+        }
+        failures.add(
+            Failure.fail(
+                stats.first(),
+                "query resolved to {} branches in total, exceeding the limit of {} set by the [{}] query pragma. "
+                    + "Reduce the number of sources - subqueries, patterns expanding to several indices, or views - "
+                    + "or split this into multiple queries.",
+                stats.leaves(),
+                maxBranches,
+                QueryPragmas.MAX_BRANCH_COUNT.getKey()
+            )
+        );
+    }
+
+    /**
+     * Rejects a query whose {@link UnionAll}s nest deeper than {@code maxLevels}, the
+     * {@link QueryPragmas#MAX_BRANCH_LEVEL} query pragma.
+     * <p>
+     * Each nested union becomes a coordinator merge segment that is wired before any leaf runs, so the depth is what a
+     * single request commits the coordinator to on the merge-segment stack. {@link #checkTotalBranchCount} bounds how
+     * many branches there are in total, but a skinny chain of two-way unions can stay under that cap at arbitrary depth.
+     * <p>
+     * Unlike the other checks here this one looks at a complete independently executed query rather than a single node, so it is called
+     * from {@code LogicalVerifier} instead of through {@link #postOptimizationPlanVerification()}, which applies each registered check to
+     * every node. The main query and each {@code IN} subquery are checked separately because each is executed independently by the compute
+     * service. It counts {@link ViewUnionAll}s too: a union produced by expanding a {@code FROM} pattern or view costs exactly the same at
+     * execution time as one the user wrote.
+     */
+    private static void checkMaxNestingLevel(UnionStats stats, int maxLevels, Failures failures) {
+        if (stats.depth() <= maxLevels) {
+            return;
+        }
+        failures.add(
+            Failure.fail(
+                stats.deepest(),
+                "query resolved to {} nested union levels, exceeding the limit of {} set by the [{}] query pragma. "
+                    + "Reduce the nesting of sources - subqueries, patterns expanding to several indices, or views - "
+                    + "or split this into multiple queries.",
+                stats.depth(),
+                maxLevels,
+                QueryPragmas.MAX_BRANCH_LEVEL.getKey()
+            )
+        );
+    }
+
+    /**
+     * Summarizes the unions under {@code plan}. A subtree with no union is one producer leaf. Otherwise its leaf count is the sum of
+     * its children's leaves. Its depth is the longest child depth, plus one when {@code plan} is itself a union. The right side of a
+     * {@link Join} is excluded: a {@code LOOKUP JOIN} (and {@code INLINE STATS}) lookup/stub is not a union producer leaf, and the right
+     * side of an {@link AbstractSubqueryJoin} is an independently executed query counted via {@link #checkInSubqueryLimits}. The first
+     * and deepest unions provide distinct failure locations when both limits are exceeded.
+     */
+    private static UnionStats unionStats(LogicalPlan plan) {
+        UnionAll first = plan instanceof UnionAll unionAll ? unionAll : null;
+        UnionAll deepest = first;
+        int leaves = 0;
+        int depth = 0;
+        List<LogicalPlan> children = plan instanceof Join join ? List.of(join.left()) : plan.children();
+        for (LogicalPlan child : children) {
+            UnionStats childStats = unionStats(child);
+            if (first == null) {
+                first = childStats.first();
+            }
+            leaves += childStats.leaves();
+            if (childStats.depth() > depth) {
+                depth = childStats.depth();
+                deepest = childStats.deepest();
+            }
+        }
+        if (first == null) {
+            return new UnionStats(null, null, 1, 0);
+        }
+        return new UnionStats(first, deepest, leaves, depth + (plan instanceof UnionAll ? 1 : 0));
+    }
+
+    private record UnionStats(UnionAll first, UnionAll deepest, int leaves, int depth) {}
+
+    /**
+     * Builds the verification {@link Failure} for a {@link ViewUnionAll} or bare {@link Fork} found nested below another
+     * {@link UnionAll} at post-optimization.
+     * <p>
+     * A {@link ViewUnionAll} is never written by the user: it is added when a {@code FROM} pattern resolves, during view resolution, to
+     * more than one source where at least one is a view — for example a wildcard matching a view together with a concrete index, a pattern
+     * matching several views, or a view whose body references multiple sources. In every one of those cases the pattern (or view) expands
+     * to a union of multiple sources, so a generic nesting error would be misleading - the query the user wrote contains no nested
+     * subquery. We describe the real cause instead and quote the offending {@code FROM} clause (from {@link #sourceText()}, truncated to
+     * {@link Node#TO_STRING_MAX_WIDTH}) so the user can locate it. A bare {@link Fork} is a {@code FORK} inside a subquery.
+     */
+    private static Failure nestedUnionAllFailure(LogicalPlan nested) {
+        if (nested instanceof ViewUnionAll) {
+            String sourceText = nested.sourceText();
+            String source = sourceText.length() > Node.TO_STRING_MAX_WIDTH
+                ? sourceText.substring(0, Node.TO_STRING_MAX_WIDTH) + "..."
+                : sourceText;
+            return Failure.fail(
+                nested,
+                "a pattern that expands to multiple sources, [{}], cannot be combined with subqueries"
+                    + "; replace it with a single source in the FROM command",
+                source
+            );
+        }
+        if (nested instanceof UnionAll) {
+            return Failure.fail(nested, "Nested subqueries are not supported");
+        }
+        return Failure.fail(nested, "FORK inside subquery is not supported");
     }
 }

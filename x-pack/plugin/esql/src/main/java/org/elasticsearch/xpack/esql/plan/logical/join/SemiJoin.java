@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.List;
 
@@ -47,7 +47,8 @@ public class SemiJoin extends AbstractSubqueryJoin {
 
     @Override
     protected LogicalPlan buildEmptyRightSidePlan(Source source) {
-        return new Filter(source, left(), Literal.FALSE);
+        // x IN () is FALSE for every row, so the left side never has to run.
+        return new LocalRelation(source, output(), EmptyLocalSupplier.EMPTY);
     }
 
 }

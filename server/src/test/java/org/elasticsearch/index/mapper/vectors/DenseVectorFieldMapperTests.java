@@ -25,16 +25,19 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOConsumer;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
+import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
@@ -48,6 +51,7 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
@@ -55,6 +59,8 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.VectorType;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.vectors.VectorData;
@@ -65,6 +71,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matcher;
 import org.junit.AssumptionViolatedException;
 
@@ -84,12 +91,15 @@ import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAUL
 import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomNormalizedVector;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -125,6 +135,16 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     @Override
+    public void testEmbeddingsFieldAndFormat() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        assertEquals(new FieldAndFormat("field", null), fieldType.embeddingsFieldAndFormat(null));
+        assertEquals(new FieldAndFormat("field", null), fieldType.embeddingsFieldAndFormat(VectorType.DENSE_VECTOR));
+        assertUnsupportedEmbeddings(fieldType, VectorType.SPARSE_VECTOR);
+        assertParseMinimalWarnings();
+    }
+
+    @Override
     public void testNotIndexed() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "dense_vector").field("dims", dims).field("index", false);
@@ -155,6 +175,56 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         assertThat(fields.size(), equalTo(1));
         assertThat(fields.get(0).fieldType().vectorDimension(), equalTo(0));
         assertThat(fields.get(0).fieldType().docValuesType(), equalTo(DocValuesType.BINARY));
+    }
+
+    /**
+     * A non-indexed vector is held in binary doc values, so it is left out of the stored {@code _source} rather than written
+     * a second time. A document indexed before the exclusion applied still carries it there; reading that one patches the
+     * same value over it rather than adding a second copy.
+     */
+    public void testVectorIsNotStoredInSourceWhenNotIndexed() throws IOException {
+        String mapping = Strings.toString(fieldMapping(this::notIndexedMapping));
+        Object sample = getSampleValueForDocument(false);
+
+        var settings = Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true).build();
+        MapperService mapperService = createMapperService(settings, mapping);
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", sample)));
+        assertThat(storedSource(doc).utf8ToString(), equalTo("{}"));
+
+        var legacySettings = Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), false).build();
+        MapperService legacy = createMapperService(legacySettings, mapping);
+        ParsedDocument legacyDoc = legacy.documentMapper().parse(source(b -> b.field("field", sample)));
+        BytesReference legacySource = storedSource(legacyDoc);
+        assertThat(legacySource.utf8ToString(), not("{}"));
+
+        withLuceneIndex(mapperService, iw -> iw.addDocument(legacyDoc.rootDoc()), reader -> {
+            var provider = SourceProvider.fromLookup(
+                mapperService.mappingLookup(),
+                null,
+                mapperService.getMapperMetrics().sourceFieldMetrics(),
+                null
+            );
+            Source loaded = provider.getSource(reader.leaves().get(0), 0);
+            assertToXContentEquivalent(legacySource, loaded.internalSourceRef(), XContentType.JSON);
+        });
+    }
+
+    private static BytesReference storedSource(ParsedDocument doc) {
+        return new BytesArray(doc.rootDoc().getField(SourceFieldMapper.NAME).binaryValue());
+    }
+
+    @Override
+    protected List<CheckedConsumer<XContentBuilder, IOException>> vectorMappings() {
+        // A non-indexed vector is held in binary doc values rather than the vector index, so it is patched back into
+        // _source by a different loader. Cover both, regardless of what `indexed` was randomized to.
+        return List.of(this::minimalMapping, this::notIndexedMapping);
+    }
+
+    private void notIndexedMapping(XContentBuilder b) throws IOException {
+        b.field("type", "dense_vector").field("dims", dims).field("index", false);
+        if (elementType != ElementType.FLOAT) {
+            b.field("element_type", elementType.toString());
+        }
     }
 
     private void indexMapping(XContentBuilder b, IndexVersion indexVersion) throws IOException {
@@ -1254,6 +1324,27 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         assertEquals(ElementType.FLOAT, mapper.fieldType().getElementType());
     }
 
+    public void testDefaultsUnderVectordbColumnarIndexMode() throws Exception {
+        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vectordb_columnar").build();
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "dense_vector").field("dims", 8)));
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
+        assertEquals(ElementType.BFLOAT16, mapper.fieldType().getElementType());
+        assertTrue(mapper.fieldType().isSearchable());
+    }
+
+    public void testExplicitElementTypeOverridesVectordbColumnarModeDefault() throws Exception {
+        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vectordb_columnar").build();
+        MapperService mapperService = createMapperService(
+            settings,
+            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 8).field("element_type", "float"))
+        );
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
+        assertEquals(ElementType.FLOAT, mapper.fieldType().getElementType());
+        assertTrue(mapper.fieldType().isSearchable());
+    }
+
     public void testIndexedVector() throws Exception {
         VectorSimilarity similarity = RandomPicks.randomFrom(random(), VectorSimilarity.values());
         DocumentMapper mapper = createDocumentMapper(
@@ -1302,6 +1393,47 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         float decodedMagnitude = VectorEncoderDecoder.decodeMagnitude(IndexVersion.current(), vectorBR);
         assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
         assertArrayEquals("Decoded dense vector values is not equal to the indexed one.", validVector, decodedValues, 0.001f);
+    }
+
+    /**
+     * A {@code bfloat16} vector with {@code index: false} is stored in binary doc values, whose byte order is chosen by index
+     * version - see {@link DenseVectorFieldMapper#LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION}. The decode path must apply the same
+     * rule, otherwise every component reads back byte-swapped on indices created before that version.
+     */
+    public void testNonIndexedBFloat16Vector() throws Exception {
+        // Every component is exactly representable in bfloat16, so the assertions can be exact and the byte order unambiguous
+        float[] vector = { 1.5f, 2.0f, -3.25f };
+        float expectedMagnitude = (float) Math.sqrt(1.5f * 1.5f + 2.0f * 2.0f + 3.25f * 3.25f);
+
+        for (IndexVersion indexVersion : List.of(
+            IndexVersionUtils.randomVersionBetween(
+                IndexVersionUtils.getLowestWriteCompatibleVersion(),
+                IndexVersionUtils.getPreviousVersion(DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)
+            ),
+            IndexVersionUtils.randomVersionBetween(DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION, IndexVersion.current())
+        )) {
+            String message = "index version [" + indexVersion + "]";
+            DocumentMapper mapper = createDocumentMapper(
+                indexVersion,
+                fieldMapping(
+                    b -> b.field("type", "dense_vector")
+                        .field("element_type", "bfloat16")
+                        .field("dims", vector.length)
+                        .field("index", false)
+                )
+            );
+            ParsedDocument doc = mapper.parse(source(b -> b.array("field", vector)));
+
+            List<IndexableField> fields = doc.rootDoc().getFields("field");
+            assertThat(message, fields, hasSize(1));
+            assertThat(message, fields.get(0), instanceOf(BinaryDocValuesField.class));
+
+            BytesRef vectorBR = fields.get(0).binaryValue();
+            float[] decoded = new float[vector.length];
+            VectorEncoderDecoder.decodeBFloat16DenseVector(indexVersion, vectorBR, decoded);
+            assertArrayEquals(message, vector, decoded, 0f);
+            assertThat(message, VectorEncoderDecoder.decodeMagnitude(indexVersion, vectorBR), equalTo(expectedMagnitude));
+        }
     }
 
     public void testIndexedByteVector() throws Exception {
@@ -1934,8 +2066,12 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
         ParsedDocument doc = mapperService.documentMapper().parse(source);
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
-            Source s = SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics())
-                .getSource(ir.leaves().get(0), 0);
+            Source s = SourceProvider.fromLookup(
+                mapperService.mappingLookup(),
+                null,
+                mapperService.getMapperMetrics().sourceFieldMetrics(),
+                null
+            ).getSource(ir.leaves().get(0), 0);
             nativeFetcher.setNextReader(ir.leaves().get(0));
             List<Object> fromNative = nativeFetcher.fetchValues(s, 0, new ArrayList<>());
             DenseVectorFieldType denseVectorFieldType = (DenseVectorFieldType) ft;
@@ -2276,11 +2412,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         );
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");
-        if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-            codec = deduplicateFieldInfosCodec.delegate();
-        }
-        assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
-        KnnVectorsFormat knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+        assertThat(codec, instanceOf(PerFieldMapperCodec.class));
+        KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
 
         assertThat(
             knnVectorsFormat,
@@ -2365,11 +2498,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             );
             CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
             Codec codec = codecService.codec("default");
-            if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-                codec = deduplicateFieldInfosCodec.delegate();
-            }
-            assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
-            KnnVectorsFormat knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+            assertThat(codec, instanceOf(PerFieldMapperCodec.class));
+            KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
             VectorScorerFactory factory = ESVectorizationProvider.getInstance().getVectorScorerFactory();
             String encoding = quantizedFlatFormat.equals("int4_flat") ? "PACKED_NIBBLE" : "SEVEN_BIT";
             assertThat(
@@ -2418,11 +2548,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         );
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");
-        if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-            codec = deduplicateFieldInfosCodec.delegate();
-        }
-        assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
-        KnnVectorsFormat knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+        assertThat(codec, instanceOf(PerFieldMapperCodec.class));
+        KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         VectorScorerFactory factory = ESVectorizationProvider.getInstance().getVectorScorerFactory();
         assertThat(
             knnVectorsFormat,
@@ -2477,11 +2604,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         );
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");
-        if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-            codec = deduplicateFieldInfosCodec.delegate();
-        }
-        assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
-        KnnVectorsFormat knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+        assertThat(codec, instanceOf(PerFieldMapperCodec.class));
+        KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         String expectedPrefix = "ES93HnswBinaryQuantizedVectorsFormat(name=ES93HnswBinaryQuantizedVectorsFormat, maxConn="
             + m
             + ", beamWidth="
@@ -2527,11 +2651,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }));
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");
-        if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-            codec = deduplicateFieldInfosCodec.delegate();
-        }
-        assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
-        KnnVectorsFormat knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+        assertThat(codec, instanceOf(PerFieldMapperCodec.class));
+        KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         VectorScorerFactory factory = ESVectorizationProvider.getInstance().getVectorScorerFactory();
         assertThat(
             knnVectorsFormat,

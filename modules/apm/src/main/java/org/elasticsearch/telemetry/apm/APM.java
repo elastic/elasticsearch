@@ -15,15 +15,19 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
+import org.elasticsearch.telemetry.TelemetryLogResourceProvider;
+import org.elasticsearch.telemetry.TelemetryLoggingFilterProvider;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.APMLoggingService;
 import org.elasticsearch.telemetry.apm.internal.APMMeterService;
 import org.elasticsearch.telemetry.apm.internal.APMTelemetryProvider;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
+import org.elasticsearch.telemetry.apm.internal.metrics.spi.MetricReaderProvider;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
 import java.nio.file.Path;
@@ -50,22 +54,41 @@ import java.util.List;
  * be passed via system properties to the Java agent, which periodically checks for changes
  * and applies the new settings values, provided those settings can be dynamically updated.
  */
-public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
+public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin, ExtensiblePlugin {
     private static final Logger logger = LogManager.getLogger(APM.class);
+
     private final SetOnce<APMTelemetryProvider> telemetryProvider = new SetOnce<>();
     private final Settings settings;
+    private final SetOnce<MetricReaderProvider> metricReaderProvider = new SetOnce<>();
 
     public APM(Settings settings) {
         this.settings = settings;
     }
 
     @Override
-    public TelemetryProvider getTelemetryProvider(Environment environment) {
+    public void loadExtensions(ExtensionLoader loader) {
+        List<MetricReaderProvider> metricReaderProviders = loader.loadExtensions(MetricReaderProvider.class);
+        assert metricReaderProviders.size() <= 1 : "There must be at most 1 MetricReaderProvider instance provided";
+
+        if (metricReaderProviders.isEmpty() == false) {
+            metricReaderProvider.set(metricReaderProviders.getFirst());
+        }
+    }
+
+    @Override
+    public TelemetryProvider getTelemetryProvider(
+        Environment environment,
+        List<TelemetryLoggingFilterProvider> filterProviders,
+        TelemetryLogResourceProvider logResourceProvider
+    ) {
         Path diskBufferPath = environment.dataDirs()[0].resolve("telemetry-buffer");
         final APMTelemetryProvider apmTelemetryProvider = new APMTelemetryProvider(
             environment.settings(),
             diskBufferPath,
-            environment.configDir()
+            environment.configDir(),
+            filterProviders,
+            logResourceProvider,
+            metricReaderProvider.get()
         );
         telemetryProvider.set(apmTelemetryProvider);
         return apmTelemetryProvider;
@@ -127,6 +150,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
             // Logs
             OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT,
             OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED,
+            OtelSdkSettings.TELEMETRY_LOGS_QUERYLOG_ENABLED,
             OtelSdkSettings.TELEMETRY_LOGS_MAX_QUEUE_SIZE,
             OtelSdkSettings.TELEMETRY_LOGS_SSL_CERTIFICATE_AUTHORITIES,
             OtelSdkSettings.TELEMETRY_LOGS_SSL_CERTIFICATE,

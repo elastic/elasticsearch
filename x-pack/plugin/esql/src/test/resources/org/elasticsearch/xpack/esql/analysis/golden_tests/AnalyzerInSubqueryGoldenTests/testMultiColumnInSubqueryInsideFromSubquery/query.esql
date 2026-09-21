@@ -1,0 +1,4 @@
+FROM employees,
+     (FROM employees
+      | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, salary)
+      | KEEP emp_no, salary)

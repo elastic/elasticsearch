@@ -30,7 +30,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.datasources.EsqlDataSourcesCapabilities;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -57,23 +59,32 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class EsqlSecurityIT extends ESRestTestCase {
-    private static final String INDEX_PARTIAL_MAPPING = "index-partial-mapping";
+    protected static final String INDEX_PARTIAL_MAPPING = "index-partial-mapping";
     private static final String INDEX_FULL_MAPPING = "index-full-mapping";
     private static final String SECURITY_IT_SHARED_DATASOURCE = "security_it_shared_ds";
     private static final String SECURITY_IT_OTHER_DATASOURCE = "other_tenant_ds";
 
     private static boolean securityItDatasourcesInitialized;
 
+    @BeforeClass
+    public static void resetSecurityItDatasourcesInitialized() {
+        // reset this for the subclasses
+        securityItDatasourcesInitialized = false;
+    }
+
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
+        // Federation is only on by default in snapshot builds; the data source and dataset authorization tests need it on.
+        .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .user("test-admin", "x-pack-test-password", "test-admin", true)
         .user("user1", "x-pack-test-password", "user1", false)
         .user("user2", "x-pack-test-password", "user2", false)
         .user("user3", "x-pack-test-password", "user3", false)
+        .user("remote_fetch_dls_fls", "x-pack-test-password", "remote_fetch_dls_fls", false)
         .user("user_dataset_authorize_only", "x-pack-test-password", "user_dataset_authorize_only", false)
         .user("ds_repro_broad_reader", "x-pack-test-password", "ds_repro_broad_reader", false)
         .user("user4", "x-pack-test-password", "user4", false)
@@ -119,6 +130,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("ds_dataset_query_dls", "x-pack-test-password", "ds_dataset_query_dls", false)
         .user("ds_dataset_query_fls", "x-pack-test-password", "ds_dataset_query_fls", false)
         .user("ds_dataset_query_partial", "x-pack-test-password", "ds_dataset_query_partial", false)
+        .user("ds_dataset_query_ok_plus_dls", "x-pack-test-password", "ds_dataset_query_ok_plus_dls", false)
         .build();
 
     @Override
@@ -161,6 +173,18 @@ public class EsqlSecurityIT extends ESRestTestCase {
         client().performRequest(indexDoc);
     }
 
+    protected Settings indexSettings() {
+        return Settings.EMPTY;
+    }
+
+    /**
+     * Prefix prepended to every test index mapping. Empty in standard mode; the logsdb / logsdb_columnar subclasses override it to
+     * disable the data-stream {@code @timestamp} metadata field those modes enable by default, so the shared documents index unchanged.
+     */
+    protected String mappingPrefix() {
+        return "";
+    }
+
     @Before
     public void indexDocuments() throws IOException {
         Settings lookupSettings = Settings.builder().put("index.mode", "lookup").build();
@@ -168,22 +192,22 @@ public class EsqlSecurityIT extends ESRestTestCase {
             "properties":{"value": {"type": "double"}, "org": {"type": "keyword"}, "other": {"type": "keyword"}}
             """;
 
-        createIndex("index", Settings.EMPTY, mapping);
+        createIndex("index", indexSettings(), mappingPrefix() + mapping);
         indexDocument("index", 1, 10.0, "sales");
         indexDocument("index", 2, 20.0, "engineering");
         refresh("index");
 
-        createIndex("index-user1", Settings.EMPTY, mapping);
+        createIndex("index-user1", indexSettings(), mappingPrefix() + mapping);
         indexDocument("index-user1", 1, 12.0, "engineering");
         indexDocument("index-user1", 2, 31.0, "sales");
         refresh("index-user1");
 
-        createIndex("index-user2", Settings.EMPTY, mapping);
+        createIndex("index-user2", indexSettings(), mappingPrefix() + mapping);
         indexDocument("index-user2", 1, 32.0, "marketing");
         indexDocument("index-user2", 2, 40.0, "sales");
         refresh("index-user2");
 
-        createIndex("indexpartial", Settings.EMPTY, mapping);
+        createIndex("indexpartial", indexSettings(), mappingPrefix() + mapping);
         indexDocument("indexpartial", 1, 32.0, "marketing");
         indexDocument("indexpartial", 2, 40.0, "sales");
         refresh("indexpartial");
@@ -198,7 +222,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         String mappingPartial = """
             "dynamic":"false","properties":{"value": {"type": "double"}}
             """;
-        createIndex(INDEX_PARTIAL_MAPPING, Settings.EMPTY, mappingPartial);
+        createIndex(INDEX_PARTIAL_MAPPING, indexSettings(), mappingPrefix() + mappingPartial);
         indexFlsTestDocument(INDEX_PARTIAL_MAPPING, 1, 10.0, "sales", 100000L, "2024-01-01", "10.0.0.1");
         indexFlsTestDocument(INDEX_PARTIAL_MAPPING, 2, 20.0, "engineering", 200000L, "2023-06-15", "10.0.0.2");
         refresh(INDEX_PARTIAL_MAPPING);
@@ -207,7 +231,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             "properties":{"value":{"type":"double"},"org":{"type":"keyword"},"salary":{"type":"long"},\
             "hire_date":{"type":"date"},"ip_addr":{"type":"ip"}}
             """;
-        createIndex(INDEX_FULL_MAPPING, Settings.EMPTY, mappingFull);
+        createIndex(INDEX_FULL_MAPPING, indexSettings(), mappingPrefix() + mappingFull);
         indexFlsTestDocument(INDEX_FULL_MAPPING, 1, 30.0, "marketing", 300000L, "2022-03-01", "10.0.0.3");
         indexFlsTestDocument(INDEX_FULL_MAPPING, 2, 40.0, "support", 400000L, "2021-11-20", "10.0.0.4");
         refresh(INDEX_FULL_MAPPING);
@@ -753,6 +777,33 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(respMap.get("values"), equalTo(List.of(List.of(10.0))));
     }
 
+    public void testRemoteFetchUsesRetainedDlsAndFlsContext() throws Exception {
+        setRemoteFetchTopNEnabled(true);
+        try {
+            Request request = new Request("POST", "_query");
+            XContentBuilder json = JsonXContent.contentBuilder();
+            json.startObject();
+            json.field("query", "FROM index,indexpartial | SORT value DESC | LIMIT 2 | KEEP value, org");
+            json.field("profile", true);
+            json.field("accept_pragma_risks", true);
+            json.startObject("pragma");
+            json.field("node_level_reduction", true);
+            json.field("data_partitioning", "shard");
+            json.endObject();
+            json.endObject();
+            request.setJsonEntity(Strings.toString(json));
+            request.setOptions(runAsUserOptions("remote_fetch_dls_fls", null));
+
+            Response response = client().performRequest(request);
+            assertOK(response);
+            Map<String, Object> responseMap = entityAsMap(response);
+            assertThat(responseMap.get("values"), equalTo(List.of(Arrays.asList(40.0, null), List.of(10.0, "sales"))));
+            assertTrue("query profile must contain the remote fetch operator", containsRemoteFetchOperator(responseMap.get("profile")));
+        } finally {
+            setRemoteFetchTopNEnabled(null);
+        }
+    }
+
     public void testDocumentLevelSecurityFromStar() throws Exception {
         Response resp = runESQLCommand("user3", "from in*x | stats sum=sum(value)");
         assertOK(resp);
@@ -1053,6 +1104,61 @@ public class EsqlSecurityIT extends ESRestTestCase {
                     )
                 )
                 .entry("values", List.of(Arrays.asList(null, null), Arrays.asList(null, null)))
+        );
+    }
+
+    /**
+     * The {@code LOAD_ALL} counterpart of {@link #testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoad}: no unmapped field is
+     * referenced, so every unmapped {@code _source} key becomes a column of its own. An FLS-denied field must not become one of
+     * them. {@code fls_deny_value_org_user} is denied the mapped {@code value} and the unmapped {@code org}, so neither may show
+     * up as a column, while the admin running the same query sees both.
+     */
+    public void testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD_ALL support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.capabilityName()))
+        );
+        // Sorting on the unmapped salary keeps the row order stable for both users; the only mapped field is denied below.
+        String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM " + INDEX_PARTIAL_MAPPING + " | SORT salary | LIMIT 10";
+
+        Response adminResp = runESQLCommand("test-admin", query);
+        assertOK(adminResp);
+        assertMap(
+            entityAsMap(adminResp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "value").entry("type", "double"),
+                        matchesMap().entry("name", "salary").entry("type", "keyword"),
+                        matchesMap().entry("name", "hire_date").entry("type", "keyword"),
+                        matchesMap().entry("name", "ip_addr").entry("type", "keyword"),
+                        matchesMap().entry("name", "org").entry("type", "keyword")
+                    )
+                )
+                .entry(
+                    "values",
+                    List.of(
+                        List.of(10.0, "100000", "2024-01-01", "10.0.0.1", "sales"),
+                        List.of(20.0, "200000", "2023-06-15", "10.0.0.2", "engineering")
+                    )
+                )
+        );
+
+        Response restrictedResp = runESQLCommand("fls_deny_value_org_user", query);
+        assertOK(restrictedResp);
+        assertMap(
+            entityAsMap(restrictedResp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "salary").entry("type", "keyword"),
+                        matchesMap().entry("name", "hire_date").entry("type", "keyword"),
+                        matchesMap().entry("name", "ip_addr").entry("type", "keyword")
+                    )
+                )
+                .entry("values", List.of(List.of("100000", "2024-01-01", "10.0.0.1"), List.of("200000", "2023-06-15", "10.0.0.2")))
         );
     }
 
@@ -2319,7 +2425,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         builder.endObject();
         builder.endObject();
         request.setJsonEntity(Strings.toString(builder));
-        setUser(request, "test-admin");
+        request.setOptions(runAsUserOptions("test-admin", WarningsHandler.PERMISSIVE));
         assertOK(client().performRequest(request));
     }
 
@@ -2413,7 +2519,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         builder.endObject();
         builder.endObject();
         request.setJsonEntity(Strings.toString(builder));
-        setUser(request, "ds_manage_datasource");
+        request.setOptions(runAsUserOptions("ds_manage_datasource", WarningsHandler.PERMISSIVE));
         assertOK(client().performRequest(request));
         Request delete = new Request("DELETE", "/_query/data_source/" + name);
         setUser(delete, "test-admin");
@@ -2554,6 +2660,36 @@ public class EsqlSecurityIT extends ESRestTestCase {
         );
         setUser(request, "test-admin");
         assertOK(client().performRequest(request));
+    }
+
+    private void setRemoteFetchTopNEnabled(@Nullable Boolean enabled) throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity(
+            "{\"persistent\":{\"esql.query.remote_fetch_topn.enabled\":" + (enabled == null ? "null" : enabled.toString()) + "}}"
+        );
+        setUser(request, "test-admin");
+        assertOK(client().performRequest(request));
+    }
+
+    private static boolean containsRemoteFetchOperator(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Object operator = map.get("operator");
+            if (operator instanceof String operatorName && operatorName.startsWith("RemoteFetchOperator")) {
+                return true;
+            }
+            for (Object child : map.values()) {
+                if (containsRemoteFetchOperator(child)) {
+                    return true;
+                }
+            }
+        } else if (value instanceof List<?> list) {
+            for (Object child : list) {
+                if (containsRemoteFetchOperator(child)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private void deleteIndexQuietly(String indexName) {
@@ -2786,9 +2922,12 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     /**
-     * A wildcard that partially matches authorized datasets, combined with an explicitly-named unauthorized dataset in
-     * the same FROM: the wildcard silently keeps only the authorized matches, but the explicit unauthorized name still
-     * errors with {@code Unknown index} (it is not silently dropped).
+     * A wildcard that would match authorized datasets, combined with an explicitly-named unauthorized dataset in the
+     * same FROM. At the default the wildcard reaches no dataset at all, but the explicitly-named unauthorized one is
+     * unaffected by the setting and still errors with {@code Unknown index} rather than being silently dropped.
+     * <p>
+     * That second half is what makes this the discriminator for where "named exactly" is computed from: it goes red
+     * if the exact set is taken from the post-filter {@code indices()} instead of from {@code rawPatterns}.
      */
     public void testFromDatasetWildcardPartialWithExplicitUnauthorized() throws IOException {
         assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
@@ -2796,7 +2935,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
         final String authorized = createSecurityItDatasetAsAdmin("security_it_ds_keep_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
         final String denied = createSecurityItDatasetAsAdmin("security_it_ds_drop_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
         try {
-            // security_it_ds_keep_* matches only the authorized dataset; the explicit denied one must still error.
+            // With wildcards_match_datasets off (the default) security_it_ds_keep_* reaches no dataset at all; the
+            // explicitly-named denied one is unaffected by the setting and must still error.
             ResponseException ex = expectThrows(
                 ResponseException.class,
                 () -> runESQLCommand("ds_dataset_query_partial", "FROM security_it_ds_keep_*," + denied + " | STATS COUNT(*)")
@@ -2806,6 +2946,42 @@ public class EsqlSecurityIT extends ESRestTestCase {
         } finally {
             deleteDatasetAsAdmin(authorized);
             deleteDatasetAsAdmin(denied);
+        }
+    }
+
+    /**
+     * The gate must hold on a secured cluster, where {@code IndicesAndAliasesResolver} has already replaced the
+     * request's wildcards with concrete dataset names before the rewrite runs. It holds because the security filter
+     * replaces {@code indices()} but leaves {@code rawPatterns} alone, so the explicit set is still derived from what
+     * the user typed. Other tests here already drive the real filter; this is the first to drive the setting through it.
+     *
+     * <p>The dataset here is authorized, so authorization cannot be what hides it -- only the setting can. Its resource
+     * points at a bucket that does not exist, which is what makes the two outcomes unambiguous: reaching the dataset
+     * fails the query, so an empty success proves it was never reached.
+     */
+    public void testFromDatasetWildcardUnderSecurityRespectsWildcardsMatchDatasetsSetting() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String authorized = createSecurityItDatasetAsAdmin("security_it_ds_keep_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
+        try {
+            // Off (the default): the wildcard reaches no dataset, so the query succeeds with nothing.
+            Response off = runESQLCommand("ds_dataset_query_partial", "FROM security_it_ds_keep_* | STATS COUNT(*)");
+            assertOK(off);
+            Map<String, Object> offMap = entityAsMap(off);
+            assertThat(offMap.get("values"), anyOf(equalTo(List.of()), equalTo(List.of(List.of(0)))));
+
+            // On: the same wildcard, the same principal, now reaches the dataset and fails reading its resource.
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand(
+                    "ds_dataset_query_partial",
+                    "SET wildcards_match_datasets = true; FROM security_it_ds_keep_* | STATS COUNT(*)"
+                )
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+            assertThat(ex.getMessage(), containsString("security-it-denied-bucket"));
+        } finally {
+            deleteDatasetAsAdmin(authorized);
         }
     }
 
@@ -2827,6 +3003,126 @@ public class EsqlSecurityIT extends ESRestTestCase {
         }
     }
 
+    /**
+     * Narrowing to the exactly-named datasets must not narrow to nothing: with {@code wildcards_match_datasets} off, a
+     * dataset the user named exactly still reaches, even when a wildcard sits beside it in the same {@code FROM} and
+     * authorization has already expanded that wildcard into concrete names. Both datasets are authorized for the
+     * principal, so authorization is not what decides the outcome here - only the setting is.
+     * <p>
+     * What this does not pin is where "named exactly" is computed from; that is
+     * {@link #testFromDatasetWildcardPartialWithExplicitUnauthorized}, which goes red when the exact set is taken
+     * from the post-filter {@code indices()} instead of from {@code rawPatterns}. Each dataset carries its own
+     * resource so the failure names the dataset the query reached rather than a string both share.
+     */
+    public void testWildcardsMatchDatasetsOffKeepsExactlyNamedDatasetUnderSecurity() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String suffix = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        final String namedExactly = createSecurityItDatasetAsAdmin(
+            "security_it_ds_keep_exact_" + suffix,
+            "s3://security-it-denied-bucket/exact-" + suffix + "/*.parquet"
+        );
+        final String wildcardOnly = createSecurityItDatasetAsAdmin(
+            "security_it_ds_keep_wild_" + suffix,
+            "s3://security-it-denied-bucket/wild-" + suffix + "/*.parquet"
+        );
+        try {
+            // One exact name, plus a wildcard authorization expands to both datasets. Off (the default), the exact
+            // name survives the narrowing: the query reaches that dataset and fails on its resource rather than
+            // returning an empty result, which is what a narrowing that dropped everything would produce.
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("ds_dataset_query_partial", "FROM " + namedExactly + ",security_it_ds_keep_* | STATS COUNT(*)")
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+            assertThat(ex.getMessage(), containsString("exact-" + suffix));
+        } finally {
+            deleteDatasetAsAdmin(namedExactly);
+            deleteDatasetAsAdmin(wildcardOnly);
+        }
+    }
+
+    /**
+     * A wildcard that reaches no dataset must not drag one through authorization either. With
+     * {@code wildcards_match_datasets} off, {@code FROM ok_ds, dls_*} reads only {@code ok_ds}, so the DLS grant covering
+     * {@code dls_*} is irrelevant to this query and must not reject it.
+     * <p>
+     * Before the request withheld its wildcards from the security filter, the filter expanded {@code dls_*} to the
+     * DLS-carrying dataset and {@code ViewAndDatasetDlsFlsRequestInterceptor} answered 403 for a dataset the rewrite
+     * would never read. The assertion is the exactly-named
+     * dataset's own resource: reaching it proves the query got past authorization and narrowed to the right name.
+     */
+    public void testMixedExactAndDlsWildcardIsNotRejectedWhenWildcardsMatchDatasetsOff() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String suffix = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        final String ok = createSecurityItDatasetAsAdmin(
+            "security_it_ds_ok_" + suffix,
+            "s3://security-it-denied-bucket/ok-" + suffix + "/*.parquet"
+        );
+        final String dls = createSecurityItDatasetAsAdmin(
+            "security_it_ds_dls_" + suffix,
+            "s3://security-it-denied-bucket/dls-" + suffix + "/*.parquet"
+        );
+        try {
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("ds_dataset_query_ok_plus_dls", "FROM " + ok + ",security_it_ds_dls_* | STATS COUNT(*)")
+            );
+            assertThat(
+                "the DLS dataset is only reachable through the wildcard, which reaches nothing at this default",
+                ex.getResponse().getStatusLine().getStatusCode(),
+                equalTo(HttpStatus.SC_BAD_REQUEST)
+            );
+            assertThat(ex.getMessage(), not(containsString("document or field level security")));
+            assertThat(ex.getMessage(), containsString("ok-" + suffix));
+        } finally {
+            deleteDatasetAsAdmin(ok);
+            deleteDatasetAsAdmin(dls);
+        }
+    }
+
+    /**
+     * The exclusion arm of the narrowing, which julian-elastic's report did not construct. With the setting off
+     * {@code indices()} withholds every part that names nothing exactly — wildcards <em>and</em> exclusions — so
+     * {@code FROM dls_ds,-dls_ds} sends only the positive part to the security filter, where the same query with the
+     * setting on sends both. That asymmetry does not reach the caller: an exactly-named DLS dataset is rejected in
+     * either mode, because the positive part reaches the filter either way and the interceptor fires on it before
+     * any netting. Both arms are asserted so the two modes cannot silently diverge here.
+     */
+    public void testExactDatasetCancelledByItsOwnExclusionIsRejectedInBothModes() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String suffix = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        final String dls = createSecurityItDatasetAsAdmin(
+            "security_it_ds_dls_" + suffix,
+            "s3://security-it-denied-bucket/dls-" + suffix + "/*.parquet"
+        );
+        try {
+            ResponseException off = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("ds_dataset_query_ok_plus_dls", "FROM " + dls + ",-" + dls + " | STATS COUNT(*)")
+            );
+            assertThat(off.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+            assertThat(off.getMessage(), containsString("document or field level security"));
+
+            ResponseException on = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand(
+                    "ds_dataset_query_ok_plus_dls",
+                    "SET wildcards_match_datasets = true; FROM " + dls + ",-" + dls + " | STATS COUNT(*)"
+                )
+            );
+            assertThat(
+                "the narrowing must not make the default diverge from the opted-in mode here",
+                on.getResponse().getStatusLine().getStatusCode(),
+                equalTo(off.getResponse().getStatusLine().getStatusCode())
+            );
+        } finally {
+            deleteDatasetAsAdmin(dls);
+        }
+    }
+
     /** Registers a randomly-named dataset under {@link #SECURITY_IT_SHARED_DATASOURCE} as test-admin; returns its name. */
     private String createSecurityItDatasetAsAdmin() throws IOException {
         return createSecurityItDatasetAsAdmin("security_it_ds_authz_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT));
@@ -2834,11 +3130,19 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
     /** Registers a dataset with the given name under {@link #SECURITY_IT_SHARED_DATASOURCE} as test-admin. */
     private String createSecurityItDatasetAsAdmin(String name) throws IOException {
+        return createSecurityItDatasetAsAdmin(name, "s3://security-it-denied-bucket/denied/*.parquet");
+    }
+
+    /**
+     * Registers a dataset with the given name and resource. A caller that needs to tell which of several datasets a
+     * query actually reached gives each its own resource, since the resource is what the resolution failure names.
+     */
+    private String createSecurityItDatasetAsAdmin(String name, String resource) throws IOException {
         Request put = new Request("PUT", "/_query/dataset/" + name);
         XContentBuilder body = JsonXContent.contentBuilder();
         body.startObject();
         body.field("data_source", SECURITY_IT_SHARED_DATASOURCE);
-        body.field("resource", "s3://security-it-denied-bucket/denied/*.parquet");
+        body.field("resource", resource);
         body.endObject();
         put.setJsonEntity(Strings.toString(body));
         setUser(put, "test-admin");

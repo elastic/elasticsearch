@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeWithin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.ToRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramFraction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
@@ -55,6 +56,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Hash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonExtract;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Left;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Locate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Md5;
@@ -73,6 +75,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
+import org.elasticsearch.xpack.esql.expression.promql.function.RegexExpand;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -98,6 +101,7 @@ public class ScalarFunctionWritables {
         entries.add(CopySign.ENTRY);
         entries.add(Hash.ENTRY);
         entries.add(JsonExtract.ENTRY);
+        entries.add(JsonString.ENTRY);
         entries.add(Hypot.ENTRY);
         entries.add(In.ENTRY);
         entries.add(InsensitiveEquals.ENTRY);
@@ -141,8 +145,10 @@ public class ScalarFunctionWritables {
         entries.add(Tau.ENTRY);
         entries.add(ToLower.ENTRY);
         entries.add(ToUpper.ENTRY);
+        entries.add(HistogramFraction.ENTRY);
         entries.add(HistogramPercentile.ENTRY);
         entries.add(ExtractHistogramComponent.ENTRY);
+        entries.add(RegexExpand.ENTRY);
         entries.add(WindowFilter.ENTRY);
 
         entries.addAll(GroupingWritables.getNamedWriteables());

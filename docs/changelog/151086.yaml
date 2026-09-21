@@ -1,5 +1,0 @@
-area: Infra/Scripting
-issues: []
-pr: 151086
-summary: "Painless: `script_aware` String search + regex limit-factor for `replaceAll/replaceFirst`"
-type: enhancement

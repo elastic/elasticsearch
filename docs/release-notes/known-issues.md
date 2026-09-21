@@ -8,6 +8,45 @@ mapped_pages:
 
 Known issues are significant defects or limitations that may impact your implementation. These issues are actively being worked on and will be addressed in a future release. Review the Elasticsearch known issues to help you make informed decisions, such as upgrading to a new version.
 
+## 9.5.2 [elasticsearch-9.5.2-known-issues]
+
+* A bulk indexing operation which is being processed on the node holding the primary shard exactly when this node crosses the [indexing pressure limit](/reference/elasticsearch/configuration-reference/indexing-pressure-settings.md) can process some of the bulk items on the primary shard without replicating them, causing the contents of any replicas to diverge from those of the primary. The processed items can be intermittently returned by searches while the divergence persists, but these items were not acknowledged writes and may eventually be discarded. The divergence blocks shards from trimming their [translog](/reference/elasticsearch/index-settings/translog.md), consuming excessive disk space, and can also cause very long-running [recoveries](/reference/elasticsearch/configuration-reference/index-recovery-settings.md) that attempt to replay all operations starting from the ones that were not replicated.
+
+  This defect was introduced in [#147151](https://github.com/elastic/elasticsearch/pull/147151), released in Elasticsearch v9.5.0, and is fixed in [#158235](https://github.com/elastic/elasticsearch/pull/158235), released in Elasticsearch v9.5.3. We recommend all users of earlier versions in the 9.5 series to upgrade to at least v9.5.3 as soon as possible.
+
+  Refer to [#158212](https://github.com/elastic/elasticsearch/issues/158212) for further details, including information about determining whether your cluster has been affected by this issue and our recommended workarounds should any be needed.
+
+## 9.5.1 [elasticsearch-9.5.1-known-issues]
+
+* Boolean queries containing a `must`, `filter`, or `should` clause using a `terms` query
+  (multi-value), along with a `must_not` clause, on fields with disabled indexing can still return
+  false-positive matches despite the partial fix in 9.5.1. The 9.5.1 fix
+  ([#155936](https://github.com/elastic/elasticsearch/pull/155936)) addressed the bulk-scorer defect
+  for `term` and `range` query paths, but the multi-value `terms` query uses a different Lucene query
+  type that was not covered by that fix. [TSDB](https://www.elastic.co/docs/manage-data/data-store/data-streams/time-series-data-stream-tsds)
+  and [columnar](https://www.elastic.co/docs/reference/elasticsearch/columnar) indices and data
+  streams remain affected for this query shape.
+
+  The full fix ([#156643](https://github.com/elastic/elasticsearch/pull/156643)), which upgrades Elasticsearch to Lucene 10.5.1 ([apache/lucene#16450](https://github.com/apache/lucene/pull/16450)), is included in 9.5.2.
+
+* A bulk indexing operation which is being processed on the node holding the primary shard exactly when this node crosses the [indexing pressure limit](/reference/elasticsearch/configuration-reference/indexing-pressure-settings.md) can process some of the bulk items on the primary shard without replicating them, causing the contents of any replicas to diverge from those of the primary. The processed items can be intermittently returned by searches while the divergence persists, but these items were not acknowledged writes and may eventually be discarded. The divergence blocks shards from trimming their [translog](/reference/elasticsearch/index-settings/translog.md), consuming excessive disk space, and can also cause very long-running [recoveries](/reference/elasticsearch/configuration-reference/index-recovery-settings.md) that attempt to replay all operations starting from the ones that were not replicated.
+
+  This defect was introduced in [#147151](https://github.com/elastic/elasticsearch/pull/147151), released in Elasticsearch v9.5.0, and is fixed in [#158235](https://github.com/elastic/elasticsearch/pull/158235), released in Elasticsearch v9.5.3. We recommend all users of earlier versions in the 9.5 series to upgrade to at least v9.5.3 as soon as possible.
+
+  Refer to [#158212](https://github.com/elastic/elasticsearch/issues/158212) for further details, including information about determining whether your cluster has been affected by this issue and our recommended workarounds should any be needed.
+
+## 9.5.0 [elasticsearch-9.5.0-known-issues]
+
+* Boolean queries containing a `must`, `filter`, or `should` clause, along with a `must_not` clause, on fields with disabled indexing can return false-positive matches. This occurs when a DSL or ES|QL query selects Lucene's bulk-scoring path due to an iterator evaluation defect in Lucene ([apache/lucene#16450](https://github.com/apache/lucene/pull/16450)). [TSDB](https://www.elastic.co/docs/manage-data/data-store/data-streams/time-series-data-stream-tsds) and [columnar](https://www.elastic.co/docs/reference/elasticsearch/columnar) indices and data streams are affected, since they disable indexing on all fields by default.
+
+  A [partial fix](https://github.com/elastic/elasticsearch/pull/155936) is included in 9.5.1, addressing `term` and `range` query paths, but missing the multi-value `terms` query. The full fix ([#156643](https://github.com/elastic/elasticsearch/pull/156643)). which upgrades Elasticsearch to Lucene 10.5.1 ([apache/lucene#16450](https://github.com/apache/lucene/pull/16450)), is included in 9.5.2.
+
+* A bulk indexing operation which is being processed on the node holding the primary shard exactly when this node crosses the [indexing pressure limit](/reference/elasticsearch/configuration-reference/indexing-pressure-settings.md) can process some of the bulk items on the primary shard without replicating them, causing the contents of any replicas to diverge from those of the primary. The processed items can be intermittently returned by searches while the divergence persists, but these items were not acknowledged writes and may eventually be discarded. The divergence blocks shards from trimming their [translog](/reference/elasticsearch/index-settings/translog.md), consuming excessive disk space, and can also cause very long-running [recoveries](/reference/elasticsearch/configuration-reference/index-recovery-settings.md) that attempt to replay all operations starting from the ones that were not replicated.
+
+  This defect was introduced in [#147151](https://github.com/elastic/elasticsearch/pull/147151), released in Elasticsearch v9.5.0, and is fixed in [#158235](https://github.com/elastic/elasticsearch/pull/158235), released in Elasticsearch v9.5.3. We recommend all users of earlier versions in the 9.5 series to upgrade to at least v9.5.3 as soon as possible.
+
+  Refer to [#158212](https://github.com/elastic/elasticsearch/issues/158212) for further details, including information about determining whether your cluster has been affected by this issue and our recommended workarounds should any be needed.
+
 ## 9.3.6 [elasticsearch-9.3.6-known-issues]
 
 * The [create trained model API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-trained-model) enforces overly restrictive input limits that may reject valid requests. Version 9.3.6 introduced caps on `description`, `tags`, `prefix_strings.ingest_prefix`, `prefix_strings.search_prefix`, `input.field_names`, `default_field_map` and `metadata`. These limits are too low for some existing use cases.

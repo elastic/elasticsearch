@@ -48,11 +48,6 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
         };
     }
 
-    @Override
-    public final void setUp() throws Exception {
-        super.setUp();
-    }
-
     protected abstract T createTestInstance(String name, long docCount, InternalAggregations aggregations, Map<String, Object> metadata);
 
     protected abstract void extraAssertReduced(T reduced, List<T> inputs);

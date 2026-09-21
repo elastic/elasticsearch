@@ -67,6 +67,7 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
                 var result = indexShard.getService()
                     .getFromTranslog(
                         getRequest.id(),
+                        getRequest.routing(),
                         getRequest.storedFields(),
                         getRequest.realtime(),
                         getRequest.version(),

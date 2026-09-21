@@ -1,0 +1,5 @@
+pr: 155037
+summary: Report invalid external data source settings as client errors
+area: ES|QL
+type: bug
+issues: []

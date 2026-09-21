@@ -504,7 +504,7 @@ public class IndexRoutingTests extends ESTestCase {
                 .build()
         );
         Exception e = expectThrows(SliceMissingException.class, () -> shardIdFromSimple(indexRouting, "id", null));
-        assertThat(e.getMessage(), equalTo("_slice is required for [test]/[id]"));
+        assertThat(e.getMessage(), equalTo("slice is required for [test]/[id]"));
     }
 
     /**

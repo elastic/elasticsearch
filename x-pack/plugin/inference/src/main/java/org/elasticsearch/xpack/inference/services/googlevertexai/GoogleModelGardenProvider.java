@@ -28,8 +28,8 @@ import org.elasticsearch.xpack.inference.services.llama.completion.LlamaCompleti
 import org.elasticsearch.xpack.inference.services.llama.request.completion.LlamaChatCompletionRequestEntity;
 import org.elasticsearch.xpack.inference.services.mistral.MistralUnifiedChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.mistral.request.completion.MistralChatCompletionRequestEntity;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiChatCompletionResponseHandler;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiCompletionResponseHandler;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiCompletionResponseEntity;
 
 import java.util.Locale;
 
@@ -39,7 +39,7 @@ import java.util.Locale;
 public enum GoogleModelGardenProvider {
     GOOGLE(
         CompletionResponseHandlerHolder.GOOGLE_VERTEX_AI_COMPLETION_HANDLER,
-        ChatCompletionResponseHandlerHolder.GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER,
+        excludeReasoning -> ChatCompletionResponseHandlerHolder.GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER,
         // Pass the full task settings so the entity can fall back to the configured maxTokens when
         // the per-request value is null.
         (unifiedChatInput, modelId, taskSettings) -> new GoogleVertexAiUnifiedChatCompletionRequestEntity(
@@ -50,7 +50,7 @@ public enum GoogleModelGardenProvider {
     ),
     ANTHROPIC(
         CompletionResponseHandlerHolder.ANTHROPIC_COMPLETION_HANDLER,
-        ChatCompletionResponseHandlerHolder.ANTHROPIC_CHAT_COMPLETION_HANDLER,
+        excludeReasoning -> new AnthropicChatCompletionResponseHandler("Google Model Garden Anthropic chat completion", excludeReasoning),
         (unifiedChatInput, modelId, taskSettings) -> new GoogleModelGardenAnthropicChatCompletionRequestEntity(
             unifiedChatInput,
             taskSettings
@@ -58,36 +58,41 @@ public enum GoogleModelGardenProvider {
     ),
     META(
         CompletionResponseHandlerHolder.META_COMPLETION_HANDLER,
-        ChatCompletionResponseHandlerHolder.META_CHAT_COMPLETION_HANDLER,
+        excludeReasoning -> ChatCompletionResponseHandlerHolder.META_CHAT_COMPLETION_HANDLER,
         (unifiedChatInput, modelId, taskSettings) -> new LlamaChatCompletionRequestEntity(unifiedChatInput, modelId)
     ),
     HUGGING_FACE(
         CompletionResponseHandlerHolder.HUGGING_FACE_COMPLETION_HANDLER,
-        ChatCompletionResponseHandlerHolder.HUGGING_FACE_CHAT_COMPLETION_HANDLER,
+        excludeReasoning -> ChatCompletionResponseHandlerHolder.HUGGING_FACE_CHAT_COMPLETION_HANDLER,
         (unifiedChatInput, modelId, taskSettings) -> new HuggingFaceUnifiedChatCompletionRequestEntity(unifiedChatInput, modelId)
     ),
     MISTRAL(
         CompletionResponseHandlerHolder.MISTRAL_COMPLETION_HANDLER,
-        ChatCompletionResponseHandlerHolder.MISTRAL_CHAT_COMPLETION_HANDLER,
+        excludeReasoning -> ChatCompletionResponseHandlerHolder.MISTRAL_CHAT_COMPLETION_HANDLER,
         (unifiedChatInput, modelId, taskSettings) -> new MistralChatCompletionRequestEntity(unifiedChatInput, modelId)
     ),
     AI21(
         CompletionResponseHandlerHolder.AI21_COMPLETION_HANDLER,
-        ChatCompletionResponseHandlerHolder.AI21_CHAT_COMPLETION_HANDLER,
+        excludeReasoning -> ChatCompletionResponseHandlerHolder.AI21_CHAT_COMPLETION_HANDLER,
         (unifiedChatInput, modelId, taskSettings) -> new Ai21ChatCompletionRequestEntity(unifiedChatInput, modelId)
     );
 
+    @FunctionalInterface
+    interface ChatCompletionResponseHandlerCreator {
+        ResponseHandler create(boolean excludeReasoning);
+    }
+
     private final ResponseHandler completionResponseHandler;
-    private final ResponseHandler chatCompletionResponseHandler;
+    private final ChatCompletionResponseHandlerCreator chatCompletionHandlerCreator;
     private final RequestEntityCreator entityCreator;
 
     GoogleModelGardenProvider(
         ResponseHandler completionResponseHandler,
-        ResponseHandler chatCompletionResponseHandler,
+        ChatCompletionResponseHandlerCreator chatCompletionHandlerCreator,
         RequestEntityCreator entityCreator
     ) {
         this.completionResponseHandler = completionResponseHandler;
-        this.chatCompletionResponseHandler = chatCompletionResponseHandler;
+        this.chatCompletionHandlerCreator = chatCompletionHandlerCreator;
         this.entityCreator = entityCreator;
     }
 
@@ -95,8 +100,8 @@ public enum GoogleModelGardenProvider {
         return completionResponseHandler;
     }
 
-    public ResponseHandler getChatCompletionResponseHandler() {
-        return chatCompletionResponseHandler;
+    public ResponseHandler getChatCompletionResponseHandler(boolean excludeReasoning) {
+        return chatCompletionHandlerCreator.create(excludeReasoning);
     }
 
     public ToXContentObject createRequestEntity(
@@ -123,23 +128,23 @@ public enum GoogleModelGardenProvider {
 
         static final ResponseHandler META_COMPLETION_HANDLER = new LlamaCompletionResponseHandler(
             "Google Model Garden Meta completion",
-            OpenAiChatCompletionResponseEntity::fromResponse
+            OpenAiCompletionResponseEntity::fromResponse
         );
 
-        static final ResponseHandler HUGGING_FACE_COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
+        static final ResponseHandler HUGGING_FACE_COMPLETION_HANDLER = new OpenAiCompletionResponseHandler(
             "Google Model Garden Hugging Face completion",
-            OpenAiChatCompletionResponseEntity::fromResponse
+            OpenAiCompletionResponseEntity::fromResponse
         );
 
-        static final ResponseHandler MISTRAL_COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
+        static final ResponseHandler MISTRAL_COMPLETION_HANDLER = new OpenAiCompletionResponseHandler(
             "Google Model Garden Mistral completion",
-            OpenAiChatCompletionResponseEntity::fromResponse,
+            OpenAiCompletionResponseEntity::fromResponse,
             ErrorResponse::fromResponse
         );
 
-        static final ResponseHandler AI21_COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
+        static final ResponseHandler AI21_COMPLETION_HANDLER = new OpenAiCompletionResponseHandler(
             "Google Model Garden AI21 completion",
-            OpenAiChatCompletionResponseEntity::fromResponse,
+            OpenAiCompletionResponseEntity::fromResponse,
             ErrorResponse::fromResponse
         );
     }
@@ -149,28 +154,24 @@ public enum GoogleModelGardenProvider {
             "Google Vertex AI chat completion"
         );
 
-        static final ResponseHandler ANTHROPIC_CHAT_COMPLETION_HANDLER = new AnthropicChatCompletionResponseHandler(
-            "Google Model Garden Anthropic chat completion"
-        );
-
         static final ResponseHandler META_CHAT_COMPLETION_HANDLER = new LlamaChatCompletionResponseHandler(
             "Google Model Garden Meta chat completion",
-            OpenAiChatCompletionResponseEntity::fromResponse
+            OpenAiCompletionResponseEntity::fromResponse
         );
 
         static final ResponseHandler HUGGING_FACE_CHAT_COMPLETION_HANDLER = new HuggingFaceChatCompletionResponseHandler(
             "Google Model Garden Hugging Face chat completion",
-            OpenAiChatCompletionResponseEntity::fromResponse
+            OpenAiCompletionResponseEntity::fromResponse
         );
 
         static final ResponseHandler MISTRAL_CHAT_COMPLETION_HANDLER = new MistralUnifiedChatCompletionResponseHandler(
             "Google Model Garden Mistral chat completions",
-            OpenAiChatCompletionResponseEntity::fromResponse
+            OpenAiCompletionResponseEntity::fromResponse
         );
 
         static final ResponseHandler AI21_CHAT_COMPLETION_HANDLER = new Ai21ChatCompletionResponseHandler(
             "Google Model Garden AI21 chat completions",
-            OpenAiChatCompletionResponseEntity::fromResponse
+            OpenAiCompletionResponseEntity::fromResponse
         );
     }
 

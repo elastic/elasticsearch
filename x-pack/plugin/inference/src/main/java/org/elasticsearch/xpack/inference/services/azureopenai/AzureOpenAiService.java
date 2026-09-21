@@ -23,6 +23,8 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.InferenceServiceFeatures;
+import org.elasticsearch.inference.configuration.NonStreamingChatFeature;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
@@ -46,7 +48,7 @@ import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOp
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettings;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiUnifiedChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.EnumSet;
@@ -75,7 +77,7 @@ public class AzureOpenAiService extends SenderService<AzureOpenAiModel> {
     public static final String CHAT_COMPLETION_REQUEST_TYPE = "Azure OpenAI chat completions";
     private static final ResponseHandler CHAT_COMPLETION_HANDLER = new AzureOpenAiChatCompletionResponseHandler(
         CHAT_COMPLETION_REQUEST_TYPE,
-        OpenAiChatCompletionResponseEntity::fromResponse
+        OpenAiUnifiedChatCompletionResponseEntity::fromResponse
     );
 
     public AzureOpenAiService(
@@ -195,12 +197,17 @@ public class AzureOpenAiService extends SenderService<AzureOpenAiModel> {
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs,
             EMBEDDING_MAX_BATCH_SIZE,
+            getRegexReadLimitFactor(),
             azureOpenAiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
             var action = azureOpenAiModel.accept(actionCreator, taskSettings);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(
+                new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                timeout,
+                request.listener()
+            );
         }
     }
 
@@ -237,6 +244,11 @@ public class AzureOpenAiService extends SenderService<AzureOpenAiModel> {
     @Override
     public Set<TaskType> supportedStreamingTasks() {
         return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
+    }
+
+    @Override
+    public boolean supportsNonStreamingChatCompletion() {
+        return true;
     }
 
     public static class Configuration {
@@ -308,6 +320,7 @@ public class AzureOpenAiService extends SenderService<AzureOpenAiModel> {
                     .setName(SERVICE_NAME)
                     .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
+                    .setFeatures(InferenceServiceFeatures.of(NonStreamingChatFeature.SUPPORTED_INSTANCE))
                     .build();
             }
         );

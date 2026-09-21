@@ -21,7 +21,7 @@ dependencies {
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'gpu-codec'
   }
-  testImplementation "junit:junit:${versions.junit}"
+  testImplementation "junit:junit:${versions.junit4}"
 }
 
 tasks.named('forbiddenApisMain').configure {

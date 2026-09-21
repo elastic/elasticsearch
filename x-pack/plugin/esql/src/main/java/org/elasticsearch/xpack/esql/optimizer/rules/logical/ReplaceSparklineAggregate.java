@@ -140,6 +140,7 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
                         s.buckets(),
                         s.from(),
                         s.to(),
+                        null,
                         ConfigurationAware.CONFIGURATION_MARKER
                     );
                     if (dateBucket == null) {
@@ -186,10 +187,14 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
         List<AggregateFunction> originalAggFuncs = new ArrayList<>();
         for (Alias nonSparkline : nonSparklineAggregates) {
             AggregateFunction aggFunc = (AggregateFunction) Alias.unwrap(nonSparkline);
-            ToPartial toPartial = new ToPartial(source, nonSparkline.child(), aggFunc);
-            Alias toPartialAlias = new Alias(source, "$$" + nonSparkline.name(), toPartial);
+            AggregateFunction unfilteredAggFunc = aggFunc.withFilter(Literal.TRUE);
+            Alias toPartialAlias = new Alias(
+                source,
+                "$$" + nonSparkline.name(),
+                new ToPartial(source, nonSparkline.child(), aggFunc.filter(), aggFunc.window(), unfilteredAggFunc)
+            );
             toPartialAliases.add(toPartialAlias);
-            originalAggFuncs.add(aggFunc);
+            originalAggFuncs.add(unfilteredAggFunc);
             firstPhaseAggregates.add(toPartialAlias);
         }
 
@@ -202,7 +207,7 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
 
         ParserUtils.Stats firstPhaseStats = ParserUtils.buildStats(source, firstPhaseGroupings, firstPhaseAggregates);
         Aggregate aggregate = new Aggregate(plan.source(), dateBucketEval, firstPhaseStats.groupings(), firstPhaseStats.aggregates());
-        // Since this rule has to occur after PropogateInlineEvals to work with INLINE STATS, we don't get surrogate substitution
+        // Since this rule has to occur after PropagateInlineEvals to work with INLINE STATS, we don't get surrogate substitution
         // to handle inner aggregates that are SurrogateExpressions (e.g., AVG → Div(Sum, Count)). We apply the substitution here to ensure
         // that any inner aggregates are properly replaced with their surrogates in the first phase plan.
         LogicalPlan phase1Plan = new SubstituteSurrogateAggregations().apply(aggregate);
@@ -213,7 +218,7 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
         // directly and inside SPARKLINE), in which case its inner expression was already extracted into an identically-named synthetic
         // Eval by the global pass. Reusing that name here would make one of the two extractions be dropped by output-attribute merging,
         // leaving a dangling reference.
-        phase1Plan = new ReplaceAggregateNestedExpressionWithEval(true).apply(phase1Plan);
+        phase1Plan = new ReplaceAggregateNestedExpressionWithEval(true, true).apply(phase1Plan);
         return new FirstPhaseAggregateData(phase1Plan, sparklineValueAliases, toPartialAliases, originalAggFuncs, dateBucketAttr);
     }
 

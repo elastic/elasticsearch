@@ -59,7 +59,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesRequestCacheUtils;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
@@ -157,18 +156,6 @@ public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
 
         public TestStatelessPlugin(Settings settings) {
             super(settings);
-        }
-
-        @Override
-        public Collection<Object> createComponents(PluginServices services) {
-            final Collection<Object> components = super.createComponents(services);
-            components.add(
-                new PluginComponentBinding<>(
-                    StatelessCommitService.class,
-                    components.stream().filter(c -> c instanceof TestStatelessCommitService).findFirst().orElseThrow()
-                )
-            );
-            return components;
         }
 
         @Override
@@ -1629,7 +1616,6 @@ public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
         }
         flush(indexName);
 
-        // OBJECT_STORE_PREFETCH_FEATURE_FLAG is enabled by default on snapshot builds (all CI runs).
         // When enabled, Lucene read-ahead hints (BlobCacheIndexInput.prefetch) schedule async blob-store
         // downloads that can complete before the actual readInternal call for the same range. If that
         // race is lost, tryRead() succeeds (fast path) and CacheFileReader.read() — the only site that

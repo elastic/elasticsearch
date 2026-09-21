@@ -30,16 +30,14 @@ public class InferenceFeatureServiceTests extends ESTestCase {
     private FeatureService featureService;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createClusterAndFeatureService() throws Exception {
         threadPool = createThreadPool(inferenceUtilityExecutors());
         clusterService = createClusterService(threadPool);
         featureService = mock(FeatureService.class);
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownClusterAndThreadPool() throws Exception {
         clusterService.close();
         terminate(threadPool);
     }

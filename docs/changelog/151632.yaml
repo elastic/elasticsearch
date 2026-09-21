@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 151525
-pr: 151632
-summary: Fix union type class cast exception
-type: bug

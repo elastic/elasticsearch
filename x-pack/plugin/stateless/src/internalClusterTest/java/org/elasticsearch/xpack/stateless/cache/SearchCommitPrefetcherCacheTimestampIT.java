@@ -10,13 +10,14 @@ package org.elasticsearch.xpack.stateless.cache;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -40,10 +41,11 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
 import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -112,29 +114,54 @@ public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPlu
         refresh(indexName);
         flush(indexName);
 
-        var latestCommitGeneration = client().admin().indices().prepareStats(indexName).get().getAt(0).getCommitStats().getGeneration();
-        var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(latestCommitGeneration);
-
         var cacheService = (CapturingCacheService) internalCluster().getInstance(
             StatelessPlugin.SharedBlobCacheServiceSupplier.class,
             searchNode
         ).get();
-        var primaryTerm = findIndexShard(indexName).getOperationPrimaryTerm();
-        var cacheKey = new FileCacheKey(shardId, primaryTerm, bccBlobName);
+        final var cacheKeyTs = getCacheKeyForIndex(indexName, shardId);
 
         assertBusy(() -> {
-            var stamps = cacheService.capturedTimestamps(cacheKey);
+            var stamps = cacheService.capturedTimestamps(cacheKeyTs);
             assertThat(
                 "prefetch should have populated at least one region of the new BCC blob with the commit timestamp",
                 stamps,
                 hasItem(timestamp)
             );
             assertThat(
-                "regions of the new BCC blob must only be stamped with the commit timestamp or UNKNOWN_TIMESTAMP",
+                "on a time-based shard the prefetcher resolves every region of the new BCC blob to the commit timestamp, never UNKNOWN",
                 stamps,
-                everyItem(anyOf(equalTo(timestamp), equalTo(SharedBlobCacheService.UNKNOWN_TIMESTAMP)))
+                everyItem(equalTo(timestamp))
             );
         });
+
+        // Next we index documents with no @timestamp, so the new commit has no timestamp range.
+        indexDocs(
+            indexName,
+            between(100, 1000),
+            UnaryOperator.identity(),
+            null,
+            () -> Map.<String, Object>of("field", randomAlphaOfLength(10))
+        );
+        refresh(indexName);
+        flush(indexName);
+
+        final var cacheKeyNoTs = getCacheKeyForIndex(indexName, shardId);
+        assertBusy(() -> {
+            var stamps = cacheService.capturedTimestamps(cacheKeyNoTs);
+            assertThat("prefetch should have populated at least one region of the untimestamped time-based BCC blob", stamps, not(empty()));
+            assertThat(
+                "with no data timestamp available a time-based shard floors prefetched regions to MINIMAL_CACHE_TIMESTAMP, never UNKNOWN",
+                stamps,
+                everyItem(equalTo(SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP))
+            );
+        });
+    }
+
+    FileCacheKey getCacheKeyForIndex(String indexName, ShardId shardId) {
+        var latestCommitGeneration = client().admin().indices().prepareStats(indexName).get().getAt(0).getCommitStats().getGeneration();
+        var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(latestCommitGeneration);
+        var primaryTerm = findIndexShard(indexName).getOperationPrimaryTerm();
+        return new FileCacheKey(shardId, primaryTerm, bccBlobName);
     }
 
     public static final class CapturingTestPlugin extends TestUtils.StatelessPluginWithTrialLicense {
@@ -150,9 +177,17 @@ public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPlu
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
             ClusterService clusterService,
-            IndicesService indicesService
+            IndicesService indicesService,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
         ) {
-            return new CapturingCacheService(nodeEnvironment, settings, threadPool, blobCacheMetrics);
+            return new CapturingCacheService(
+                nodeEnvironment,
+                settings,
+                clusterService.getClusterSettings(),
+                threadPool,
+                blobCacheMetrics,
+                metricHolder
+            );
         }
     }
 
@@ -160,24 +195,44 @@ public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPlu
 
         private final TimestampCapturingEvictionPolicy capturingPolicy;
 
-        CapturingCacheService(NodeEnvironment environment, Settings settings, ThreadPool threadPool, BlobCacheMetrics blobCacheMetrics) {
-            this(environment, settings, threadPool, blobCacheMetrics, new TimestampCapturingEvictionPolicy());
+        CapturingCacheService(
+            NodeEnvironment environment,
+            Settings settings,
+            ClusterSettings clusterSettings,
+            ThreadPool threadPool,
+            BlobCacheMetrics blobCacheMetrics,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
+        ) {
+            this(
+                environment,
+                settings,
+                clusterSettings,
+                threadPool,
+                blobCacheMetrics,
+                metricHolder,
+                new TimestampCapturingEvictionPolicy()
+            );
         }
 
         private CapturingCacheService(
             NodeEnvironment environment,
             Settings settings,
+            ClusterSettings clusterSettings,
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder,
             TimestampCapturingEvictionPolicy capturingPolicy
         ) {
             super(
                 environment,
                 settings,
+                clusterSettings,
                 threadPool,
                 blobCacheMetrics,
                 capturingPolicy,
-                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                System::nanoTime,
+                threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL),
+                metricHolder
             );
             this.capturingPolicy = capturingPolicy;
         }

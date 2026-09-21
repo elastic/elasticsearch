@@ -9,34 +9,16 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq.calibrate;
 
-import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FloatVectorValues;
-import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.MergeState;
-import org.apache.lucene.index.SegmentInfo;
-import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.search.AcceptDocs;
-import org.apache.lucene.search.KnnCollector;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.StringHelper;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -156,121 +138,4 @@ public class CalibrationUtilsTests extends ESTestCase {
         assertEquals(secondLift, bridged.vectorValue(1)[2], 0f);
     }
 
-    private static KnnVectorsReader heapVectorReader(FieldInfo fieldInfo, FloatVectorValues vectors) {
-        return new KnnVectorsReader() {
-            @Override
-            public FloatVectorValues getFloatVectorValues(String field) {
-                return field.equals(fieldInfo.name) ? vectors : null;
-            }
-
-            @Override
-            public org.apache.lucene.index.ByteVectorValues getByteVectorValues(String field) {
-                return null;
-            }
-
-            @Override
-            public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) {}
-
-            @Override
-            public void search(
-                String field,
-                byte[] target,
-                org.apache.lucene.search.KnnCollector knnCollector,
-                org.apache.lucene.search.AcceptDocs acceptDocs
-            ) {}
-
-            @Override
-            public Map<String, Long> getOffHeapByteSize(FieldInfo info) {
-                return Map.of();
-            }
-
-            @Override
-            public void checkIntegrity() {}
-
-            @Override
-            public void close() {}
-        };
-    }
-
-    private static MergeState mergeState(KnnVectorsReader[] readers, Bits[] liveDocsBits, SegmentInfo segmentInfo, FieldInfo fieldInfo)
-        throws IOException {
-        FieldInfos[] fieldInfos = new FieldInfos[readers.length];
-        for (int i = 0; i < readers.length; i++) {
-            FloatVectorValues vectors = readers[i].getFloatVectorValues(fieldInfo.name);
-            fieldInfos[i] = vectors != null ? new FieldInfos(new FieldInfo[] { fieldInfo }) : new FieldInfos(new FieldInfo[0]);
-        }
-        return new MergeState(
-            null,
-            segmentInfo,
-            null,
-            null,
-            null,
-            null,
-            null,
-            fieldInfos,
-            liveDocsBits,
-            null,
-            null,
-            readers,
-            null,
-            null,
-            null,
-            false,
-            null
-        );
-    }
-
-    private static Bits liveDocs(int length) {
-        return new Bits() {
-            @Override
-            public boolean get(int index) {
-                return true;
-            }
-
-            @Override
-            public int length() {
-                return length;
-            }
-        };
-    }
-
-    private static SegmentInfo backgroundSegmentInfo(Directory dir) throws IOException {
-        return new SegmentInfo(
-            dir,
-            Version.LATEST,
-            Version.LATEST,
-            "bg",
-            1000,
-            false,
-            false,
-            Codec.getDefault(),
-            Collections.emptyMap(),
-            StringHelper.randomId(),
-            new HashMap<>(),
-            null
-        );
-    }
-
-    private static FieldInfo vectorFieldInfo(String name) {
-        return new FieldInfo(
-            name,
-            0,
-            false,
-            false,
-            false,
-            IndexOptions.NONE,
-            DocValuesType.NONE,
-            org.apache.lucene.index.DocValuesSkipIndexType.NONE,
-            -1,
-            Map.of(),
-            0,
-            0,
-            0,
-            DIM,
-            VectorEncoding.FLOAT32,
-            VectorSimilarityFunction.EUCLIDEAN,
-            false,
-            false
-        );
-    }
 }

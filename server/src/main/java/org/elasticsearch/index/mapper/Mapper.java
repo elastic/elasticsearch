@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
@@ -17,6 +18,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentString;
@@ -227,8 +229,30 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         }
 
         public boolean isIgnored(final XContentString s) {
-            if (s == null) return false;
-            return lengthExceedsIgnoreAbove(s.stringLength());
+            if (s == null) {
+                return false;
+            } else if (s instanceof Text text) {
+                // Treat byte length as code-point count (assuming all ASCII, 1 byte per char): if even
+                // that lower bound doesn't exceed the limit, the true code-point count won't either.
+                if (text.hasBytes() && lengthExceedsIgnoreAbove(text.bytes().length()) == false) {
+                    return false;
+                }
+                return lengthExceedsIgnoreAbove(text.stringLength());
+            } else {
+                return lengthExceedsIgnoreAbove(s.stringLength());
+            }
+        }
+
+        public boolean isIgnored(final BytesRef utf8Ref) {
+            if (utf8Ref == null) return false;
+            // Treat byte length as code-point count (assuming all ASCII, 1 byte per char): if even
+            // that lower bound doesn't exceed the limit, the true code-point count won't either.
+            if (lengthExceedsIgnoreAbove(utf8Ref.length) == false) {
+                return false;
+            }
+            return lengthExceedsIgnoreAbove(
+                new Text(new XContentString.UTF8Bytes(utf8Ref.bytes, utf8Ref.offset, utf8Ref.length)).stringLength()
+            );
         }
 
         private boolean lengthExceedsIgnoreAbove(int strLength) {
@@ -349,5 +373,15 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      */
     public boolean storesArrayValuesInOrder() {
         return false;
+    }
+
+    /**
+     * Records an empty array for a mapper that {@link #storesArrayValuesInOrder() stores its array elements in order}: the
+     * {@code .counts} companion alone, at zero, with no binary blob. Overridable because the accumulator registered on the document
+     * is per-format, and a field whose doc values go to the ColumNAR codec registers a different one.
+     */
+    public void recordEmptyArrayInOrder(LuceneDocument doc) {
+        assert storesArrayValuesInOrder() : "only an in-order mapper records an empty array this way";
+        MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordEmptyArray(doc, fullPath());
     }
 }

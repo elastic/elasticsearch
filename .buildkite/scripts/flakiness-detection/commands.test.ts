@@ -5,9 +5,33 @@ import {
   deduplicateYamlRunners,
   generateBatchCommand,
   buildCommands,
+  compileTasksFor,
 } from "./commands.ts";
 import type { ClassifiedTest } from "./domain.ts";
 import { DEFAULT_BATCHING_CONFIG } from "./domain.ts";
+
+describe("compileTasksFor", () => {
+  test("maps each source set to its compile task, de-duplicated per project", () => {
+    const tests: ClassifiedTest[] = [
+      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "a.ATests" },
+      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "a.BTests" },
+      { gradleProject: ":server", kind: "internalClusterTest", sourceSet: "internalClusterTest", fqcn: "a.CIT" },
+      { gradleProject: ":x-pack:plugin:ml", kind: "javaRestTest", sourceSet: "javaRestTest", fqcn: "a.DIT" },
+      { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestRunner", sourceSet: "yamlRestTest" },
+    ];
+
+    expect(compileTasksFor(tests)).toEqual([
+      ":server:compileTestJava",
+      ":server:compileInternalClusterTestJava",
+      ":x-pack:plugin:ml:compileJavaRestTestJava",
+      ":x-pack:plugin:ml:compileYamlRestTestJava",
+    ]);
+  });
+
+  test("empty for no tests", () => {
+    expect(compileTasksFor([])).toEqual([]);
+  });
+});
 
 describe("collapseYamlSuites", () => {
   test("collapses multiple YAML files in same directory", () => {

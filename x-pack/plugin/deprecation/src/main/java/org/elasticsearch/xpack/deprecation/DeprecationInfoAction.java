@@ -47,9 +47,16 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             "index_settings",
             "data_streams",
             "templates",
-            "ilm_policies"
+            "ilm_policies",
+            "repositories"
         );
-        static final Set<String> RESOURCE_CHECKER_FIELD_NAMES = Set.of("index_settings", "data_streams", "templates", "ilm_policies");
+        static final Set<String> RESOURCE_CHECKER_FIELD_NAMES = Set.of(
+            "index_settings",
+            "data_streams",
+            "templates",
+            "ilm_policies",
+            "repositories"
+        );
         private final List<DeprecationIssue> clusterSettingsIssues;
         private final List<DeprecationIssue> nodeSettingsIssues;
         private final Map<String, Map<String, List<DeprecationIssue>>> resourceDeprecationIssues;
@@ -108,6 +115,10 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
 
         public Map<String, List<DeprecationIssue>> getIlmPolicyDeprecationIssues() {
             return resourceDeprecationIssues.getOrDefault(IlmPolicyDeprecationChecker.NAME, Map.of());
+        }
+
+        public Map<String, List<DeprecationIssue>> getRepositoryDeprecationIssues() {
+            return resourceDeprecationIssues.getOrDefault(RepositoryDeprecationChecker.NAME, Map.of());
         }
 
         @Override

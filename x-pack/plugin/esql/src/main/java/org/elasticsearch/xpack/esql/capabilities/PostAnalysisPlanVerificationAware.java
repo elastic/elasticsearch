@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.capabilities;
 
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -52,4 +53,15 @@ public interface PostAnalysisPlanVerificationAware {
      * @return a consumer that will receive a tree to check and an accumulator of failures found during inspection.
      */
     BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification();
+
+    /**
+     * Overload that also exposes the node-level {@link AnalysisRegistry}, for implementers that need to validate
+     * references to named analyzers (or any other registry-backed resource) at verification time. By default it
+     * just delegates to {@link #postAnalysisPlanVerification()}; implementers that need the registry override this
+     * method instead. Note that post-optimization re-verification has no registry available, so registry-backed
+     * checks must not be the only barrier against invalid plans reaching execution.
+     */
+    default BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification(AnalysisRegistry analysisRegistry) {
+        return postAnalysisPlanVerification();
+    }
 }

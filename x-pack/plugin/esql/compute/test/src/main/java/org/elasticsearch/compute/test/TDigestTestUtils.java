@@ -19,6 +19,8 @@ import java.util.Collection;
 
 public class TDigestTestUtils {
 
+    private static final double QUANTILE_RANK_TOLERANCE = 0.005;
+
     private static final CircuitBreaker NOOP_BREAKER = new NoopCircuitBreaker("test-breaker");
     private static final MemoryTrackingTDigestArrays NOOP_ARRAYS = new MemoryTrackingTDigestArrays(NOOP_BREAKER);
 
@@ -26,7 +28,7 @@ public class TDigestTestUtils {
      * Utility method for verifying that a TDigestHolder is a correct merge of a collection of TDigestHolders.
      * TDigest is non-deterministic, we just do a sanity check here:
      * the total count, min and max should match exactly and the sum should be close (1% error allowed).
-     * In addition, we check the p1 and p99 with a rather large tolerance.
+     * In addition, we check the p1 and p99 with a tolerance in rank space.
      */
     public static boolean isMergedFrom(TDigestHolder merged, Collection<TDigestHolder> inputValues) {
         long totalCount = 0;
@@ -89,14 +91,21 @@ public class TDigestTestUtils {
             return false;
         }
         if (tDigestTotalCount > 0) {
-            if (Math.abs(mergedAsTDigest.quantile(0.01) - reference.quantile(0.01)) > 0.1) {
+            if (quantileWithinRankTolerance(mergedAsTDigest, reference, 0.01) == false) {
                 return false;
             }
-            if (Math.abs(mergedAsTDigest.quantile(0.99) - reference.quantile(0.99)) > 0.1) {
+            if (quantileWithinRankTolerance(mergedAsTDigest, reference, 0.99) == false) {
                 return false;
             }
         }
 
         return true;
+    }
+
+    private static boolean quantileWithinRankTolerance(TDigest actual, TDigest reference, double quantile) {
+        double lowerBound = reference.quantile(Math.max(0.0, quantile - QUANTILE_RANK_TOLERANCE));
+        double upperBound = reference.quantile(Math.min(1.0, quantile + QUANTILE_RANK_TOLERANCE));
+        double actualValue = actual.quantile(quantile);
+        return actualValue >= lowerBound && actualValue <= upperBound;
     }
 }

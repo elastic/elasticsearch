@@ -80,7 +80,7 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
     private ClusterService clusterService;
 
     @Before
-    public void setUp() throws Exception {
+    public void initServer() throws Exception {
         serverlessMode = false;
         threadPool = new TestThreadPool(
             getTestClass().getName(),
@@ -94,15 +94,13 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
         clientProvider = AzureClientProvider.create(threadPool, Settings.EMPTY);
         clientProvider.start();
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        super.setUp();
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void shutdownServer() throws Exception {
         clientProvider.close();
         httpServer.stop(0);
         secondaryHttpServer.stop(0);
-        super.tearDown();
         ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS);
     }
 

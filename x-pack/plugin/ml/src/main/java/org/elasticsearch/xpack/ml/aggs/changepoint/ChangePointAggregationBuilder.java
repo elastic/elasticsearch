@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.aggs.changepoint;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.BucketMetricsPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -31,7 +32,7 @@ public class ChangePointAggregationBuilder extends BucketMetricsPipelineAggregat
     public static final ConstructingObjectParser<ChangePointAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(
         NAME.getPreferredName(),
         false,
-        (args, context) -> new ChangePointAggregationBuilder(context, (String) args[0])
+        (args, context) -> new ChangePointAggregationBuilder(context, (String) args[0], (BucketHelpers.GapPolicy) args[1])
     );
 
     static {
@@ -45,7 +46,17 @@ public class ChangePointAggregationBuilder extends BucketMetricsPipelineAggregat
     }
 
     public ChangePointAggregationBuilder(String name, String bucketsPath) {
-        super(name, NAME.getPreferredName(), new String[] { bucketsPath });
+        this(name, bucketsPath, BucketHelpers.GapPolicy.SKIP);
+    }
+
+    public ChangePointAggregationBuilder(String name, String bucketsPath, @Nullable BucketHelpers.GapPolicy gapPolicy) {
+        super(
+            name,
+            NAME.getPreferredName(),
+            new String[] { bucketsPath },
+            null,
+            gapPolicy == null ? BucketHelpers.GapPolicy.SKIP : gapPolicy
+        );
     }
 
     public ChangePointAggregationBuilder(StreamInput in) throws IOException {
@@ -67,7 +78,7 @@ public class ChangePointAggregationBuilder extends BucketMetricsPipelineAggregat
 
     @Override
     protected PipelineAggregator createInternal(Map<String, Object> metadata) {
-        return new ChangePointAggregator(name, bucketsPaths[0], metadata);
+        return new ChangePointAggregator(name, bucketsPaths[0], gapPolicy(), metadata);
     }
 
     @Override
@@ -80,5 +91,4 @@ public class ChangePointAggregationBuilder extends BucketMetricsPipelineAggregat
         builder.field(BUCKETS_PATH_FIELD.getPreferredName(), bucketsPaths[0]);
         return builder;
     }
-
 }

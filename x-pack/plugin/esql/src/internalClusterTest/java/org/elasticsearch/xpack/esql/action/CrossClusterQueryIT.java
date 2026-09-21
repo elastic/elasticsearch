@@ -15,11 +15,9 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.operator.DriverProfile;
-import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -32,9 +30,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
-import org.junit.After;
+import org.elasticsearch.xpack.esql.plugin.RemoteFetchOperator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,26 +68,6 @@ import static org.hamcrest.Matchers.not;
 public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
     protected static final String IDX_ALIAS = "alias1";
     protected static final String FILTERED_IDX_ALIAS = "alias-filtered-1";
-
-    @After
-    public void ensureExchangesAreReleased() throws Exception {
-        for (Map.Entry<String, InternalTestCluster> entry : clusters().entrySet()) {
-            String clusterAlias = entry.getKey();
-            InternalTestCluster testCluster = entry.getValue();
-            for (String node : testCluster.getNodeNames()) {
-                TransportEsqlQueryAction esqlQueryAction = testCluster.getInstance(TransportEsqlQueryAction.class, node);
-                ExchangeService exchangeService = esqlQueryAction.exchangeService();
-                assertBusy(() -> {
-                    if (exchangeService.lifecycleState() == Lifecycle.State.STARTED) {
-                        assertTrue(
-                            "Leftover exchanges " + exchangeService + " on node " + node + " in cluster " + clusterAlias,
-                            exchangeService.isEmpty()
-                        );
-                    }
-                }, 5, TimeUnit.SECONDS);
-            }
-        }
-    }
 
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
@@ -157,6 +135,50 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
 
             // ensure that the _clusters metadata is present only if requested
             assertClusterMetadataInResponse(resp, responseExpectMeta);
+        }
+    }
+
+    public void testRemoteFetchTopNIsDisabledForCrossClusterSearch() throws Exception {
+        client(LOCAL_CLUSTER).admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(Settings.builder().put(EsqlFlags.ESQL_REMOTE_FETCH_TOPN.getKey(), true))
+            .get();
+        try {
+            testRemoteFetchTopNIsDisabledForCrossClusterSearchWithSetting();
+        } finally {
+            client(LOCAL_CLUSTER).admin()
+                .cluster()
+                .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(Settings.builder().putNull(EsqlFlags.ESQL_REMOTE_FETCH_TOPN.getKey()))
+                .get();
+        }
+    }
+
+    private void testRemoteFetchTopNIsDisabledForCrossClusterSearchWithSetting() throws Exception {
+        setupTwoClusters();
+        QueryPragmas pragmas = new QueryPragmas(
+            Settings.builder()
+                .put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1)
+                .put(QueryPragmas.DATA_PARTITIONING.getKey(), DataPartitioning.SHARD)
+                .build()
+        );
+        // Test a pushable field sort and an expression sort that guarantees a coordinator TopN.
+        for (String sort : List.of("v", "v + 1")) {
+            EsqlQueryRequest request = syncEsqlQueryRequest(
+                "FROM logs-*," + REMOTE_CLUSTER_1 + ":logs-* | SORT " + sort + " DESC | LIMIT 5 | KEEP v, id"
+            ).acceptedPragmaRisks(true).pragmas(pragmas).profile(true);
+
+            try (EsqlQueryResponse response = runQuery(request)) {
+                assertThat(getValuesList(response), hasSize(5));
+                assertFalse(
+                    response.profile()
+                        .drivers()
+                        .stream()
+                        .flatMap(driver -> driver.operators().stream())
+                        .anyMatch(operator -> operator.status() instanceof RemoteFetchOperator.Status)
+                );
+            }
         }
     }
 

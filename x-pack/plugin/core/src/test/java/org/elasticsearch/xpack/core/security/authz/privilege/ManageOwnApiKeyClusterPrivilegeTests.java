@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -229,6 +230,94 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
 
         assertFalse(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
         assertFalse(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));
+    }
+
+    public void testAuthenticationWithCloudApiKeyAllowsAccessToApiKeyActionsWhenItIsOwner() {
+        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
+            .build();
+
+        final Authentication authentication = AuthenticationTestHelper.randomCloudApiKeyAuthentication();
+        final String cloudApiKeyId = authentication.getEffectiveSubject().getUser().principal();
+
+        final TransportRequest createApiKeyRequest = new CreateApiKeyRequest();
+        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/create", createApiKeyRequest, authentication));
+
+        // owner flag
+        TransportRequest getApiKeyRequest = GetApiKeyRequest.builder().ownedByAuthenticatedUser().withLimitedBy(randomBoolean()).build();
+        TransportRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.forOwnedApiKeys();
+        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
+        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));
+
+        // explicit username and realm name
+        getApiKeyRequest = GetApiKeyRequest.builder()
+            .realmName(AuthenticationField.CLOUD_API_KEY_REALM_NAME)
+            .userName(cloudApiKeyId)
+            .withLimitedBy(randomBoolean())
+            .build();
+        invalidateApiKeyRequest = InvalidateApiKeyRequest.usingRealmAndUserName(
+            AuthenticationField.CLOUD_API_KEY_REALM_NAME,
+            cloudApiKeyId
+        );
+        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
+        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));
+
+        // update ownership is enforced at the service layer
+        final TransportRequest updateApiKeyRequest = UpdateApiKeyRequest.usingApiKeyId(randomAlphaOfLength(10));
+        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/update", updateApiKeyRequest, authentication));
+
+        assertFalse(clusterPermission.check("cluster:admin/something", mock(TransportRequest.class), authentication));
+    }
+
+    public void testAuthenticationWithCloudApiKeyDeniesAccessToApiKeyActionsWhenItIsNotOwner() {
+        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
+            .build();
+
+        final Authentication authentication = AuthenticationTestHelper.randomCloudApiKeyAuthentication();
+        final String cloudApiKeyId = authentication.getEffectiveSubject().getUser().principal();
+        final String otherPrincipal = randomValueOtherThan(cloudApiKeyId, () -> randomAlphaOfLength(20));
+        final String otherRealmName = randomValueOtherThan(
+            AuthenticationField.CLOUD_API_KEY_REALM_NAME,
+            () -> randomAlphaOfLengthBetween(2, 10)
+        );
+
+        final TransportRequest getApiKeyRequest = randomFrom(
+            GetApiKeyRequest.builder()
+                .realmName(AuthenticationField.CLOUD_API_KEY_REALM_NAME)
+                .userName(otherPrincipal)
+                .withLimitedBy(randomBoolean())
+                .build(),
+            GetApiKeyRequest.builder().realmName(otherRealmName).userName(cloudApiKeyId).withLimitedBy(randomBoolean()).build()
+        );
+        final TransportRequest invalidateApiKeyRequest = randomFrom(
+            InvalidateApiKeyRequest.usingRealmAndUserName(AuthenticationField.CLOUD_API_KEY_REALM_NAME, otherPrincipal),
+            InvalidateApiKeyRequest.usingRealmAndUserName(otherRealmName, cloudApiKeyId)
+        );
+
+        assertFalse(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
+        assertFalse(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));
+    }
+
+    public void testCheckQueryApiKeyRequestWithCloudApiKey() {
+        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
+            .build();
+        final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            randomBoolean(),
+            randomBoolean()
+        );
+        if (randomBoolean()) {
+            queryApiKeyRequest.setFilterForCurrentUser();
+        }
+        // unlike ES API keys, cloud API keys are not restricted from querying own keys with limited-by
+        assertThat(
+            clusterPermission.check(QueryApiKeyAction.NAME, queryApiKeyRequest, AuthenticationTestHelper.randomCloudApiKeyAuthentication()),
+            is(queryApiKeyRequest.isFilterForCurrentUser())
+        );
     }
 
     public void testGetAndInvalidateApiKeyWillRespectRunAsUser() {

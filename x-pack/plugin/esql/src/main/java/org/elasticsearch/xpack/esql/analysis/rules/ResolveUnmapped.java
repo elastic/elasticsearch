@@ -32,9 +32,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -95,7 +95,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         return switch (context.unmappedResolution()) {
             case UnmappedResolution.DEFAULT -> plan;
             case UnmappedResolution.NULLIFY -> resolve(plan, false);
-            case UnmappedResolution.LOAD -> resolve(plan, true);
+            case UnmappedResolution.LOAD, UnmappedResolution.LOAD_ALL -> resolve(plan, true);
         };
     }
 
@@ -129,7 +129,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * <p>
      * For non-EsRelation sources (Row, LocalRelation), it falls back to inserting Eval nodes with null assignments.
      * <p>
-     * It also "patches" the introduced attributes through the plan, where needed (like through Fork/UnionAll).
+     * It also "patches" the introduced attributes through the plan, where needed (like through a {@link MergePlan}).
      */
     private static LogicalPlan nullify(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> unresolved) {
         // For EsRelation sources: add null-typed fields to the relation's output
@@ -174,7 +174,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     private static LogicalPlan load(LogicalPlan plan, Set<UnresolvedAttribute> unresolved) {
         // TODO: this will need to be revisited for non-lookup joining or scenarios where we won't want extraction from specific sources
         if (plan.anyMatch(p -> p instanceof UnionAll)) {
-            // Outer references only: a name already surfaced by a branch resolves through the union output. #142033
+            // Outer references only: a name already surfaced by a branch resolves through the merge output. #142033
             Set<String> surfacedByAnyBranch = mainSpineUnionBranchOutputNames(plan);
             LinkedHashSet<UnresolvedAttribute> outerReferences = new LinkedHashSet<>();
             for (UnresolvedAttribute ua : unresolved) {
@@ -189,7 +189,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
 
     /**
      * Adds {@code _source} keyword loaders for {@code toLoad} to every non-LOOKUP {@link EsRelation} reachable from {@code plan};
-     * Row/LocalRelation sources can't load from {@code _source} and are left for {@code ResolveRefs#resolveFork} to null-fill.
+     * Row/LocalRelation sources can't load from {@code _source} and are left for {@code ResolveRefs#resolveMergePlan} to null-fill.
      */
     private static LogicalPlan loadIntoSources(LogicalPlan plan, Set<UnresolvedAttribute> toLoad) {
         return plan.transformUp(EsRelation.class, esr -> {
@@ -236,20 +236,20 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         return loaded;
     }
 
-    // TODO: would an alternative to this be to have ResolveRefs#resolveFork re-resolve the Fork?
+    // TODO: would an alternative to this be to have ResolveRefs#resolveMergePlan re-resolve the MergePlan?
     // We might need some plan delimiters/markers to make it unequivocal which nodes belong to
-    // "make Fork work" - like ([Limit -] Project [- Eval])s - and which don't.
+    // "make the merge work" - like ([Limit -] Project [- Eval])s - and which don't.
     // PruneColumns does the same dance. There's some fragility w.r.t. assuming there to be a top Project and danger of the outputs not
     // being aligned after applying the changes.
     /**
-     * Update the Fork's top Projects in the subplans, and correspondingly, its output, to account for newly introduced aliases.
+     * Update the merge's top Projects in the subplans, and correspondingly, its output, to account for newly introduced aliases.
      */
-    private static Fork patchFork(Fork fork) {
+    private static MergePlan patchMergePlan(MergePlan mergePlan) {
         Holder<Boolean> changed = new Holder<>(false);
-        Fork transformed = (Fork) fork.transformDownSkipBranch((plan, skip) -> {
+        MergePlan transformed = (MergePlan) mergePlan.transformDownSkipBranch((plan, skip) -> {
             if (plan instanceof Project project) {
-                skip.set(true); // process top Project only (Fork-injected)
-                plan = patchForkProject(project);
+                skip.set(true); // process top Project only (merge-injected)
+                plan = patchMergeProject(project);
                 if (plan != project) {
                     changed.set(Boolean.TRUE);
                 }
@@ -257,16 +257,16 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
             return plan;
         });
 
-        return changed.get() ? transformed.refreshOutput() : fork;
+        return changed.get() ? transformed.refreshOutput() : mergePlan;
     }
 
     /**
      * Add any missing attributes that are found in the child's output but not in the Project's output. These have been injected before
      * by the evalUnresolvedAtopXXX methods and need to be "let through" the Project.
      */
-    // Maybe using ResolvingProjects at the top of the Fork branches would be a more simple solution; adding the `*` pattern
-    // would let any newly introduced attribute through without the need to patch the Projects, we'd just have to refresh the fork output.
-    private static Project patchForkProject(Project project) {
+    // Maybe using ResolvingProjects at the top of the merge branches would be a more simple solution; adding the `*` pattern
+    // would let any newly introduced attribute through without the need to patch the Projects, we'd just have to refresh the merge output.
+    private static Project patchMergeProject(Project project) {
         List<Attribute> projectOutput = project.output();
         List<Attribute> childOutput = project.child().output();
         if (projectOutput.equals(childOutput) == false) {
@@ -295,7 +295,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
             return ua;
         };
         var refreshed = plan.transformExpressionsOnlyUp(UnresolvedAttribute.class, refresh);
-        return refreshed.transformDown(Fork.class, ResolveUnmapped::patchFork);
+        return refreshed.transformDown(MergePlan.class, ResolveUnmapped::patchMergePlan);
     }
 
     /**

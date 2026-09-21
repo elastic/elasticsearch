@@ -25,6 +25,7 @@ import org.elasticsearch.index.engine.LiveVersionMapTestUtils;
 import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -47,7 +48,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class ShardGetServiceTests extends IndexShardTestCase {
 
     private GetResult getForUpdate(IndexShard indexShard, String id, long ifSeqNo, long ifPrimaryTerm) throws IOException {
-        return indexShard.getService().getForUpdate(id, ifSeqNo, ifPrimaryTerm, FetchSourceContext.FETCH_ALL_SOURCE);
+        return indexShard.getService()
+            .getForUpdate(id, null, ifSeqNo, ifPrimaryTerm, FetchSourceContext.FETCH_ALL_SOURCE, SplitShardCountSummary.IRRELEVANT);
     }
 
     public void testGetForUpdate() throws IOException {
@@ -100,6 +102,118 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         expectThrows(VersionConflictEngineException.class, () -> getForUpdate(primary, "1", test2.getSeqNo() + 1, primaryTerm));
         expectThrows(VersionConflictEngineException.class, () -> getForUpdate(primary, "1", test2.getSeqNo(), primaryTerm + 1));
         closeShards(primary);
+    }
+
+    public void testPreResolveForUpdate() throws IOException {
+        var splitShardCountSummary = SplitShardCountSummary.UNSET;
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, EngineTestCase.randomReaderWrapper());
+        recoverShardFromStore(primary);
+
+        // missing document
+        try (Engine.GetResult missing = primary.getService().preResolveForUpdate("0", null, splitShardCountSummary)) {
+            assertFalse(missing.exists());
+        }
+
+        // the first realtime get has no translog location to read: it refreshes internally and serves an
+        // index-backed get result
+        indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
+        try (Engine.GetResult indexBacked = primary.getService().preResolveForUpdate("0", null, splitShardCountSummary)) {
+            assertTrue(indexBacked.exists());
+            assertFalse(indexBacked.isFromTranslog());
+        }
+
+        // later writes record their translog location, so an un-refreshed write is served from the translog
+        Engine.IndexResult indexed = indexDoc(primary, "test", "0", "{\"foo\" : \"baz\"}");
+        try (Engine.GetResult translogServed = primary.getService().preResolveForUpdate("0", null, splitShardCountSummary)) {
+            assertTrue(translogServed.exists());
+            assertTrue(translogServed.isFromTranslog());
+        }
+
+        primary.refresh("test");
+        Engine.GetResult engineGet = primary.getService().preResolveForUpdate("0", null, splitShardCountSummary);
+        assertTrue(engineGet.exists());
+        assertFalse(engineGet.isFromTranslog());
+
+        GetResult get = primary.getService()
+            .getForUpdate(
+                new TestPreResolved("0", engineGet),
+                UNASSIGNED_SEQ_NO,
+                UNASSIGNED_PRIMARY_TERM,
+                FetchSourceContext.FETCH_ALL_SOURCE,
+                SplitShardCountSummary.IRRELEVANT
+            );
+        assertTrue(get.isExists());
+        assertEquals("{\"foo\" : \"baz\"}", get.sourceRef().utf8ToString());
+        assertEquals(indexed.getSeqNo(), get.getSeqNo());
+
+        // OCC conditions are validated on consumption
+        Engine.GetResult conflicted = primary.getService().preResolveForUpdate("0", null, splitShardCountSummary);
+        expectThrows(
+            VersionConflictEngineException.class,
+            () -> primary.getService()
+                .getForUpdate(
+                    new TestPreResolved("0", conflicted),
+                    indexed.getSeqNo() + 1,
+                    primary.getOperationPrimaryTerm(),
+                    FetchSourceContext.FETCH_ALL_SOURCE,
+                    SplitShardCountSummary.IRRELEVANT
+                )
+        );
+
+        Engine.GetResult matching = primary.getService().preResolveForUpdate("0", null, splitShardCountSummary);
+        GetResult casGet = primary.getService()
+            .getForUpdate(
+                new TestPreResolved("0", matching),
+                indexed.getSeqNo(),
+                primary.getOperationPrimaryTerm(),
+                FetchSourceContext.FETCH_ALL_SOURCE,
+                SplitShardCountSummary.IRRELEVANT
+            );
+        assertTrue(casGet.isExists());
+
+        {
+            GetStats before = primary.getService().stats();
+            try (Engine.GetResult counted = primary.getService().preResolveForUpdate("0", null, splitShardCountSummary)) {
+                assertTrue(counted.exists());
+                assertEquals(before.getExistsCount() + 1, primary.getService().stats().getExistsCount());
+            }
+        }
+
+        {
+            GetStats before = primary.getService().stats();
+            Engine.GetResult consumed = primary.getService().preResolveForUpdate("0", null, splitShardCountSummary);
+            assertEquals(before.getExistsCount() + 1, primary.getService().stats().getExistsCount());
+            primary.getService()
+                .getForUpdate(
+                    new TestPreResolved("0", consumed),
+                    UNASSIGNED_SEQ_NO,
+                    UNASSIGNED_PRIMARY_TERM,
+                    FetchSourceContext.FETCH_ALL_SOURCE,
+                    SplitShardCountSummary.IRRELEVANT
+                );
+            // the id resolution and the fetch are accounted separately
+            assertEquals(before.getExistsCount() + 2, primary.getService().stats().getExistsCount());
+            try (Engine.GetResult missingCounted = primary.getService().preResolveForUpdate("missing", null, splitShardCountSummary)) {
+                assertFalse(missingCounted.exists());
+            }
+            assertEquals(before.getMissingCount() + 1, primary.getService().stats().getMissingCount());
+        }
+        closeShards(primary);
+    }
+
+    private record TestPreResolved(String id, Engine.GetResult getResult) implements ShardGetService.PreResolved {
+        @Override
+        public String routing() {
+            return null;
+        }
+
+        @Override
+        public Engine.GetResult takeGetResult() {
+            return getResult;
+        }
     }
 
     public void testGetFromTranslogWithStringSourceMappingOptionsAndStoredFields() throws IOException {
@@ -367,6 +481,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         var getResult = primary.getService()
             .getFromTranslog(
                 "2",
+                null,
                 new String[] { "foo" },
                 true,
                 1,
@@ -394,6 +509,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         getResult = primary.getService()
             .getFromTranslog(
                 indexResult.getId(),
+                null,
                 new String[] { "foo" },
                 true,
                 1,
@@ -430,6 +546,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         getResult = primary.getService()
             .getFromTranslog(
                 "1",
+                null,
                 new String[] { "foo" },
                 true,
                 1,
@@ -444,6 +561,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         getResult = primary.getService()
             .getFromTranslog(
                 "2",
+                null,
                 new String[] { "foo" },
                 true,
                 1,
@@ -472,6 +590,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         getResult = primary.getService()
             .getFromTranslog(
                 "2",
+                null,
                 new String[] { "foo" },
                 true,
                 1,

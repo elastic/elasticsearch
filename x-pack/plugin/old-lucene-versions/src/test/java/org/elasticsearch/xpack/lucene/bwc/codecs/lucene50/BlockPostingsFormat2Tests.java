@@ -34,15 +34,16 @@ import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 /** Tests special cases of BlockPostingsFormat */
 public class BlockPostingsFormat2Tests extends ESTestCase {
     Directory dir;
     RandomIndexWriter iw;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initIndex() throws Exception {
         dir = newFSDirectory(createTempDir("testDFBlockSize"));
         IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setCodec(TestUtil.alwaysPostingsFormat(new Lucene50RWPostingsFormat()));
@@ -50,8 +51,8 @@ public class BlockPostingsFormat2Tests extends ESTestCase {
         iw.setDoRandomForceMerge(false); // we will ourselves
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void checkAndCloseIndex() throws Exception {
         iw.close();
         TestUtil.checkIndex(dir); // for some extra coverage, checkIndex before we forceMerge
         IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
@@ -61,7 +62,6 @@ public class BlockPostingsFormat2Tests extends ESTestCase {
         iw.forceMerge(1);
         iw.close();
         dir.close(); // just force a checkindex for now
-        super.tearDown();
     }
 
     private Document newDocument() {

@@ -72,7 +72,7 @@ public class SunThreadInfo {
             return new long[0];
         }
 
-        long[] validIds = Arrays.stream(ids).filter(id -> id <= 0).toArray();
+        long[] validIds = Arrays.stream(ids).filter(id -> id > 0).toArray();
         if (validIds.length == 0) {
             return new long[0];
         }

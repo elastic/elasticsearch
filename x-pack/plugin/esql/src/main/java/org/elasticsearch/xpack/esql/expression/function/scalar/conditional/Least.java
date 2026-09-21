@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -42,7 +43,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 /**
  * Returns the minimum value of multiple columns.
  */
-public class Least extends EsqlScalarFunction implements OptionalArgument {
+public class Least extends EsqlScalarFunction implements OptionalArgument, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Least", Least::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Least.class).unaryVariadic(Least::new).name("least");
 

@@ -74,6 +74,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.eql;
     exports org.elasticsearch.xpack.core.esql;
     exports org.elasticsearch.xpack.core.esql.action;
+    exports org.elasticsearch.xpack.core.esql.action.internal;
     exports org.elasticsearch.xpack.core.exponentialhistogram.fielddata;
     exports org.elasticsearch.xpack.core.frozen;
     exports org.elasticsearch.xpack.core.gpu;
@@ -86,6 +87,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.inference.action;
     exports org.elasticsearch.xpack.core.inference.regionpolicy;
     exports org.elasticsearch.xpack.core.inference.results;
+    exports org.elasticsearch.xpack.core.inference.results.completion;
     exports org.elasticsearch.xpack.core.inference.usage;
     exports org.elasticsearch.xpack.core.inference;
     exports org.elasticsearch.xpack.core.logstash;

@@ -7,16 +7,16 @@
 
 package org.elasticsearch.xpack.inference.services.openai;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentSubParser;
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 
@@ -119,11 +119,11 @@ public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSe
         if (results.isEmpty()) {
             upstream().request(1);
         } else {
-            downstream().onNext(new StreamingChatCompletionResults.Results(results));
+            downstream().onNext(new StreamingCompletionResults.Results(results));
         }
     }
 
-    public static Stream<StreamingChatCompletionResults.Result> parse(XContentParserConfiguration parserConfig, ServerSentEvent event) {
+    public static Stream<StreamingCompletionResults.Result> parse(XContentParserConfiguration parserConfig, ServerSentEvent event) {
         if (DONE_MESSAGE.equalsIgnoreCase(event.data())) {
             return Stream.empty();
         }
@@ -136,7 +136,7 @@ public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSe
                     return parseChoicesField(sub).stream()
                         .filter(Objects::nonNull)
                         .filter(Predicate.not(String::isEmpty))
-                        .map(StreamingChatCompletionResults.Result::new);
+                        .map(StreamingCompletionResults.Result::new);
                 }
             });
         } catch (IOException e) {

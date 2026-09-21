@@ -51,7 +51,7 @@ public class RestSuggestProfilesActionTests extends RestActionTestCase {
         requestHolder = new AtomicReference<>();
         restSuggestProfilesAction = new RestSuggestProfilesAction(settings, licenseState);
         controller().registerHandler(restSuggestProfilesAction);
-        verifyingClient.setExecuteLocallyVerifier(((actionType, actionRequest) -> {
+        verifyingClient.setExecuteAndReturnTaskVerifier(((actionType, actionRequest) -> {
             assertThat(actionRequest, instanceOf(SuggestProfilesRequest.class));
             requestHolder.set((SuggestProfilesRequest) actionRequest);
             return new SuggestProfilesResponse(new SuggestProfilesResponse.ProfileHit[0], 0, new TotalHits(0, TotalHits.Relation.EQUAL_TO));

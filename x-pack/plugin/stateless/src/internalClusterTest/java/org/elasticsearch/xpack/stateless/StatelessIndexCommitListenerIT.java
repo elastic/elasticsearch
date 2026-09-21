@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.stateless;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -24,11 +26,16 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.CommitBCCResolver;
 import org.elasticsearch.xpack.stateless.commits.IndexEngineLocalReaderListener;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.RegisterCommitResponse;
 import org.junit.After;
 import org.junit.Before;
@@ -56,11 +63,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.spy;
 
 public class StatelessIndexCommitListenerIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -79,38 +81,87 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessPluginInteg
         }
 
         @Override
-        protected StatelessCommitService wrapStatelessCommitService(StatelessCommitService instance) {
-            StatelessCommitService commitService = spy(instance);
-            doAnswer(invocation -> {
-                ActionListener<Void> argument = invocation.getArgument(2);
-                argument.onResponse(null);
-                return null;
-            }).when(commitService).addListenerForUploadedGeneration(any(ShardId.class), anyLong(), any());
-            // #onNewCommit is intercepted by the test, meaning that the ShardCommitState does not populate the data structures used for
-            // file deletions; in this case we just mock the methods taking care of that tracking to be no-ops.
-            doAnswer(invocation -> (CommitBCCResolver) generation -> Set.of(new PrimaryTermAndGeneration(1, generation))).when(
-                commitService
-            ).getCommitBCCResolverForShard(any(ShardId.class));
-            doAnswer(invocation -> (IndexEngineLocalReaderListener) (bccHoldingClosedCommit, remainingReferencedBCCs) -> {}).when(
-                commitService
-            ).getIndexEngineLocalReaderListenerForShard(any(ShardId.class));
-            doAnswer(invocation -> null).when(commitService).ensureMaxGenerationToUploadForFlush(any(ShardId.class), anyLong());
-            doAnswer(invocation -> {
-                PrimaryTermAndGeneration compoundCommitGeneration = invocation.getArgument(1);
-                @SuppressWarnings("unchecked")
-                ActionListener<RegisterCommitResponse> listener = invocation.getArgument(5);
-                listener.onResponse(new RegisterCommitResponse(compoundCommitGeneration, null));
-                return null;
-            }).when(commitService)
-                .registerCommitForUnpromotableRecovery(
-                    any(PrimaryTermAndGeneration.class),
-                    any(PrimaryTermAndGeneration.class),
-                    any(ShardId.class),
-                    anyString(),
-                    any(ClusterState.class),
-                    any()
+        protected StatelessCommitService createStatelessCommitService(
+            Settings settings,
+            ObjectStoreService objectStoreService,
+            ClusterService clusterService,
+            IndicesService indicesService,
+            Client client,
+            StatelessCommitCleaner commitCleaner,
+            StatelessSharedBlobCacheService cacheService,
+            SharedBlobCacheWarmingService cacheWarmingService,
+            TelemetryProvider telemetryProvider
+        ) {
+            return new CommitListenerTestCommitService(
+                settings,
+                objectStoreService,
+                clusterService,
+                indicesService,
+                client,
+                commitCleaner,
+                cacheService,
+                cacheWarmingService,
+                telemetryProvider
+            );
+        }
+
+        /// [Engine.IndexCommitListener#onNewCommit] is intercepted by the test, meaning that the ShardCommitState does not populate
+        /// the data structures used for file deletions; in this case we just mock the methods taking care of that tracking to be no-ops.
+        private static class CommitListenerTestCommitService extends StatelessCommitService {
+
+            CommitListenerTestCommitService(
+                Settings settings,
+                ObjectStoreService objectStoreService,
+                ClusterService clusterService,
+                IndicesService indicesService,
+                Client client,
+                StatelessCommitCleaner commitCleaner,
+                StatelessSharedBlobCacheService cacheService,
+                SharedBlobCacheWarmingService cacheWarmingService,
+                TelemetryProvider telemetryProvider
+            ) {
+                super(
+                    settings,
+                    objectStoreService,
+                    clusterService,
+                    indicesService,
+                    client,
+                    commitCleaner,
+                    cacheService,
+                    cacheWarmingService,
+                    telemetryProvider
                 );
-            return commitService;
+            }
+
+            @Override
+            public void addListenerForUploadedGeneration(ShardId shardId, long generation, ActionListener<Void> listener) {
+                listener.onResponse(null);
+            }
+
+            @Override
+            public CommitBCCResolver getCommitBCCResolverForShard(ShardId shardId) {
+                return generation -> Set.of(new PrimaryTermAndGeneration(1, generation));
+            }
+
+            @Override
+            public IndexEngineLocalReaderListener getIndexEngineLocalReaderListenerForShard(ShardId shardId) {
+                return (bccHoldingClosedCommit, remainingReferencedBCCs) -> {};
+            }
+
+            @Override
+            public void ensureMaxGenerationToUploadForFlush(ShardId shardId, long generation) {}
+
+            @Override
+            public void registerCommitForUnpromotableRecovery(
+                PrimaryTermAndGeneration batchedCompoundGeneration,
+                PrimaryTermAndGeneration compoundCommitGeneration,
+                ShardId shardId,
+                String nodeId,
+                ClusterState state,
+                ActionListener<RegisterCommitResponse> listener
+            ) {
+                listener.onResponse(new RegisterCommitResponse(compoundCommitGeneration, null));
+            }
         }
 
         @Override

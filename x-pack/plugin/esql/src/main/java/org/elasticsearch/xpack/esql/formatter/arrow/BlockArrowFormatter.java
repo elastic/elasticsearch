@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
@@ -527,6 +528,118 @@ public abstract class BlockArrowFormatter {
                     out.writeLongLE(childBlock.getLong(i));
                 }
                 return (long) count * Long.BYTES;
+            });
+        }
+    }
+
+    /**
+     * Conversion of DoubleRangeBlocks to an Arrow struct with "from" and "to" float64 fields.
+     */
+    public static class AsDoubleRange extends BlockArrowFormatter {
+
+        public AsDoubleRange(DataType esqlType) {
+            super(esqlType, Types.MinorType.STRUCT);
+        }
+
+        @Override
+        public Field arrowField(String name) {
+            Field superField = super.arrowField(name);
+            var fromField = new Field("from", new FieldType(true, Types.MinorType.FLOAT8.getType(), null), null);
+            var toField = new Field("to", new FieldType(true, Types.MinorType.FLOAT8.getType(), null), null);
+            return new Field(name, superField.getFieldType(), List.of(fromField, toField));
+        }
+
+        @Override
+        public void addFieldNodes(Block block, boolean multivalued, List<ArrowFieldNode> nodes) {
+            int count = block.getPositionCount();
+            if (multivalued) {
+                int valueCount = valueCount(block);
+                nodes.add(new ArrowFieldNode(count, nullValuesCount(block)));  // list
+                nodes.add(new ArrowFieldNode(valueCount, 0));                  // struct (items have no independent nulls)
+                nodes.add(new ArrowFieldNode(valueCount, 0));                  // from
+                nodes.add(new ArrowFieldNode(valueCount, 0));                  // to
+            } else {
+                nodes.add(new ArrowFieldNode(count, nullValuesCount(block)));
+                if (block.areAllValuesNull()) {
+                    nodes.add(new ArrowFieldNode(count, count));
+                    nodes.add(new ArrowFieldNode(count, count));
+                } else {
+                    DoubleRangeBlock rangeBlock = (DoubleRangeBlock) block;
+                    nodes.add(new ArrowFieldNode(count, nullValuesCount(rangeBlock.getDoubleFromBlock())));
+                    nodes.add(new ArrowFieldNode(count, nullValuesCount(rangeBlock.getDoubleToBlock())));
+                }
+            }
+        }
+
+        @Override
+        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+            DoubleRangeBlock block = (DoubleRangeBlock) b;
+            int count = block.getPositionCount();
+
+            if (multivalued) {
+                int valueCount = valueCount(block);
+                addListOffsets(bufs, bufWriters, block);
+                // Struct validity: empty — items inside a list entry are never null in ES|QL
+                bufs.add(dummyArrowBuf(0));
+                bufWriters.add(out -> 0);
+                // from child: empty validity + float64 data for all value slots
+                bufs.add(dummyArrowBuf(0));
+                bufWriters.add(out -> 0);
+                bufs.add(dummyArrowBuf(valueCount * Double.BYTES));
+                bufWriters.add(out -> {
+                    if (block.areAllValuesNull()) {
+                        return writeZeroes(out, valueCount * Double.BYTES);
+                    }
+                    DoubleBlock fromBlock = block.getDoubleFromBlock();
+                    for (int i = 0; i < valueCount; i++) {
+                        out.writeDoubleLE(fromBlock.getDouble(i));
+                    }
+                    return (long) valueCount * Double.BYTES;
+                });
+                // to child: empty validity + float64 data for all value slots
+                bufs.add(dummyArrowBuf(0));
+                bufWriters.add(out -> 0);
+                bufs.add(dummyArrowBuf(valueCount * Double.BYTES));
+                bufWriters.add(out -> {
+                    if (block.areAllValuesNull()) {
+                        return writeZeroes(out, valueCount * Double.BYTES);
+                    }
+                    DoubleBlock toBlock = block.getDoubleToBlock();
+                    for (int i = 0; i < valueCount; i++) {
+                        out.writeDoubleLE(toBlock.getDouble(i));
+                    }
+                    return (long) valueCount * Double.BYTES;
+                });
+            } else {
+                // Struct validity bitmap
+                accumulateVectorValidity(bufs, bufWriters, block, false);
+                if (block.areAllValuesNull()) {
+                    // ConstantNullBlock's child accessors return `this`, and getDouble() throws.
+                    // Write all-null validity and zeroed data for both children.
+                    addAllNullChildBuffers(bufs, bufWriters, count);
+                    addAllNullChildBuffers(bufs, bufWriters, count);
+                } else {
+                    addChildBuffers(bufs, bufWriters, count, block.getDoubleFromBlock());
+                    addChildBuffers(bufs, bufWriters, count, block.getDoubleToBlock());
+                }
+            }
+        }
+
+        private static void addAllNullChildBuffers(List<ArrowBuf> bufs, List<BufWriter> bufWriters, int count) {
+            bufs.add(dummyArrowBuf(bitSetLength(count)));
+            bufWriters.add(out -> writeAllFalseValidity(out, count));
+            bufs.add(dummyArrowBuf(count * Double.BYTES));
+            bufWriters.add(out -> writeZeroes(out, count * Double.BYTES));
+        }
+
+        private static void addChildBuffers(List<ArrowBuf> bufs, List<BufWriter> bufWriters, int count, DoubleBlock childBlock) {
+            accumulateVectorValidity(bufs, bufWriters, childBlock, false);
+            bufs.add(dummyArrowBuf(count * Double.BYTES));
+            bufWriters.add(out -> {
+                for (int i = 0; i < count; i++) {
+                    out.writeDoubleLE(childBlock.getDouble(i));
+                }
+                return (long) count * Double.BYTES;
             });
         }
     }

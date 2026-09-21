@@ -50,7 +50,7 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
                 IvfQueryConfigResolver resolver = IvfQueryConfigResolver.from(false, true, MAPPING_BITS, MAPPING_OVERSAMPLE, null);
                 IvfSegmentConfig resolved = resolver.resolve(fieldInfo, leaf);
 
-                assertThat(resolved.quantEncoding(), equalTo(QuantEncoding.fromBits((byte) MAPPING_BITS)));
+                assertThat(resolved.osqEncoding(), equalTo(QuantEncoding.fromBits((byte) MAPPING_BITS)));
                 assertTrue(resolved.usePrecondition());
                 assertThat(resolved.rescoreOversample(), equalTo(MAPPING_OVERSAMPLE));
             }
@@ -87,8 +87,18 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
                     dir,
                     4,
                     64,
-                    new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, true, MAPPING_OVERSAMPLE),
-                    new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, true, MAPPING_OVERSAMPLE),
+                    IvfSegmentConfig.of(
+                        CentroidIndexFormat.FLAT,
+                        new IvfSegmentConfig.OsqConfig(QuantEncoding.ONE_BIT_4BIT_QUERY),
+                        true,
+                        MAPPING_OVERSAMPLE
+                    ),
+                    IvfSegmentConfig.of(
+                        CentroidIndexFormat.FLAT,
+                        new IvfSegmentConfig.OsqConfig(QuantEncoding.ONE_BIT_4BIT_QUERY),
+                        true,
+                        MAPPING_OVERSAMPLE
+                    ),
                     IvfMergeConfigResolver.useCodecDefault()
                 )
             ) {
@@ -165,8 +175,8 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
                     dir,
                     4,
                     64,
-                    new IvfSegmentConfig(CentroidIndexFormat.FLAT, persistedEncoding, false, 2f),
-                    new IvfSegmentConfig(CentroidIndexFormat.FLAT, persistedEncoding, false, 2f),
+                    IvfSegmentConfig.of(CentroidIndexFormat.FLAT, new IvfSegmentConfig.OsqConfig(persistedEncoding), false, 2f),
+                    IvfSegmentConfig.of(CentroidIndexFormat.FLAT, new IvfSegmentConfig.OsqConfig(persistedEncoding), false, 2f),
                     IvfMergeConfigResolver.useCodecDefault()
                 )
             ) {
@@ -175,7 +185,7 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
                 IvfQueryConfigResolver resolver = IvfQueryConfigResolver.from(true, false, MAPPING_BITS, MAPPING_OVERSAMPLE, null);
                 IvfSegmentConfig resolved = resolver.resolve(fieldInfo, leaf);
 
-                assertThat(resolved.quantEncoding(), equalTo(persistedEncoding));
+                assertThat(resolved.osqEncoding(), equalTo(persistedEncoding));
             }
         }
     }
@@ -188,8 +198,8 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
                     dir,
                     4,
                     64,
-                    new IvfSegmentConfig(CentroidIndexFormat.FLAT, persistedEncoding, false, 2f),
-                    new IvfSegmentConfig(CentroidIndexFormat.FLAT, persistedEncoding, false, 2f),
+                    IvfSegmentConfig.of(CentroidIndexFormat.FLAT, new IvfSegmentConfig.OsqConfig(persistedEncoding), false, 2f),
+                    IvfSegmentConfig.of(CentroidIndexFormat.FLAT, new IvfSegmentConfig.OsqConfig(persistedEncoding), false, 2f),
                     IvfMergeConfigResolver.useCodecDefault()
                 )
             ) {
@@ -198,7 +208,7 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
                 IvfQueryConfigResolver resolver = IvfQueryConfigResolver.from(false, false, MAPPING_BITS, MAPPING_OVERSAMPLE, null);
                 IvfSegmentConfig resolved = resolver.resolve(fieldInfo, leaf);
 
-                assertThat(resolved.quantEncoding(), equalTo(QuantEncoding.fromBits((byte) MAPPING_BITS)));
+                assertThat(resolved.osqEncoding(), equalTo(QuantEncoding.fromBits((byte) MAPPING_BITS)));
             }
         }
     }
@@ -273,5 +283,42 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
         assertThat(IvfSegmentConfig.effectiveRescoreOversample(2f, 7f, 3f), equalTo(7f));
         assertThat(IvfSegmentConfig.effectiveRescoreOversample(2f, null, 3f), equalTo(2f));
         assertThat(IvfSegmentConfig.effectiveRescoreOversample(Float.NaN, null, 3f), equalTo(3f));
+    }
+
+    /**
+     * {@code declaredRescoreOversample} sizes a candidate pool before any leaf has been read, so it must
+     * follow the same precedence as {@link IvfQueryConfigResolver#resolve} on a segment that persisted
+     * nothing: query override first, then the mapping default.
+     */
+    public void testDeclaredRescoreOversamplePrecedence() {
+        assertEquals(3.0f, IvfQueryConfigResolver.from(false, false, 1, 3.0f, null).declaredRescoreOversample(), 0.0f);
+        assertEquals(2.0f, IvfQueryConfigResolver.from(false, false, 1, 3.0f, 2.0f).declaredRescoreOversample(), 0.0f);
+        assertEquals(1.0f, IvfQueryConfigResolver.from(true, false, 1, 1.0f, null).declaredRescoreOversample(), 0.0f);
+    }
+
+    /**
+     * {@code declaredRescoreOversample} states the query-over-mapping precedence itself rather than deferring
+     * to {@link IvfSegmentConfig#effectiveRescoreOversample}, whose persisted-value branch cannot apply here.
+     * That keeps it readable but means the rule now lives in two places, so pin them together: with nothing
+     * persisted the two must agree for every combination of override and default.
+     */
+    public void testDeclaredOversampleAgreesWithEffectiveWhenNothingIsPersisted() {
+        for (float mappingDefault : new float[] { 0f, 1.0f, 1.5f, 3.0f, 10f }) {
+            for (Float queryOverride : new Float[] { null, 0f, 1.0f, 2.0f, 10f }) {
+                IvfQueryConfigResolver resolver = IvfQueryConfigResolver.from(
+                    randomBoolean(),
+                    randomBoolean(),
+                    1,
+                    mappingDefault,
+                    queryOverride
+                );
+                assertEquals(
+                    "mappingDefault=" + mappingDefault + " queryOverride=" + queryOverride,
+                    IvfSegmentConfig.effectiveRescoreOversample(Float.NaN, queryOverride, mappingDefault),
+                    resolver.declaredRescoreOversample(),
+                    0.0f
+                );
+            }
+        }
     }
 }

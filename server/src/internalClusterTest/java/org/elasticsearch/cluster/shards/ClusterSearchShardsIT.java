@@ -192,7 +192,7 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
             ClusterSearchShardsResponse.class,
             listener -> client().execute(TransportClusterSearchShardsAction.TYPE, request, listener)
         );
-        assertThat(e.getMessage(), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
+        assertThat(e.getMessage(), containsString("[slice] is not allowed when [index.slice.enabled] is false"));
     }
 
     public void testSliceRoutingReturnsExpectedShardGroupsWhenSliceEnabled() {

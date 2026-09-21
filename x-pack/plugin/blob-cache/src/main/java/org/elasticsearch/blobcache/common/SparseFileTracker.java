@@ -616,8 +616,8 @@ public class SparseFileTracker {
     }
 
     private void updateCompletePointer(long value) {
-        // Use MAX rather than asserting monotonicity: when a split catch-up fires onProgressAtLeast with
-        // upper.progress, adjacent range merging in onGapSuccess may have already advanced complete further.
+        // Use MAX rather than asserting monotonicity: when a split catch-up advances to upper.progress,
+        // adjacent range merging in onGapSuccess may have already advanced complete further.
         synchronized (ranges) {
             if (value > complete) {
                 complete = value;

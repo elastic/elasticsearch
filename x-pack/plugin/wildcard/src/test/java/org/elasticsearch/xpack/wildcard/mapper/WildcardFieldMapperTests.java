@@ -12,6 +12,11 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.column.BinaryColumn;
+import org.apache.lucene.document.column.Column;
+import org.apache.lucene.document.column.LongColumn;
+import org.apache.lucene.document.column.LongTupleCursor;
+import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
@@ -23,6 +28,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -44,23 +50,32 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -76,20 +91,27 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.wildcard.Wildcard;
 import org.elasticsearch.xpack.wildcard.mapper.WildcardFieldMapper.Builder;
+import org.junit.After;
 import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -133,9 +155,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         return false;
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
+    public void initWildcardFieldTypes() throws Exception {
         Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, IndexVersion.current());
         builder.ignoreAbove(MAX_FIELD_LENGTH);
         wildcardFieldType = builder.build(MapperBuilderContext.root(false, false));
@@ -163,20 +184,16 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         iw.forceMerge(1);
         rewriteReader = iw.getReader();
         iw.close();
-
-        super.setUp();
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void closeRewriteIndex() throws Exception {
         try {
             rewriteReader.close();
             rewriteDir.close();
         } catch (Exception ignoreCloseFailure) {
             // allow any superclass tear down logic to continue
         }
-        // TODO Auto-generated method stub
-        super.tearDown();
     }
 
     public void testTooBigKeywordField() throws IOException {
@@ -1234,7 +1251,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         if (field != null) {
             doc.add(field);
             // SeparateCount format stores the value count in a companion numeric doc values field (".counts").
-            // It must be copied alongside the main binary field for MultiValuedSortedBinaryDocValues to decode values.
+            // It must be copied alongside the main binary field for MultiValuedSortableBinaryDocValues to decode values.
             if (field instanceof MultiValuedBinaryDocValuesField.SeparateCount separateCount) {
                 doc.add(separateCount.countField());
             } else {
@@ -1527,5 +1544,122 @@ public class WildcardFieldMapperTests extends MapperTestCase {
                 assertEquals(1, searcher.count(fieldType.wildcardQuery("bbb*", null, false, context)));
             }
         );
+    }
+
+    private void withColumnBatch(
+        MapperService mapperService,
+        String field,
+        CheckedConsumer<MappedColumns, Exception> assertions,
+        String... sources
+    ) throws Exception {
+        final int docCount = sources.length;
+        final BytesReference[] sourceBytesArray = new BytesReference[docCount];
+        final IndexRequest[] requests = new IndexRequest[docCount];
+        for (int i = 0; i < docCount; i++) {
+            sourceBytesArray[i] = new BytesArray(sources[i].getBytes(StandardCharsets.UTF_8));
+            requests[i] = new IndexRequest("test-index").id("d" + i).source(sourceBytesArray[i], XContentType.JSON);
+        }
+        final MappingLookup mappingLookup = mapperService.mappingLookup();
+        final IndexSettings indexSettings = mapperService.getIndexSettings();
+        try (
+            BatchMappingContext ctx = new BatchMappingContext(
+                EngineTestCase.initFromRequests(requests),
+                mappingLookup,
+                indexSettings,
+                new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
+            );
+            EscfBatch escfBatch = EscfEncoder.encode(Arrays.asList(sourceBytesArray), XContentType.JSON)
+        ) {
+            final org.elasticsearch.sourcebatch.SourceSchema schema = escfBatch.schema();
+            for (int c = 0; c < schema.leafCount(); c++) {
+                final String path = schema.getFullPath(c);
+                if (path.equals(field) == false) {
+                    continue;
+                }
+                final org.elasticsearch.index.mapper.Mapper mapper = mappingLookup.getMapper(path);
+                if (mapper instanceof org.elasticsearch.index.mapper.FieldMapper fm) {
+                    fm.mapColumnBatch(ctx, escfBatch.column(c));
+                }
+            }
+            assertions.accept(ctx.columns());
+        }
+    }
+
+    public void testColumnBatchNgramWrappingShape() throws Exception {
+        Settings columnarSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+            .build();
+        MapperService ms = createMapperService(columnarSettings, fieldMapping(b -> b.field("type", "wildcard")));
+
+        final String value = "hello";
+        final byte[] expectedNgram = ("\0" + value + "\0\0").getBytes(StandardCharsets.UTF_8);
+        final byte[] expectedDv = value.getBytes(StandardCharsets.UTF_8);
+
+        withColumnBatch(ms, "field", columns -> {
+            boolean foundNgram = false;
+            boolean foundDv = false;
+            long dvCount = -1;
+
+            for (Column col : columns.toColumnBatch().columns()) {
+                if (col instanceof BinaryColumn binCol) {
+                    ObjectTupleCursor<BytesRef> cursor = binCol.tuples();
+                    if (cursor.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        BytesRef val = cursor.value();
+                        byte[] colBytes = Arrays.copyOfRange(val.bytes, val.offset, val.offset + val.length);
+                        if (Arrays.equals(colBytes, expectedNgram)) {
+                            foundNgram = true;
+                        } else if (Arrays.equals(colBytes, expectedDv)) {
+                            foundDv = true;
+                        }
+                    }
+                } else if (col instanceof LongColumn longCol && col.name().endsWith(".counts")) {
+                    LongTupleCursor cursor = longCol.tuples();
+                    if (cursor.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        dvCount = cursor.longValue();
+                    }
+                }
+            }
+
+            assertTrue(
+                "ngram terms column must carry \\0-wrapped bytes (" + new String(expectedNgram, StandardCharsets.UTF_8) + ")",
+                foundNgram
+            );
+            assertTrue("dv column must carry raw UTF-8 bytes (" + value + ")", foundDv);
+            assertEquals("counts companion must reflect 1 slot for a single-value doc", 1L, dvCount);
+        }, "{\"field\":\"" + value + "\"}");
+    }
+
+    public void testColumnBatchMultiValueArrayOrderShape() throws Exception {
+        Settings columnarSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+            .build();
+        MapperService ms = createMapperService(columnarSettings, fieldMapping(b -> b.field("type", "wildcard")));
+
+        withColumnBatch(ms, "field", columns -> {
+            long dvCount = -1;
+            boolean foundMultiSlotBlob = false;
+
+            for (Column col : columns.toColumnBatch().columns()) {
+                if (col instanceof LongColumn longCol && col.name().endsWith(".counts")) {
+                    LongTupleCursor cursor = longCol.tuples();
+                    if (cursor.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        dvCount = cursor.longValue();
+                    }
+                } else if (col instanceof BinaryColumn binCol && col.name().equals("field")) {
+                    ObjectTupleCursor<BytesRef> cursor = binCol.tuples();
+                    if (cursor.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        BytesRef val = cursor.value();
+                        if (val.length > 0 && val.bytes[val.offset] == 3) {
+                            foundMultiSlotBlob = true;
+                        }
+                    }
+                }
+            }
+
+            assertEquals("counts must be 2 for two non-null slots", 2L, dvCount);
+            assertTrue("binary dv blob must use [len+1][val] multi-slot framing for two values", foundMultiSlotBlob);
+        }, "{\"field\":[\"ab\",\"cd\"]}");
     }
 }

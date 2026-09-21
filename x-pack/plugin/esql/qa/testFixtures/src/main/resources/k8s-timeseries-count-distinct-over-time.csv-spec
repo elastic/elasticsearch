@@ -269,6 +269,7 @@ distincts:long | cluster:keyword | time_bucket:datetime
 // Make sure that the non-time series aggs don't choke on null.
 countDistinctNull
 required_capability: ts_command_v0
+required_capability: fix_agg_on_null_by_replacing_with_eval
 
 TS k8s
 | EVAL y = null
@@ -286,6 +287,7 @@ m:long | cd:long | cluster:keyword | time_bucket:datetime
 
 valuesNull
 required_capability: ts_command_v0
+required_capability: fix_agg_on_null_by_replacing_with_eval
 
 TS k8s
 | EVAL y = null
@@ -317,4 +319,20 @@ m:long | sm:null | cluster:keyword | time_bucket:datetime
 4      | null    | prod            | 2024-05-10T00:00:00.000Z
 11     | null    | qa              | 2024-05-10T00:00:00.000Z
 6      | null    | staging         | 2024-05-10T00:00:00.000Z
+;
+
+count_distinct_over_time_of_keyword_dimension
+required_capability: ts_command_v0
+TS k8s | STATS c = max(count_distinct_over_time(pod, 1000)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
+
+c:long | cluster:keyword | time_bucket:datetime
+1      | prod            | 2024-05-10T00:00:00.000Z
+1      | qa              | 2024-05-10T00:00:00.000Z
+1      | staging         | 2024-05-10T00:00:00.000Z
+1      | prod            | 2024-05-10T00:10:00.000Z
+1      | qa              | 2024-05-10T00:10:00.000Z
+1      | staging         | 2024-05-10T00:10:00.000Z
+1      | prod            | 2024-05-10T00:20:00.000Z
+1      | qa              | 2024-05-10T00:20:00.000Z
+1      | staging         | 2024-05-10T00:20:00.000Z
 ;

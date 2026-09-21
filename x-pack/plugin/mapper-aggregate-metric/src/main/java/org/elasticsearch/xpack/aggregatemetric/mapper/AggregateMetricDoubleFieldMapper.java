@@ -28,13 +28,13 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.FallbackPostMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -593,7 +593,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                         }
 
                         @Override
-                        public SortedBinaryDocValues getBytesValues() {
+                        public SortableBinaryDocValues getBytesValues() {
                             throw new UnsupportedOperationException(
                                 "String representation of doc values " + "for [" + CONTENT_TYPE + "] fields is not supported"
                             );
@@ -632,14 +632,16 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                             ctx -> load(ctx).getAggregateMetricValues()
                         );
                     }
-                    throw new UnsupportedOperationException(
-                        "["
+                    throw new IllegalArgumentException(
+                        "Sorting by field ["
+                            + name()
+                            + "] of type ["
                             + CONTENT_TYPE
-                            + "] supports sorting if it has configured a single metric or the metrics ["
+                            + "] is not supported unless it has configured a single metric or the ["
                             + Metric.sum
                             + ", "
                             + Metric.value_count
-                            + "]"
+                            + "] metrics"
                     );
                 }
 
@@ -867,7 +869,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                 }
 
                 if (malformedDataForSyntheticSource != null) {
-                    IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), malformedDataForSyntheticSource);
+                    FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED, malformedDataForSyntheticSource);
                 }
 
                 context.addIgnoredField(fullPath());
@@ -898,7 +900,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                 leafName(),
                 fullPath(),
                 new AggregateMetricSyntheticFieldLoader(fullPath(), metrics),
-                CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated())
+                CompositeSyntheticFieldLoader.malformedFallbackLayer(this, indexSettings)
             )
         );
     }

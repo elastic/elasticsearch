@@ -22,12 +22,10 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.BaseQuantizedKnnVectorsFormatTestCase;
 import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
-import org.junit.Before;
 
 import java.io.IOException;
 
@@ -41,10 +39,6 @@ import static org.hamcrest.Matchers.is;
 
 public class ES94ScalarQuantizedVectorsFormatTests extends BaseQuantizedKnnVectorsFormatTestCase {
 
-    static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
-    }
-
     @Override
     protected boolean supportsFloatVectorFallback() {
         return false;
@@ -52,16 +46,12 @@ public class ES94ScalarQuantizedVectorsFormatTests extends BaseQuantizedKnnVecto
 
     private KnnVectorsFormat format;
 
-    @Before
-    @Override
-    public void setUp() throws Exception {
-        int bits = randomFrom(1, 2, 4, 7);
-        format = new ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, bits, false);
-        super.setUp();
-    }
-
     @Override
     protected Codec getCodec() {
+        if (format == null) {
+            int bits = randomFrom(1, 2, 4, 7);
+            format = new ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, bits, false);
+        }
         return TestUtil.alwaysKnnVectorsFormat(format);
     }
 
@@ -81,7 +71,12 @@ public class ES94ScalarQuantizedVectorsFormatTests extends BaseQuantizedKnnVecto
     }
 
     public void testSimpleOffHeapSize() throws IOException {
-        float[] vector = randomVector(random().nextInt(12, 500));
+        // Int4 (bits=4 / PACKED_NIBBLE) requires even dimensions; getCodec may randomly pick bits=4.
+        int dimension = random().nextInt(12, 500);
+        if (dimension % 2 != 0) {
+            dimension++;
+        }
+        float[] vector = randomVector(dimension);
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
             Document doc = new Document();
             doc.add(new KnnFloatVectorField("f", vector, DOT_PRODUCT));

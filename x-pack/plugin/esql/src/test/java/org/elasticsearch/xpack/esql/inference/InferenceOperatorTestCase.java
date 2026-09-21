@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -37,6 +38,7 @@ import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.RerankAction;
@@ -46,8 +48,10 @@ import org.junit.Before;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -104,9 +108,13 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
                 Block[] blocks = new Block[inputsCount];
                 try {
                     for (int b = 0; b < inputsCount; b++) {
+                        // A null value produces no inference request, so a block of nothing but nulls reaches the inference
+                        // service as no request at all. One position per block is therefore always non-null, so that every
+                        // non-empty page issues at least one request and failure-injecting tests have something to fail.
+                        int nonNullPosition = length > 0 ? between(0, length - 1) : -1;
                         try (var builder = blockFactory.newBytesRefBlockBuilder(length)) {
                             for (int i = 0; i < length; i++) {
-                                if (randomInt() % 100 == 0) {
+                                if (i != nonNullPosition && randomInt() % 100 == 0) {
                                     builder.appendNull();
                                 } else {
                                     builder.appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
@@ -132,8 +140,27 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
         return mockedInferenceService(new AtomicBoolean(false), new RuntimeException("default error"));
     }
 
+    /**
+     * A mock inference service whose per-request outcome is decided from the request's input texts, so that a specific
+     * batched request can fail while sibling requests succeed.
+     * <p>
+     * This is required to exercise request batching: the all-or-nothing {@link #mockedInferenceService(AtomicBoolean, Exception)}
+     * cannot express "fail one batch, succeed another". A content-based predicate is the minimal way to make a single batch fail
+     * deterministically (e.g. by embedding a sentinel string in one row of that batch). The optional counter records how many
+     * inference requests actually reach the service, letting tests assert that batching reduces the number of requests. Successful
+     * requests are answered with the same deterministic embeddings as the other mock via {@link #mockInferenceResult}.
+     * </p>
+     *
+     * @param requestFailsOnInputs predicate over a request's ordered input strings; when it returns {@code true} the request fails
+     * @param failureException     the failure delivered for requests matching the predicate
+     * @param invocationCounter    incremented once per dispatched (non-null) inference request; may be {@code null}
+     */
     @SuppressWarnings("unchecked")
-    protected InferenceService mockedInferenceService(AtomicBoolean shouldFail, Exception failureException) {
+    protected InferenceService mockedInferenceService(
+        Predicate<List<String>> requestFailsOnInputs,
+        Exception failureException,
+        AtomicInteger invocationCounter
+    ) {
         Client mockClient = new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -141,40 +168,39 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
                 Request request,
                 ActionListener<Response> listener
             ) {
-                runWithRandomDelay(() -> {
-                    if (shouldFail.get()) {
-                        listener.onFailure(failureException);
-                        return;
-                    }
-                    if (action instanceof InferenceAction && request instanceof InferenceAction.Request inferenceRequest) {
-                        listener.onResponse((Response) new InferenceAction.Response(mockInferenceResult(inferenceRequest)));
-                        return;
-                    }
-                    if (action instanceof EmbeddingAction && request instanceof EmbeddingAction.Request embeddingRequest) {
-                        List<String> inputs = embeddingRequest.getEmbeddingRequest()
-                            .inputs()
-                            .stream()
-                            .map(group -> group.value().value())
-                            .toList();
-                        InferenceAction.Request syntheticRequest = InferenceAction.Request.builder(
-                            embeddingRequest.getInferenceEntityId(),
-                            embeddingRequest.getTaskType()
-                        ).setInput(inputs).build();
-                        listener.onResponse((Response) new InferenceAction.Response(mockInferenceResult(syntheticRequest)));
-                        return;
-                    }
-                    if (action instanceof RerankAction && request instanceof RerankAction.Request rerankRequest) {
-                        List<String> inputs = rerankRequest.getRerankRequest().inputs().stream().map(InferenceString::value).toList();
-                        InferenceAction.Request syntheticRequest = InferenceAction.Request.builder(
-                            rerankRequest.getInferenceEntityId(),
-                            rerankRequest.getTaskType()
-                        ).setInput(inputs).build();
-                        listener.onResponse((Response) new InferenceAction.Response(mockInferenceResult(syntheticRequest)));
-                        return;
-                    }
+                try {
+                    runWithRandomDelay(() -> {
+                        List<String> inputs;
+                        if (action instanceof InferenceAction && request instanceof InferenceAction.Request inferenceRequest) {
+                            inputs = inferenceRequest.getInput();
+                        } else if (action instanceof EmbeddingAction && request instanceof EmbeddingAction.Request embeddingRequest) {
+                            inputs = embeddingRequest.getEmbeddingRequest().inputs().stream().map(group -> group.value().value()).toList();
+                        } else if (action instanceof RerankAction && request instanceof RerankAction.Request rerankRequest) {
+                            inputs = rerankRequest.getRerankRequest().inputs().stream().map(InferenceString::value).toList();
+                        } else {
+                            listener.onFailure(new UnsupportedOperationException("Unexpected action: " + action));
+                            return;
+                        }
 
-                    listener.onFailure(new UnsupportedOperationException("Unexpected action: " + action));
-                });
+                        if (invocationCounter != null) {
+                            invocationCounter.incrementAndGet();
+                        }
+
+                        if (requestFailsOnInputs.test(inputs)) {
+                            listener.onFailure(failureException);
+                            return;
+                        }
+
+                        BaseInferenceActionRequest baseRequest = (BaseInferenceActionRequest) request;
+                        InferenceAction.Request syntheticRequest = InferenceAction.Request.builder(
+                            baseRequest.getInferenceEntityId(),
+                            baseRequest.getTaskType()
+                        ).setInput(inputs).build();
+                        listener.onResponse((Response) new InferenceAction.Response(mockInferenceResult(syntheticRequest)));
+                    });
+                } catch (EsRejectedExecutionException e) {
+                    listener.onFailure(e);
+                }
             }
 
             private void runWithRandomDelay(Runnable runnable) {
@@ -188,6 +214,11 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 
         return new InferenceService(mockClient, clusterService);
+    }
+
+    protected InferenceService mockedInferenceService(AtomicBoolean shouldFail, Exception failureException) {
+        // Reuse the content-based mock: the boolean is re-read per request, so the all-or-nothing behavior is preserved.
+        return mockedInferenceService(inputs -> shouldFail.get(), failureException, null);
     }
 
     protected abstract InferenceResultsType mockInferenceResult(InferenceAction.Request request);

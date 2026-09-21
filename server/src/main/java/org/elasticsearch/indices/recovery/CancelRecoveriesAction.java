@@ -42,7 +42,7 @@ public class CancelRecoveriesAction {
         public Request(long term, long clusterStateVersion, List<ShardRecoveryCancellation> shardRecoveryCancellations) {
             this.term = term;
             this.clusterStateVersion = clusterStateVersion;
-            this.shardRecoveryCancellations = shardRecoveryCancellations;
+            this.shardRecoveryCancellations = List.copyOf(shardRecoveryCancellations);
         }
 
         public Request(StreamInput in) throws IOException {

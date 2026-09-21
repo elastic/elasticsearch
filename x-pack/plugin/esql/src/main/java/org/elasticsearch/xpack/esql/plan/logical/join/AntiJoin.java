@@ -9,12 +9,10 @@ package org.elasticsearch.xpack.esql.plan.logical.join;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
@@ -50,7 +48,7 @@ public class AntiJoin extends AbstractSubqueryJoin {
 
     @Override
     protected LogicalPlan buildEmptyRightSidePlan(Source source) {
-        return new Filter(source, left(), Literal.TRUE);
+        return left();
     }
 
     @Override

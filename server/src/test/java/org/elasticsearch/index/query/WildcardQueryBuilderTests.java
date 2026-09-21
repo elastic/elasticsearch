@@ -207,6 +207,18 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         assertCircuitBreakerAccountsForQuery(new WildcardQueryBuilder(TEXT_FIELD_NAME, "test*pattern*with*wildcards*"));
     }
 
+    public void testWildcardQueryContinuouslyAccountedDuringConstruction() {
+        assertCircuitBreakerContinuouslyAccountsDuringConstruction(
+            context -> context.getFieldType(TEXT_FIELD_NAME).wildcardQuery("test*pattern*with*many*wildcards*", null, false, context)
+        );
+    }
+
+    public void testWildcardQueryNoBreakerDipUnderConcurrency() throws Exception {
+        assertNoBreakerDipUnderConcurrentConstruction(
+            context -> context.getFieldType(TEXT_FIELD_NAME).wildcardQuery("test*pattern*with*many*wildcards*", null, false, context)
+        );
+    }
+
     public void testCircuitBreakerTripsWithLowLimit() {
         assertCircuitBreakerTripsOnQueryConstruction("1mb", () -> {
             BoolQueryBuilder boolQuery = new BoolQueryBuilder();

@@ -25,7 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
- * Decoder-level contract for {@code max_record_size} enforcement after the issue 965 change, which moved
+ * Decoder-level contract for {@code external_max_record_size} enforcement after the issue 965 change, which moved
  * enforcement out of a dedicated buffer sweep ({@code NdJsonRecordCappingInputStream} / the lenient pre-filter)
  * and into {@link NdJsonPageDecoder}'s existing per-record decode loop. The load-bearing properties are:
  * <ul>
@@ -33,7 +33,7 @@ import java.util.List;
  *       contains it, so when the whole segment is within the cap the decoder does no per-record cap work at
  *       all ({@link NdJsonPageDecoder#capEnforced()} is false). This is the streaming-parallel chunk case
  *       whose redundant traversal the issue removed.</li>
- *   <li><b>Strict:</b> an oversized record fails with a {@code max_record_size [N]} message.</li>
+ *   <li><b>Strict:</b> an oversized record fails with a {@code external_max_record_size [N]} message.</li>
  *   <li><b>Lenient byte-array:</b> the oversized record is dropped and decoding continues, without compacting
  *       the buffer (so later rows keep their file offsets — see {@code NdJsonPageIteratorTests}).</li>
  *   <li><b>Lenient streaming:</b> there is no cheap resumption point, so the read truncates at the oversized
@@ -91,7 +91,7 @@ public class NdJsonPageDecoderMaxRecordSizeTests extends ESTestCase {
         }
     }
 
-    /** Only the rare {@code max_record_size < segment_size} config can place an oversized record in a segment. */
+    /** Only the rare {@code external_max_record_size < segment_size} config can place an oversized record in a segment. */
     public void testByteArrayBelowSegmentEnablesEnforcement() throws IOException {
         byte[] data = ndjson("{\"id\":1}", "{\"id\":2}", "{\"id\":3}");
         try (NdJsonPageDecoder decoder = byteArrayDecoder(data, ErrorPolicy.STRICT)) {
@@ -115,7 +115,7 @@ public class NdJsonPageDecoderMaxRecordSizeTests extends ESTestCase {
         try (NdJsonPageDecoder decoder = byteArrayDecoder(data, ErrorPolicy.STRICT)) {
             decoder.setMaxRecordBytes(cap);
             IOException ex = expectThrows(IOException.class, decoder::decodePage);
-            assertThat(ex.getMessage(), Matchers.containsString("max_record_size [" + cap + "]"));
+            assertThat(ex.getMessage(), Matchers.containsString("external_max_record_size [" + cap + "]"));
         }
     }
 

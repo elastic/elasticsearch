@@ -239,10 +239,11 @@ public interface Transport extends LifecycleComponent {
          */
         public TransportResponseHandler<? extends TransportResponse> onResponseReceived(
             final long requestId,
-            final TransportMessageListener listener
+            final TransportMessageListener listener,
+            final int networkMessageSize
         ) {
             ResponseContext<? extends TransportResponse> context = handlers.remove(requestId);
-            listener.onResponseReceived(requestId, context);
+            listener.onResponseReceived(requestId, context, networkMessageSize);
             if (context == null) {
                 return null;
             } else {

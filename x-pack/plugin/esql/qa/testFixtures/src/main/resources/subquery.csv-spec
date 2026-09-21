@@ -861,10 +861,10 @@ required_capability: change_point
 required_capability: subquery_in_from_command
 
 FROM employees_incompatible, (FROM employees
-                                                        | EVAL salary = CASE(emp_no==10022, 100000, salary)
-                                                        | EVAL salary = CASE(emp_no==10023, 1000000, salary)
-                                                        | KEEP emp_no, salary
-                                                        | CHANGE_POINT salary ON emp_no AS type, pvalue)
+                              | EVAL salary = CASE(emp_no==10023, 1000000, salary)
+                              | KEEP emp_no, salary
+                              | WHERE emp_no < 10025
+                              | CHANGE_POINT salary ON emp_no AS type, pvalue)
             metadata _index
 | EVAL emp_no = emp_no::long, salary = salary::long
 | WHERE pvalue is not null and type is not null
@@ -872,8 +872,8 @@ FROM employees_incompatible, (FROM employees
 | KEEP  _index, emp_no, salary, type, pvalue
 ;
 
-_index:keyword         | emp_no:long | salary:long | type:keyword | pvalue:double
-null           | 10023       | 1000000     | spike        | 0.0
+_index:keyword | emp_no:long | salary:long | type:keyword | pvalue:double
+null           | 10023       | 1000000     | spike        | 0..1E-100
 ;
 
 subqueryInFromWithChangePointInMainQuery
@@ -883,8 +883,8 @@ required_capability: subquery_in_from_command
 FROM employees, (FROM employees_incompatible
                                  | KEEP emp_no, salary)
 | EVAL emp_no = emp_no::long, salary = salary::long
-| EVAL salary = CASE(emp_no==10022, 100000::long, salary)
 | EVAL salary = CASE(emp_no==10023, 1000000::long, salary)
+| WHERE emp_no < 10025
 | CHANGE_POINT salary ON emp_no AS type, pvalue
 | WHERE pvalue is not null and type is not null
 | SORT emp_no
@@ -892,7 +892,7 @@ FROM employees, (FROM employees_incompatible
 ;
 
 emp_no:long | salary:long | type:keyword | pvalue:double
-10023       | 1000000     | spike        | 0.0
+10023       | 1000000     | spike        | 0..1E-100
 ;
 
 subqueryInFromWithCompletionInSubquery
@@ -900,6 +900,7 @@ required_capability: completion
 required_capability: match_operator_colon
 required_capability: subquery_in_from_command
 required_capability: routing_function_update
+skip_columnar: queries a completion field, which cannot be reconstructed from doc values in columnar mode
 
 FROM sample_data, (FROM books metadata _score
                                    | WHERE title:"war and peace" AND author:"Tolstoy"
@@ -1620,6 +1621,24 @@ absent(to_string(id_int)):boolean
 false
 ;
 
+// The same conversion applied twice to the same attribute above the subquery union used to make
+// the analyzer loop until the rule execution limit, see elasticsearch-serverless#7693.
+subqueryInFromWithSameConversionAppliedTwice
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_repeated_conversions
+
+FROM (FROM sample_data), (FROM sample_data)
+| WHERE TO_STRING(client_ip) IS NOT NULL AND NOT TO_STRING(client_ip) == "172.21.3.15"
+| STATS c = COUNT(*) BY client_ip
+| SORT client_ip
+;
+
+c:long | client_ip:ip
+2      | 172.21.0.5
+2      | 172.21.2.113
+2      | 172.21.2.162
+;
+
 subqueryInFromWithInlineStatsPruning
 required_capability: subquery_in_from_command
 required_capability: subquery_in_from_command_inline_stats_pruning
@@ -1881,4 +1900,48 @@ FROM sample_data, (FROM sample_data_ts_long)
 
 y:long
 1698063303360
+;
+
+// Regression tests: converting a grouping key after STATS above a multi-subquery FROM must succeed.
+
+subqueryInFromConvertGroupKeyAfterStatsEval
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_fix_convert_group_key
+
+FROM (FROM employees), (FROM employees)
+| STATS max_salary = MAX(salary) BY gender
+| EVAL g = TO_STRING(gender)
+| SORT gender
+;
+
+max_salary:integer | gender:keyword | g:keyword
+74572              | F              | F
+74999              | M              | M
+73717              | null           | null
+;
+
+subqueryInFromConvertGroupKeyAfterStatsWhere
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_fix_convert_group_key
+
+FROM (FROM employees), (FROM employees)
+| STATS max_salary = MAX(salary) BY gender
+| WHERE TO_STRING(gender) == "M"
+;
+
+max_salary:integer | gender:keyword
+74999              | M
+;
+
+subqueryInFromConvertGroupKeyAfterStatsSecondStats
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_fix_convert_group_key
+
+FROM (FROM employees), (FROM employees)
+| STATS max_salary = MAX(salary) BY gender
+| STATS c = COUNT(TO_STRING(gender))
+;
+
+c:long
+2
 ;

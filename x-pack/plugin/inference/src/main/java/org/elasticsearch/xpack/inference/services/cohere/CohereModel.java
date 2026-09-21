@@ -22,63 +22,45 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.net.URI;
 import java.util.Map;
-import java.util.Objects;
 
-public abstract class CohereModel extends RateLimitGroupingModel {
+public abstract class CohereModel<S extends CohereServiceSettings> extends RateLimitGroupingModel {
 
-    private final SecureString apiKey;
-    private final RateLimitSettings rateLimitSettings;
     @Nullable
     private final URI testUri;
 
-    public CohereModel(
-        ModelConfigurations configurations,
-        ModelSecrets secrets,
-        @Nullable ApiKeySecrets apiKeySecrets,
-        CohereCommonServiceSettings commonSettings
-    ) {
-        this(configurations, secrets, apiKeySecrets, commonSettings.rateLimitSettings(), commonSettings.uri());
+    public CohereModel(ModelConfigurations configurations, ModelSecrets secrets, CohereCommonServiceSettings commonSettings) {
+        this(configurations, secrets, commonSettings.uri());
     }
 
-    protected CohereModel(
-        ModelConfigurations configurations,
-        ModelSecrets secrets,
-        @Nullable ApiKeySecrets apiKeySecrets,
-        RateLimitSettings rateLimitSettings,
-        @Nullable URI testUri
-    ) {
+    protected CohereModel(ModelConfigurations configurations, ModelSecrets secrets, @Nullable URI testUri) {
         super(configurations, secrets);
-        this.rateLimitSettings = Objects.requireNonNull(rateLimitSettings);
-        this.apiKey = ServiceUtils.apiKey(apiKeySecrets);
         this.testUri = testUri;
     }
 
-    protected CohereModel(CohereModel model, TaskSettings taskSettings) {
+    protected CohereModel(CohereModel<?> model, TaskSettings taskSettings) {
         super(model, taskSettings);
-        rateLimitSettings = model.rateLimitSettings();
-        apiKey = model.apiKey();
         testUri = model.testUri;
     }
 
-    protected CohereModel(CohereModel model, ServiceSettings serviceSettings) {
+    protected CohereModel(CohereModel<?> model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
-        rateLimitSettings = model.rateLimitSettings();
-        apiKey = model.apiKey();
         testUri = model.testUri;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public S getServiceSettings() {
+        return (S) super.getServiceSettings();
     }
 
     public SecureString apiKey() {
-        return apiKey;
-    }
-
-    public RateLimitSettings rateLimitServiceSettings() {
-        return rateLimitSettings;
+        return ServiceUtils.apiKey((ApiKeySecrets) getSecretSettings());
     }
 
     public abstract ExecutableAction accept(CohereActionVisitor creator, Map<String, Object> taskSettings);
 
     public RateLimitSettings rateLimitSettings() {
-        return rateLimitSettings;
+        return getServiceSettings().commonSettings().rateLimitSettings();
     }
 
     public int rateLimitGroupingHash() {

@@ -47,9 +47,9 @@ import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Covers {@link DatasetResolver#replaceDatasets}: the local read-authorization dispatch and rewrite of {@code FROM <dataset>}.
- * Cross-project remote-dataset detection no longer lives here — it rides the field-caps remote-detect rail (see
- * {@code EsqlResolveFieldsAction} + {@code RemoteDatasetNotSupportedException}); this resolver only performs the local rewrite
- * and, under CPS, preserves a wildcard sibling so the remote half reaches field-caps (exercised in {@code DatasetRewriterTests}).
+ * A dataset on another cluster is invisible rather than detected (see {@code EsqlResolveFieldsAction}); this resolver
+ * only performs the local rewrite and, under CPS, preserves a wildcard sibling so the remote half reaches field-caps
+ * (exercised in {@code DatasetRewriterTests}), which is how a remote index of the same name still federates in.
  */
 public class DatasetResolverTests extends ESTestCase {
 
@@ -104,7 +104,8 @@ public class DatasetResolverTests extends ESTestCase {
 
         // Under CPS a wildcard matching a local dataset keeps the original wildcard as a sibling UnresolvedRelation so the
         // remote half (and the field-caps remote-detect) is reached, alongside the local UnresolvedExternalRelation.
-        LogicalPlan rewritten = replaceDatasets(resolver, relationOf("log*"));
+        // The dataset here is reached through a wildcard, so resolve with wildcards_match_datasets on.
+        LogicalPlan rewritten = replaceDatasets(resolver, relationOf("log*"), project(), true);
         assertThat(rewritten, instanceOf(UnionAll.class));
         UnionAll unionAll = (UnionAll) rewritten;
         assertEquals(2, unionAll.children().size());
@@ -128,33 +129,46 @@ public class DatasetResolverTests extends ESTestCase {
         assertEquals("no datasets registered → no dispatch", 0, localCalls.get());
     }
 
-    public void testFederationDisabledReturnsPlanUnchanged() {
+    public void testFederationUnavailableReturnsPlanUnchanged() {
         AtomicInteger localCalls = new AtomicInteger();
-        DatasetResolver resolver = resolver(crossProjectEnabled(true), localCalls);
+        DatasetResolver resolver = resolver(crossProjectEnabled(true), localCalls, false);
 
-        // The kill switch suppresses all dataset resolution: the plan is returned untouched and no
+        // A node without federation performs no dataset resolution at all: the plan is returned untouched and no
         // EsqlResolveDatasetAction dispatch happens, even though datasets are registered in project state.
         UnresolvedRelation relation = relationOf(DATASET_NAME);
-        PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
-        resolver.replaceDatasets(relation, project(), future, false);
-        assertSame(relation, future.actionGet());
-        assertEquals("federation disabled → no dispatch", 0, localCalls.get());
+        LogicalPlan rewritten = replaceDatasets(resolver, relation);
+        assertSame(relation, rewritten);
+        assertEquals("federation unavailable, so no dispatch", 0, localCalls.get());
     }
 
     // --- harness ---
 
+    /** Resolves with wildcards_match_datasets off — the production default; these cases name their dataset exactly. */
     private LogicalPlan replaceDatasets(DatasetResolver resolver, UnresolvedRelation relation) {
-        return replaceDatasets(resolver, relation, project());
+        return replaceDatasets(resolver, relation, project(), false);
     }
 
     private LogicalPlan replaceDatasets(DatasetResolver resolver, UnresolvedRelation relation, ProjectMetadata project) {
+        return replaceDatasets(resolver, relation, project, false);
+    }
+
+    private LogicalPlan replaceDatasets(
+        DatasetResolver resolver,
+        UnresolvedRelation relation,
+        ProjectMetadata project,
+        boolean wildcardsMatchDatasets
+    ) {
         PlainActionFuture<LogicalPlan> future = new PlainActionFuture<>();
-        resolver.replaceDatasets(relation, project, future);
+        resolver.replaceDatasets(relation, project, wildcardsMatchDatasets, future);
         return future.actionGet();
     }
 
     private DatasetResolver resolver(CrossProjectModeDecider decider, AtomicInteger localCalls) {
-        return new DatasetResolver(localActionClient(localCalls), EsExecutors.DIRECT_EXECUTOR_SERVICE, decider);
+        return resolver(decider, localCalls, true);
+    }
+
+    private DatasetResolver resolver(CrossProjectModeDecider decider, AtomicInteger localCalls, boolean federationAvailable) {
+        return new DatasetResolver(localActionClient(localCalls), EsExecutors.DIRECT_EXECUTOR_SERVICE, decider, federationAvailable);
     }
 
     private static CrossProjectModeDecider crossProjectEnabled(boolean enabled) {

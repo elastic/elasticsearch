@@ -1,5 +1,0 @@
-area: Infra/Metrics
-issues: []
-pr: 146401
-summary: Buffer metrics if APM server returns an error
-type: enhancement

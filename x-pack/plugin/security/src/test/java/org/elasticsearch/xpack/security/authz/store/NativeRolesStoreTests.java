@@ -852,7 +852,8 @@ public class NativeRolesStoreTests extends ESTestCase {
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             new UnassignedInfo(Reason.INDEX_CREATED, ""),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         RoutingTable routingTable = RoutingTable.builder()
             .add(

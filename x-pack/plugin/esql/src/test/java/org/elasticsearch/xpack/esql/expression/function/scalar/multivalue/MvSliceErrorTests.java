@@ -35,7 +35,7 @@ public class MvSliceErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
         return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, p) -> switch (p) {
             case 1, 2 -> "integer";
             default -> "any type except counter types, dense_vector, aggregate_metric_double, tdigest, histogram, "
-                + "exponential_histogram, or date_range";
+                + "exponential_histogram, date_range, or double_range";
         }));
     }
 }

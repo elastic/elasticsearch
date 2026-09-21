@@ -12,7 +12,7 @@ import software.amazon.awssdk.services.bedrockruntime.model.ConverseResponse;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.AmazonBedrockRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockCompletionRequest;
@@ -35,15 +35,15 @@ public class AmazonBedrockChatCompletionResponse extends AmazonBedrockResponse {
         throw new ElasticsearchException("unexpected request type [" + request.getClass() + "]");
     }
 
-    public static ChatCompletionResults fromResponse(ConverseResponse response) {
+    public static CompletionResults fromResponse(ConverseResponse response) {
         var resultTexts = response.output()
             .message()
             .content()
             .stream()
             .map(ContentBlock::text)
-            .map(ChatCompletionResults.Result::new)
+            .map(CompletionResults.Result::new)
             .toList();
 
-        return new ChatCompletionResults(resultTexts);
+        return new CompletionResults(resultTexts);
     }
 }

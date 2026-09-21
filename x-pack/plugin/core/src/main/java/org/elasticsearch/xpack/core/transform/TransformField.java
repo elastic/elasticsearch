@@ -52,6 +52,7 @@ public final class TransformField {
     public static final ParseField SYNC = new ParseField("sync");
     public static final ParseField TIME = new ParseField("time");
     public static final ParseField DELAY = new ParseField("delay");
+    public static final ParseField INITIAL_DELAY = new ParseField("initial_delay");
     public static final ParseField DEFER = new ParseField("defer");
     // TODO: Rename to "defer_data_validation" or similar to emphasize that not all validation is deferred
     public static final ParseField DEFER_VALIDATION = new ParseField("defer_validation");

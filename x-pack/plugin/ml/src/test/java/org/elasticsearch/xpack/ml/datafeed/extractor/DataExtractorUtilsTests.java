@@ -8,15 +8,21 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedCloudCredentialDiagnostics;
 import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +39,82 @@ import static org.mockito.Mockito.when;
  * using mock or real {@link SearchResponse} and {@link SearchResponse.Clusters}.
  */
 public class DataExtractorUtilsTests extends ESTestCase {
+
+    public void testCloudCredentialAuthenticationFailureShouldClassifyAndEnrich() {
+        ElasticsearchSecurityException failure = new ElasticsearchSecurityException("invalid key", RestStatus.UNAUTHORIZED);
+
+        DataExtractorUtils.CloudCredentialFailureKind kind = DataExtractorUtils.classifyCloudCredentialSearchFailure(failure, "key-abc");
+        Exception enriched = DatafeedCloudCredentialDiagnostics.enrichIfCloudCredentialFailure("key-abc", kind, failure);
+
+        assertThat(kind, equalTo(DataExtractorUtils.CloudCredentialFailureKind.AUTHENTICATION));
+        assertThat(enriched.getMessage(), equalTo(Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_KEY_RUNTIME_FAILURE, "key-abc")));
+        assertThat(enriched.getCause(), equalTo(failure));
+    }
+
+    public void testCloudCredentialAuthorizationFailureShouldClassifyAndEnrich() {
+        ElasticsearchSecurityException failure = new ElasticsearchSecurityException("action denied", RestStatus.FORBIDDEN);
+
+        DataExtractorUtils.CloudCredentialFailureKind kind = DataExtractorUtils.classifyCloudCredentialSearchFailure(failure, "key-abc");
+        Exception enriched = DatafeedCloudCredentialDiagnostics.enrichIfCloudCredentialFailure("key-abc", kind, failure);
+
+        assertThat(kind, equalTo(DataExtractorUtils.CloudCredentialFailureKind.AUTHORIZATION));
+        assertThat(
+            enriched.getMessage(),
+            equalTo(Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_KEY_RUNTIME_AUTHZ_FAILURE, "key-abc"))
+        );
+    }
+
+    public void testCloudCredentialWrappedAuthenticationFailureShouldClassifyViaCauseChain() {
+        Throwable failure = new RuntimeException(new ElasticsearchSecurityException("invalid key", RestStatus.UNAUTHORIZED));
+
+        DataExtractorUtils.CloudCredentialFailureKind kind = DataExtractorUtils.classifyCloudCredentialSearchFailure(failure, "key-abc");
+
+        assertThat(kind, equalTo(DataExtractorUtils.CloudCredentialFailureKind.AUTHENTICATION));
+    }
+
+    public void testCloudCredentialSearchPhaseAuthorizationFailureShouldClassify() {
+        ShardSearchFailure shardFailure = new ShardSearchFailure(new ElasticsearchSecurityException("action denied", RestStatus.FORBIDDEN));
+        SearchPhaseExecutionException failure = new SearchPhaseExecutionException(
+            "query",
+            "all shards failed",
+            new ShardSearchFailure[] { shardFailure }
+        );
+
+        DataExtractorUtils.CloudCredentialFailureKind kind = DataExtractorUtils.classifyCloudCredentialSearchFailure(failure, "key-abc");
+
+        assertThat(kind, equalTo(DataExtractorUtils.CloudCredentialFailureKind.AUTHORIZATION));
+    }
+
+    public void testCloudCredentialSearchPhaseNonElasticsearchShardCauseShouldNotRecurseInfinitely() {
+        ShardSearchFailure shardFailure = new ShardSearchFailure(new IOException("connection reset"));
+        SearchPhaseExecutionException failure = new SearchPhaseExecutionException(
+            "blah",
+            "all shards failed",
+            new ShardSearchFailure[] { shardFailure }
+        );
+
+        DataExtractorUtils.CloudCredentialFailureKind kind = DataExtractorUtils.classifyCloudCredentialSearchFailure(failure, "key-abc");
+
+        assertThat(kind, equalTo(DataExtractorUtils.CloudCredentialFailureKind.NONE));
+    }
+
+    public void testCloudCredentialSecurityFailureWithoutCredentialIdShouldNotClassify() {
+        ElasticsearchSecurityException failure = new ElasticsearchSecurityException("action denied", RestStatus.FORBIDDEN);
+
+        DataExtractorUtils.CloudCredentialFailureKind kind = DataExtractorUtils.classifyCloudCredentialSearchFailure(failure, null);
+
+        assertThat(kind, equalTo(DataExtractorUtils.CloudCredentialFailureKind.NONE));
+        assertThat(DatafeedCloudCredentialDiagnostics.enrichIfCloudCredentialFailure(null, kind, failure), equalTo(failure));
+    }
+
+    public void testCloudCredentialNonSecurityFailureShouldNotClassify() {
+        RuntimeException failure = new RuntimeException("connection reset");
+
+        DataExtractorUtils.CloudCredentialFailureKind kind = DataExtractorUtils.classifyCloudCredentialSearchFailure(failure, "key-abc");
+
+        assertThat(kind, equalTo(DataExtractorUtils.CloudCredentialFailureKind.NONE));
+        assertThat(DatafeedCloudCredentialDiagnostics.enrichIfCloudCredentialFailure("key-abc", kind, failure), equalTo(failure));
+    }
 
     public void testExtractLinkedClusterStates_returnsEmptyWhenClustersIsNull() {
         SearchResponse response = mock(SearchResponse.class);

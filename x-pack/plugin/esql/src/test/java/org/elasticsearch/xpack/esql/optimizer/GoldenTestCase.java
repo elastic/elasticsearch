@@ -13,13 +13,13 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -46,9 +46,11 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
+import org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -62,7 +64,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
-import org.elasticsearch.xpack.esql.plugin.ComputeService;
+import org.elasticsearch.xpack.esql.plugin.ComputeServiceTestUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.ReductionPlan;
@@ -93,6 +95,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -139,6 +142,8 @@ public abstract class GoldenTestCase extends ESTestCase {
     }
 
     private final Path baseFile;
+    /** The sources of this test class and its abstract parents, which {@code -Dgolden.gc.fix} edits to drop dead declarations. */
+    private final List<Path> sourceFiles;
     private final String goldenMode;
 
     public GoldenTestCase() {
@@ -154,6 +159,13 @@ public abstract class GoldenTestCase extends ESTestCase {
             String path = PathUtils.get(getClass().getResource(".").toURI()).toAbsolutePath().normalize().toString();
             var inSrc = path.replace('\\', '/').replaceFirst("build/classes/java/test", "src/test/resources");
             baseFile = PathUtils.get(Strings.format("%s/golden_tests/%s/", inSrc, getClass().getSimpleName()));
+            List<Path> sources = new ArrayList<>();
+            for (Class<?> c = getClass(); c != GoldenTestCase.class; c = c.getSuperclass()) {
+                var classDir = PathUtils.get(c.getResource(".").toURI()).toAbsolutePath().normalize().toString();
+                var inJava = classDir.replace('\\', '/').replaceFirst("build/classes/java/test", "src/test/java");
+                sources.add(PathUtils.get(inJava, c.getSimpleName() + ".java"));
+            }
+            sourceFiles = List.copyOf(sources);
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -203,12 +215,15 @@ public abstract class GoldenTestCase extends ESTestCase {
         private TransportVersion transportVersion;
         private boolean explicitTransportVersion;
         private TransportVersion since;
+        private String sinceName;
         private final List<Label> labels = new ArrayList<>();
         private Function<LogicalOptimizerContext, LogicalPlanOptimizer> optimizerFactory;
         private AliasFilter aliasFilter;
         private ProjectMetadata datasetMetadata;
         private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
+        private QueryBuilder requestFilter;
         private Map<String, String> views = Map.of();
+        private EsqlFlags flags = EsqlFlags.withRemoteFetchTopN(false);
 
         private TestBuilder(
             String esqlQuery,
@@ -242,6 +257,11 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         public EnumSet<Stage> stages() {
             return stages;
+        }
+
+        public TestBuilder flags(EsqlFlags flags) {
+            this.flags = flags;
+            return this;
         }
 
         public TestBuilder searchStats(SearchStats searchStats) {
@@ -285,6 +305,7 @@ public abstract class GoldenTestCase extends ESTestCase {
          * the feature under test. Distinct from {@link #expectationChangesAt}, which splits coverage instead of removing it.
          */
         public TestBuilder since(String transportVersionName) {
+            sinceName = transportVersionName;
             return since(resolve(transportVersionName));
         }
 
@@ -353,6 +374,16 @@ public abstract class GoldenTestCase extends ESTestCase {
             return externalSourceResolution;
         }
 
+        /**
+         * An out-of-band Query DSL filter, applied to the analyzed plan by {@link RequestFilterRewriter} exactly as
+         * {@code EsqlSession} applies a request's {@code filter}. It rewrites only dataset leaves, so pair it with
+         * {@link #datasetMetadata}.
+         */
+        public TestBuilder requestFilter(QueryBuilder requestFilter) {
+            this.requestFilter = requestFilter;
+            return this;
+        }
+
         public TestBuilder views(Map<String, String> views) {
             this.views = views;
             return this;
@@ -365,6 +396,10 @@ public abstract class GoldenTestCase extends ESTestCase {
             }
             if (since != null && labels.isEmpty() == false && labels.getFirst().version().id() <= since.id()) {
                 throw new IllegalArgumentException(Strings.format("label [%s] must be above since [%s]", labels.getFirst().name(), since));
+            }
+            if (since != null && COMPATIBLE_VERSIONS.stream().allMatch(version -> version.supports(since))) {
+                reportDeadSince(testName);
+                since = null;
             }
             List<VersionRange> ranges = explicitTransportVersion
                 ? List.of(new VersionRange(null, transportVersion, List.of(transportVersion)))
@@ -423,18 +458,75 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         private void reportDeadRange(String testName, VersionRange range, String nextLabel) {
             String message = Strings.format(
-                "test [%s]: golden range [%s] is dead — every version that can be sampled is past [%s]. "
-                    + "Remove expectationChangesAt(\"%s\") and delete the [%s] directory. See GoldenTestsReadme.MD.",
+                "test [%s]: golden range [%s] is dead — every version that can be sampled is past [%s] (compatibility floor [%s]). "
+                    + "Remove expectationChangesAt(\"%s\") and delete the [%s] directory, or run [%s] to do it. See GoldenTestsReadme.MD.",
                 testName,
                 range.dir(),
                 nextLabel,
+                TransportVersion.minimumCompatible(),
                 nextLabel,
-                range.dir()
+                range.dir(),
+                GC_TASK
             );
-            if (System.getProperty("golden.gc.strict") != null) {
+            if (GoldenGc.fixMode() == false) {
                 fail(message);
-            } else {
-                logger.warn(message);
+            }
+            try {
+                repair(nextLabel, message);
+                // the label is dead for every test in this class, muted and skipped ones included
+                GoldenGc.deleteDirectoriesNamed(baseFile, range.dir());
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        /**
+         * Removes {@code versionName}'s declarations from the class's sources. Nothing changing is accepted only when this run
+         * already rewrote one of these sources for the same version: the other mode of the same test, or a sibling class sharing
+         * the abstract parent that held the declaration. Anything else is a shape the rewrite refused, which only a human can
+         * settle.
+         */
+        private void repair(String versionName, String message) throws IOException {
+            for (Path source : sourceFiles) {
+                if (Files.exists(source) && GoldenGc.removeDeclarations(source, versionName)) {
+                    REPAIRED_SOURCES.computeIfAbsent(versionName, n -> ConcurrentHashMap.newKeySet()).add(source);
+                    logger.info("repaired: {}", message);
+                    return;
+                }
+            }
+            Set<Path> repairedIn = REPAIRED_SOURCES.getOrDefault(versionName, Set.of());
+            if (sourceFiles.stream().anyMatch(repairedIn::contains)) {
+                return;
+            }
+            for (Path source : sourceFiles) {
+                if (Files.exists(source) && GoldenGc.mentions(Files.readString(source), versionName)) {
+                    fail(message + " The repair could not rewrite the declaration in " + source + "; remove it by hand.");
+                }
+            }
+            fail(message + " The repair found no declaration of [" + versionName + "] in " + sourceFiles + "; remove it by hand.");
+        }
+
+        /** A {@code since} at or below the compatibility floor no longer removes any coverage. */
+        private void reportDeadSince(String testName) {
+            String message = Strings.format(
+                "test [%s]: since [%s] is dead — it is at or below the compatibility floor [%s], so it drops no coverage. "
+                    + "Remove it, or run [%s] to do it. See GoldenTestsReadme.MD.",
+                testName,
+                since,
+                TransportVersion.minimumCompatible(),
+                GC_TASK
+            );
+            if (GoldenGc.fixMode() == false) {
+                fail(message);
+            }
+            String name = sinceName != null ? sinceName : since.name();
+            if (name == null) {
+                fail(message + " The version has no name to search for; remove the declaration by hand.");
+            }
+            try {
+                repair(name, message);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
         }
 
@@ -499,7 +591,9 @@ public abstract class GoldenTestCase extends ESTestCase {
                 aliasFilter,
                 datasetMetadata,
                 externalSourceResolution,
-                views
+                requestFilter,
+                views,
+                flags
             );
         }
 
@@ -613,6 +707,12 @@ public abstract class GoldenTestCase extends ESTestCase {
         .filter(TransportVersion::isCompatible)
         .toList();
 
+    /** Sources this run rewrote, per version name; the task runs in one fork, so a later no-op on one of them is not a miss. */
+    private static final Map<String, Set<Path>> REPAIRED_SOURCES = new ConcurrentHashMap<>();
+
+    /** With mutes disabled so muted golden tests are repaired too, matching GoldenTestsReadme.MD. */
+    private static final String GC_TASK = "./gradlew :x-pack:plugin:esql:goldenGc -Dtests.mutes.enabled=false";
+
     private static boolean overwriteMode() {
         return System.getProperty("golden.overwrite") != null;
     }
@@ -640,7 +740,9 @@ public abstract class GoldenTestCase extends ESTestCase {
         AliasFilter aliasFilter,
         ProjectMetadata datasetMetadata,
         ExternalSourceResolution externalSourceResolution,
-        Map<String, String> views
+        QueryBuilder requestFilter,
+        Map<String, String> views,
+        EsqlFlags flags
     ) {
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
@@ -660,7 +762,13 @@ public abstract class GoldenTestCase extends ESTestCase {
             // Then turn FROM <dataset> targets into UnresolvedExternalRelation, exactly as EsqlSession does. A
             // null datasetMetadata (the default) makes this a no-op, so plain golden tests are unaffected; when a
             // test registers datasets, external relations are excluded from CSV index discovery below.
-            parsedPlan = DatasetRewriter.rewriteUnsecured(parsedPlan, datasetMetadata, TestIndexNameExpressionResolver.newInstance());
+            // Golden tests name their datasets exactly, which reaches them at the wildcards_match_datasets default.
+            parsedPlan = DatasetRewriter.rewriteUnsecured(
+                parsedPlan,
+                datasetMetadata,
+                TestIndexNameExpressionResolver.newInstance(),
+                false
+            );
             String[] queryPathParts = new String[nestedPath.length + 2];
             queryPathParts[0] = testName;
             System.arraycopy(nestedPath, 0, queryPathParts, 1, nestedPath.length);
@@ -680,20 +788,24 @@ public abstract class GoldenTestCase extends ESTestCase {
                 .minimumTransportVersion(transportVersion)
                 .externalSourceResolution(externalSourceResolution)
                 .unmappedResolution(unmappedResolution);
-            boolean trackUnmappedFieldIndices = unmappedResolution == UnmappedResolution.LOAD;
+            boolean trackUnmappedFieldIndices = unmappedResolution.loadsUnmappedFields();
             loadIndexResolution(testDatasets(parsedPlan), trackUnmappedFieldIndices).forEach(
                 (pattern, resolution) -> testAnalyzer.addIndex(pattern.indexPattern(), resolution)
             );
             Analyzer analyzer = testAnalyzer.buildAnalyzer();
             List<Tuple<Stage, TestResult>> result = new ArrayList<>();
+            var configuration = EsqlTestUtils.configuration(QueryPragmas.EMPTY, esqlQuery, statement);
             var analyzed = analyzer.analyze(parsedPlan);
+            if (requestFilter != null) {
+                // Mirror EsqlSession: the request filter is installed on the analyzed plan, before optimization.
+                analyzed = RequestFilterRewriter.rewrite(analyzed, requestFilter, configuration, transportVersion, true);
+            }
             if (stages.contains(Stage.ANALYSIS)) {
                 result.add(Tuple.tuple(Stage.ANALYSIS, verifyOrWrite(analyzed, Stage.ANALYSIS)));
             }
             if (stages.equals(EnumSet.of(Stage.ANALYSIS))) {
                 return result;
             }
-            var configuration = EsqlTestUtils.configuration(new QueryPragmas(Settings.EMPTY), esqlQuery, statement);
             var optimizerContext = new LogicalOptimizerContext(configuration, FoldContext.small(), transportVersion);
             var optimizer = optimizerFactory != null
                 ? optimizerFactory.apply(optimizerContext)
@@ -714,7 +826,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                 // optimization. Since subplan execution is not done in the golden tests,
                 // manually replace the placeholders instead by a fixed value.
                 logicallyOptimized = ApproximationPlan.substituteSampleProbability(logicallyOptimized, SAMPLE_PROBABILITY);
-                var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, transportVersion));
+                var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, transportVersion, flags));
                 PhysicalPlan physicalPlan = physicalPlanOptimizer.optimize(
                     new Mapper().map(new Versioned<>(logicallyOptimized, transportVersion))
                 );
@@ -762,7 +874,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                     if (exchanges.isEmpty() == false) {
                         ExchangeExec exec = EsqlTestUtils.singleValue(exchanges);
                         var sink = new ExchangeSinkExec(exec.source(), exec.output(), false, exec.child());
-                        var reductionPlan = ComputeService.reductionPlan(
+                        var reductionPlan = ComputeServiceTestUtils.reductionPlan(
                             PlannerSettings.DEFAULTS,
                             new EsqlFlags(false),
                             configuration,
@@ -1098,8 +1210,8 @@ public abstract class GoldenTestCase extends ESTestCase {
          */
         LOOKUP_PHYSICAL_OPTIMIZATION(new SingleFileOutput("lookup_physical_optimization")),
         /**
-         * See {@link ComputeService#reductionPlan}. Actually results in <b>two</b> plans: one for the node reduce driver and one for the
-         * data nodes.
+         * See {@link ComputeServiceTestUtils#reductionPlan}. Actually results in <b>two</b> plans: one for the node reduce driver and one
+         * for the data nodes.
          */
         NODE_REDUCE(new DualFileOutput("local_reduce_planned_reduce_driver", "local_reduce_planned_data_driver")),
 
@@ -1237,9 +1349,12 @@ public abstract class GoldenTestCase extends ESTestCase {
         CsvTestsDataLoader.MultiIndexTestDataset datasets,
         boolean trackUnmappedFieldIndices
     ) {
-        Map<String, IndexMode> indexModes = datasets.datasets()
+        Map<String, IndexProperties> indexModes = datasets.datasets()
             .stream()
-            .collect(Collectors.toMap(CsvTestsDataLoader.TestDataset::indexName, GoldenTestCase::indexModeOf));
+            .collect(Collectors.toMap(CsvTestsDataLoader.TestDataset::indexName, ds -> {
+                IndexMode m = indexModeOf(ds);
+                return new IndexProperties(m, 0);
+            }));
         List<MappingPerIndex> mappings = datasets.datasets()
             .stream()
             .map(ds -> new MappingPerIndex(ds.indexName(), createMappingForIndex(ds)))

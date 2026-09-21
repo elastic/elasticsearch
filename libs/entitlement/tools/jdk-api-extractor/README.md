@@ -46,3 +46,21 @@ If `-Druntime.java` is not provided, the bundled JDK is used.
 ```bash
 ./gradlew :libs:entitlement:tools:jdk-api-extractor:run -Druntime.java=24 --args="deprecations-jdk24.tsv --deprecations-only"
 ```
+
+### Comparing two patch releases of the same major version
+
+`-Druntime.java` takes a **major** version and resolves it through the Gradle toolchain service, so
+it cannot select between two patch releases of the same major — `-Druntime.java=26` may resolve to
+any JDK 26 build present in the toolchain cache. Comparing, say, 26.0.1 against 26.0.2 with
+`-Druntime.java=26` will silently scan the same JDK twice and produce an empty diff that looks like
+a clean result.
+
+To pin an exact build, extract each JDK and point `RUNTIME_JAVA_HOME` at it:
+
+```bash
+RUNTIME_JAVA_HOME=/path/to/jdk-26.0.1 ./gradlew :libs:entitlement:tools:jdk-api-extractor:run --args="api-jdk26.0.1.tsv"
+RUNTIME_JAVA_HOME=/path/to/jdk-26.0.2 ./gradlew :libs:entitlement:tools:jdk-api-extractor:run --args="api-jdk26.0.2.tsv"
+```
+
+Each run prints `Writing result for <version>`. Check that line reports the JDK you intended before
+trusting the diff — it is the only confirmation that the runtime was actually switched.

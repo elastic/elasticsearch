@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
  *       (and optionally {@code service_account_impersonation_url}, and {@code jwt_audience})</li>
  *   <li>{@code auth=anonymous} — anonymous access to public buckets</li>
  *   <li>{@code auth=managed_identity} — the node's own GCE/GKE metadata-server credentials,
- *       gated by the {@code esql.datasource.managed_identity.enabled} cluster setting</li>
+ *       gated by the {@code esql.external.managed_identity.enabled} cluster setting</li>
  * </ul>
  * Apart from {@code auth=managed_identity}, a data source must carry its own credentials, since the node may run
  * in a different cloud than the bucket it targets. {@code auth=managed_identity} is the deliberate exception: it
@@ -77,6 +77,11 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
                 errors.addValidationError("sts_audience is required when federated authentication settings are configured");
             }
         }
+    }
+
+    /** Names of credential (secret) settings accepted on a data source PUT, derived from the field definitions. */
+    public static Set<String> secretFieldNames() {
+        return secretFieldNamesFrom(FIELDS);
     }
 
     public static GcsConfiguration fromMap(Map<String, Object> raw) {
@@ -200,7 +205,7 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
             + "or access_token for short-lived OAuth credentials; "
             + "set auth=anonymous for public buckets; "
             + "set auth=managed_identity to use the node's metadata-server credentials "
-            + "(requires the esql.datasource.managed_identity.enabled cluster setting); "
+            + "(requires the esql.external.managed_identity.enabled cluster setting); "
             + "or configure federated authentication with sts_audience";
     }
 }

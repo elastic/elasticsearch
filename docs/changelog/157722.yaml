@@ -1,0 +1,5 @@
+area: Authentication
+issues: []
+pr: 157722
+summary: Return 503 for API key auth when the security index is unavailable
+type: enhancement

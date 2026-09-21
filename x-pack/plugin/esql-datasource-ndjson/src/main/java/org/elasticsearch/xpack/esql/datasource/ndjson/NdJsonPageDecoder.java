@@ -283,6 +283,16 @@ public class NdJsonPageDecoder implements Closeable {
     private boolean rowDroppedBySkipRow;
     /** Records this read lost: whole-line parse failures and {@code skip_row} record discards alike. */
     private long rowsDropped;
+    /**
+     * File-global start offsets of the records this read lost, so the licence can be refused per stripe rather
+     * than per read: a record lost in one part of the file says nothing about the rest of it. Capped — beyond
+     * {@link #MAX_TRACKED_DROPS} the read is treated as tainted throughout.
+     */
+    private final List<Long> droppedRecordOffsets = new ArrayList<>();
+    private boolean unattributedDrop;
+    private static final int MAX_TRACKED_DROPS = 4096;
+    /** Offset of the record currently being lost, or {@code -1} where the drop path cannot name one. */
+    private long pendingDropOffset = -1;
 
     /** Whether the current record has already been charged to the error budget; see {@link #chargeErrorBudget}. */
     private boolean recordChargedToBudget;
@@ -814,6 +824,24 @@ public class NdJsonPageDecoder implements Closeable {
     }
 
     /** Records lost by this read; the row-count licence is granted on this being zero, not on the mode's name. */
+    private void recordDroppedAt(long fileOffset) {
+        if (fileOffset < 0 || droppedRecordOffsets.size() >= MAX_TRACKED_DROPS) {
+            unattributedDrop = true;
+            return;
+        }
+        droppedRecordOffsets.add(fileOffset);
+    }
+
+    /** Where this read lost records, for the per-stripe licence; see {@link #droppedRecordOffsets}. */
+    List<Long> droppedRecordOffsets() {
+        return droppedRecordOffsets;
+    }
+
+    /** True when a loss could not be attributed to a record offset, so no stripe of this read may be licensed. */
+    boolean unattributedDrop() {
+        return unattributedDrop;
+    }
+
     long rowsDropped() {
         return rowsDropped;
     }
@@ -880,6 +908,8 @@ public class NdJsonPageDecoder implements Closeable {
             );
         }
         rowsDropped++;
+        recordDroppedAt(pendingDropOffset);
+        pendingDropOffset = -1;
         if (e instanceof StreamConstraintsException) {
             // String length is validated LAZILY: only a projected column's decode arm reads the value, so a
             // skipped field never trips it and this drop is projection-dependent -- a COUNT(*) scan keeps the
@@ -1153,6 +1183,7 @@ public class NdJsonPageDecoder implements Closeable {
             try {
                 decoder.decodeObject(parser, ArrayEntry.NONE);
             } catch (JsonParseException | StreamConstraintsException e) {
+                pendingDropOffset = recordOffsetTracking ? stripeRecordStart : -1;
                 onNdjsonLineParseError(e, totalRowCount, "decodeObject");
             }
 
@@ -1245,6 +1276,7 @@ public class NdJsonPageDecoder implements Closeable {
                 try {
                     decoder.decodeObject(parser, ArrayEntry.NONE);
                 } catch (JsonParseException | StreamConstraintsException e) {
+                    pendingDropOffset = recordOffsetTracking ? stripeRecordStart : -1;
                     onNdjsonLineParseError(e, totalRowCount, "decodeObject");
                     recoverFromParseException(parser);
                     continue;
@@ -1301,6 +1333,8 @@ public class NdJsonPageDecoder implements Closeable {
                 }
                 if (rowDroppedBySkipRow) {
                     rowsDropped++;
+                    // No per-stripe attribution here: skip_row licenses no stripe of this read in the first
+                    // place (NdJsonPageIterator#rowCountPolicyPermitsLicence), so there is nothing to refuse.
                     // The drop was decided by the projection (a projected column's coercion failure), the class
                     // of drop the publish gate refuses to commit. Set here, at the single point every skip_row
                     // record discard funnels through. A record that also hits a later whole-line parse error

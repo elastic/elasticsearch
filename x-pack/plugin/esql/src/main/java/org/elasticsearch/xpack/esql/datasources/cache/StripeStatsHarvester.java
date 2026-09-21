@@ -12,11 +12,13 @@ import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.Set;
 import java.util.TreeMap;
 
 /**
@@ -68,6 +70,15 @@ public final class StripeStatsHarvester {
         public long rows;
     }
 
+    /**
+     * Stripes this read lost a row in. Beyond {@link #MAX_TRACKED_DROP_STRIPES} distinct stripes the read is
+     * treated as tainted throughout rather than growing this without bound — a file that malformed in thousands
+     * of places is not one whose per-stripe licences are worth tracking.
+     */
+    private final Set<Long> stripesWithDroppedRow = new HashSet<>();
+    private boolean unattributedDrop;
+    private static final int MAX_TRACKED_DROP_STRIPES = 4096;
+
     private final long stripeSize;
     private final boolean fileFinal;
     /** Per-stripe accumulators keyed by ordinal; the emit loop reads them by byte-range geometry. */
@@ -84,6 +95,25 @@ public final class StripeStatsHarvester {
     }
 
     /** Whether any stripe has been touched (drives the close-time emit-vs-skip decision). */
+    /**
+     * Records that a row starting at {@code fileOffset} was lost, against the stripe that row belongs to. A read
+     * that loses a row counted fewer rows than the file holds THERE, and nowhere else: the stripe the row starts
+     * in loses its licence and its siblings keep theirs. A drop whose offset this reader cannot name taints the
+     * whole read, because the alternative is licensing a stripe that may be the one that lost it.
+     */
+    public void recordDroppedRowAt(long fileOffset) {
+        if (fileOffset < 0 || stripesWithDroppedRow.size() >= MAX_TRACKED_DROP_STRIPES) {
+            unattributedDrop = true;
+            return;
+        }
+        stripesWithDroppedRow.add(ordinalOf(fileOffset));
+    }
+
+    /** As above for a drop this reader cannot attribute — a parse failure before the record's offset is known. */
+    public void recordUnattributedDroppedRow() {
+        unattributedDrop = true;
+    }
+
     public boolean isEmpty() {
         return stripeAccums.isEmpty();
     }
@@ -181,6 +211,8 @@ public final class StripeStatsHarvester {
      * @param physicalDateFormats declared date patterns by physical column name, for the read identity
      * @param binding           {@link ExternalStats#BINDING_BY_NAME} or {@link ExternalStats#BINDING_BY_POSITION}
      * @param blankStringCellIsEmptyString whether a blank string cell held the empty string on this read
+     * @param rowCountPolicyPermitsLicence whether this read's error policy can license a row count at all; the
+     *                                     per-stripe half — whether THIS stripe lost a row — is applied here
      */
     public void emit(
         String sourceLocation,
@@ -189,7 +221,7 @@ public final class StripeStatsHarvester {
         long pinnedMtimeMillis,
         String fingerprint,
         String readConfig,
-        boolean rowCountReadConfigIndependent,
+        boolean rowCountPolicyPermitsLicence,
         List<Attribute> schema,
         Map<String, String> physicalDateFormats,
         String binding,
@@ -227,7 +259,12 @@ public final class StripeStatsHarvester {
             }
             // The licence rides per fragment, exactly as on the whole-file publishes: without it a chunked FAIL_FAST
             // read could never license the crossing an unchunked one can, purely because of how the file was split.
-            if (rowCountReadConfigIndependent) {
+            // A row lost in one stripe says nothing about the others: the licence is refused where the loss
+            // happened and granted where it did not.
+            boolean licensed = rowCountPolicyPermitsLicence
+                && unattributedDrop == false
+                && stripesWithDroppedRow.contains(ordinal) == false;
+            if (licensed) {
                 base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
             }
             base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);

@@ -703,6 +703,16 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                         // Byte-range cover emit (shared with CSV): one fragment per stripe the chunk's byte range
                         // overlaps, including empty edge stripes. Safe-miss if row/offset alignment was lost.
                         if (stripeCaptureDisabled == false && stripeHarvester.isEmpty() == false) {
+                            // Where this read lost records, so the licence is refused at those stripes and
+                            // granted at the rest; a loss with no offset behind it taints the whole read.
+                            if (pageDecoder != null) {
+                                for (long droppedAt : pageDecoder.droppedRecordOffsets()) {
+                                    stripeHarvester.recordDroppedRowAt(droppedAt);
+                                }
+                                if (pageDecoder.unattributedDrop()) {
+                                    stripeHarvester.recordUnattributedDroppedRow();
+                                }
+                            }
                             long chunkBytes = byteCounter != null ? byteCounter.getBytesRead() : byteArrayBytesRead;
                             // Anchor the byte-range cover at the first byte actually decoded (statsBaseOffset +
                             // skipped); chunkBytes counts only the post-skip bytes, so [statsStripeBaseOffset,
@@ -715,7 +725,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                                 pinnedMtimeMillis,
                                 fingerprinter.apply(fullSchema),
                                 readConfig,
-                                rowCountIsPhysical(),
+                                rowCountPolicyPermitsLicence(),
                                 fullSchema,
                                 declaredDateFormats,
                                 // NDJSON binds every column by object key, and has no present-but-empty cell: a key
@@ -777,8 +787,16 @@ final class NdJsonPageIterator extends BufferingPageIterator {
      * so unlike CSV there is no headered conjunct. {@code skip_row} is never licensed.
      */
     private boolean rowCountIsPhysical() {
-        return errorPolicy.isStrict()
-            || (errorPolicy.mode() == ErrorPolicy.Mode.NULL_FIELD && pageDecoder != null && pageDecoder.rowsDropped() == 0);
+        return rowCountPolicyPermitsLicence() && pageDecoder != null && pageDecoder.rowsDropped() == 0;
+    }
+
+    /**
+     * The half of {@link #rowCountIsPhysical()} that is a property of the read rather than of what it lost. The
+     * other half is per stripe, and {@code StripeStatsHarvester} applies it there from the offsets the decoder
+     * recorded: a record lost in one stripe leaves the others' counts physical.
+     */
+    private boolean rowCountPolicyPermitsLicence() {
+        return errorPolicy.isStrict() || errorPolicy.mode() == ErrorPolicy.Mode.NULL_FIELD;
     }
 
     private OptionalLong sizeInBytesFromLength() {

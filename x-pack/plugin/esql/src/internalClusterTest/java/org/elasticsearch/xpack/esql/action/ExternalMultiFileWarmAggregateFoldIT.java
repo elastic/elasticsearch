@@ -365,6 +365,81 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
         }
     }
 
+    // ------------------------------------------------------------------------------------------------------------
+    // The same heterogeneous shape in NDJSON. The crossing rules are format-independent, but the identity that
+    // feeds them is stamped by each reader, so nothing before this exercised NDJSON's end to end.
+    // ------------------------------------------------------------------------------------------------------------
+
+    private static final int NDJSON_FILE_COUNT = 12;
+    private static final int NDJSON_ROWS_PER_FILE = 4_000;
+
+    /**
+     * Parts that do not all infer the same schema, in the two ways NDJSON produces: {@code color} holds a string
+     * in one part and a number everywhere else, and {@code order_id} is absent from a run of parts, which is
+     * NDJSON's analogue of CSV's blank cell — there is no empty cell, a key is simply not there.
+     */
+    private static long writeNdjsonCorpus(Path dir) throws IOException {
+        long total = 0;
+        for (int f = 0; f < NDJSON_FILE_COUNT; f++) {
+            boolean sparse = f >= 1 && f <= 3;
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < NDJSON_ROWS_PER_FILE; i++) {
+                long v = total + i;
+                sb.append("{\"id\":").append(v).append(',');
+                sb.append("\"color\":").append(f == 5 && i == 10 ? "\"g\"" : Long.toString(v % 7)).append(',');
+                if (sparse == false) {
+                    sb.append("\"order_id\":").append(v % 1000).append(',');
+                }
+                sb.append("\"value\":").append(v).append("}\n");
+            }
+            Files.writeString(dir.resolve(String.format(Locale.ROOT, "part-%02d.ndjson", f)), sb.toString(), StandardCharsets.UTF_8);
+            total += NDJSON_ROWS_PER_FILE;
+        }
+        return total;
+    }
+
+    public void testNdjsonHeterogeneousCorpusWarmCountServedUnderNullFieldFirstFileWins() throws Exception {
+        Path dir = createTempDir();
+        long total = writeNdjsonCorpus(dir);
+        String dataset = registerDataset(
+            "het_ndjson_ffw",
+            globUri(dir, "*.ndjson"),
+            Map.of("format", "ndjson", "error_mode", "null_field", "schema_resolution", "first_file_wins", "file_sort_by", "name")
+        );
+        assertWarmCountShortCircuits(dataset, total);
+    }
+
+    public void testNdjsonHeterogeneousCorpusWarmCountServedUnderNullFieldUnionByName() throws Exception {
+        Path dir = createTempDir();
+        long total = writeNdjsonCorpus(dir);
+        String dataset = registerDataset(
+            "het_ndjson_ubn",
+            globUri(dir, "*.ndjson"),
+            Map.of("format", "ndjson", "error_mode", "null_field", "schema_resolution", "union_by_name")
+        );
+        assertWarmCountShortCircuits(dataset, total);
+    }
+
+    /** {@code value} is read the same way in every part, so its extrema must cross even where {@code color} cannot. */
+    public void testNdjsonHeterogeneousCorpusWarmMinMaxServedOnUntouchedColumn() throws Exception {
+        Path dir = createTempDir();
+        long total = writeNdjsonCorpus(dir);
+        String dataset = registerDataset(
+            "het_ndjson_minmax",
+            globUri(dir, "*.ndjson"),
+            Map.of("format", "ndjson", "error_mode", "null_field", "schema_resolution", "first_file_wins", "file_sort_by", "name")
+        );
+        String query = "FROM " + dataset + " | STATS lo = MIN(value), hi = MAX(value)";
+        try (var response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertMinMax(response, 0L, total - 1);
+            assertThat("cold MIN/MAX reads every row", response.documentsFound(), equalTo(total));
+        }
+        try (var response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertMinMax(response, 0L, total - 1);
+            assertThat("warm MIN/MAX must be served for a column no part read differently", response.documentsFound(), equalTo(0L));
+        }
+    }
+
     private void assertWarmCountShortCircuits(String dataset, long total) {
         String countQuery = "FROM " + dataset + " | STATS c = COUNT(*)";
         try (var response = run(syncEsqlQueryRequest(countQuery).profile(true), TimeValue.timeValueMinutes(5))) {

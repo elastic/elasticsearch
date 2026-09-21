@@ -48,6 +48,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -392,6 +393,83 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             assertEquals(ExternalStats.BINDING_BY_NAME, contribution.get(ExternalStats.READ_BINDING_KEY));
             assertEquals(Boolean.TRUE, contribution.get(ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY));
         }
+    }
+
+    /**
+     * A row lost under {@code null_field} makes only its OWN stripe's count a survivor count. The stripes before
+     * and after it counted every row of their own byte range, so they keep the licence and can still cross into
+     * another read's entry. Tracking the loss per read instead would take the whole file off the warm path for
+     * one bad row, which on a real corpus is the common case rather than the exception.
+     */
+    public void testALostRowCostsOnlyItsOwnStripeTheLicence() throws Exception {
+        StringBuilder csv = new StringBuilder("id,n\n");
+        // ~20 bytes a row against a 64-byte grid: a few rows per stripe, with the bad row well past the first.
+        for (int i = 0; i < 40; i++) {
+            csv.append(i).append(',').append(i == 20 ? "1,2,3,4,5,6" : Integer.toString(i * 10)).append('\n');
+        }
+        byte[] bytes = csv.toString().getBytes(StandardCharsets.UTF_8);
+
+        List<Map<String, Object>> fragments = captureWithPolicy(bytes, 64L, new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 1.0, false));
+        assertThat("the read must publish several stripes for this to say anything", fragments.size(), greaterThan(2));
+
+        long unlicensed = fragments.stream()
+            .filter(f -> f.containsKey(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY) == false)
+            .count();
+        assertEquals("exactly the stripe that lost the row loses its licence", 1L, unlicensed);
+        assertTrue(
+            "and every other stripe keeps it",
+            fragments.stream().filter(f -> f.containsKey(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)).count() == fragments.size()
+                - 1
+        );
+    }
+
+    /** A clean read of the same shape licenses every stripe, so the assertion above is about the loss. */
+    public void testACleanLenientReadLicensesEveryStripe() throws Exception {
+        StringBuilder csv = new StringBuilder("id,n\n");
+        for (int i = 0; i < 40; i++) {
+            csv.append(i).append(',').append(i * 10).append('\n');
+        }
+        List<Map<String, Object>> fragments = captureWithPolicy(
+            csv.toString().getBytes(StandardCharsets.UTF_8),
+            64L,
+            new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 1.0, false)
+        );
+        assertThat(fragments.size(), greaterThan(2));
+        for (Map<String, Object> f : fragments) {
+            assertEquals(
+                "a read that lost nothing licenses every stripe",
+                Boolean.TRUE,
+                f.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)
+            );
+        }
+    }
+
+    private List<Map<String, Object>> captureWithPolicy(byte[] bytes, long stripeSize, ErrorPolicy policy) throws Exception {
+        StorageObject o = memoryObject(bytes);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(List.of("n"))
+            .batchSize(1000)
+            .recordAligned(true)
+            .firstSplit(true)
+            .lastSplit(true)
+            .splitStartByte(0)
+            .stats(0, stripeSize, true)
+            .errorPolicy(policy)
+            .statsColumnScope(StripeColumnScope.PROJECTED)
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
+                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, true)
+            ).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        List<Map<String, Object>> raw = sink.get(o.path().toString());
+        return raw == null ? List.of() : raw;
     }
 
     private List<Map<String, Object>> captureWithReadConfig(byte[] bytes, long stripeSize, String readConfig) throws Exception {

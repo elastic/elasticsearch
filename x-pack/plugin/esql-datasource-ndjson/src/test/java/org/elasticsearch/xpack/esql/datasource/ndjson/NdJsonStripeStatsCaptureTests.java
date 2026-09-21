@@ -43,6 +43,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
 
+import static org.hamcrest.Matchers.greaterThan;
+
 /**
  * Exact-stat validation for the orthogonal per-stripe stats path of the NDJSON reader. These are the
  * correctness gate the user mandated: a reader must never produce a silently-wrong cached aggregate, so
@@ -213,6 +215,71 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
             }
         }
         assertNull("a rowLimit read must not harvest stripe stats (safe-miss)", sink.get(o.path().toString()));
+    }
+
+    /**
+     * The NDJSON twin of CSV's rule: a record lost under {@code null_field} costs its own stripe the licence and
+     * no other. NDJSON has no row width, so the loss here is a malformed line rather than an over-wide row.
+     */
+    public void testALostRecordCostsOnlyItsOwnStripeTheLicence() throws Exception {
+        StringBuilder ndjson = new StringBuilder();
+        for (int i = 0; i < 40; i++) {
+            ndjson.append(i == 20 ? "{\"a\":" : "{\"a\":" + i + "}").append('\n');
+        }
+        List<Map<String, Object>> fragments = captureWithPolicy(
+            ndjson.toString().getBytes(StandardCharsets.UTF_8),
+            64L,
+            new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 1.0, false)
+        );
+        assertThat("the read must publish several stripes for this to say anything", fragments.size(), greaterThan(2));
+        long unlicensed = fragments.stream()
+            .filter(f -> f.containsKey(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY) == false)
+            .count();
+        assertEquals("exactly the stripe that lost the record loses its licence", 1L, unlicensed);
+    }
+
+    /** A clean lenient read of the same shape licenses every stripe, so the assertion above is about the loss. */
+    public void testACleanLenientNdjsonReadLicensesEveryStripe() throws Exception {
+        StringBuilder ndjson = new StringBuilder();
+        for (int i = 0; i < 40; i++) {
+            ndjson.append("{\"a\":").append(i).append("}\n");
+        }
+        List<Map<String, Object>> fragments = captureWithPolicy(
+            ndjson.toString().getBytes(StandardCharsets.UTF_8),
+            64L,
+            new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 1.0, false)
+        );
+        assertThat(fragments.size(), greaterThan(2));
+        for (Map<String, Object> f : fragments) {
+            assertEquals(
+                "a read that lost nothing licenses every stripe",
+                Boolean.TRUE,
+                f.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)
+            );
+        }
+    }
+
+    private List<Map<String, Object>> captureWithPolicy(byte[] bytes, long stripeSize, ErrorPolicy policy) throws Exception {
+        StorageObject o = memoryObject(bytes);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .batchSize(1000)
+            .recordAligned(true)
+            .firstSplit(true)
+            .lastSplit(true)
+            .errorPolicy(policy)
+            .stats(0, stripeSize, true)
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        List<Map<String, Object>> raw = sink.get(o.path().toString());
+        return raw == null ? List.of() : raw;
     }
 
     private List<Map<String, Object>> captureRaw(

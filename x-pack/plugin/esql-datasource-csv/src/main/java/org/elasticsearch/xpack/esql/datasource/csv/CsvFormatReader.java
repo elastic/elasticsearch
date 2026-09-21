@@ -3657,6 +3657,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
         /** Rows this read lost: structural drops and {@code skip_row} drops alike, plus any lost while sampling. */
         private long rowsDropped = 0;
         /**
+         * File-global start offset of the row currently being dropped, or {@code -1} where the drop path cannot
+         * name one (a parse failure that never produced a record). Set immediately before the {@code onRowError}
+         * call that loses the row, and cleared by it.
+         */
+        private long droppedRowStartByte = -1;
+        /**
          * The byte offsets of the rows that SURVIVED into the current page, in page order. {@link #rowStartBytes}
          * holds an offset for every PARSED row (including ones later dropped by a structural/field error during
          * {@link #convertRowsToPage}); this array holds only the accepted rows, so it stays length-aligned with
@@ -3918,7 +3924,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 pinnedMtimeMillis,
                 computeConfigFingerprint(),
                 readConfig,
-                rowCountIsPhysical(),
+                rowCountPolicyPermitsLicence(),
                 schema,
                 declaredDateFormats,
                 schemaFieldIndex != null ? ExternalStats.BINDING_BY_NAME : ExternalStats.BINDING_BY_POSITION,
@@ -4387,6 +4393,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     }
                 } catch (MalformedRowException e) {
                     totalRowCount++;
+                    droppedRowStartByte = trackOffsets ? rowStartByte : -1;
                     onRowError(e.getMessage(), e, EMPTY_ROW, true);
                 }
             }
@@ -4516,7 +4523,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             // Rows lost while sampling never passed through onRowError, so they are added here; the licence is a
             // statement about the whole read, not about the part of it that went through the error path.
-            rowsDropped += sample.rowsDropped() + wideningWindow.rowsDropped();
+            long sampledAway = sample.rowsDropped() + wideningWindow.rowsDropped();
+            rowsDropped += sampledAway;
+            if (sampledAway > 0 && stripeHarvester != null) {
+                // A row lost inside the sampling window never reached a record, so no offset names it.
+                stripeHarvester.recordUnattributedDroppedRow();
+            }
             if (wideningWindow.rows().isEmpty()) {
                 prefetchedRows = sample.rows();
                 prefetchedRowStartBytes = sample.rowStartBytes();
@@ -4710,6 +4722,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     String[] row = rows.get(rowIdx);
                     totalRowCount++;
                     if (row.length > rowWidthLimit) {
+                        droppedRowStartByte = rowStartBytes == null ? -1 : rowStartBytes[rowIdx];
                         onRowError(rowTooWideMessage(row.length), null, row, true);
                         continue;
                     }
@@ -4756,6 +4769,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     String[] row = rows.get(rowIdx);
                     totalRowCount++;
                     if (row.length > rowWidthLimit) {
+                        droppedRowStartByte = rowStartBytes == null ? -1 : rowStartBytes[rowIdx];
                         onRowError(rowTooWideMessage(row.length), null, row, true);
                         continue;
                     }
@@ -4805,6 +4819,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     } else {
                         String err = lastFieldError;
                         lastFieldError = null;
+                        droppedRowStartByte = rowStartBytes == null ? -1 : rowStartBytes[rowIdx];
                         onRowError(err, null, row, false);
                         return false;
                     }
@@ -6342,9 +6357,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
 
             // After the trailing field, so a coercion failure there joins the same ordering as the rest of the row.
+            droppedRowStartByte = rowStartBytes == null ? -1 : rowStartBytes[lineIdx];
             if (flushPendingErrors(line) == false) {
                 return false;
             }
+            droppedRowStartByte = -1;
 
             for (int c = 0; c < columnCount; c++) {
                 int si = projectedIdx[c];
@@ -6856,7 +6873,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * rows this one drops and "dropped nothing" would hold of two reads that disagree. {@code skip_row} never.
          */
         private boolean rowCountIsPhysical() {
-            return errorPolicy.isStrict() || (errorPolicy.mode() == ErrorPolicy.Mode.NULL_FIELD && rowsDropped == 0 && options.headerRow());
+            return rowCountPolicyPermitsLicence() && rowsDropped == 0;
+        }
+
+        /**
+         * The half of {@link #rowCountIsPhysical()} that is a property of the read rather than of what it lost:
+         * the error mode, and for CSV a headered read. The per-stripe half — which stripe lost a row — belongs to
+         * {@code StripeStatsHarvester}, which knows the grid; a whole-file count needs "lost nothing anywhere",
+         * which is what {@link #rowCountIsPhysical()} adds.
+         */
+        private boolean rowCountPolicyPermitsLicence() {
+            return errorPolicy.isStrict() || (errorPolicy.mode() == ErrorPolicy.Mode.NULL_FIELD && options.headerRow());
         }
 
         private void onRowErrorImpl(String message, Exception cause, String rowExcerpt, boolean structural) {
@@ -6880,6 +6907,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // Every non-throwing path here loses a row, structural or skip_row alike; rowCountIsPhysical() is
             // granted on this count rather than on the error mode's name.
             rowsDropped++;
+            // And the loss belongs to the stripe the row starts in, so the rest of the file keeps its licence.
+            // An unattributed drop taints the read: better a cold stripe than a licence the loss belongs to.
+            if (stripeHarvester != null) {
+                if (droppedRowStartByte >= 0) {
+                    stripeHarvester.recordDroppedRowAt(droppedRowStartByte);
+                } else {
+                    stripeHarvester.recordUnattributedDroppedRow();
+                }
+            }
+            droppedRowStartByte = -1;
             skipWarnings.add("Row [" + totalRowCount + "] error: " + message);
             if (logErrors) {
                 logger.warn(

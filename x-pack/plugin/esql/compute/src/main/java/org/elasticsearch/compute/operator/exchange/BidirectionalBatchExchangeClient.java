@@ -94,6 +94,9 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     private final ActionListener<Void> batchExchangeStatusListener; // Listener for batch exchange status completion
     // Accumulated directory bytes read across all worker BatchExchangeStatusResponses (set on transport threads).
     private final AtomicLong totalBytesRead = new AtomicLong();
+    private final AtomicLong totalSetupNanos = new AtomicLong();
+    private final AtomicLong maxSetupNanos = new AtomicLong();
+    private final List<BatchExchangeStatusResponse.Profile> profiles = Collections.synchronizedList(new ArrayList<>());
     /**
      * Warnings accumulated from lookup-side {@link DriverContext} across all worker
      * {@link BatchExchangeStatusResponse}s. Replayed into the {@link DriverContext}
@@ -123,6 +126,8 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     // Resolves when all worker channels have completed (all sink + status refs released).
     // Used by stop() to trigger final cleanup and by waitForServerResponse() to block the driver.
     private final SubscribableListener<Void> allWorkersCompleted = new SubscribableListener<>();
+    // Stable listener shared by every terminal wait so callers can identify and deduplicate the same pending wait.
+    private final SubscribableListener<Void> serverResponseReady = new SubscribableListener<>();
 
     // Server setup callback - called lazily when first page is sent
     private final ServerSetupCallback serverSetupCallback;
@@ -169,6 +174,8 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         this.lookupPlanConsumer = lookupPlanConsumer;
         this.maxWorkers = maxWorkers;
         this.serverNodeSupplier = serverNodeSupplier;
+        allWorkersCompleted.addListener(serverResponseReady);
+        failureNotified.addListener(serverResponseReady);
         logger.debug(
             "Created BidirectionalBatchExchangeClient: sharedExchangeId={}, maxBufferSize={}, maxWorkers={}",
             sharedExchangeId,
@@ -301,11 +308,13 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         logger.debug("Created client-to-server sink handler: exchangeId={}", worker.clientToServerId);
 
         // Send setup request to server via callback
+        worker.setupStartNanos = System.nanoTime();
         serverSetupCallback.sendSetupRequest(
             worker.serverNode,
             worker.clientToServerId,
             worker.serverToClientId,
             ActionListener.wrap(planString -> {
+                recordSetupNanos(worker);
                 try {
                     logger.debug("Server setup complete for worker={}", worker.workerId);
                     // Pass lookup plan to consumer if provided (with workerKey for tracking)
@@ -332,6 +341,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                     worker.setupReadyListener.onFailure(e);
                 }
             }, e -> {
+                recordSetupNanos(worker);
                 logExchangeFailure(logger, Level.ERROR, e, "Server setup failed for worker={}: {}", worker.workerId, e.getMessage());
                 onWorkerConnectionComplete(worker, "Setup failed");
                 worker.sinkRef.onFailure(e);
@@ -392,6 +402,9 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                     if (response.isSuccess()) {
                         totalBytesRead.addAndGet(response.bytesRead());
                         warnings.addAll(response.warnings());
+                        if (response.profile() != null) {
+                            profiles.add(response.profile());
+                        }
                         worker.statusRef.onResponse(null);
                     } else {
                         Exception failure = response.getFailure();
@@ -627,14 +640,8 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
      * success/failure confirmation.
      */
     public IsBlockedResult waitForServerResponse() {
-        if (allWorkersCompleted.isDone() == false) {
-            if (failureNotified.isDone()) {
-                return NOT_BLOCKED;
-            }
-            SubscribableListener<Void> either = new SubscribableListener<>();
-            allWorkersCompleted.addListener(either);
-            failureNotified.addListener(either);
-            return new IsBlockedResult(either, "waiting for all workers to complete or failure");
+        if (serverResponseReady.isDone() == false) {
+            return new IsBlockedResult(serverResponseReady, "waiting for all workers to complete or failure");
         }
         return NOT_BLOCKED;
     }
@@ -672,12 +679,43 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     }
 
     /**
+     * Returns an immutable snapshot of exchange setup and server-driver profiling data.
+     */
+    public Profile profile() {
+        synchronized (profiles) {
+            return new Profile(totalSetupNanos.get(), maxSetupNanos.get(), totalBytesRead.get(), profiles);
+        }
+    }
+
+    /**
      * Returns a snapshot of the warnings accumulated from server-side lookup drivers via
      * {@link BatchExchangeStatusResponse}s.
      */
     public List<String> warnings() {
         synchronized (warnings) {
             return List.copyOf(warnings);
+        }
+    }
+
+    private void recordSetupNanos(Worker worker) {
+        long elapsed = System.nanoTime() - worker.setupStartNanos;
+        totalSetupNanos.addAndGet(elapsed);
+        maxSetupNanos.accumulateAndGet(elapsed, Math::max);
+    }
+
+    /**
+     * Profiling data collected across this client's exchange workers.
+     */
+    public record Profile(
+        long totalSetupNanos,
+        long maxSetupNanos,
+        long bytesRead,
+        List<BatchExchangeStatusResponse.Profile> serverProfiles
+    ) {
+        public static final Profile EMPTY = new Profile(0L, 0L, 0L, List.of());
+
+        public Profile {
+            serverProfiles = List.copyOf(serverProfiles);
         }
     }
 
@@ -949,6 +987,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         // connectToServerSink is reached, both are released with the setup error.
         ActionListener<Void> sinkRef;
         ActionListener<Void> statusRef;
+        long setupStartNanos;
 
         Worker(int workerId, DiscoveryNode serverNode, String sessionId) {
             this.workerId = workerId;

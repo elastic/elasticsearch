@@ -12,12 +12,17 @@ package org.elasticsearch.columnar.string;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
+import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -724,6 +729,95 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
                 StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE
             )
         );
+    }
+
+    /**
+     * A merge hands the writer the vocabulary its inputs recorded, so it does not survey again. A column told
+     * to keep no dictionary ignores that too: the policy decides, not whether a vocabulary happens to be in
+     * hand, and the merged column comes out plain with nothing recorded for the next merge to read.
+     */
+    public void testNoDictionaryIgnoresAVocabularyHandedToIt() throws IOException {
+        final BytesRef[] docValues = new BytesRef[2000];
+        final List<BytesRef> terms = new ArrayList<>();
+        for (int i = 0; i < 16; i++) {
+            terms.add(new BytesRef("term-" + i));
+        }
+        for (int i = 0; i < docValues.length; i++) {
+            docValues[i] = terms.get(i % terms.size());
+        }
+        Collections.sort(terms);
+        final long[] counts = new long[terms.size()];
+        Arrays.fill(counts, docValues.length / terms.size());
+        // What a merge would hand over: every term of the column, covering all of it.
+        final Vocabulary.Terms known = Vocabulary.known(terms, columnBytes(docValues), 1.0, counts);
+
+        final byte[] segmentId = new byte[16];
+        random().nextBytes(segmentId);
+        try (Directory dir = newDirectory()) {
+            final BytesRef[][] docSlots = singleValued(docValues);
+            final StringColumnMetadata metadata;
+            try (IndexOutput out = dir.createOutput("column.cnd", IOContext.DEFAULT)) {
+                ColumnarCodecUtil.writeHeader(out, "ColumNARStringData", FormatVersion.CURRENT, segmentId, "");
+                metadata = StringColumnWriter.write(
+                    docSlots.length,
+                    numDocsWithField(docSlots),
+                    numValues(docSlots),
+                    numNullSlots(docSlots),
+                    () -> cursor(docSlots),
+                    new StringColumnOptions(
+                        DictionaryPolicy.NONE,
+                        randomChunkCodec(),
+                        new StringColumnOptions.Sizes(
+                            randomValidBlockSize(),
+                            randomChunkBounds(randomTargetChunkBytes()),
+                            randomChunkBounds(randomTargetChunkBytes()),
+                            StringColumnOptions.DEFAULT_PACKED_ORDINAL_BLOCK_SIZE,
+                            StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
+                            StringColumnOptions.DEFAULT_ESCAPE_RANK_BLOCK_SIZE,
+                            StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE
+                        )
+                    ),
+                    known,
+                    dir,
+                    IOContext.DEFAULT,
+                    out
+                );
+                ColumnarCodecUtil.writeFooter(out);
+            }
+            assertEquals("a vocabulary in hand does not make a dictionary", StringColumnLayout.PLAIN, metadata.layout());
+            assertFalse("nothing recorded for the next merge", metadata.hasSummary());
+        }
+    }
+
+    private static long columnBytes(BytesRef[] docValues) {
+        long bytes = 0;
+        for (BytesRef value : docValues) {
+            bytes += value == null ? 0 : value.length;
+        }
+        return bytes;
+    }
+
+    /**
+     * A column told to keep no dictionary neither surveys for one nor records what a survey would have found.
+     * The summary exists so a merge can work out a vocabulary without reading the values again; a field that
+     * will never be given one has nothing to record and nothing to read back.
+     */
+    public void testNoDictionaryMeansNoSurveyAndNoSummary() throws IOException {
+        final BytesRef[] docValues = new BytesRef[2000];
+        for (int i = 0; i < docValues.length; i++) {
+            // Repetitive enough that a dictionary would be kept if one were asked for.
+            docValues[i] = new BytesRef("term-" + (i % 16));
+        }
+        withColumn(singleValued(docValues), randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), (metadata, reader) -> {
+            assertEquals("no dictionary was asked for", StringColumnLayout.PLAIN, metadata.layout());
+            assertFalse("nothing to record for a merge to read", metadata.hasSummary());
+            assertNull("no summary", metadata.summary());
+            assertEveryValueReadsBack(docValues, reader);
+        });
+        // The same values under a policy that does want one, so the shape is known to be worth naming.
+        withDictionary(docValues, (metadata, reader) -> {
+            assertEquals("the same values take a dictionary when one is asked for", StringColumnLayout.DICTIONARY, metadata.layout());
+        });
     }
 
     private void withDictionary(final BytesRef[] docValues, final ColumnCheck check) throws IOException {

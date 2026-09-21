@@ -55,6 +55,27 @@ public class ValueStreamTests extends ESTestCase {
         assertRoundTrip(values(between(4, 20), 66_000, 66_500));
     }
 
+    /**
+     * Values all of one short length. The lengths pack to a single width whatever the mean is, so these
+     * blocks take the packed layout that a mean this short would otherwise have kept inline.
+     */
+    public void testUniformShortLengths() throws IOException {
+        final int length = between(1, 31);
+        assertRoundTrip(values(between(200, 2000), length, length));
+    }
+
+    /**
+     * One short length but for the occasional longer value, so whether a block is of a single length —
+     * and with it which layout the block takes — differs from one block to the next.
+     */
+    public void testMostlyUniformShortLengths() throws IOException {
+        final List<BytesRef> values = new ArrayList<>();
+        for (int i = 0, count = between(500, 3000); i < count; i++) {
+            values.add(new BytesRef(randomAlphaOfLength(rarely() ? between(40, 90) : 16)));
+        }
+        assertRoundTrip(values);
+    }
+
     /** A column that mixes them, so the layout differs from one block to the next. */
     public void testLayoutVariesBetweenBlocks() throws IOException {
         final List<BytesRef> values = new ArrayList<>();

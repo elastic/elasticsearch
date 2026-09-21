@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
@@ -18,6 +20,7 @@ import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Tests for subquery batch execution in ComputeService.
@@ -25,11 +28,6 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
  * produces correct results across different batch sizes and query shapes.
  */
 public class SubqueryIT extends AbstractEsqlIntegTestCase {
-
-    @Before
-    public void checkSubqueryInFromCommandSupport() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-    }
 
     @Before
     public void checkPragma() {
@@ -380,6 +378,48 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
                 List.of(3, "This dog is really brown"),
                 List.of(4, "The dog is brown but this document is very very long"),
                 List.of(5, "There is also a white cat"),
+                List.of(6, "The quick brown fox jumps over the lazy dog")
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    public void testFullTextFunctionsAfterTopNRejected() {
+        List<String> fullTextFunctions = List.of(
+            "match(content, \"dog\")",
+            "match_phrase(content, \"dog\")",
+            "content : \"dog\"",
+            "kql(\"content: dog\")",
+            "qstr(\"content: dog\")"
+        );
+        for (String ftf : fullTextFunctions) {
+            String query = LoggerMessageFormat.format(null, """
+                FROM (FROM test | SORT id | LIMIT 10),
+                     (FROM test | WHERE id > 0)
+                | WHERE {}
+                """, ftf);
+            expectThrows(VerificationException.class, containsString(" cannot be used after SORT and LIMIT"), () -> run(query).close());
+        }
+    }
+
+    public void testFullTextFunctionsAfterSortAllowed() {
+        var query = """
+            FROM
+               ( FROM test | SORT id),
+               ( FROM test | WHERE id > 3)
+            | WHERE content:"dog"
+            | KEEP id, content
+            | SORT id
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query))) {
+            assertColumnNames(resp.columns(), List.of("id", "content"));
+            assertColumnTypes(resp.columns(), List.of("integer", "text"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of(2, "This is a brown dog"),
+                List.of(3, "This dog is really brown"),
+                List.of(4, "The dog is brown but this document is very very long"),
+                List.of(4, "The dog is brown but this document is very very long"),
+                List.of(6, "The quick brown fox jumps over the lazy dog"),
                 List.of(6, "The quick brown fox jumps over the lazy dog")
             );
             assertValues(resp.values(), expectedValues);

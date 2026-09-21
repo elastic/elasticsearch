@@ -12,10 +12,10 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.fielddata.ColumnarPayloadSortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.ColumnarPayloadSortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingArrayOrderBinaryDocValues;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
@@ -28,14 +28,14 @@ public class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
 
     private final String fieldName;
     private final LeafReader leafReader;
-    private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
+    private final ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory;
     private final IndexVersion indexVersion;
     private final BinaryDocValuesFormat binaryFormat;
 
     protected MultiValuedBinaryDVLeafFieldData(
         String fieldName,
         LeafReader leafReader,
-        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+        ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory,
         IndexVersion indexVersion
     ) {
         this(fieldName, leafReader, toScriptFieldFactory, indexVersion, BinaryDocValuesFormat.SEPARATE_COUNT);
@@ -44,7 +44,7 @@ public class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
     protected MultiValuedBinaryDVLeafFieldData(
         String fieldName,
         LeafReader leafReader,
-        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+        ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory,
         IndexVersion indexVersion,
         BinaryDocValuesFormat binaryFormat
     ) {
@@ -67,20 +67,20 @@ public class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
      * Switches formats between legacy and current version (as of April 2026) based on {@link IndexVersion}.
      */
     @Override
-    public SortedBinaryDocValues getBytesValues() {
+    public SortableBinaryDocValues getBytesValues() {
         try {
             // Need to return a new instance each time this gets invoked,
             // otherwise a positioned or exhausted instance can be returned:
             return switch (binaryFormat) {
                 // The ColumNAR codec's fields carry their slot count in the blob and write no companion field.
-                case COLUMNAR_PAYLOAD -> ColumnarPayloadSortedBinaryDocValues.from(leafReader, fieldName);
+                case COLUMNAR_PAYLOAD -> ColumnarPayloadSortableBinaryDocValues.from(leafReader, fieldName);
                 // High-cardinality columnar fields store values in document order with inline nulls (ArrayOrderInlineNull).
                 case ARRAY_ORDER_INLINE_NULL -> SortingArrayOrderBinaryDocValues.from(leafReader, fieldName);
                 // Pre-DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES indices may use the deprecated IntegratedCounts format, which
                 // fromMultiValued() handles as a fallback when the .counts field is absent.
                 case SEPARATE_COUNT -> indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)
-                    ? MultiValuedSortedBinaryDocValues.from(leafReader, fieldName)
-                    : MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, fieldName);
+                    ? MultiValuedSortableBinaryDocValues.from(leafReader, fieldName)
+                    : MultiValuedSortableBinaryDocValues.fromMultiValued(leafReader, fieldName);
             };
         } catch (IOException e) {
             throw new UncheckedIOException(e);

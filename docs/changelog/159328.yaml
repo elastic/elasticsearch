@@ -1,0 +1,8 @@
+area: Search
+issues:
+  - 159328
+summary: >-
+  Request circuit breaker now accounts for fields/stored_fields/docvalue_fields
+  memory during the non-streaming fetch phase, preventing untracked heap from
+  bypassing the breaker limit.
+type: bug

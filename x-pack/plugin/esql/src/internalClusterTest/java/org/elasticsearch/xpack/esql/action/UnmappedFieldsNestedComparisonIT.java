@@ -30,14 +30,15 @@ import static org.hamcrest.Matchers.equalTo;
  * {@code extra} ({@code ip_range}) vs the same {@code item.extra} with no mapping at all vs {@code item.extra} under a
  * {@code flattened} parent. Each parameter is one cell of the table; classified on the hidden index of each scenario.
  * <p>
- * Nested subfields are hidden from field caps ({@code -nested}), so ES|QL treats them as unmapped: load modes read them
- * from {@code _source} as keyword and {@code nullify} nulls them. That is why the nested column always equals the
- * no-field column, where the leaf is genuinely not in the mapping. Unsupported fields are mapped, so wherever the
- * mapping has them they stay null instead. Flattened sub-keys are also invisible to field caps, but they are not
- * treated as unmapped: the {@code Verifier} rejects loading a subfield of a flattened parent, and {@code nullify}
- * nulls it.
+ * Nested subfields are hidden from field caps ({@code -nested}). A leaf <b>declared</b> under a nested parent is always
+ * null: it is not loaded even in load modes, so that value does not change shape when ES|QL gains real nested support
+ * (loading it as an unmapped keyword now would make that a breaking change). A leaf that is <b>not declared</b> in the
+ * mapping behaves like any other unmapped field: load modes read it from {@code _source} and {@code nullify} nulls it.
+ * Unsupported fields are mapped, so wherever the mapping has them they stay null. Flattened sub-keys are also invisible
+ * to field caps, but they are not treated as unmapped: the {@code Verifier} rejects loading a subfield of a flattened
+ * parent, and {@code nullify} nulls it.
  */
-public class UnmappedFieldsNestedVsUnsupportedExtraIT extends AbstractEsqlIntegTestCase {
+public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase {
 
     private static final Presence ABSENT = Presence.ABSENT;
     private static final Presence NULL = Presence.NULL;
@@ -49,9 +50,10 @@ public class UnmappedFieldsNestedVsUnsupportedExtraIT extends AbstractEsqlIntegT
      * @param mapping {@code unmapped_both} / {@code mapped_both} / {@code mapped_only_nested}
      * @param keep {@code *} or {@code x}
      * @param nested result on the nested index
-     * @param nestedNoField result on the index where {@code item} is nested but declares no subfields at all
+     * @param nestedNoField result on the index where {@code item} is nested but declares no subfields at all; must equal
+     *     {@code noField}
      * @param unsupported result on the unsupported index
-     * @param noField result on the index where the leaf is not mapped at all; must equal {@code nested}
+     * @param noField result on the index where the leaf is not mapped at all
      * @param flattened result on the index where {@code item} is mapped {@code flattened}
      */
     record Cell(
@@ -94,10 +96,12 @@ public class UnmappedFieldsNestedVsUnsupportedExtraIT extends AbstractEsqlIntegT
     /**
      * Expected result of each column, per hidden-index scenario:
      * <ul>
-     * <li>nested: follows the unmapped-field rules - loaded from {@code _source} in load modes, null under nullify.</li>
-     * <li>nestedNoField: nested parent that declares no subfields at all. Must always equal nested: whether the leaf is
-     *     declared under the nested parent or not is invisible outside the shard.</li>
-     * <li>noField: the same leaf simply not mapped. Must always equal nested: the nested mapping "does not exist".</li>
+     * <li>nested: a leaf declared under the nested parent is always null - never loaded, so real nested support can
+     *     change what it returns without breaking anyone. An undeclared leaf ({@code unmapped_both}) follows the
+     *     unmapped-field rules like any other.</li>
+     * <li>nestedNoField: nested parent that declares no subfields at all. Must always equal noField: nothing is
+     *     declared, so it is plain unmapped loading.</li>
+     * <li>noField: the same leaf simply not mapped on the hidden index.</li>
      * <li>flattened: the Verifier rejects loading the sub-key, so cells that would load it error instead.
      *     Exception: {@code LOAD_ALL} + {@code KEEP *} with nothing referencing it - {@code _source} discovery surfaces it.</li>
      * </ul>
@@ -115,17 +119,17 @@ public class UnmappedFieldsNestedVsUnsupportedExtraIT extends AbstractEsqlIntegT
 
             cell("load", "unmapped_both", "*", ABSENT, ABSENT, ABSENT, ABSENT, ABSENT),
             cell("load", "unmapped_both", "x", LOADED, LOADED, LOADED, LOADED, VERIFIER_ERROR),
-            cell("load", "mapped_both", "*", LOADED, LOADED, NULL, LOADED, VERIFIER_ERROR),
-            cell("load", "mapped_both", "x", LOADED, LOADED, NULL, LOADED, VERIFIER_ERROR),
+            cell("load", "mapped_both", "*", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
+            cell("load", "mapped_both", "x", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
             cell("load", "mapped_only_nested", "*", ABSENT, ABSENT, NULL, ABSENT, ABSENT),
-            cell("load", "mapped_only_nested", "x", LOADED, LOADED, NULL, LOADED, VERIFIER_ERROR),
+            cell("load", "mapped_only_nested", "x", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
 
             cell("load_all", "unmapped_both", "*", LOADED, LOADED, LOADED, LOADED, LOADED),
             cell("load_all", "unmapped_both", "x", LOADED, LOADED, LOADED, LOADED, VERIFIER_ERROR),
-            cell("load_all", "mapped_both", "*", LOADED, LOADED, NULL, LOADED, VERIFIER_ERROR),
-            cell("load_all", "mapped_both", "x", LOADED, LOADED, NULL, LOADED, VERIFIER_ERROR),
-            cell("load_all", "mapped_only_nested", "*", LOADED, LOADED, NULL, LOADED, LOADED),
-            cell("load_all", "mapped_only_nested", "x", LOADED, LOADED, NULL, LOADED, VERIFIER_ERROR)
+            cell("load_all", "mapped_both", "*", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
+            cell("load_all", "mapped_both", "x", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
+            cell("load_all", "mapped_only_nested", "*", NULL, LOADED, NULL, LOADED, LOADED),
+            cell("load_all", "mapped_only_nested", "x", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR)
         );
     }
 
@@ -144,7 +148,7 @@ public class UnmappedFieldsNestedVsUnsupportedExtraIT extends AbstractEsqlIntegT
 
     private final Cell cell;
 
-    public UnmappedFieldsNestedVsUnsupportedExtraIT(Cell cell) {
+    public UnmappedFieldsNestedComparisonIT(Cell cell) {
         this.cell = cell;
     }
 
@@ -205,9 +209,8 @@ public class UnmappedFieldsNestedVsUnsupportedExtraIT extends AbstractEsqlIntegT
 
     /**
      * Same shape as {@link #createExtraLeafIndices}, but the hidden index maps {@code item} as a plain object and never
-     * maps {@code extra} - the baseline the nested index must match: its {@code extra} mapping is hidden by
-     * {@code -nested}, so it has to behave as if it did not exist. Both indices map {@code item.value} as {@code long}
-     * so the only difference from the nested scenario is the missing mapping.
+     * maps {@code extra} - the plain unmapped-field baseline. Both indices map {@code item.value} as {@code long} so the
+     * only difference from the nested scenario is the missing mapping.
      */
     private String[] createNoFieldExtraIndices(String hiddenPrefix, String otherPrefix, boolean extraMappedOnOther) {
         String hidden = hiddenPrefix + randomIdentifier();

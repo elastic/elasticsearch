@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
@@ -249,8 +251,25 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * A leaf the shard's mapping declares under a nested parent is stripped like a value-less part: mapped nested
+     * subfields stay null everywhere. Siblings that are not declared keep shipping, and a fully stripped object drops.
+     */
+    public void testMappedNestedSubfieldLeavesArePruned() throws IOException {
+        Map<String, Object> filtered = load(UnmappedFieldsPattern.ALL, Set.of("item.extra")::contains, """
+            { "item": [ { "value": 1, "extra": "x" } ], "other": "y" }""");
+        assertMap(filtered, matchesMap().entry("item", List.of(Map.of("value", 1))).entry("other", "y"));
+
+        assertThat(load(UnmappedFieldsPattern.ALL, Set.of("item.value", "item.extra")::contains, """
+            { "item": [ { "value": 1, "extra": "x" } ] }"""), nullValue());
+    }
+
     private static UnmappedFieldsBlockLoader loader(UnmappedFieldsPattern pattern) {
-        return new UnmappedFieldsBlockLoader(pattern, RESERVATION_FACTOR);
+        return loader(pattern, path -> false);
+    }
+
+    private static UnmappedFieldsBlockLoader loader(UnmappedFieldsPattern pattern, Predicate<String> mappedNestedSubfield) {
+        return new UnmappedFieldsBlockLoader(pattern, RESERVATION_FACTOR, mappedNestedSubfield);
     }
 
     /**
@@ -259,7 +278,12 @@ public class UnmappedFieldsBlockLoaderTests extends ESTestCase {
      * {@code convertToMap} returns a (content-type, map) tuple, so {@code v2()} is the map.
      */
     private static Map<String, Object> load(UnmappedFieldsPattern pattern, String sourceJson) throws IOException {
-        UnmappedFieldsBlockLoader loader = loader(pattern);
+        return load(pattern, path -> false, sourceJson);
+    }
+
+    private static Map<String, Object> load(UnmappedFieldsPattern pattern, Predicate<String> mappedNestedSubfield, String sourceJson)
+        throws IOException {
+        UnmappedFieldsBlockLoader loader = loader(pattern, mappedNestedSubfield);
         try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(newLimitedBreaker(ByteSizeValue.ofMb(1)), null)) {
             BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
             reader.read(0, storedFields(Source.fromBytes(new BytesArray(sourceJson), XContentType.JSON)), builder);

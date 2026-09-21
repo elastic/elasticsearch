@@ -358,11 +358,11 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
     }
 
     /**
-     * Under {@code unmapped_fields=load} a nested subfield behaves like an unmapped field: the wrap loads it from
-     * {@code _source} as keyword instead of dispatching the nested mapper's native loader, which would reopen the
-     * #154011 type-skew path.
+     * A leaf declared under a nested parent stays null under {@code unmapped_fields=load}: the wrap must dispatch neither
+     * the nested mapper's native loader (the #154011 type-skew crash) nor the {@code _source} loader (mapped nested
+     * subfields are not loaded until ES|QL supports nested fields, so real support cannot be a breaking change).
      */
-    public void testNestedSubfieldLoadsFromSourceUnderUnmappedFieldContext() throws IOException {
+    public void testMappedNestedSubfieldStaysNullUnderUnmappedFieldContext() throws IOException {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
             createMapperService(
                 mapping(
@@ -387,6 +387,34 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(defaultCtx, "item.value");
         BlockLoader blockLoader = unmappedCtx.blockLoader(
             "item.value",
+            false,
+            MappedFieldType.FieldExtractPreference.NONE,
+            null,
+            null,
+            ByteSizeValue.ofKb(100),
+            ByteSizeValue.ofKb(300)
+        );
+        assertThat(blockLoader, equalTo(ConstantNull.INSTANCE));
+    }
+
+    /**
+     * A leaf that is not declared anywhere in the mapping behaves like any other unmapped field even when its parent is
+     * a nested object: the wrap loads it from {@code _source}.
+     */
+    public void testUnmappedLeafUnderNestedParentLoadsFromSource() throws IOException {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            createMapperService(mapping(b -> b.startObject("item").field("type", "nested").endObject())),
+            null
+        );
+        var defaultCtx = new EsPhysicalOperationProviders.DefaultShardContext(
+            0,
+            new NoOpReleasable(),
+            searchExecutionContext,
+            AliasFilter.EMPTY
+        );
+        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(defaultCtx, "item.extra");
+        BlockLoader blockLoader = unmappedCtx.blockLoader(
+            "item.extra",
             false,
             MappedFieldType.FieldExtractPreference.NONE,
             null,

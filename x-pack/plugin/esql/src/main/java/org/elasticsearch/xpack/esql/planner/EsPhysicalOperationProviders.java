@@ -109,6 +109,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.lucene.search.Queries.newNonNestedFilter;
 import static org.elasticsearch.compute.lucene.query.LuceneSourceOperator.NO_LIMIT;
@@ -312,7 +313,14 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             // here but missing there - a dynamic mapping update that landed after resolution - is read out of _source and reported
             // as unmapped. LOAD has the same race, where it instead loads the field with its new type into a column the coordinator
             // already declared keyword, so both modes are consistent in planning against the schema as of resolution time.
-            return ValuesSourceReaderOperator.load(new UnmappedFieldsBlockLoader(ufa.pattern(), plannerSettings.sourceReservationFactor()));
+            // Leaves this shard declares under a nested parent must not ship: mapped nested subfields stay null, and only
+            // this shard knows its mapping - see the loader's javadoc.
+            MappingLookup mappingLookup = shardContext.ctx.getMappingLookup();
+            Predicate<String> mappedNestedSubfield = path -> mappingLookup.getFullNameToFieldType().containsKey(path)
+                && mappingLookup.nestedLookup().hasNestedParent(path);
+            return ValuesSourceReaderOperator.load(
+                new UnmappedFieldsBlockLoader(ufa.pattern(), plannerSettings.sourceReservationFactor(), mappedNestedSubfield)
+            );
         }
 
         // Apply any block loader function if present
@@ -484,11 +492,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             // UnmappedKeywordBlockLoader - see that class for the two broken paths and the issues (#156381, #156433).
             // TODO: consider fixing FallbackSyntheticSourceBlockLoader instead of working around it here. Rejected for now because it
             // only covers the synthetic-source half, and its constructor rejects the NO_IGNORED_SOURCE format stored source reports.
-            // A nested subfield resolves a real type, but IndexResolver applied -nested on the field-caps request, so the
-            // coordinator planned it as unmapped keyword: it loads from _source like one (#154011).
-            if (asUnsupportedSource == false
-                && name.equals(fullFieldName)
-                && (super.fieldType(name) == null || mappingLookup().nestedLookup().hasNestedParent(name))) {
+            if (asUnsupportedSource == false && name.equals(fullFieldName) && super.fieldType(name) == null) {
                 // Neither LOAD nor LOAD_ALL fuses a function into loading an unmapped field, and unmappedKeywordBlockLoader has
                 // nowhere to put one - so catch it here rather than let it be dropped and surface as a wrong value much later.
                 assert blockLoaderFunctionConfig == null
@@ -892,15 +896,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 // the field does not exist in this context
                 return ConstantNull.INSTANCE;
             }
-            // Exclude fields that field caps hides from the coordinator so the shard does not load a
-            // differently-typed block (see #154508 flattened sub-keys, #154011 nested subfields).
-            // Only a dotted name can be either: a flattened sub-key (fieldType() is non-null but the
-            // key is not in the mapping) or a nested subfield (isMappedField is true, but
-            // IndexResolver applied -nested on the field-caps request). Gating the extra probes
-            // on the dot keeps flat names
-            // (the common case) at a single resolution.
-            if (name.indexOf('.') > 0 // only dotted names can be flattened sub-keys or nested subfields
-                && isExtractableMappedField(name) == false) {
+            // Exclude fields that field caps hides from the coordinator so the shard does not load a differently-typed block:
+            // - flattened sub-keys: fieldType() is non-null but the key is not in the mapping (#154508)
+            // - nested subfields: mapped, but IndexResolver applies -nested on the field-caps request (#154011)
+            // Only dotted names can be either, so gating the extra probes on the dot keeps flat names (the common case)
+            // at a single resolution.
+            if (name.indexOf('.') > 0 && isExtractableMappedField(name) == false) {
                 return ConstantNull.INSTANCE;
             }
             BlockLoader loader = fieldType.blockLoader(

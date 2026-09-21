@@ -1,5 +1,5 @@
 pr: 159825
-summary: Make schema discovery cost what a schema needs
+summary: Reduce schema-only query costs with a configurable partition sample size
 area: ES|QL
 type: enhancement
 issues: []

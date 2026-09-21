@@ -213,6 +213,15 @@ public record SchemaCacheKey(
     }
 
     /**
+     * True when this key addresses a dataset aggregate memoized for a read that binds by name
+     * ({@link #NAME_BOUND_MARKER}). Such a promise may be fulfilled only by that read's own contributions: another
+     * read's licensed count describes the file's records, not the rows this read keeps.
+     */
+    public boolean isNameBound() {
+        return formatType != null && formatType.contains(NAME_BOUND_MARKER);
+    }
+
+    /**
      * True when this key addresses a dataset-level aggregate entry (minted by {@link #forDatasetAggregate})
      * rather than a per-file schema entry. Centralizes the {@link #DATASET_AGGREGATE_MARKER} check so the
      * taxonomy lives with the key instead of being re-derived at each call site.

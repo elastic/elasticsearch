@@ -693,7 +693,12 @@ public class ExternalSourceCacheService implements Closeable {
             if (expectedReadConfig != null) {
                 Object contributionReadConfig = stats.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
                 boolean licensed = Boolean.TRUE.equals(stats.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
-                if (Objects.equals(contributionReadConfig, expectedReadConfig) == false && licensed == false) {
+                // The licence lets a differently-read count stand in where the promise's own reads differ file to
+                // file, as a first_file_wins or union_by_name glob's do. A name-bound promise is not such a case:
+                // every path is promised the one declared read, so another read's count — licensed or not — is a
+                // different dataset's answer, and would be served to this one.
+                boolean mayCross = licensed && pending.datasetKey().isNameBound() == false;
+                if (Objects.equals(contributionReadConfig, expectedReadConfig) == false && mayCross == false) {
                     return null;
                 }
             }
@@ -1378,7 +1383,14 @@ public class ExternalSourceCacheService implements Closeable {
                     // new, unlicensed count as the file's physical one.
                     enriched.remove(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY);
                 }
-                enriched.putAll(wholeFile);
+                if (sameRead) {
+                    enriched.putAll(wholeFile);
+                } else {
+                    // A fold completed by a crossed delta adds to what the entry already measured and never replaces
+                    // it. After an earlier fold compacted the entry's own stripes away, those measurements live only
+                    // in its whole-file keys, which the per-stripe merge above never sees.
+                    wholeFile.forEach(enriched::putIfAbsent);
+                }
                 if (completedFold == null) {
                     completedFold = wholeFile;
                 }

@@ -980,6 +980,8 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             own.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-A");
             own.put(ExternalStats.COLUMNS_IN_FILE_ORDER_KEY, Boolean.TRUE);
             own.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 999L);
+            // Licensed, so the survivor-count refusal does not fire and the non-replacing merge is what is tested.
+            own.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
             own.put(SourceStatisticsSerializer.columnMaxKey("id"), 998L);
             service.getOrComputeSchema(key, k -> SchemaCacheEntry.from(schema, "csv", path, own, Map.of()));
 
@@ -995,7 +997,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             SchemaCacheEntry after = service.getOrComputeSchema(key, k -> { throw new AssertionError("cached"); });
             // First: the contribution must actually have reached the entry, or the assertion below says nothing.
             assertEquals(
-                "the entry's own row count describes its own read, which may have dropped rows; it is not replaced",
+                "the entry's own row count is kept rather than replaced by another read's",
                 999L,
                 after.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
             );
@@ -1167,6 +1169,52 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 after.safeMetadata().get(SourceStatisticsSerializer.columnMaxKey("id"))
             );
             assertEquals(999L, after.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        }
+    }
+
+    /**
+     * Once an entry's own stripes have been folded and compacted away, what it measured lives only in its whole-file
+     * keys. A later crossed delta that completes a fold of its own must add to those, not overwrite them.
+     */
+    public void testCrossedFoldAfterCompactionKeepsTheEntrysOwnMeasurements() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/compacted.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.TRUE, null, false)
+            );
+            // No stripes: the entry's own read already folded and compacted to whole-file keys.
+            Map<String, Object> own = new LinkedHashMap<>();
+            own.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+            own.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-own");
+            own.put(ExternalStats.COLUMNS_IN_FILE_ORDER_KEY, Boolean.TRUE);
+            own.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            own.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 30L);
+            own.put(SourceStatisticsSerializer.columnMaxKey("id"), 50L);
+            service.getOrComputeSchema(key, k -> SchemaCacheEntry.from(schema, "csv", path, own, Map.of()));
+
+            // A licensed foreign delta covering the whole file (EOF), which completes a fold on its own.
+            Map<String, Object> foreign = stripeFragment(mtime, "fp", 30L, 100L, 0, 0, 100, true, true, true);
+            foreign.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-foreign");
+            foreign.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            foreign.put(ExternalStats.READ_COLUMN_NAMES_KEY, List.of("id"));
+            foreign.put(ExternalStats.READ_COLUMN_TYPES_KEY, List.of("long"));
+            foreign.put(ExternalStats.READ_BINDING_KEY, ExternalStats.BINDING_BY_POSITION);
+            foreign.put(SourceStatisticsSerializer.columnMaxKey("id"), 99L);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(foreign)));
+
+            SchemaCacheEntry after = service.getOrComputeSchema(key, k -> { throw new AssertionError("cached"); });
+            assertEquals(
+                "a crossed fold must not overwrite what the entry measured of its own read",
+                50L,
+                after.safeMetadata().get(SourceStatisticsSerializer.columnMaxKey("id"))
+            );
+            assertEquals(
+                "the entry's own read configuration survives the crossed fold",
+                "config-own",
+                after.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY)
+            );
         }
     }
 
@@ -2484,6 +2532,50 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     // --- dataset-level aggregate (warm COUNT(*) survival independent of per-file entries) ---
+
+    /**
+     * A strict dataset's pending promise expects every path to be read at the declared configuration. A licensed scan
+     * of the same files by a DIFFERENT dataset — one that inferred its schema — must not fulfil it: the licence says
+     * that read counted every record, not that the strict read would, and a by-name read of a file whose rows are wider
+     * than its own header drops rows a positional read keeps.
+     */
+    public void testStrictPromiseIsNotFulfilledByAnotherReadsLicensedCount() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String pathA = "s3://bucket/data/a.csv";
+            String pathB = "s3://bucket/data/b.csv";
+            long mtime = 1000L;
+            SchemaCacheKey nameBoundKey = SchemaCacheKey.forDatasetAggregate(
+                "s3://bucket/data/*.csv",
+                new FileSetFingerprint(111, 222),
+                "csv",
+                Map.of("format", "csv"),
+                true
+            );
+            service.registerPendingDatasetAggregate(
+                nameBoundKey,
+                Map.of(pathA, mtime, pathB, mtime),
+                2,
+                "fp",
+                Map.of(pathA, "config-declared", pathB, "config-declared"),
+                "csv",
+                "s3://bucket/data/*.csv"
+            );
+
+            // An inferred dataset's scan of the same two files: a different read configuration, but licensed.
+            Map<String, Object> a = wholeFileStats(mtime, "fp", 10L);
+            a.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-inferred");
+            a.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            Map<String, Object> b = wholeFileStats(mtime, "fp", 20L);
+            b.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-inferred");
+            b.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            service.reconcileSourceStatsFromContributions(Map.of(pathA, List.of(a), pathB, List.of(b)));
+
+            assertNull(
+                "another read's licensed count must not be memoized under a strict dataset's key",
+                service.getDatasetAggregate(nameBoundKey)
+            );
+        }
+    }
 
     private static SchemaCacheKey datasetKey() {
         return SchemaCacheKey.forDatasetAggregate(

@@ -1389,8 +1389,9 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static String randomNumericOfLength(int length, boolean allowLeadingZero) {
         StringBuilder sb = new StringBuilder();
         Random random = random();
+        String firstDigitCandidates = allowLeadingZero ? DIGIT_CHARACTERS : DIGIT_CHARACTERS.substring(1);
         for (int i = 0; i < length; i++) {
-            String candidates = (i == 0 && allowLeadingZero == false) ? DIGIT_CHARACTERS.substring(1) : DIGIT_CHARACTERS;
+            String candidates = (i == 0) ? firstDigitCandidates : DIGIT_CHARACTERS;
             sb.append(candidates.charAt(random.nextInt(candidates.length())));
         }
 

@@ -112,6 +112,10 @@ public final class SearchFeatures implements FeatureSpecification {
      * which collected nothing and reported success.
      */
     public static final NodeFeature COMPOSITE_AGG_DOC_VALUES_SKIPPER_FIX = new NodeFeature("search.aggs.composite.doc_values_skipper_fix");
+    
+    public static final NodeFeature COLUMNAR_DEFAULT_FIELD_LENIENCY = new NodeFeature(
+        "search.query.columnar_default_field_leniency"
+    );
     /**
      * Test-only gate for REST tests using {@code slice} with {@code open_point_in_time} and PIT searches.
      * Requires {@link SliceIndexing#OPEN_POINT_IN_TIME_SLICE_ROUTING_STATE_VERSION}, which is not supported on
@@ -156,7 +160,8 @@ public final class SearchFeatures implements FeatureSpecification {
                 FETCH_FIELDS_EXCLUDES_NON_METADATA_TYPE,
                 NESTED_KNN_INNER_HITS_MATCH_QUERY_PHASE_SCORING,
                 NESTED_EXTRACT_SOURCE_EMPTY_LIST_FIX,
-                COMPOSITE_AGG_DOC_VALUES_SKIPPER_FIX
+                COMPOSITE_AGG_DOC_VALUES_SKIPPER_FIX,
+                COLUMNAR_DEFAULT_FIELD_LENIENCY
             )
         );
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {

@@ -28,6 +28,7 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -1032,11 +1033,27 @@ public class SharedBlobCacheWarmingService {
     /**
      * Search shard recovery warming for the internal replicated-files path: {@link #timeout()} drives the race in
      * {@link #searchRecoveryWarmingListener}; {@link TimeValue#ZERO} means do not await warming. Use {@link #awaitWarming()} to branch.
+     *
+     * <p>{@link #reEvaluateOnTimeout}: when this is the initial plan and its timeout expires, re-call
+     * {@link #searchRecoveryTimeout} with fresh cluster state before deciding whether to fire the race.
+     *
+     * <p>{@link #continueChainOnReEvaluation}: when this plan is the <em>result</em> of a re-evaluation, the chain is extended
+     * (i.e. another timeout slice is scheduled). Only shutdown-computed plans set this to {@code true}; all other plans
+     * terminate the chain even if they triggered a re-evaluation.
      */
-    public record SearchRecoveryTimeout(TimeValue timeout, String timeoutContext, boolean reEvaluateOnTimeout) {
+    public record SearchRecoveryTimeout(
+        TimeValue timeout,
+        String timeoutContext,
+        boolean reEvaluateOnTimeout,
+        boolean continueChainOnReEvaluation
+    ) {
 
         public SearchRecoveryTimeout(TimeValue timeout, String timeoutContext) {
-            this(timeout, timeoutContext, false);
+            this(timeout, timeoutContext, false, false);
+        }
+
+        public SearchRecoveryTimeout(TimeValue timeout, String timeoutContext, boolean reEvaluateOnTimeout) {
+            this(timeout, timeoutContext, reEvaluateOnTimeout, false);
         }
 
         public static SearchRecoveryTimeout skip() {
@@ -1067,6 +1084,19 @@ public class SharedBlobCacheWarmingService {
                 return new SearchRecoveryTimeout(
                     searchRecoveryWarmingRelocationWithShutdownTimeout,
                     "relocation source not shutting down, cluster shutdown metadata present",
+                    true
+                );
+            }
+            final DiscoveryNode sourceNode = state.nodes().get(sourceNodeId);
+            if (sourceNode != null
+                && sourceNode.getVersion().equals(state.nodes().getLocalNode().getVersion()) == false) {
+                return new SearchRecoveryTimeout(
+                    searchRecoveryWarmingRelocationTimeout,
+                    "relocation source not shutting down, no cluster shutdown, source node version ["
+                        + sourceNode.getVersion()
+                        + "] differs from local version ["
+                        + state.nodes().getLocalNode().getVersion()
+                        + "]",
                     true
                 );
             }
@@ -1130,7 +1160,7 @@ public class SharedBlobCacheWarmingService {
             public void run() {
                 if (initialPlan.reEvaluateOnTimeout()) {
                     final SearchRecoveryTimeout newPlan = searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, bytesToWarm);
-                    if (newPlan.reEvaluateOnTimeout() && newPlan.timeout().millis() >= MIN_REEVALUATION_TIMEOUT_MS) {
+                    if (newPlan.continueChainOnReEvaluation() && newPlan.timeout().millis() >= MIN_REEVALUATION_TIMEOUT_MS) {
                         totalTimeoutMs.addAndGet(newPlan.timeout().millis());
                         latestTimeoutContext.set(newPlan.timeoutContext());
                         currentTimeoutTask.set(threadPool.schedule(this, newPlan.timeout(), threadPool.generic()));
@@ -1347,7 +1377,7 @@ public class SharedBlobCacheWarmingService {
         final String finalContext = cappedTimeoutMs < timeoutMs
             ? context + ", capped to reserve time for [" + pendingShards + "] pending shards"
             : context;
-        return new SearchRecoveryTimeout(TimeValue.timeValueMillis(Math.round(cappedTimeoutMs)), finalContext, true);
+        return new SearchRecoveryTimeout(TimeValue.timeValueMillis(Math.round(cappedTimeoutMs)), finalContext, true, true);
     }
 
     /**

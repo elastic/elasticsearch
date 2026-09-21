@@ -136,7 +136,7 @@ public final class HashOffset extends EsqlScalarFunction {
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         List<ExpressionEvaluator.Factory> argFactories = keys.stream().map(toEvaluator::apply).toList();
         List<ElementType> elementTypes = keys.stream().map(key -> PlannerUtils.toElementType(key.dataType())).toList();
-        return new HashOffsetEvaluatorFactory(source(), argFactories, elementTypes);
+        return new HashOffsetEvaluatorFactory(argFactories, elementTypes);
     }
 
     /**
@@ -221,7 +221,7 @@ public final class HashOffset extends EsqlScalarFunction {
         }
     }
 
-    record HashOffsetEvaluatorFactory(Source source, List<ExpressionEvaluator.Factory> args, List<ElementType> elementTypes)
+    record HashOffsetEvaluatorFactory(List<ExpressionEvaluator.Factory> args, List<ElementType> elementTypes)
         implements
             ExpressionEvaluator.Factory {
 

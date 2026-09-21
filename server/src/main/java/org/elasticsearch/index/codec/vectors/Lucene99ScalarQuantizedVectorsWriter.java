@@ -810,6 +810,11 @@ public final class Lucene99ScalarQuantizedVectorsWriter extends FlatVectorsWrite
         }
 
         @Override
+        public KnnVectorValues asKnnVectorValues(VectorEncoding encoding, int dim) throws IOException {
+            return flatFieldVectorsWriter.asKnnVectorValues(encoding, dim);
+        }
+
+        @Override
         public DocsWithFieldSet getDocsWithFieldSet() {
             return flatFieldVectorsWriter.getDocsWithFieldSet();
         }

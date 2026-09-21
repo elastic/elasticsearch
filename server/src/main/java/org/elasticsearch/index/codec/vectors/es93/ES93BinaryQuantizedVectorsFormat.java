@@ -99,8 +99,17 @@ public class ES93BinaryQuantizedVectorsFormat extends AbstractFlatVectorsFormat 
     }
 
     public ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType elementType, boolean useDirectIO) {
+        this(elementType, useDirectIO, false);
+    }
+
+    /**
+     * Variant that can buffer the raw vectors off-heap while the segment is written, see
+     * {@link ES93GenericFlatVectorsFormat#ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType, boolean, boolean)}.
+     * Only worthwhile for the enclosing formats that build a graph, as nothing else scores the raw vectors.
+     */
+    public ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType elementType, boolean useDirectIO, boolean offHeapBuffering) {
         super(NAME);
-        rawFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO);
+        rawFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO, offHeapBuffering);
     }
 
     @Override

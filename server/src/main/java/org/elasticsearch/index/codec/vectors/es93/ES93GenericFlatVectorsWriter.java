@@ -20,6 +20,7 @@ import org.apache.lucene.index.Sorter;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.core.IOUtils;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,6 +32,7 @@ class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
     private final FlatVectorsWriter rawVectorWriter;
     private final IndexOutput metaOut;
     private final List<Integer> fieldNumbers = new ArrayList<>();
+    private final List<Closeable> fieldWriters = new ArrayList<>();
 
     @SuppressWarnings("this-escape")
     ES93GenericFlatVectorsWriter(
@@ -65,6 +67,9 @@ class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
     public FlatFieldVectorsWriter<?> addField(FieldInfo fieldInfo) throws IOException {
         var writer = rawVectorWriter.addField(fieldInfo);
         fieldNumbers.add(fieldInfo.number);
+        if (writer instanceof Closeable c) {
+            fieldWriters.add(c);
+        }
         return writer;
     }
 
@@ -101,7 +106,13 @@ class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(metaOut, rawVectorWriter);
+        // We must do a single IOUtils.close, so in case a close() fails, it closes everything before rethrowing.
+        // metaOut can be null: this is safe for both ArrayList and IOUtils.close
+        List<Closeable> toClose = new ArrayList<>(fieldWriters.size() + 2);
+        toClose.add(metaOut);
+        toClose.add(rawVectorWriter);
+        toClose.addAll(fieldWriters);
+        IOUtils.close(toClose);
     }
 
     @Override

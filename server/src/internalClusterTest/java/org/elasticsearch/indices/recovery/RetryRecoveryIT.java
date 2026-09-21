@@ -762,16 +762,13 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     }
 
     public void testRetryOnFailureOnRecoveryFromEmptyStoreRaceWithNetworkDisruption() throws Exception {
-        String masterA = internalCluster().startMasterOnlyNode();
-        String masterB = internalCluster().startMasterOnlyNode();
+        String master = internalCluster().startMasterOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         String indexName = randomIndexName();
 
-        MockTransportService masterATransport = MockTransportService.getInstance(masterA);
-        MockTransportService masterBTransport = MockTransportService.getInstance(masterB);
+        MockTransportService masterATransport = MockTransportService.getInstance(master);
         try {
             failTestIfReceiveShardFailure(masterATransport);
-            failTestIfReceiveShardFailure(masterBTransport);
 
             RetryRecoveryTestPlugin.armRandomFailure();
             Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
@@ -783,13 +780,13 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
             // Isolating dataNode will cause shard to go unassigned
             NetworkDisruption disruption = new NetworkDisruption(
-                new NetworkDisruption.TwoPartitions(Set.of(dataNode), Set.of(masterA, masterB)),
+                new NetworkDisruption.TwoPartitions(Set.of(dataNode), Set.of(master)),
                 NetworkDisruption.DISCONNECT
             );
             internalCluster().setDisruptionScheme(disruption);
             disruption.startDisrupting();
             String dataNodeId = internalCluster().clusterService(dataNode).localNode().getId();
-            awaitClusterState(masterA, state -> state.nodes().nodeExists(dataNodeId) == false);
+            awaitClusterState(master, state -> state.nodes().nodeExists(dataNodeId) == false);
 
             // Release recovery will make recovery/retry race with network disruption
             gate.release();
@@ -799,13 +796,11 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             ensureGreen(indexName);
         } finally {
             masterATransport.clearAllRules();
-            masterBTransport.clearAllRules();
         }
     }
 
     public void testRetryOnFailureOnRecoveryFromFromExistingStoreRaceWithNetworkDisruption() throws Exception {
-        String masterA = internalCluster().startMasterOnlyNode();
-        String masterB = internalCluster().startMasterOnlyNode();
+        String master = internalCluster().startMasterOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         String indexName = randomIndexName();
 
@@ -815,11 +810,9 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         ensureGreen(indexName);
         assertAcked(indicesAdmin().prepareClose(indexName));
 
-        MockTransportService masterATransport = MockTransportService.getInstance(masterA);
-        MockTransportService masterBTransport = MockTransportService.getInstance(masterB);
+        MockTransportService masterATransport = MockTransportService.getInstance(master);
         try {
             failTestIfReceiveShardFailure(masterATransport);
-            failTestIfReceiveShardFailure(masterBTransport);
 
             RetryRecoveryTestPlugin.armRandomFailure();
             Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
@@ -831,13 +824,13 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
             // Isolating dataNode will cause shard to go unassigned
             NetworkDisruption disruption = new NetworkDisruption(
-                new NetworkDisruption.TwoPartitions(Set.of(dataNode), Set.of(masterA, masterB)),
+                new NetworkDisruption.TwoPartitions(Set.of(dataNode), Set.of(master)),
                 NetworkDisruption.DISCONNECT
             );
             internalCluster().setDisruptionScheme(disruption);
             disruption.startDisrupting();
             String dataNodeId = internalCluster().clusterService(dataNode).localNode().getId();
-            awaitClusterState(masterA, state -> state.nodes().nodeExists(dataNodeId) == false);
+            awaitClusterState(master, state -> state.nodes().nodeExists(dataNodeId) == false);
 
             // Release recovery will make recovery/retry race with network disruption
             gate.release();
@@ -847,13 +840,11 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             ensureGreen(indexName);
         } finally {
             masterATransport.clearAllRules();
-            masterBTransport.clearAllRules();
         }
     }
 
     public void testRetryOnFailureOnRecoveryFromLocalShardRaceWithNetworkDisruption() throws Exception {
-        String masterA = internalCluster().startMasterOnlyNode();
-        String masterB = internalCluster().startMasterOnlyNode();
+        String master = internalCluster().startMasterOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         final var sourceIndexName = randomIndexName();
         final var targetIndexName = randomIndexName();
@@ -866,11 +857,9 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         // Required for clone
         updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndexName);
 
-        MockTransportService masterATransport = MockTransportService.getInstance(masterA);
-        MockTransportService masterBTransport = MockTransportService.getInstance(masterB);
+        MockTransportService masterATransport = MockTransportService.getInstance(master);
         try {
             failTestIfReceiveShardFailure(masterATransport);
-            failTestIfReceiveShardFailure(masterBTransport);
 
             RetryRecoveryTestPlugin.armRandomFailure();
             Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
@@ -882,13 +871,13 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
             // Isolating dataNode will cause shard to go unassigned
             NetworkDisruption disruption = new NetworkDisruption(
-                new NetworkDisruption.TwoPartitions(Set.of(dataNode), Set.of(masterA, masterB)),
+                new NetworkDisruption.TwoPartitions(Set.of(dataNode), Set.of(master)),
                 NetworkDisruption.DISCONNECT
             );
             internalCluster().setDisruptionScheme(disruption);
             disruption.startDisrupting();
             String dataNodeId = internalCluster().clusterService(dataNode).localNode().getId();
-            awaitClusterState(masterA, state -> state.nodes().nodeExists(dataNodeId) == false);
+            awaitClusterState(master, state -> state.nodes().nodeExists(dataNodeId) == false);
 
             // Release recovery will make recovery/retry race with network disruption
             gate.release();
@@ -899,13 +888,11 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             ensureGreen(targetIndexName);
         } finally {
             masterATransport.clearAllRules();
-            masterBTransport.clearAllRules();
         }
     }
 
     public void testRetryOnFailureOnRecoveryFromSnapshotRaceWithNetworkDisruption() throws Exception {
-        String masterA = internalCluster().startMasterOnlyNode();
-        String masterB = internalCluster().startMasterOnlyNode();
+        String master = internalCluster().startMasterOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         final var indexName = randomIndexName();
         final var repoName = "test-repo";
@@ -923,11 +910,9 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).get();
         assertAcked(indicesAdmin().prepareDelete(indexName));
 
-        MockTransportService masterATransport = MockTransportService.getInstance(masterA);
-        MockTransportService masterBTransport = MockTransportService.getInstance(masterB);
+        MockTransportService masterATransport = MockTransportService.getInstance(master);
         try {
             failTestIfReceiveShardFailure(masterATransport);
-            failTestIfReceiveShardFailure(masterBTransport);
 
             RetryRecoveryTestPlugin.armRandomFailure();
             Gate gate = RetryRecoveryTestPlugin.randomGateBeforeTargetFailure();
@@ -939,13 +924,13 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
             // Isolating dataNode will cause shard to go unassigned
             NetworkDisruption disruption = new NetworkDisruption(
-                new NetworkDisruption.TwoPartitions(Set.of(dataNode), Set.of(masterA, masterB)),
+                new NetworkDisruption.TwoPartitions(Set.of(dataNode), Set.of(master)),
                 NetworkDisruption.DISCONNECT
             );
             internalCluster().setDisruptionScheme(disruption);
             disruption.startDisrupting();
             String dataNodeId = internalCluster().clusterService(dataNode).localNode().getId();
-            awaitClusterState(masterA, state -> state.nodes().nodeExists(dataNodeId) == false);
+            awaitClusterState(master, state -> state.nodes().nodeExists(dataNodeId) == false);
 
             // Release recovery will make recovery/retry race with network disruption
             gate.release();
@@ -955,7 +940,6 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             ensureGreen(indexName);
         } finally {
             masterATransport.clearAllRules();
-            masterBTransport.clearAllRules();
         }
     }
 

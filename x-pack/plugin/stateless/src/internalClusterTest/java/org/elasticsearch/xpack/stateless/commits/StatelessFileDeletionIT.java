@@ -1306,6 +1306,13 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         readers.forEach(shardLocalReadersTracker::onLocalReaderClosed);
         proceedWithHandOff.countDown();
         ensureGreen(indexName);
+        // The initial commit's blob was held only by its mock reader, so it went through the deferred list and markRelocationFailed
+        // reclaimed it. The blobs from the user flushes are still held by the search node and must have survived.
+        assertThat(
+            "pre-merge blobs held by the search node should survive the failed relocation",
+            Sets.intersection(shardCommitsContainer.listBlobs(operationPurpose).keySet(), blobsBeforeMerge),
+            not(empty())
+        );
 
         // Step 5: Release the delayed notification. The search node drops its hold on the pre-merge blobs;
         // their ref count reaches zero while the shard is RUNNING, so they are deleted immediately.

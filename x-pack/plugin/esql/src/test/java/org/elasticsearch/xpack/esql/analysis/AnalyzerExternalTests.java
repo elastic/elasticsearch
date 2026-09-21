@@ -56,6 +56,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Unit tests for analysis of external datasets reached via {@code FROM <dataset>}. All such analyzer tests belong
@@ -348,6 +349,28 @@ public class AnalyzerExternalTests extends ESTestCase {
         Attribute path = plan.output().stream().filter(a -> a.name().equals("_file.path")).findFirst().orElseThrow();
         assertThat(id, instanceOf(ExternalMetadataAttribute.class));
         assertThat(path, instanceOf(ExternalMetadataAttribute.class));
+    }
+
+    public void testKeepStarDoesNotInventUnboundMetadata() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var plan = analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _file.size | KEEP *");
+        List<String> names = plan.output().stream().map(Attribute::name).toList();
+        assertThat(names, hasItem("_file.size"));
+        assertThat(names, hasItem("emp_no"));
+        assertThat(names, not(hasItem("_file.name")));
+        assertThat(names, not(hasItem("_file.path")));
+        Attribute size = plan.output().stream().filter(a -> a.name().equals("_file.size")).findFirst().orElseThrow();
+        assertThat(size, instanceOf(ExternalMetadataAttribute.class));
+    }
+
+    public void testKeepFilePatternMatchesOnlyBoundMetadata() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var plan = analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _file.size | KEEP _file*");
+        List<String> names = plan.output().stream().map(Attribute::name).toList();
+        assertEquals(List.of("_file.size"), names);
+        assertThat(plan.output().getFirst(), instanceOf(ExternalMetadataAttribute.class));
     }
 
     public void testMetadataIdSurfacesWithoutKeep() {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.lookup;
 
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
@@ -16,6 +17,9 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class SourceFilterTests extends ESTestCase {
 
@@ -226,5 +230,29 @@ public class SourceFilterTests extends ESTestCase {
         assertFalse(new SourceFilter(new String[] { x }, null).isExplicitlyIncluded(y));
         assertTrue(new SourceFilter(null, new String[] { x }).isPathFiltered(x, false));
         assertFalse(new SourceFilter(null, new String[] { x }).isPathFiltered(y, false));
+    }
+
+    public void testTooComplexPatternThrowsIllegalArgument() {
+        // Generate patterns of the form *<10 random chars>* — unions of many such patterns
+        // overwhelm Lucene's determinization work limit (DEFAULT_DETERMINIZE_WORK_LIMIT = 10_000)
+        String[] complexPatterns = new String[50];
+        for (int i = 0; i < complexPatterns.length; i++) {
+            complexPatterns[i] = "*" + randomAlphaOfLength(10) + "*";
+        }
+        IllegalArgumentException include = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SourceFilter(complexPatterns, null).isPathFiltered("foo", false)
+        );
+        assertThat(include.getMessage(), containsString("Unable to filter _source"));
+        assertThat(include.getMessage(), containsString("include field patterns"));
+        assertThat(include.getCause(), instanceOf(TooComplexToDeterminizeException.class));
+
+        IllegalArgumentException exclude = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SourceFilter(null, complexPatterns).isPathFiltered("foo", false)
+        );
+        assertThat(exclude.getMessage(), containsString("Unable to filter _source"));
+        assertThat(exclude.getMessage(), containsString("exclude field patterns"));
+        assertThat(exclude.getCause(), instanceOf(TooComplexToDeterminizeException.class));
     }
 }

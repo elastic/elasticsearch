@@ -1412,7 +1412,8 @@ class NodeConstruction {
                 threadPool,
                 telemetryProvider,
                 repositoriesService,
-                fileSettingsHealthTracker
+                fileSettingsHealthTracker,
+                projectResolver
             )
         );
 
@@ -1635,7 +1636,8 @@ class NodeConstruction {
         ThreadPool threadPool,
         TelemetryProvider telemetryProvider,
         RepositoriesService repositoriesService,
-        FileSettingsHealthTracker fileSettingsHealthTracker
+        FileSettingsHealthTracker fileSettingsHealthTracker,
+        ProjectResolver projectResolver
     ) {
 
         MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
@@ -1649,7 +1651,7 @@ class NodeConstruction {
         var serverHealthIndicatorServices = Stream.of(
             new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService),
             new RepositoryIntegrityHealthIndicatorService(clusterService),
-            new DiskHealthIndicatorService(clusterService),
+            new DiskHealthIndicatorService(clusterService, projectResolver),
             new ShardsCapacityHealthIndicatorService(clusterService),
             new FileSettingsHealthIndicatorService()
         );

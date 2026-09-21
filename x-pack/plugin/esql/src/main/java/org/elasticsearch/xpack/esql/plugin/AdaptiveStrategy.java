@@ -9,21 +9,23 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
-import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
 import java.util.List;
 
 /**
  * Adaptive distribution strategy for external sources.
  * <p>
- * Distributes when the plan contains pipeline breakers (aggregations, TopN)
- * and there are multiple splits, or when the split count exceeds the number
- * of eligible remote workers. Stays on the coordinator for single splits or LIMIT-only plans.
- * An empty eligible-worker set -- including an index-only cluster -- returns {@code LOCAL}
- * so the coordinator runs the scan itself.
+ * Distributes when the plan reduces rows (aggregations, TopN, and the same operators inside a
+ * fragment), when the split count exceeds the number of eligible remote workers, or when this is
+ * a UNION leaf with sibling datasets. Stays on the coordinator for a single split that has no
+ * source siblings, for LIMIT-only plans, and for an empty split list. An empty eligible-worker
+ * set, including an index-only cluster, returns {@code LOCAL} so the coordinator runs the scan
+ * itself.
+ * <p>
+ * Assignment is offset by {@link SiblingPlacement#stride(int, int)} so concurrent UNION leaves
+ * (and concurrent FORK branches) do not all start at eligible node 0.
  */
 public final class AdaptiveStrategy implements ExternalDistributionStrategy {
 
@@ -43,7 +45,10 @@ public final class AdaptiveStrategy implements ExternalDistributionStrategy {
     @Override
     public ExternalDistributionPlan planDistribution(ExternalDistributionContext context) {
         List<ExternalSplit> splits = context.splits();
-        if (splits.size() <= 1) {
+        if (splits.isEmpty()) {
+            return ExternalDistributionPlan.LOCAL;
+        }
+        if (splits.size() == 1 && context.placement().hasSourceSiblings() == false) {
             return ExternalDistributionPlan.LOCAL;
         }
 
@@ -58,10 +63,11 @@ public final class AdaptiveStrategy implements ExternalDistributionStrategy {
             return ExternalDistributionPlan.LOCAL;
         }
 
-        boolean hasPipelineBreaker = ExternalDistributionStrategy.needsGatherBoundary(plan);
+        boolean hasPipelineBreaker = ExternalDistributionStrategy.hasReducingOperator(plan);
         boolean manySplits = splits.size() > nodes.size();
 
-        if (hasPipelineBreaker || manySplits) {
+        if (hasPipelineBreaker || manySplits || context.placement().hasSourceSiblings()) {
+            int stride = context.placement().stride(splits.size(), nodes.size());
             boolean allHaveSize = true;
             for (ExternalSplit split : splits) {
                 // Unknown size is negative. Zero is an empty file; it still has open cost.
@@ -71,18 +77,20 @@ public final class AdaptiveStrategy implements ExternalDistributionStrategy {
                 }
             }
             if (allHaveSize) {
-                return WeightedRoundRobinStrategy.assignByWeight(splits, nodes);
+                return WeightedRoundRobinStrategy.assignByWeight(splits, nodes, stride);
             }
-            return RoundRobinStrategy.assignRoundRobin(splits, nodes);
+            return RoundRobinStrategy.assignRoundRobin(splits, nodes, stride);
         }
 
         return ExternalDistributionPlan.LOCAL;
     }
 
+    /**
+     * True when a coordinator {@code LimitExec} is the only breaker: no aggregation, TopN, TopNBy, or
+     * LimitBy on the physical tree or inside a fragment. A UNION STATS leaf that still carries a limit
+     * is not limit-only, so the reduction check can still hop it.
+     */
     private static boolean isLimitOnly(PhysicalPlan plan) {
-        boolean hasLimit = plan.anyMatch(n -> n instanceof LimitExec);
-        boolean hasAgg = plan.anyMatch(n -> n instanceof AggregateExec);
-        boolean hasTopN = plan.anyMatch(n -> n instanceof TopNExec);
-        return hasLimit && hasAgg == false && hasTopN == false;
+        return plan.anyMatch(n -> n instanceof LimitExec) && ExternalDistributionStrategy.hasReducingOperator(plan) == false;
     }
 }

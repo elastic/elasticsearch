@@ -213,7 +213,8 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
      * <p>The virtual-column guard mirrors the equivalent check in {@link #canConvert}: virtual
      * columns ({@code _file.*}) are materialized downstream by {@code VirtualColumnIterator} with
      * real values, not nulls. They never receive a predicate block in the late-mat evaluator, so a
-     * conjunct on such a column must not be promoted to {@link org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport.Pushability#YES}
+     * conjunct on such a column must not be promoted to
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport.Pushability#YES}
      * — doing so drops the {@code FilterExec} while the evaluator silently passes all rows.
      * {@link #canConvert}'s {@code And} arm is disjunctive ({@code left || right}), so
      * {@code And(realColLike, virtualColLike)} passes {@code canConvert} via the left arm even

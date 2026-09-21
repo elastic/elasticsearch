@@ -44,7 +44,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -220,33 +219,61 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         assertThat(viewChild(result, "viewB"), instanceOf(Filter.class));
     }
 
-    // --- fail-closed ---
+    // --- unsupported constructs are dropped with a warning ---
 
-    /** Fail-closed: an unsupported DSL construct fails the whole query with a 400 (IllegalArgumentException). */
-    public void testUnsupportedDslConstructFailsTheQuery() {
+    private static final String SKIPPED_WILDCARD_WARNING =
+        "The request filter could not be fully applied to view(s); the following Query DSL constructs are not supported and were "
+            + "skipped: [wildcard] on view [myView]. Use a WHERE clause to filter rows from views instead";
+
+    /**
+     * An unsupported DSL construct does not fail the query, matching the dataset policy: it is dropped and a warning names
+     * both the construct and the view. With nothing translatable left, the view is read unfiltered rather than wrapped in a
+     * no-op Filter.
+     */
+    public void testUnsupportedDslConstructIsDroppedWithWarning() {
         ViewUnionAll vua = unionWithView("myView", attr("y", DataType.KEYWORD));
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.wildcardQuery("y", "x*"), CONFIG, CURRENT)
-        );
-        assertThat(e.getMessage(), containsString("[wildcard]"));
-        assertThat(e.getMessage(), containsString("views"));
+        LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.wildcardQuery("y", "x*"), CONFIG, CURRENT);
+        assertThat("nothing translatable remains, so no Filter is installed", viewChild(result, "myView"), not(instanceOf(Filter.class)));
+        assertWarnings(SKIPPED_WILDCARD_WARNING);
     }
 
     /**
-     * Fail-closed: a filter that mixes a supported term with an unsupported wildcard fails the whole query — the
-     * supported clause does not rescue it.
+     * A filter mixing a supported term with an unsupported wildcard keeps the term and drops the wildcard, so the installed
+     * condition is exactly the term — looser than the request, never tighter — and the warning names only the dropped clause.
      */
-    public void testMixedDslWithUnsupportedClauseFailsTheQuery() {
-        ViewUnionAll vua = unionWithView("myView", attr("y", DataType.KEYWORD));
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> ViewRequestFilterRewriter.rewrite(
-                vua,
-                QueryBuilders.boolQuery().must(QueryBuilders.termQuery("y", "a")).must(QueryBuilders.wildcardQuery("y", "x*")),
-                CONFIG,
-                CURRENT
-            )
+    public void testMixedDslKeepsSupportedClausesAndWarnsAboutTheRest() {
+        Attribute y = attr("y", DataType.INTEGER);
+        ViewUnionAll vua = unionWithView("myView", y);
+        LogicalPlan result = ViewRequestFilterRewriter.rewrite(
+            vua,
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("y", 1)).must(QueryBuilders.wildcardQuery("y", "x*")),
+            CONFIG,
+            CURRENT
+        );
+        assertThat(viewChild(result, "myView"), instanceOf(Filter.class));
+        Filter filter = (Filter) viewChild(result, "myView");
+        assertThat("only the term survives", filter.condition(), instanceOf(MvContains.class));
+        MvContains condition = (MvContains) filter.condition();
+        assertThat(condition.children().get(0), sameInstance(y));
+        assertThat(condition.children().get(1), equalTo(new Literal(Source.EMPTY, 1, DataType.INTEGER)));
+        assertWarnings(SKIPPED_WILDCARD_WARNING);
+    }
+
+    /** One warning for the whole plan: the same construct failing on two views is reported once per view, in plan order. */
+    public void testUnsupportedClauseWarningNamesEveryAffectedViewOnce() {
+        Attribute y = attr("y", DataType.KEYWORD);
+        LinkedHashMap<String, LogicalPlan> map = new LinkedHashMap<>();
+        map.put("viewA", viewSubplan("viewA", y));
+        map.put("viewB", viewSubplan("viewB", y));
+        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, Set.of("viewA", "viewB"), List.of(y));
+
+        QueryBuilder twoWildcards = QueryBuilders.boolQuery()
+            .must(QueryBuilders.wildcardQuery("y", "x*"))
+            .must(QueryBuilders.wildcardQuery("y", "z*"));
+        ViewRequestFilterRewriter.rewrite(vua, twoWildcards, CONFIG, CURRENT);
+        assertWarnings(
+            "The request filter could not be fully applied to view(s); the following Query DSL constructs are not supported and were "
+                + "skipped: [wildcard] on view [viewA]; [wildcard] on view [viewB]. Use a WHERE clause to filter rows from views instead"
         );
     }
 
@@ -332,7 +359,7 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         // should / must_not count as filtering even in the shapes the translator would discard: narrower is the safe direction.
         filters.put("bool with only a should", QueryBuilders.boolQuery().should(QueryBuilders.termQuery("region", "eu")));
         filters.put("bool with only a must_not", QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("region", "eu")));
-        // An unsupported construct must not be mistaken for a no-op — it has to reach the fail-closed translation.
+        // An unsupported construct must not be mistaken for a no-op — it has to reach the translation so it can be reported.
         filters.put("unsupported wildcard", QueryBuilders.wildcardQuery("region", "e*"));
         return filters;
     }

@@ -41,8 +41,7 @@
  *     that same mechanism: it targets the output boundary of each logical view subplan (the view-branch children of
  *     {@link org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll} nodes), so the filter applies to the view's
  *     <em>output</em> rather than being pushed into the view's source indices. It shares the dataset rewriter's version
- *     gate but not its drop-with-warning policy: an unsupported clause fails the whole query with a 400 naming the
- *     construct.</li>
+ *     gate and its drop-with-warning policy, naming the view each skipped construct was meant for.</li>
  * </ul>
  *
  * <h2>Two invariants the whole thing rests on</h2>

@@ -23,8 +23,10 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Stream;
 
@@ -52,9 +54,12 @@ import static org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter.ES
  * left untouched: those are plain Elasticsearch index relations whose request filter is handled by the existing
  * pre-analysis Lucene-scan path.
  *
- * <p>The translation is <em>fail-closed</em>: a construct outside the supported subset fails the whole query with a 400
- * ({@link IllegalArgumentException}) naming the construct, rather than silently applying a widened superset. A filter
- * that translates to a supported no-op ({@code match_all}) leaves the relation read unfiltered.
+ * <p>A construct outside the supported subset never fails the query, matching {@link RequestFilterRewriter}: the
+ * translatable conjuncts are applied and the rest are dropped with a {@link HeaderWarning} naming each construct and the
+ * view it was meant for. Dropping only ever widens what matches, never narrows it. The request filter is not part of the
+ * query text, so a construct it cannot honor is not a query error; and failing would turn a working Kibana panel into an
+ * error the moment a view starts matching its pattern. A filter that translates to a supported no-op ({@code match_all})
+ * leaves the view unfiltered.
  *
  * <p>The rewrite is <em>version-gated</em>. Both this rewriter and {@link RequestFilterRewriter} (for datasets) use
  * the same {@link QueryDslTranslator}, which can emit {@code mv_in_range} nodes for range queries; older nodes do not
@@ -148,8 +153,6 @@ public final class ViewRequestFilterRewriter {
      * @param minimumVersion the minimum transport version across the nodes this plan targets; when
      *                       {@link #supportsRewrite} is false the rewrite is skipped and the filter falls back to the
      *                       view's source scan (see the class javadoc).
-     * @throws IllegalArgumentException if {@code requestFilter} contains a construct outside the supported subset —
-     *                       the translation is fail-closed.
      */
     public static LogicalPlan rewrite(
         LogicalPlan analyzed,
@@ -169,13 +172,17 @@ public final class ViewRequestFilterRewriter {
         // view, not a boundary the request filter addresses. Filtering an inner boundary too would apply the predicate
         // before the outer view's own processing — the very mistake the Lucene push-in path makes — and for a field the
         // outer view computes it would bind to NULL there and silently drop every row.
+        Set<String> skipped = new LinkedHashSet<>();
         LogicalPlan rewritten = analyzed.transformDownSkipBranch((plan, skipBranch) -> {
             if (plan instanceof ViewUnionAll vua) {
                 skipBranch.set(true);
-                return applyRequestFilterToViewBranches(vua, requestFilter, configuration);
+                return applyRequestFilterToViewBranches(vua, requestFilter, configuration, skipped);
             }
             return plan;
         });
+        if (skipped.isEmpty() == false) {
+            warnUnsupportedClauses(skipped);
+        }
         // The inserted Filter nodes and the spine rebuilt above them are at stage NEW; the plan was already
         // analyzed, so mark the whole tree analyzed to satisfy the pre-optimizer.
         rewritten.forEachDown(LogicalPlan.class, LogicalPlan::setAnalyzed);
@@ -188,9 +195,15 @@ public final class ViewRequestFilterRewriter {
      * <p>Bare-index and literal-subquery branches are left alone — they are not view branches and the existing
      * Lucene-scan path handles them. {@link ViewUnionAll#isViewBranch(String)} is the test to use: {@code key != null}
      * is not sufficient, because bare-index branches carry {@code "main"} and literal subqueries carry
-     * {@code "unnamed_view_<hash>"}. Translation is fail-closed: an unsupported construct produces a 400.
+     * {@code "unnamed_view_<hash>"}. Unsupported constructs are recorded in {@code skipped} as {@code [construct] on view [name]}
+     * and the translatable remainder is installed; the caller warns once for the whole plan.
      */
-    private static LogicalPlan applyRequestFilterToViewBranches(ViewUnionAll vua, QueryBuilder requestFilter, Configuration configuration) {
+    private static LogicalPlan applyRequestFilterToViewBranches(
+        ViewUnionAll vua,
+        QueryBuilder requestFilter,
+        Configuration configuration,
+        Set<String> skipped
+    ) {
         LinkedHashMap<String, LogicalPlan> newSubqueries = new LinkedHashMap<>();
         boolean changed = false;
         for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
@@ -200,12 +213,9 @@ public final class ViewRequestFilterRewriter {
                 newSubqueries.put(key, child);
             } else {
                 QueryDslTranslator.TranslationResult result = translateFilter(child.output(), requestFilter, configuration);
-                if (result.isComplete() == false) {
-                    throw new IllegalArgumentException(
-                        "The request filter uses a Query DSL construct not supported on views: ["
-                            + result.unsupported().get(0).construct()
-                            + "]"
-                    );
+                // The same construct can fail more than once on one view (two wildcard clauses, say); the set keeps the header short.
+                for (QueryDslTranslator.UnsupportedClause unsupported : result.unsupported()) {
+                    skipped.add("[" + unsupported.construct() + "] on view [" + key + "]");
                 }
                 Expression condition = result.applied();
                 if (condition == Literal.TRUE) {
@@ -243,6 +253,16 @@ public final class ViewRequestFilterRewriter {
             return a != null ? a : Literal.NULL;
         }, byName.keySet(), configuration);
         return translator.translate(filter);
+    }
+
+    /** Warns, via a response header, which constructs were dropped from the filter and on which views. */
+    private static void warnUnsupportedClauses(Set<String> skipped) {
+        HeaderWarning.addWarning(
+            "The request filter could not be fully applied to view(s); the following Query DSL constructs are not supported and were "
+                + "skipped: "
+                + String.join("; ", skipped)
+                + ". Use a WHERE clause to filter rows from views instead"
+        );
     }
 
     /**

@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -19,7 +22,9 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -83,6 +88,12 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
 
     private static String region(int i) {
         return i % 2 == 0 ? "eu" : "us";
+    }
+
+    /** A real HTTP transport, so {@link #testUnsupportedDslConstructOnViewIsDroppedWithWarning} can read the {@code Warning} header. */
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false;
     }
 
     @Before
@@ -549,26 +560,41 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-    // ─── Fail-closed: unsupported DSL construct must fail the query ──────────────
+    // ─── Unsupported DSL construct is dropped with a warning ─────────────────────
 
     /**
-     * A wildcard query is not in the supported DSL subset for views. The whole query must fail with a 400 naming the
-     * construct — the supported term clause does not rescue it.
+     * A wildcard query is not in the supported DSL subset for views. Matching the dataset policy, the query does not fail:
+     * the supported term clause is applied, the wildcard is dropped, and the {@code Warning} response header names the
+     * construct and the view. Goes through REST because that header is what a caller actually sees.
      * <p>
      * Uses a non-pass-through view deliberately. A pass-through view ({@code FROM index}) is collapsed to its source
      * index during view compaction, because filtering the index and filtering the view's output are then the same
-     * operation — so its filter takes the ordinary Lucene-scan path and never reaches the fail-closed translation.
-     * Whether a pass-through view should nonetheless fail closed (giving up that optimization, but making every view
-     * reject unsupported DSL uniformly) is an open question, tracked separately.
+     * operation — so its filter takes the ordinary Lucene-scan path and never reaches this translation at all.
      */
-    public void testUnsupportedDslConstructOnViewFailsQuery() {
-        QueryBuilder unsupported = QueryBuilders.boolQuery()
-            .must(QueryBuilders.termQuery("region", "eu"))
-            .must(QueryBuilders.wildcardQuery("region", "e*"));
-        expectThrows(
-            Exception.class,
-            containsString("[wildcard]"),
-            () -> run(syncEsqlQueryRequest("FROM " + STATS_VIEW + " | KEEP region").filter(unsupported))
+    public void testUnsupportedDslConstructOnViewIsDroppedWithWarning() throws IOException {
+        Request request = new Request("POST", "/_query");
+        request.setJsonEntity(String.format(Locale.ROOT, """
+            {
+              "query": "FROM %s | KEEP region, cnt",
+              "filter": {
+                "bool": {
+                  "must": [
+                    { "term": { "region": "eu" } },
+                    { "wildcard": { "region": { "value": "e*" } } }
+                  ]
+                }
+              }
+            }
+            """, STATS_VIEW));
+        Response response = getRestClient().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        // The term alone selects the eu bucket; had the wildcard narrowed anything further, or the whole filter been
+        // abandoned, the values would differ.
+        assertThat(EntityUtils.toString(response.getEntity()), containsString("\"values\":[[\"eu\",3]]"));
+        List<String> warnings = response.getWarnings();
+        assertTrue(
+            "expected a warning naming the dropped [wildcard] and the view; got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("[wildcard] on view [" + STATS_VIEW + "]"))
         );
     }
 }

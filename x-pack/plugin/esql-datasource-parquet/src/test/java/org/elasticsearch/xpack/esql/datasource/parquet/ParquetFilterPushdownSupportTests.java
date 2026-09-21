@@ -1201,6 +1201,8 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
     public void testMvContainsPushedAsRecheck() {
         Expression filter = new MvContains(Source.EMPTY, attr("status", DataType.LONG), longLit(200L));
 
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(filter));
+
         FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
 
         assertTrue(result.hasPushedFilter());

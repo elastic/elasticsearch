@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.datasources.utils.BoundedParallelGather;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
@@ -2951,6 +2952,21 @@ public class FileSplitProvider implements SplitProvider {
         }
         if (expr instanceof IsNotNull isNotNull) {
             return extractColumnName(isNotNull.field());
+        }
+        // The multivalue comparison functions name their column the same way. A missing column is the empty set, so
+        // each of these is false for every row of a file that lacks it — the same answer Equals gives, and the reason
+        // such a file can be skipped unread rather than opened and scanned for nothing.
+        if (expr instanceof MvContains mvContains) {
+            return extractColumnName(mvContains.left());
+        }
+        if (expr instanceof MvIntersects mvIntersects) {
+            return extractColumnName(mvIntersects.left());
+        }
+        if (expr instanceof MvInRange mvInRange) {
+            return extractColumnName(mvInRange.field());
+        }
+        if (expr instanceof MvCompare mvCompare) {
+            return extractColumnName(mvCompare.field());
         }
         return null;
     }

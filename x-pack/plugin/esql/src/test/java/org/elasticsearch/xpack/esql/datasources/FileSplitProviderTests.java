@@ -6821,6 +6821,28 @@ public class FileSplitProviderTests extends ESTestCase {
 
     private static final Source SRC = Source.EMPTY;
 
+    public void testFileMissingTheFilteredColumnIsSkippedForEveryMvForm() {
+        // A schema-union file that lacks the column: each mv_ form is the empty set there, so it is false for every
+        // row and the file can be skipped unread. Before the forms were recognised here they fell through and the
+        // file was opened and scanned for nothing.
+        Set<String> present = Set.of("id", "other");
+        FieldAttribute region = new FieldAttribute(SRC, "region", new EsField("region", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+        Literal zoo = new Literal(SRC, new BytesRef("zoo"), DataType.KEYWORD);
+        List<Expression> forms = List.of(
+            new MvContains(SRC, region, zoo),
+            new MvIntersects(SRC, region, new Literal(SRC, List.of(new BytesRef("zoo")), DataType.KEYWORD)),
+            new MvInRange(SRC, region, zoo, zoo),
+            new MvGreater(SRC, region, zoo),
+            new MvLess(SRC, region, zoo)
+        );
+        for (Expression form : forms) {
+            assertTrue(form.toString(), FileSplitProvider.skipIfFilterOnMissingColumns(List.of(form), present));
+        }
+        // Control: the same forms over a column the file does have are not a reason to skip it.
+        FieldAttribute id = new FieldAttribute(SRC, "id", new EsField("id", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+        assertFalse(FileSplitProvider.skipIfFilterOnMissingColumns(List.of(new MvContains(SRC, id, zoo)), present));
+    }
+
     public void testSignedZeroPartitionIsNotConfidentlyPruned() {
         // ES|QL's double evaluators compare primitives, where IEEE 754 equates -0.0 and 0.0, so every row of a d=-0.0
         // file satisfies d >= 0.0. The file layer has no retained filter: a confident FALSE here drops the file and

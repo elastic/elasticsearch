@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -24,6 +25,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
@@ -38,6 +40,7 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseDocValuesFormatTestCase;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOFunction;
@@ -72,6 +75,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
@@ -2185,6 +2189,130 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
 
         @Override
         public void close() {}
+    }
+
+    /**
+     * Drives the ordinal-range layout of a sorted field that is the primary index sort. Every iteration draws
+     * a new {@code minDocsPerOrdinalForRangeEncoding} threshold, spanning always-range, sometimes-range and
+     * never-range, and indexes into the same directory with random flushes, deletes and force merges. Docs
+     * without the field are mixed in, so both the dense and sparse readers are hit. Each leaf is then checked
+     * sequentially and with random {@code advanceExact} jumps against a numeric shadow of the ordinal.
+     *
+     * <p>The first iteration pins the threshold to 1. With a single-valued field that makes every segment with
+     * more than one doc and at least one host eligible for range encoding, so the read phase can assert that
+     * the layout was actually selected rather than relying on the random thresholds to reach it.
+     *
+     * @param formatForThreshold builds the format under test for the given
+     *                           {@code minDocsPerOrdinalForRangeEncoding}
+     */
+    protected void doTestEncodeOrdinalRange(IntFunction<DocValuesFormat> formatForThreshold) throws IOException {
+        try (var dir = newDirectory()) {
+            int iters = between(5, 20);
+            for (int iter = 0; iter < iters; iter++) {
+                var config = new IndexWriterConfig();
+                String hostNameField = "host.name";
+                String hostIdField = "host.id";
+                config.setIndexSort(new Sort(new SortField(hostNameField, SortField.Type.STRING, false)));
+                final int minDocsPerOrdinalForRangeEncoding;
+                if (iter == 0) {
+                    minDocsPerOrdinalForRangeEncoding = 1;
+                } else {
+                    int thresholdRange = random().nextInt(3);
+                    if (thresholdRange == 0) {
+                        minDocsPerOrdinalForRangeEncoding = between(1, 5);
+                    } else if (thresholdRange == 1) {
+                        minDocsPerOrdinalForRangeEncoding = between(5, 20);
+                    } else {
+                        minDocsPerOrdinalForRangeEncoding = Integer.MAX_VALUE;
+                    }
+                }
+                config.setCodec(TestUtil.alwaysDocValuesFormat(formatForThreshold.apply(minDocsPerOrdinalForRangeEncoding)));
+                try (IndexWriter writer = new IndexWriter(dir, config)) {
+                    int numDocs = between(50, 500);
+                    for (int d = 0; d < numDocs; d++) {
+                        Document doc = new Document();
+                        int hostId = random().nextInt(100);
+                        if (random().nextInt(100) <= 10) {
+                            writer.deleteDocuments(LongPoint.newExactQuery(hostIdField, hostId));
+                        } else {
+                            String hostName = String.format(Locale.ROOT, "host-%02d", hostId);
+                            doc.add(new LongPoint("host.id", hostId));
+                            doc.add(new SortedDocValuesField(hostNameField, new BytesRef(hostName)));
+                            doc.add(new NumericDocValuesField(hostIdField, hostId));
+                            writer.addDocument(doc);
+                        }
+
+                        if (random().nextInt(100) <= 5) {
+                            Document dummy = new Document();
+                            dummy.add(new SortedDocValuesField("dummy", new BytesRef("dummy")));
+                            writer.addDocument(dummy);
+                        }
+                        if (random().nextInt(100) <= 10) {
+                            writer.flush();
+                        }
+                        if (random().nextInt(100) <= 5) {
+                            writer.forceMerge(between(1, 10));
+                        }
+                    }
+                }
+                try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                    int rangeEncodedLeaves = 0;
+                    for (LeafReaderContext leaf : reader.leaves()) {
+                        // sequential
+                        NumericDocValues hostIdDv = leaf.reader().getNumericDocValues(hostIdField);
+                        SortedDocValues hostNameDv = leaf.reader().getSortedDocValues(hostNameField);
+                        if (hostIdDv == null) {
+                            assertNull(hostNameDv);
+                            continue;
+                        }
+                        if (isRangeEncoded(hostNameDv)) {
+                            rangeEncodedLeaves++;
+                        } else if (iter == 0 && leaf.reader().maxDoc() > 1 && hostNameDv.getValueCount() > 1) {
+                            fail("a threshold of 1 must select the ordinal-range layout for a segment with more than one host");
+                        }
+                        {
+                            int docId;
+                            while ((docId = hostIdDv.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                                assertTrue(hostNameDv.advanceExact(docId));
+                                String hostName = hostNameDv.lookupOrd(hostNameDv.ordValue()).utf8ToString();
+                                String expectedHostName = String.format(Locale.ROOT, "host-%02d", hostIdDv.longValue());
+                                assertThat(hostName, equalTo(expectedHostName));
+                            }
+                        }
+                        int checkIters = between(1, 20);
+                        int maxDoc = leaf.reader().maxDoc();
+                        for (int n = 0; n < checkIters; n++) {
+                            int nextDoc = random().nextInt(maxDoc);
+                            if (hostIdDv.docID() == DocIdSetIterator.NO_MORE_DOCS || nextDoc < hostIdDv.docID()) {
+                                hostIdDv = leaf.reader().getNumericDocValues(hostIdField);
+                                hostNameDv = leaf.reader().getSortedDocValues(hostNameField);
+                            }
+                            if (hostIdDv.advanceExact(nextDoc)) {
+                                assertTrue(hostNameDv.advanceExact(nextDoc));
+                                String hostName = hostNameDv.lookupOrd(hostNameDv.ordValue()).utf8ToString();
+                                String expectedHostName = String.format(Locale.ROOT, "host-%02d", hostIdDv.longValue());
+                                assertThat(hostName, equalTo(expectedHostName));
+                            } else {
+                                assertFalse(hostNameDv.advanceExact(nextDoc));
+                            }
+                        }
+                    }
+                    if (iter == 0) {
+                        assertThat("no segment used the ordinal-range layout", rangeEncodedLeaves, greaterThan(0));
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * The producer only loads the {@code startDocs} table when the field was written with the ordinal-range
+     * layout, so its presence on the entry tells the two layouts apart from the outside. A merged segment whose
+     * every doc carrying the field was deleted still lists the field but yields {@link DocValues#emptySorted()},
+     * which was never range encoded.
+     */
+    private static boolean isRangeEncoded(SortedDocValues sorted) {
+        return sorted instanceof BaseSortedDocValues base && base.entry.ordsEntry.sortedOrdinals != null;
     }
 
     protected void doTestAddIndices(List<DocValuesFormat> sourceFormats) throws IOException {

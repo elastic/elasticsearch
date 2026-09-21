@@ -112,6 +112,31 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
         return codecWithOptimizedMerge;
     }
 
+    /**
+     * The other tests in this class index without a primary sort, so they never reach the ordinal-range
+     * layout of the sorted ordinal stream. This drives the ES95 wiring of
+     * {@link org.elasticsearch.index.codec.tsdb.OrdinalBlockCodec} through
+     * that layout deterministically, across the always-range, sometimes-range and never-range thresholds.
+     */
+    public void testEncodeOrdinalRange() throws IOException {
+        doTestEncodeOrdinalRange(
+            minDocsPerOrdinalForRangeEncoding -> new ES95TSDBDocValuesFormat(
+                random().nextInt(16, 128),
+                minDocsPerOrdinalForRangeEncoding,
+                random().nextBoolean(),
+                BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+                true,
+                random().nextBoolean() ? NUMERIC_LARGE_BLOCK_SHIFT : NUMERIC_BLOCK_SHIFT,
+                random().nextBoolean(),
+                ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
+                ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
+                NumericCodecFactory.DEFAULT,
+                ES95NumericFieldReader::defaultFallbackDecoder,
+                null
+            )
+        );
+    }
+
     public void testAddIndices() throws IOException {
         doTestAddIndices(
             List.of(

@@ -11,4 +11,4 @@ breaking:
 issues: []
 pr: 159603
 summary: Add `array` and `binary` fields API formats to `dense_vector` field
-type: "breaking, enhancement"
+type: "enhancement"

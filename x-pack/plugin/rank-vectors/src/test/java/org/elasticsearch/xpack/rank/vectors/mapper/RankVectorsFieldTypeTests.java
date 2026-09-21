@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.rank.vectors.mapper;
 
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -78,7 +79,8 @@ public class RankVectorsFieldTypeTests extends FieldTypeTestCase {
             () -> null,
             Set::of,
             () -> false,
-            MappedFieldType.FielddataOperation.SCRIPT
+            MappedFieldType.FielddataOperation.SCRIPT,
+            Predicates.always()
         );
         assertNotNull(fft.fielddataBuilder(fdc));
 
@@ -89,7 +91,8 @@ public class RankVectorsFieldTypeTests extends FieldTypeTestCase {
             () -> null,
             Set::of,
             () -> false,
-            MappedFieldType.FielddataOperation.SCRIPT
+            MappedFieldType.FielddataOperation.SCRIPT,
+            Predicates.always()
         );
         assertNotNull(bft.fielddataBuilder(bdc));
     }

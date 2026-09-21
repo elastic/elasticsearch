@@ -1,4 +1,4 @@
-SET unmapped_fields="load"; FROM sample_data
-| KEEP message, mapped_on_data_node
-| SORT mapped_on_data_node
+SET unmapped_fields="load"; FROM sample_data, no_mapping_sample_data
+| KEEP message
+| SORT message
 | LIMIT 5

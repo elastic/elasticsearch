@@ -79,9 +79,9 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
 
     public void testFilterPushdownWhenPotentiallyUnmappedFieldIsMapped() {
         String query = """
-            FROM sample_data
-            | KEEP message, mapped_on_data_node
-            | WHERE mapped_on_data_node == "Disconnection error"
+            FROM sample_data, no_mapping_sample_data
+            | KEEP message
+            | WHERE message == "Disconnection error"
             """;
         runTestsLoadOnly(query, STAGES);
     }
@@ -108,9 +108,9 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
 
     public void testSortPushdownWhenPotentiallyUnmappedFieldIsMapped() {
         String query = """
-            FROM sample_data
-            | KEEP message, mapped_on_data_node
-            | SORT mapped_on_data_node
+            FROM sample_data, no_mapping_sample_data
+            | KEEP message
+            | SORT message
             | LIMIT 5
             """;
         runTestsLoadOnly(query, STAGES);

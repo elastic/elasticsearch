@@ -21,4 +21,4 @@ ds_loc_metadata_reader:
   cluster: []
   indices:
     - names: [ 'ds_loc_*' ]
-      privileges: [ 'read_dataset_metadata' ]
+      privileges: [ 'read', 'read_dataset_metadata' ]

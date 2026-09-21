@@ -439,7 +439,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertThat(error.get(), instanceOf(IOException.class));
-        assertThat(error.get().getMessage(), containsString("Object not found"));
+        assertThat(error.get().getMessage(), containsString("External data object not found"));
     }
 
     public void testReadBytesAsyncNegativePositionFails() throws Exception {

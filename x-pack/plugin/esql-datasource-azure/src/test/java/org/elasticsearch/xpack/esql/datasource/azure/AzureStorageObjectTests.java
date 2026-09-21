@@ -265,7 +265,10 @@ public class AzureStorageObjectTests extends ESTestCase {
             }
             ExternalObjectChangedException thrown = expectThrows(ExternalObjectChangedException.class, () -> obj.newStream(1, 2));
             assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(thrown));
-            assertThat(thrown.getMessage(), org.hamcrest.Matchers.containsString(path.toString()));
+            // The storage path is intentionally absent from scan-time exception messages so that
+            // users without read_dataset_metadata cannot learn bucket/key names from error responses.
+            assertThat(thrown.getMessage(), org.hamcrest.Matchers.containsString("External data object was modified during read"));
+            assertThat(thrown.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(path.toString())));
         } finally {
             server.stop(0);
         }

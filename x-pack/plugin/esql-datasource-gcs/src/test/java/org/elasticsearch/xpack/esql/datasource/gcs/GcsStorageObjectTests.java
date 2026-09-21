@@ -181,7 +181,7 @@ public class GcsStorageObjectTests extends ESTestCase {
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
 
         IOException e = expectThrows(IOException.class, obj::newStream);
-        assertTrue(e.getMessage().contains("Object not found"));
+        assertTrue(e.getMessage().contains("External data object not found"));
     }
 
     public void testNewStreamWrapsOtherStorageExceptionAsIOException() {
@@ -518,7 +518,7 @@ public class GcsStorageObjectTests extends ESTestCase {
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/missing.parquet", path);
 
         IOException e = expectThrows(IOException.class, obj::length);
-        assertTrue(e.getMessage().contains("Object not found"));
+        assertTrue(e.getMessage().contains("External data object not found"));
     }
 
     public void testLastModifiedFetchesMetadata() throws IOException {
@@ -553,7 +553,7 @@ public class GcsStorageObjectTests extends ESTestCase {
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
 
         IOException e = expectThrows(IOException.class, obj::length);
-        assertTrue(e.getMessage().contains("Failed to get metadata for"));
+        assertTrue(e.getMessage().contains("Failed to get external object metadata"));
     }
 
     public void testPreknownLengthSkipsMetadataFetch() throws IOException {
@@ -620,7 +620,7 @@ public class GcsStorageObjectTests extends ESTestCase {
 
         ByteBuffer target = ByteBuffer.allocate(10);
         IOException e = expectThrows(IOException.class, () -> obj.readBytes(0, target));
-        assertTrue(e.getMessage().contains("Object not found"));
+        assertTrue(e.getMessage().contains("External data object not found"));
     }
 
     public void testReadBytesWrapsOtherStorageExceptionAsIOException() {
@@ -776,7 +776,7 @@ public class GcsStorageObjectTests extends ESTestCase {
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertNotNull(error.get());
         assertTrue(error.get() instanceof IOException);
-        assertTrue(error.get().getMessage().contains("Object not found"));
+        assertTrue(error.get().getMessage().contains("External data object not found"));
     }
 
     public void testSupportsNativeAsyncReturnsTrue() {

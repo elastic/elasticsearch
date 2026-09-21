@@ -130,7 +130,9 @@ public class S3OpenEndedReadTests extends ESTestCase {
         }
         ExternalObjectChangedException thrown = expectThrows(ExternalObjectChangedException.class, () -> obj.newStream(1, 2));
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(thrown));
-        assertThat(thrown.getMessage(), org.hamcrest.Matchers.containsString(PATH.toString()));
+        // The storage path is intentionally absent from scan-time exception messages.
+        assertThat(thrown.getMessage(), org.hamcrest.Matchers.containsString("External data object was modified during read"));
+        assertThat(thrown.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(PATH.toString())));
     }
 
     /**

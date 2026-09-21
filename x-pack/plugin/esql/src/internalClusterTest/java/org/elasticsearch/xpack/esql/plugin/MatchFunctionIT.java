@@ -1337,95 +1337,85 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("[MATCH] function failed to build query for non-index-mapped field [new_content]"));
     }
 
-    public void testMatchRuntimeRowWithIncompatibleIpValueThrowsError() {
+    public void testMatchRuntimeRowWithIncompatibleIpValueIsLenientByDefault() {
         var query = """
             ROW my_ip = to_ip("192.168.1.1")
             | WHERE match(my_ip, "not_an_ip")
+            | KEEP my_ip
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertEquals(
-            "Found 1 problem\n"
-                + "line 2:22: [MATCH] query value [\"not_an_ip\"] does not match the type ([ip]) of non-index-mapped field [my_ip]",
-            error.getMessage()
-        );
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("my_ip"));
+            assertThat(getValuesList(resp), Matchers.empty());
+        }
     }
 
-    public void testMatchRuntimeEvalWithIncompatibleIntegerValueThrowsError() {
+    public void testMatchRuntimeEvalWithIncompatibleIntegerValueIsLenientByDefault() {
         var query = """
             FROM test
             | EVAL new_id = to_integer(id)
             | WHERE match(new_id, "not_a_number")
+            | KEEP id
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertEquals(
-            "Found 1 problem\n"
-                + "line 3:23: [MATCH] query value [\"not_a_number\"] does not match the type ([integer]) of non-index-mapped field "
-                + "[new_id]",
-            error.getMessage()
-        );
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertThat(getValuesList(resp), Matchers.empty());
+        }
     }
 
-    public void testMatchRuntimeEvalWithIncompatibleDoubleValueThrowsError() {
+    public void testMatchRuntimeEvalWithIncompatibleDoubleValueIsLenientByDefault() {
         var query = """
             FROM test
             | EVAL new_id = to_double(id)
             | WHERE match(new_id, "not_a_number")
+            | KEEP id
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertEquals(
-            "Found 1 problem\n"
-                + "line 3:23: [MATCH] query value [\"not_a_number\"] does not match the type ([double]) of non-index-mapped field [new_id]",
-            error.getMessage()
-        );
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertThat(getValuesList(resp), Matchers.empty());
+        }
     }
 
-    public void testMatchRuntimeEvalWithIncompatibleUnsignedLongValueThrowsError() {
+    public void testMatchRuntimeEvalWithIncompatibleUnsignedLongValueIsLenientByDefault() {
         var query = """
             FROM test
             | EVAL new_id = to_unsigned_long(id)
             | WHERE match(new_id, "not_a_number")
+            | KEEP id
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertEquals(
-            "Found 1 problem\n"
-                + "line 3:23: [MATCH] query value [\"not_a_number\"] does not match the type ([unsigned_long]) of non-index-mapped field "
-                + "[new_id]",
-            error.getMessage()
-        );
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertThat(getValuesList(resp), Matchers.empty());
+        }
     }
 
-    public void testMatchRuntimeRowWithIncompatibleDatetimeValueThrowsError() {
+    public void testMatchRuntimeRowWithIncompatibleDatetimeValueIsLenientByDefault() {
         var query = """
             ROW my_date = to_datetime("2024-01-01")
             | WHERE match(my_date, "not_a_date")
+            | KEEP my_date
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertEquals(
-            "Found 1 problem\n"
-                + "line 2:24: [MATCH] query value [\"not_a_date\"] does not match the type ([datetime]) of non-index-mapped field "
-                + "[my_date]",
-            error.getMessage()
-        );
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("my_date"));
+            assertThat(getValuesList(resp), Matchers.empty());
+        }
     }
 
-    public void testMatchRuntimeRowWithIncompatibleDateNanosValueThrowsError() {
+    public void testMatchRuntimeRowWithIncompatibleDateNanosValueIsLenientByDefault() {
         var query = """
             ROW my_date = to_date_nanos("2024-01-01")
             | WHERE match(my_date, "not_a_date")
+            | KEEP my_date
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertEquals(
-            "Found 1 problem\n"
-                + "line 2:24: [MATCH] query value [\"not_a_date\"] does not match the type ([date_nanos]) of non-index-mapped field "
-                + "[my_date]",
-            error.getMessage()
-        );
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("my_date"));
+            assertThat(getValuesList(resp), Matchers.empty());
+        }
     }
 
     public void testMatchOnMappedTextAfterForkThrowsError() {

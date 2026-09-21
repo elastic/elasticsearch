@@ -21,12 +21,12 @@ import java.io.Closeable;
 import java.io.IOException;
 
 /**
- * A column's files in a test directory: its data, addressing and navigation, each with a header and a footer
+ * A column's files in a test directory: its data, addressing, lengths and navigation, each with a header and a footer
  * the way the format writes them, so a test reads back exactly what a segment would hold.
  */
 public final class ColumnTestFiles {
 
-    private static final String[] EXTENSIONS = { "cnd", "cna", "cnn" };
+    private static final String[] EXTENSIONS = { "cnd", "cna", "cnl", "cnn" };
     private static final String CODEC = "ColumNARTestColumn";
 
     private ColumnTestFiles() {}
@@ -49,13 +49,14 @@ public final class ColumnTestFiles {
             try {
                 CodecUtil.writeFooter(outputs.data());
                 CodecUtil.writeFooter(outputs.addressing());
+                CodecUtil.writeFooter(outputs.lengths());
                 CodecUtil.writeFooter(outputs.navigation());
                 success = true;
             } finally {
                 if (success) {
-                    IOUtils.close(outputs.data(), outputs.addressing(), outputs.navigation());
+                    IOUtils.close(outputs.data(), outputs.addressing(), outputs.lengths(), outputs.navigation());
                 } else {
-                    IOUtils.closeWhileHandlingException(outputs.data(), outputs.addressing(), outputs.navigation());
+                    IOUtils.closeWhileHandlingException(outputs.data(), outputs.addressing(), outputs.lengths(), outputs.navigation());
                 }
             }
         }
@@ -75,7 +76,7 @@ public final class ColumnTestFiles {
 
         @Override
         public void close() throws IOException {
-            IOUtils.close(inputs.data(), inputs.addressing(), inputs.navigation());
+            IOUtils.close(inputs.data(), inputs.addressing(), inputs.lengths(), inputs.navigation());
         }
     }
 
@@ -88,7 +89,7 @@ public final class ColumnTestFiles {
                 ColumnarCodecUtil.writeHeader(out[i], CODEC, FormatVersion.CURRENT, segmentId, "");
             }
             success = true;
-            return new Outputs(new ColumnOutputs(out[0], out[1], out[2]));
+            return new Outputs(new ColumnOutputs(out[0], out[1], out[2], out[3]));
         } finally {
             if (success == false) {
                 IOUtils.closeWhileHandlingException(out);
@@ -115,7 +116,7 @@ public final class ColumnTestFiles {
                 ColumnarCodecUtil.checkHeader(in[i], CODEC, segmentId, "");
             }
             success = true;
-            return new Inputs(new ColumnInputs(in[0], in[1], in[2]));
+            return new Inputs(new ColumnInputs(in[0], in[1], in[2], in[3]));
         } finally {
             if (success == false) {
                 IOUtils.closeWhileHandlingException(in);

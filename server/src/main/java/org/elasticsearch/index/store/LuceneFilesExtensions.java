@@ -45,6 +45,7 @@ public enum LuceneFilesExtensions {
     CND("cnd", "ColumNAR Data", false, true),
     CNM("cnm", "ColumNAR Metadata", true, false),
     CNA("cna", "ColumNAR Addressing", false, true),
+    CNL("cnl", "ColumNAR Lengths", false, true),
     CNN("cnn", "ColumNAR Navigation", true, true),
     CNS("cns", "ColumNAR Skip data", true, false),
     FDM("fdm", "Field Metadata", true, false),

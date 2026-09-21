@@ -50,6 +50,7 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
     private final int maxDoc;
     private final IndexInput data;
     private final IndexInput addressing;
+    private final IndexInput lengths;
     private final IndexInput navigation;
     private final IndexInput skipIndex;
     private final ColumnInputs inputs;
@@ -97,6 +98,13 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
                 ColumNARDocValuesFormat.ADDRESSING_CODEC,
                 metaVersion
             );
+            lengths = openInput(
+                state,
+                state.context,
+                ColumNARDocValuesFormat.LENGTHS_EXTENSION,
+                ColumNARDocValuesFormat.LENGTHS_CODEC,
+                metaVersion
+            );
             // Index-like: every read consults the navigation, and the skip index decides what to read.
             navigation = openInput(
                 state,
@@ -112,7 +120,7 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
                 ColumNARDocValuesFormat.SKIP_CODEC,
                 metaVersion
             );
-            inputs = new ColumnInputs(data, addressing, navigation);
+            inputs = new ColumnInputs(data, addressing, lengths, navigation);
             success = true;
         } finally {
             if (success == false) {
@@ -216,6 +224,7 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
     public void checkIntegrity() throws IOException {
         CodecUtil.checksumEntireFile(data);
         CodecUtil.checksumEntireFile(addressing);
+        CodecUtil.checksumEntireFile(lengths);
         CodecUtil.checksumEntireFile(navigation);
         CodecUtil.checksumEntireFile(skipIndex);
     }
@@ -226,6 +235,6 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
             return;
         }
         closed = true;
-        IOUtils.close(data, addressing, navigation, skipIndex);
+        IOUtils.close(data, addressing, lengths, navigation, skipIndex);
     }
 }

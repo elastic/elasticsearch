@@ -301,7 +301,7 @@ public enum StringFormat {
         }
         long bytes = 0;
         for (String file : directory.listAll()) {
-            if (file.endsWith(".cnd") || file.endsWith(".cna") || file.endsWith(".cnn") || file.endsWith(".cnm")) {
+            if (file.endsWith(".cnd") || file.endsWith(".cna") || file.endsWith(".cnl") || file.endsWith(".cnn") || file.endsWith(".cnm")) {
                 bytes += directory.fileLength(file);
             }
         }

@@ -64,6 +64,15 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
     long valueBytes();
 
     /**
+     * The shortest value in bytes, or {@code -1} when no slot holds one. Recorded so a merge knows its output's
+     * lengths from its inputs without reading their values.
+     */
+    int minLength();
+
+    /** The longest value in bytes, or {@code -1} when no slot holds one. */
+    int maxLength();
+
+    /**
      * How many slots each document holds and where every block of those counts begins, present only when
      * the slots and the documents are not in step. When every document holds exactly one slot it is dropped
      * and a document's value address is its rank.
@@ -137,11 +146,10 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
     /**
      * A column that stores its values as they were written.
      *
-     * <p>A null is stored as a zero-length value, so it occupies an address like any other slot and
-     * {@link #nullSlots()} is the only thing that tells it from an empty string. That table is this layout's
-     * alone: the values are bytes, and bytes have no spare value to mean "null" the way an ordinal does.
+     * <p>A null occupies an address like any other slot and stores no bytes; its length, which the column keeps
+     * for every slot, is what tells it from an empty string.
      *
-     * @param nullSlots    the value addresses holding a null, ascending; present only when {@code numNullSlots > 0}
+     * @param values       the values and their lengths; null for a column with no document holding one
      * @param valuesWorthNaming whether a page of this column is worth naming its values with ordinals rather
      *                          than handing the bytes over. The survey that turned the dictionary down answers
      *                          it: values that did not cover enough of the column to earn one do not repeat
@@ -154,9 +162,10 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         long numValues,
         long numNullSlots,
         long valueBytes,
+        int minLength,
+        int maxLength,
         SlotAddressing addressing,
-        MonotonicWriter.Table nullSlots,
-        ValueStream.Metadata values,
+        PlainValues.Metadata values,
         boolean valuesSorted,
         boolean valuesWorthNaming,
         Summary summary
@@ -175,8 +184,9 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                 numValues,
                 numNullSlots,
                 valueBytes,
+                minLength,
+                maxLength,
                 addressing,
-                nullSlots,
                 values,
                 valuesSorted,
                 valuesWorthNaming,
@@ -188,9 +198,6 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         public void writeBody(DataOutput out) throws IOException {
             values.writeTo(out);
             out.writeByte((byte) (valuesWorthNaming ? 1 : 0));
-            if (hasNullSlots()) {
-                writeTable(out, nullSlots);
-            }
         }
     }
 
@@ -217,6 +224,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         long numValues,
         long numNullSlots,
         long valueBytes,
+        int minLength,
+        int maxLength,
         SlotAddressing addressing,
         ValueStream.Metadata dictionary,
         NumericColumnMetadata ordinals,
@@ -257,6 +266,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                 numValues,
                 numNullSlots,
                 valueBytes,
+                minLength,
+                maxLength,
                 addressing,
                 dictionary,
                 ordinals,
@@ -283,7 +294,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
     }
 
     static StringColumnMetadata empty(ColumnIteratorMetadata iterator) {
-        return plain(iterator, 0, 0, 0, SlotAddressing.NONE, MonotonicWriter.Table.NONE, ValueStream.Metadata.empty(), true, false);
+        return plain(iterator, 0, 0, 0, 0, -1, -1, SlotAddressing.NONE, null, true, false);
     }
 
     /** A column that stores its values as they were written. */
@@ -292,9 +303,11 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         int numDocsWithField,
         long numValues,
         long numNullSlots,
+        long valueBytes,
+        int minLength,
+        int maxLength,
         SlotAddressing addressing,
-        MonotonicWriter.Table nullSlots,
-        ValueStream.Metadata values,
+        PlainValues.Metadata values,
         boolean valuesSorted,
         boolean valuesWorthNaming
     ) {
@@ -303,9 +316,10 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             numDocsWithField,
             numValues,
             numNullSlots,
-            values.valueBytes(),
+            valueBytes,
+            minLength,
+            maxLength,
             addressing,
-            nullSlots,
             values,
             valuesSorted,
             valuesWorthNaming,
@@ -320,6 +334,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         long numValues,
         long numNullSlots,
         long valueBytes,
+        int minLength,
+        int maxLength,
         SlotAddressing addressing,
         ValueStream.Metadata dictionary,
         NumericColumnMetadata ordinals,
@@ -335,6 +351,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             numValues,
             numNullSlots,
             valueBytes,
+            minLength,
+            maxLength,
             addressing,
             dictionary,
             ordinals,
@@ -357,6 +375,9 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         out.writeVLong(numValues());
         out.writeVLong(numNullSlots());
         out.writeVLong(valueBytes());
+        // Shifted by one, since a column holding only nulls has no length at all.
+        out.writeVInt(minLength() + 1);
+        out.writeVInt(maxLength() + 1);
         out.writeByte(valuesSorted() ? SORTED : NOT_SORTED);
         // Written ahead of the layout because finding a document's slots is the same question whichever
         // layout follows, and gated on counts already on the wire above. How the nulls among those slots are
@@ -401,21 +422,24 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         long numValues = in.readVLong();
         long numNullSlots = in.readVLong();
         long valueBytes = in.readVLong();
+        int minLength = in.readVInt() - 1;
+        int maxLength = in.readVInt() - 1;
         boolean valuesSorted = in.readByte() == SORTED;
         SlotAddressing addressing = numValues != numDocsWithField ? SlotAddressing.readFrom(in) : SlotAddressing.NONE;
         StringColumnLayout layout = StringColumnLayout.fromId(in.readByte());
         final StringColumnMetadata column = switch (layout) {
             case PLAIN -> {
-                final ValueStream.Metadata values = ValueStream.Metadata.readFrom(in);
+                final PlainValues.Metadata values = PlainValues.Metadata.readFrom(in);
                 final boolean valuesWorthNaming = in.readByte() != 0;
-                final MonotonicWriter.Table nullSlots = numNullSlots > 0 ? readTable(in) : MonotonicWriter.Table.NONE;
                 yield plain(
                     iterator,
                     numDocsWithField,
                     numValues,
                     numNullSlots,
+                    valueBytes,
+                    minLength,
+                    maxLength,
                     addressing,
-                    nullSlots,
                     values,
                     valuesSorted,
                     valuesWorthNaming
@@ -434,6 +458,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                     numValues,
                     numNullSlots,
                     valueBytes,
+                    minLength,
+                    maxLength,
                     addressing,
                     dictionary,
                     ordinals,

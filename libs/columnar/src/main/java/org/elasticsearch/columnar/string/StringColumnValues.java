@@ -55,9 +55,28 @@ public abstract class StringColumnValues extends DocIdSetIterator {
 
     /**
      * What a column is counted for: the documents holding at least one slot, the slots they hold between
-     * them, and how many of those are null.
+     * them, how many of those are null, and the shortest and longest value in bytes, both {@code -1} when no
+     * slot holds one.
      */
-    public record Totals(int numDocsWithField, long numValues, long numNullSlots) {}
+    public record Totals(int numDocsWithField, long numValues, long numNullSlots, int minLength, int maxLength) {
+
+        /**
+         * The length every slot's value has, or {@code -1} unless there is one: a column holding a null, or
+         * values of more than one length, has none.
+         */
+        public int constantLength() {
+            return numValues > 0 && numNullSlots == 0 && minLength == maxLength ? minLength : -1;
+        }
+    }
+
+    /**
+     * The length in bytes of the value the cursor is on, or {@code -1} when the slot is null. Read off the
+     * value unless the cursor can answer without it.
+     */
+    public int valueLength() throws IOException {
+        final BytesRef value = value();
+        return value == null ? -1 : value.length;
+    }
 
     /**
      * Moves to the document's next slot; call exactly {@link #valueCount()} times per document. This is

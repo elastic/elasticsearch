@@ -191,6 +191,24 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     }
 
     /**
+     * The length in bytes of the value at {@code valueAddress}, which must not be null. Read off the value
+     * unless the column keeps its lengths apart.
+     */
+    public int byteLengthAt(long valueAddress) throws IOException {
+        return valueAt(valueAddress).length;
+    }
+
+    /** The shortest value the column holds, in bytes, or {@code -1} when it holds none. */
+    public int minLength() {
+        return meta.minLength();
+    }
+
+    /** The longest value the column holds, in bytes, or {@code -1} when it holds none. */
+    public int maxLength() {
+        return meta.maxLength();
+    }
+
+    /**
      * Whether the slot at {@code valueAddress} is null rather than a value. How that is recorded is the
      * layout's own, so answering it is too — see {@link PlainStringColumnReader} and
      * {@link DictionaryStringColumnReader}.

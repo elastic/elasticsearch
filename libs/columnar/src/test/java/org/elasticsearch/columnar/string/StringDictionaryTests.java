@@ -15,6 +15,7 @@ import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnTestFiles;
@@ -725,7 +726,8 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
                 StringColumnOptions.DEFAULT_PACKED_ORDINAL_BLOCK_SIZE,
                 StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
                 escapeRankBlockSize,
-                StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE
+                StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
+                ColumNARDocValuesFormat.MAX_BLOCK_SIZE
             )
         );
     }
@@ -758,9 +760,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
             try (ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, "column", segmentId)) {
                 metadata = StringColumnWriter.write(
                     docSlots.length,
-                    numDocsWithField(docSlots),
-                    numValues(docSlots),
-                    numNullSlots(docSlots),
+                    totals(docSlots),
                     () -> cursor(docSlots),
                     new StringColumnOptions(
                         DictionaryPolicy.NONE,
@@ -772,7 +772,8 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
                             StringColumnOptions.DEFAULT_PACKED_ORDINAL_BLOCK_SIZE,
                             StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
                             StringColumnOptions.DEFAULT_ESCAPE_RANK_BLOCK_SIZE,
-                            StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE
+                            StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
+                            ColumNARDocValuesFormat.MAX_BLOCK_SIZE
                         )
                     ),
                     known,

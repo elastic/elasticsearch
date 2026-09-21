@@ -15,6 +15,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
@@ -179,9 +180,22 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
             StringColumnOptions.DEFAULT_PACKED_ORDINAL_BLOCK_SIZE,
             compressedOrdinalBlockSize,
             StringColumnOptions.DEFAULT_ESCAPE_RANK_BLOCK_SIZE,
-            slotCountsBlockSize
+            slotCountsBlockSize,
+            randomLengthBlockSize(blockSize)
         );
         withColumn(docSlots, new StringColumnOptions(policy, chunkCodec, sizes), check);
+    }
+
+    /**
+     * A block of lengths no smaller than the block of values, and often much smaller than the default, so the
+     * columns these tests write cross many blocks of lengths and a block of values lands on their edges.
+     */
+    protected static int randomLengthBlockSize(int valuesPerBlock) {
+        int size = valuesPerBlock;
+        while (size < ColumNARDocValuesFormat.MAX_BLOCK_SIZE && randomBoolean()) {
+            size <<= 1;
+        }
+        return size;
     }
 
     /** As above, with every choice named at once, for a test that cares about one the overloads do not reach. */
@@ -298,6 +312,24 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
     }
 
     /** The total number of null slots across every document. */
+    /** What the consumer counts before writing a column: documents, slots, nulls and the value lengths. */
+    protected static StringColumnValues.Totals totals(final BytesRef[][] docSlots) {
+        int minLength = -1;
+        int maxLength = -1;
+        for (BytesRef[] slots : docSlots) {
+            if (slots == null) {
+                continue;
+            }
+            for (BytesRef slot : slots) {
+                if (slot != null) {
+                    minLength = minLength < 0 ? slot.length : Math.min(minLength, slot.length);
+                    maxLength = Math.max(maxLength, slot.length);
+                }
+            }
+        }
+        return new StringColumnValues.Totals(numDocsWithField(docSlots), numValues(docSlots), numNullSlots(docSlots), minLength, maxLength);
+    }
+
     protected static long numNullSlots(final BytesRef[][] docSlots) {
         long numNullSlots = 0;
         for (BytesRef[] slots : docSlots) {
@@ -322,9 +354,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         try (ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, COLUMN_FILES, segmentId)) {
             written = StringColumnWriter.write(
                 docSlots.length,
-                numDocsWithField(docSlots),
-                numValues(docSlots),
-                numNullSlots(docSlots),
+                totals(docSlots),
                 () -> cursor(docSlots),
                 options,
                 null,

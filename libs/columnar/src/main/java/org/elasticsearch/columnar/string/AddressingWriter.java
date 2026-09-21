@@ -24,8 +24,7 @@ import java.io.IOException;
  * <p>Every layout writes this, because finding a document's slots is the same question whichever layout
  * names the values: a dictionary column names its with ordinals, but its documents are addressed exactly as
  * they are in a column that stores its values. Which of those slots are null is <em>not</em> a shared
- * question — a dictionary has a spare ordinal to name a null with, and only {@link StringColumnLayout#PLAIN}
- * needs {@link NullSlotWriter}.
+ * question: a dictionary names a null with a spare ordinal, and a plain column with the length it stores.
  *
  * <p>A count is known only once the next document starts, so the counts arrive one document behind and the
  * last of them is closed by the total. The counts go to the addressing and the bases, one a block of counts,

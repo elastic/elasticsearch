@@ -41,18 +41,14 @@ import java.util.List;
  * Writes a string column — single- or multi-valued. Slots are written in the order the
  * {@link StringColumnValues} cursor yields them and are never reordered.
  *
- * <p>Nothing column-proportional is held on the heap: the values go into a {@link ValueStream}, which streams
- * them a block at a time and writes its offset table to a temporary file, and the tables that address the
- * column's slots go through {@link AddressingWriter} and {@link NullSlotWriter}, which do the same. Blocks
- * address a fixed count of values while chunks bound how many bytes are compressed at once, so a block of
- * long urls and a block of single characters are the same count of values and nothing like the same amount
- * of data.
+ * <p>Nothing column-proportional is held on the heap: values and tables go into their files as they arrive.
+ * Blocks count values while chunks bound how many bytes are compressed at once.
  *
  * <p>Which {@link StringColumnLayout} a column takes is decided from its values: a dictionary when the terms
  * it repeats are worth naming under the caller's {@link DictionaryPolicy}, and otherwise the values
  * themselves. Where a document's slots begin is the same question either way, so both layouts write that
  * table identically. Which of those slots are null is not: a dictionary names a null with a reserved ordinal,
- * while a plain column, having no spare byte string to mean null with, tables the addresses that hold one.
+ * while a plain column, having no spare byte string to mean null with, stores it as a length of its own.
  */
 public final class StringColumnWriter {
 
@@ -78,10 +74,9 @@ public final class StringColumnWriter {
      * offset table; returns the metadata needed to reconstruct the column at read time.
      *
      * @param maxDoc                    documents in the segment
-     * @param numDocsWithField          documents that have at least one slot
-     * @param numValues                 total number of slots across all documents, null slots included
-     * @param numNullSlots              how many of those slots are null; the null-slot table is written only when
-     *                                  this is positive
+     * @param totals                    the documents holding a slot, the slots, the null slots and the shortest
+     *                                  and longest value; a plain column whose values all have one length and
+     *                                  none of them null stores no lengths at all
      * @param cursors                   supplies fresh forward cursors over the documents that have a slot; called
      *                                  once for the iterator and once for the values
      * @param options                   how the column is written: its dictionary policy, its chunk codec and
@@ -94,9 +89,7 @@ public final class StringColumnWriter {
      */
     public static StringColumnMetadata write(
         int maxDoc,
-        int numDocsWithField,
-        long numValues,
-        long numNullSlots,
+        StringColumnValues.Totals totals,
         IOSupplier<StringColumnValues> cursors,
         StringColumnOptions options,
         Vocabulary.Terms known,
@@ -104,6 +97,9 @@ public final class StringColumnWriter {
         IOContext context,
         ColumnOutputs outputs
     ) throws IOException {
+        final int numDocsWithField = totals.numDocsWithField();
+        final long numValues = totals.numValues();
+        final long numNullSlots = totals.numNullSlots();
         final IndexOutput data = outputs.data();
         final DictionaryPolicy policy = options.dictionary();
         final ChunkCodec chunkCodec = options.chunkCodec();
@@ -123,9 +119,7 @@ public final class StringColumnWriter {
                 return withSummary(
                     writeDictionary(
                         iterator,
-                        numDocsWithField,
-                        numValues,
-                        numNullSlots,
+                        totals,
                         cursors,
                         surveyed,
                         surveyed.columnBytes(),
@@ -154,15 +148,20 @@ public final class StringColumnWriter {
         // sizing its blocks, so what a page could collapse is known without comparing anything twice. A column
         // written under no dictionary policy was told not to weigh what it repeats, and the page decides.
         final boolean valuesWorthNaming;
-        final ValueStream.Metadata written;
+        final PlainValues.Metadata written;
         final SlotAddressing addressing;
-        final MonotonicWriter.Table nullSlotTable;
-        final ValueStream.Writer stream = new ValueStream.Writer(chunkCodec, sizes.plainChunks(), valuesPerBlock, outputs);
+        final PlainValues.Writer stream = new PlainValues.Writer(
+            chunkCodec,
+            sizes.plainChunks(),
+            valuesPerBlock,
+            sizes.lengthBlockSize(),
+            numValues,
+            totals.constantLength(),
+            outputs
+        );
         final AddressingWriter slots = AddressingWriter.open(numDocsWithField, numValues, sizes.slotCountsBlockSize(), outputs);
-        // Bytes have no spare value to mean null with, so this layout alone tables its null slots.
-        final NullSlotWriter nullSlots = NullSlotWriter.open(numNullSlots, outputs.navigation());
+        long nulls = 0;
         long valueAddress = 0;
-        final BytesRef empty = new BytesRef(BytesRef.EMPTY_BYTES);
         StringColumnValues values = cursors.get();
         // Whether the values arrive in term order, which lets a search bisect them instead of comparing
         // every one. Free to know here: the values are already in hand, and the comparison is one memcmp.
@@ -176,12 +175,12 @@ public final class StringColumnWriter {
                 values.nextValue();
                 final BytesRef value = values.value();
                 if (value == null) {
-                    // A null stores zero bytes, so it takes an address like any other and the table above
-                    // is the only thing that tells it from an empty string. It has no place in term order
-                    // either, so a column holding one is not one a search can bisect.
+                    // A null takes an address like any other and stores no bytes; its length is what tells it
+                    // from an empty string. It has no place in term order either, so a column holding one is
+                    // not one a search can bisect.
                     sorted = false;
-                    nullSlots.recordNull(valueAddress);
-                    stream.add(empty);
+                    nulls++;
+                    stream.addNull();
                 } else {
                     if (sorted) {
                         if (hasPrevious && previous.get().compareTo(value) > 0) {
@@ -199,7 +198,23 @@ public final class StringColumnWriter {
         written = stream.finish();
         valuesWorthNaming = policy.enabled() == false || stream.runs() * StringColumnReader.MIN_PAGE_REPEAT <= numValues;
         addressing = slots.finish(valueAddress);
-        nullSlotTable = nullSlots.finish();
+        // Checked rather than asserted: these are on the wire, and a reader, or the next merge, would trust them.
+        if (nulls != numNullSlots) {
+            throw new IllegalStateException("wrote " + nulls + " null slots, counted " + numNullSlots);
+        }
+        if (stream.minLength() != totals.minLength() || stream.maxLength() != totals.maxLength()) {
+            throw new IllegalStateException(
+                "wrote values of ["
+                    + stream.minLength()
+                    + ", "
+                    + stream.maxLength()
+                    + "] bytes, counted ["
+                    + totals.minLength()
+                    + ", "
+                    + totals.maxLength()
+                    + "]"
+            );
+        }
 
         return withSummary(
             StringColumnMetadata.plain(
@@ -207,8 +222,10 @@ public final class StringColumnWriter {
                 numDocsWithField,
                 numValues,
                 numNullSlots,
+                stream.valueBytes(),
+                totals.minLength(),
+                totals.maxLength(),
                 addressing,
-                nullSlotTable,
                 written,
                 sorted,
                 valuesWorthNaming
@@ -274,9 +291,7 @@ public final class StringColumnWriter {
      */
     private static StringColumnMetadata writeDictionary(
         ColumnIteratorMetadata iterator,
-        int numDocsWithField,
-        long numValues,
-        long numNullSlots,
+        StringColumnValues.Totals totals,
         IOSupplier<StringColumnValues> cursors,
         Vocabulary.Terms vocabulary,
         long valueBytes,
@@ -286,6 +301,9 @@ public final class StringColumnWriter {
         IOContext context,
         ColumnOutputs outputs
     ) throws IOException {
+        final int numDocsWithField = totals.numDocsWithField();
+        final long numValues = totals.numValues();
+        final long numNullSlots = totals.numNullSlots();
         final IndexOutput data = outputs.data();
         final int escapeRankBlockSize = sizes.escapeRankBlockSize();
         final int dictionarySize = vocabulary.size();
@@ -442,6 +460,8 @@ public final class StringColumnWriter {
                 numValues,
                 numNullSlots,
                 valueBytes,
+                totals.minLength(),
+                totals.maxLength(),
                 addressing,
                 dictionary,
                 ordinals,

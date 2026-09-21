@@ -121,7 +121,8 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
             sizes.packedOrdinalBlockSize(),
             sizes.compressedOrdinalBlockSize(),
             sizes.escapeRankBlockSize(),
-            sizes.slotCountsBlockSize()
+            sizes.slotCountsBlockSize(),
+            Math.max(StringColumnOptions.DEFAULT_LENGTH_BLOCK_SIZE, size)
         );
     }
 
@@ -133,7 +134,8 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
             size,
             sizes.compressedOrdinalBlockSize(),
             sizes.escapeRankBlockSize(),
-            sizes.slotCountsBlockSize()
+            sizes.slotCountsBlockSize(),
+            Math.max(StringColumnOptions.DEFAULT_LENGTH_BLOCK_SIZE, sizes.valuesPerBlock())
         );
     }
 
@@ -145,7 +147,8 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
             sizes.packedOrdinalBlockSize(),
             size,
             sizes.escapeRankBlockSize(),
-            sizes.slotCountsBlockSize()
+            sizes.slotCountsBlockSize(),
+            Math.max(StringColumnOptions.DEFAULT_LENGTH_BLOCK_SIZE, sizes.valuesPerBlock())
         );
     }
 
@@ -157,7 +160,8 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
             sizes.packedOrdinalBlockSize(),
             sizes.compressedOrdinalBlockSize(),
             size,
-            sizes.slotCountsBlockSize()
+            sizes.slotCountsBlockSize(),
+            Math.max(StringColumnOptions.DEFAULT_LENGTH_BLOCK_SIZE, sizes.valuesPerBlock())
         );
     }
 
@@ -169,7 +173,8 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
             sizes.packedOrdinalBlockSize(),
             sizes.compressedOrdinalBlockSize(),
             sizes.escapeRankBlockSize(),
-            size
+            size,
+            Math.max(StringColumnOptions.DEFAULT_LENGTH_BLOCK_SIZE, sizes.valuesPerBlock())
         );
     }
 

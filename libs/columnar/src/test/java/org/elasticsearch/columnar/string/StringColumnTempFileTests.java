@@ -14,6 +14,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.columnar.substrate.ColumnTestFiles;
 
@@ -41,9 +42,7 @@ public class StringColumnTempFileTests extends ColumnarStringTestCase {
         try (ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, COLUMN_FILES, segmentId)) {
             StringColumnWriter.write(
                 docSlots.length,
-                numDocsWithField(docSlots),
-                numValues(docSlots),
-                numNullSlots(docSlots),
+                totals(docSlots),
                 () -> cursor(docSlots),
                 new StringColumnOptions(
                     ROOMY,
@@ -55,7 +54,8 @@ public class StringColumnTempFileTests extends ColumnarStringTestCase {
                         StringColumnOptions.DEFAULT_PACKED_ORDINAL_BLOCK_SIZE,
                         StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
                         StringColumnOptions.DEFAULT_ESCAPE_RANK_BLOCK_SIZE,
-                        StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE
+                        StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
+                        ColumNARDocValuesFormat.MAX_BLOCK_SIZE
                     )
                 ),
                 null,

@@ -219,6 +219,11 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
             }
 
             @Override
+            public int valueLength() throws IOException {
+                return reader.isNullSlot(at) ? -1 : reader.byteLengthAt(at);
+            }
+
+            @Override
             public int docID() {
                 return iterator.docID();
             }

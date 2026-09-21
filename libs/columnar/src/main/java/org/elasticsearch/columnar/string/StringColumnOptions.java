@@ -47,7 +47,8 @@ public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkC
         int packedOrdinalBlockSize,
         int compressedOrdinalBlockSize,
         int escapeRankBlockSize,
-        int slotCountsBlockSize
+        int slotCountsBlockSize,
+        int lengthBlockSize
     ) {
 
         public Sizes {
@@ -56,6 +57,13 @@ public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkC
             blockSize("compressedOrdinalBlockSize", compressedOrdinalBlockSize);
             blockSize("escapeRankBlockSize", escapeRankBlockSize);
             blockSize("slotCountsBlockSize", slotCountsBlockSize);
+            blockSize("lengthBlockSize", lengthBlockSize);
+            if (valuesPerBlock > lengthBlockSize) {
+                // A block of values is placed by the block of lengths it falls in.
+                throw new IllegalArgumentException(
+                    "valuesPerBlock [" + valuesPerBlock + "] must not exceed lengthBlockSize [" + lengthBlockSize + "]"
+                );
+            }
             if (plainChunks == null || escapeChunks == null) {
                 throw new IllegalArgumentException("chunk bounds are required");
             }
@@ -145,6 +153,9 @@ public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkC
      */
     public static final int DEFAULT_SLOT_COUNTS_BLOCK_SIZE = 128;
 
+    /** Lengths a block of a plain column's length column holds; reaching one value decodes its block. */
+    public static final int DEFAULT_LENGTH_BLOCK_SIZE = 128;
+
     public static final Sizes DEFAULT_SIZES = new Sizes(
         DEFAULT_VALUES_PER_BLOCK,
         DEFAULT_PLAIN_CHUNKS,
@@ -152,7 +163,8 @@ public record StringColumnOptions(DictionaryPolicy dictionary, ChunkCodec chunkC
         DEFAULT_PACKED_ORDINAL_BLOCK_SIZE,
         DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
         DEFAULT_ESCAPE_RANK_BLOCK_SIZE,
-        DEFAULT_SLOT_COUNTS_BLOCK_SIZE
+        DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
+        DEFAULT_LENGTH_BLOCK_SIZE
     );
 
     public static final StringColumnOptions DEFAULT = new StringColumnOptions(DEFAULT_DICTIONARY, ChunkCodec.ZSTD, DEFAULT_SIZES);

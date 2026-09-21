@@ -18,8 +18,10 @@ import org.apache.lucene.store.IndexOutput;
  *   <li>{@code data} holds the values.</li>
  *   <li>{@code addressing} holds what is kept per document: which documents have a value, how many slots
  *       each holds, where a document's values begin.</li>
+ *   <li>{@code lengths} holds a plain column's value lengths, which a predicate on lengths reads without the
+ *       values.</li>
  *   <li>{@code navigation} holds what is kept per block or per chunk and locates everything else; small, and
  *       loaded up front.</li>
  * </ul>
  */
-public record ColumnOutputs(IndexOutput data, IndexOutput addressing, IndexOutput navigation) {}
+public record ColumnOutputs(IndexOutput data, IndexOutput addressing, IndexOutput lengths, IndexOutput navigation) {}

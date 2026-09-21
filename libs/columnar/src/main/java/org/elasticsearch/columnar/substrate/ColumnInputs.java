@@ -12,4 +12,4 @@ package org.elasticsearch.columnar.substrate;
 import org.apache.lucene.store.IndexInput;
 
 /** Where a column is read from; see {@link ColumnOutputs} for what each file holds. */
-public record ColumnInputs(IndexInput data, IndexInput addressing, IndexInput navigation) {}
+public record ColumnInputs(IndexInput data, IndexInput addressing, IndexInput lengths, IndexInput navigation) {}

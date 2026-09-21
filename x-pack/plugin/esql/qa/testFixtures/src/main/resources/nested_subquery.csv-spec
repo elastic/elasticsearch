@@ -709,6 +709,26 @@ FROM partial_mapping_sample_data,
 2024-10-23T13:52:55.015Z | Connection error?      | Disconnection error
 ;
 
+nestedSubqueryLoadUnmappedFieldFromInnerBranchSource
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: nested_subquery_in_from_command_planner_fix
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+
+SET unmapped_fields="load"\;
+FROM sample_data,
+     (FROM (FROM partial_mapping_sample_data), (FROM employees))
+| KEEP @timestamp, message, unmapped_message
+| SORT @timestamp DESC NULLS LAST
+| LIMIT 3
+;
+
+@timestamp:date          | message:keyword        | unmapped_message:keyword
+2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+2024-10-23T13:53:55.832Z | Connection error?      | Disconnection error
+2024-10-23T13:52:55.015Z | Connection error?      | Disconnection error
+;
+
 nestedSubqueryLoadFilterByUnmappedFieldValueInInnerSubquery
 required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
@@ -747,4 +767,127 @@ c:long | unmapped_message:keyword
 1      | Disconnected from 10.1.0.3
 3      | Disconnection error
 107    | null
+;
+
+nestedSubqueryUnboundedSortInInnerBranch
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: nested_subquery_in_from_command_planner_fix
+
+FROM employees,
+     (FROM (FROM employees | SORT emp_no),
+           (FROM employees | LIMIT 10))
+| STATS c = COUNT(*)
+;
+
+c:long
+210
+;
+
+nestedSubqueryImplicitDateAndDateNanosCastStats
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_conflict_resolution
+
+FROM sample_data,
+     (FROM sample_data_ts_nanos, (FROM sample_data))
+| STATS c = COUNT(*) BY @timestamp
+| SORT @timestamp
+| LIMIT 2
+;
+
+c:long | @timestamp:date_nanos
+2      | 2023-10-23T12:15:03.360000000Z
+1      | 2023-10-23T12:15:03.360123456Z
+;
+
+nestedSubqueryImplicitDateAndDateNanosInInnerUnion
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_conflict_resolution
+
+FROM employees,
+     (FROM sample_data, (FROM sample_data_ts_nanos))
+| WHERE event_duration == 1232382
+| KEEP @timestamp, event_duration, message
+| SORT @timestamp
+;
+
+@timestamp:date_nanos          | event_duration:long | message:keyword
+2023-10-23T13:33:34.937Z       | 1232382             | Disconnected
+2023-10-23T13:33:34.937123456Z | 1232382             | Disconnected
+;
+
+nestedSubqueryExplicitDateNanosCastOnLongInInnerBranch
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+
+FROM sample_data,
+     (FROM sample_data_ts_nanos,
+           (FROM sample_data_ts_long | EVAL @timestamp = @timestamp::date_nanos))
+| WHERE event_duration == 1232382
+| KEEP @timestamp, event_duration, message
+| SORT @timestamp
+;
+
+@timestamp:date_nanos          | event_duration:long | message:keyword
+1970-01-01T00:28:18.068014937Z | 1232382             | Disconnected
+2023-10-23T13:33:34.937Z       | 1232382             | Disconnected
+2023-10-23T13:33:34.937123456Z | 1232382             | Disconnected
+;
+
+nestedSubqueryExplicitLongCastOnMixedDateAndLong
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
+
+FROM sample_data,
+     (FROM sample_data, (FROM sample_data_ts_long)
+      | EVAL @timestamp = @timestamp::long)
+| EVAL @timestamp = @timestamp::long
+| KEEP @timestamp
+| SORT @timestamp
+| LIMIT 1
+;
+
+@timestamp:long
+1698063303360
+;
+
+nestedSubqueryRenameAfterImplicitDateAndDateNanosCast
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
+
+FROM sample_data,
+     (FROM sample_data_ts_nanos, (FROM sample_data))
+| KEEP @timestamp
+| RENAME @timestamp AS x
+| KEEP *
+| SORT x
+| LIMIT 1
+;
+
+x:date_nanos
+2023-10-23T12:15:03.360000000Z
+;
+
+nestedSubqueryRenameAfterExplicitLongCastOnMixedDateAndLong
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
+
+FROM sample_data,
+     (FROM sample_data, (FROM sample_data_ts_long)
+      | EVAL @timestamp = @timestamp::long)
+| EVAL @timestamp = @timestamp::long
+| KEEP @timestamp
+| RENAME @timestamp AS x
+| KEEP *
+| SORT x
+| LIMIT 1
+;
+
+x:long
+1698063303360
 ;

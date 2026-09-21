@@ -2060,7 +2060,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
      *   <li>nesting &gt; max view depth (default 10): depth-exceeded error, no further checks</li>
      *   <li>otherwise resolution succeeds, then {@link UnionAll#checkNestedSubqueryLimits} must
      *       fail exactly when that leaf count exceeds the default
-     *       {@code max_query_branches} (100)</li>
+     *       {@code max_branch_count} (20)</li>
      *   <li>branching &ge; 2 and nesting &ge; 2: the plan contains nested {@link ViewUnionAll}s;
      *       {@link LogicalVerifier} reports {@code nesting - 1} failures, each
      *       {@code cannot be combined with subqueries} and naming the wrapper view that created
@@ -2087,101 +2087,76 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
                             e.getMessage(),
                             startsWith("The maximum allowed view depth of " + maxViewDepth + " has been exceeded")
                         );
-                    } else if (EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled() == false
-                        && branching > MergePlan.MAX_BRANCHES) {
-                            // Branch-count enforcement now lives in MergePlan's post-analysis verification rather than
-                            // its constructor, so view resolution succeeds with a wide ViewUnionAll and the failure
-                            // surfaces only when the verifier walks the plan.
-                            LogicalPlan result = replaceViews(query(queryStr), matrixResolver);
-                            Failures unionFailures = new Failures();
-                            result.forEachUp(p -> {
-                                if (p instanceof MergePlan mergePlan) {
-                                    mergePlan.postAnalysisPlanVerification().accept(mergePlan, unionFailures);
-                                }
-                            });
+                    } else {
+                        LogicalPlan result = replaceViews(query(queryStr), matrixResolver);
+                        assertNotNull(
+                            "Non-compactable resolution should succeed for nesting=" + nesting + ", branching=" + branching,
+                            result
+                        );
+
+                        // Validate max_branch_count limit
+                        Failures maxBranchFailures = new Failures();
+                        int maxQueryBranches = QueryPragmas.MAX_BRANCH_COUNT.getDefault(Settings.EMPTY);
+                        UnionAll.checkNestedSubqueryLimits(result, maxQueryBranches, Integer.MAX_VALUE, maxBranchFailures);
+
+                        int expectedLeaves = nesting * (branching - 1) + 1;
+                        if (expectedLeaves > maxQueryBranches) {
                             assertTrue(
-                                "Expected FORK branch failures for nesting=" + nesting + ", branching=" + branching + " in plan: " + result,
-                                unionFailures.hasFailures()
+                                "Expected branch failures for nesting="
+                                    + nesting
+                                    + ", branching="
+                                    + branching
+                                    + " ("
+                                    + expectedLeaves
+                                    + " leaves)",
+                                maxBranchFailures.hasFailures()
                             );
                             assertThat(
                                 "nesting=" + nesting + ", branching=" + branching,
-                                unionFailures.failures().toString(),
-                                containsString("FORK supports up to " + MergePlan.MAX_BRANCHES + " branches")
+                                maxBranchFailures.failures().toString(),
+                                containsString("exceeding the limit of " + maxQueryBranches + " set by the [max_branch_count] query pragma")
                             );
                         } else {
-                            LogicalPlan result = replaceViews(query(queryStr), matrixResolver);
-                            assertNotNull(
-                                "Non-compactable resolution should succeed for nesting=" + nesting + ", branching=" + branching,
-                                result
+                            assertFalse(
+                                "No branch failures expected for nesting="
+                                    + nesting
+                                    + ", branching="
+                                    + branching
+                                    + " ("
+                                    + expectedLeaves
+                                    + " leaves)",
+                                maxBranchFailures.hasFailures()
                             );
+                        }
 
-                            if (EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled()) {
-                                // Validate max_query_branches limit
-                                Failures maxBranchFailures = new Failures();
-                                int maxQueryBranches = QueryPragmas.MAX_BRANCH_COUNT.getDefault(Settings.EMPTY);
-                                UnionAll.checkNestedSubqueryLimits(result, maxQueryBranches, Integer.MAX_VALUE, maxBranchFailures);
-
-                                int expectedLeaves = nesting * (branching - 1) + 1;
-                                if (expectedLeaves > maxQueryBranches) {
-                                    assertTrue(
-                                        "Expected branch failures for nesting="
-                                            + nesting
-                                            + ", branching="
-                                            + branching
-                                            + " ("
-                                            + expectedLeaves
-                                            + " leaves)",
-                                        maxBranchFailures.hasFailures()
-                                    );
-                                    assertThat(
-                                        "nesting=" + nesting + ", branching=" + branching,
-                                        maxBranchFailures.failures().toString(),
-                                        containsString(
-                                            "exceeding the limit of " + maxQueryBranches + " set by the [max_branch_count] query pragma"
-                                        )
-                                    );
-                                } else {
-                                    assertFalse(
-                                        "No branch failures expected for nesting="
-                                            + nesting
-                                            + ", branching="
-                                            + branching
-                                            + " ("
-                                            + expectedLeaves
-                                            + " leaves)",
-                                        maxBranchFailures.hasFailures()
-                                    );
+                        if (branching >= 2) {
+                            Failures failures = new Failures();
+                            Failures depFailures = new Failures();
+                            verifier.checkPlanConsistency(result, failures, depFailures);
+                            if (nesting >= 2) {
+                                assertTrue(
+                                    "Expected nested ViewUnionAll for nesting=" + nesting + ", branching=" + branching,
+                                    containsNestedViewUnionAll(result)
+                                );
+                                assertThat("Expect failure count", failures.failures().size(), equalTo(nesting - 1));
+                                // Each nested ViewUnionAll failure should reference the view that created it.
+                                // The ViewUnionAlls at depths 2..N have view names v_2_1..v_N_1.
+                                for (Failure failure : failures.failures()) {
+                                    assertThat(failure.failMessage(), containsString("cannot be combined with subqueries"));
+                                    assertThat(failure.failMessage(), containsString("(in view [v_"));
                                 }
-                            }
-
-                            if (branching >= 2) {
-                                Failures failures = new Failures();
-                                Failures depFailures = new Failures();
-                                verifier.checkPlanConsistency(result, failures, depFailures);
-                                if (nesting >= 2) {
-                                    assertTrue(
-                                        "Expected nested ViewUnionAll for nesting=" + nesting + ", branching=" + branching,
-                                        containsNestedViewUnionAll(result)
-                                    );
-                                    assertThat("Expect failure count", failures.failures().size(), equalTo(nesting - 1));
-                                    // Each nested ViewUnionAll failure should reference the view that created it.
-                                    // The ViewUnionAlls at depths 2..N have view names v_2_1..v_N_1.
-                                    for (Failure failure : failures.failures()) {
-                                        assertThat(failure.failMessage(), containsString("cannot be combined with subqueries"));
-                                        assertThat(failure.failMessage(), containsString("(in view [v_"));
-                                    }
-                                } else {
-                                    assertFalse(
-                                        "No nested ViewUnionAll expected for nesting=" + nesting + ", branching=" + branching,
-                                        containsNestedViewUnionAll(result)
-                                    );
-                                    assertFalse(
-                                        "No failures expected for nesting=" + nesting + ", branching=" + branching,
-                                        failures.hasFailures()
-                                    );
-                                }
+                            } else {
+                                assertFalse(
+                                    "No nested ViewUnionAll expected for nesting=" + nesting + ", branching=" + branching,
+                                    containsNestedViewUnionAll(result)
+                                );
+                                assertFalse(
+                                    "No failures expected for nesting=" + nesting + ", branching=" + branching,
+                                    failures.hasFailures()
+                                );
                             }
                         }
+                    }
                 }
             }
         }

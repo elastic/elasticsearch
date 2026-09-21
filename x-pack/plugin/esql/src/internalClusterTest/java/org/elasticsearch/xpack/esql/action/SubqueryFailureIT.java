@@ -296,7 +296,6 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testInnerMostFailureWithQueuedNestedSiblings() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var query = """
             FROM
                ( FROM ok | WHERE id == 1 ),
@@ -356,14 +355,14 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Same scenario as {@link #testPartialResultsWithFailingShardInSubquery}, but the branch with the failing shard sits one level deeper,
-     * inside a nested union. The shard failure has to cross two {@code ExecutionMerge} levels in one {@code SubPlansExecutor} on its way
-     * up: the nested merge, then the outer one. With {@code allowPartialResults} the rows from every ok shard must still arrive, and the
-     * response must be marked partial — the flag travels through {@code EsqlExecutionInfo}, not the row stream, so losing it at a merge
-     * boundary would silently misreport a partial result as complete.
+     * Same scenario as {@link #testPartialResultsWithFailingShardInSubquery}, but the branch with the failing shard sits
+     * one level deeper, inside a nested union. The shard failure has to cross two merge levels on its way up: the nested
+     * {@code SubPlansExecutor}'s segment, then the outer one. With {@code allowPartialResults} the rows from every ok
+     * shard must still arrive, and the response must be marked partial - the flag travels through
+     * {@code EsqlExecutionInfo}, not the row stream, so losing it at a merge boundary would silently misreport a
+     * partial result as complete.
      */
     public void testPartialResultsWithFailingShardInNestedSubquery() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var query = """
             FROM
                (FROM ok | WHERE id == 1),
@@ -419,6 +418,48 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
         assertThat(cause.getMessage(), containsString("index pattern 'ok'"));
         assertThat(cause.getMessage(), containsString("time_series"));
         assertThat(cause.getMessage(), containsString("standard"));
+    }
+
+    public void testNestedSubqueryExceedsMaxBranchCountPragma() {
+        var query = """
+            FROM
+               ( FROM ok | WHERE id == 1 ),
+               ( FROM
+                    ( FROM ok | WHERE id == 2 ),
+                    ( FROM
+                         ( FROM ok | WHERE id == 3 ),
+                         ( FROM ok | WHERE id == 4 )
+                    )
+               )
+            | KEEP id
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 3).build());
+        expectThrows(
+            VerificationException.class,
+            containsString("query resolved to 4 branches in total, exceeding the limit of 3 set by the [max_branch_count] query pragma"),
+            () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)).close()
+        );
+    }
+
+    public void testNestedSubqueryExceedsMaxBranchLevelPragma() {
+        var query = """
+            FROM
+               ( FROM ok | WHERE id == 1 ),
+               ( FROM
+                    ( FROM ok | WHERE id == 2 ),
+                    ( FROM
+                         ( FROM ok | WHERE id == 3 ),
+                         ( FROM ok | WHERE id == 4 )
+                    )
+               )
+            | KEEP id
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 2).build());
+        expectThrows(
+            VerificationException.class,
+            containsString("query resolved to 3 nested union levels, exceeding the limit of 2 set by the [max_branch_level] query pragma"),
+            () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)).close()
+        );
     }
 
     /**

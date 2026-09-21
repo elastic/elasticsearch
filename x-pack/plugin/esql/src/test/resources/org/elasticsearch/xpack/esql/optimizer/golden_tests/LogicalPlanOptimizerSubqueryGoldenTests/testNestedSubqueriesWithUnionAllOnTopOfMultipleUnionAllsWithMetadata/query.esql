@@ -1,0 +1,7 @@
+FROM employees,
+     (FROM employees,
+           (FROM languages | WHERE language_code > 0)
+           METADATA _index),
+     (FROM languages,
+           (FROM employees METADATA _index | WHERE salary > 0))
+     METADATA _index

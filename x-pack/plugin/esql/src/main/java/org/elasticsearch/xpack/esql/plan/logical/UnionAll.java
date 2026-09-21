@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -102,12 +101,9 @@ public class UnionAll extends MergePlan implements PostOptimizationPlanVerificat
     }
 
     private static void checkUnionAll(LogicalPlan plan, Failures failures) {
-        if (EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled() == false) {
-            checkBranchCount(plan, failures);
-        }
         // Check that all UnionAll branches have compatible data types for each column
         if (plan instanceof UnionAll unionAll) {
-            if (EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled() && plan.children().isEmpty()) {
+            if (plan.children().isEmpty()) {
                 failures.add(Failure.fail(plan, "{} requires at least one branch", plan.getClass().getSimpleName()));
             }
 
@@ -154,13 +150,7 @@ public class UnionAll extends MergePlan implements PostOptimizationPlanVerificat
     private static void checkNestedUnionAlls(LogicalPlan logicalPlan, Failures failures) {
         if (logicalPlan instanceof UnionAll unionAll) {
             forEachMergePlanSkippingSubqueries(unionAll, nested -> {
-                if (unionAll == nested) {
-                    return;
-                }
-                // When nested subqueries in FROM are supported, plain nested UnionAlls are allowed; only ViewUnionAll and Fork reject.
-                if (EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled()
-                    && nested instanceof UnionAll
-                    && nested instanceof ViewUnionAll == false) {
+                if (unionAll == nested || (nested instanceof UnionAll && nested instanceof ViewUnionAll == false)) {
                     return;
                 }
                 failures.add(nestedUnionAllFailure(nested));
@@ -304,9 +294,6 @@ public class UnionAll extends MergePlan implements PostOptimizationPlanVerificat
                     + "; replace it with a single source in the FROM command",
                 source
             );
-        }
-        if (nested instanceof UnionAll) {
-            return Failure.fail(nested, "Nested subqueries are not supported");
         }
         return Failure.fail(nested, "FORK inside subquery is not supported");
     }

@@ -1781,6 +1781,29 @@ public class FieldNameUtilsTests extends ESTestCase {
         );
     }
 
+    /**
+     * The same query as {@link #testLookupJoinKeepWildcard}, with an IN subquery between the LOOKUP JOIN and the KEEP. The subquery is
+     * an independent query and must leave the main pipeline's traversal state exactly as it found it, so the KEEP still constrains the
+     * join and the lookup index still does not need wildcard resolution.
+     * <p>
+     * The subquery-join handler used to save {@code keepRefs} with {@code build()}, which returns a view over the builder. Clearing the
+     * builder for the subquery emptied that view, the restore put nothing back, and the LOOKUP JOIN then saw an empty {@code keepRefs} and
+     * registered {@code languages_lookup} for a "*" field-caps request.
+     */
+    public void testLookupJoinKeepWildcardAfterInSubquery() {
+        assertFieldNames(
+            """
+                FROM employees
+                | KEEP languages
+                | RENAME languages AS language_code
+                | LOOKUP JOIN languages_lookup ON language_code
+                | WHERE language_code IN (FROM languages | KEEP language_id)
+                | KEEP language*""",
+            Set.of("_index", "language*", "languages", "languages.*", "language_code", "language_code.*", "language_id", "language_id.*"),
+            Set.of() // As in testLookupJoinKeepWildcard: the KEEP is after the LOOKUP, so the lookup index is not wildcarded
+        );
+    }
+
     public void testMultiLookupJoin() {
         assertFieldNames(
             """
@@ -3278,6 +3301,184 @@ public class FieldNameUtilsTests extends ESTestCase {
                 "first_name",
                 "emp_no.*"
             )
+        );
+    }
+
+    // Nested subquery (UnionAll within UnionAll) tests. FieldNameUtils processes a nested union recursively inside the enclosing union's
+    // branch loop, so these tests pin the branch state management: KEEP refs must not leak from one branch into the next, every branch's
+    // KEEP refs must survive the loop, and the enclosing branch's state must be restored when a nested union finishes, including when it
+    // exits early because a branch needs all fields.
+
+    public void testTwoLevelNestedSubqueryInFrom() {
+        assertFieldNames("""
+            FROM
+              (FROM employees | KEEP emp_no),
+              (FROM
+                 (FROM employees | KEEP first_name),
+                 (FROM languages | KEEP language_id))
+            | KEEP emp_no, first_name, language_id
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "language_id", "language_id.*"));
+    }
+
+    public void testThreeLevelNestedSubqueryInFrom() {
+        assertFieldNames(
+            """
+                FROM
+                  (FROM employees | KEEP emp_no),
+                  (FROM
+                     (FROM employees | KEEP first_name),
+                     (FROM
+                        (FROM employees | KEEP last_name),
+                        (FROM languages | KEEP language_id)))
+                | KEEP emp_no, first_name, last_name, language_id
+                """,
+            Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "last_name", "last_name.*", "language_id", "language_id.*")
+        );
+    }
+
+    /**
+     * The nested FROM mixes a plain index pattern with a subquery. The unconstrained {@code FROM languages} branch does not force
+     * project-all here because the outer KEEP reduces columns after the union.
+     */
+    public void testTwoLevelNestedSubqueryInFromMixedIndexPatternAndSubquery() {
+        assertFieldNames("""
+            FROM
+              (FROM employees | KEEP emp_no),
+              (FROM
+                 languages,
+                 (FROM employees | KEEP first_name))
+            | KEEP emp_no, first_name, language_id
+            """, Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "language_id", "language_id.*"));
+    }
+
+    public void testTwoLevelNestedSubqueryInFromWithStatsInMainQuery() {
+        assertFieldNames("""
+            FROM
+              (FROM employees | KEEP emp_no, salary),
+              (FROM
+                 (FROM employees | KEEP salary),
+                 (FROM languages | KEEP language_id))
+            | STATS avg_salary = AVG(salary) BY language_id
+            """, Set.of("_index", "emp_no", "emp_no.*", "salary", "salary.*", "language_id", "language_id.*"));
+    }
+
+    public void testInSubqueryInsideTwoLevelNestedSubqueryBranch() {
+        assertFieldNames(
+            """
+                FROM
+                  (FROM employees | KEEP emp_no),
+                  (FROM
+                     (FROM employees | WHERE languages IN (FROM languages | KEEP language_id) | KEEP first_name),
+                     (FROM employees | KEEP last_name))
+                | KEEP emp_no, first_name, last_name
+                """,
+            Set.of(
+                "_index",
+                "emp_no",
+                "emp_no.*",
+                "first_name",
+                "first_name.*",
+                "last_name",
+                "last_name.*",
+                "languages",
+                "languages.*",
+                "language_id",
+                "language_id.*"
+            )
+        );
+    }
+
+    public void testSubqueryInFromWithRowShadowingIndexFields() {
+        assertFieldNames("""
+            FROM
+                employees,
+                (ROW emp_no = 99999, languages = 99)
+            | WHERE (emp_no >= 10091 AND emp_no < 10094) OR emp_no == 99999
+            | SORT emp_no
+            | KEEP emp_no, languages
+            """, Set.of("_index", "emp_no", "emp_no.*", "languages", "languages.*"));
+    }
+
+    /**
+     * A nested branch with no KEEP must make the whole query request all fields.
+     */
+    public void testTwoLevelNestedSubqueryInFromUnconstrainedNestedBranch() {
+        assertFieldNames("""
+            FROM
+              (FROM employees | KEEP emp_no),
+              (FROM
+                 (FROM employees),
+                 (FROM languages | KEEP language_id))
+            """, ALL_FIELDS);
+    }
+
+    /**
+     * The deepest branch of a three-level nesting has no KEEP, so the project-all early exit fires two recursion levels down.
+     */
+    public void testThreeLevelNestedSubqueryInFromUnconstrainedDeepestBranch() {
+        assertFieldNames("""
+            FROM
+              (FROM employees | KEEP emp_no),
+              (FROM
+                 (FROM employees | KEEP first_name),
+                 (FROM
+                    (FROM employees | KEEP last_name),
+                    (FROM languages)))
+            """, ALL_FIELDS);
+    }
+
+    /**
+     * A LOOKUP JOIN with no KEEP after it inside a nested branch must still register its lookup index for wildcard resolution.
+     */
+    public void testTwoLevelNestedSubqueryInFromWithLookupJoinInNestedBranch() {
+        assertFieldNames(
+            """
+                FROM
+                  (FROM employees | KEEP emp_no),
+                  (FROM
+                     (FROM employees | KEEP first_name),
+                     (FROM languages | LOOKUP JOIN languages_lookup ON language_code))
+                | STATS c = COUNT(*)
+                """,
+            Set.of("_index", "emp_no", "emp_no.*", "first_name", "first_name.*", "language_code", "language_code.*"),
+            Set.of("languages_lookup")
+        );
+    }
+
+    /**
+     * A LOOKUP JOIN and an IN subquery in the same nested branch, with the branch's KEEP after both. The KEEP still constrains the
+     * join, so the lookup index does not need wildcard resolution — the same result the branch gives without the IN subquery.
+     */
+    public void testTwoLevelNestedSubqueryInFromWithLookupJoinAndInSubqueryInNestedBranch() {
+        assertFieldNames(
+            """
+                FROM
+                  (FROM employees | KEEP emp_no),
+                  (FROM
+                     (FROM employees | KEEP first_name),
+                     (FROM employees
+                        | KEEP languages
+                        | RENAME languages AS language_code
+                        | LOOKUP JOIN languages_lookup ON language_code
+                        | WHERE language_code IN (FROM languages | KEEP language_id)
+                        | KEEP language*))
+                | STATS c = COUNT(*)
+                """,
+            Set.of(
+                "_index",
+                "emp_no",
+                "emp_no.*",
+                "first_name",
+                "first_name.*",
+                "languages",
+                "languages.*",
+                "language_code",
+                "language_code.*",
+                "language_id",
+                "language_id.*",
+                "language*"
+            ),
+            Set.of() // The KEEP after the IN subquery still reaches the LOOKUP JOIN, so no wildcard lookup is needed
         );
     }
 

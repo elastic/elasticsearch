@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -37,9 +36,7 @@ public final class LogicalVerifier extends PostOptimizationPhasePlanVerifier<Log
         assert isLocal == false : "query-wide limits apply to the coordinator plan only";
         Failures failures = verify(optimizedPlan, expectedOutputAttributes);
         // These limits need complete main-query and IN-subquery plans, so they live here rather than in {@link #checkPlanConsistency}.
-        if (failures.hasFailures() == false && EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled()) {
-            UnionAll.checkNestedSubqueryLimits(optimizedPlan, pragmas.maxBranchCount(), pragmas.maxBranchLevel(), failures);
-        }
+        UnionAll.checkNestedSubqueryLimits(optimizedPlan, pragmas.maxBranchCount(), pragmas.maxBranchLevel(), failures);
         return failures;
     }
 

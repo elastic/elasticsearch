@@ -1514,7 +1514,12 @@ public class EsqlCapabilities {
         /**
          * Support nested non-correlated subqueries in the FROM command.
          */
-        NESTED_SUBQUERY_IN_FROM_COMMAND(Build.current().isSnapshot()),
+        NESTED_SUBQUERY_IN_FROM_COMMAND,
+
+        /**
+         * Planner fix for nested non-correlated subqueries in the FROM command.
+         */
+        NESTED_SUBQUERY_IN_FROM_COMMAND_PLANNER_FIX,
 
         /**
          * Support IN non-correlated subqueries in WHERE command.

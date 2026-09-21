@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -26,10 +25,9 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 /**
- * Tests for subquery-in-{@code FROM} after coordinating-node logical optimization.
- * A multi-source {@code FROM} builds a {@code UnionAll}, so the full-text position check is deferred
- * until after the filter is pushed into each branch. Snapshot plan-shape tests live in
+ * Negative tests for FROM subqueries at the logical-optimizer stage; the positive coverage is in
  * {@code LogicalPlanOptimizerSubqueryGoldenTests}.
+ *
  */
 public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimizerTests {
 
@@ -130,13 +128,55 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
         optimize(plan); // must not throw IllegalStateException
     }
 
+    public void testUnboundedSortInsideInSubqueryInUnionAllBranchIsRejected() {
+        var e = expectThrows(VerificationException.class, () -> planSubquery("""
+            FROM (FROM test | WHERE emp_no IN (FROM test | SORT emp_no | KEEP emp_no)),
+                 (FROM languages)
+            | STATS c = COUNT(*)
+            """));
+        assertThat(e.getMessage(), containsString("Unbounded SORT not supported yet [SORT emp_no] please add a LIMIT"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "cannot yet have an unbounded SORT [SORT emp_no] before it: either move the SORT after it, or add a LIMIT after the SORT"
+            )
+        );
+    }
+
+    public void testUnboundedSortInsideInSubqueryInNestedUnionAllBranchIsRejected() {
+        var e = expectThrows(VerificationException.class, () -> planSubquery("""
+            FROM (FROM (FROM test | WHERE emp_no IN (FROM test | SORT emp_no | KEEP emp_no)),
+                       (FROM test)),
+                 (FROM languages)
+            | STATS c = COUNT(*)
+            """));
+        assertThat(e.getMessage(), containsString("Unbounded SORT not supported yet [SORT emp_no] please add a LIMIT"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "cannot yet have an unbounded SORT [SORT emp_no] before it: either move the SORT after it, or add a LIMIT after the SORT"
+            )
+        );
+    }
+
+    public void testTotalBranchCountAtOrBeyondLimit() {
+        String query = """
+            FROM test, (FROM test), (FROM languages)
+            | STATS c = COUNT(*)
+            """;
+        planSubquery(query, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 3).build());
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> planSubquery(query, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 2).build())
+        );
+        assertThat(e.getMessage(), containsString("query resolved to 3 branches in total, exceeding the limit of 2"));
+    }
+
     public void testTotalBranchCountWithNestedSubqueryAtOrBeyondLimit() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         String query = """
             FROM test, (FROM test, (FROM languages))
             | STATS c = COUNT(*)
             """;
-
         // Three sources; the inner UnionAll is a merge segment, not a leaf.
         planSubquery(query, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 3).build());
         VerificationException e = expectThrows(
@@ -164,7 +204,6 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     }
 
     public void testTotalBranchCountIgnoresPlansWithoutUnions() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         planSubquery("""
             FROM test
             | WHERE emp_no > 10000
@@ -172,13 +211,11 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     }
 
     public void testTotalBranchCountDoesNotCountLookupJoinAsLeaf() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         String query = """
             FROM test, (FROM test)
             | EVAL language_code = languages
             | LOOKUP JOIN languages_lookup ON language_code
             """;
-
         planSubquery(query, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 2).build());
         VerificationException e = expectThrows(
             VerificationException.class,
@@ -188,12 +225,10 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     }
 
     public void testTotalBranchCountDoesNotCountEnrichAsLeaf() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         String query = """
             FROM test, (FROM test)
             | ENRICH languages_idx ON first_name
             """;
-
         planSubquery(query, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 2).build());
         VerificationException e = expectThrows(
             VerificationException.class,
@@ -203,7 +238,6 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     }
 
     public void testTotalBranchCountWithViewAtOrBeyondLimit() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         String query = "FROM view_0, view_1, test";
 
         planSubquery(viewAnalyzer(), query, Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 3).build());
@@ -215,7 +249,6 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     }
 
     public void testNestingLevelAtOrBeyondLimit() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         String flat = """
             FROM test, (FROM test), (FROM languages)
             | STATS c = COUNT(*)
@@ -226,7 +259,6 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
             FROM test, (FROM test, (FROM test, (FROM languages)))
             | STATS c = COUNT(*)
             """;
-
         planSubquery(nested, Settings.builder().put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 3).build());
         VerificationException e = expectThrows(
             VerificationException.class,
@@ -238,7 +270,6 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     }
 
     public void testNestingLevelIgnoresPlansWithoutUnions() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         planSubquery("""
             FROM test
             | WHERE emp_no > 10000
@@ -246,7 +277,6 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     }
 
     public void testBothNestedSubqueryLimitsAtOrBeyondLimit() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         String query = """
             FROM test, (FROM test, (FROM test, (FROM languages)))
             | STATS c = COUNT(*)
@@ -280,8 +310,6 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     }
 
     public void testBothNestedSubqueryLimitsWithViewAtOrBeyondLimit() {
-        assumeTrue("Requires IN subquery with view support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         String query = """
             FROM test, (FROM test, (FROM languages))
             | WHERE emp_no IN (FROM view_0, view_1 | KEEP emp_no)
@@ -315,7 +343,6 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     }
 
     public void testNestedSubqueryLimitsWithinInSubquery() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         String query = """
             FROM (FROM test
                   | WHERE emp_no IN (
@@ -329,7 +356,6 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     }
 
     public void testNestedSubqueryLimitsWithinInSubqueryWithView() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         String query = """
             FROM (FROM test
                   | WHERE emp_no IN (
@@ -343,7 +369,6 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     }
 
     public void testNestedSubqueryLimitsForMultipleInSubqueriesAreIndependent() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         String query = """
             FROM test
             | WHERE emp_no IN (

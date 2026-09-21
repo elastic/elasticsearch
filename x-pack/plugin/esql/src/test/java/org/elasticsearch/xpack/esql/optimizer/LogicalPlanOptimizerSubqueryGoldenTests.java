@@ -81,7 +81,6 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNestedSubqueries() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             FROM employees,
                  (FROM employees,
@@ -90,8 +89,19 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    public void testNestedSubqueriesWithMetadata() {
+        runGoldenTest("""
+            FROM employees,
+                 (FROM employees,
+                       (FROM employees METADATA _index | WHERE salary > 0)
+                       METADATA _index)
+                 METADATA _index
+            | WHERE emp_no > 10000
+            | SORT _index
+            """, STAGES);
+    }
+
     public void testNestedSubqueriesWithUnionAllOnTopOfMultipleUnionAlls() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             FROM employees,
                  (FROM employees,
@@ -101,30 +111,30 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
-    public void testUnboundedSortInNestedBranchIsBranchOrderIndependent() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
+    public void testNestedSubqueriesWithUnionAllOnTopOfMultipleUnionAllsWithMetadata() {
         runGoldenTest("""
-            FROM (FROM (FROM employees | LIMIT 10),
-                       (FROM employees | SORT emp_no)
-                 ),
-                 (FROM languages)
-            | STATS c = COUNT(*)
+            FROM employees,
+                 (FROM employees,
+                       (FROM languages | WHERE language_code > 0)
+                       METADATA _index),
+                 (FROM languages,
+                       (FROM employees METADATA _index | WHERE salary > 0))
+                 METADATA _index
             """, STAGES);
     }
 
-    public void testBoundedSortInsideInSubqueryInUnionAllBranch() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
+    public void testNestedSubqueriesWithUnionAllOnTopOfMultipleUnionAllsWithPredicatePushdown() {
         runGoldenTest("""
-            FROM (FROM employees
-                  | WHERE emp_no IN (FROM employees | SORT emp_no | LIMIT 5 | KEEP emp_no)
-                 ),
-                 (FROM languages)
-            | STATS c = COUNT(*)
+            FROM employees,
+                 (FROM employees,
+                       (FROM languages | WHERE language_code > 0)),
+                 (FROM languages,
+                       (FROM employees | WHERE salary > 0))
+            | WHERE emp_no > 10000
             """, STAGES);
     }
 
     public void testSiblingUnionAllsUnderInSubqueryJoin() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             FROM employees,
                  (FROM employees | WHERE salary > 0)
@@ -134,8 +144,56 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    // validate sort and knn related changes in PushdownFilterAndLimitIntoUnionAll
+    public void testUnboundedSortInNestedBranchDoesNotLimitTheNestedUnion() {
+        runGoldenTest("""
+            FROM (FROM (FROM employees | SORT emp_no),
+                       (FROM employees | LIMIT 10)
+                 ),
+                 (FROM languages)
+            | STATS c = COUNT(*)
+            """, STAGES);
+    }
+
+    public void testUnboundedSortInNestedBranchIsBranchOrderIndependent() {
+        runGoldenTest("""
+            FROM (FROM (FROM employees | LIMIT 10),
+                       (FROM employees | SORT emp_no)
+                 ),
+                 (FROM languages)
+            | STATS c = COUNT(*)
+            """, STAGES);
+    }
+
+    public void testUnboundedSortAtAllNestedUnionLevels() {
+        runGoldenTest("""
+            FROM (FROM (FROM employees | SORT last_name),
+                       (FROM employees | SORT first_name)
+                  | SORT emp_no),
+                 (FROM languages | SORT language_name)
+            """, STAGES);
+    }
+
+    public void testBoundedSortInsideInSubqueryInUnionAllBranch() {
+        runGoldenTest("""
+            FROM (FROM employees
+                  | WHERE emp_no IN (FROM employees | SORT emp_no | LIMIT 5 | KEEP emp_no)
+                 ),
+                 (FROM languages)
+            | STATS c = COUNT(*)
+            """, STAGES);
+    }
+
+    public void testKnnLimitAppendedInNestedUnionAllBranch() {
+        runGoldenTest("""
+            FROM (FROM (FROM colors METADATA _score | WHERE knn(rgb_vector, "007800")),
+                       (FROM colors) METADATA _score),
+                 (FROM colors) METADATA _score
+            | LIMIT 5
+            """, STAGES);
+    }
+
     public void testNoKnnLimitAppendedWhenNestedBranchAlreadyBounded() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             FROM (FROM (FROM colors | LIMIT 5),
                        (FROM colors METADATA _score | WHERE knn(rgb_vector, "007800") | LIMIT 7) METADATA _score),
@@ -144,8 +202,23 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    public void testKnnInsideInSubqueryInUnionAll() {
+        runGoldenTest("""
+            FROM colors,
+                 (FROM colors
+                  | WHERE id IN (FROM colors METADATA _score | WHERE knn(rgb_vector, "007800") | KEEP id))
+            """, STAGES);
+    }
+
+    public void testKnnInsideInSubqueryInNestedUnionAll() {
+        runGoldenTest("""
+            FROM (FROM (FROM colors | WHERE id IN (FROM colors METADATA _score | WHERE knn(rgb_vector, "007800") | KEEP id)),
+                       (FROM colors)),
+                 (FROM colors)
+            """, STAGES);
+    }
+
     public void testKnnOnUnionBranchLeftOfInSubqueryStillGetsLimit() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             FROM colors,
                  (FROM colors METADATA _score
@@ -156,7 +229,6 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testBoundedKnnInsideInSubqueryKeepsLimitOnJoinRight() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             FROM colors,
                  (FROM colors
@@ -169,10 +241,19 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    public void testKnnPushedFromMiddleLevelIntoNestedUnionAllBranches() {
+        runGoldenTest("""
+            FROM (FROM (FROM colors METADATA _score | WHERE knn(rgb_vector, "007800")),
+                       (FROM colors METADATA _score | WHERE knn(rgb_vector, "0000ff"))
+                  METADATA _score | WHERE knn(rgb_vector, "ff0000")),
+                 (FROM colors) METADATA _score
+            | LIMIT 5
+            """, STAGES);
+    }
+
     // -- nested UnionAll + INLINE STATS in the main query --
 
     public void testNestedSubqueriesWithWhereAndInlineStats() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             FROM employees,
                  (FROM (FROM employees | WHERE salary > 50000),
@@ -182,7 +263,6 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNestedSubqueriesWithStatsInsideAndInlineStats() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             FROM employees,
                  (FROM (FROM employees | WHERE emp_no <= 10010 | STATS c1 = COUNT(*)),
@@ -192,7 +272,6 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNestedSubqueriesWithLookupJoinAndInlineStats() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             FROM (FROM (FROM employees
                         | WHERE emp_no <= 10005
@@ -205,7 +284,6 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNestedSubqueriesWithInlineStatsInsideAndInlineStats() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             FROM employees,
                  (FROM (FROM employees | WHERE emp_no <= 10005 | INLINE STATS max_sal = MAX(salary)),
@@ -217,7 +295,6 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     // -- nested UnionAll + external dataset + aggregation pushdown --
 
     public void testNestedSubqueriesWithExternalDatasetWithAggPushdown() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runNestedHeavyGoldenTest("""
             FROM employees,
                  (FROM heavy_a, heavy_b)
@@ -226,7 +303,6 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNestedSubqueriesWithExternalDatasetWithAggPushdownWithGrouping() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runNestedHeavyGoldenTest("""
             FROM employees,
                  (FROM heavy_a, heavy_b)
@@ -235,7 +311,6 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testThreeLevelNestedSubqueriesWithExternalDatasetWithAggPushdown() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runNestedHeavyGoldenTest("""
             FROM employees,
                  (FROM languages,
@@ -245,27 +320,97 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """);
     }
 
-    /**
-     * STATS in the main query over a 3-level nested UnionAll in LOAD mode. Verifies that {@code _source}
-     * keyword loaders broadcast by the LOAD pass into all three EsRelations are compatible with the
-     * subsequent outer STATS aggregation, and that the optimizer correctly handles the plan.
-     */
-    public void testNestedSubqueryLoadWithUnmappedFieldReferencedInMainQueryStats() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
+    public void testThreeLevelNestedSubqueriesWithExternalDatasetWithMetadata() {
+        runNestedHeavyGoldenTest("""
+            FROM employees,
+                 (FROM languages,
+                       (FROM heavy_a, heavy_b METADATA _index)
+                       METADATA _index
+                 )
+                 METADATA _index
+            """);
+    }
+
+    // validate the fix to unmapped field resolution (nullify / load) for nested unionall
+
+    public void testNestedSubqueryNullifyWithUnmappedFieldReferencedInMainQueryKeep() {
         runGoldenTest("""
-            SET unmapped_fields="load";
+            SET unmapped_fields="nullify";
             FROM employees, (FROM languages, (FROM sample_data))
-            | STATS c = COUNT(*), emp_max = MAX(emp_no) BY has_emp = emp_no IS NOT NULL
+            | KEEP emp_no, does_not_exist_field
             """, STAGES);
     }
 
-    /**
-     * LOOKUP JOIN inside the innermost nested subquery combined with an outer-level unmapped field in LOAD
-     * mode. Verifies that the optimizer correctly propagates the {@code _source} keyword loaders placed by
-     * the analyzer through the nested UnionAll and LOOKUP JOIN node.
-     */
+    public void testNestedSubqueryNullifyWithMultipleUnmappedFieldsReferencedInMainQueryKeep() {
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM employees, (FROM languages, (FROM sample_data))
+            | KEEP emp_no, does_not_exist_field1, does_not_exist_field2
+            """, STAGES);
+    }
+
+    public void testNestedSubqueryNullifyWithUnmappedFieldReferencedInSubqueryStats() {
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM employees, (FROM languages, (FROM sample_data | STATS count(*) BY does_not_exist_field))
+            | KEEP emp_no, does_not_exist_field
+            """, STAGES);
+    }
+
+    public void testNestedSubqueryNullifyWithUnmappedFieldReferencedInMainQueryStats() {
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM employees, (FROM languages, (FROM sample_data))
+            | STATS c = COUNT(*), emp_max = MAX(emp_no) BY is_null = does_not_exist_field IS NULL
+            """, STAGES);
+    }
+
+    public void testNestedSubqueryNullifyWithLookupJoinInSubqueryUnmappedFieldReferencedInMainQueryKeep() {
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM employees,
+                 (FROM languages,
+                       (FROM employees
+                        | EVAL language_code = languages
+                        | LOOKUP JOIN languages_lookup ON language_code
+                        | KEEP emp_no, language_name))
+            | KEEP emp_no, does_not_exist_field, language_name
+            """, STAGES);
+    }
+
+    public void testNestedSubqueryNullifyWithRowSourceInSubqueryUnmappedFieldInMainQueryKeep() {
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM employees, (FROM languages, (ROW x = 1))
+            | KEEP does_not_exist_field, x
+            """, STAGES);
+    }
+
+    public void testNestedSubqueryLoadWithUnmappedFieldReferencedInMainQueryKeep() {
+        runGoldenTest("""
+            SET unmapped_fields="load";
+            FROM employees, (FROM languages, (FROM sample_data))
+            | KEEP emp_no, does_not_exist_field
+            """, STAGES);
+    }
+
+    public void testNestedSubqueryLoadWithUnmappedFieldReferencedInSubqueryStats() {
+        runGoldenTest("""
+            SET unmapped_fields="load";
+            FROM employees, (FROM languages, (FROM sample_data | STATS count(*) BY does_not_exist_field))
+            | KEEP emp_no, does_not_exist_field
+            """, STAGES);
+    }
+
+    public void testNestedSubqueryLoadWithUnmappedFieldReferencedInMainQueryStats() {
+        runGoldenTest("""
+            SET unmapped_fields="load";
+            FROM employees, (FROM languages, (FROM sample_data))
+            | STATS c = COUNT(*), emp_max = MAX(emp_no) BY is_null = does_not_exist_field IS NULL
+            """, STAGES);
+    }
+
     public void testNestedSubqueryLoadWithUnmappedFieldReferencedInSubqueryLookupJoinAndMainQuery() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             SET unmapped_fields="load";
             FROM employees,
@@ -279,7 +424,6 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNineUnionAllSubqueriesInFromCommand() {
-        assumeTrue("requires nested subquery support", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             FROM employees,
                  (FROM languages),
@@ -293,6 +437,70 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
                  (FROM languages)
             """, STAGES);
     }
+
+    // -- nested UnionAll + implicit datetime/date_nanos and explicit casting --
+
+    public void testNestedSubqueryImplicitDateAndDateNanosCast() {
+        runGoldenTest("""
+            FROM sample_data,
+                 (FROM sample_data_ts_nanos,
+                       (FROM sample_data))
+            | KEEP @timestamp
+            """, STAGES);
+    }
+
+    public void testNestedSubqueryImplicitDateAndDateNanosCastWithTimestampFilter() {
+        runGoldenTest("""
+            FROM sample_data,
+                 (FROM sample_data_ts_nanos,
+                       (FROM sample_data))
+            | WHERE @timestamp > "2023-10-23T13:00:00Z"
+            | KEEP @timestamp
+            """, STAGES);
+    }
+
+    public void testNestedSubqueryExplicitDateNanosCastOnLongInInnerBranch() {
+        runGoldenTest("""
+            FROM sample_data,
+                 (FROM sample_data_ts_nanos,
+                       (FROM sample_data_ts_long | EVAL @timestamp = @timestamp::date_nanos))
+            | KEEP @timestamp
+            """, STAGES);
+    }
+
+    public void testNestedSubqueryExplicitLongCastOnMixedDateAndLong() {
+        runGoldenTest("""
+            FROM sample_data,
+                 (FROM sample_data, (FROM sample_data_ts_long)
+                  | EVAL @timestamp = @timestamp::long)
+            | EVAL @timestamp = @timestamp::long
+            | KEEP @timestamp
+            """, STAGES);
+    }
+
+    public void testNestedSubqueryRenameAfterImplicitDateAndDateNanosCast() {
+        runGoldenTest("""
+            FROM sample_data,
+                 (FROM sample_data_ts_nanos, (FROM sample_data))
+            | KEEP @timestamp
+            | RENAME @timestamp AS x
+            | KEEP *
+            """, STAGES);
+    }
+
+    public void testNestedSubqueryRenameAfterExplicitLongCastOnMixedDateAndLong() {
+        runGoldenTest("""
+            FROM sample_data,
+                 (FROM sample_data, (FROM sample_data_ts_long)
+                  | EVAL @timestamp = @timestamp::long)
+            | EVAL @timestamp = @timestamp::long
+            | KEEP @timestamp
+            | RENAME @timestamp AS x
+            | KEEP *
+            """, STAGES);
+    }
+
+    // helpers
 
     private void runNestedHeavyGoldenTest(String query) {
         assumeTrue("Requires external data source FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());

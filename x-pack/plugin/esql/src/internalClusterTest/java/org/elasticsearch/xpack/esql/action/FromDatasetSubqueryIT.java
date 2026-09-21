@@ -361,34 +361,25 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         createRealEmployees();
         registerEmployees();
         registerEmployeesAlt();
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM real_employees, (FROM employees, employees_alt) | SORT emp_no, first_name"),
+                TIMEOUT
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(10)); // 5 from real_employees + 3 from employees + 2 from employees_alt
 
-        if (EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled() == false) {
-            Exception ex = expectThrows(
-                Exception.class,
-                () -> run(syncEsqlQueryRequest("FROM real_employees, (FROM employees, employees_alt)"), TIMEOUT)
-            );
-            assertCauseMessageContains(ex, "Nested subqueries are not supported");
-        } else {
-            try (
-                var response = run(
-                    syncEsqlQueryRequest("FROM real_employees, (FROM employees, employees_alt) | SORT emp_no, first_name"),
-                    TIMEOUT
-                )
-            ) {
-                List<List<Object>> rows = getValuesList(response);
-                assertThat(rows, hasSize(10)); // 5 from real_employees + 3 from employees + 2 from employees_alt
-
-                // same union as testIndexInMainDatasetInSubquery, spot-check the overlap rows and branch provenance
-                assertThat(rows.get(0).get(0), equalTo(1));
-                assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
-                assertThat(rows.get(1).get(0), equalTo(1));
-                assertThat(rows.get(1).get(1).toString(), equalTo("Alice-real"));
-                assertNull(rows.get(1).get(2)); // real_employees has no last_name
-                assertThat(rows.get(5).get(0), equalTo(10));
-                assertThat(rows.get(5).get(1).toString(), equalTo("Diana"));
-                assertThat(rows.get(9).get(0), equalTo(101));
-                assertThat(rows.get(9).get(1).toString(), equalTo("Grace"));
-            }
+            // same union as testIndexInMainDatasetInSubquery, spot-check the overlap rows and branch provenance
+            assertThat(rows.get(0).get(0), equalTo(1));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
+            assertThat(rows.get(1).get(0), equalTo(1));
+            assertThat(rows.get(1).get(1).toString(), equalTo("Alice-real"));
+            assertNull(rows.get(1).get(2)); // real_employees has no last_name
+            assertThat(rows.get(5).get(0), equalTo(10));
+            assertThat(rows.get(5).get(1).toString(), equalTo("Diana"));
+            assertThat(rows.get(9).get(0), equalTo(101));
+            assertThat(rows.get(9).get(1).toString(), equalTo("Grace"));
         }
     }
 

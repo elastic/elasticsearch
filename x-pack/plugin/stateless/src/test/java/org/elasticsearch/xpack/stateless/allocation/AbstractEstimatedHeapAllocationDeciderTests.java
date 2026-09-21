@@ -243,7 +243,7 @@ public class AbstractEstimatedHeapAllocationDeciderTests extends ESAllocationTes
     }
 
     private ClusterInfo clusterInfo(long shardBytes, long indexBytes) {
-        return clusterInfo(Map.of(shard.shardId(), new ShardAndIndexHeapUsage(shardBytes, indexBytes)));
+        return clusterInfo(Map.of(shard.shardId(), new ShardAndIndexHeapUsage(shardBytes, indexBytes, randomLongBetween(0, shardBytes))));
     }
 
     private ClusterInfo clusterInfo(Map<ShardId, ShardAndIndexHeapUsage> shardUsages) {

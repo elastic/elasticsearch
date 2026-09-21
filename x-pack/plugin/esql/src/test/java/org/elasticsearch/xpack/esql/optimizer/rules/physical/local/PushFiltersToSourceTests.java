@@ -30,6 +30,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.optimizer.ExternalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
@@ -147,6 +149,37 @@ public class PushFiltersToSourceTests extends ESTestCase {
         assertNotNull(((ExternalSourceExec) result).pushedFilter());
     }
 
+    /**
+     * Invert emits {@code ts >= start AND ts < next} as two comparisons, not a {@code Range} node.
+     * Pushdown must accept that DATETIME pair through FilterExec → ExternalSourceExec.
+     */
+    public void testPushesDatetimeHalfOpenInequalityPair() {
+        FieldAttribute ts = datetimeField("ts");
+        long start = java.time.Instant.parse("1986-01-01T00:00:00Z").toEpochMilli();
+        long next = java.time.Instant.parse("1987-01-01T00:00:00Z").toEpochMilli();
+        Expression range = new And(
+            SRC,
+            new GreaterThanOrEqual(SRC, ts, new Literal(SRC, start, DataType.DATETIME), null),
+            new LessThan(SRC, ts, new Literal(SRC, next, DataType.DATETIME), null)
+        );
+        ExternalSourceExec source = new ExternalSourceExec(
+            SRC,
+            "file:///test.parquet",
+            "parquet",
+            List.of(ts),
+            Map.of(ErrorPolicy.CONFIG_ERROR_MODE, "null_field"),
+            Map.of(),
+            null,
+            null
+        ).withDeclaredReadSpec(DeclaredReadSpec.of(Map.of(), Map.of(), Set.of()));
+        FilterExec filterExec = new FilterExec(SRC, source, range);
+
+        PhysicalPlan result = applyRule(filterExec, registry(true));
+
+        assertThat(result, instanceOf(ExternalSourceExec.class));
+        assertNotNull(((ExternalSourceExec) result).pushedFilter());
+    }
+
     /** No declared column types means nothing can fail to coerce, so no row is ever dropped: pushdown stays on
      *  even for a reader that cannot drop rows, and skip_row costs nothing. */
     public void testPushesUnderSkipRowWithoutDeclaredTypeColumns() {
@@ -171,7 +204,15 @@ public class PushFiltersToSourceTests extends ESTestCase {
     private static final Source SRC = Source.EMPTY;
 
     private static FieldAttribute fieldAttr(String name) {
-        return new FieldAttribute(SRC, name, new EsField(name, DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+        return fieldAttr(name, DataType.INTEGER);
+    }
+
+    private static FieldAttribute datetimeField(String name) {
+        return fieldAttr(name, DataType.DATETIME);
+    }
+
+    private static FieldAttribute fieldAttr(String name, DataType type) {
+        return new FieldAttribute(SRC, name, new EsField(name, type, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
     }
 
     private static Literal intLiteral(int value) {
@@ -198,7 +239,7 @@ public class PushFiltersToSourceTests extends ESTestCase {
             Map.of(),
             /* pushedFilter = */ null,
             /* estimatedRowSize = */ null
-        ).withDeclaredReadSpec(DeclaredReadSpec.of(Map.of(), null, Map.of(), declaredTypeColumns));
+        ).withDeclaredReadSpec(DeclaredReadSpec.of(Map.of(), Map.of(), declaredTypeColumns));
         return new FilterExec(SRC, source, new Equals(SRC, salary, intLiteral(100)));
     }
 

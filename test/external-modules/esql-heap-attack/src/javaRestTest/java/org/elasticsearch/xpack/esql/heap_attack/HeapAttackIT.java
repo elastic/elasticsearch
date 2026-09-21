@@ -461,6 +461,42 @@ public class HeapAttackIT extends HeapAttackTestCase {
         assertMap(resp, mapMatcher.entry("columns", columns));
     }
 
+    /**
+     * Joins a large multivalued field into a single enormous string.
+     */
+    public void testHugeMvConcat() throws IOException {
+        // One doc whose f00 holds 300k values; joined with a ~1kb delimiter that is one huge string.
+        initMvLongsIndex(1, 1, 300000, false);
+        assertCircuitBreaks(attempt -> mvConcat(attempt * 999));
+    }
+
+    private Map<String, Object> mvConcat(int delimiterLength) throws IOException {
+        StringBuilder query = startQuery();
+        query.append("FROM mv_longs | EVAL str = MV_CONCAT(TO_STRING(f00), REPEAT(\\\"x\\\", ")
+            .append(delimiterLength)
+            .append(")) | EVAL len = LENGTH(str) | KEEP len\"}");
+        return responseAsMap(query(query.toString(), null));
+    }
+
+    /**
+     * Chains many TO_BASE64 calls so the encoded value grows ~1.33x per level into a single huge
+     * string.
+     */
+    public void testHugeToBase64() throws IOException {
+        initGiantTextField(1, false, 5);
+        assertCircuitBreaks(attempt -> toBase64Chain(10 + attempt * 4));
+    }
+
+    private Map<String, Object> toBase64Chain(int levels) throws IOException {
+        StringBuilder query = startQuery();
+        query.append("FROM bigtext | EVAL b = ");
+        query.append("TO_BASE64(".repeat(levels));
+        query.append("f");
+        query.append(")".repeat(levels));
+        query.append(" | EVAL len = LENGTH(b) | KEEP len\"}");
+        return responseAsMap(query(query.toString(), null));
+    }
+
     public void testManyEval() throws IOException {
         initManyLongs(10);
         Map<String, Object> response = manyEval(1);

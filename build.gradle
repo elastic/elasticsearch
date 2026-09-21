@@ -568,6 +568,8 @@ tasks.register("validateBuildGradleScripts", ValidateBuildGradleScriptsTask).con
       'x-pack/plugin/security/build.gradle',
       'x-pack/plugin/sql/qa/server/build.gradle',
       'x-pack/plugin/sql/sql-cli/build.gradle',
+      'x-pack/plugin/transform/qa/multi-node-tests/build.gradle',
+      'x-pack/qa/rolling-upgrade-legacy/build.gradle',
       'x-pack/qa/smoke-test-plugins/build.gradle',
       'x-pack/qa/smoke-test-plugins-ssl/build.gradle',
     ],

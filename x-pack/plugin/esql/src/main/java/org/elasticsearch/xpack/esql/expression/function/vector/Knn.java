@@ -93,8 +93,7 @@ public class Knn extends SingleFieldFullTextFunction
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Knn.class)
         .ternaryConfig(Knn::new)
         // Snapshot-only, matching the pragma that enables KNN's runtime search in the first place.
-        .snapshotCapabilities("runtime_anywhere")
-        .snapshotCapabilities("runtime_similarity_function")
+        .snapshotCapabilities("runtime_anywhere", "runtime_similarity_function")
         .name("knn");
 
     private final Integer implicitK;

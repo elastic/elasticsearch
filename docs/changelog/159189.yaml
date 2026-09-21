@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 158821
+pr: 159189
+summary: Refactor aggs input
+type: bug

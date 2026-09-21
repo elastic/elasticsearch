@@ -34,10 +34,6 @@ import java.util.function.BooleanSupplier;
  *        Parquet footer reads) aborts promptly when the originating query is cancelled. Defaults to
  *        {@code () -> false} ("never cancelled") for callers and SPI impls that do not carry a
  *        {@code CancellableTask}.
- * @param datasetName the dataset identity used as the per-file {@code _index} constant during
- *        discovery filter evaluation. {@code FileSplitProvider} overlays it onto a discovery-only
- *        value map; other {@link SplitProvider}s ignore it. {@code null} when the query has no
- *        dataset identity (bare-glob {@code FROM}, {@code EXTERNAL}).
  * @param metadataColumnNames names bound to engine-generated metadata in the resolved output,
  *        not data columns that happen to share a metadata name. This binding is relation-wide
  *        and must not be reinterpreted based on each file's physical schema.
@@ -57,7 +53,6 @@ public record SplitDiscoveryContext(
     // declared overlay a stats boundary — rekey physical->logical + poison retyped columns' footer stats. NONE when the
     // dataset carries no declared mapping (every current SplitProvider but FileSplitProvider ignores it).
     DeclaredReadSpec declaredReadSpec,
-    @Nullable String datasetName,
     Set<String> metadataColumnNames
 ) {
     public SplitDiscoveryContext(
@@ -78,8 +73,7 @@ public record SplitDiscoveryContext(
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            DeclaredReadSpec.NONE,
-            null
+            DeclaredReadSpec.NONE
         );
     }
 
@@ -102,8 +96,7 @@ public record SplitDiscoveryContext(
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            DeclaredReadSpec.NONE,
-            null
+            DeclaredReadSpec.NONE
         );
     }
 
@@ -114,10 +107,9 @@ public record SplitDiscoveryContext(
         Map<String, Object> config,
         PartitionMetadata partitionInfo,
         List<Expression> filterHints,
-        ExternalSchema querySchema,
-        @Nullable String datasetName
+        ExternalSchema querySchema
     ) {
-        this(metadata, fileList, schemaMap, config, partitionInfo, filterHints, querySchema, datasetName, Set.of());
+        this(metadata, fileList, schemaMap, config, partitionInfo, filterHints, querySchema, Set.of());
     }
 
     /**
@@ -131,7 +123,6 @@ public record SplitDiscoveryContext(
         PartitionMetadata partitionInfo,
         List<Expression> filterHints,
         ExternalSchema querySchema,
-        @Nullable String datasetName,
         Set<String> metadataColumnNames
     ) {
         this(
@@ -146,7 +137,6 @@ public record SplitDiscoveryContext(
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
             DeclaredReadSpec.NONE,
-            datasetName,
             metadataColumnNames
         );
     }
@@ -165,8 +155,7 @@ public record SplitDiscoveryContext(
         @Nullable ExternalSchema unifiedSchema,
         int maxRecordBytes,
         BooleanSupplier isCancelled,
-        DeclaredReadSpec declaredReadSpec,
-        @Nullable String datasetName
+        DeclaredReadSpec declaredReadSpec
     ) {
         this(
             metadata,
@@ -180,7 +169,6 @@ public record SplitDiscoveryContext(
             maxRecordBytes,
             isCancelled,
             declaredReadSpec,
-            datasetName,
             Set.of()
         );
     }

@@ -7,12 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -227,8 +225,8 @@ public class FileSplitProvider implements SplitProvider {
      * zstd-indexed frame groups). Text readers anchor {@code _rowPosition} as
      * {@code splitStartByte + decompressed-bytes-consumed}; a compressed anchor plus a
      * decompressed delta is a value on no axis — not split-invariant and collision-prone across
-     * splits — so the dispatcher must not compose {@code _id} from these splits (it null-splices
-     * the {@code _rowPosition} slot instead).
+     * splits — so the dispatcher must not surface {@code _file.record_ref} from these splits (it
+     * null-splices the {@code _rowPosition} slot instead).
      */
     static final String COMPRESSED_OFFSET_SPLIT_KEY = "_compressed_offset_split";
 
@@ -582,7 +580,7 @@ public class FileSplitProvider implements SplitProvider {
 
             if (filterHints.isEmpty() == false) {
                 Map<String, Object> filterValues = overlayPerFileConstants
-                    ? discoveryFilterValues(partitionValues, context.datasetName(), fileList, i, metadataColumnNames)
+                    ? discoveryFilterValues(partitionValues, metadataColumnNames)
                     : partitionValues;
                 if (filterValues.isEmpty() == false && matchesPartitionFilters(filterValues, filterHints) == false) {
                     certifiedSkips++;
@@ -592,7 +590,10 @@ public class FileSplitProvider implements SplitProvider {
                     Set<String> fileColumnNames = new LinkedHashSet<>(fileSchemaInfo.fileSchema().names());
                     fileColumnNames.addAll(filterValues.keySet());
                     fileColumnNames.addAll(metadataColumnNames);
-                    addPerRowComposedColumnNames(fileColumnNames);
+                    // _file.record_ref is composed per row, so it is present on every file whatever the
+                    // file schema lists. The standard names are per-file constants and reach
+                    // fileColumnNames through filterValues above, when bound as metadata.
+                    fileColumnNames.add(FileMetadataColumns.RECORD_REF);
                     if (skipIfFilterOnMissingColumns(filterHints, fileColumnNames)) {
                         certifiedSkips++;
                         continue;
@@ -2856,22 +2857,15 @@ public class FileSplitProvider implements SplitProvider {
 
     /**
      * Hive partitions and {@code _file.*} listing values plus the engine-materialised per-file
-     * constants ({@code _index}, {@code _version}, and the all-null standard names). Used only for
-     * discovery filter evaluation; the {@link FileTask} carries hive + {@code _file.*} only.
+     * constants (the all-null standard names). Used only for discovery filter evaluation; the
+     * {@link FileTask} carries hive + {@code _file.*} only.
      * Only names bound as metadata in the relation's output receive constants, matching the
      * reader. Data columns retain their physical values or missing-column null-fill.
      */
-    private static Map<String, Object> discoveryFilterValues(
-        Map<String, Object> partitionValues,
-        @Nullable String datasetName,
-        FileList fileList,
-        int index,
-        Set<String> metadataColumnNames
-    ) {
+    private static Map<String, Object> discoveryFilterValues(Map<String, Object> partitionValues, Set<String> metadataColumnNames) {
         Map<String, Object> filterValues = new HashMap<>(partitionValues.size() + ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.size());
         filterValues.putAll(partitionValues);
-        for (Map.Entry<String, Object> constant : ExternalMetadataColumns.extractPerFileConstants(datasetName, fileList, index)
-            .entrySet()) {
+        for (Map.Entry<String, Object> constant : ExternalMetadataColumns.extractPerFileConstants().entrySet()) {
             if (metadataColumnNames.contains(constant.getKey())) {
                 filterValues.put(constant.getKey(), constant.getValue());
             }
@@ -2890,17 +2884,6 @@ public class FileSplitProvider implements SplitProvider {
             }
         }
         return false;
-    }
-
-    /**
-     * Per-row names have no constant for {@link #matchesPartitionFilters}. Conservatively leave
-     * their predicates to the reader: {@code _file.record_ref} can be materialized by name even
-     * when its output attribute is data-bound, so physical absence alone cannot certify a skip.
-     */
-    private static void addPerRowComposedColumnNames(Set<String> fileColumnNames) {
-        fileColumnNames.add(FileMetadataColumns.RECORD_REF);
-        fileColumnNames.add(ExternalMetadataColumns.ID);
-        fileColumnNames.add(ExternalMetadataColumns.SOURCE);
     }
 
     /**
@@ -2979,15 +2962,35 @@ public class FileSplitProvider implements SplitProvider {
 
     static Boolean evaluateFilter(Expression filter, Map<String, Object> partitionValues) {
         return switch (filter) {
-            case Equals eq -> evaluateComparison(eq.left(), eq.right(), partitionValues, FileSplitProvider::compareEquals);
+            case Equals eq -> evaluateComparison(eq.left(), eq.right(), partitionValues, PartitionValueMatcher::compareEquals);
             case NotEquals neq -> {
-                Boolean result = evaluateComparison(neq.left(), neq.right(), partitionValues, FileSplitProvider::compareEquals);
+                Boolean result = evaluateComparison(neq.left(), neq.right(), partitionValues, PartitionValueMatcher::compareEquals);
                 yield result != null ? result == false : null;
             }
-            case GreaterThanOrEqual gte -> evaluateComparison(gte.left(), gte.right(), partitionValues, (a, b) -> compareValues(a, b) >= 0);
-            case GreaterThan gt -> evaluateComparison(gt.left(), gt.right(), partitionValues, (a, b) -> compareValues(a, b) > 0);
-            case LessThanOrEqual lte -> evaluateComparison(lte.left(), lte.right(), partitionValues, (a, b) -> compareValues(a, b) <= 0);
-            case LessThan lt -> evaluateComparison(lt.left(), lt.right(), partitionValues, (a, b) -> compareValues(a, b) < 0);
+            case GreaterThanOrEqual gte -> evaluateComparison(
+                gte.left(),
+                gte.right(),
+                partitionValues,
+                (a, b) -> PartitionValueMatcher.compareValues(a, b) >= 0
+            );
+            case GreaterThan gt -> evaluateComparison(
+                gt.left(),
+                gt.right(),
+                partitionValues,
+                (a, b) -> PartitionValueMatcher.compareValues(a, b) > 0
+            );
+            case LessThanOrEqual lte -> evaluateComparison(
+                lte.left(),
+                lte.right(),
+                partitionValues,
+                (a, b) -> PartitionValueMatcher.compareValues(a, b) <= 0
+            );
+            case LessThan lt -> evaluateComparison(
+                lt.left(),
+                lt.right(),
+                partitionValues,
+                (a, b) -> PartitionValueMatcher.compareValues(a, b) < 0
+            );
             case In in -> {
                 String columnName = extractColumnName(in.value());
                 if (columnName == null || partitionValues.containsKey(columnName) == false) {
@@ -3000,7 +3003,7 @@ public class FileSplitProvider implements SplitProvider {
                 Boolean found = false;
                 for (Expression listItem : in.list()) {
                     if (listItem instanceof Literal lit) {
-                        if (compareEquals(partitionValue, lit.value())) {
+                        if (PartitionValueMatcher.compareEquals(partitionValue, lit.value())) {
                             found = true;
                             break;
                         }
@@ -3097,85 +3100,4 @@ public class FileSplitProvider implements SplitProvider {
         };
     }
 
-    /**
-     * String form of a partition value or filter literal. Keyword partition values arrive as Java {@code String}
-     * (from {@code HivePartitionDetector.castValue}) while an ES|QL keyword literal is a Lucene {@code BytesRef}
-     * whose {@code toString()} is a hex dump — so a raw {@code toString()} comparison of the two never matches.
-     * {@link BytesRefs#toString(Object)} UTF8-decodes a {@code BytesRef} and falls back to {@code toString()}
-     * otherwise, so both sides normalize to the same text before any string compare or numeric parse.
-     */
-    private static String stringOf(Object value) {
-        return BytesRefs.toString(value);
-    }
-
-    private static boolean compareEquals(Object a, Object b) {
-        if (a == null || b == null) {
-            return false;
-        }
-        if (a instanceof Number na && b instanceof Number nb) {
-            return compareNumbers(na, nb) == 0;
-        }
-        return stringOf(a).equals(stringOf(b));
-    }
-
-    private static int compareValues(Object a, Object b) {
-        if (a == null || b == null) {
-            throw new IllegalArgumentException("Cannot compare null partition values");
-        }
-        if (a instanceof Number na && b instanceof Number nb) {
-            return compareNumbers(na, nb);
-        }
-        // Coerce mixed Number/text cases: a partition value may be stored as "2024" (String) while the literal from
-        // the filter is Integer 2024, or vice versa. Only when exactly one side is already a Number — two text values
-        // are compared as text, so a KEYWORD partition never has "0123" and "123" collapse into the same value.
-        if (a instanceof Number na) {
-            Number nb = parseNumber(stringOf(b));
-            return nb != null ? compareNumbers(na, nb) : keywordCompare(a, b);
-        }
-        if (b instanceof Number nb) {
-            Number na = parseNumber(stringOf(a));
-            return na != null ? compareNumbers(na, nb) : keywordCompare(a, b);
-        }
-        return keywordCompare(a, b);
-    }
-
-    /**
-     * Orders two numeric values. Integral types are compared as {@code long}, never as {@code double}: above
-     * 2^53 a {@code double} cannot separate adjacent longs, so an epoch-micros or snowflake-id partition value
-     * would compare <em>equal</em> to its neighbour. That is not a rounding nit — it makes the matcher return a
-     * confident {@code false} for {@code ts != <adjacent>} and prune a file whose every row matches the filter.
-     */
-    private static int compareNumbers(Number a, Number b) {
-        if (isIntegral(a) && isIntegral(b)) {
-            return Long.compare(a.longValue(), b.longValue());
-        }
-        return Double.compare(a.doubleValue(), b.doubleValue());
-    }
-
-    private static boolean isIntegral(Number n) {
-        return n instanceof Long || n instanceof Integer || n instanceof Short || n instanceof Byte;
-    }
-
-    /** The text parsed as a number, or {@code null} if it is not numeric. */
-    private static Number parseNumber(String text) {
-        try {
-            return Long.valueOf(text);
-        } catch (NumberFormatException notALong) {
-            try {
-                return Double.valueOf(text);
-            } catch (NumberFormatException notANumber) {
-                return null;
-            }
-        }
-    }
-
-    /**
-     * Orders two non-numeric values the way ES|QL orders keywords: by UTF-8 bytes, which is code-point order.
-     * {@link String#compareTo} would order by UTF-16 code units instead, and the two disagree whenever one side is a
-     * supplementary-plane character (a folder named {@code region=<emoji>}) and the other sits in {@code U+E000..U+FFFF}
-     * — the surrogate compares low, the engine compares it high, and a range predicate would prune a matching file.
-     */
-    private static int keywordCompare(Object a, Object b) {
-        return new BytesRef(stringOf(a)).compareTo(new BytesRef(stringOf(b)));
-    }
 }

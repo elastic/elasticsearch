@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -1720,7 +1721,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolver.isAnchorPinnedFirstFileWins(
                 GLOB,
                 ffw,
-                DeclaredReadSpec.of(Map.of(), null, Map.of(), Set.of(), SchemaProvenance.DECLARED)
+                DeclaredReadSpec.of(Map.of(), Map.of(), Set.of(), SchemaProvenance.DECLARED)
             )
         );
     }
@@ -1743,13 +1744,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
     public void testPinnedColumnsOfUnknownFirstFileWinsUsesPhysicalNamesAfterRename() {
         ExternalSchema overlaid = new ExternalSchema(List.of(attr("y", DataType.INTEGER)));
         SchemaReconciliation.FileSchemaInfo unknown = new SchemaReconciliation.FileSchemaInfo(overlaid, null, null);
-        DeclaredReadSpec renamed = DeclaredReadSpec.of(Map.of("y", "x"), null, Map.of(), Set.of(), SchemaProvenance.INFERRED);
+        DeclaredReadSpec renamed = DeclaredReadSpec.of(Map.of("y", "x"), Map.of(), Set.of(), SchemaProvenance.INFERRED);
         assertEquals(Set.of("x"), ExternalSourceResolver.pinnedColumnsOf(unknown, true, renamed));
     }
 
     public void testPinnedColumnsOfKnownTypesUsesPhysicalNamesAfterRename() {
         ExternalSchema overlaid = new ExternalSchema(List.of(attr("y", DataType.INTEGER)));
-        DeclaredReadSpec renamed = DeclaredReadSpec.of(Map.of("y", "x"), null, Map.of(), Set.of("y"));
+        DeclaredReadSpec renamed = DeclaredReadSpec.of(Map.of("y", "x"), Map.of(), Set.of("y"));
         SchemaReconciliation.FileSchemaInfo pinned = new SchemaReconciliation.FileSchemaInfo(
             overlaid,
             null,
@@ -6302,6 +6303,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     private static class StubStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         private final Map<String, List<StorageEntry>> listingsByPrefix;
         private final Map<String, List<Attribute>> schemasByPath;
         // Non-null only when the wrapping provider wants to count metadata probes: it is passed to every
@@ -6438,6 +6444,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * to verify that the cache eliminates redundant loader invocations.
      */
     private static class CountingStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         final AtomicInteger listCallCount = new AtomicInteger();
         final AtomicInteger schemaCallCount = new AtomicInteger();
         // Counts the single-file metadata probe. Incremented by the object's lastModified() (the one caller
@@ -6498,6 +6509,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * conditions that caused #147371 (GCS/Azure fixtures, gRPC/Flight).
      */
     private static class NullMtimeStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         private final StubStorageProvider delegate;
 
         NullMtimeStorageProvider(Map<String, List<Attribute>> schemasByPath) {

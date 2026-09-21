@@ -92,6 +92,8 @@ public class RestCatRecoveryAction extends AbstractCatAction {
             .addCell("stage", "alias:st;desc:recovery stage")
             .addCell("local_retries", "alias:lr;desc:count of locally-retryable recovery failures on data node")
             .addCell("priority", "alias:pr;desc:recovery priority")
+            .addCell("gate", "alias:g;desc:recovery gate blocking this recovery")
+            .addCell("blocked_for_millis", "alias:bf;desc:time recovery has been blocked by recovery gates in milliseconds")
             .addCell("source_host", "alias:shost;desc:source host")
             .addCell("source_node", "alias:snode;desc:source node name")
             .addCell("target_host", "alias:thost;desc:target host")
@@ -150,6 +152,9 @@ public class RestCatRecoveryAction extends AbstractCatAction {
                 t.addCell(state.getStage().toString().toLowerCase(Locale.ROOT));
                 t.addCell(state.getLocalRetries());
                 t.addCell(state.getRecoveryPriority().toString().toLowerCase(Locale.ROOT));
+                final String gate = recoveryInfo.blockedByGate();
+                t.addCell(gate == null ? "n/a" : gate);
+                t.addCell(gate == null ? "n/a" : recoveryInfo.blockedForMillis());
                 t.addCell(state.getSourceNode() == null ? "n/a" : state.getSourceNode().getHostName());
                 t.addCell(state.getSourceNode() == null ? "n/a" : state.getSourceNode().getName());
                 t.addCell(state.getTargetNode().getHostName());

@@ -845,8 +845,14 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             // it once the file is closed. When fully decRefed, the BCC term/gen is removed from the set of used generations.
             if (incomingGenerationalFilesTermAndGens.isEmpty() == false) {
                 final List<Releasable> releasables = new ArrayList<>(incomingGenerationalFilesTermAndGens.size());
-                for (final var termAndGen : incomingGenerationalFilesTermAndGens) {
-                    releasables.add(addGenerationalFileTermAndGeneration(termAndGen));
+                try {
+                    for (final var termAndGen : incomingGenerationalFilesTermAndGens) {
+                        releasables.add(addGenerationalFileTermAndGeneration(termAndGen));
+                    }
+                } catch (Exception e) {
+                    // release any pin acquired so far to avoid leaking BCC references if acquiring a later one fails
+                    Releasables.close(releasables);
+                    throw e;
                 }
                 // use releaseOnce to decRef only once, either on commit update or directory close
                 this.lastAcquiredGenerationalFilesTermAndGen = Releasables.releaseOnce(Releasables.wrap(releasables));

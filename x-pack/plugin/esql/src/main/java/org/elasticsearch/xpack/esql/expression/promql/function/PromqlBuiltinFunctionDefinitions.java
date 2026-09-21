@@ -360,7 +360,7 @@ public class PromqlBuiltinFunctionDefinitions {
             Expression filter = Literal.TRUE.equals(instantLast.filter())
                 ? metricPresent
                 : new And(source, instantLast.filter(), metricPresent);
-            return new LastOverTime(source, instantLast.timestamp(), filter, instantLast.window(), instantLast.timestamp());
+            return new LastOverTime(source, instantLast.timestamp(), instantLast.timestamp(), filter, instantLast.window());
         }
         if (isDateTime(target.dataType()) || isDateNanos(target.dataType())) {
             return target;

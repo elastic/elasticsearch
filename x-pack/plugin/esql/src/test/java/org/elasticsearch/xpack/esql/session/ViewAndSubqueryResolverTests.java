@@ -775,7 +775,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
 
     private ViewResolver.ViewResolutionResult resolve(String query) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(query(query), null, this::parse, future.delegateFailureAndWrap((l, viewResult) -> {
+        viewResolver.replaceViews(query(query), null, true, this::parse, future.delegateFailureAndWrap((l, viewResult) -> {
             // Validate: no InSubquery expressions should survive view+subquery resolution.
             InSubqueryResolver.verify(viewResult.plan());
             l.onResponse(viewResult);

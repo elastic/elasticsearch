@@ -14,7 +14,6 @@ import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
-import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -159,7 +158,7 @@ public class ParquetReadBenchmark {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         SimpleGroupFactory factory = new SimpleGroupFactory(schema);
         try (
-            ParquetWriter<Group> writer = ExampleParquetWriter.builder(byteArrayOutputFile(out))
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(DatasourceBenchmarks.byteArrayOutputFile(out))
                 .withConf(new PlainParquetConfiguration())
                 .withType(schema)
                 .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
@@ -178,51 +177,4 @@ public class ParquetReadBenchmark {
     }
 
     /** Package-private so the filter-pushdown benchmark beside this one can build its own fixture. */
-    static OutputFile byteArrayOutputFile(ByteArrayOutputStream out) {
-        return new OutputFile() {
-            @Override
-            public PositionOutputStream create(long blockSizeHint) {
-                return new PositionOutputStream() {
-                    private long position = 0;
-
-                    @Override
-                    public long getPos() {
-                        return position;
-                    }
-
-                    @Override
-                    public void write(int b) {
-                        out.write(b);
-                        position++;
-                    }
-
-                    @Override
-                    public void write(byte[] b, int off, int len) {
-                        out.write(b, off, len);
-                        position += len;
-                    }
-                };
-            }
-
-            @Override
-            public PositionOutputStream createOrOverwrite(long blockSizeHint) {
-                return create(blockSizeHint);
-            }
-
-            @Override
-            public boolean supportsBlockSize() {
-                return false;
-            }
-
-            @Override
-            public long defaultBlockSize() {
-                return 0;
-            }
-
-            @Override
-            public String getPath() {
-                return "memory://bench.parquet";
-            }
-        };
-    }
 }

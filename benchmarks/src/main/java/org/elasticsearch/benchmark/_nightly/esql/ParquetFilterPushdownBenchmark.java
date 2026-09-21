@@ -17,6 +17,7 @@ import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
@@ -88,14 +89,23 @@ import java.util.concurrent.TimeUnit;
  * anything.
  */
 @Fork(2)
-@Warmup(iterations = 5, time = 1)
-@Measurement(iterations = 8, time = 1)
+@Warmup(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
+@Measurement(iterations = 8, time = 1, timeUnit = TimeUnit.SECONDS)
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Thread)
 public class ParquetFilterPushdownBenchmark {
 
     private static final int ROWS = 200_000;
+
+    static {
+        if (false == "true".equals(System.getProperty("skipSelfTest"))) {
+            selfTest();
+        }
+    }
+
+    /** {@link #ROWS} when measured; the self-test shrinks it to keep the per-PR smoke test fast. */
+    int rows = ROWS;
     /** Small enough that the fixture holds many row groups, so there is something to skip. */
     private static final int ROW_GROUP_BYTES = 64 * 1024;
 
@@ -156,14 +166,14 @@ public class ParquetFilterPushdownBenchmark {
                 projectedColumns.add("c" + c);
             }
         }
-        byte[] bytes = fixture("clustered".equals(clustering));
+        byte[] bytes = fixture("clustered".equals(clustering), rows);
         fixtureBytes = bytes.length;
         storageObject = DatasourceBenchmarks.inMemoryStorageObject(bytes, "memory://filter-bench.parquet");
 
         // A window anchored at the first timestamp in the fixture, covering the leading share of the range.
         long windowRows = switch (selectivity) {
-            case "1pct" -> ROWS / 100L;
-            case "10pct" -> ROWS / 10L;
+            case "1pct" -> rows / 100L;
+            case "10pct" -> rows / 10L;
             default -> throw new IllegalArgumentException("unknown selectivity: " + selectivity);
         };
         long from = EPOCH_BASE_MILLIS;
@@ -227,6 +237,62 @@ public class ParquetFilterPushdownBenchmark {
             }
             retainedFilter = EvalMapper.toEvaluator(FoldContext.small(), predicate, layout.build()).get(driverContext);
         }
+    }
+
+    /**
+     * Runs every parameter combination on a small fixture and checks the rows that survive the filter against a count
+     * computed from the fixture's own definition — never from the reader or the evaluator under test. The headline
+     * figure here depends on how many rows a filter keeps, so a filter that silently keeps everything or nothing would
+     * otherwise read as a result.
+     */
+    static void selfTest() {
+        for (String filterMode : Utils.possibleValues(ParquetFilterPushdownBenchmark.class, "filterMode")) {
+            for (String selectivity : Utils.possibleValues(ParquetFilterPushdownBenchmark.class, "selectivity")) {
+                for (String clustering : Utils.possibleValues(ParquetFilterPushdownBenchmark.class, "clustering")) {
+                    for (String projection : Utils.possibleValues(ParquetFilterPushdownBenchmark.class, "projection")) {
+                        ParquetFilterPushdownBenchmark bench = new ParquetFilterPushdownBenchmark();
+                        bench.rows = DatasourceBenchmarks.SELF_TEST_ROW_COUNT;
+                        bench.filterMode = filterMode;
+                        bench.selectivity = selectivity;
+                        bench.clustering = clustering;
+                        bench.projection = projection;
+                        String cell = filterMode + "/" + selectivity + "/" + clustering + "/" + projection;
+                        try {
+                            bench.setup();
+                            int actual = bench.filteredScan(new ReadMetrics());
+                            int expected = expectedSurvivors(filterMode, "1pct".equals(selectivity) ? bench.rows / 100 : bench.rows / 10, bench.rows);
+                            if (actual != expected) {
+                                throw new AssertionError("ParquetFilterPushdownBenchmark[" + cell + "] kept " + actual + " rows, expected " + expected);
+                            }
+                        } catch (IOException e) {
+                            throw new AssertionError("ParquetFilterPushdownBenchmark[" + cell + "] failed", e);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** The rows each filter keeps, from the tick every column is derived from. Row order does not enter into it. */
+    private static int expectedSurvivors(String filterMode, int windowRows, int rows) {
+        int n = 0;
+        for (int t = 0; t < rows; t++) {
+            boolean inWindow = t <= windowRows;
+            boolean keep = switch (filterMode) {
+                case "none" -> true;
+                case "scalarRange", "mvInRange" -> inWindow;
+                case "timeAndTerm" -> inWindow && t % SERVICES.length == 0;
+                case "timeAndTerms" -> inWindow && (t % SERVICES.length == 0 || t % SERVICES.length == 1);
+                case "timeAndNotTerm" -> inWindow && t % SERVICES.length != 0;
+                case "timeAndExists" -> inWindow && t % 2 == 0;
+                case "timeAndNumericRange" -> inWindow && t % 1000 <= 500;
+                default -> throw new IllegalArgumentException("unknown filterMode: " + filterMode);
+            };
+            if (keep) {
+                n++;
+            }
+        }
+        return n;
     }
 
     @Benchmark
@@ -325,18 +391,18 @@ public class ParquetFilterPushdownBenchmark {
      * time range alone; a filter on those columns can only be answered row by row, which is the case the row-level
      * mask exists for.
      */
-    private static int[] ticks(boolean clustered) {
-        int[] ticks = new int[ROWS];
-        for (int i = 0; i < ROWS; i++) {
+    private static int[] ticks(boolean clustered, int rows) {
+        int[] ticks = new int[rows];
+        for (int i = 0; i < rows; i++) {
             ticks[i] = i;
         }
         if (clustered == false) {
-            // A seeded Fisher-Yates shuffle. An earlier version multiplied by a constant modulo ROWS, which is a
+            // A seeded Fisher-Yates shuffle. An earlier version multiplied by a constant modulo the row count, which is a
             // bijection but keeps neighbouring rows a fixed step apart, so every page still held a narrow run of
             // timestamps and the page index pruned most of them. That hid the row-level mask behind page pruning.
             // Here every page spans the whole range, so neither row groups nor pages can be skipped.
             Random random = new Random(0x5EEDL);
-            for (int i = ROWS - 1; i > 0; i--) {
+            for (int i = rows - 1; i > 0; i--) {
                 int j = random.nextInt(i + 1);
                 int swap = ticks[i];
                 ticks[i] = ticks[j];
@@ -346,7 +412,7 @@ public class ParquetFilterPushdownBenchmark {
         return ticks;
     }
 
-    private static byte[] fixture(boolean clustered) throws IOException {
+    private static byte[] fixture(boolean clustered, int rows) throws IOException {
         StringBuilder schemaText = new StringBuilder(
             "message bench { required int64 id; required int64 ts (TIMESTAMP(MILLIS,true));"
                 + " required binary svc (UTF8); optional binary opt (UTF8); required int64 bytes;"
@@ -357,7 +423,7 @@ public class ParquetFilterPushdownBenchmark {
         MessageType schema = MessageTypeParser.parseMessageType(schemaText.append(" }").toString());
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         SimpleGroupFactory factory = new SimpleGroupFactory(schema);
-        OutputFile outputFile = ParquetReadBenchmark.byteArrayOutputFile(out);
+        OutputFile outputFile = DatasourceBenchmarks.byteArrayOutputFile(out);
         try (
             ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
                 .withConf(new PlainParquetConfiguration())
@@ -366,8 +432,8 @@ public class ParquetFilterPushdownBenchmark {
                 .withRowGroupSize(ROW_GROUP_BYTES)
                 .build()
         ) {
-            int[] ticks = ticks(clustered);
-            for (int i = 0; i < ROWS; i++) {
+            int[] ticks = ticks(clustered, rows);
+            for (int i = 0; i < rows; i++) {
                 long tick = ticks[i];
                 Group g = factory.newGroup();
                 g.add("id", (long) i);

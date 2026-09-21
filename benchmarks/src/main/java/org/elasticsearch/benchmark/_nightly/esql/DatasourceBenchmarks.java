@@ -7,12 +7,15 @@
 
 package org.elasticsearch.benchmark._nightly.esql;
 
+import org.apache.parquet.io.PositionOutputStream;
+import org.apache.parquet.io.OutputFile;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.io.ByteArrayOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -22,7 +25,7 @@ import java.time.Instant;
  * Common scaffolding shared by the format-reader JMH benchmarks
  * ({@link ParquetReadBenchmark}, {@link OrcReadBenchmark},
  * {@link NdJsonReadBenchmark}, {@link CsvReadBenchmark},
- * {@link CrossFormatReadBenchmark}). Mirrors the in-memory {@code StorageObject}
+ * {@link CrossFormatReadBenchmark}, {@link ParquetFilterPushdownBenchmark}). Mirrors the in-memory {@code StorageObject}
  * pattern that {@code ParallelParsingBenchmark} and {@code CsvErrorPolicyBenchmark}
  * use inline, extracted into one place so the datasource benches don't each carry
  * their own copy.
@@ -116,5 +119,57 @@ final class DatasourceBenchmarks {
         public StoragePath path() {
             return StoragePath.of(uri);
         }
+    }
+
+    /**
+     * An in-memory Parquet {@link OutputFile} writing into {@code out}, so a benchmark can build its fixture without
+     * touching disk.
+     */
+    static OutputFile byteArrayOutputFile(ByteArrayOutputStream out) {
+        return new OutputFile() {
+            @Override
+            public PositionOutputStream create(long blockSizeHint) {
+                return new PositionOutputStream() {
+                    private long position = 0;
+
+                    @Override
+                    public long getPos() {
+                        return position;
+                    }
+
+                    @Override
+                    public void write(int b) {
+                        out.write(b);
+                        position++;
+                    }
+
+                    @Override
+                    public void write(byte[] b, int off, int len) {
+                        out.write(b, off, len);
+                        position += len;
+                    }
+                };
+            }
+
+            @Override
+            public PositionOutputStream createOrOverwrite(long blockSizeHint) {
+                return create(blockSizeHint);
+            }
+
+            @Override
+            public boolean supportsBlockSize() {
+                return false;
+            }
+
+            @Override
+            public long defaultBlockSize() {
+                return 0;
+            }
+
+            @Override
+            public String getPath() {
+                return "memory://bench.parquet";
+            }
+        };
     }
 }

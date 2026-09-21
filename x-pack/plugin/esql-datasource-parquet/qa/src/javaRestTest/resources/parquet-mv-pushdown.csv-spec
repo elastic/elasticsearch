@@ -1,4 +1,4 @@
-// esql-planning#1344: the multivalue comparison functions push to the Parquet reader and the file
+// The multivalue comparison functions push to the Parquet reader and the file
 // matcher. Results must not change, so every shape here is written twice — once with the scalar
 // comparison, once with the multivalue form that is equivalent over a single-valued column — and the
 // two share an expected block. A pushdown that dropped or invented a row fails one of the pair.

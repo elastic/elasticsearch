@@ -295,3 +295,32 @@ emp_no:integer
 10005
 ;
 
+// The reported wrong-data shape, modelled exactly: one row, id=1, region=zoo, and a list-valued bound on a
+// lowercase keyword inside a disjunction. Expected one row back.
+
+reportedListBoundDisjunction
+required_capability: external_command
+required_capability: fn_mv_less
+dataset: repro_zoo_ds: "{{repro_zoo}}"
+
+FROM repro_zoo_ds
+| WHERE (mv_less(region, ["zzz"]) AND id >= 0::long) OR id < 0::long
+| KEEP id, region;
+
+id:long | region:keyword
+1       | "zoo"
+;
+
+reportedListBoundDisjunctionScalarTwin
+required_capability: external_command
+required_capability: fn_mv_less
+dataset: repro_zoo_scalar_ds: "{{repro_zoo}}"
+
+FROM repro_zoo_scalar_ds
+| WHERE (mv_less(region, "zzz") AND id >= 0::long) OR id < 0::long
+| KEEP id, region;
+
+id:long | region:keyword
+1       | "zoo"
+;
+

@@ -113,18 +113,42 @@ public class CacheWeightAccountingTests extends ESTestCase {
         Settings settings = Settings.builder().put("esql.external.cache.size", "2mb").build();
         try (ExternalSourceCacheService cache = new ExternalSourceCacheService(settings)) {
             long schemaBudget = (2L * 1024 * 1024) / 5;
-            int entries = 40;
-            String oneMegabyte = "x".repeat(1_000_000);
+            int entries = 20;
+            int valueChars = 1_000_000;
+            long retainedChars = 0;
             for (int i = 0; i < entries; i++) {
+                // A distinct value per entry, and a distinct minimum and maximum within each entry, so the
+                // characters really are retained rather than shared behind one reference.
+                String min = "a" + i + "-" + "x".repeat(valueChars);
+                String max = "b" + i + "-" + "y".repeat(valueChars);
+                retainedChars += min.length() + max.length();
                 SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/f" + i + ".csv", 1000L, ".csv", Map.of());
-                cache.putSchema(key, entryWithMin("s3://bucket/f" + i + ".csv", oneMegabyte));
+                Map<String, Object> meta = new LinkedHashMap<>();
+                meta.put(ExternalStats.MTIME_MILLIS_KEY, 1000L);
+                meta.put("_stats.row_count", 10L);
+                meta.put("_stats.columns.c.min", min);
+                meta.put("_stats.columns.c.max", max);
+                cache.putSchema(
+                    key,
+                    new SchemaCacheEntry(
+                        new String[] { "c" },
+                        new DataType[] { DataType.KEYWORD },
+                        new Nullability[] { Nullability.TRUE },
+                        new boolean[] { false },
+                        "csv",
+                        "s3://bucket/f" + i + ".csv",
+                        meta,
+                        Map.of(),
+                        0L,
+                        List.of()
+                    )
+                );
             }
             Map<String, Object> stats = cache.usageStats();
-            long retainedChars = (long) entries * 2 * oneMegabyte.length();
             assertThat(
                 "the stored extrema alone hold ["
                     + retainedChars
-                    + "] characters against a ["
+                    + "] distinct characters against a ["
                     + schemaBudget
                     + "] byte budget, so the cache must have evicted",
                 (Long) stats.get("schema_cache.evictions"),
@@ -204,13 +228,13 @@ public class CacheWeightAccountingTests extends ESTestCase {
         assertThat(longList.estimatedBytes(), greaterThan(shortList.estimatedBytes()));
     }
 
-    public void testListingCacheRetainsManyTimesItsBudgetInPartitionValues() throws Exception {
+    public void testListingCacheRetainsMoreThanItsBudgetInPartitionValues() throws Exception {
         Settings settings = Settings.builder().put("esql.external.cache.size", "2mb").build();
         try (ExternalSourceCacheService cache = new ExternalSourceCacheService(settings)) {
             int listings = 5;
             int filesPerListing = 4000;
             long countedTotal = 0;
-            long pathCharsHeldInPartitionKeys = 0;
+            long omittedPathKeyBytes = 0;
             for (int t = 0; t < listings; t++) {
                 List<StorageEntry> entries = hiveEntries("table" + t, filesPerListing);
                 FileList list = GlobExpander.compact(
@@ -219,7 +243,9 @@ public class CacheWeightAccountingTests extends ESTestCase {
                 );
                 countedTotal += list.estimatedBytes();
                 for (StorageEntry e : entries) {
-                    pathCharsHeldInPartitionKeys += e.path().toString().length();
+                    // The same arithmetic the three FileList implementations use for their own strings:
+                    // ~40 bytes of object overhead plus two bytes per character.
+                    omittedPathKeyBytes += 40 + e.path().toString().length() * (long) Character.BYTES;
                 }
                 ListingCacheKey key = ListingCacheKey.build("s3", "warehouse", "table" + t + "/**", Map.of(), "d" + t);
                 cache.getOrComputeListing(key, k -> list);
@@ -227,9 +253,18 @@ public class CacheWeightAccountingTests extends ESTestCase {
             Map<String, Object> stats = cache.usageStats();
             long listingBudget = (2L * 1024 * 1024) - (2L * 1024 * 1024) / 5 - (2L * 1024 * 1024) / 50;
             assertThat(
-                "the partition maps alone hold ["
-                    + pathCharsHeldInPartitionKeys
-                    + "] path characters against a ["
+                "the path strings inside the partition maps come to ["
+                    + omittedPathKeyBytes
+                    + "] bytes on the listing weigher's own arithmetic, more than the ["
+                    + listingBudget
+                    + "] byte budget on their own",
+                omittedPathKeyBytes,
+                greaterThan(listingBudget)
+            );
+            assertThat(
+                "the partition maps' path strings alone come to ["
+                    + omittedPathKeyBytes
+                    + "] bytes against a ["
                     + listingBudget
                     + "] byte budget, of which the cache charged ["
                     + countedTotal

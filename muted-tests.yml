@@ -849,3 +849,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
   method: testPreferredNodeIdsAreUsedDuringRelocation
   issue: https://github.com/elastic/elasticsearch/issues/159502
+- class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
+  method: testVirtualBatchedCompoundCommitUploadMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/159904

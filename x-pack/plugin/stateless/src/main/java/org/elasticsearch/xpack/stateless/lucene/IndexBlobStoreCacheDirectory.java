@@ -14,9 +14,11 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.CachePopulationSource;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
@@ -139,6 +141,22 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
         };
     }
 
+    /**
+     * Creates a directory clone used exclusively for BCC chain-walk reads during recovery.
+     * <p>
+     * Two things differ from the warming clone returned by {@link #createNewBlobStoreCacheDirectoryForWarming()}:
+     * <ol>
+     *   <li>Cache fills are labelled {@link BlobCacheMetrics.CachePopulationReason#BccChainWalk} so they are
+     *       distinguishable from prewarm fills in population metrics (Row 3: chain walk filled itself).</li>
+     *   <li>The {@link SharedBlobCacheService.CacheMissHandler} additionally emits wait-time directly to APM
+     *       via {@link BlobCacheMetrics#recordCacheWait}, covering both Row 2 (chain walk blocked behind
+     *       prewarm) and Row 3 (chain walk was the filler and blocked until its own download finished).</li>
+     * </ol>
+     * The byte counter stays {@code totalBytesWarmedFromObjectStore}, consistent with the contract of
+     * {@link BlobStoreCacheDirectory#createNewBlobStoreCacheDirectoryForWarming()}.
+     * Each call returns a fresh instance; {@link #createPerBccMetadataReadDirectory()} delegates here so
+     * that each blob in the fan-out gets its own instance (concurrent {@code updateMetadata} requires this).
+     */
     public IndexBlobStoreCacheDirectory createBccChainWalkDirectory() {
         logger.log(Level.INFO, "MPIKA EDO: createBccChainWalkDirectory");
         return new IndexBlobStoreCacheDirectory(
@@ -165,6 +183,38 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
             public IndexBlobStoreCacheDirectory createPerBccMetadataReadDirectory() {
                 logger.log(Level.INFO, "MPIKA EDO: createBccChainWalkDirectory.createPerBccMetadataReadDirectory");
                 return IndexBlobStoreCacheDirectory.this.createBccChainWalkDirectory();
+            }
+
+            @Override
+            protected SharedBlobCacheService.CacheMissHandler createCacheMissHandler() {
+                logger.log(Level.INFO, "MPIKA EDO: BccChainWalk CacheMissHandler.createCacheMissHandler");
+
+                var delegate = super.createCacheMissHandler();
+                return new SharedBlobCacheService.CacheMissHandler() {
+                    @Override
+                    public Releasable record(long bytes) {
+                        logger.log(Level.INFO, "MPIKA EDO: BccChainWalk CacheMissHandler.record bytes=[{}]", bytes);
+                        long start = System.nanoTime();
+                        Releasable inner = delegate.record(bytes);
+                        return () -> {
+                            inner.close();
+                            long waitNanos = System.nanoTime() - start;
+                            logger.log(
+                                Level.INFO,
+                                "MPIKA EDO: BccChainWalk CacheMissHandler.close bytes=[{}] waitMs=[{}]",
+                                bytes,
+                                waitNanos / 1_000_000
+                            );
+                            getCacheService().getBlobCacheMetrics()
+                                .recordCacheWait(BlobCacheMetrics.CachePopulationReason.BccChainWalk, bytes, waitNanos);
+                        };
+                    }
+
+                    @Override
+                    public SharedBlobCacheService.CacheMissHandler copy() {
+                        return createCacheMissHandler();
+                    }
+                };
             }
         };
     }

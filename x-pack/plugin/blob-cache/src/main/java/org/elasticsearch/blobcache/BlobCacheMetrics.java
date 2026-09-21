@@ -45,6 +45,9 @@ public class BlobCacheMetrics {
     public static final String EVICTION_SCAN_OUTCOME_ATTRIBUTE_KEY = "es_eviction_scan_outcome";
     public static final String BLOB_CACHE_LOCK_ACQUIRE_TIME = "es.blob_cache.lock_acquire_time.histogram";
     public static final String LOCK_ACQUIRE_SITE_ATTRIBUTE_KEY = "es_lock_acquire_site";
+    public static final String BLOB_CACHE_WAIT_TIME_TOTAL = "es.blob_cache.wait.time.total";
+    public static final String BLOB_CACHE_WAIT_BYTES_TOTAL = "es.blob_cache.wait.bytes.total";
+    public static final String BLOB_CACHE_WAIT_TOTAL = "es.blob_cache.wait.total";
 
     private final LongCounter cacheMissCounter;
     private final LongCounter evictedCountNonZeroFrequency;
@@ -58,6 +61,9 @@ public class BlobCacheMetrics {
     private final DoubleHistogram evictionScanTime;
     private final LongHistogram evictionScannedEntries;
     private final DoubleHistogram lockAcquireTime;
+    private final LongCounter cacheWaitTime;
+    private final LongCounter cacheWaitBytes;
+    private final LongCounter cacheWaitCount;
 
     private final LongAdder missCount = new LongAdder();
     private final LongAdder readCount = new LongAdder();
@@ -213,6 +219,21 @@ public class BlobCacheMetrics {
                     + LOCK_ACQUIRE_SITE_ATTRIBUTE_KEY
                     + "]",
                 "microseconds"
+            ),
+            meterRegistry.registerLongCounter(
+                BLOB_CACHE_WAIT_TIME_TOTAL,
+                "The total time in milliseconds the BCC chain walk spent blocked waiting for cache regions to be populated",
+                "milliseconds"
+            ),
+            meterRegistry.registerLongCounter(
+                BLOB_CACHE_WAIT_BYTES_TOTAL,
+                "The total bytes waited for by the BCC chain walk while a cache region was being populated",
+                "bytes"
+            ),
+            meterRegistry.registerLongCounter(
+                BLOB_CACHE_WAIT_TOTAL,
+                "The total number of times the BCC chain walk blocked waiting for a cache region to be populated",
+                "count"
             )
         );
 
@@ -256,7 +277,10 @@ public class BlobCacheMetrics {
         LongCounter prefetchCounter,
         DoubleHistogram evictionScanTime,
         LongHistogram evictionScannedEntries,
-        DoubleHistogram lockAcquireTime
+        DoubleHistogram lockAcquireTime,
+        LongCounter cacheWaitTime,
+        LongCounter cacheWaitBytes,
+        LongCounter cacheWaitCount
     ) {
         this.cacheMissCounter = cacheMissCounter;
         this.evictedCountNonZeroFrequency = evictedCountNonZeroFrequency;
@@ -272,6 +296,9 @@ public class BlobCacheMetrics {
         this.evictionScanTime = evictionScanTime;
         this.evictionScannedEntries = evictionScannedEntries;
         this.lockAcquireTime = lockAcquireTime;
+        this.cacheWaitTime = cacheWaitTime;
+        this.cacheWaitBytes = cacheWaitBytes;
+        this.cacheWaitCount = cacheWaitCount;
     }
 
     public static final BlobCacheMetrics NOOP = new BlobCacheMetrics(TelemetryProvider.NOOP.getMeterRegistry());
@@ -335,6 +362,27 @@ public class BlobCacheMetrics {
         } else {
             logger.warn("Zero-time copy being reported, ignoring");
         }
+    }
+
+    /**
+     * Record that the BCC chain walk blocked waiting for a cache region to be populated.
+     * Fires for both Row 2 (waited for prewarm) and Row 3 (walk fetched itself).
+     *
+     * @param reason   the population reason (always {@link CachePopulationReason#BccChainWalk})
+     * @param bytes    number of bytes that were absent when the walk arrived
+     * @param waitNanos wall-clock nanoseconds the chain-walk thread was blocked
+     */
+    public void recordCacheWait(CachePopulationReason reason, long bytes, long waitNanos) {
+        String executorName = EsExecutors.executorName(Thread.currentThread());
+        Map<String, Object> attributes = Map.of(
+            CACHE_POPULATION_REASON_ATTRIBUTE_KEY,
+            reason.name(),
+            ES_EXECUTOR_ATTRIBUTE_KEY,
+            executorName != null ? executorName : NON_ES_EXECUTOR_TO_RECORD
+        );
+        cacheWaitCount.incrementBy(1L, attributes);
+        cacheWaitBytes.incrementBy(bytes, attributes);
+        cacheWaitTime.incrementBy(TimeUnit.NANOSECONDS.toMillis(waitNanos), attributes);
     }
 
     public void recordEpochChange() {

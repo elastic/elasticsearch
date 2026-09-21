@@ -854,7 +854,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(putUserManagedServiceAccountRequest).build();
                 } else if (msg instanceof DeleteUserManagedServiceAccountRequest deleteUserManagedServiceAccountRequest) {
                     assert DeleteUserManagedServiceAccountAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(deleteUserManagedServiceAccountRequest).build();
+                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(deleteUserManagedServiceAccountRequest)
+                        .build();
                 } else if (msg instanceof DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest) {
                     assert DeleteServiceAccountTokenAction.NAME.equals(action)
                         || DeleteUserManagedServiceAccountTokenAction.NAME.equals(action);

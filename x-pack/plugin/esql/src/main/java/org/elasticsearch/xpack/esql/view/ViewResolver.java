@@ -632,10 +632,7 @@ public class ViewResolver {
                     ? subqueries.getFirst().plan()
                     : buildPlanFromBranches(unresolvedRelation, subqueries, depth);
 
-                if (unresolvedRelation.metadataFields().isEmpty()) {
-                    return built;
-                }
-                return new UnresolvedMetadata(unresolvedRelation.source(), built, unresolvedRelation.metadataFields());
+                return built;
             }).addListener(listener);
         }));
     }

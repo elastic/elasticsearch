@@ -1163,6 +1163,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         protected LogicalPlan rule(UnresolvedMetadata unresolvedMetadata, AnalyzerContext context) {
             LogicalPlan child = unresolvedMetadata.child();
 
+            // ExternalRelation owns its METADATA binding end-to-end; strip the wrapper and let it stand.
+            if (child instanceof ExternalRelation) {
+                return child;
+            }
+
             List<NamedExpression> metadataFields = ResolveTable.resolveMetadata(unresolvedMetadata.metadataFields(), context);
             // If anything remains unresolved, skip injection so the Verifier can throw an error.
             if (metadataFields.stream().anyMatch(f -> f.resolved() == false)) {

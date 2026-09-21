@@ -17,18 +17,21 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Set;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+
 public class DirectIOContextTests extends ESTestCase {
 
     public void testReadContextsCarryTheHintAndDescribeNoMerge() {
         DirectIOContext search = DirectIOContext.searchRead(Set.of(DataAccessHint.RANDOM));
         assertEquals(IOContext.Context.DEFAULT, search.context());
         assertNull(search.mergeInfo());
-        assertEquals(Set.of(DataAccessHint.RANDOM, DirectIOHint.INSTANCE), search.hints());
+        assertThat(search.hints(), containsInAnyOrder(DataAccessHint.RANDOM, DirectIOHint.INSTANCE));
 
         DirectIOContext merge = DirectIOContext.mergeRead(Set.of());
         assertEquals(IOContext.Context.MERGE, merge.context());
         assertNull(merge.mergeInfo());
-        assertEquals(Set.of(DirectIOHint.INSTANCE), merge.hints());
+        assertThat(merge.hints(), contains(DirectIOHint.INSTANCE));
         expectThrows(UnsupportedOperationException.class, () -> merge.hints().add(DataAccessHint.RANDOM));
     }
 
@@ -37,7 +40,7 @@ public class DirectIOContextTests extends ESTestCase {
         DirectIOContext write = DirectIOContext.mergeWrite(IOContext.merge(mergeInfo));
         assertEquals(IOContext.Context.MERGE, write.context());
         assertSame(mergeInfo, write.mergeInfo());
-        assertEquals(Set.of(DirectIOHint.INSTANCE), write.hints());
+        assertThat(write.hints(), contains(DirectIOHint.INSTANCE));
     }
 
     public void testWithHintsKeepsTheDirectIOHintAndTheMerge() {
@@ -45,7 +48,7 @@ public class DirectIOContextTests extends ESTestCase {
         IOContext rehinted = DirectIOContext.mergeWrite(IOContext.merge(mergeInfo)).withHints(DataAccessHint.SEQUENTIAL);
         assertEquals(IOContext.Context.MERGE, rehinted.context());
         assertSame(mergeInfo, rehinted.mergeInfo());
-        assertEquals(Set.of(DataAccessHint.SEQUENTIAL, DirectIOHint.INSTANCE), rehinted.hints());
-        assertEquals(Set.of(DirectIOHint.INSTANCE), rehinted.withHints().hints());
+        assertThat(rehinted.hints(), containsInAnyOrder(DataAccessHint.SEQUENTIAL, DirectIOHint.INSTANCE));
+        assertThat(rehinted.withHints().hints(), contains(DirectIOHint.INSTANCE));
     }
 }

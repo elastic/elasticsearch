@@ -64,17 +64,15 @@ public abstract class DirectIOCapableFlatVectorsFormat extends AbstractFlatVecto
         if (state.context.context() != IOContext.Context.DEFAULT || canUseDirectIO(state) == false) {
             return createReader(state);
         }
-        // the two options are independent, but in every combination the merge instance must never be the
-        // random-access direct I/O search reader
-        if (useDirectIO && onDiskMerge) {
-            return new MergeReaderWrapper(createReader(directIOSearchState(state)), () -> createReader(directIOMergeState(state)), true);
-        } else if (useDirectIO) {
-            return new MergeReaderWrapper(createReader(directIOSearchState(state)), () -> createReader(state), true);
-        } else if (onDiskMerge) {
-            return new MergeReaderWrapper(createReader(state), () -> createReader(directIOMergeState(state)), false);
-        } else {
-            return createReader(state);
+        // the two options are independent, but either one means merges need a reader of their own: with
+        // on_disk_merge a merge-context direct I/O reader, with on_disk_rescore anything but the random-access
+        // direct I/O search reader
+        SegmentReadState searchState = useDirectIO ? directIOSearchState(state) : state;
+        SegmentReadState mergeState = onDiskMerge ? directIOMergeState(state) : state;
+        if (useDirectIO || onDiskMerge) {
+            return new MergeReaderWrapper(createReader(searchState), () -> createReader(mergeState), useDirectIO);
         }
+        return createReader(state);
     }
 
     private static SegmentReadState directIOSearchState(SegmentReadState state) {

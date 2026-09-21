@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.function.Function;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * What a direct I/O merge leaves behind, which the context assertions in
@@ -139,7 +140,7 @@ public class DirectIOMergeRoundTripTests extends BaseDirectIOMergeTestCase {
                     while (match < unmatched.size() && sameVector(unmatched.get(match), candidate) == false) {
                         match++;
                     }
-                    assertTrue("a merged vector matches no indexed vector that is still unmatched", match < unmatched.size());
+                    assertThat("a merged vector matches no indexed vector that is still unmatched", match, lessThan(unmatched.size()));
                     unmatched.remove(match);
                 }
                 assertEquals("indexed vectors missing from the merged segment", 0, unmatched.size());

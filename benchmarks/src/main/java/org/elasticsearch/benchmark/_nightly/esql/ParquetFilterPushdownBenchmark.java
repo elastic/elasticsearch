@@ -18,10 +18,16 @@ import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -31,13 +37,16 @@ import org.elasticsearch.xpack.esql.datasource.parquet.ParquetFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
-import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.planner.Layout;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -53,7 +62,6 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -122,6 +130,8 @@ public class ParquetFilterPushdownBenchmark {
     private long fixtureBytes;
     private Object pushedFilter;
     private List<String> projectedColumns;
+    private ExpressionEvaluator retainedFilter;
+    private DriverContext driverContext;
 
     private static final int PAYLOAD_COLUMNS = 8;
 
@@ -137,7 +147,10 @@ public class ParquetFilterPushdownBenchmark {
     public void setup() throws IOException {
         BenchmarkLogging.configure();
         blockFactory = DatasourceBenchmarks.newBlockFactory();
-        projectedColumns = new ArrayList<>(List.of("id", "ts"));
+        // The predicate columns are in the page because the retained filter has to read them: predicateColumnNames
+        // drives their materialization in a real query too, so leaving them out would measure a page the engine
+        // never produces.
+        projectedColumns = new ArrayList<>(List.of("id", "ts", "svc", "opt", "bytes"));
         if ("wide".equals(projection)) {
             for (int c = 0; c < PAYLOAD_COLUMNS; c++) {
                 projectedColumns.add("c" + c);
@@ -158,7 +171,14 @@ public class ParquetFilterPushdownBenchmark {
         Expression timeWindow = new MvInRange(Source.EMPTY, ts(), lit(from), lit(to));
         Expression predicate = switch (filterMode) {
             case "none" -> null;
-            case "scalarRange" -> new Range(Source.EMPTY, ts(), lit(from), true, lit(to), true, ZoneOffset.UTC);
+            // The scalar reference, written the way a user writes it: WHERE ts >= a AND ts <= b. A Range node is
+            // what the optimizer folds that into, but EvalMapper has no Range arm, so the retained filter could
+            // not evaluate it and the reference would be the one shape paying no downstream cost.
+            case "scalarRange" -> new And(
+                Source.EMPTY,
+                new GreaterThanOrEqual(Source.EMPTY, ts(), lit(from), null),
+                new LessThanOrEqual(Source.EMPTY, ts(), lit(to), null)
+            );
             case "mvInRange" -> timeWindow;
             // Filter pill "is": match_phrase on a keyword -> mv_contains.
             case "timeAndTerm" -> new And(Source.EMPTY, timeWindow, new MvContains(Source.EMPTY, svc(), keyword(SERVICES[0])));
@@ -193,6 +213,20 @@ public class ParquetFilterPushdownBenchmark {
         if (predicate != null && pushedFilter == null) {
             throw new IllegalStateException("[" + filterMode + "] did not push; the benchmark would measure nothing");
         }
+
+        // Every mv_ form pushes as RECHECK, so the exact predicate is retained above the source and evaluated on
+        // every row the reader emits. Without this step a row the reader declined to drop is free, which scores
+        // deferred work as saved and makes any row-level filter look like pure cost.
+        driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
+        if (predicate == null) {
+            retainedFilter = null;
+        } else {
+            Layout.Builder layout = new Layout.Builder();
+            for (String name : projectedColumns) {
+                layout.append(List.of(attributeFor(name)));
+            }
+            retainedFilter = EvalMapper.toEvaluator(FoldContext.small(), predicate, layout.build()).get(driverContext);
+        }
     }
 
     @Benchmark
@@ -204,19 +238,55 @@ public class ParquetFilterPushdownBenchmark {
             .rowLimit(FormatReader.NO_LIMIT)
             .build();
         int rows = 0;
+        int survivors = 0;
         try (CloseableIterator<Page> iter = reader.read(storageObject, ctx)) {
             while (iter.hasNext()) {
                 Page page = iter.next();
                 rows += page.getPositionCount();
+                survivors += retainedFilter == null ? page.getPositionCount() : countSurvivors(page);
                 page.releaseBlocks();
             }
         }
         metrics.record(rows, fixtureBytes);
-        return rows;
+        return survivors;
+    }
+
+    /** What the retained FilterExec does above the source: evaluate the exact predicate on every emitted row. */
+    private int countSurvivors(Page page) {
+        try (Block result = retainedFilter.eval(page)) {
+            BooleanBlock kept = (BooleanBlock) result;
+            int n = 0;
+            for (int i = 0; i < kept.getPositionCount(); i++) {
+                if (kept.isNull(i) == false && kept.getValueCount(i) == 1 && kept.getBoolean(kept.getFirstValueIndex(i))) {
+                    n++;
+                }
+            }
+            return n;
+        }
+    }
+
+    // One instance per column, shared between the predicate and the layout. A ReferenceAttribute carries a fresh
+    // NameId per construction, and Layout resolves by NameId, so a second instance of the same column is a
+    // different attribute to the evaluator and resolves to nothing.
+    private static final ReferenceAttribute ID = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+    private static final ReferenceAttribute TS = new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME);
+    private static final ReferenceAttribute SVC = new ReferenceAttribute(Source.EMPTY, "svc", DataType.KEYWORD);
+    private static final ReferenceAttribute OPT = new ReferenceAttribute(Source.EMPTY, "opt", DataType.KEYWORD);
+    private static final ReferenceAttribute BYTES = new ReferenceAttribute(Source.EMPTY, "bytes", DataType.LONG);
+
+    private static ReferenceAttribute attributeFor(String name) {
+        return switch (name) {
+            case "id" -> ID;
+            case "ts" -> TS;
+            case "svc" -> SVC;
+            case "opt" -> OPT;
+            case "bytes" -> BYTES;
+            default -> new ReferenceAttribute(Source.EMPTY, name, DataType.KEYWORD);
+        };
     }
 
     private static ReferenceAttribute ts() {
-        return new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME);
+        return TS;
     }
 
     private static Literal lit(long epochMillis) {
@@ -224,15 +294,15 @@ public class ParquetFilterPushdownBenchmark {
     }
 
     private static ReferenceAttribute svc() {
-        return new ReferenceAttribute(Source.EMPTY, "svc", DataType.KEYWORD);
+        return SVC;
     }
 
     private static ReferenceAttribute opt() {
-        return new ReferenceAttribute(Source.EMPTY, "opt", DataType.KEYWORD);
+        return OPT;
     }
 
     private static ReferenceAttribute bytesCol() {
-        return new ReferenceAttribute(Source.EMPTY, "bytes", DataType.LONG);
+        return BYTES;
     }
 
     private static Literal keyword(String value) {

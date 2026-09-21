@@ -59,6 +59,26 @@ public class VocabularyTests extends ColumnarStringTestCase {
         assertEquals("and the count it carries for the next merge is the one it was given", larger, combined.countOf(0));
     }
 
+    public void testASummaryAllowedMoreThanTheDictionaryWidensTheTable() throws IOException {
+        final List<BytesRef> values = new ArrayList<>();
+        for (int term = 0; term < 200; term++) {
+            final BytesRef value = new BytesRef("term-" + term);
+            values.add(value);
+            values.add(value);
+        }
+        final DictionaryPolicy narrow = new DictionaryPolicy(32, 0.5, 1.0);
+        assertThat(
+            "the dictionary's cap alone bounds what the survey holds",
+            survey(values, narrow, new SummaryPolicy(32)).summarySize(),
+            lessThan(20)
+        );
+        assertEquals(
+            "every term, once the summary is allowed to ask for them",
+            200,
+            survey(values, narrow, new SummaryPolicy(8 * 1024)).summarySize()
+        );
+    }
+
     /** A term seen many times is kept, however late in the column it first appears. */
     public void testKeepsWhatTheColumnRepeats() throws IOException {
         final List<BytesRef> values = new ArrayList<>();
@@ -298,7 +318,7 @@ public class VocabularyTests extends ColumnarStringTestCase {
             values.add(new BytesRef(randomAlphaOfLength(200)));
         }
         // Every value is longer than the bound, so the table never holds anything.
-        assertNull("nothing fits", survey(values, new DictionaryPolicy(16, 0.5, 0.2)));
+        assertNull("nothing fits", survey(values, new DictionaryPolicy(16, 0.5, 0.2), new SummaryPolicy(16)));
     }
 
     /** The first value alone exceeds the bound, and the terms after it still have to be surveyed. */
@@ -308,7 +328,7 @@ public class VocabularyTests extends ColumnarStringTestCase {
         for (int i = 0; i < 400; i++) {
             values.add(new BytesRef(i % 2 == 0 ? "on" : "off"));
         }
-        final Vocabulary.Terms surveyed = survey(values, new DictionaryPolicy(64, 0.5, 0.2));
+        final Vocabulary.Terms surveyed = survey(values, new DictionaryPolicy(64, 0.5, 0.2), new SummaryPolicy(64));
         assertNotNull("the short terms were still found", surveyed);
         assertTrue("kept what repeats", termsOf(surveyed).contains("on"));
         assertTrue("kept what repeats", termsOf(surveyed).contains("off"));

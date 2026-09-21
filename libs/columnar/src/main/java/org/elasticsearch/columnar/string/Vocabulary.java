@@ -194,6 +194,7 @@ public final class Vocabulary {
         throws IOException {
         final BytesRefHash terms = new BytesRefHash(new ByteBlockPool(new ByteBlockPool.DirectTrackingAllocator(Counter.newCounter())));
         int[] counts = new int[64];
+        final long tableBound = Math.max(dictionaryPolicy.maxBytes(), summaryPolicy.maxBytes());
         long tableBytes = 0;
         long columnBytes = 0;
         // A column that arrives in term order repeats each value in a run, so the term a value takes is
@@ -224,13 +225,13 @@ public final class Vocabulary {
                 }
                 int id = terms.find(value);
                 if (id < 0) {
-                    if (tableBytes + value.length > dictionaryPolicy.maxBytes()) {
+                    if (tableBytes + value.length > tableBound) {
                         if (terms.size() > 0) {
                             final long[] freed = { 0 };
                             counts = evictLeastFrequent(terms, counts, freed);
                             tableBytes -= freed[0];
                         }
-                        if (tableBytes + value.length > dictionaryPolicy.maxBytes()) {
+                        if (tableBytes + value.length > tableBound) {
                             // Nothing could be displaced: either every term held occurs at least as often as
                             // this one, or the table is empty and the value alone is larger than the bound.
                             // Remembered as absent, so the rest of its run is turned away as cheaply.

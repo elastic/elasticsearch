@@ -363,8 +363,8 @@ FROM decades
 | SORT decade, date
 ;
 
-warningRegex: evaluation of \[LOOKUP JOIN multi_column_joinable_lookup ON join_key == id_int\] failed, treating result as null
-warningRegex: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+warning: evaluation of \[LOOKUP JOIN multi_column_joinable_lookup ON join_key == id_int\] failed, treating result as null
+warning: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
 
 date_range:date_range                              | decade:integer | description:keyword      | date:date
 1980-01-01T00:00:00.000Z..1990-01-01T00:00:00.000Z | 1980           | Radical Eighties          | 1980-02-29T23:59:59.999Z
@@ -593,8 +593,8 @@ FROM mv_decades
 | KEEP decade, m
 | SORT decade
 ;
-warningRegex:evaluation of \[RANGE_MIN\(date_range\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[RANGE_MIN\(date_range\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 decade:integer | m:date
 1900           | 1900-01-01T00:00:00.000Z
@@ -610,8 +610,8 @@ FROM mv_decades
 | KEEP decade, m
 | SORT decade
 ;
-warningRegex:evaluation of \[RANGE_MAX\(date_range\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[RANGE_MAX\(date_range\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 decade:integer | m:date
 1900           | 1910-01-01T00:00:00.000Z
@@ -674,8 +674,8 @@ FROM decades
 | KEEP decade
 | SORT decade
 ;
-warningRegex:Line 2:12: evaluation of \[TO_RANGE(.*)\] failed, treating result as null\. Only first 20 failures recorded\.
-warningRegex:Line 2:12: java\.lang\.IllegalArgumentException: 'from' \[946684800000\] must be less than 'to'.*
+warning:Line 2:12: evaluation of \[TO_RANGE(.*)\] failed, treating result as null\. Only first 20 failures recorded\.
+warning:Line 2:12: java\.lang\.IllegalArgumentException: 'from' \[946684800000\] must be less than 'to'.*
 
 decade:integer
 2000
@@ -715,8 +715,8 @@ ROW from_dt = TO_DATETIME("2010-01-01T00:00:00.000Z"), to_dt = TO_DATETIME("2000
 | EVAL r = TO_RANGE(from_dt, to_dt)
 | KEEP r
 ;
-warningRegex:evaluation of \[TO_RANGE\(from_dt, to_dt\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: 'from' \[.*\] must be less than 'to' \[.*\]
+warning:evaluation of \[TO_RANGE\(from_dt, to_dt\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: 'from' \[.*\] must be less than 'to' \[.*\]
 
 r:date_range
 null
@@ -733,8 +733,8 @@ FROM employees
 | EVAL r = TO_RANGE(from_mv, hire_date)
 | KEEP r
 ;
-warningRegex:evaluation of \[TO_RANGE\(from_mv, hire_date\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[TO_RANGE\(from_mv, hire_date\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 r:date_range
 null
@@ -750,8 +750,8 @@ FROM employees
 | EVAL r = TO_RANGE(birth_date, to_mv)
 | KEEP r
 ;
-warningRegex:evaluation of \[TO_RANGE\(birth_date, to_mv\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[TO_RANGE\(birth_date, to_mv\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 r:date_range
 null
@@ -781,8 +781,8 @@ FROM mv_decades
 | KEEP decade, date_range, within
 | SORT decade
 ;
-warningRegex:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 decade:integer | date_range:date_range                                                                                                    | within:boolean
 1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z                                                                      | false
@@ -799,8 +799,8 @@ FROM mv_decades
 | KEEP decade, date_range, within
 | SORT decade
 ;
-warningRegex:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 decade:integer | date_range:date_range                                                                                                    | within:boolean
 1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z                                                                      | true
@@ -817,8 +817,8 @@ FROM mv_decades
 | KEEP decade, date_range, within
 | SORT decade
 ;
-warningRegex:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 decade:integer | date_range:date_range                                                                                                    | within:boolean
 1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z                                                                      | true
@@ -835,8 +835,8 @@ FROM mv_decades
 | KEEP decade, date_range, within
 | SORT decade
 ;
-warningRegex:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 decade:integer | date_range:date_range                                                                                                    | within:boolean
 1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z                                                                      | false
@@ -853,8 +853,8 @@ FROM mv_decades
 | KEEP decade, date_range, within
 | SORT decade
 ;
-warningRegex:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 decade:integer | date_range:date_range                                                                                                    | within:boolean
 1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z                                                                      | false
@@ -871,8 +871,8 @@ FROM mv_decades
 | KEEP decade, date_range
 | SORT decade
 ;
-warningRegex:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 decade:integer | date_range:date_range
 1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z
@@ -1033,8 +1033,8 @@ FROM mv_decades
 | KEEP decade, date_range, intersects
 | SORT decade
 ;
-warningRegex:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 decade:integer | date_range:date_range                                                                                                    | intersects:boolean
 1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z                                                                      | true
@@ -1051,8 +1051,8 @@ FROM mv_decades
 | KEEP decade, date_range, intersects
 | SORT decade
 ;
-warningRegex:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 decade:integer | date_range:date_range                                                                                                    | intersects:boolean
 1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z                                                                      | false
@@ -1069,8 +1069,8 @@ FROM mv_decades
 | KEEP decade, date_range, intersects
 | SORT decade
 ;
-warningRegex:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 decade:integer | date_range:date_range                                                                                                    | intersects:boolean
 1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z                                                                      | false
@@ -1087,8 +1087,8 @@ FROM mv_decades
 | KEEP decade, date_range, intersects
 | SORT decade
 ;
-warningRegex:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 decade:integer | date_range:date_range                                                                                                    | intersects:boolean
 1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z                                                                      | true
@@ -1105,8 +1105,8 @@ FROM mv_decades
 | KEEP decade, date_range, intersects
 | SORT decade
 ;
-warningRegex:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 decade:integer | date_range:date_range                                                                                                    | intersects:boolean
 1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z                                                                      | false
@@ -1123,8 +1123,8 @@ FROM mv_decades
 | KEEP decade, date_range, intersects
 | SORT decade
 ;
-warningRegex:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 decade:integer | date_range:date_range                                                                                                    | intersects:boolean
 1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z                                                                      | false
@@ -1141,8 +1141,8 @@ FROM mv_decades
 | KEEP decade, event_dates, within
 | SORT decade
 ;
-warningRegex:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 decade:integer | event_dates:date                                                      | within:boolean
 1900           | 1905-06-01T00:00:00.000Z                                              | true
@@ -1159,8 +1159,8 @@ FROM mv_decades
 | KEEP decade, event_dates, within
 | SORT decade
 ;
-warningRegex:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 decade:integer | event_dates:date                                                      | within:boolean
 1900           | 1905-06-01T00:00:00.000Z                                              | false
@@ -1177,8 +1177,8 @@ FROM mv_decades
 | KEEP decade, event_dates, intersects
 | SORT decade
 ;
-warningRegex:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 decade:integer | event_dates:date                                                      | intersects:boolean
 1900           | 1905-06-01T00:00:00.000Z                                              | true
@@ -1195,8 +1195,8 @@ FROM mv_decades
 | KEEP decade, event_dates, intersects
 | SORT decade
 ;
-warningRegex:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 decade:integer | event_dates:date                                                      | intersects:boolean
 1900           | 1905-06-01T00:00:00.000Z                                              | false
@@ -1213,8 +1213,8 @@ FROM mv_decades
 | KEEP decade, event_dates
 | SORT decade
 ;
-warningRegex:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 decade:integer | event_dates:date
 1900           | 1905-06-01T00:00:00.000Z
@@ -1229,8 +1229,8 @@ FROM mv_decades
 | KEEP decade, event_dates
 | SORT decade
 ;
-warningRegex:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 decade:integer | event_dates:date
 1900           | 1905-06-01T00:00:00.000Z
@@ -1244,8 +1244,8 @@ FROM mv_decades
 | KEEP decade, date_range
 | SORT decade
 ;
-warningRegex:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 decade:integer | date_range:date_range
 1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z

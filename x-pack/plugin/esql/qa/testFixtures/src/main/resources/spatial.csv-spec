@@ -505,8 +505,8 @@ FROM airports
 | WHERE ST_INTERSECTS(location, TO_GEOSHAPE("BBOX(0.0, 12.0, 30.0, 60.0)"))
 | STATS count=COUNT()
 ;
-warningRegex:evaluation of \[TO_GEOSHAPE.*\] failed, treating result as null. Only first 20 failures recorded
-warningRegex:.*max y cannot be less than min y.*
+warning:evaluation of \[TO_GEOSHAPE.*\] failed, treating result as null. Only first 20 failures recorded
+warning:.*max y cannot be less than min y.*
 
 count:long
 0
@@ -1424,8 +1424,8 @@ ROW wkt = ["POINT(1 1)", "POINT(-1 -1)"]
 | EVAL pt = TO_GEOPOINT(wkt)
 | EVAL distance = ST_DISTANCE(pt, TO_GEOPOINT("POINT(200 100)"))
 ;
-warningRegex:evaluation of \[TO_GEOPOINT\("POINT\(200 100\)"\)\] failed, treating result as null. Only first 20 failures recorded
-warningRegex:.*
+warning:evaluation of \[TO_GEOPOINT\("POINT\(200 100\)"\)\] failed, treating result as null. Only first 20 failures recorded
+warning:.*
 
 wkt:keyword    | pt:geo_point  | distance:double
 "POINT(1 1)"   | POINT(1 1)    | null
@@ -2026,9 +2026,9 @@ row wkt = ["POINTX(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22
 ;
 
 // tag::to_geopoint-str-parse-error-warning[]
-warningRegex:Line 3:13: evaluation of \[to_geopoint\(wkt\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: Unknown geometry type: pointx
-warningRegex:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: '\)'
+warning:Line 3:13: evaluation of \[to_geopoint\(wkt\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: Unknown geometry type: pointx
+warning:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: '\)'
 // end::to_geopoint-str-parse-error-warning[]
 
 // tag::to_geopoint-str-parse-error-result[]

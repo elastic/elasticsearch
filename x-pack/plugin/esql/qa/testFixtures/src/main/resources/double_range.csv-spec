@@ -110,8 +110,8 @@ ROW from = 2.5, to = 1.5
 | EVAL height_range = TO_RANGE(from, to)
 | KEEP height_range
 ;
-warningRegex:evaluation of \[TO_RANGE\(from, to\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: 'from' \[2.5\] must be less than 'to' \[1.5\]
+warning:evaluation of \[TO_RANGE\(from, to\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: 'from' \[2.5\] must be less than 'to' \[1.5\]
 
 height_range:double_range
 null
@@ -608,8 +608,8 @@ ROW s = "not-a-range"
 | EVAL r = TO_DOUBLE_RANGE(s)
 | KEEP r
 ;
-warningRegex:evaluation of \[TO_DOUBLE_RANGE\(s\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: expected double range in the form 'from..to', got \[not-a-range\]
+warning:evaluation of \[TO_DOUBLE_RANGE\(s\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: expected double range in the form 'from..to', got \[not-a-range\]
 
 r:double_range
 null
@@ -623,8 +623,8 @@ ROW s = "2.5..1.5"
 | EVAL r = TO_DOUBLE_RANGE(s)
 | KEEP r
 ;
-warningRegex:evaluation of \[TO_DOUBLE_RANGE\(s\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: double range 'from' \[2.5\] must be less than 'to' \[1.5\]
+warning:evaluation of \[TO_DOUBLE_RANGE\(s\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: double range 'from' \[2.5\] must be less than 'to' \[1.5\]
 
 r:double_range
 null
@@ -638,8 +638,8 @@ ROW s = "abc..1.5"
 | EVAL r = TO_DOUBLE_RANGE(s)
 | KEEP r
 ;
-warningRegex:evaluation of \[TO_DOUBLE_RANGE\(s\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.NumberFormatException: For input string: \\\"abc\\\"
+warning:evaluation of \[TO_DOUBLE_RANGE\(s\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.NumberFormatException: For input string: \\\"abc\\\"
 
 r:double_range
 null
@@ -653,8 +653,8 @@ ROW s = "NaN..1.0"
 | EVAL r = TO_DOUBLE_RANGE(s)
 | KEEP r
 ;
-warningRegex:evaluation of \[TO_DOUBLE_RANGE\(s\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: double range 'from' \[NaN\] must be less than 'to' \[1.0\]
+warning:evaluation of \[TO_DOUBLE_RANGE\(s\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: double range 'from' \[NaN\] must be less than 'to' \[1.0\]
 
 r:double_range
 null

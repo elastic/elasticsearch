@@ -52,7 +52,7 @@ required_capability: promql_command_v0
 required_capability: promql_histogram_fraction_classic
 PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:10:00.000Z" result=(histogram_fraction(0.5, 1.5, sum by (job) (request_duration_seconds_bucket)))
 | SORT job;
-warningRegex:.*histogram_fraction: input vector has no le label; no buckets to evaluate.*
+warning:.*histogram_fraction: input vector has no le label; no buckets to evaluate.*
 
 result:double | step:datetime | job:keyword
 ;
@@ -61,8 +61,8 @@ histogram_fraction_malformed_le_warns_and_ignores_bucket
 required_capability: promql_command_v0
 required_capability: promql_histogram_fraction_classic
 PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:00:00.000Z" result=(round(histogram_fraction(0.5, 1.5, sum by (job, le) (request_duration_seconds_bucket{job="malformed"})), 0.001));
-warningRegex:.*evaluation of \[histogram_fraction\(0.5, 1.5, sum by \(job, le\) \(request_duration_seconds_bucket\{job=\\\"malformed\\\"\}\)\)\] failed, treating result as null\. Only first 20 failures recorded\.
-warningRegex:.*NumberFormatException: bucket label \[le\] has a malformed value of \[bogus\]
+warning:.*evaluation of \[histogram_fraction\(0.5, 1.5, sum by \(job, le\) \(request_duration_seconds_bucket\{job=\\\"malformed\\\"\}\)\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warning:.*NumberFormatException: bucket label \[le\] has a malformed value of \[bogus\]
 
 result:double | step:datetime            | job:keyword
 0.333         | 2024-05-10T00:00:00.000Z | malformed

@@ -1047,8 +1047,8 @@ FROM employees
 | SORT emp_no
 | KEEP emp_no, salary_change, sc
 ;
-warningRegex:Line \d+:\d+: evaluation of \[salary_change \+ 1\] failed, treating result as null\. Only first 20 failures recorded\.
-warningRegex:Line \d+:\d+: java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:Line \d+:\d+: evaluation of \[salary_change \+ 1\] failed, treating result as null\. Only first 20 failures recorded\.
+warning:Line \d+:\d+: java\.lang\.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer|salary_change:double|sc:double
 10013         |null                |null
@@ -1067,8 +1067,8 @@ FROM employees
 | SORT emp_no
 | KEEP emp_no, salary_change, sc
 ;
-warningRegex:Line \d+:\d+: evaluation of \[salary_change \+ 1\] failed, treating result as null\. Only first 20 failures recorded\.
-warningRegex:Line \d+:\d+: java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:Line \d+:\d+: evaluation of \[salary_change \+ 1\] failed, treating result as null\. Only first 20 failures recorded\.
+warning:Line \d+:\d+: java\.lang\.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer|salary_change:double|sc:double
 10013         |null                |null

@@ -641,8 +641,8 @@ required_capability: fix_div_error_message
 ROW a = 1
 | STATS max = max(a) BY b = BUCKET(a, 0, 0, 0)
 ;
-warningRegex:evaluation of \[BUCKET\(a, 0, 0, 0\)\] failed, treating result as null. Only first 20 failures recorded
-warningRegex:java.lang.ArithmeticException: not a finite double number: NaN
+warning:evaluation of \[BUCKET\(a, 0, 0, 0\)\] failed, treating result as null. Only first 20 failures recorded
+warning:java.lang.ArithmeticException: not a finite double number: NaN
 
 max:integer | b:double
 1          | null
@@ -654,8 +654,8 @@ required_capability: fix_div_error_message
 FROM employees
 | STATS max = max(salary) BY b = BUCKET(salary, 0, 0, 0)
 ;
-warningRegex:evaluation of \[BUCKET\(salary, 0, 0, 0\)\] failed, treating result as null. Only first 20 failures recorded
-warningRegex:java.lang.ArithmeticException: not a finite double number: NaN
+warning:evaluation of \[BUCKET\(salary, 0, 0, 0\)\] failed, treating result as null. Only first 20 failures recorded
+warning:java.lang.ArithmeticException: not a finite double number: NaN
 
 max:integer | b:double
 74999       | null
@@ -666,8 +666,8 @@ zeroBucketsDouble
 FROM employees
 | STATS max = max(salary) BY b = BUCKET(salary, 0.)
 ;
-warningRegex:evaluation of \[BUCKET\(salary, 0.\)\] failed, treating result as null. Only first 20 failures recorded
-warningRegex:java.lang.ArithmeticException: / by zero
+warning:evaluation of \[BUCKET\(salary, 0.\)\] failed, treating result as null. Only first 20 failures recorded
+warning:java.lang.ArithmeticException: / by zero
 
 max:integer | b:double
 74999       | null
@@ -677,8 +677,8 @@ minusOneBucketsRow
 ROW a = 1
 | STATS max = max(a) BY b = BUCKET(a, -1, 0, 0)
 ;
-warningRegex:evaluation of \[BUCKET\(a, -1, 0, 0\)\] failed, treating result as null. Only first 20 failures recorded
-warningRegex:java.lang.ArithmeticException: / by zero
+warning:evaluation of \[BUCKET\(a, -1, 0, 0\)\] failed, treating result as null. Only first 20 failures recorded
+warning:java.lang.ArithmeticException: / by zero
 
 max:integer | b:double
 1          | null
@@ -689,8 +689,8 @@ minusOneBuckets
 FROM employees
 | STATS max = max(salary) BY b = BUCKET(salary, -1, 0, 0)
 ;
-warningRegex:evaluation of \[BUCKET\(salary, -1, 0, 0\)\] failed, treating result as null. Only first 20 failures recorded
-warningRegex:java.lang.ArithmeticException: / by zero
+warning:evaluation of \[BUCKET\(salary, -1, 0, 0\)\] failed, treating result as null. Only first 20 failures recorded
+warning:java.lang.ArithmeticException: / by zero
 
 max:integer | b:double
 74999       | null
@@ -701,8 +701,8 @@ tooManyBucketsRow
 ROW a = 1
 | STATS max = max(a) BY b = BUCKET(a, 100000000000, 0, 0)
 ;
-warningRegex:evaluation of \[BUCKET\(a, 100000000000, 0, 0\)\] failed, treating result as null. Only first 20 failures recorded
-warningRegex:java.lang.ArithmeticException: / by zero
+warning:evaluation of \[BUCKET\(a, 100000000000, 0, 0\)\] failed, treating result as null. Only first 20 failures recorded
+warning:java.lang.ArithmeticException: / by zero
 
 max:integer | b:double
 1          | null
@@ -713,8 +713,8 @@ tooManyBuckets
 FROM employees
 | STATS max = max(salary) BY b = BUCKET(salary, 100000000000, 0, 0)
 ;
-warningRegex:evaluation of \[BUCKET\(salary, 100000000000, 0, 0\)\] failed, treating result as null. Only first 20 failures recorded
-warningRegex:java.lang.ArithmeticException: / by zero
+warning:evaluation of \[BUCKET\(salary, 100000000000, 0, 0\)\] failed, treating result as null. Only first 20 failures recorded
+warning:java.lang.ArithmeticException: / by zero
 
 max:integer | b:double
 74999       | null

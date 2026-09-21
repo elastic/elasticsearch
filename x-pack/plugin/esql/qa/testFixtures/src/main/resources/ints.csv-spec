@@ -3,8 +3,8 @@
 inLongAndInt
 
 from employees | where avg_worked_seconds in (372957040, salary_change.long, 236703986) | where emp_no in (10017, emp_no - 1) | keep emp_no, avg_worked_seconds;
-warningRegex:evaluation of \[avg_worked_seconds in \(372957040, salary_change.long, 236703986\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[avg_worked_seconds in \(372957040, salary_change.long, 236703986\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer |avg_worked_seconds:long
 10017          |236703986
@@ -69,8 +69,8 @@ long:long                    |ul:ul
 convertDoubleToUL
 
 row d = 123.4 | eval ul = to_ul(d), overflow = to_ul(1e20);
-warningRegex:Line 1:48: evaluation of \[to_ul\(1e20\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 1:48: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[1.0E20\] out of \[unsigned_long\] range
+warning:Line 1:48: evaluation of \[to_ul\(1e20\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:48: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[1.0E20\] out of \[unsigned_long\] range
 
 d:double       |ul:ul      |overflow:ul
 123.4          |123        |null
@@ -134,8 +134,8 @@ int:integer       |long:long
 convertULToLong
 
 row ul = [9223372036854775807, 9223372036854775808] | eval long = to_long(ul);
-warningRegex:Line 1:67: evaluation of \[to_long\(ul\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 1:67: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[9223372036854775808\] out of \[long\] range
+warning:Line 1:67: evaluation of \[to_long\(ul\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:67: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[9223372036854775808\] out of \[long\] range
 
                     ul:ul                 |       long:long
 [9223372036854775807, 9223372036854775808]|9223372036854775807
@@ -163,8 +163,8 @@ ROW str1 = "2147483648", str2 = "2147483648.2", str3 = "foo"
 | EVAL long1 = TO_LONG(str1), long2 = TO_LONG(str2), long3 = TO_LONG(str3)
 // end::to_long-str[]
 ;
-warningRegex:Line 2:62: evaluation of \[TO_LONG\(str3\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 2:62: org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: Cannot parse number \[foo\]
+warning:Line 2:62: evaluation of \[TO_LONG\(str3\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:62: org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: Cannot parse number \[foo\]
 
 
 // tag::to_long-str-result[]
@@ -199,8 +199,8 @@ ROW str1 = "Hazelnut"
 | EVAL long1 = TO_LONG(str1, 36), fail1 = TO_LONG(str1, 10)
 // end::to_long_base-str2[]
 ;
-warningRegex:Line 2:43: evaluation of \[TO_LONG\(str1, 10\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 2:43: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[Hazelnut\]
+warning:Line 2:43: evaluation of \[TO_LONG\(str1, 10\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:43: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[Hazelnut\]
 
 // tag::to_long_base-str2-result[]
 str1:keyword | long1:long     | fail1:long
@@ -232,8 +232,8 @@ ROW str1 = "Kona"
 | EVAL int1 = TO_INTEGER(str1, 27), fail1 = TO_INTEGER(str1, 10)
 // end::to_integer_base-str2[]
 ;
-warningRegex:Line 2:45: evaluation of \[TO_INTEGER\(str1, 10\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 2:45: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[Kona\]
+warning:Line 2:45: evaluation of \[TO_INTEGER\(str1, 10\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:45: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[Kona\]
 
 // tag::to_integer_base-str2-result[]
 str1:keyword | int1:integer   | fail1:integer
@@ -304,15 +304,15 @@ required_capability: base_conversion
 | KEEP  string, base, to_long, to_integer
 ;
 ignoreOrder:true
-warningRegex:Line 3:19: evaluation of \[TO_LONG\(string, base\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 3:55: evaluation of \[TO_INTEGER\(string, base\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[0x1337\]
-warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[0x1337\]
-warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-0x1\] to number of base \[16\]
-warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-0x1\] to number of base \[16\]
-warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-0xf\] to number of base \[16\]
-warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-0xf\] to number of base \[16\]
-warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[deadbeef\] to number of base \[16\]
+warning:Line 3:19: evaluation of \[TO_LONG\(string, base\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:55: evaluation of \[TO_INTEGER\(string, base\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[0x1337\]
+warning:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[0x1337\]
+warning:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-0x1\] to number of base \[16\]
+warning:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-0x1\] to number of base \[16\]
+warning:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-0xf\] to number of base \[16\]
+warning:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-0xf\] to number of base \[16\]
+warning:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[deadbeef\] to number of base \[16\]
 
 string:keyword | base:integer | to_long:long | to_integer:integer
 1337           | 10           | 1337         | 1337
@@ -362,25 +362,25 @@ required_capability: fn_to_long_fix_double_to_long_overflow
 | KEEP  string, base, to_long, to_integer
 ;
 ignoreOrder:true
-warningRegex:Line 3:19: evaluation of \[TO_LONG\(string, base\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 3:55: evaluation of \[TO_INTEGER\(string, base\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[8000000000000000\] to number of base \[16\]
-warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-8000000000000001\] to number of base \[16\]
-warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[7fffffff\]
-warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[9223372036854775808\]
-warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[2147483648\]
-warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[9223372036854775807\]
-warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[9223372036854775808\]
-warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[80000000\] to number of base \[16\]
-warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[7fffffffffffffff\] to number of base \[16\]
-warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[8000000000000000\] to number of base \[16\]
-warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[-2147483649\]
-warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[-9223372036854775808\]
-warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[-9223372036854775809\]
-warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-80000001\] to number of base \[16\]
-warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-7fffffffffffffff\] to number of base \[16\]
-warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-8000000000000000\] to number of base \[16\]
-warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-8000000000000001\] to number of base \[16\]
+warning:Line 3:19: evaluation of \[TO_LONG\(string, base\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:55: evaluation of \[TO_INTEGER\(string, base\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[8000000000000000\] to number of base \[16\]
+warning:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-8000000000000001\] to number of base \[16\]
+warning:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[7fffffff\]
+warning:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[9223372036854775808\]
+warning:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[2147483648\]
+warning:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[9223372036854775807\]
+warning:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[9223372036854775808\]
+warning:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[80000000\] to number of base \[16\]
+warning:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[7fffffffffffffff\] to number of base \[16\]
+warning:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[8000000000000000\] to number of base \[16\]
+warning:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[-2147483649\]
+warning:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[-9223372036854775808\]
+warning:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[-9223372036854775809\]
+warning:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-80000001\] to number of base \[16\]
+warning:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-7fffffffffffffff\] to number of base \[16\]
+warning:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-8000000000000000\] to number of base \[16\]
+warning:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-8000000000000001\] to number of base \[16\]
 
 string:keyword       | base:integer | to_long:long         | to_integer:integer
 2147483647           | 10           | 2147483647	   | 2147483647
@@ -429,17 +429,17 @@ required_capability: base_conversion
 | KEEP  string, base, to_long, to_integer
 ;
 ignoreOrder:true
-warningRegex:Line 3:19: evaluation of \[TO_LONG\(string, base\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 3:55: evaluation of \[TO_INTEGER\(string, base\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[99\] to number of base \[8\]
-warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[99\] to number of base \[8\]
-warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[Hazelnut\] to number of base \[36\]
-warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[Hazelnut\] to number of base \[36\]
-warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[2147483648\]
-warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[Hazelnut\]
-warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[Hazelnut\]
-warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[Kona\]
-warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[Kona\]
+warning:Line 3:19: evaluation of \[TO_LONG\(string, base\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:55: evaluation of \[TO_INTEGER\(string, base\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[99\] to number of base \[8\]
+warning:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[99\] to number of base \[8\]
+warning:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[Hazelnut\] to number of base \[36\]
+warning:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[Hazelnut\] to number of base \[36\]
+warning:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[2147483648\]
+warning:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[Hazelnut\]
+warning:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[Hazelnut\]
+warning:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[Kona\]
+warning:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[Kona\]
 
 string:keyword | base:integer | to_long:long  | to_integer:integer
 0              | 10           | 0	          | 0
@@ -462,8 +462,8 @@ Kona           | 27           | 411787	      | 411787
 convertDoubleToLong
 
 row d = 123.4 | eval d2l = to_long(d), overflow = to_long(1e19);
-warningRegex:Line 1:51: evaluation of \[to_long\(1e19\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 1:51: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[1.0E19\] out of \[long\] range
+warning:Line 1:51: evaluation of \[to_long\(1e19\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:51: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[1.0E19\] out of \[long\] range
 
 d:double       |d2l:long      |overflow:long
 123.4          |123           |null
@@ -485,8 +485,8 @@ ROW long = [5013792, 2147483647, 501379200000]
 | EVAL int = TO_INTEGER(long)
 // end::to_int-long[]
 ;
-warningRegex:Line 2:14: evaluation of \[TO_INTEGER\(long\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 2:14: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[501379200000\] out of \[integer\] range
+warning:Line 2:14: evaluation of \[TO_INTEGER\(long\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:14: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[501379200000\] out of \[integer\] range
 
 // tag::to_int-long-result[]
 long:long                           |int:integer
@@ -497,8 +497,8 @@ long:long                           |int:integer
 convertULToInt
 
 row ul = [2147483647, 9223372036854775808] | eval int = to_int(ul);
-warningRegex:Line 1:57: evaluation of \[to_int\(ul\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 1:57: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[9223372036854775808\] out of \[integer\] range
+warning:Line 1:57: evaluation of \[to_int\(ul\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:57: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[9223372036854775808\] out of \[integer\] range
 
                     ul:ul        |int:integer
 [2147483647, 9223372036854775808]|2147483647
@@ -528,12 +528,12 @@ int_str:keyword  |int_dbl_str:keyword |is2i:integer|ids2i:integer
 convertStringToIntFail
 
 row str1 = "2147483647.2", str2 = "2147483648", non = "no number" | eval i1 = to_integer(str1), i2 = to_integer(str2), noi = to_integer(non);
-warningRegex:Line 1:79: evaluation of \[to_integer\(str1\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 1:79: org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: Cannot parse number \[2147483647.2\]
-warningRegex:Line 1:102: evaluation of \[to_integer\(str2\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 1:102: org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: Cannot parse number \[2147483648\]
-warningRegex:Line 1:126: evaluation of \[to_integer\(non\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 1:126: org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: Cannot parse number \[no number\]
+warning:Line 1:79: evaluation of \[to_integer\(str1\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:79: org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: Cannot parse number \[2147483647.2\]
+warning:Line 1:102: evaluation of \[to_integer\(str2\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:102: org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: Cannot parse number \[2147483648\]
+warning:Line 1:126: evaluation of \[to_integer\(non\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:126: org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: Cannot parse number \[no number\]
 
 str1:keyword   |str2:keyword   |non:keyword    |i1:integer     |i2:integer     |noi:integer
 2147483647.2   |2147483648     |no number      |null           |null           |null
@@ -542,8 +542,8 @@ str1:keyword   |str2:keyword   |non:keyword    |i1:integer     |i2:integer     |
 convertDoubleToInt
 
 row d = 123.4 | eval d2i = to_integer(d), overflow = to_integer(1e19);
-warningRegex:Line 1:54: evaluation of \[to_integer\(1e19\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 1:54: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[1.0E19\] out of \[integer\] range
+warning:Line 1:54: evaluation of \[to_integer\(1e19\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:54: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[1.0E19\] out of \[integer\] range
 
 d:double       |d2i:integer   |overflow:integer
 123.4          |123           |null    
@@ -552,8 +552,8 @@ d:double       |d2i:integer   |overflow:integer
 lessThanMultivalue
 
 from employees | where salary_change.int < 1 | keep emp_no, salary_change.int | sort emp_no | limit 5;
-warningRegex:evaluation of \[salary_change.int < 1\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[salary_change.int < 1\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
 emp_no:integer |salary_change.int:integer
@@ -567,8 +567,8 @@ emp_no:integer |salary_change.int:integer
 greaterThanMultivalue
 
 from employees | where salary_change.int > 1 | keep emp_no, salary_change.int | sort emp_no | limit 5;
-warningRegex:evaluation of \[salary_change.int > 1\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[salary_change.int > 1\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
 emp_no:integer |salary_change.int:integer
@@ -582,8 +582,8 @@ emp_no:integer |salary_change.int:integer
 equalToMultivalue
 
 from employees | where salary_change.int == 0 | keep emp_no, salary_change.int | sort emp_no;
-warningRegex:evaluation of \[salary_change.int == 0\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[salary_change.int == 0\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
 emp_no:integer |salary_change.int:integer
@@ -596,8 +596,8 @@ emp_no:integer |salary_change.int:integer
 equalToOrEqualToMultivalue
 
 from employees | where salary_change.int == 1 or salary_change.int == 8 | keep emp_no, salary_change.int | sort emp_no;
-warningRegex:evaluation of \[salary_change.int\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[salary_change.int\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries are filtered out
 emp_no:integer |salary_change.int:integer
@@ -608,8 +608,8 @@ emp_no:integer |salary_change.int:integer
 inMultivalue
 
 from employees | where salary_change.int in (1, 7) | keep emp_no, salary_change.int | sort emp_no;
-warningRegex:evaluation of \[salary_change.int in \(1, 7\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[salary_change.int in \(1, 7\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries are filtered out
 emp_no:integer |salary_change.int:integer
@@ -620,8 +620,8 @@ emp_no:integer |salary_change.int:integer
 notLessThanMultivalue
 
 from employees | where not(salary_change.int < 1) | keep emp_no, salary_change.int | sort emp_no | limit 5;
-warningRegex:evaluation of \[.*salary_change.int < 1.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[.*salary_change.int < 1.*\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
 emp_no:integer |salary_change.int:integer
@@ -635,8 +635,8 @@ emp_no:integer |salary_change.int:integer
 notGreaterThanMultivalue
 
 from employees | where not(salary_change.int > 1) | keep emp_no, salary_change.int | sort emp_no | limit 5;
-warningRegex:evaluation of \[.*salary_change.int > 1.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[.*salary_change.int > 1.*\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
 emp_no:integer |salary_change.int:integer
@@ -650,8 +650,8 @@ emp_no:integer |salary_change.int:integer
 notEqualToMultivalue
 
 from employees | where not(salary_change.int == 1) | keep emp_no, salary_change.int | sort emp_no | limit 5;
-warningRegex:evaluation of \[.*salary_change.int == 1.*\] failed, treating result as null. Only first 20 failures recorded
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[.*salary_change.int == 1.*\] failed, treating result as null. Only first 20 failures recorded
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
 emp_no:integer |salary_change.int:integer
@@ -1039,8 +1039,8 @@ ROW deg = [90, 180, 270]
 
 warningWithFromSource
 from employees | sort emp_no | limit 1 | eval x = to_long(emp_no) * 10000000 | eval y = to_int(x) > 1 | keep y;
-warningRegex:Line 1:89: evaluation of \[to_int\(x\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 1:89: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[10\d+0000000\] out of \[integer\] range
+warning:Line 1:89: evaluation of \[to_int\(x\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:89: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[10\d+0000000\] out of \[integer\] range
 
 y:boolean
 null
@@ -1049,8 +1049,8 @@ null
 // the test is also notable through having the "failing" operation in the filter, which will be part of the fragment sent to a data node
 multipleWarnings
 from employees | sort emp_no | eval x = to_long(emp_no) * 10000000 | where to_int(x) > 1 | keep x | limit 1;
-warningRegex:Line 1:76: evaluation of \[to_int\(x\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 1:76: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[10\d+0000000\] out of \[integer\] range
+warning:Line 1:76: evaluation of \[to_int\(x\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:76: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[10\d+0000000\] out of \[integer\] range
 
 x:long
 ;

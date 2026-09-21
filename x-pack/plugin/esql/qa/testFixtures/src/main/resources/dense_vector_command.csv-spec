@@ -176,7 +176,7 @@ FROM books
 | DENSE_VECTOR sorted_author WITH { "inference_id" : "test_dense_inference" }
 | KEEP book_no, sorted_author, sorted_author_dense_vector
 ;
-warningRegex:embedding input is multi-valued; only the first value is embedded\. Reduce the field first, for example with MV_FIRST, to choose the value explicitly\.
+warning:embedding input is multi-valued; only the first value is embedded\. Reduce the field first, for example with MV_FIRST, to choose the value explicitly\.
 
 book_no:keyword | sorted_author:keyword                                | sorted_author_dense_vector:dense_vector
 2924            | [Alan Myers, Fyodor Dostoevsky, W. J. Leatherbarrow] | [45.0, 52.0, 51.0]

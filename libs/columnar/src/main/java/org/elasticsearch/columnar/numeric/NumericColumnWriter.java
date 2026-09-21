@@ -73,7 +73,7 @@ public final class NumericColumnWriter {
         IndexOutput data,
         IndexOutput skipIndex
     ) throws IOException {
-        ColumnIteratorMetadata iterator = ColumnIteratorWriter.write(cursors.get(), numDocsWithField, maxDoc, data);
+        ColumnIteratorMetadata iterator = ColumnIteratorWriter.write(cursors, numDocsWithField, maxDoc, data);
         if (numDocsWithField == 0) {
             return NumericColumnMetadata.empty(iterator, blockBytesCodec.id());
         }

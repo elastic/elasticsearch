@@ -285,6 +285,91 @@ public class StringMatchTests extends ColumnarStringTestCase {
         }
     }
 
+    /**
+     * Every pushdown holds on a multi-valued column too: documents holding several values, some null, some none at
+     * all, across presence blocks with every document present, a few missing, and few present.
+     */
+    public void testPushdownsOnMultiValuedColumns() throws IOException {
+        final int blockDocs = 1 << 16;
+        final BytesRef[][] docSlots = new BytesRef[blockDocs * 2 + between(1000, 20000)][];
+        final String[] vocabulary = { "", "a", "ab", "abc", "abd", "xyz", "a-longer-value" };
+        String current = randomFrom(vocabulary);
+        for (int d = 0; d < docSlots.length; d++) {
+            if (random().nextInt(16) == 0) {
+                current = random().nextInt(10) == 0 ? "rare-" + d : randomFrom(vocabulary);
+            }
+            final boolean present = d < blockDocs || (d < 2 * blockDocs ? random().nextInt(50) != 0 : random().nextInt(20) == 0);
+            if (present == false) {
+                continue;
+            }
+            // Mostly one value, sometimes several, a null among them, or none at all.
+            final int slots = random().nextInt(4) != 0 ? 1 : between(0, 3);
+            docSlots[d] = new BytesRef[slots];
+            for (int s = 0; s < slots; s++) {
+                docSlots[d][s] = s > 0 && random().nextInt(4) == 0 ? null : new BytesRef(s == 0 ? current : randomFrom(vocabulary));
+            }
+        }
+        final String[] probes = { "", "a", "ab", "abc", "xyz", "zz", "rare-" + between(0, docSlots.length) };
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
+            withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+                final String layout = reader.hasDictionary() ? "multi-valued dictionary" : "multi-valued plain";
+                for (String probe : probes) {
+                    final BytesRef term = new BytesRef(probe);
+                    assertMatchesAndRuns(
+                        layout + " term [" + probe + "]",
+                        anySlot(docSlots, v -> v.equals(probe)),
+                        () -> reader.matchTerm(term)
+                    );
+                    assertMatchesAndRuns(
+                        layout + " prefix [" + probe + "]",
+                        anySlot(docSlots, v -> v.startsWith(probe)),
+                        () -> reader.matchPrefix(term)
+                    );
+                    assertMatchesAndRuns(
+                        layout + " contains [" + probe + "]",
+                        anySlot(docSlots, v -> v.contains(probe)),
+                        () -> reader.matchContains(term)
+                    );
+                    assertMatchesAndRuns(
+                        layout + " any of [" + probe + ", xyz]",
+                        anySlot(docSlots, v -> v.equals(probe) || v.equals("xyz")),
+                        () -> reader.match(v -> v.bytesEquals(term) || v.utf8ToString().equals("xyz"))
+                    );
+                }
+            });
+        }
+    }
+
+    /** The documents holding a non-null slot {@code test} accepts; an absent document holds none. */
+    private static FixedBitSet anySlot(BytesRef[][] docSlots, Predicate<String> test) {
+        final FixedBitSet matching = new FixedBitSet(docSlots.length);
+        for (int d = 0; d < docSlots.length; d++) {
+            if (docSlots[d] == null) {
+                continue;
+            }
+            for (BytesRef slot : docSlots[d]) {
+                if (slot != null && test.test(slot.utf8ToString())) {
+                    matching.set(d);
+                    break;
+                }
+            }
+        }
+        return matching;
+    }
+
+    /** One document at a time, a window at a time, and run by run, all against {@code expected}. */
+    private void assertMatchesAndRuns(String label, FixedBitSet expected, Match match) throws IOException {
+        final List<Integer> docs = new ArrayList<>();
+        for (int d = expected.nextSetBit(0); d != DocIdSetIterator.NO_MORE_DOCS; d = d + 1 < expected.length()
+            ? expected.nextSetBit(d + 1)
+            : DocIdSetIterator.NO_MORE_DOCS) {
+            docs.add(d);
+        }
+        assertEquals(label, docs, matched(match.get()));
+        assertWindowedAgrees(label, expected.length(), match);
+        assertDocIDRunEndContract(label, match::get, expected, expected.length());
+    }
+
     private void assertSparse(String label, BytesRef[] docValues, Predicate<String> test, Match match) throws IOException {
         final List<Integer> expected = new ArrayList<>();
         final FixedBitSet matching = new FixedBitSet(docValues.length);

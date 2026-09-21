@@ -293,6 +293,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         final ColumnIterator presence = iterator();
         final BytesRef value = new BytesRef();
         final OrdinalBlockMask mask = new OrdinalBlockMask(matching, escapeCount > 0);
+        final SlotFold fold = new SlotFold();
         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(presence) {
             @Override
             public boolean matches() throws IOException {
@@ -329,47 +330,25 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
                     super.intoBitSet(upTo, bitSet, offset);
                     return;
                 }
-                collectFromOrdinals(presence, mask, upTo, bitSet, offset);
+                collectFromOrdinals(presence, mask, fold, upTo, bitSet, offset);
             }
         });
     }
 
     /**
-     * Fills a window from the ordinals alone, testing a decoded block of them at a time. Valid only where no
-     * escaped value can match, since the escape ordinal says nothing about the bytes behind it.
-     *
-     * <p>A document matches on any one of its slots, so this walks its slots. They are contiguous, so a document's run of them almost always falls inside the block already
-     * decoded and the pass stays one block read per block of ordinals rather than one per document.
+     * Fills a window from the ordinals alone, a block of them at a time. Valid only where no escaped value can match,
+     * since the escape ordinal says nothing about the bytes behind it.
      */
-    private void collectFromOrdinals(ColumnIterator presence, OrdinalBlockMask mask, int upTo, FixedBitSet bitSet, int offset)
-        throws IOException {
-        int doc = presence.docID();
-        if (hasValueAddresses() == false) {
-            // One slot a document, the document's rank: a run of present documents is a run of slots, whose
-            // matching bits are copied a block of ordinals at a time. A dense column is one run.
-            while (doc < upTo && doc != DocIdSetIterator.NO_MORE_DOCS) {
-                final int rank = presence.rank();
-                final int runEnd = Math.min(presence.docIDRunEnd(), upTo);
-                mask.into(rank, rank + (runEnd - doc), bitSet, offset - (doc - rank));
-                doc = presence.advance(runEnd);
-            }
-            return;
-        }
-        while (doc < upTo && doc != DocIdSetIterator.NO_MORE_DOCS) {
-            final int rank = presence.rank();
-            final long first = firstValueAddress(rank);
-            final long count = valueCount(rank);
-            for (long i = 0; i < count; i++) {
-                final long address = first + i;
-                if (mask.covers(address) == false) {
-                    mask.load(address);
-                }
-                if (mask.matches(address)) {
-                    bitSet.set(doc - offset);
-                    break;
-                }
-            }
-            doc = presence.nextDoc();
+    private void collectFromOrdinals(
+        ColumnIterator presence,
+        OrdinalBlockMask mask,
+        SlotFold fold,
+        int upTo,
+        FixedBitSet bitSet,
+        int offset
+    ) throws IOException {
+        if (presence.docID() < upTo) {
+            fold.collect(presence, mask::into, upTo, bitSet, offset);
         }
     }
 
@@ -696,7 +675,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         }
 
         /** Sets the bit {@code slot - offset} in {@code dest} of every matching slot in {@code [from, to)}. */
-        void into(long from, long to, FixedBitSet dest, int offset) throws IOException {
+        void into(long from, long to, FixedBitSet dest, long offset) throws IOException {
             while (from < to) {
                 if (covers(from) == false) {
                     load(from);

@@ -626,7 +626,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         }
 
         /** Sets the bits of every held slot in {@code [from, to)} into {@code dest} at {@code slot - offset}. */
-        final void into(long from, long to, FixedBitSet dest, int offset) throws IOException {
+        final void into(long from, long to, FixedBitSet dest, long offset) throws IOException {
             while (from < to) {
                 final long window = from >>> shift;
                 load(window);
@@ -655,6 +655,69 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
             }
             adjust(block, count, words);
             loaded = window;
+        }
+    }
+
+    /** Sets the bit {@code slot - offset} in {@code dest} of every slot in {@code [from, to)} a filter holds. */
+    protected interface SlotFill {
+        void into(long from, long to, FixedBitSet dest, long offset) throws IOException;
+    }
+
+    /**
+     * Collects documents from what a filter decides a stretch of slots at a time. A run of present documents holds a
+     * contiguous stretch of slots however many each has, so the stretch is filled at once: on a column of one slot a
+     * document the slot bits are the document bits, and otherwise they are filled into a scratch set and folded onto
+     * the documents holding them through their slot counts. Held per iterator, since the scratch is.
+     */
+    protected final class SlotFold {
+        /** Documents folded at a time, which bounds the scratch a stretch of slots is filled into. */
+        private static final int DOCS_A_STRETCH = 1024;
+        private FixedBitSet scratch = new FixedBitSet(0);
+
+        /**
+         * Sets the bit {@code doc - offset} of every document in {@code [presence.docID(), upTo)} holding a slot
+         * {@code fill} holds, and leaves {@code presence} on its first document at or after {@code upTo}.
+         */
+        void collect(ColumnIterator presence, SlotFill fill, int upTo, FixedBitSet bitSet, int offset) throws IOException {
+            int doc = presence.docID();
+            while (doc < upTo) {
+                int rank = presence.rank();
+                final int runEnd = Math.min(presence.docIDRunEnd(), upTo);
+                if (hasValueAddresses() == false) {
+                    // A slot's bit is its document's: slot - (offset - (doc - rank)) = doc + (slot - rank) - offset.
+                    fill.into(rank, rank + (runEnd - doc), bitSet, offset - (doc - (long) rank));
+                } else {
+                    for (int at = doc; at < runEnd;) {
+                        final int stretchEnd = Math.min(runEnd, at + DOCS_A_STRETCH);
+                        final int endRank = rank + (stretchEnd - at);
+                        final long firstSlot = firstValueAddress(rank);
+                        final long endSlot = firstValueAddress(endRank - 1) + valueCount(endRank - 1);
+                        final int slots = (int) (endSlot - firstSlot);
+                        if (slots > 0) {
+                            if (scratch.length() < slots) {
+                                scratch = new FixedBitSet(slots);
+                            } else {
+                                scratch.clear(0, slots);
+                            }
+                            fill.into(firstSlot, endSlot, scratch, firstSlot);
+                            for (int r = rank; r < endRank; r++) {
+                                final long count = valueCount(r);
+                                if (count == 0) {
+                                    continue;
+                                }
+                                final int first = (int) (firstValueAddress(r) - firstSlot);
+                                final int held = scratch.nextSetBit(first);
+                                if (held != DocIdSetIterator.NO_MORE_DOCS && held < first + count) {
+                                    bitSet.set(at + (r - rank) - offset);
+                                }
+                            }
+                        }
+                        rank = endRank;
+                        at = stretchEnd;
+                    }
+                }
+                doc = presence.advance(runEnd);
+            }
         }
     }
 
@@ -766,19 +829,59 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
                 return advance(presence.docID() + 1);
             }
 
+            private final SlotFold fold = new SlotFold();
+
             @Override
             public int advance(int target) throws IOException {
-                for (int doc = presence.advance(target); doc != NO_MORE_DOCS; doc = presence.nextDoc()) {
+                // A run of present documents holds a contiguous stretch of slots, so the next held slot is found
+                // across the stretch at once and walked back to the document holding it through the slot counts.
+                int at = presence.docID() < target ? presence.advance(target) : presence.docID();
+                while (at != NO_MORE_DOCS) {
                     final int rank = presence.rank();
-                    first = firstValueAddress(rank);
-                    count = valueCount(rank);
-                    for (long i = 0; i < count; i++) {
-                        if (window.holds(first + i)) {
-                            return doc;
+                    final int runEnd = presence.docIDRunEnd();
+                    final int endRank = rank + (runEnd - at);
+                    final long held = window.next(firstValueAddress(rank), firstValueAddress(endRank - 1) + valueCount(endRank - 1));
+                    if (held >= 0) {
+                        int r = rank;
+                        while (firstValueAddress(r) + valueCount(r) <= held) {
+                            r++;
                         }
+                        first = firstValueAddress(r);
+                        count = valueCount(r);
+                        final int found = at + (r - rank);
+                        return found == at ? at : presence.advance(found);
                     }
+                    at = presence.advance(runEnd);
                 }
                 return NO_MORE_DOCS;
+            }
+
+            @Override
+            public int docIDRunEnd() throws IOException {
+                // The documents from this one on that each hold a held slot, within its run of present documents.
+                final int doc = presence.docID();
+                final int rank = presence.rank();
+                final int runEnd = presence.docIDRunEnd();
+                int end = doc + 1;
+                while (end < runEnd) {
+                    final int r = rank + (end - doc);
+                    final long from = firstValueAddress(r);
+                    final long slots = valueCount(r);
+                    if (slots == 0 || window.next(from, from + slots) < 0) {
+                        break;
+                    }
+                    end++;
+                }
+                return end;
+            }
+
+            @Override
+            public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                if (presence.docID() >= upTo) {
+                    return;
+                }
+                fold.collect(presence, window::into, upTo, bitSet, offset);
+                advance(upTo);
             }
 
             @Override

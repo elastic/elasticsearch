@@ -341,7 +341,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     public void testRelocationRecoveriesMaxProportion() {
         final var taskQueue = new DeterministicTaskQueue();
-        final int maxConcurrentRecoveries = between(5, 10);
+        // Power-of-two limit to keep the derived proportion exactly representable through RatioValue's percent conversion.
+        final int maxConcurrentRecoveries = randomFrom(8, 16);
         // Ensure that there are at least two slots for any recovery and at least two slots for recoveries from unassigned only.
         final int maxConcurrentRelocationRecoveries = between(2, maxConcurrentRecoveries - 2);
         // ceil(maxConcurrentRecoveries * relocationProportion) = maxConcurrentRelocationRecoveries.

@@ -24,8 +24,8 @@ import java.util.function.Predicate;
  * {@code PUT /_query/data_source} time, via
  * {@link org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator#withDatasourceCheck}.
  *
- * <p>A host is admitted by membership in sets built at class load from the SDK's region metadata, so a region
- * the pinned SDK does not know is refused. A region must follow the service label: without
+ * <p>A host is admitted by membership in sets built at class load from the SDK's region metadata, or by matching
+ * the PrivateLink shape, so a region the pinned SDK does not know is refused. A region must follow the service label: without
  * that, a bucket named {@code sts-anything} would answer to {@code sts-anything.s3.us-east-1.amazonaws.com}.
  */
 final class S3EndpointCheck {

@@ -288,7 +288,7 @@ public class S3EndpointCheckTests extends ESTestCase {
         }
     }
 
-    /** Names an attacker can obtain under an AWS suffix; none is in the permitted set. */
+    /** Hosts under an AWS zone that are not this service's endpoint; none is in the permitted set. */
     public void testRefusesAwsHostsThatAreNotThisService() {
         assertAllRefused(
             STS_SERVICE,

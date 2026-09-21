@@ -454,6 +454,6 @@ public class FileListCompactorTests extends ESTestCase {
 
         assertSame("a truncated listing must not be compacted", truncated, FileListCompactor.compact("s3://b/", truncated));
         assertTrue(FileListCompactor.compact("s3://b/", truncated).isTruncated());
-        assertNotSame("the same listing untruncated is the control", complete, FileListCompactor.compact("s3://b/", complete));
+        assertFalse("the same listing untruncated is the control", FileListCompactor.compact("s3://b/", complete).isTruncated());
     }
 }

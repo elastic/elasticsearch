@@ -55,6 +55,16 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * Shared base for {@link MvGreater} and {@link MvLess}: any-value one-sided comparison, two-valued
  * (null/empty → {@code false}), Lucene range pushdown.
  */
+/**
+ * <h2>Transport versions</h2>
+ * Each concrete subclass holds its own {@code TransportVersion}, and {@code QueryDslTranslator} consults it before
+ * synthesizing one into a request-filter translation. {@link org.elasticsearch.xpack.esql.session.Versioned} says a
+ * version check is not required for a new language feature — failing on the transport layer is acceptable when a user
+ * names a function some node lacks — but a translated request filter names no function, so the user cannot be
+ * answered that way. {@code MvGreater} and {@code MvLess} both reference {@code esql_mv_compare}: they arrived in the
+ * same change, so one transport version describes both. The constants live on the leaves rather than here on purpose
+ * — a static member here would be inherited by a future subclass as a pin that predates it, and read as checked.
+ */
 public abstract class MvCompare extends EsqlScalarFunction implements OptionalArgument, TranslationAware {
 
     static final String SUPPORTED_TYPES = "date, date_nanos, double, integer, ip, keyword, long, text, unsigned_long or version";

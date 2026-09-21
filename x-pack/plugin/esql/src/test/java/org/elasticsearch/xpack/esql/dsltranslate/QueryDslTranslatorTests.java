@@ -676,6 +676,8 @@ public class QueryDslTranslatorTests extends ESTestCase {
             )) {
                 QueryDslTranslator.TranslationResult below = translateResult(q, BELOW_MV_COMPARE);
                 assertFalse(field + " single-bound range is not translatable below the pin", below.isComplete());
+                assertThat(below.unsupported(), hasSize(1));
+                assertThat(below.unsupported().get(0).construct(), containsString("needs a newer node"));
                 assertThat(below.applied().anyMatch(MvCompare.class::isInstance), equalTo(false));
 
                 assertThat("at or above the pin it still translates", translateResult(q).unsupported(), empty());
@@ -697,6 +699,13 @@ public class QueryDslTranslatorTests extends ESTestCase {
         QueryDslTranslator.TranslationResult below = translateResult(q, BELOW_MV_COMPARE);
         assertFalse("a double single-bound range is gated like every other type", below.isComplete());
         assertThat(below.unsupported().get(0).construct(), containsString("on double"));
+    }
+
+    /** A missing field needs no function: below the pin it still translates, to the same false the leaf would fold to. */
+    public void testMissingFieldNeedsNoGatedFunction() {
+        QueryDslTranslator.TranslationResult below = translateResult(QueryBuilders.rangeQuery("absent").gt("m"), BELOW_MV_COMPARE);
+        assertThat("nothing is degraded for a field the source does not have", below.unsupported(), empty());
+        assertThat(below.applied().anyMatch(MvCompare.class::isInstance), equalTo(false));
     }
 
     /** The gate is scoped to what postdates the pin: a two-bound range still translates below it, via mv_in_range. */

@@ -48,10 +48,9 @@ import java.util.Set;
  * transport version below.
  *
  * <p>Version-gated on {@link #ESQL_REQUEST_FILTER_ON_DATASET}: below that version the rewrite is skipped (unfiltered
- * + warning). That pin does not cover everything the translator emits. It was allocated before {@code mv_greater} and
- * {@code mv_less} existed, so of the functions a translated filter can carry it covers {@code mv_in_range} alone, and
- * a node whose build sits between the two passes the gate and cannot read the other two. Tracked as
- * elastic/elasticsearch#159672; do not read this gate as a guarantee about the emitted set.
+ * relation, with a warning naming the datasets). That gate guards the REWRITE's existence and nothing more — it is
+ * one constant, while the set of functions {@link QueryDslTranslator} synthesizes grows whenever a translation is
+ * added. The contents are guarded separately, per emitted function, by {@code QueryDslTranslator.gated}.
  */
 public final class RequestFilterRewriter {
 

@@ -46,8 +46,10 @@ import static org.hamcrest.Matchers.equalTo;
  * output: a test over the output only covers the shapes someone wrote a case for, and the emit site nobody thought
  * of is exactly the one that ships unpinned. It counts classes, not sites, so adding a second unpinned emit site for
  * an already-declared gated class passes here — {@code QueryDslTranslatorTests} covers both paths per function for
- * that. And it forces the DECLARATION, not its correctness: whether the pin named is the version that function
- * actually arrived in is settled by the behavioural cases in that suite, not here.
+ * that. It sees only {@code new X(}, so a static factory or an {@code X::new} reference is invisible to it, and a
+ * factory is the natural next thing someone writes — keep synthesizing through constructors, or widen the pattern.
+ * And it forces the DECLARATION, not its correctness: whether the pin named is the version that function actually
+ * arrived in is settled by the behavioural cases in that suite, not here.
  */
 public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
 
@@ -86,9 +88,10 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
         "^import\\s+org\\.elasticsearch\\.xpack\\.esql\\.(?:core\\.)?expression\\.[\\w.]*?([A-Z]\\w+);",
         Pattern.MULTILINE
     );
-    // A pin is a named constant on a class, so the call site reads Class.CONSTANT. Requiring that shape also
-    // keeps the helper's own declaration — requireFunction(TransportVersion required, ...) — out of the census.
-    private static final Pattern REQUIRE = Pattern.compile("requireFunction\\s*\\(\\s*([A-Z]\\w+\\.[A-Z_][A-Z0-9_]*)");
+    // The gate reads gated(field, Class.CONSTANT, construct, leaf), so the pin is the SECOND argument. Requiring the
+    // Class.CONSTANT shape also keeps the helper's own declaration — gated(Expression, TransportVersion, ...) — out
+    // of the census, since a parameter list carries no qualified constant.
+    private static final Pattern REQUIRE = Pattern.compile("gated\\s*\\(\\s*[^,()]+,\\s*([A-Z]\\w+\\.[A-Z_][A-Z0-9_]*)");
 
     public void testEveryEmittedExpressionIsDeclared() throws IOException {
         String source = Files.readString(esqlModuleRoot().resolve(TRANSLATOR));
@@ -105,8 +108,8 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
                 + ", which this census does not declare. An expression synthesized from a request filter must be one "
                 + "every targeted node can deserialize — the rewrite's own gate names one constant and cannot promise "
                 + "that. Declare each new class: in PREDATES_REWRITE_GATE if it predates esql_request_filter_on_dataset, "
-                + "otherwise give it a TransportVersion on its own class and add it to GATED, and call requireFunction "
-                + "with that constant at EVERY site that builds it.",
+                + "otherwise give it a TransportVersion on its own class and add it to GATED, and route EVERY site that "
+                + "builds it through gated() with that constant.",
             undeclared,
             empty()
         );
@@ -122,7 +125,7 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
         Set<String> expected = new TreeSet<>(GATED.values());
         assertThat(
             "a gated expression whose pin is never consulted is an ungated expression with a constant beside it; "
-                + "expected requireFunction calls on "
+                + "expected gated() calls carrying "
                 + expected
                 + " but found "
                 + consulted,
@@ -158,8 +161,7 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
 
         String pinned = """
             class T { Expression f() {
-                requireFunction(MvGreater.MV_COMPARE_TRANSPORT_VERSION, "range[single lower bound on keyword]");
-                return checkedLeaf(field, new MvGreater(source, field, bound, opts));
+                return gated(field, MvGreater.MV_COMPARE_TRANSPORT_VERSION, "range[...]", () -> leaf());
             } }
             """;
         assertThat(pinsConsulted(pinned), equalTo(Set.of("MvGreater.MV_COMPARE_TRANSPORT_VERSION")));
@@ -206,19 +208,22 @@ public class TranslatorEmittedFunctionPinsTests extends ESTestCase {
     }
 
     /**
-     * The esql module root, found by walking up from the working directory until the translator is under it. Gradle
-     * runs tests from the module directory, but the IDE and a {@code :x-pack:plugin:esql:test} invocation from the
-     * repository root do not agree on that, so neither is assumed.
+     * The esql module root. Gradle sets the test working directory to {@code <module>/build/testrun/<task>}, not the
+     * module directory, and IDEs use the module or the repository root — so none of the three is assumed. Mirrors
+     * {@code ReadConfigFingerprintDerivationSitesTests.findPluginRoot}, including its walk limit, which is generous
+     * enough for the deepest of those starting points.
      */
     private static Path esqlModuleRoot() {
-        Path candidate = PathUtils.get("").toAbsolutePath();
-        for (int up = 0; up < 6 && candidate != null; up++, candidate = candidate.getParent()) {
-            for (Path guess : List.of(candidate, candidate.resolve("x-pack/plugin/esql"))) {
+        Path cur = PathUtils.get("").toAbsolutePath();
+        for (int i = 0; i < 12 && cur != null; i++, cur = cur.getParent()) {
+            for (Path guess : List.of(cur, cur.resolve("x-pack/plugin/esql"))) {
                 if (Files.isRegularFile(guess.resolve(TRANSLATOR))) {
                     return guess;
                 }
             }
         }
-        throw new AssertionError("could not locate the esql module root from " + PathUtils.get("").toAbsolutePath());
+        throw new AssertionError(
+            "cannot locate the esql module from " + PathUtils.get("").toAbsolutePath() + " — the census needs the main sources"
+        );
     }
 }

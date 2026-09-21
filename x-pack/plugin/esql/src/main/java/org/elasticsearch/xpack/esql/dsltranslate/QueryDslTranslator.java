@@ -114,7 +114,7 @@ public final class QueryDslTranslator {
      * @param minimumVersion the minimum transport version across the nodes this plan targets. The rewrite as a whole
      *                      is gated well below this class, but that gate is one constant and this translator's output
      *                      set grows, so each function it synthesizes that postdates the gate is checked against its
-     *                      own pin here before it is built — see {@link #requireFunction}.
+     *                      own pin here before it is built — see {@link #gated}.
      */
     public QueryDslTranslator(
         Function<String, Expression> fieldBinder,
@@ -410,7 +410,7 @@ public final class QueryDslTranslator {
             if (lenient && isPresent(field)) {
                 return Literal.FALSE;
             }
-            throw new TranslationUnsupportedException("match[integral value on " + type.typeName() + "]");
+            throw new TranslationUnsupportedException("match[integral value on " + type.typeName() + " \u2014 needs a newer node]");
         }
         BigDecimal min = type == DataType.INTEGER ? BigDecimal.valueOf(Integer.MIN_VALUE) : BigDecimal.valueOf(Long.MIN_VALUE);
         BigDecimal max = type == DataType.INTEGER ? BigDecimal.valueOf(Integer.MAX_VALUE) : BigDecimal.valueOf(Long.MAX_VALUE);
@@ -652,7 +652,9 @@ public final class QueryDslTranslator {
             // field would wrongly degrade (unfiltered) where the index path's unmapped-field range matches nothing.
             if (isPresent(field) && (range.includeLower() == false || range.includeUpper() == false)) {
                 if (isWholeNumbered(type) == false) {
-                    throw new TranslationUnsupportedException("range[exclusive bound on " + type.typeName() + "]");
+                    throw new TranslationUnsupportedException(
+                        "range[exclusive bound on " + type.typeName() + " \u2014 needs a newer node]"
+                    );
                 }
                 try {
                     if (range.includeLower() == false) {
@@ -674,16 +676,24 @@ public final class QueryDslTranslator {
 
         // One bound → mv_greater / mv_less (any-value, two-valued).
         if (hasLower) {
-            requireFunction(MvGreater.MV_COMPARE_TRANSPORT_VERSION, "range[single lower bound on " + type.typeName() + "]");
-            return checkedLeaf(
+            return gated(
                 field,
-                new MvGreater(Source.EMPTY, field, literalFor(field, range.from()), includeBoundOptions(range.includeLower()))
+                MvGreater.MV_COMPARE_TRANSPORT_VERSION,
+                "range[single lower bound on " + type.typeName() + " \u2014 needs a newer node]",
+                () -> checkedLeaf(
+                    field,
+                    new MvGreater(Source.EMPTY, field, literalFor(field, range.from()), includeBoundOptions(range.includeLower()))
+                )
             );
         }
-        requireFunction(MvLess.MV_COMPARE_TRANSPORT_VERSION, "range[single upper bound on " + type.typeName() + "]");
-        return checkedLeaf(
+        return gated(
             field,
-            new MvLess(Source.EMPTY, field, literalFor(field, range.to()), includeBoundOptions(range.includeUpper()))
+            MvLess.MV_COMPARE_TRANSPORT_VERSION,
+            "range[single upper bound on " + type.typeName() + " \u2014 needs a newer node]",
+            () -> checkedLeaf(
+                field,
+                new MvLess(Source.EMPTY, field, literalFor(field, range.to()), includeBoundOptions(range.includeUpper()))
+            )
         );
     }
 
@@ -724,7 +734,7 @@ public final class QueryDslTranslator {
         try {
             number = value instanceof Number n ? new BigDecimal(n.toString()) : new BigDecimal(String.valueOf(value).trim());
         } catch (NumberFormatException e) {
-            throw new TranslationUnsupportedException("range[bound on " + type.typeName() + "]");
+            throw new TranslationUnsupportedException("range[bound on " + type.typeName() + " \u2014 needs a newer node]");
         }
         boolean hasDecimal = number.stripTrailingZeros().scale() > 0;
         BigDecimal base = number.setScale(0, RoundingMode.DOWN); // truncate toward zero, as the index parse does
@@ -759,13 +769,25 @@ public final class QueryDslTranslator {
             return checkedLeaf(field, new MvInRange(Source.EMPTY, field, longLit(lo, type), longLit(hi, type)));
         }
         if (hasLower) {
-            requireFunction(MvGreater.MV_COMPARE_TRANSPORT_VERSION, "range[single lower bound on " + type.typeName() + "]");
-            long lo = closedLowerBound(type, range.from(), formatter, range.includeLower());
-            return checkedLeaf(field, new MvGreater(Source.EMPTY, field, longLit(lo, type), includeBoundOptions(true)));
+            return gated(
+                field,
+                MvGreater.MV_COMPARE_TRANSPORT_VERSION,
+                "range[single lower bound on " + type.typeName() + " \u2014 needs a newer node]",
+                () -> {
+                    long lo = closedLowerBound(type, range.from(), formatter, range.includeLower());
+                    return checkedLeaf(field, new MvGreater(Source.EMPTY, field, longLit(lo, type), includeBoundOptions(true)));
+                }
+            );
         }
-        requireFunction(MvLess.MV_COMPARE_TRANSPORT_VERSION, "range[single upper bound on " + type.typeName() + "]");
-        long hi = closedUpperBound(type, range.to(), formatter, range.includeUpper());
-        return checkedLeaf(field, new MvLess(Source.EMPTY, field, longLit(hi, type), includeBoundOptions(true)));
+        return gated(
+            field,
+            MvLess.MV_COMPARE_TRANSPORT_VERSION,
+            "range[single upper bound on " + type.typeName() + " \u2014 needs a newer node]",
+            () -> {
+                long hi = closedUpperBound(type, range.to(), formatter, range.includeUpper());
+                return checkedLeaf(field, new MvLess(Source.EMPTY, field, longLit(hi, type), includeBoundOptions(true)));
+            }
+        );
     }
 
     /**
@@ -825,7 +847,7 @@ public final class QueryDslTranslator {
         } catch (RuntimeException e) {
             // An unparseable bound, a date-math expression we cannot resolve, or a numeric epoch out of the type's
             // representable range (e.g. a pre-1970 date_nanos) cannot be translated faithfully — degrade this clause.
-            throw new TranslationUnsupportedException("range[date bound on " + type.typeName() + "]");
+            throw new TranslationUnsupportedException("range[date bound on " + type.typeName() + " \u2014 needs a newer node]");
         }
     }
 
@@ -849,10 +871,18 @@ public final class QueryDslTranslator {
      * {@code mv_in_range}, {@code mv_contains} and {@code mv_intersects} need no check: all three predate the
      * rewrite's own gate, so any node that reaches this code at all already has them.
      */
-    private void requireFunction(TransportVersion required, String construct) {
+    private Expression gated(Expression field, TransportVersion required, String construct, Supplier<Expression> leaf) {
         if (minimumVersion.supports(required) == false) {
+            // A MISSING field is null-bound and every leaf folds it to false, so the answer here needs no function at
+            // all. Give that answer rather than degrading: dropping the clause would loosen the filter on the most
+            // ordinary input there is — a filter naming a field this dataset does not have — and would tell the
+            // operator the construct is unsupported when nothing about it is.
+            if (isPresent(field) == false) {
+                return Literal.FALSE;
+            }
             throw new TranslationUnsupportedException(construct);
         }
+        return leaf.get();
     }
 
     /** Inclusive DSL bound → {@code include_bound: true}; exclusive omits options (default). */
@@ -884,10 +914,12 @@ public final class QueryDslTranslator {
             // than answer a different question. (exists is analysis-independent and does not pass through here, so
             // IS NOT NULL over a text field stays valid.)
             if (type == DataType.TEXT) {
-                throw new TranslationUnsupportedException(leaf.nodeName() + "[on analyzed " + type.typeName() + "]");
+                throw new TranslationUnsupportedException(
+                    leaf.nodeName() + "[on analyzed " + type.typeName() + " \u2014 needs a newer node]"
+                );
             }
             if (leaf.resolved() == false) {
-                throw new TranslationUnsupportedException(leaf.nodeName() + "[on " + type.typeName() + "]");
+                throw new TranslationUnsupportedException(leaf.nodeName() + "[on " + type.typeName() + " \u2014 needs a newer node]");
             }
         }
         return leaf;
@@ -911,7 +943,7 @@ public final class QueryDslTranslator {
         try {
             number = value instanceof Number n ? new BigDecimal(n.toString()) : new BigDecimal(String.valueOf(value).trim());
         } catch (NumberFormatException e) {
-            throw new TranslationUnsupportedException("terms[integral value on " + type.typeName() + "]");
+            throw new TranslationUnsupportedException("terms[integral value on " + type.typeName() + " \u2014 needs a newer node]");
         }
         BigDecimal min = type == DataType.INTEGER ? BigDecimal.valueOf(Integer.MIN_VALUE) : BigDecimal.valueOf(Long.MIN_VALUE);
         BigDecimal max = type == DataType.INTEGER ? BigDecimal.valueOf(Integer.MAX_VALUE) : BigDecimal.valueOf(Long.MAX_VALUE);

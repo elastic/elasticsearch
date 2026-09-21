@@ -15,7 +15,6 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.InPlaceMergeSorter;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnReader;
@@ -27,14 +26,23 @@ import java.util.Arrays;
 /**
  * A keyword field's values at the fielddata surface, read from a {@code BINARY_COLUMNAR_PAYLOAD} column.
  *
- * <p>Null slots are dropped, as they are for every other format at this surface, and the surviving values are sorted.
+ * <p>Null slots are dropped, as they are for every other format at this surface. Nothing is sorted here: this
+ * format writes a document's slots in the order they were given and reads them back the same way, which is what
+ * {@link ValueOrder#ARRAY} says. A caller wanting them ordered orders them itself.
  *
  * <p>How many values a document holds is answered from the column, which records it, so an aggregation that asks only
  * for the count — {@code value_count}, or anything deciding on arity before it reads — never has a value decoded on
- * its behalf. The values are decoded and sorted on the first read of the document, and a document that is never read
- * costs nothing beyond its count.
+ * its behalf.
+ *
+ * <p>The values themselves come out of the column one slot at a time, as they are asked for, and are handed over
+ * where the column holds them. Nothing is buffered and nothing is copied: a document is never assembled, only read
+ * through. Holding a document's values together is what sorting them needed, and this does not sort.
+ *
+ * <p>A column read through something other than the codec's own doc values has no slots to walk. Those values come
+ * out of the payload {@link org.apache.lucene.index.BinaryDocValues#binaryValue()} rebuilds, which has to be taken
+ * apart in one pass, so that route alone keeps a document's values while it reads them.
  */
-public final class ColumnarPayloadSortedBinaryDocValues extends SortedBinaryDocValues {
+public final class ColumnarPayloadSortableBinaryDocValues extends SortableBinaryDocValues {
 
     private final BinaryDocValues binary;
     private final StringColumnSource source;
@@ -42,29 +50,21 @@ public final class ColumnarPayloadSortedBinaryDocValues extends SortedBinaryDocV
     private final Sparsity sparsity;
     private final ValueMode valueMode;
 
+    /** Where the payload route keeps a document's values. The column route hands them over where they lie. */
     private BytesRefBuilder[] values = new BytesRefBuilder[] { new BytesRefBuilder() };
-    private final InPlaceMergeSorter sorter = new InPlaceMergeSorter() {
-        @Override
-        protected void swap(int i, int j) {
-            ArrayUtil.swap(values, i, j);
-        }
-
-        @Override
-        protected int compare(int i, int j) {
-            return values[i].get().compareTo(values[j].get());
-        }
-    };
 
     private int count;
     private int index;
-    /** Whether {@link #values} holds the document {@link #binary} stands on; false while only its count is known. */
-    private boolean decoded;
+    /** The next slot of the current document for the column route to read, null slots included. */
+    private int slot;
+    /** The document's slot count, kept while assertions are on so {@link #nextValue()} can bound {@link #slot}. */
+    private int slotCount;
 
-    public ColumnarPayloadSortedBinaryDocValues(BinaryDocValues binary) {
+    public ColumnarPayloadSortableBinaryDocValues(BinaryDocValues binary) {
         this(binary, null, Sparsity.UNKNOWN, ValueMode.UNKNOWN);
     }
 
-    private ColumnarPayloadSortedBinaryDocValues(
+    private ColumnarPayloadSortableBinaryDocValues(
         BinaryDocValues binary,
         StringColumnSource source,
         Sparsity sparsity,
@@ -77,13 +77,13 @@ public final class ColumnarPayloadSortedBinaryDocValues extends SortedBinaryDocV
         this.valueMode = valueMode;
     }
 
-    public static ColumnarPayloadSortedBinaryDocValues from(LeafReader leafReader, String valuesFieldName) throws IOException {
+    public static ColumnarPayloadSortableBinaryDocValues from(LeafReader leafReader, String valuesFieldName) throws IOException {
         final BinaryDocValues binary = DocValues.getBinary(leafReader, valuesFieldName);
         // A column records both of these, so neither costs a walk over the documents. A segment that arrives
         // as an overlay records neither and leaves them unknown.
         if (binary instanceof StringColumnSource source) {
             final StringColumnReader column = source.reader();
-            return new ColumnarPayloadSortedBinaryDocValues(
+            return new ColumnarPayloadSortableBinaryDocValues(
                 binary,
                 source,
                 column.numDocsWithField() == leafReader.maxDoc() ? Sparsity.DENSE : Sparsity.SPARSE,
@@ -92,7 +92,7 @@ public final class ColumnarPayloadSortedBinaryDocValues extends SortedBinaryDocV
                 column.hasValueAddresses() ? ValueMode.UNKNOWN : ValueMode.SINGLE_VALUED
             );
         }
-        return new ColumnarPayloadSortedBinaryDocValues(binary);
+        return new ColumnarPayloadSortableBinaryDocValues(binary);
     }
 
     @Override
@@ -106,18 +106,24 @@ public final class ColumnarPayloadSortedBinaryDocValues extends SortedBinaryDocV
     }
 
     @Override
+    public ValueOrder getValueOrder() {
+        return ValueOrder.ARRAY;
+    }
+
+    @Override
     public boolean advanceExact(int doc) throws IOException {
         if (binary.advanceExact(doc) == false) {
             count = 0;
-            decoded = true;
             return false;
         }
+        index = 0;
         if (source != null) {
+            slot = 0;
             count = source.nonNullValueCount();
-            decoded = false;
+            assert trackSlotCount();
             return count > 0;
         }
-        decode();
+        decodePayload();
         return count > 0;
     }
 
@@ -128,32 +134,42 @@ public final class ColumnarPayloadSortedBinaryDocValues extends SortedBinaryDocV
 
     @Override
     public BytesRef nextValue() throws IOException {
-        if (decoded == false) {
-            decode();
-        }
         assert index < count;
-        return values[index++].get();
+        index++;
+        if (source == null) {
+            return values[index - 1].get();
+        }
+        BytesRef value;
+        do {
+            // The column counted this document's non-null slots, so one is always left to find. Past the last
+            // slot the source would hand back the next document's value rather than fail, so this holds it here.
+            assert slot < slotCount : "slot " + slot + " beyond the document's " + slotCount;
+            value = source.slotAt(slot++);
+        } while (value == null);
+        return value;
     }
 
-    /** Reads the document's values out of its payload, drops the null slots, and sorts what is left. */
-    private void decode() throws IOException {
-        final BytesRef bytes = binary.binaryValue();
-        final int slotCount = decoder.reset(bytes);
+    /** Records the document's slot count so {@link #nextValue()} can bound {@link #slot}. Assertions only. */
+    private boolean trackSlotCount() throws IOException {
+        slotCount = source.slotCount();
+        assert slotCount >= count : "a document of " + slotCount + " slots cannot hold " + count + " values";
+        return true;
+    }
+
+    /** Reads the document's values out of the payload, for values that do not come from a column this can walk. */
+    private void decodePayload() throws IOException {
+        final int payloadSlots = decoder.reset(binary.binaryValue());
         // Size the scratch to the slot count — an upper bound on the surviving non-null values — then trim to the non-null total.
-        grow(slotCount);
+        grow(payloadSlots);
         int nonNull = 0;
-        for (int slot = 0; slot < slotCount; slot++) {
+        for (int i = 0; i < payloadSlots; i++) {
             final BytesRef value = decoder.next();
             if (value == null) {
                 continue; // null slot
             }
             values[nonNull++].copyBytes(value);
         }
-        assert source == null || nonNull == count : "column counted " + count + " non-null values, payload holds " + nonNull;
         count = nonNull;
-        sorter.sort(0, count);
-        index = 0;
-        decoded = true;
     }
 
     private void grow(int size) {

@@ -699,7 +699,7 @@ public class IndexEngine extends InternalEngine {
      * Flush when:
      * 1. TranslogLocation is not being tracked.
      * 2. Current or Old version maps are unsafe.
-     * 3. Only archive is unsafe AND the min safe generation is behind the current committed segment
+     * 3. Only the archive is unsafe AND the current committed segment generation is below the minimum safe generation.
      */
     @Override
     protected RefreshResult refreshInternalSearcher(String source, boolean block) throws EngineException {

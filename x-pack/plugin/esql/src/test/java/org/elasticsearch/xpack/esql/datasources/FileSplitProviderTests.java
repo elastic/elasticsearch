@@ -6821,6 +6821,30 @@ public class FileSplitProviderTests extends ESTestCase {
 
     private static final Source SRC = Source.EMPTY;
 
+    public void testSignedZeroPartitionIsNotConfidentlyPruned() {
+        // ES|QL's double evaluators compare primitives, where IEEE 754 equates -0.0 and 0.0, so every row of a d=-0.0
+        // file satisfies d >= 0.0. The file layer has no retained filter: a confident FALSE here drops the file and
+        // nothing can put its rows back. A d=-0.0 directory is reachable -- StringUtils.parseDouble accepts it, and
+        // types the partition DOUBLE -- while NaN and infinity are rejected there and type as KEYWORD instead.
+        FieldAttribute d = new FieldAttribute(
+            SRC,
+            "d",
+            new EsField("d", DataType.DOUBLE, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        Literal zero = new Literal(SRC, 0.0, DataType.DOUBLE);
+        Literal minusZero = new Literal(SRC, -0.0, DataType.DOUBLE);
+        Literal hundred = new Literal(SRC, 100.0, DataType.DOUBLE);
+        Literal minusHundred = new Literal(SRC, -100.0, DataType.DOUBLE);
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(new MvInRange(SRC, d, zero, hundred), Map.of("d", -0.0)));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(new MvInRange(SRC, d, minusHundred, minusZero), Map.of("d", 0.0)));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(new MvContains(SRC, d, zero), Map.of("d", -0.0)));
+        // The scalar siblings share the comparator and are corrected by the same change.
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(new Equals(SRC, d, zero, null), Map.of("d", -0.0)));
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(new GreaterThanOrEqual(SRC, d, zero, null), Map.of("d", -0.0)));
+        // Positive control: an ordinary double outside the range is still a confident prune.
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(new MvInRange(SRC, d, zero, hundred), Map.of("d", -1.5)));
+    }
+
     private static FieldAttribute fieldAttr(String name) {
         return new FieldAttribute(SRC, name, new EsField(name, DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
     }

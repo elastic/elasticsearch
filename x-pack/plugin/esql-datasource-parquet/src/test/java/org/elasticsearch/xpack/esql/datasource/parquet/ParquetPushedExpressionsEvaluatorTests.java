@@ -19,10 +19,17 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -2476,6 +2483,130 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
             }
         }
         return Arrays.copyOf(tmp, n);
+    }
+
+    // ---- multivalue comparison functions: exact row masks ----
+    // Each form is answered by its scalar sibling's arm, with the bounds read exactly. The fixture carries a null at
+    // position 1 because that is where the forms and their siblings part company: a null field is the empty set, so
+    // the form answers false and its NOT answers true, while the scalar sibling answers null and its NOT drops the
+    // row. Every NOT case below keeps position 1; the scalar contrast drops it.
+
+    /** {@code [10, null, 30, 40, 50]} as a single-valued LONG block under {@code x}. */
+    private Map<String, Block> tenNullThirtyFortyFifty() {
+        try (var builder = blockFactory.newLongBlockBuilder(5)) {
+            builder.appendLong(10L);
+            builder.appendNull();
+            builder.appendLong(30L);
+            builder.appendLong(40L);
+            builder.appendLong(50L);
+            return Map.of("x", builder.build());
+        }
+    }
+
+    private static Expression includeBound(boolean include) {
+        return new MapExpression(
+            Source.EMPTY,
+            List.of(Literal.keyword(Source.EMPTY, MvCompare.INCLUDE_BOUND), new Literal(Source.EMPTY, include, DataType.BOOLEAN))
+        );
+    }
+
+    private static Expression exclusiveBothBounds() {
+        return new MapExpression(
+            Source.EMPTY,
+            List.of(
+                Literal.keyword(Source.EMPTY, "include_lower"),
+                new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+                Literal.keyword(Source.EMPTY, "include_upper"),
+                new Literal(Source.EMPTY, false, DataType.BOOLEAN)
+            )
+        );
+    }
+
+    private void assertMask(Expression expr, int[] expected) {
+        assertSurvivors(new ParquetPushedExpressions(List.of(expr)), tenNullThirtyFortyFifty(), 5, new WordMask(), expected);
+    }
+
+    public void testMvContainsMaskAndItsNegationKeepsTheNullRow() {
+        Expression mv = new MvContains(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG));
+        assertMask(mv, new int[] { 2 });
+        assertMask(new Not(Source.EMPTY, mv), new int[] { 0, 1, 3, 4 });
+        // The contrast that makes the NOT case above a test: the scalar sibling's NOT drops the null row.
+        assertMask(
+            new Not(Source.EMPTY, new Equals(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG), null)),
+            new int[] { 0, 3, 4 }
+        );
+    }
+
+    public void testMvIntersectsMaskIgnoresANullInTheSet() {
+        Literal set = new Literal(Source.EMPTY, Arrays.asList(30L, 50L, null), DataType.LONG);
+        Expression mv = new MvIntersects(Source.EMPTY, attr("x", DataType.LONG), set);
+        assertMask(mv, new int[] { 2, 4 });
+        assertMask(new Not(Source.EMPTY, mv), new int[] { 0, 1, 3 });
+    }
+
+    public void testMvGreaterReadsIncludeBoundExactly() {
+        assertMask(new MvGreater(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG)), new int[] { 3, 4 });
+        assertMask(
+            new MvGreater(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG), includeBound(true)),
+            new int[] { 2, 3, 4 }
+        );
+        // Strict by default, so the row sitting on 30 is false and its NOT keeps it. An inclusive stand-in for the
+        // strict bound would set bit 2 and the negation would drop it.
+        assertMask(
+            new Not(Source.EMPTY, new MvGreater(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG))),
+            new int[] { 0, 1, 2 }
+        );
+    }
+
+    public void testMvLessReadsIncludeBoundExactly() {
+        assertMask(new MvLess(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG)), new int[] { 0 });
+        assertMask(new MvLess(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG), includeBound(true)), new int[] { 0, 2 });
+        assertMask(
+            new Not(Source.EMPTY, new MvLess(Source.EMPTY, attr("x", DataType.LONG), lit(30L, DataType.LONG), includeBound(true))),
+            new int[] { 1, 3, 4 }
+        );
+    }
+
+    public void testMvInRangeReadsExclusiveBoundsExactly() {
+        Expression open = new MvInRange(
+            Source.EMPTY,
+            attr("x", DataType.LONG),
+            lit(10L, DataType.LONG),
+            lit(40L, DataType.LONG),
+            exclusiveBothBounds()
+        );
+        assertMask(open, new int[] { 2 });
+        // Both boundary rows are false under the open interval, so both survive the negation, as does the null.
+        assertMask(new Not(Source.EMPTY, open), new int[] { 0, 1, 3, 4 });
+    }
+
+    public void testMvFormsDeclineOnAMultivaluedBlock() {
+        // [10], [20, 30], [40]: the middle row holds a value that satisfies each form below. The scalar arms keep only
+        // single-valued positions, so answering here would lose it; every form must decline and let all rows through.
+        Block block;
+        try (var builder = blockFactory.newLongBlockBuilder(3)) {
+            builder.appendLong(10L);
+            builder.beginPositionEntry();
+            builder.appendLong(20L);
+            builder.appendLong(30L);
+            builder.endPositionEntry();
+            builder.appendLong(40L);
+            block = builder.build();
+        }
+        Map<String, Block> blocks = Map.of("x", block);
+        Attribute x = attr("x", DataType.LONG);
+        for (Expression mv : List.of(
+            new MvContains(Source.EMPTY, x, lit(30L, DataType.LONG)),
+            new MvIntersects(Source.EMPTY, x, new Literal(Source.EMPTY, List.of(30L), DataType.LONG)),
+            new MvInRange(Source.EMPTY, x, lit(25L, DataType.LONG), lit(35L, DataType.LONG)),
+            new MvGreater(Source.EMPTY, x, lit(25L, DataType.LONG)),
+            new MvLess(Source.EMPTY, x, lit(25L, DataType.LONG))
+        )) {
+            assertNull(
+                mv + " must decline over a multivalued block",
+                new ParquetPushedExpressions(List.of(mv)).evaluateFilter(blocks, 3, new WordMask())
+            );
+        }
     }
 
     private static void assertSurvivors(

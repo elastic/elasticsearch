@@ -273,8 +273,7 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
             }
             return PushdownPredicates.isMvInRange(mvInRange, TYPE_SUPPORTED);
         }
-        if (expr instanceof MvGreater || expr instanceof MvLess) {
-            MvCompare mvCompare = (MvCompare) expr;
+        if (expr instanceof MvCompare mvCompare) {
             if (declinesOrderedBoolean(mvCompare.field())) {
                 return false;
             }

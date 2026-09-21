@@ -15,6 +15,7 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -2766,6 +2767,36 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    public void testListValuedBoundUnderAndDeclinesInsteadOfThrowing() {
+        // canConvert(And) is an OR of its arms, so an And whose other arm converts carries a list-valued mv_ bound
+        // past the canConvert-level decline and into both the statistics and the row paths. A user can write this
+        // shape (WHERE mv_in_range(id, [1, 2], 9) AND id == 5), so each arm must decline the list itself rather
+        // than cast it to a Number.
+        MessageType schema = Types.buildMessage().required(INT64).named("id").named("test");
+        Literal list = new Literal(Source.EMPTY, List.of(1L, 2L), DataType.LONG);
+        Expression scalar = eq("id", DataType.LONG, 5L);
+        List<Expression> shapes = List.of(
+            new MvInRange(Source.EMPTY, attr("id", DataType.LONG), list, lit(9L, DataType.LONG)),
+            new MvInRange(Source.EMPTY, attr("id", DataType.LONG), lit(1L, DataType.LONG), list),
+            new MvGreater(Source.EMPTY, attr("id", DataType.LONG), list),
+            new MvLess(Source.EMPTY, attr("id", DataType.LONG), list)
+        );
+        FilterPredicate scalarOnly = predicateFor(schema, scalar);
+        for (Expression mv : shapes) {
+            Expression and = new And(Source.EMPTY, mv, scalar);
+            // The list arm declines and the AND keeps its other arm, exactly as if the list arm were absent.
+            assertEquals(mv.toString(), scalarOnly.toString(), predicateFor(schema, and).toString());
+            Block block = blockFactory.newLongArrayVector(new long[] { 1L, 5L, 9L }, 3).asBlock();
+            try {
+                WordMask mask = new ParquetPushedExpressions(List.of(and)).evaluateFilter(Map.of("id", block), 3, new WordMask());
+                assertNotNull(mv.toString(), mask);
+                assertArrayEquals(mv.toString(), new int[] { 1 }, mask.survivingPositions());
+            } finally {
+                block.close();
+            }
+        }
     }
 
     /** The predicate {@code expr} alone would push, or {@code null} when it declines. */

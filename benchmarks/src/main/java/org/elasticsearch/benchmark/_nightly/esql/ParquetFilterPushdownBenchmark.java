@@ -64,6 +64,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -78,10 +79,9 @@ import java.util.concurrent.TimeUnit;
  * being like for like.
  *
  * <p>Two mechanisms are in play and {@code clustering} separates them. Sorted, a selective range leaves most row
- * groups unreadable and they are skipped whole. Shuffled, every row group spans the whole range and none can be
- * skipped — but a filtered scan is still far faster than an unfiltered one at {@code wide} projection, because the
- * row-level mask spares the payload columns the decoding of rows that will not survive. At {@code narrow}
- * projection there is no payload to spare and a filter is worth nothing either way.
+ * groups unreadable and they are skipped whole. Shuffled, every row group and every page spans the whole range, so
+ * nothing can be skipped by statistics, and the only thing left that can spare the payload columns is the row-level
+ * mask. At {@code narrow} projection there is no payload to spare.
  *
  * <p>The control is {@code none} across {@code selectivity}: with no filter the parameter is inert, so those two
  * cells run identical work. Their spread is the run's drift floor, and no difference smaller than it means
@@ -314,16 +314,38 @@ public class ParquetFilterPushdownBenchmark {
     }
 
     /**
-     * {@code ts} ascending, or the same values shuffled by a fixed permutation so every row group spans the whole
-     * range. The permutation multiplies by {@code 97} modulo {@link #ROWS}; 97 is coprime with {@code 200_000}, so
-     * it is a bijection of {@code [0, ROWS)} onto itself and the two fixtures hold exactly the same timestamps —
-     * only their order differs. That is what makes {@code clustering} a control: a range filter selects the same
-     * number of rows either way, so any difference between the two is pruning and nothing else.
+     * The fixture. Every column is derived from one tick per row, so the two layouts hold exactly the same rows and
+     * differ only in their order — which is what makes {@code clustering} a control.
      *
      * <p>{@code ts} is a real {@code TIMESTAMP(MILLIS)} column, one second apart from a fixed instant, so the
-     * pushdown reaches {@code buildDatetimePredicate} — the path a filter on a time field actually takes. Written
-     * as a bare {@code int64} it would reach {@code buildLongPredicate} instead and measure the wrong arm.
+     * pushdown reaches {@code buildDatetimePredicate} — the path a filter on a time field actually takes.
+     *
+     * <p>{@code svc}, {@code opt} and {@code bytes} are derived from the tick modulo a small number, so in both
+     * layouts every row group and every page holds every one of their values. Statistics can therefore prune on the
+     * time range alone; a filter on those columns can only be answered row by row, which is the case the row-level
+     * mask exists for.
      */
+    private static int[] ticks(boolean clustered) {
+        int[] ticks = new int[ROWS];
+        for (int i = 0; i < ROWS; i++) {
+            ticks[i] = i;
+        }
+        if (clustered == false) {
+            // A seeded Fisher-Yates shuffle. An earlier version multiplied by a constant modulo ROWS, which is a
+            // bijection but keeps neighbouring rows a fixed step apart, so every page still held a narrow run of
+            // timestamps and the page index pruned most of them. That hid the row-level mask behind page pruning.
+            // Here every page spans the whole range, so neither row groups nor pages can be skipped.
+            Random random = new Random(0x5EEDL);
+            for (int i = ROWS - 1; i > 0; i--) {
+                int j = random.nextInt(i + 1);
+                int swap = ticks[i];
+                ticks[i] = ticks[j];
+                ticks[j] = swap;
+            }
+        }
+        return ticks;
+    }
+
     private static byte[] fixture(boolean clustered) throws IOException {
         StringBuilder schemaText = new StringBuilder(
             "message bench { required int64 id; required int64 ts (TIMESTAMP(MILLIS,true));"
@@ -344,8 +366,9 @@ public class ParquetFilterPushdownBenchmark {
                 .withRowGroupSize(ROW_GROUP_BYTES)
                 .build()
         ) {
+            int[] ticks = ticks(clustered);
             for (int i = 0; i < ROWS; i++) {
-                long tick = clustered ? i : (i * 97L) % ROWS;
+                long tick = ticks[i];
                 Group g = factory.newGroup();
                 g.add("id", (long) i);
                 g.add("ts", EPOCH_BASE_MILLIS + tick * TS_STEP_MILLIS);

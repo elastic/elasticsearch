@@ -42,9 +42,6 @@ public class StringColumnTempFileTests extends ColumnarStringTestCase {
             ColumnarCodecUtil.writeHeader(out, "ColumNARStringData", FormatVersion.CURRENT, segmentId, "");
             StringColumnWriter.write(
                 docSlots.length,
-                numDocsWithField(docSlots),
-                numValues(docSlots),
-                numNullSlots(docSlots),
                 () -> cursor(docSlots),
                 new StringColumnOptions(
                     ROOMY,
@@ -60,6 +57,7 @@ public class StringColumnTempFileTests extends ColumnarStringTestCase {
                     )
                 ),
                 null,
+                new StringColumnValues.Totals(numDocsWithField(docSlots), numValues(docSlots), numNullSlots(docSlots)),
                 dir,
                 IOContext.DEFAULT,
                 out

@@ -158,12 +158,10 @@ public class StringColumnPassCountTests extends ColumnarStringTestCase {
         try (IndexOutput out = dir.createTempOutput("test", "cnd", IOContext.DEFAULT)) {
             StringColumnWriter.write(
                 docSlots.length,
-                numDocsWithField(docSlots),
-                numValues(docSlots),
-                numNullSlots(docSlots),
                 counter,
                 options,
                 known,
+                new StringColumnValues.Totals(numDocsWithField(docSlots), numValues(docSlots), numNullSlots(docSlots)),
                 dir,
                 IOContext.DEFAULT,
                 out

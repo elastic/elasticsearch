@@ -77,10 +77,6 @@ public final class StringColumnWriter {
      * offset table; returns the metadata needed to reconstruct the column at read time.
      *
      * @param maxDoc                    documents in the segment
-     * @param numDocsWithField          documents that have at least one slot
-     * @param numValues                 total number of slots across all documents, null slots included
-     * @param numNullSlots              how many of those slots are null; the null-slot table is written only when
-     *                                  this is positive
      * @param cursors                   supplies fresh forward cursors over the documents that have a slot; for
      *                                  a sparse column needing a survey, this is called once for the combined
      *                                  iterator-and-survey pass; for all other columns it is called once per
@@ -88,18 +84,19 @@ public final class StringColumnWriter {
      * @param options                   how the column is written: its dictionary policy, its chunk codec and
      *                                  the units its streams are sized in
      * @param known                     a vocabulary already worked out for these values, or null to survey them
+     * @param totals                    the counts already known for this column — documents with a slot, total
+     *                                  slots, and null slots — or {@code null} to have the writer derive them
+     *                                  in a counting pass before it begins writing
      * @param directory                 directory used for the temporary table files
      * @param context                   IO context for the temporary table files
      * @param data                      data output (iterator, value blocks, and the tables are appended)
      */
     public static StringColumnMetadata write(
         int maxDoc,
-        int numDocsWithField,
-        long numValues,
-        long numNullSlots,
         IOSupplier<StringColumnValues> cursors,
         StringColumnOptions options,
         Vocabulary.Terms known,
+        StringColumnValues.Totals totals,
         Directory directory,
         IOContext context,
         IndexOutput data
@@ -108,6 +105,30 @@ public final class StringColumnWriter {
         final ChunkCodec chunkCodec = options.chunkCodec();
         final StringColumnOptions.Sizes sizes = options.sizes();
         final int valuesPerBlock = sizes.valuesPerBlock();
+
+        final int numDocsWithField;
+        final long numValues;
+        final long numNullSlots;
+        if (totals != null) {
+            numDocsWithField = totals.numDocsWithField();
+            numValues = totals.numValues();
+            numNullSlots = totals.numNullSlots();
+        } else {
+            // Totals not recorded: count in one pass, then the value pass starts from a fresh cursor.
+            int docs = 0;
+            long vals = 0;
+            long nulls = 0;
+            final StringColumnValues counter = cursors.get();
+            for (int doc = counter.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = counter.nextDoc()) {
+                docs++;
+                vals += counter.valueCount();
+                nulls += counter.nullCount();
+            }
+            numDocsWithField = docs;
+            numValues = vals;
+            numNullSlots = nulls;
+        }
+
         if (numDocsWithField == 0) {
             return StringColumnMetadata.empty(ColumnIteratorWriter.write(cursors, 0, maxDoc, data));
         }

@@ -70,6 +70,7 @@ import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams
  */
 public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
+    private static final String WRAPPER_DISTS_RELATIVE_PATH = "wrapper/dists";
     static final Attribute<Boolean> BWC_DISTRIBUTION_ATTRIBUTE = Attribute.of("bwc-distribution", Boolean.class);
 
     private final ObjectFactory objectFactory;
@@ -219,14 +220,23 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         project.getTasks().register("setupGradleUserHome", task -> {
             File gradleUserHome = project.getGradle().getGradleUserHomeDir();
             String projectName = project.getName();
+            String wrapperDistributionPath = WRAPPER_DISTS_RELATIVE_PATH + "/" + currentWrapperDistributionDirName(project);
             task.doLast(t -> {
+                File uniqueGradleUserHome = new File(gradleUserHome.getAbsolutePath() + "-" + projectName);
+                File wrapperDir = new File(uniqueGradleUserHome, "wrapper");
+                if (wrapperDir.exists()) {
+                    return;
+                }
                 fileSystemOperations.copy(copy -> {
-                    String absoluteGradleUserHomePath = gradleUserHome.getAbsolutePath();
-                    copy.into(absoluteGradleUserHomePath + "-" + projectName);
-                    copy.from(absoluteGradleUserHomePath, copySpec -> {
+                    copy.into(uniqueGradleUserHome);
+                    copy.from(gradleUserHome, copySpec -> {
                         copySpec.include("gradle.properties");
                         copySpec.include("init.d/*");
                     });
+                });
+                fileSystemOperations.copy(copy -> {
+                    copy.into(new File(uniqueGradleUserHome, WRAPPER_DISTS_RELATIVE_PATH));
+                    copy.from(new File(gradleUserHome, wrapperDistributionPath));
                 });
             });
         });
@@ -390,6 +400,10 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             }
             artifact.setClassifier(classifier);
         });
+    }
+
+    private static String currentWrapperDistributionDirName(Project project) {
+        return "gradle-" + project.getGradle().getGradleVersion() + "-bin";
     }
 
     private static List<DistributionProject> resolveArchiveProjects(File checkoutDir, Version bwcVersion) {

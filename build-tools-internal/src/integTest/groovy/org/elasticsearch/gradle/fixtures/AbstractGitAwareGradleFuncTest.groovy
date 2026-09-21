@@ -14,8 +14,11 @@ import spock.lang.TempDir
 
 import org.apache.commons.io.FileUtils
 import org.gradle.testkit.runner.GradleRunner
+import org.gradle.util.GradleVersion
 
 abstract class AbstractGitAwareGradleFuncTest extends AbstractGradleInternalPluginFuncTest {
+
+    private static final String WRAPPER_DISTS_RELATIVE_PATH = "wrapper/dists"
 
     /**
      * Shared temporary directory for the prepared git remote. Using {@code @Shared @TempDir}
@@ -32,6 +35,7 @@ abstract class AbstractGitAwareGradleFuncTest extends AbstractGradleInternalPlug
     File remoteGitRepo
 
     def setup() {
+        seedTestKitWrapperCache()
         if (preparedRemoteGitDir == null) {
             preparedRemoteGitDir = setupGitRemote()
         }
@@ -65,6 +69,25 @@ abstract class AbstractGitAwareGradleFuncTest extends AbstractGradleInternalPlug
         execute("git add .", workingRemoteGit)
         execute('git commit -m"Initial"', workingRemoteGit)
         return workingRemoteGit;
+    }
+
+    private static void seedTestKitWrapperCache() {
+        String testKitDirPath = System.getProperty("org.gradle.testkit.dir")
+        if (testKitDirPath == null) {
+            return
+        }
+        String currentWrapperDistributionDirName = "gradle-${GradleVersion.current().version}-bin"
+        File testKitWrapperDistributionDir = new File(testKitDirPath, WRAPPER_DISTS_RELATIVE_PATH + "/" + currentWrapperDistributionDirName)
+        if (testKitWrapperDistributionDir.exists()) {
+            return
+        }
+        File localWrapperDistributionDir = new File(
+            System.getProperty("user.home"),
+            ".gradle/${WRAPPER_DISTS_RELATIVE_PATH}/${currentWrapperDistributionDirName}"
+        )
+        if (localWrapperDistributionDir.exists()) {
+            FileUtils.copyDirectory(localWrapperDistributionDir, testKitWrapperDistributionDir)
+        }
     }
 
     GradleRunner gradleRunner(String... arguments) {

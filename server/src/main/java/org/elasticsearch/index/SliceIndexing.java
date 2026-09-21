@@ -10,8 +10,6 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.search.OpenPointInTimeRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
@@ -45,6 +43,11 @@ public final class SliceIndexing {
     public static final TransportVersion OPEN_POINT_IN_TIME_SLICE_ROUTING_STATE_VERSION = TransportVersion.fromName(
         "open_point_in_time_slice_routing_state"
     );
+    /**
+     * From this version search-style requests no longer send the slice value; it is derived from routing and its provenance (also known
+     * by isRoutingFromSlice).
+     */
+    public static final TransportVersion SLICE_ROUTING_STATE_DERIVED_VERSION = TransportVersion.fromName("slice_routing_state_derived");
     private static final int MAX_SLICE_VALUE_LENGTH = 128;
     private static final Pattern VALID_SLICE_VALUE_PATTERN = Pattern.compile("[a-zA-Z0-9](?:[a-zA-Z0-9._:-]*[a-zA-Z0-9])?");
 
@@ -57,40 +60,27 @@ public final class SliceIndexing {
     /**
      * Parsed routing result with provenance indicating if the value came from {@code slice}.
      */
-    public record ParsedRouting(String routing, boolean fromSlice) {
-        /**
-         * Returns the {@code slice} parameter value for search-style requests, or {@code null} when routing did not come from
-         * {@code slice}.
-         */
-        @Nullable
-        String toSearchSlice() {
-            if (fromSlice == false) {
-                return null;
-            }
-            return routing == null ? SLICE_ALL : routing;
+    public record ParsedRouting(@Nullable String routing, boolean fromSlice) {}
+
+    /**
+     * Returns the {@code slice} value implied by a routing value and its provenance: {@code null} when routing did not come from
+     * {@code slice}, {@link #SLICE_ALL} when it did but is unrestricted, otherwise the routing value itself.
+     */
+    @Nullable
+    public static String toSearchSlice(@Nullable String routing, boolean routingFromSlice) {
+        if (routingFromSlice == false) {
+            return null;
         }
+        return routing == null ? SLICE_ALL : routing;
     }
 
     /**
-     * Applies parsed REST {@code routing}/{@code slice} parameters to a {@link SearchRequest}.
+     * Inverse of {@link #toSearchSlice}: returns the routing value implied by a {@code slice} value, where {@link #SLICE_ALL}
+     * means unrestricted ({@code null}) routing.
      */
-    public static void applySearchRoutingOrSlice(ParsedRouting parsedRouting, SearchRequest request) {
-        if (parsedRouting.fromSlice()) {
-            request.searchSlice(parsedRouting.toSearchSlice());
-        } else {
-            request.routing(parsedRouting.routing());
-        }
-    }
-
-    /**
-     * Applies parsed REST {@code routing}/{@code slice} parameters to an {@link OpenPointInTimeRequest}.
-     */
-    public static void applySearchRoutingOrSlice(ParsedRouting parsedRouting, OpenPointInTimeRequest request) {
-        if (parsedRouting.fromSlice()) {
-            request.searchSlice(parsedRouting.toSearchSlice());
-        } else {
-            request.routing(parsedRouting.routing());
-        }
+    @Nullable
+    public static String sliceToRouting(String slice) {
+        return SLICE_ALL.equals(slice) ? null : slice;
     }
 
     /**

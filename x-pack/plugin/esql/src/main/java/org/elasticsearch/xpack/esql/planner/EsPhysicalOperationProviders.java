@@ -7,15 +7,11 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -46,7 +42,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DynamicFieldType;
-import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -54,7 +49,6 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -76,7 +70,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -460,13 +453,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     /** A hack to pretend an unmapped field still exists. */
     private static class DefaultShardContextForUnmappedField extends DefaultShardContext {
-        private static final FieldType UNMAPPED_FIELD_TYPE = new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE);
-        static {
-            UNMAPPED_FIELD_TYPE.setDocValuesType(DocValuesType.NONE);
-            UNMAPPED_FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            UNMAPPED_FIELD_TYPE.setStored(false);
-            UNMAPPED_FIELD_TYPE.freeze();
-        }
         /** The one field this context pretends is mapped; any other name behaves exactly as on the context it wraps. */
         private final String fullFieldName;
 
@@ -485,37 +471,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         @Override
-        public boolean isExtractableMappedField(String name) {
-            // Same bypass as isMappedField: this context loads fullFieldName itself (from _source or the keyed flattened
-            // loader), so the ConstantNull gate in blockLoader must not fire for it even where the local mapping cannot
-            // extract it (a nested subfield).
-            return name.equals(fullFieldName) || super.isExtractableMappedField(name);
-        }
-
-        /**
-         * Whether this context creates a keyword type for {@code name}: only for {@link #fullFieldName}, and only where
-         * {@code resolvedType} - what the real mapping resolves for it - is null or a nested subfield, which the coordinator
-         * plans as unmapped (#154011). Callers pass {@code resolvedType} in so the mapping is walked once;
-         * {@link #fieldType} is unusable here because it returns the fabricated type.
-         */
-        private boolean createsKeywordType(String name, @Nullable MappedFieldType resolvedType) {
-            if (name.equals(fullFieldName) == false) {
-                return false;
-            }
-            return resolvedType == null || mappingLookup().nestedLookup().hasNestedParent(name);
-        }
-
-        // TODO: remove this override, createUnmappedFieldType and UNMAPPED_FIELD_TYPE once
-        // OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE is ungated. While that capability is enabled, blockLoader below returns before
-        // super.blockLoader can consult this, so nothing reads the created type; with the capability disabled this is what keeps a
-        // release build dispatching KeywordFieldType's loaders exactly as it did before the fix, so it cannot go until the gate does.
-        @Override
-        public @Nullable MappedFieldType fieldType(String name) {
-            var superResult = super.fieldType(name);
-            return createsKeywordType(name, superResult) ? createUnmappedFieldType(name, this) : superResult;
-        }
-
-        @Override
         public BlockLoader blockLoader(
             String name,
             boolean asUnsupportedSource,
@@ -525,13 +480,15 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             ByteSizeValue blockLoaderSizeOrdinals,
             ByteSizeValue blockLoaderSizeScript
         ) {
-            // The fabricated keyword type cannot load itself: both of KeywordFieldType#blockLoader's paths mangle an object value, so
-            // read _source directly - see UnmappedKeywordBlockLoader for the two broken paths and the issues (#156381, #156433).
+            // Both of KeywordFieldType#blockLoader's paths mangle an object value from _source, so read _source directly via
+            // UnmappedKeywordBlockLoader - see that class for the two broken paths and the issues (#156381, #156433).
             // TODO: consider fixing FallbackSyntheticSourceBlockLoader instead of working around it here. Rejected for now because it
             // only covers the synthetic-source half, and its constructor rejects the NO_IGNORED_SOURCE format stored source reports.
+            // A nested subfield resolves a real type, but IndexResolver applied -nested on the field-caps request, so the
+            // coordinator planned it as unmapped keyword: it loads from _source like one (#154011).
             if (asUnsupportedSource == false
-                && EsqlCapabilities.Cap.OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE.isEnabled()
-                && createsKeywordType(name, super.fieldType(name))) {
+                && name.equals(fullFieldName)
+                && (super.fieldType(name) == null || mappingLookup().nestedLookup().hasNestedParent(name))) {
                 // Neither LOAD nor LOAD_ALL fuses a function into loading an unmapped field, and unmappedKeywordBlockLoader has
                 // nowhere to put one - so catch it here rather than let it be dropped and surface as a wrong value much later.
                 assert blockLoaderFunctionConfig == null
@@ -558,20 +515,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             // _source. It's a contract that FallbackSyntheticSourceBlockLoader has. An empty sourcePaths means
             // StoredFieldsSpec.NEEDS_SOURCE is in effect, which triggers the entire _source loading.
             return new UnmappedKeywordBlockLoader(name, sourcePaths, context.ctx.getIndexSettings().getIgnoredSourceFormat());
-        }
-
-        static MappedFieldType createUnmappedFieldType(String name, DefaultShardContext context) {
-            var builder = new KeywordFieldMapper.Builder(name, context.ctx.getIndexSettings());
-            builder.docValues(false);
-            builder.indexed(false);
-            return new KeywordFieldMapper.KeywordFieldType(
-                name,
-                IndexType.terms(false, false),
-                new TextSearchInfo(UNMAPPED_FIELD_TYPE, builder.similarity(), Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
-                Lucene.KEYWORD_ANALYZER,
-                builder,
-                context.ctx.isSourceSynthetic()
-            );
         }
     }
 

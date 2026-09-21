@@ -28,8 +28,8 @@ import java.util.function.Function;
  * Covers three areas: the external-read concurrency bound (the single {@link #MAX_CONCURRENT_REQUESTS} knob, which
  * sizes the in-flight-read permit semaphore and the SDK connection pools below it); reactive throttle handling for
  * object stores (the retry duration budget — throttling is handled by backoff, not a concurrency cap); and
- * glob/listing safety limits (max discovered files, max brace expansion) to prevent degenerate queries from
- * overwhelming storage backends.
+ * glob/listing safety limits (max listed objects, max discovered files, max brace expansion) to prevent
+ * degenerate queries from overwhelming storage backends.
  */
 public final class ExternalSourceSettings {
 
@@ -250,8 +250,8 @@ public final class ExternalSourceSettings {
     );
 
     /**
-     * Hard cap on the number of files that glob expansion will collect before aborting.
-     * Protects against degenerate globs (e.g. {@code s3://bucket/*}) on large buckets.
+     * Hard cap on the number of files glob expansion keeps after listing filters ({@code _file.*})
+     * before aborting. Protects against degenerate globs (e.g. {@code s3://bucket/*}) on large buckets.
      * Default: 10,000 — generous for legitimate use, catches truly degenerate cases.
      */
     public static final Setting<Integer> MAX_DISCOVERED_FILES = Setting.intSetting(
@@ -259,6 +259,25 @@ public final class ExternalSourceSettings {
         10000,
         1,
         1000000,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Hard cap on objects visited while listing a glob, including keys that do not match the pattern
+     * and keys dropped by exclusion. Protects the LIST-page cost of a prefix that holds far more
+     * objects than the query will keep. Applied independently to each glob listing, not to the query
+     * as a whole: a comma-separated resource of {@code N} globs does {@code N} listings, each against
+     * this cap. A rewrite-empty fallback can list the same glob a second time. The kept-files cap
+     * ({@link #MAX_DISCOVERED_FILES}) is shared across that comma list. Default: 1,000,000 — about
+     * 1,000 S3 {@code ListObjectsV2} pages at the default page size of 1,000 keys. Operators can
+     * raise it; the default is not the max.
+     */
+    public static final Setting<Integer> MAX_LISTED_OBJECTS = Setting.intSetting(
+        "esql.external.max_listed_objects",
+        1_000_000,
+        1,
+        10_000_000,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -410,6 +429,7 @@ public final class ExternalSourceSettings {
             MAX_CONCURRENT_SEGMENTATORS,
             THROTTLE_MAX_RETRY_DURATION,
             MAX_DISCOVERED_FILES,
+            MAX_LISTED_OBJECTS,
             MAX_GLOB_EXPANSION,
             WORKLOAD_IDENTITY_ENABLED,
             WORKLOAD_IDENTITY_ENABLED_OLD,

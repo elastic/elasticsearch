@@ -26,7 +26,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
@@ -64,7 +64,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
         return null;
     }
 
-    protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
+    protected SortableBinaryDocValues getValues(LeafReaderContext context) throws IOException {
         return indexFieldData.load(context).getBytesValues();
     }
 
@@ -107,7 +107,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
 
             @Override
             protected BinaryDocValues getBinaryDocValues(LeafReaderContext context, String field) throws IOException {
-                final SortedBinaryDocValues values = getValues(context);
+                final SortableBinaryDocValues values = getValues(context);
                 final BinaryDocValues selectedValues;
                 if (nested == null) {
                     selectedValues = sortMode.select(values, missingBytes);

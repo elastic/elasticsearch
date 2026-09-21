@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichLim
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.InsertEmptyBucketsAfterAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.MaterializeRelationClassAndName;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PartiallyFoldCase;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEquals;
@@ -77,6 +78,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceSparklineAggr
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTrivialTypeConversions;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteDateFunctionComparisons;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteSumOfExpressionPlusConstant;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SetAsOptimized;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SimplifyComparisonsArithmetics;
@@ -124,6 +126,17 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     private static final List<RuleExecutor.Batch<LogicalPlan>> RULES = List.of(
         substitutions(),
         operators(),
+        // After operators() has converged, so the UnionAll pushdowns gated on PushDownUtils.isLeafUnionAll
+        // see the plain relation shape. This rule replaces a relation with Project > Eval > relation, and
+        // that Eval stops the gate matching, which would switch those pushdowns off for the rest of a batch.
+        new Batch<>(
+            "Materialize Relation Columns",
+            Limiter.ONCE,
+            new MaterializeRelationClassAndName(),
+            // The rule emits a Project restoring the relation's output shape, which sits under whatever
+            // projection the query already had. operators() has converged by now, so combine them here.
+            new CombineProjections()
+        ),
         new Batch<>("Skip Compute", new SkipQueryOnLimitZero()),
         cleanup(),
         warnings(),
@@ -167,7 +180,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // SUM(field + c) into a pre-agg EVAL and hides the pattern from this rule.
             new RewriteSumOfExpressionPlusConstant(),
             // first extract nested expressions inside aggs
-            new ReplaceAggregateNestedExpressionWithEval(),
+            new ReplaceAggregateNestedExpressionWithEval(false, false),
             // then extract nested aggs top-level
             new ReplaceAggregateAggExpressionWithEval(),
             // lastly replace surrogate functions
@@ -175,7 +188,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // re-executing the next two rules is a relic of when time series aggregates were translated after surrogate substitution
             // removing this would fail in ccs scenarios where the remote cluster is on an older version (caught by bwc tests)
             new SubstituteSurrogateAggregations(),
-            new ReplaceAggregateNestedExpressionWithEval(),
+            new ReplaceAggregateNestedExpressionWithEval(false, true),
             // this one needs to be placed before ReplaceAliasingEvalWithProject, so that any potential aliasing eval (eval x = y)
             // is not replaced with a Project before the eval to be copied on the left hand side of an InlineJoin
             new PropagateInlineEvals(),
@@ -222,6 +235,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // boolean
             new BooleanSimplification(),
             new LiteralsOnTheRight(),
+            // invert DATE_TRUNC / monotonic DATE_EXTRACT so later rules see field-vs-literal inequalities
+            new RewriteDateFunctionComparisons(),
             // needs to occur before BinaryComparison combinations (see class)
             new PropagateEquals(),
             new PropagateNullable(),

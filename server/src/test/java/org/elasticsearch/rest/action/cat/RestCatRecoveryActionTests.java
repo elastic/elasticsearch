@@ -10,6 +10,7 @@
 package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -46,7 +47,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
         final int totalShards = randomIntBetween(1, 32);
         final int successfulShards = Math.max(0, totalShards - randomIntBetween(1, 2));
         final int failedShards = totalShards - successfulShards;
-        final Map<String, List<RecoveryState>> shardRecoveryStates = new HashMap<>();
+        final Map<String, List<ShardRecoveryInfo>> shardRecoveryInfos = new HashMap<>();
         final List<RecoveryState> recoveryStates = new ArrayList<>();
 
         for (int i = 0; i < successfulShards; i++) {
@@ -108,16 +109,21 @@ public class RestCatRecoveryActionTests extends ESTestCase {
             recoveryStates.add(state);
         }
 
-        final List<RecoveryState> shuffle = new ArrayList<>(recoveryStates);
+        final String gate = randomBoolean() ? randomIdentifier() : null;
+        final long blockedForMillis = gate == null ? ShardRecoveryInfo.NOT_BLOCKED_MILLIS : randomLongBetween(0, 1_000_000_000);
+        final List<ShardRecoveryInfo> expectedRecoveryInfos = recoveryStates.stream()
+            .map(state -> new ShardRecoveryInfo(state, gate, blockedForMillis))
+            .toList();
+        final List<ShardRecoveryInfo> shuffle = new ArrayList<>(expectedRecoveryInfos);
         Randomness.shuffle(shuffle);
-        shardRecoveryStates.put("index", shuffle);
+        shardRecoveryInfos.put("index", List.copyOf(shuffle));
 
         final List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
         final RecoveryResponse response = new RecoveryResponse(
             totalShards,
             successfulShards,
             failedShards,
-            shardRecoveryStates,
+            shardRecoveryInfos,
             shardFailures
         );
         // Stop any timers that are running, so the time() captured when building the table matches that asserted below:
@@ -142,6 +148,8 @@ public class RestCatRecoveryActionTests extends ESTestCase {
             "stage",
             "local_retries",
             "priority",
+            "gate",
+            "blocked_for_millis",
             "source_host",
             "source_node",
             "target_host",
@@ -163,11 +171,15 @@ public class RestCatRecoveryActionTests extends ESTestCase {
 
         List<Object> actualHeaders = table.getHeaders().stream().map(cell -> cell.value).toList();
         assertThat(actualHeaders, equalTo(expectedHeaders));
+        assertThat(table.getHeaderMap().get("gate").attr.get("alias"), equalTo("g"));
+        assertThat(table.getHeaderMap().get("blocked_for_millis").attr.get("alias"), equalTo("bf"));
 
         assertThat(table.getRows().size(), equalTo(successfulShards));
 
         for (int i = 0; i < successfulShards; i++) {
-            final RecoveryState state = recoveryStates.get(i);
+            final ShardRecoveryInfo recoveryInfo = expectedRecoveryInfos.get(i);
+            final RecoveryState state = recoveryInfo.recoveryState();
+            final String blockedByGate = recoveryInfo.blockedByGate();
             final List<Object> expectedValues = Arrays.asList(
                 "index",
                 i,
@@ -180,6 +192,8 @@ public class RestCatRecoveryActionTests extends ESTestCase {
                 state.getStage().name().toLowerCase(Locale.ROOT),
                 state.getLocalRetries(),
                 state.getRecoveryPriority().name().toLowerCase(Locale.ROOT),
+                blockedByGate == null ? "n/a" : blockedByGate,
+                blockedByGate == null ? "n/a" : recoveryInfo.blockedForMillis(),
                 state.getSourceNode() == null ? "n/a" : state.getSourceNode().getHostName(),
                 state.getSourceNode() == null ? "n/a" : state.getSourceNode().getName(),
                 state.getTargetNode().getHostName(),

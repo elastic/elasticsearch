@@ -35,6 +35,8 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.InsertPartialWindowAggregates;
@@ -63,8 +65,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
-
-import static java.util.Collections.emptyList;
 
 public abstract class AbstractPhysicalOperationProviders {
 
@@ -98,6 +98,7 @@ public abstract class AbstractPhysicalOperationProviders {
         AggregateExec aggregateExec,
         PhysicalOperation source,
         HashAggregationOperator.ParallelConfig parallelConfig,
+        boolean allowPartitionedOutput,
         LocalExecutionPlannerContext context
     ) {
         // The layout this operation will produce.
@@ -229,7 +230,8 @@ public abstract class AbstractPhysicalOperationProviders {
                     .maxPageSize(maxPageSize)
                     .aggregationBatchSize(aggregationBatchSize)
                     .parallelConfig(parallelConfig)
-                    .analysisRegistry(analysisRegistry);
+                    .analysisRegistry(analysisRegistry)
+                    .allowPartitionedOutput(allowPartitionedOutput);
                 HashAggregationOperator.TopAggregation topAggregation = extractTopAggregation(aggregateExec, context);
                 if (topAggregation != null) {
                     builder.topAggregation(topAggregation);
@@ -351,20 +353,19 @@ public abstract class AbstractPhysicalOperationProviders {
                         sourceAttr = intermediateInputs.inputAttributes(aggregateFunction);
                     } else {
                         // TODO: this needs to be made more reliable - use casting to blow up when dealing with expressions (e+1)
-                        Expression field = aggregateFunction.field();
-                        // Only count can now support literals - all the other aggs should be optimized away
-                        if (field.foldable()) {
-                            if (aggregateFunction instanceof Count || aggregateFunction instanceof CountApproximate) {
-                                sourceAttr = emptyList();
-                            } else {
-                                throw new InvalidArgumentException(
-                                    "Does not support yet aggregations over constants - [{}]",
-                                    aggregateFunction.sourceText()
-                                );
-                            }
-                        } else {
-                            sourceAttr = aggregateFunction.aggregateInputReferences(aggregateExec.child()::output);
+                        // count supports literals, and first/last support literals in the sort field.
+                        boolean constantInputAllowed = aggregateFunction instanceof Count
+                            || aggregateFunction instanceof CountApproximate
+                            || (aggregateFunction instanceof First first && first.field().foldable() == false)
+                            || (aggregateFunction instanceof Last last && last.field().foldable() == false)
+                            || aggregateFunction.fields().stream().noneMatch(Expression::foldable);
+                        if (constantInputAllowed == false) {
+                            throw new InvalidArgumentException(
+                                "Does not support yet aggregations over constants - [{}]",
+                                aggregateFunction.sourceText()
+                            );
                         }
+                        sourceAttr = aggregateFunction.aggregateInputReferences(aggregateExec.child()::output);
                     }
 
                     List<Integer> inputChannels = sourceAttr.stream().map(attr -> layout.get(attr.id()).channel()).toList();

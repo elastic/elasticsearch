@@ -6,15 +6,15 @@
  */
 package org.elasticsearch.xpack.core.ssl;
 
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleHttpResponse;
+import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
+import org.apache.hc.client5.http.impl.async.HttpAsyncClients;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
+import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -896,23 +896,24 @@ public class SSLServiceTests extends ESTestCase {
     }
 
     @Network
-    public void testThatSSLIOSessionStrategyWithoutSettingsWorks() throws Exception {
+    public void testThatTlsStrategyWithoutSettingsWorks() throws Exception {
         SSLService sslService = new SSLService(env);
         SslProfile profile = sslService.profile("xpack.security.transport.ssl");
         logger.info("SSL Configuration: {}", profile.configuration());
-        SSLIOSessionStrategy sslStrategy = profile.ioSessionStrategy();
-        try (CloseableHttpAsyncClient client = getAsyncHttpClient(sslStrategy)) {
+        TlsStrategy tlsStrategy = profile.clientTlsStrategy();
+        try (CloseableHttpAsyncClient client = getAsyncHttpClient(tlsStrategy)) {
             client.start();
 
             // Execute a GET on a site known to have a valid certificate signed by a trusted public CA
             // This will result in an SSLHandshakeException if the SSLContext does not trust the CA, but the default
             // truststore trusts all common public CAs so the handshake will succeed
-            client.execute(new HttpHost("elastic.co", 443, "https"), new HttpGet("/"), new AssertionCallback()).get();
+            SimpleHttpResponse response = client.execute(SimpleHttpRequest.create("GET", "https://elastic.co/"), null).get();
+            assertThat(response.getCode(), lessThan(300));
         }
     }
 
     @Network
-    public void testThatSSLIOSessionStrategyTrustsJDKTrustedCAs() throws Exception {
+    public void testThatTlsStrategyTrustsJDKTrustedCAs() throws Exception {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testclient");
         Settings settings = Settings.builder()
@@ -921,13 +922,14 @@ public class SSLServiceTests extends ESTestCase {
             .build();
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
         final SslProfile profile = sslService.profile("xpack.security.transport.ssl");
-        final SSLIOSessionStrategy sslStrategy = profile.ioSessionStrategy();
-        try (CloseableHttpAsyncClient client = getAsyncHttpClient(sslStrategy)) {
+        final TlsStrategy tlsStrategy = profile.clientTlsStrategy();
+        try (CloseableHttpAsyncClient client = getAsyncHttpClient(tlsStrategy)) {
             client.start();
 
             // Execute a GET on a site known to have a valid certificate signed by a trusted public CA which will succeed because the JDK
             // certs are trusted by default
-            client.execute(new HttpHost("elastic.co", 443, "https"), new HttpGet("/"), new AssertionCallback()).get();
+            SimpleHttpResponse response = client.execute(SimpleHttpRequest.create("GET", "https://elastic.co/"), null).get();
+            assertThat(response.getCode(), lessThan(300));
         }
     }
 
@@ -951,26 +953,6 @@ public class SSLServiceTests extends ESTestCase {
         final X509ExtendedTrustManager baseTrustManager = TrustEverythingConfig.TRUST_EVERYTHING.createTrustManager();
         final SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         assertThat(sslService.wrapWithDiagnostics(baseTrustManager, sslConfiguration), sameInstance(baseTrustManager));
-    }
-
-    class AssertionCallback implements FutureCallback<HttpResponse> {
-
-        @Override
-        public void completed(HttpResponse result) {
-            assertThat(result.getStatusLine().getStatusCode(), lessThan(300));
-        }
-
-        @Override
-        public void failed(Exception ex) {
-            logger.error(ex);
-
-            fail(ex.toString());
-        }
-
-        @Override
-        public void cancelled() {
-            fail("The request was cancelled for some reason");
-        }
     }
 
     public void testLoadProfilesFromExtensions() {
@@ -1037,8 +1019,9 @@ public class SSLServiceTests extends ESTestCase {
         }
     }
 
-    private CloseableHttpAsyncClient getAsyncHttpClient(SSLIOSessionStrategy sslStrategy) throws Exception {
-        return HttpAsyncClientBuilder.create().setSSLStrategy(sslStrategy).build();
+    private CloseableHttpAsyncClient getAsyncHttpClient(TlsStrategy tlsStrategy) throws Exception {
+        var connManager = PoolingAsyncClientConnectionManagerBuilder.create().setTlsStrategy(tlsStrategy).build();
+        return HttpAsyncClients.custom().setConnectionManager(connManager).build();
     }
 
     private static final class MockSSLSession implements SSLSession {

@@ -1136,11 +1136,16 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             boolean primary
         ) {
             return Map.of(
-                "es_can_remain_decision", canRemainDecision,
-                "es_can_remain_decider", canRemainDecider,
-                "es_can_allocate_decision", canAllocateNotPreferredDecider != null ? "not_preferred" : "yes",
-                "es_can_allocate_decider", canAllocateNotPreferredDecider != null ? canAllocateNotPreferredDecider : "none",
-                "es_shard_primary", primary
+                "es_can_remain_decision",
+                canRemainDecision,
+                "es_can_remain_decider",
+                canRemainDecider,
+                "es_can_allocate_decision",
+                canAllocateNotPreferredDecider != null ? "not_preferred" : "yes",
+                "es_can_allocate_decider",
+                canAllocateNotPreferredDecider != null ? canAllocateNotPreferredDecider : "none",
+                "es_shard_primary",
+                primary
             );
         }
 

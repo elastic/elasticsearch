@@ -140,21 +140,15 @@ public class AllocationDeciders {
         final IndexMetadata indexMetadata = allocation.metadata().indexMetadata(shardRouting.index());
         final String[] labelHolder = { null };
         final Decision.Type[] worstSeen = { Decision.Type.YES };
-        final Decision decision = withDecidersCheckingShardIgnoredNodes(
-            allocation,
-            shardRouting,
-            node,
-            decider -> {
-                Decision d = decider.canRemain(indexMetadata, shardRouting, node, allocation);
-                if ((d.type() == Decision.Type.NOT_PREFERRED || d.type() == Decision.Type.NO)
-                    && worstSeen[0].compareToBetweenDecisions(d.type()) > 0) {
-                    worstSeen[0] = d.type();
-                    labelHolder[0] = decider.getClass().getSimpleName();
-                }
-                return d;
-            },
-            (decider, dec) -> Strings.format("Can not remain [%s] on node [%s]. [%s]: %s", shardRouting, node, decider, dec)
-        );
+        final Decision decision = withDecidersCheckingShardIgnoredNodes(allocation, shardRouting, node, decider -> {
+            Decision d = decider.canRemain(indexMetadata, shardRouting, node, allocation);
+            if ((d.type() == Decision.Type.NOT_PREFERRED || d.type() == Decision.Type.NO)
+                && worstSeen[0].compareToBetweenDecisions(d.type()) > 0) {
+                worstSeen[0] = d.type();
+                labelHolder[0] = decider.getClass().getSimpleName();
+            }
+            return d;
+        }, (decider, dec) -> Strings.format("Can not remain [%s] on node [%s]. [%s]: %s", shardRouting, node, decider, dec));
         final boolean relevant = decision.type() == Decision.Type.NOT_PREFERRED || decision.type() == Decision.Type.NO;
         return new CanRemainWithDeciderLabel(decision, relevant ? labelHolder[0] : null);
     }
@@ -166,25 +160,15 @@ public class AllocationDeciders {
      * overall decision is not {@code NOT_PREFERRED}. Used to label metrics for forced moves where the only viable
      * target node is not preferred.
      */
-    public @Nullable String canAllocateNotPreferredDeciderLabel(
-        ShardRouting shardRouting,
-        RoutingNode node,
-        RoutingAllocation allocation
-    ) {
+    public @Nullable String canAllocateNotPreferredDeciderLabel(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         final String[] labelHolder = { null };
-        final Decision decision = withDecidersCheckingShardIgnoredNodes(
-            allocation,
-            shardRouting,
-            node,
-            decider -> {
-                Decision d = decider.canAllocate(shardRouting, node, allocation);
-                if (d.type() == Decision.Type.NOT_PREFERRED && labelHolder[0] == null) {
-                    labelHolder[0] = decider.getClass().getSimpleName();
-                }
-                return d;
-            },
-            (decider, dec) -> Strings.format("Can not allocate [%s] on node [%s]. [%s]: %s", shardRouting, node.node(), decider, dec)
-        );
+        final Decision decision = withDecidersCheckingShardIgnoredNodes(allocation, shardRouting, node, decider -> {
+            Decision d = decider.canAllocate(shardRouting, node, allocation);
+            if (d.type() == Decision.Type.NOT_PREFERRED && labelHolder[0] == null) {
+                labelHolder[0] = decider.getClass().getSimpleName();
+            }
+            return d;
+        }, (decider, dec) -> Strings.format("Can not allocate [%s] on node [%s]. [%s]: %s", shardRouting, node.node(), decider, dec));
         return decision.type() == Decision.Type.NOT_PREFERRED ? labelHolder[0] : null;
     }
 

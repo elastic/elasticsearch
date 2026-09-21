@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 159672
+pr: 159911
+summary: Version-gate the request DSL filter on the functions it synthesizes
+type: bug

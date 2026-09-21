@@ -82,6 +82,19 @@ FROM index_pattern
 Where `index_pattern` is a comma-separated list of index or view names, including
 wildcards and date-math.
 
+### Wildcard patterns and views [esql-views-wildcards]
+
+By default, a wildcard pattern in `FROM` does not match views. `FROM my_view` reads the view by exact name, while `FROM my-view-*` resolves to indices, data streams, and aliases only — registered views are excluded.
+
+To include views in wildcard resolution, enable the `wildcards_match_views` setting:
+
+```esql
+SET wildcards_match_views = true;
+FROM my-view-*
+```
+
+You can also send it in the `_query` request body as `"settings": {"wildcards_match_views": true}`, or change the cluster-wide default by setting `esql.query.settings.wildcards_match_views` in `elasticsearch.yml` or via the cluster settings API {applies_to}`stack: experimental 9.6+`. A value set in the query overrides the request body, which overrides the cluster default.
+
 ## Privileges [esql-views-privileges]
 
 View operations use the standard {{es}} [index privileges](../../elasticsearch/security-privileges.md#privileges-list-indices), applied to the view name.
@@ -146,6 +159,10 @@ The same country might appear in multiple views, producing multiple rows.
 We could combine these with a `STATS` command, using `SUM(count) BY country`.
 
 ### Use wildcards
+
+:::{note}
+This example requires `wildcards_match_views = true`. By default, wildcards do not match views. Refer to [wildcard patterns and views](#esql-views-wildcards).
+:::
 
 :::{include} _snippets/commands/examples/views.csv-spec/views_country_wildcard_sum.md
 :::

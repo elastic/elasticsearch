@@ -275,7 +275,9 @@ public class ParquetFilterPushdownBenchmark {
         };
         // The planner's own path, so the benchmark cannot push something the engine would not.
         pushedFilter = predicate == null ? null : new ParquetFilterPushdownSupport().pushFilters(List.of(predicate)).pushedFilter();
-        if (predicate != null && pushedFilter == null) {
+        // A mode that claims to push and produces nothing would measure the wrong thing silently. The exception is a
+        // baseline build that deliberately recognises none of these forms, which says so with -DallowNoPush=true.
+        if (predicate != null && pushedFilter == null && Boolean.getBoolean("allowNoPush") == false) {
             throw new IllegalStateException("[" + filterMode + "] did not push; the benchmark would measure nothing");
         }
 

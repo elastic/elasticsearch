@@ -136,6 +136,14 @@ public record SchemaCacheKey(
     public static final String DATASET_AGGREGATE_MARKER = "#dataset-agg";
 
     /**
+     * Marks a dataset aggregate memoized by a read that binds its columns BY NAME, keeping it apart from one
+     * memoized by a positional read of the same glob. The two count different row sets: a by-name read bounds a
+     * row by the file's own width, or not at all when the file is headerless, while a positional read bounds it by
+     * the width of the schema it was handed. Sharing one memo between them would serve each the other's count.
+     */
+    public static final String NAME_BOUND_MARKER = "#name-bound";
+
+    /**
      * Key for a dataset-level aggregate entry: the memoized multi-file stats fold for one resolved file
      * SET under one format config. Identity is the listing's 128-bit file-set fingerprint (a commutative
      * fold of every file's path + mtime + size, plus the file count - see
@@ -172,12 +180,23 @@ public record SchemaCacheKey(
         String sourceType,
         Map<String, Object> config
     ) {
+        return forDatasetAggregate(pattern, fingerprint, sourceType, config, false);
+    }
+
+    /** As above, for a read whose binding mode decides which rows it counts; see {@link #NAME_BOUND_MARKER}. */
+    public static SchemaCacheKey forDatasetAggregate(
+        String pattern,
+        FileSetFingerprint fingerprint,
+        String sourceType,
+        Map<String, Object> config,
+        boolean nameBound
+    ) {
         // A dataset key is identified two ways — the marker suffix on formatType and a non-null
         // fileSetFingerprint (isDatasetAggregate() vs the collision defense). Require the fingerprint here
         // so a marker-suffixed key with a null fingerprint is never representable and the two agree.
         Objects.requireNonNull(fingerprint, "dataset aggregate key requires a non-null file-set fingerprint");
         EndpointRegion location = EndpointRegion.of(config);
-        String formatType = (sourceType == null ? "" : sourceType) + DATASET_AGGREGATE_MARKER;
+        String formatType = (sourceType == null ? "" : sourceType) + (nameBound ? NAME_BOUND_MARKER : "") + DATASET_AGGREGATE_MARKER;
         return new SchemaCacheKey(
             pattern == null ? "" : pattern,
             0L,

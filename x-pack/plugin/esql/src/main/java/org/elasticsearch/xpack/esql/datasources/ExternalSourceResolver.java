@@ -1679,6 +1679,11 @@ public class ExternalSourceResolver {
      */
     @Nullable
     SchemaCacheKey datasetAggregateKey(FileList listing, Map<String, Object> config) {
+        return datasetAggregateKey(listing, config, false);
+    }
+
+    /** As above, for a read that binds its columns by name; see {@link SchemaCacheKey#NAME_BOUND_MARKER}. */
+    SchemaCacheKey datasetAggregateKey(FileList listing, Map<String, Object> config, boolean nameBound) {
         if (listing == null || listing.fileSetFingerprint() == null || listing.fileCount() < 2) {
             return null;
         }
@@ -1686,7 +1691,13 @@ public class ExternalSourceResolver {
         if (format == null) {
             return null;
         }
-        return SchemaCacheKey.forDatasetAggregate(listing.originalPattern(), listing.fileSetFingerprint(), format, storageConfig(config));
+        return SchemaCacheKey.forDatasetAggregate(
+            listing.originalPattern(),
+            listing.fileSetFingerprint(),
+            format,
+            storageConfig(config),
+            nameBound
+        );
     }
 
     /**
@@ -1740,7 +1751,16 @@ public class ExternalSourceResolver {
     record DatasetAggregatePrefetch(@Nullable SchemaCacheKey key, @Nullable Map<String, Object> prefetched) {}
 
     private DatasetAggregatePrefetch prefetchDatasetAggregate(FileList listing, Map<String, Object> config, boolean cacheable) {
-        SchemaCacheKey key = cacheable ? datasetAggregateKey(listing, config) : null;
+        return prefetchDatasetAggregate(listing, config, cacheable, false);
+    }
+
+    private DatasetAggregatePrefetch prefetchDatasetAggregate(
+        FileList listing,
+        Map<String, Object> config,
+        boolean cacheable,
+        boolean nameBound
+    ) {
+        SchemaCacheKey key = cacheable ? datasetAggregateKey(listing, config, nameBound) : null;
         return new DatasetAggregatePrefetch(key, key != null ? cacheService.getDatasetAggregate(key) : null);
     }
 
@@ -2528,7 +2548,7 @@ public class ExternalSourceResolver {
      * Whether the effective {@link ErrorPolicy} for {@code sourceType} under {@code config} resolves to
      * {@link ErrorPolicy.Mode#SKIP_ROW}, in which a narrow-read parse failure on a pinned column drops the whole row and
      * so makes the file's cached row count untrustworthy. Resolved through {@link ErrorPolicy#fromConfig} against the
-     * reader's own default (mirrors {@link #warmsRowCountSafely}) so it is format-agnostic and catches the implicit
+     * reader's own default (mirrors {@link #rowCountMayWarm}) so it is format-agnostic and catches the implicit
      * SKIP_ROW that a bare {@code max_errors} selects. An invalid policy conservatively drops the row count: it must not
      * fail resolution (the data node rejects it at scan time), and dropping only forces a safe re-scan.
      */
@@ -3432,7 +3452,7 @@ public class ExternalSourceResolver {
      *       happens to name). Under
      *       {@code skip_row} or {@code null_field} a committed count is a survivor count, not guaranteed to be the
      *       physical record count, so it may not be shared across declarations;
-     *       {@link #warmsRowCountSafely} keeps those off the warm path — they re-scan, still returning the correct
+     *       {@link #rowCountMayWarm} keeps those off the warm path — they re-scan, still returning the correct
      *       count.</li>
      * </ul>
      * The two guards make the served row-count a correct NUMBER for every declaration, and for every DECLARED
@@ -3478,7 +3498,7 @@ public class ExternalSourceResolver {
         String sourceType,
         long mtimeMillis
     ) throws Exception {
-        if (isCacheable(provider) && FILE_TYPED_FORMATS.contains(sourceType) == false && warmsRowCountSafely(sourceType, config)) {
+        if (isCacheable(provider) && FILE_TYPED_FORMATS.contains(sourceType) == false && rowCountMayWarm(sourceType, config)) {
             String formatType = detectFormatType(storagePath, config) + STRICT_DECLARED_SCHEMA_MARKER;
             SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), mtimeMillis, formatType, storageConfig(config));
             // Seed the identity — mtime, config fingerprint, read configuration; the row-count is absent until the
@@ -3544,7 +3564,27 @@ public class ExternalSourceResolver {
      * conservatively stay off the shared warm path. Resolved through {@link ErrorPolicy#fromConfig} against the reader's own default so
      * it is format-agnostic (and catches the implicit {@code SKIP_ROW} a bare {@code max_errors} selects).
      */
-    private boolean warmsRowCountSafely(String sourceType, Map<String, Object> config) {
+    /**
+     * Whether a strictly declared MULTI-FILE text dataset may memoize its row count. Every file is read at the one
+     * declared schema, bound by name, so a row is dropped only for reasons the declaration does not decide — a
+     * structurally malformed record, against the file's own header width. Two declarations over the same files
+     * therefore count the same rows, which is what makes the memoized count safe to share.
+     * <p>
+     * {@code skip_row} stays off it: there a declared coercion failure drops the record, so the count is a function
+     * of the declaration and two of them disagree. The single-file rail keeps its own, stricter gate
+     * ({@link #rowCountMayWarm}) — relaxing that one inverts a test that pins it deliberately.
+     */
+    private boolean strictMultiFileRowCountMayWarm(String sourceType, Map<String, Object> config) {
+        FormatReader reader = dataSourceModule.formatReaderRegistry().findByName(sourceType);
+        ErrorPolicy defaultPolicy = reader != null ? reader.defaultErrorPolicy() : ErrorPolicy.STRICT;
+        try {
+            return ErrorPolicy.fromConfig(config, defaultPolicy).mode() != ErrorPolicy.Mode.SKIP_ROW;
+        } catch (IllegalArgumentException e) {
+            return false; // an invalid policy is the operator factory's to reject; never warm on it
+        }
+    }
+
+    private boolean rowCountMayWarm(String sourceType, Map<String, Object> config) {
         FormatReader reader = dataSourceModule.formatReaderRegistry().findByName(sourceType);
         ErrorPolicy defaultPolicy = reader != null ? reader.defaultErrorPolicy() : ErrorPolicy.STRICT;
         try {
@@ -3627,6 +3667,28 @@ public class ExternalSourceResolver {
         extMetadata = enrichWithFileCount(extMetadata, listing.fileCount());
         if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingSchemaWarnings::add);
+        }
+
+        // A declared schema is the same for every file, so every part is read the same way and the dataset's row
+        // count is one number the whole glob agrees on. That is what the dataset-level aggregate memoizes, and it is
+        // why this rail can warm COUNT(*) without any per-file statistics: there is nothing per-file to reconcile.
+        // The key carries the binding mode, so this count is never served to a positional read of the same glob,
+        // which bounds a row's width differently and so counts a different row set.
+        if (isCacheable(provider)
+            && FILE_TYPED_FORMATS.contains(sourceType) == false
+            && strictMultiFileRowCountMayWarm(sourceType, config)) {
+            DatasetAggregatePrefetch prefetch = prefetchDatasetAggregate(listing, config, true, true);
+            if (prefetch.key() != null) {
+                String declaredReadConfig = ReadConfigFingerprint.of(logicalSchema, declaredReadSpecOf(declaredMapping));
+                Map<String, String> pathToReadConfig = new HashMap<>(listing.fileCount());
+                for (int i = 0; i < listing.fileCount(); i++) {
+                    pathToReadConfig.put(listing.path(i).toString(), declaredReadConfig);
+                }
+                Map<String, Object> effective = applyDatasetAggregate(pathToReadConfig, prefetch, null, listing, extMetadata, config);
+                if (effective != null) {
+                    extMetadata = applyFirstFileWinsAggregatedStats(extMetadata, effective);
+                }
+            }
         }
 
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = new HashMap<>();

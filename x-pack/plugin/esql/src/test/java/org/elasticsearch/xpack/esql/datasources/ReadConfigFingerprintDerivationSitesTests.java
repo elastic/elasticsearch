@@ -105,6 +105,15 @@ public class ReadConfigFingerprintDerivationSitesTests extends ESTestCase {
         ),
         new Site(
             RESOLVER,
+            "strict multi-file dataset promise — of(logicalSchema, declaredReadSpecOf(declaredMapping)), the value "
+                + "every listed path is promised to be read at, so the fold that fulfils the promise matches it",
+            Role.SERVE_EXPECTATION,
+            "the HARVEST under the same declaration, and the declared-mapping cache seed above, which derives it from "
+                + "the same two inputs; end-to-end by ExternalMultiFileWarmAggregateFoldIT's declared-strict arm, "
+                + "which warms only if this value equals what the readers stamp"
+        ),
+        new Site(
+            RESOLVER,
             "declared serve gate, per-file loop — of(perFile.fileSchema(), declaredReadSpec); same value as the "
                 + "harvest BY CONSTRUCTION (folded into the loop that builds the per-file schema)",
             Role.SERVE_EXPECTATION,

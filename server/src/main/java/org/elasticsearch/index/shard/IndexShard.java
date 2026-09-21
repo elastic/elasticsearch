@@ -2161,7 +2161,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     throw new IndexShardClosedException(shardId);
                 }
                 if (state != IndexShardState.RECOVERING) {
-                    logger.error("Illegal shard state was during recovery [{}] for shard [{}] ", state, shardId);
+                    logger.error("Illegal shard state [{}] during recovery for shard [{}]", state, shardId);
                     assert false : "Unexpected shard state [" + state + "] for shard [" + shardId + "]";
                     throw new IllegalStateException("Unexpected shard state [" + state + "] for shard [" + shardId + "]");
                 }
@@ -2176,7 +2176,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         throw new IndexShardClosedException(shardId);
                     }
                     if (state != IndexShardState.RECOVERING) {
-                        logger.error("Illegal shard state was during recovery [{}] for shard [{}] ", state, shardId);
+                        logger.error("Illegal shard state [{}] during recovery for shard [{}]", state, shardId);
                         assert false : "Unexpected shard state [" + state + "] for shard [" + shardId + "]";
                         throw new IllegalStateException("Unexpected shard state [" + state + "] for shard [" + shardId + "]");
                     }

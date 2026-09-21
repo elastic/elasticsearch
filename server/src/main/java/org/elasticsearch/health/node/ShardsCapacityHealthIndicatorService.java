@@ -307,7 +307,7 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
 
     /**
      * Writes the multi-project breakdown under {@code projects}, ordered by used shards for this group (descending)
-     * and capped to {@code maxAffectedResourcesCount}.
+     * and capped to {@code maxAffectedResourcesCount}. Omits the field when the cap is 0.
      */
     private static void writeProjects(
         XContentBuilder builder,
@@ -315,6 +315,9 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         ShardLimitValidator.LimitGroup group,
         int maxAffectedResourcesCount
     ) throws IOException {
+        if (maxAffectedResourcesCount <= 0) {
+            return;
+        }
         var topProjects = metadata.projects()
             .entrySet()
             .stream()

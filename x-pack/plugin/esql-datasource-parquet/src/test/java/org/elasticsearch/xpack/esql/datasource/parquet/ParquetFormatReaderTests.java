@@ -4686,7 +4686,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(truncated, "https://host/obj.parquet");
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> reader.metadata(storageObject));
-        assertTrue(ex.getMessage(), ex.getMessage().contains("https://host/obj.parquet"));
+        // The object name (filename) is interpolated by parquet-mr into the error; the full storage
+        // path is intentionally absent so mapResolveFailure can control visibility via LocatedException.
+        assertThat(ex.getMessage(), containsString("obj.parquet"));
+        assertThat(ex.getMessage(), not(containsString("https://host")));
     }
 
     public void testCorruptDataPageIsClient400() throws Exception {

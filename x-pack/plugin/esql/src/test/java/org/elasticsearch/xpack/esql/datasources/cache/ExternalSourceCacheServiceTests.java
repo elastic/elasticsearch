@@ -806,6 +806,59 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      * with an entry column at the SAME index. A part whose header permutes the anchor's columns would otherwise
      * have one column's statistics written under another column's name.
      */
+    /**
+     * A declared date pattern decides which of a column's values parse at all, so the same column read with and
+     * without one holds different values — its null count, value count and extrema describe different cells, even
+     * where the name and type agree. A numeric column beside it, read the same way on both sides, still crosses.
+     */
+    public void testPatternBearingColumnNeverCrosses() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/pattern.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.DATETIME, Nullability.TRUE, null, false),
+                new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG, Nullability.TRUE, null, false)
+            );
+            service.getOrComputeSchema(
+                key,
+                k -> SchemaCacheEntry.from(
+                    schema,
+                    "csv",
+                    path,
+                    Map.of(
+                        ExternalStats.CONFIG_FINGERPRINT_KEY,
+                        "fp",
+                        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+                        "config-own",
+                        ExternalStats.COLUMNS_IN_FILE_ORDER_KEY,
+                        Boolean.TRUE
+                    ),
+                    Map.of()
+                )
+            );
+
+            Map<String, Object> foreign = stripeFragment(mtime, "fp", 30L, 100L, 0, 0, 100, true, true, false);
+            foreign.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-foreign");
+            foreign.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            foreign.put(ExternalStats.READ_COLUMN_NAMES_KEY, List.of("ts", "n"));
+            foreign.put(ExternalStats.READ_COLUMN_TYPES_KEY, List.of("datetime", "long"));
+            foreign.put(ExternalStats.READ_BINDING_KEY, ExternalStats.BINDING_BY_POSITION);
+            foreign.put(ExternalStats.READ_COLUMN_DATE_FORMATS_KEY, Map.of("ts", "yyyyMMdd"));
+            foreign.put(SourceStatisticsSerializer.columnValueCountKey("ts"), 30L);
+            foreign.put(SourceStatisticsSerializer.columnMinKey("n"), 4L);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(foreign)));
+
+            Map<String, Object> stripe = stripeAt(service.getOrComputeSchema(key, k -> { throw new AssertionError("cached"); }), 0);
+            assertNotNull("the numeric column read the same way on both sides must still cross", stripe);
+            assertEquals(4L, stripe.get(SourceStatisticsSerializer.columnMinKey("n")));
+            assertNull(
+                "a column one read parsed with a declared pattern describes different values",
+                stripe.get(SourceStatisticsSerializer.columnValueCountKey("ts"))
+            );
+        }
+    }
+
     public void testPositionalCrossingRequiresSamePositionAndName() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/b.csv";

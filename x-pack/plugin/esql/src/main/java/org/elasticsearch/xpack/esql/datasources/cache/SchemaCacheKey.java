@@ -125,12 +125,13 @@ public record SchemaCacheKey(
      * explicit factory. A fallback suffix that {@code endsWith} {@link #DATASET_AGGREGATE_MARKER}
      * would make {@link #isDatasetAggregate()} true on a per-file key, but a per-file key carries a
      * null {@code fileSetFingerprint} so it can never equal a dataset key - the only cost is that
-     * one file losing its warm enrichment, a miss, never a wrong answer. Two members exist:
+     * one file losing its warm enrichment, a miss, never a wrong answer. Three members exist:
      * {@link #STRICT_DECLARED_SCHEMA_MARKER} (per-file entries on the strict-declared warm rail, which
-     * the reconcile's contribution matching MUST still reach) and {@link #DATASET_AGGREGATE_MARKER}
+     * the reconcile's contribution matching MUST still reach), {@link #DATASET_AGGREGATE_MARKER}
      * (dataset-level aggregate entries, which contribution matching must NEVER reach - enforced in
-     * {@code ExternalSourceCacheService#matchesContribution}). Co-located here so their distinctness is
-     * visible at the declaration site.
+     * {@code ExternalSourceCacheService#matchesContribution}), and {@link #NAME_BOUND_MARKER}, which
+     * precedes the aggregate marker so {@link #isDatasetAggregate()}'s {@code endsWith} still holds.
+     * Co-located here so their distinctness is visible at the declaration site.
      */
     public static final String STRICT_DECLARED_SCHEMA_MARKER = "#strict-declared";
     public static final String DATASET_AGGREGATE_MARKER = "#dataset-agg";
@@ -167,7 +168,10 @@ public record SchemaCacheKey(
      * fires on it. Nothing compares the configuration that produced the aggregate against the one consuming it.
      * <p>
      * It is not a wrong answer today, and each reason is an accident rather than a guard. The strict multi-file
-     * rail never reaches the aggregate at all. A non-strict overlay only retypes and renames in place, never
+     * rail reaches the aggregate under its own key ({@link #NAME_BOUND_MARKER}), so it never shares a memo with an
+     * inferred dataset over the same glob — pinned by {@code ExternalMultiFileWarmAggregateFoldIT}'s
+     * shared-glob case. Two strict declarations over one glob with the same config DO share a memo, and agree only
+     * because of the projection rule below. A non-strict overlay only retypes and renames in place, never
      * appends, so a projection-less {@code COUNT(*)} sees the same survivor set under every read configuration
      * this rail can reach. And a projection-decided drop suppresses its publish at the producer, so a
      * survivor-count-dependent aggregate is never built. Change any one of those and this becomes a silent wrong

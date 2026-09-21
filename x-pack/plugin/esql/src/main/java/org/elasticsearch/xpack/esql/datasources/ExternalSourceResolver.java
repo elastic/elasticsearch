@@ -3554,25 +3554,16 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * True when a successful scan's row-count is INDEPENDENT of the declared schema, so it is safe to serve from a
-     * file+config-shared cache entry. This holds only under a {@link ErrorPolicy.Mode#FAIL_FAST} policy: any
-     * structural error (e.g. a malformed record) aborts the query before publish, and a declared read's row-width
-     * limit is the FILE's own width rather than the declaration's, so a committed {@code FAIL_FAST} row-count equals
-     * the physical record count for any declaration. Under {@link ErrorPolicy.Mode#SKIP_ROW} or {@link ErrorPolicy.Mode#NULL_FIELD}
-     * rows can be dropped (the CSV reader drops a structurally-malformed row even under NULL_FIELD), so a committed
-     * count is a survivor count; only {@code FAIL_FAST} guarantees the physical record count, and lenient reads
-     * conservatively stay off the shared warm path. Resolved through {@link ErrorPolicy#fromConfig} against the reader's own default so
-     * it is format-agnostic (and catches the implicit {@code SKIP_ROW} a bare {@code max_errors} selects).
-     */
-    /**
-     * Whether a strictly declared MULTI-FILE text dataset may memoize its row count. Every file is read at the one
-     * declared schema, bound by name, so a row is dropped only for reasons the declaration does not decide — a
-     * structurally malformed record, against the file's own header width. Two declarations over the same files
-     * therefore count the same rows, which is what makes the memoized count safe to share.
+     * Whether a strictly declared MULTI-FILE text dataset may memoize its row count. It may under any error mode
+     * except {@code skip_row}, where a declared type coercion failure drops the record, so two declarations over the
+     * same files can count different rows.
      * <p>
-     * {@code skip_row} stays off it: there a declared coercion failure drops the record, so the count is a function
-     * of the declaration and two of them disagree. The single-file rail keeps its own, stricter gate
-     * ({@link #rowCountMayWarm}) — relaxing that one inverts a test that pins it deliberately.
+     * Under {@code null_field} a read can still drop a record for a reason the declaration decides, so the argument
+     * does not rest on drops being declaration-independent. It rests on two things: a drop decided by the
+     * projection suppresses the publish at the producer ({@code projectionDependentDrop} in both text readers), and
+     * the memoized count serves only a bare {@code COUNT(*)}
+     * ({@code ExternalSourceAggregatePushdown#canServeAllFromStats}), which projects nothing. A change to either
+     * reopens this gate. The single-file rail keeps its own, stricter gate ({@link #rowCountMayWarm}).
      */
     private boolean strictMultiFileRowCountMayWarm(String sourceType, Map<String, Object> config) {
         FormatReader reader = dataSourceModule.formatReaderRegistry().findByName(sourceType);
@@ -3584,6 +3575,17 @@ public class ExternalSourceResolver {
         }
     }
 
+    /**
+     * True when a successful scan's row-count is INDEPENDENT of the declared schema, so it is safe to serve from a
+     * file+config-shared cache entry. This holds only under a {@link ErrorPolicy.Mode#FAIL_FAST} policy: any
+     * structural error (e.g. a malformed record) aborts the query before publish, and a declared read's row-width
+     * limit is the FILE's own width rather than the declaration's, so a committed {@code FAIL_FAST} row-count equals
+     * the physical record count for any declaration. Under {@link ErrorPolicy.Mode#SKIP_ROW} or {@link ErrorPolicy.Mode#NULL_FIELD}
+     * rows can be dropped (the CSV reader drops a structurally-malformed row even under NULL_FIELD), so a committed
+     * count is a survivor count; only {@code FAIL_FAST} guarantees the physical record count, and lenient reads
+     * conservatively stay off the shared warm path. Resolved through {@link ErrorPolicy#fromConfig} against the reader's own default so
+     * it is format-agnostic (and catches the implicit {@code SKIP_ROW} a bare {@code max_errors} selects).
+     */
     private boolean rowCountMayWarm(String sourceType, Map<String, Object> config) {
         FormatReader reader = dataSourceModule.formatReaderRegistry().findByName(sourceType);
         ErrorPolicy defaultPolicy = reader != null ? reader.defaultErrorPolicy() : ErrorPolicy.STRICT;

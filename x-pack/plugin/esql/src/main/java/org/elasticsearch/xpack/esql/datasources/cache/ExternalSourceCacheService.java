@@ -791,35 +791,6 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     /**
-     * The part of {@code contribution} that may legitimately enrich {@code entry}, or {@code null} when none of it
-     * may — the second tier of contribution matching, after path/mtime/config identity.
-     * <p>
-     * A statistic measures the rows a read produced, so a contribution harvested under a different RESOLVED READ CONFIGURATION
-     * measured a different set of rows and may not enrich this entry at all. The single exception is the physical
-     * record count under {@code FAIL_FAST}, which the producer licenses explicitly (see
-     * {@link ExternalStats#ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY}) because a committed count there is the same number for
-     * every way of reading the file. That licence is what keeps the strict warm {@code COUNT(*)} rail alive across
-     * differently-declared datasets, and for a file every declaration can read to completion it is exactly right.
-     * <p>
-     * It carries one known exception, pre-existing and deliberately preserved: "the same number for every way of
-     * reading the file" assumes every way of reading it SUCCEEDS. Both bindings carry a row-width tripwire, but they
-     * bound it differently — a positional read against the PINNED schema's width, a by-name declared read against the
-     * bound file's own header (and a HEADERLESS declared read not at all, since such a file defines no width) — so on
-     * a file whose later rows are wider than the pinned width but not wider than that file's header, the positional
-     * read aborts while the declared one completes and licenses its count. The licence then
-     * carries that count to the reader that cannot produce it, which answers where its own scan errors — a masked
-     * abort rather than a wrong number, flapping with cache state. Scoping the licence to the binding mode that
-     * produced the count would close it; withdrawing it entirely would stop every strict dataset warming. Disclosed
-     * at {@code ExternalSourceResolver#strictSingleFileMetadata}.
-     * <p>
-     * Two absent read configurations compare equal on purpose: a rail that stamps no read configuration enriches entries that carry none,
-     * exactly as it did before read configurations existed. A known configuration never matches an absent one — "unknown" must not be
-     * license to share.
-     * <p>
-     * The count tier deliberately carries ONLY the row count across: writing the foreign read configuration or its column
-     * families would relabel this entry as a read it did not come from.
-     */
-    /**
      * What a contribution read differently from the entry may still enrich it with. Nothing, unless its row count is
      * licensed: a column statistic measures rows, so it means nothing unless both sides counted the same ones. Given
      * that, the row count crosses, and a column crosses only when both reads must have seen the same cells in it:
@@ -989,6 +960,22 @@ public class ExternalSourceCacheService implements Closeable {
         return -1;
     }
 
+    /**
+     * The part of {@code contribution} that may enrich {@code entry}, or {@code null} when none of it may — the
+     * second tier of contribution matching, after path, mtime and config identity. The same read configuration
+     * merges everything; a different one is decided per column by {@link #crossingStats}.
+     * <p>
+     * Two absent read configurations compare equal on purpose: a rail that stamps no read configuration enriches
+     * entries that carry none, exactly as before read configurations existed. A known configuration never matches
+     * an absent one — "unknown" must not be licence to share.
+     * <p>
+     * One pre-existing exception is preserved. A licensed count assumes every way of reading the file succeeds, but
+     * a positional read bounds a row by the pinned schema's width while a by-name declared read bounds it by the
+     * file's own header, so on a file whose later rows are wider than the one and not the other the positional read
+     * aborts while the declared read completes and licenses its count. That count then reaches a reader that cannot
+     * produce it — a masked abort rather than a wrong number. Disclosed at
+     * {@code ExternalSourceResolver#strictSingleFileMetadata}.
+     */
     @Nullable
     private static Map<String, Object> applicableStats(
         SchemaCacheEntry entry,

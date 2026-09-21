@@ -384,7 +384,7 @@ public class ExternalCsvAggregatePushdownIT extends AbstractExternalDataSourceIT
      * count — and only the physical count is the same number for every declaration. The strict warm seed is therefore
      * skipped for every non-{@code FAIL_FAST} policy: {@code COUNT(*)} re-scans on every query
      * ({@code documentsFound == totalRows}) rather than fold a count another declaration's read measured. Guards the
-     * {@code warmsRowCountSafely} gate (contrast {@link #testStrictCountStarColdThenWarmShortCircuits}, which warms with
+     * {@code rowCountMayWarm} gate (contrast {@link #testStrictCountStarColdThenWarmShortCircuits}, which warms with
      * the default {@code FAIL_FAST} policy).
      * <p>
      * The fixture is clean — it contains no malformed row. The policy alone decides whether the seed is taken, so this
@@ -431,7 +431,7 @@ public class ExternalCsvAggregatePushdownIT extends AbstractExternalDataSourceIT
     }
 
     /**
-     * {@code warmsRowCountSafely} must never turn an invalid {@code error_mode} into a plan-time failure: it is an
+     * {@code rowCountMayWarm} must never turn an invalid {@code error_mode} into a plan-time failure: it is an
      * optimization decision, not a validation gate. Before the {@code try/catch} around
      * {@link org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy#fromConfig}, an unparseable policy (here
      * {@code error_mode: bogus}) would throw {@code IllegalArgumentException} straight out of resolution — reached by

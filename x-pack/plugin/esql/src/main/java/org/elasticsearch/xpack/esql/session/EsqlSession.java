@@ -1698,19 +1698,24 @@ public class EsqlSession {
         // EXTERNAL command. The resolver first read-authorizes the names through the security filter — they are
         // stripped from the plan here and would otherwise never reach authorization. Completes synchronously when
         // no FROM pattern can match a registered dataset.
-        datasetResolver.replaceDatasets(parsed, projectMetadata, logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
-            datasetResolutionProfile.stop();
-            if (datasetNamesHolder != null) {
-                datasetNamesHolder.set(
-                    rewritten.collect(UnresolvedExternalRelation.class)
-                        .stream()
-                        .map(UnresolvedExternalRelation::datasetName)
-                        .filter(n -> n != null)
-                        .collect(toSet())
-                );
-            }
-            analyzedPlanAfterDatasetResolution(rewritten, unmappedResolution, configuration, executionInfo, requestFilter, delegate);
-        }));
+        datasetResolver.replaceDatasets(
+            parsed,
+            projectMetadata,
+            QuerySettings.WILDCARDS_MATCH_DATASETS.get(configuration.resolvedSettings()),
+            logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
+                datasetResolutionProfile.stop();
+                if (datasetNamesHolder != null) {
+                    datasetNamesHolder.set(
+                        rewritten.collect(UnresolvedExternalRelation.class)
+                            .stream()
+                            .map(UnresolvedExternalRelation::datasetName)
+                            .filter(n -> n != null)
+                            .collect(toSet())
+                    );
+                }
+                analyzedPlanAfterDatasetResolution(rewritten, unmappedResolution, configuration, executionInfo, requestFilter, delegate);
+            })
+        );
     }
 
     private void analyzedPlanAfterDatasetResolution(

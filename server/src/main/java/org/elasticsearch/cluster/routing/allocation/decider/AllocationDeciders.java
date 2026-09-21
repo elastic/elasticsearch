@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
-
 import org.elasticsearch.core.Nullable;
 
 import java.util.Arrays;

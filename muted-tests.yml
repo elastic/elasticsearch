@@ -11,27 +11,15 @@ tests:
 - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterBasicLicenseIT
   method: testLicenseInvalidForInference {p0=false}
   issue: https://github.com/elastic/elasticsearch/issues/137691
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:spatial.convertFromStringParseError}
-  issue: https://github.com/elastic/elasticsearch/issues/139213
 - class: org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityAggregatorTests
   method: testSimple
   issue: https://github.com/elastic/elasticsearch/issues/142408
 - class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
   method: testOpenAiEmbeddings {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/144440
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:spatial.convertCartesianFromStringParseError}
-  issue: https://github.com/elastic/elasticsearch/issues/144580
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:spatial_shapes.convertFromStringParseError}
-  issue: https://github.com/elastic/elasticsearch/issues/144672
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerStatsTests
   method: testRetriesAndOperationsAreTrackedSeparately
   issue: https://github.com/elastic/elasticsearch/issues/145281
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:spatial_shapes.convertFromStringParseError}
-  issue: https://github.com/elastic/elasticsearch/issues/145655
 - class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
   method: testScaleWhileShrinking
   issue: https://github.com/elastic/elasticsearch/issues/145669
@@ -47,9 +35,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
   method: "testEvaluateBlockWithNulls {TestCase=field: <random mv UNORDERED doubles>, percentile: <positive int>}"
   issue: https://github.com/elastic/elasticsearch/issues/145889
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromLeftSide}
-  issue: https://github.com/elastic/elasticsearch/issues/145904
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/150569
@@ -89,18 +74,6 @@ tests:
 - class: org.elasticsearch.common.util.BigArraysTests
   method: testByteArrayBulkGet
   issue: https://github.com/elastic/elasticsearch/issues/154778
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:folding.version_GreaterThan_MultiValueConstant}
-  issue: https://github.com/elastic/elasticsearch/issues/154779
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:stats.sumWithOverflowRow}
-  issue: https://github.com/elastic/elasticsearch/issues/149574
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:dense_vector_aggs.sumDenseVectorOverflow}
-  issue: https://github.com/elastic/elasticsearch/issues/155118
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:change_point.values null column}
-  issue: https://github.com/elastic/elasticsearch/issues/154877
 - class: org.elasticsearch.packaging.test.KeystoreManagementTests
   method: test50CreateKeystoreManually
   issue: https://github.com/elastic/elasticsearch/issues/155335
@@ -128,9 +101,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValuesByteRefGroupingAggregatorFunctionTests
   method: testSimple
   issue: https://github.com/elastic/elasticsearch/issues/155069
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
-  method: test {csv-spec:lookup-join.mvKeywordExpressionJoinWarningsFromRightSideWhenNotKept}
-  issue: https://github.com/elastic/elasticsearch/issues/157303
 - class: org.elasticsearch.search.aggregations.metrics.TDigestPercentilesIT
   method: testSingleValuedFieldGetProperty
   issue: https://github.com/elastic/elasticsearch/issues/157330
@@ -152,9 +122,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.RestartIT
   method: testRestart {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/155609
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:string.base64DecodeMixedMvExpand}
-  issue: https://github.com/elastic/elasticsearch/issues/158225
 - class: org.elasticsearch.xpack.transform.integration.TransformDestIndexIT
   method: testUnattendedTransformDestIndexCreatedDuringUpdate_EmptySourceIndex_NoDeferValidation
   issue: https://github.com/elastic/elasticsearch/issues/152599

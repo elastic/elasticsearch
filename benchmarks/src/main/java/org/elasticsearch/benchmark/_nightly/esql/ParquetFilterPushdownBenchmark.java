@@ -15,8 +15,7 @@ import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.PrimitiveType;
-import org.apache.parquet.schema.Types;
+import org.apache.parquet.schema.MessageTypeParser;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -49,6 +48,7 @@ import org.openjdk.jmh.annotations.Warmup;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -66,9 +66,9 @@ import java.util.concurrent.TimeUnit;
  * pays. Shuffled, every row group spans the whole range, nothing can be skipped, and all three modes must land
  * together — if they do not, the benchmark is measuring something other than pruning.
  */
-@Fork(1)
-@Warmup(iterations = 3, time = 1)
-@Measurement(iterations = 5, time = 1)
+@Fork(2)
+@Warmup(iterations = 5, time = 1)
+@Measurement(iterations = 8, time = 1)
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Thread)
@@ -87,28 +87,53 @@ public class ParquetFilterPushdownBenchmark {
     @Param({ "clustered", "shuffled" })
     public String clustering;
 
+    /**
+     * How many columns beyond the predicate column the query reads. The row-level filter's saving is the decoding it
+     * avoids for rows that will not survive, so with one payload column it has almost nothing to do and with eight it
+     * has a great deal. A benchmark that does not vary this cannot see the mechanism at all.
+     */
+    @Param({ "narrow", "wide" })
+    public String projection;
+
     private BlockFactory blockFactory;
     private StorageObject storageObject;
     private long fixtureBytes;
     private Object pushedFilter;
+    private List<String> projectedColumns;
+
+    private static final int PAYLOAD_COLUMNS = 8;
+
+    /** A fixed instant the fixture's timestamps start from, so the column carries plausible epoch millis. */
+    private static final long EPOCH_BASE_MILLIS = 1_700_000_000_000L;
+    /** One second between rows — a log cadence, and wide enough that no two rows share a millisecond. */
+    private static final long TS_STEP_MILLIS = 1_000L;
 
     @Setup(Level.Trial)
     public void setup() throws IOException {
         BenchmarkLogging.configure();
         blockFactory = DatasourceBenchmarks.newBlockFactory();
+        projectedColumns = new ArrayList<>(List.of("id", "ts"));
+        if ("wide".equals(projection)) {
+            for (int c = 0; c < PAYLOAD_COLUMNS; c++) {
+                projectedColumns.add("c" + c);
+            }
+        }
         byte[] bytes = fixture("clustered".equals(clustering));
         fixtureBytes = bytes.length;
         storageObject = DatasourceBenchmarks.inMemoryStorageObject(bytes, "memory://filter-bench.parquet");
 
-        long upper = switch (selectivity) {
+        // A window anchored at the first timestamp in the fixture, covering the leading share of the range.
+        long windowRows = switch (selectivity) {
             case "1pct" -> ROWS / 100L;
             case "10pct" -> ROWS / 10L;
             default -> throw new IllegalArgumentException("unknown selectivity: " + selectivity);
         };
+        long from = EPOCH_BASE_MILLIS;
+        long to = EPOCH_BASE_MILLIS + windowRows * TS_STEP_MILLIS;
         Expression predicate = switch (filterMode) {
             case "none" -> null;
-            case "scalarRange" -> new Range(Source.EMPTY, ts(), lit(0L), true, lit(upper), true, ZoneOffset.UTC);
-            case "mvInRange" -> new MvInRange(Source.EMPTY, ts(), lit(0L), lit(upper));
+            case "scalarRange" -> new Range(Source.EMPTY, ts(), lit(from), true, lit(to), true, ZoneOffset.UTC);
+            case "mvInRange" -> new MvInRange(Source.EMPTY, ts(), lit(from), lit(to));
             default -> throw new IllegalArgumentException("unknown filterMode: " + filterMode);
         };
         // The planner's own path, so the benchmark cannot push something the engine would not.
@@ -122,7 +147,7 @@ public class ParquetFilterPushdownBenchmark {
     public int filteredScan(ReadMetrics metrics) throws IOException {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withPushedFilter(pushedFilter);
         FormatReadContext ctx = FormatReadContext.builder()
-            .projectedColumns(List.of("id", "ts"))
+            .projectedColumns(projectedColumns)
             .batchSize(1000)
             .rowLimit(FormatReader.NO_LIMIT)
             .build();
@@ -139,25 +164,30 @@ public class ParquetFilterPushdownBenchmark {
     }
 
     private static ReferenceAttribute ts() {
-        return new ReferenceAttribute(Source.EMPTY, "ts", DataType.LONG);
+        return new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME);
     }
 
-    private static Literal lit(long value) {
-        return new Literal(Source.EMPTY, value, DataType.LONG);
+    private static Literal lit(long epochMillis) {
+        return new Literal(Source.EMPTY, epochMillis, DataType.DATETIME);
     }
 
     /**
      * {@code ts} ascending, or the same values shuffled by a fixed permutation so every row group spans the whole
-     * range. The permutation is a multiplication modulo a prime above {@link #ROWS}, so it is a bijection and the
-     * two fixtures hold exactly the same values — only their order differs.
+     * range. The permutation multiplies by {@code 97} modulo {@link #ROWS}; 97 is coprime with {@code 200_000}, so
+     * it is a bijection of {@code [0, ROWS)} onto itself and the two fixtures hold exactly the same timestamps —
+     * only their order differs. That is what makes {@code clustering} a control: a range filter selects the same
+     * number of rows either way, so any difference between the two is pruning and nothing else.
+     *
+     * <p>{@code ts} is a real {@code TIMESTAMP(MILLIS)} column, one second apart from a fixed instant, so the
+     * pushdown reaches {@code buildDatetimePredicate} — the path a filter on a time field actually takes. Written
+     * as a bare {@code int64} it would reach {@code buildLongPredicate} instead and measure the wrong arm.
      */
     private static byte[] fixture(boolean clustered) throws IOException {
-        MessageType schema = Types.buildMessage()
-            .required(PrimitiveType.PrimitiveTypeName.INT64)
-            .named("id")
-            .required(PrimitiveType.PrimitiveTypeName.INT64)
-            .named("ts")
-            .named("bench");
+        StringBuilder schemaText = new StringBuilder("message bench { required int64 id; required int64 ts (TIMESTAMP(MILLIS,true));");
+        for (int c = 0; c < PAYLOAD_COLUMNS; c++) {
+            schemaText.append(" required binary c").append(c).append(" (UTF8);");
+        }
+        MessageType schema = MessageTypeParser.parseMessageType(schemaText.append(" }").toString());
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         SimpleGroupFactory factory = new SimpleGroupFactory(schema);
         OutputFile outputFile = ParquetReadBenchmark.byteArrayOutputFile(out);
@@ -169,12 +199,14 @@ public class ParquetFilterPushdownBenchmark {
                 .withRowGroupSize(ROW_GROUP_BYTES)
                 .build()
         ) {
-            final long prime = 200_003L;
             for (int i = 0; i < ROWS; i++) {
-                long ts = clustered ? i : (i * 97L) % prime;
+                long tick = clustered ? i : (i * 97L) % ROWS;
                 Group g = factory.newGroup();
                 g.add("id", (long) i);
-                g.add("ts", ts);
+                g.add("ts", EPOCH_BASE_MILLIS + tick * TS_STEP_MILLIS);
+                for (int c = 0; c < PAYLOAD_COLUMNS; c++) {
+                    g.add("c" + c, "payload-" + c + "-" + i);
+                }
                 writer.write(g);
             }
         }

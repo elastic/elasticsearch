@@ -28,7 +28,8 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * {@code SET unmapped_fields} for nested {@code item.extra} vs a nested parent with no declared subfields vs unsupported
  * {@code extra} ({@code ip_range}) vs the same {@code item.extra} with no mapping at all vs {@code item.extra} under a
- * {@code flattened} parent. Each parameter is one cell of the table; classified on the hidden index of each scenario.
+ * {@code flattened} parent. Each parameter is one cell of the table; classified on each scenario's special index - the
+ * nested / bare-nested / unsupported / never-mapped / flattened one, paired with a plain object index.
  * <p>
  * Nested subfields are hidden from field caps ({@code -nested}). A leaf <b>declared</b> under a nested parent is always
  * null: it is not loaded even in load modes, so that value does not change shape when ES|QL gains real nested support
@@ -47,7 +48,9 @@ public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase 
 
     /**
      * @param mode {@code nullify} / {@code load} / {@code load_all}
-     * @param mapping {@code unmapped_both} / {@code mapped_both} / {@code mapped_only_nested}
+     * @param mapping {@code unmapped_both} / {@code mapped_both} / {@code mapped_only_special}. Only the nested and
+     *     unsupported scenarios can declare the leaf on their special index; for the rest, {@code mapped_only_special}
+     *     behaves like {@code unmapped_both}.
      * @param keep {@code *} or {@code x}
      * @param nested result on the nested index
      * @param nestedNoField result on the index where {@code item} is nested but declares no subfields at all; must equal
@@ -94,14 +97,16 @@ public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase 
     }
 
     /**
-     * Expected result of each column, per hidden-index scenario:
+     * Dimensions: {@code mode} is the {@code SET unmapped_fields} value; {@code mapping} is where the leaf is declared
+     * (nowhere, both indices, or only the special index); {@code keep} is whether the query names the leaf ({@code x})
+     * or uses {@code KEEP *}. The remaining columns are the expected result per special-index scenario:
      * <ul>
      * <li>nested: a leaf declared under the nested parent is always null - never loaded, so real nested support can
      *     change what it returns without breaking anyone. An undeclared leaf ({@code unmapped_both}) follows the
      *     unmapped-field rules like any other.</li>
      * <li>nestedNoField: nested parent that declares no subfields at all. Must always equal noField: nothing is
      *     declared, so it is plain unmapped loading.</li>
-     * <li>noField: the same leaf simply not mapped on the hidden index.</li>
+     * <li>noField: the same leaf simply not mapped on the special index.</li>
      * <li>flattened: the Verifier rejects loading the sub-key, so cells that would load it error instead.
      *     Exception: {@code LOAD_ALL} + {@code KEEP *} with nothing referencing it - {@code _source} discovery surfaces it.</li>
      * </ul>
@@ -114,22 +119,22 @@ public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase 
             cell("nullify", "unmapped_both", "x", NULL, NULL, NULL, NULL, NULL),
             cell("nullify", "mapped_both", "*", NULL, NULL, NULL, NULL, NULL),
             cell("nullify", "mapped_both", "x", NULL, NULL, NULL, NULL, NULL),
-            cell("nullify", "mapped_only_nested", "*", ABSENT, ABSENT, NULL, ABSENT, ABSENT),
-            cell("nullify", "mapped_only_nested", "x", NULL, NULL, NULL, NULL, NULL),
+            cell("nullify", "mapped_only_special", "*", ABSENT, ABSENT, NULL, ABSENT, ABSENT),
+            cell("nullify", "mapped_only_special", "x", NULL, NULL, NULL, NULL, NULL),
 
             cell("load", "unmapped_both", "*", ABSENT, ABSENT, ABSENT, ABSENT, ABSENT),
             cell("load", "unmapped_both", "x", LOADED, LOADED, LOADED, LOADED, VERIFIER_ERROR),
             cell("load", "mapped_both", "*", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
             cell("load", "mapped_both", "x", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
-            cell("load", "mapped_only_nested", "*", ABSENT, ABSENT, NULL, ABSENT, ABSENT),
-            cell("load", "mapped_only_nested", "x", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
+            cell("load", "mapped_only_special", "*", ABSENT, ABSENT, NULL, ABSENT, ABSENT),
+            cell("load", "mapped_only_special", "x", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
 
             cell("load_all", "unmapped_both", "*", LOADED, LOADED, LOADED, LOADED, LOADED),
             cell("load_all", "unmapped_both", "x", LOADED, LOADED, LOADED, LOADED, VERIFIER_ERROR),
             cell("load_all", "mapped_both", "*", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
             cell("load_all", "mapped_both", "x", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
-            cell("load_all", "mapped_only_nested", "*", NULL, LOADED, NULL, LOADED, LOADED),
-            cell("load_all", "mapped_only_nested", "x", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR)
+            cell("load_all", "mapped_only_special", "*", NULL, LOADED, NULL, LOADED, LOADED),
+            cell("load_all", "mapped_only_special", "x", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR)
         );
     }
 
@@ -157,20 +162,20 @@ public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase 
         if (cell.mode.equals("load_all")) {
             assumeTrue("Requires unmapped_fields=\"load_all\"", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
         }
-        boolean extraMappedOnHidden = switch (cell.mapping) {
+        boolean extraMappedOnSpecial = switch (cell.mapping) {
             case "unmapped_both" -> false;
-            case "mapped_both", "mapped_only_nested" -> true;
+            case "mapped_both", "mapped_only_special" -> true;
             default -> throw new IllegalArgumentException("unknown mapping " + cell.mapping);
         };
         boolean extraMappedOnOther = switch (cell.mapping) {
             case "mapped_both" -> true;
-            case "unmapped_both", "mapped_only_nested" -> false;
+            case "unmapped_both", "mapped_only_special" -> false;
             default -> throw new IllegalArgumentException("unknown mapping " + cell.mapping);
         };
         boolean keepStar = cell.keep.equals("*");
-        String[] nested = createExtraLeafIndices("nest_", "obj_", extraMappedOnHidden, extraMappedOnOther);
+        String[] nested = createExtraLeafIndices("nest_", "obj_", extraMappedOnSpecial, extraMappedOnOther);
         String[] nestedNoField = createNestedNoFieldExtraIndices("nnofld_", "nnoobj_", extraMappedOnOther);
-        String[] unsupported = createUnsupportedExtraIndices("unsup_", "plain_", extraMappedOnHidden, extraMappedOnOther);
+        String[] unsupported = createUnsupportedExtraIndices("unsup_", "plain_", extraMappedOnSpecial, extraMappedOnOther);
         String[] noField = createNoFieldExtraIndices("nofld_", "noobj_", extraMappedOnOther);
         String[] flattened = createFlattenedExtraIndices("flat_", "flobj_", extraMappedOnOther);
         String prefix = "SET unmapped_fields=\"" + cell.mode + "\"; ";
@@ -208,27 +213,27 @@ public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase 
     }
 
     /**
-     * Same shape as {@link #createExtraLeafIndices}, but the hidden index maps {@code item} as a plain object and never
+     * Same shape as {@link #createExtraLeafIndices}, but the special index maps {@code item} as a plain object and never
      * maps {@code extra} - the plain unmapped-field baseline. Both indices map {@code item.value} as {@code long} so the
      * only difference from the nested scenario is the missing mapping.
      */
-    private String[] createNoFieldExtraIndices(String hiddenPrefix, String otherPrefix, boolean extraMappedOnOther) {
-        String hidden = hiddenPrefix + randomIdentifier();
+    private String[] createNoFieldExtraIndices(String specialPrefix, String otherPrefix, boolean extraMappedOnOther) {
+        String special = specialPrefix + randomIdentifier();
         String other = otherPrefix + randomIdentifier();
-        createIndex(hidden, extraLeafMapping(false, false));
+        createIndex(special, extraLeafMapping(false, false));
         createIndex(other, extraLeafMapping(false, extraMappedOnOther));
-        indexItemDocs(hidden, other);
-        return new String[] { hidden, other };
+        indexItemDocs(special, other);
+        return new String[] { special, other };
     }
 
     /**
-     * Same shape as {@link #createExtraLeafIndices}, but the hidden index maps {@code item} as a nested parent with no
+     * Same shape as {@link #createExtraLeafIndices}, but the special index maps {@code item} as a nested parent with no
      * declared subfields at all: neither {@code value} nor {@code extra} exist anywhere in its mapping.
      */
-    private String[] createNestedNoFieldExtraIndices(String hiddenPrefix, String otherPrefix, boolean extraMappedOnOther) {
-        String hidden = hiddenPrefix + randomIdentifier();
+    private String[] createNestedNoFieldExtraIndices(String specialPrefix, String otherPrefix, boolean extraMappedOnOther) {
+        String special = specialPrefix + randomIdentifier();
         String other = otherPrefix + randomIdentifier();
-        createIndex(hidden, """
+        createIndex(special, """
             {
               "dynamic": false,
               "properties": {
@@ -242,19 +247,19 @@ public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase 
               }
             }""");
         createIndex(other, extraLeafMapping(false, extraMappedOnOther));
-        indexItemDocs(hidden, other);
-        return new String[] { hidden, other };
+        indexItemDocs(special, other);
+        return new String[] { special, other };
     }
 
     /**
-     * Same shape as {@link #createExtraLeafIndices}, but the hidden index maps {@code item} as {@code flattened}, so
+     * Same shape as {@link #createExtraLeafIndices}, but the special index maps {@code item} as {@code flattened}, so
      * {@code item.extra} is a dynamic sub-key: invisible to field caps like a nested subfield, but resolvable on the
      * shard through the keyed flattened loader.
      */
-    private String[] createFlattenedExtraIndices(String hiddenPrefix, String otherPrefix, boolean extraMappedOnOther) {
-        String hidden = hiddenPrefix + randomIdentifier();
+    private String[] createFlattenedExtraIndices(String specialPrefix, String otherPrefix, boolean extraMappedOnOther) {
+        String special = specialPrefix + randomIdentifier();
         String other = otherPrefix + randomIdentifier();
-        createIndex(hidden, """
+        createIndex(special, """
             {
               "dynamic": false,
               "properties": {
@@ -267,12 +272,12 @@ public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase 
               }
             }""");
         createIndex(other, extraLeafMapping(false, extraMappedOnOther));
-        indexItemDocs(hidden, other);
-        return new String[] { hidden, other };
+        indexItemDocs(special, other);
+        return new String[] { special, other };
     }
 
-    private void indexItemDocs(String hidden, String other) {
-        client().prepareBulk().add(prepareIndexJson(hidden, "0", """
+    private void indexItemDocs(String special, String other) {
+        client().prepareBulk().add(prepareIndexJson(special, "0", """
             {
               "id": "n00",
               "item": [
@@ -281,7 +286,7 @@ public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase 
                   "extra": "from-nested-0"
                 }
               ]
-            }""")).add(prepareIndexJson(hidden, "1", """
+            }""")).add(prepareIndexJson(special, "1", """
             {
               "id": "n01",
               "item": [
@@ -332,16 +337,21 @@ public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase 
             }""" : "");
     }
 
-    private String[] createUnsupportedExtraIndices(String hiddenPrefix, String otherPrefix, boolean mappedOnHidden, boolean mappedOnOther) {
-        String hidden = hiddenPrefix + randomIdentifier();
+    private String[] createUnsupportedExtraIndices(
+        String specialPrefix,
+        String otherPrefix,
+        boolean mappedOnSpecial,
+        boolean mappedOnOther
+    ) {
+        String special = specialPrefix + randomIdentifier();
         String other = otherPrefix + randomIdentifier();
-        createIndex(hidden, unsupportedExtraMapping(mappedOnHidden));
+        createIndex(special, unsupportedExtraMapping(mappedOnSpecial));
         createIndex(other, unsupportedExtraMapping(mappedOnOther));
-        client().prepareBulk().add(prepareIndexJson(hidden, "0", """
+        client().prepareBulk().add(prepareIndexJson(special, "0", """
             {
               "id": "n00",
               "extra": "192.168.0.0/24"
-            }""")).add(prepareIndexJson(hidden, "1", """
+            }""")).add(prepareIndexJson(special, "1", """
             {
               "id": "n01",
               "extra": "192.168.1.0/24"
@@ -354,7 +364,7 @@ public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase 
               "id": "o01",
               "extra": "10.1.0.0/16"
             }""")).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        return new String[] { hidden, other };
+        return new String[] { special, other };
     }
 
     private static String unsupportedExtraMapping(boolean extraMapped) {

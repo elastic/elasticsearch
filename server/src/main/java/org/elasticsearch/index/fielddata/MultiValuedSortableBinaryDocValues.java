@@ -23,14 +23,14 @@ import java.io.IOException;
 /**
  * Wrapper around {@link BinaryDocValues} to decode the typical multivalued encoding
  */
-public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocValues {
+public abstract class MultiValuedSortableBinaryDocValues extends SortableBinaryDocValues {
 
     final ByteArrayStreamInput in = new ByteArrayStreamInput();
     final BytesRef scratch = new BytesRef();
     final BinaryDocValues values;
     int count;
 
-    private MultiValuedSortedBinaryDocValues(BinaryDocValues values) {
+    private MultiValuedSortableBinaryDocValues(BinaryDocValues values) {
         super(values);
         this.values = values;
     }
@@ -44,7 +44,7 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
      * For indices created before {@code DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES}, use {@link #fromMultiValued(LeafReader, String)}
      * instead, which also handles the deprecated {@link IntegratedCounts} format.
      */
-    public static SortedBinaryDocValues from(LeafReader leafReader, String valuesFieldName) throws IOException {
+    public static SortableBinaryDocValues from(LeafReader leafReader, String valuesFieldName) throws IOException {
         BinaryDocValues values = DocValues.getBinary(leafReader, valuesFieldName);
         String countsFieldName = valuesFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
         NumericDocValues counts = leafReader.getNumericDocValues(countsFieldName);
@@ -63,7 +63,7 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
      *   <li>{@code .counts} absent &rarr; {@link IntegratedCounts}</li>
      * </ul>
      */
-    public static MultiValuedSortedBinaryDocValues fromMultiValued(LeafReader leafReader, String valuesFieldName) throws IOException {
+    public static MultiValuedSortableBinaryDocValues fromMultiValued(LeafReader leafReader, String valuesFieldName) throws IOException {
         BinaryDocValues values = DocValues.getBinary(leafReader, valuesFieldName);
         return fromMultiValued(leafReader, valuesFieldName, values);
     }
@@ -71,7 +71,7 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
     /**
      * Variant of {@link #fromMultiValued(LeafReader, String)} that accepts pre-loaded {@link BinaryDocValues}.
      */
-    public static MultiValuedSortedBinaryDocValues fromMultiValued(LeafReader leafReader, String valuesFieldName, BinaryDocValues values)
+    public static MultiValuedSortableBinaryDocValues fromMultiValued(LeafReader leafReader, String valuesFieldName, BinaryDocValues values)
         throws IOException {
         if (values instanceof DecodedBinaryDocValues decodedBinaryDocValues) {
             return new DecodedBinary(decodedBinaryDocValues);
@@ -118,7 +118,7 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
      * Multivalued binary doc values encoded by {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.IntegratedCount}.
      * These have the form: [doc value count][length of value 1][value 1][length of value 2][value 2]...
      */
-    private static class IntegratedCounts extends MultiValuedSortedBinaryDocValues {
+    private static class IntegratedCounts extends MultiValuedSortableBinaryDocValues {
         IntegratedCounts(BinaryDocValues values) {
             super(values);
         }
@@ -152,7 +152,7 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
      * If a binary value contains a single value, payload is of the form: [value 1]
      * If a binary value contains multiple values, payload is of the form: [length of value 1][value 1][length of value 2][value 2]...
      */
-    private static class SeparateCounts extends MultiValuedSortedBinaryDocValues {
+    private static class SeparateCounts extends MultiValuedSortableBinaryDocValues {
         private final NumericDocValues counts;
         private final Sparsity sparsity;
         private final ValueMode valueMode;
@@ -214,7 +214,7 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
      * Single-valued binary doc values written as a plain {@link org.apache.lucene.document.BinaryDocValuesField}.
      * No companion {@code .counts} field exists; each document has at most one value.
      */
-    private static class PlainBinary extends MultiValuedSortedBinaryDocValues {
+    private static class PlainBinary extends MultiValuedSortableBinaryDocValues {
         PlainBinary(BinaryDocValues values) {
             super(values);
         }
@@ -256,7 +256,7 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
     /**
      * Reads from a producer that has already split the document into individual values, skipping the encode/decode round trip.
      */
-    private static class DecodedBinary extends MultiValuedSortedBinaryDocValues {
+    private static class DecodedBinary extends MultiValuedSortableBinaryDocValues {
         private final DecodedBinaryDocValues decodedBinaryDocValues;
 
         DecodedBinary(DecodedBinaryDocValues decodedBinaryDocValues) {

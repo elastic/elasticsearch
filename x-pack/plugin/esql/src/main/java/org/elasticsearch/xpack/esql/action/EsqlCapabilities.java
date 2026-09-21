@@ -4030,6 +4030,16 @@ public class EsqlCapabilities {
          */
         AGGS_MORE_INPUTS_VIA_EVAL,
 
+        /**
+         * Bugfixes for edge cases of aggregation functions with multiple input fields. See:
+         * <a href="https://github.com/elastic/elasticsearch/issues/158821">#158821</a>,
+         * <a href="https://github.com/elastic/elasticsearch/issues/158827">#158827</a>,
+         * <a href="https://github.com/elastic/elasticsearch/issues/158918">#158918</a>,
+         * <a href="https://github.com/elastic/elasticsearch/issues/159029">#159029</a>,
+         * <a href="https://github.com/elastic/elasticsearch/issues/159033">#159033</a>.
+         */
+        FIX_AGGS_MULTIPLE_INPUT_FIELDS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

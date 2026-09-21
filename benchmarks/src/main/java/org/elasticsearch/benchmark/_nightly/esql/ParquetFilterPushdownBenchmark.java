@@ -129,7 +129,11 @@ public class ParquetFilterPushdownBenchmark {
             "timeAndGreater",
             "timeAndAtMost",
             "timeAndGreaterSelective",
-            "timeAndAtMostSelective" }
+            "timeAndAtMostSelective",
+            "serviceEquals",
+            "serviceIn",
+            "bytesGreater",
+            "bytesAtMost" }
     )
     public String filterMode;
 
@@ -258,6 +262,15 @@ public class ParquetFilterPushdownBenchmark {
                 timeWindow,
                 new MvLess(Source.EMPTY, bytesCol(), longLit(9L), includeBound())
             );
+            // One condition only, so each of these isolates a single function with no time range welded on.
+            case "serviceEquals" -> new MvContains(Source.EMPTY, svc(), keyword(SERVICES[0]));
+            case "serviceIn" -> new MvIntersects(
+                Source.EMPTY,
+                svc(),
+                new Literal(Source.EMPTY, List.of(new BytesRef(SERVICES[0]), new BytesRef(SERVICES[1])), DataType.KEYWORD)
+            );
+            case "bytesGreater" -> new MvGreater(Source.EMPTY, bytesCol(), longLit(990L));
+            case "bytesAtMost" -> new MvLess(Source.EMPTY, bytesCol(), longLit(9L), includeBound());
             default -> throw new IllegalArgumentException("unknown filterMode: " + filterMode);
         };
         // The planner's own path, so the benchmark cannot push something the engine would not.
@@ -341,6 +354,10 @@ public class ParquetFilterPushdownBenchmark {
                 case "timeAndAtMost" -> inWindow && t % 1000 <= 500;
                 case "timeAndGreaterSelective" -> inWindow && t % 1000 > 990;
                 case "timeAndAtMostSelective" -> inWindow && t % 1000 <= 9;
+                case "serviceEquals" -> t % SERVICES.length == 0;
+                case "serviceIn" -> t % SERVICES.length == 0 || t % SERVICES.length == 1;
+                case "bytesGreater" -> t % 1000 > 990;
+                case "bytesAtMost" -> t % 1000 <= 9;
                 default -> throw new IllegalArgumentException("unknown filterMode: " + filterMode);
             };
             if (keep) {

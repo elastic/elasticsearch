@@ -202,6 +202,7 @@ public class BlobCacheMetrics {
         Decay
     }
 
+    // Async gauges registered after this(...) capture this.readCount / this.missCount.
     @SuppressWarnings("this-escape")
     public BlobCacheMetrics(MeterRegistry meterRegistry, TimeProvider timeProvider) {
         this(
@@ -298,7 +299,8 @@ public class BlobCacheMetrics {
             ),
             meterRegistry.registerDoubleHistogram(
                 BLOB_CACHE_MISS_AGE,
-                "The age of data that missed the cache (warming not included), in hours; " + "sentinel timestamps and bypasses are omitted",
+                "The age of data that missed the cache (warming not included), in hours; "
+                    + "sentinel timestamps and bypasses are omitted",
                 "hours",
                 TimeRangeBucket.histogramHourBoundaries()
             ),
@@ -456,6 +458,7 @@ public class BlobCacheMetrics {
      *                              recorded via {@link #recordBypassRead()} and are also omitted.
      */
     public void recordRead(long regionTimestampMillis) {
+        // Region timestamps are epoch millis; relativeTimeInMillis() is not comparable to them.
         recordAccess(readCount, readAgeHistogram, regionTimestampMillis, timeProvider.absoluteTimeInMillis());
     }
 

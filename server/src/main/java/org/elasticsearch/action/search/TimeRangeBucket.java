@@ -39,7 +39,7 @@ public enum TimeRangeBucket {
     OlderThan14Days(Long.MAX_VALUE, "older_than_14_days");
 
     private static final TimeRangeBucket[] VALUES = values();
-    private static final double MILLIS_PER_HOUR = TimeValue.timeValueHours(1).getMillis();
+    private static final double MILLIS_PER_HOUR = TimeValue.ONE_HOUR.getMillis();
     private static final List<Double> HISTOGRAM_HOUR_BOUNDARIES = buildHistogramHourBoundaries();
 
     private final long millis;

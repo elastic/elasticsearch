@@ -279,7 +279,7 @@ public class BlobCacheMetricsTests extends ESTestCase {
         assertEquals(TimeRangeBucket.toHours(-1_000), readAges.getFirst().getDouble(), 0.0);
     }
 
-    public void testGaugesEmitOneUnattributedObservation() {
+    public void testSentinelsOmittedFromHistogramsAndTotalsRemainUnattributed() {
         long now = fakeNowMillis.get();
 
         metrics.recordRead(SharedBlobCacheService.UNKNOWN_TIMESTAMP);

@@ -99,9 +99,7 @@ public class S3EndpointRedirectTests extends ESTestCase {
                     } else {
                         readOneRange(provider, path);
                     }
-                } catch (Exception expected) {
-                    // Failing is correct; what is under test is where the node went.
-                }
+                } catch (Exception expected) {}
             }
             // Positive control on the range GET itself: opening an object goes over the sync client, so a count would not do.
             assertThat(

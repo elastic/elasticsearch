@@ -71,7 +71,7 @@ public class AuditIT extends ESRestTestCase {
         .setting("xpack.security.audit.logfile.events.include", "[ \"_all\" ]")
         .setting("xpack.security.audit.logfile.events.emit_request_body", "true")
         .setting("esql.federation.enabled", "true")
-        // Endpoints are confined to AWS hosts, so permit loopback the way the other suites here do.
+        // Endpoints are confined to AWS hosts, so permit loopback the way the esql suites do.
         .setting("esql.external.allowed_endpoint_hosts", "127.0.0.1:*,[::1]:*,localhost:*")
         .keystore("cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID, "audit-it-encryption-password")
         .keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID)

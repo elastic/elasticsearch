@@ -1465,7 +1465,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     /**
      * A name long enough to carry an outpost id reaches {@code s3-outposts}, which the endpoint rule
      * refuses by name and which a configured {@code endpoint} does not suppress. The fixture is resolved here
-     * rather than trusted to look right: a shorter name of the same shape would make this test vacuous.
+     * rather than trusted to look right: a shorter name of the same shape reaches the ordinary regional host.
      */
     public void testValidateDatasetRefusesBucketNameThatRoutesToOutposts() {
         String bucket = "oop-01234567890123aaaaaaaaaaaaaaaaaaaaaaaaa--op-s3";
@@ -1495,7 +1495,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     /**
      * The bucket the check reads must be the bucket the read binds to. {@code StoragePath.of} strips a port
      * and a {@code userInfo}, so a refusal that tests the raw authority is bypassed by appending {@code :443}
-     * — and every bucket refusal tests it.
+     * — and the refusals below all tested it.
      */
     public void testValidateDatasetRefusesSteeredBucketsWithAPort() {
         for (String bucket : List.of(

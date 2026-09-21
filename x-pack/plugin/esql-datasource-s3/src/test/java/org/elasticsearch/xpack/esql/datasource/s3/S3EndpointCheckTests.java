@@ -42,7 +42,7 @@ public class S3EndpointCheckTests extends ESTestCase {
         "eusc-de-east-1"
     );
 
-    /** Every host the SDK resolver produces, in every partition, is accepted exactly when it names a region. */
+    /** Every FIPS, dual-stack and acceleration combination the resolver answers for, in every partition. */
     public void testAnswersForEveryEndpointTheResolverProduces() {
         Set<String> acceptedHosts = new TreeSet<>();
         Set<String> refusedHosts = new TreeSet<>();
@@ -81,7 +81,7 @@ public class S3EndpointCheckTests extends ESTestCase {
                 }
             }
         }
-        // Counts distinct hosts, so this fails when a region drops out rather than when the SDK adds a combination.
+        // Distinct hosts rather than resolver combinations, so an SDK that gains a combination does not move it.
         assertEquals("one permitted endpoint per service per region", 2 * REGIONS.size(), acceptedHosts.size());
         assertFalse("the sweep must exercise refusals too", refusedHosts.isEmpty());
         for (String host : acceptedHosts) {
@@ -172,7 +172,7 @@ public class S3EndpointCheckTests extends ESTestCase {
         assertAllRefused(STS_SERVICE, "s3.amazonaws.com", "sts-fips.amazonaws.com");
     }
 
-    /** The three prefixes are the ones AWS assigns for S3. */
+    /** A prefix is admitted for S3 only, and only as a single label; these are the ones AWS assigns. */
     public void testAcceptsVpcInterfaceEndpoints() {
         for (String host : List.of(
             "bucket.vpce-0a1b2c3d4e5f.s3.us-east-1.vpce.amazonaws.com",
@@ -289,7 +289,7 @@ public class S3EndpointCheckTests extends ESTestCase {
         }
     }
 
-    /** Names an attacker can obtain under an AWS suffix; the region after the service label is what refuses them. */
+    /** Names an attacker can obtain under an AWS suffix; none is in the permitted set. */
     public void testRefusesAwsHostsThatAreNotThisService() {
         assertAllRefused(
             STS_SERVICE,
@@ -310,7 +310,7 @@ public class S3EndpointCheckTests extends ESTestCase {
         );
     }
 
-    /** Without the leading dot, {@code eu-west-1xamazonaws.com} — a registrable domain — would pass. */
+    /** {@code eu-west-1xamazonaws.com} is a registrable domain someone could hold; membership refuses it. */
     public void testRefusesSuffixWithoutALabelBoundary() {
         assertAllRefused(S3_SERVICE, "s3.eu-west-1xamazonaws.com", "s3.us-east-1xapi.aws", "s3.us-east-11amazonaws.com");
         assertAllRefused(STS_SERVICE, "sts.eu-west-1xamazonaws.com");
@@ -417,8 +417,8 @@ public class S3EndpointCheckTests extends ESTestCase {
                 .url()
                 .getHost();
         } catch (RuntimeException e) {
-            // aws-cn has no FIPS endpoints, the ISO partitions no dual-stack ones, and accelerate is not
-            // served with FIPS; a combination the resolver refuses has no destination for the rule to admit.
+            // aws-cn has no FIPS endpoints and accelerate is not served with FIPS; a combination the resolver
+            // refuses has no destination for the rule to admit.
             return null;
         }
     }

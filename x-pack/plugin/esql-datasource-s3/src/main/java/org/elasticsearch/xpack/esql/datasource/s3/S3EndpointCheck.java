@@ -24,8 +24,8 @@ import java.util.function.Predicate;
  * {@code PUT /_query/data_source} time, via
  * {@link org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator#withDatasourceCheck}.
  *
- * <p>A host is admitted by membership in sets built at class load from the SDK's region metadata, not by
- * parsing, so a region the pinned SDK does not know is refused. A region must follow the service label: without
+ * <p>A host is admitted by membership in sets built at class load from the SDK's region metadata, so a region
+ * the pinned SDK does not know is refused. A region must follow the service label: without
  * that, a bucket named {@code sts-anything} would answer to {@code sts-anything.s3.us-east-1.amazonaws.com}.
  */
 final class S3EndpointCheck {
@@ -33,7 +33,7 @@ final class S3EndpointCheck {
     static final String S3_SERVICE = "s3";
     static final String STS_SERVICE = "sts";
 
-    // Only the regional endpoint is enabled. The inline comments explain each disabled family.
+    // Only the regional object endpoint is enabled here; the historical and global spellings are added below.
     // tag::
     private static final Set<String> S3_SERVICE_LABELS = Set.of(
         "s3"                        // the regional object endpoint

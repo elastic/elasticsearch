@@ -339,6 +339,51 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
     }
 
+    /**
+     * A bounded listing's file count is the files seen within the bound, not the dataset's total, so it must be
+     * marked partial. The declared rail is the one a declared mapping takes and the case a bound most often
+     * applies to, and it builds its metadata separately from the inferred rail — so the marking has to exist on
+     * both, and nothing else asserts it here.
+     */
+    public void testDeclaredRailMarksStatsPartialWhenTheListingWasBounded() throws Exception {
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("event_ts", new DatasetFieldMapping("long", null));
+        List<Attribute> fileSchema = List.of(attr("event_ts", DataType.LONG));
+
+        int fileCount = 1500;
+        List<StorageEntry> files = new ArrayList<>(fileCount);
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        for (int i = 0; i < fileCount; i++) {
+            String file = String.format(Locale.ROOT, "s3://bucket/data/file%05d.parquet", i);
+            files.add(entry(file, 100));
+            schemasByPath.put(file, fileSchema);
+        }
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put(StoragePath.of(DECLARED_GLOB).patternPrefix().toString(), files);
+
+        ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(
+            List.of(DECLARED_GLOB),
+            Map.of(DECLARED_GLOB, new HashMap<>()),
+            null,
+            Map.of(DECLARED_GLOB, mapping),
+            Set.of(),
+            Set.of(DECLARED_GLOB),
+            future
+        );
+        ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(DECLARED_GLOB);
+
+        assertNotNull(resolved);
+        assertTrue("the listing must have been bounded for this to be the case under test", resolved.fileList().isTruncated());
+        assertEquals(
+            "a floor must not be presented as the dataset's file count",
+            Boolean.TRUE,
+            resolved.metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL)
+        );
+    }
+
     private ExternalSourceResolution resolveWithDeclaredMapping(
         List<Attribute> fileSchema,
         Map<String, DatasetFieldMapping> properties,

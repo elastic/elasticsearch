@@ -1439,15 +1439,6 @@ public class ExternalSourceResolver {
     /**
      * How many keys this resolution may visit, or {@link Integer#MAX_VALUE} for the whole glob.
      *
-     * <p>Bounding is the intersection of two conditions, and both are about correctness rather than cost. The
-     * query must read no rows from this path, because split discovery takes its file set from the listing that
-     * resolution produced. And the resolution mode must be one whose schema does not depend on the file count:
-     * {@code union_by_name} and {@code strict} reconcile every file by contract, so a prefix would answer with a
-     * narrower schema than the dataset has — a wrong answer, and the one the modes exist to prevent.
-     */
-    /**
-     * How many keys this resolution may visit, or {@link Integer#MAX_VALUE} for the whole glob.
-     *
      * <p>This is the single place the question is answered, and it is answered before the caller chooses whether
      * to consult the listing cache, because the two decisions are the same decision: a bound revoked after the
      * cache has been bypassed yields a full listing that is neither read from nor written to it, which is worse
@@ -3750,6 +3741,14 @@ public class ExternalSourceResolver {
             declaredReadSpecOf(declaredMapping)
         );
         extMetadata = enrichWithFileCount(extMetadata, listing.fileCount());
+        if (listing.isTruncated()) {
+            // The count above is the files seen within the bound, which is a floor rather than the dataset's
+            // total. Unmarked, a prefix's count is presented as the whole, and this rail is the one a declared
+            // mapping takes — the case a bound most often applies to. The inferred rail marks it in
+            // completeFirstFileWins; there is no shared site to do it in, because the two rails build their
+            // metadata separately.
+            extMetadata = markStatsAsPartial(extMetadata);
+        }
         if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingSchemaWarnings::add);
         }

@@ -616,9 +616,11 @@ public final class GlobExpander {
         try (StorageIterator iterator = provider.listObjects(prefix, recursive)) {
             while (iterator.hasNext()) {
                 if (listed >= listingBound) {
-                    // Every provider's iterator fetches a page only when the current one is exhausted, so
-                    // returning here is what makes the bound an I/O saving rather than a filter over keys we
-                    // already paid to read.
+                    // What this saves depends on the provider, and only an object store pages lazily: the S3
+                    // iterator issues its next ListObjectsV2 when the current page is exhausted, so stopping here
+                    // is requests never made. The local filesystem provider walks the whole tree into a list
+                    // before the first hasNext(), so there the bound only caps what is kept. Correctness does not
+                    // depend on which it is; the saving does, and the datasets this exists for live on S3.
                     truncated = true;
                     break;
                 }
@@ -830,10 +832,6 @@ public final class GlobExpander {
     }
 
     /**
-     * The hints that may prune {@code key=value} folders during the listing walk: every non-{@code _file.*} filter
-     * column. Also the exact hint set the cache key carries for a walk-eligible pattern — see {@link ListingIdentity}.
-     */
-    /**
      * Whether these hints select a subtree of the dataset rather than filtering files by their own metadata.
      * <p>
      * A listing bound keeps the first keys the provider reports, which is only a prefix of the same listing when
@@ -847,6 +845,10 @@ public final class GlobExpander {
         return partitionPruningHints(hints).isEmpty() == false;
     }
 
+    /**
+     * The hints that may prune {@code key=value} folders during the listing walk: every non-{@code _file.*} filter
+     * column. Also the exact hint set the cache key carries for a walk-eligible pattern — see {@link ListingIdentity}.
+     */
     static List<PartitionFilterHint> partitionPruningHints(@Nullable List<PartitionFilterHint> hints) {
         if (hints == null || hints.isEmpty()) {
             return List.of();

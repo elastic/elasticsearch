@@ -19,7 +19,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -63,7 +63,7 @@ public class FlattenedColumnarArrayOrderFieldDataTests extends MapperServiceTest
             IndexFieldData<?> ifd = mapperService.fieldType("field." + key)
                 .fielddataBuilder(FieldDataContext.noRuntimeFields("test", "test"))
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
-            SortedBinaryDocValues dv = ifd.load(leaf).getBytesValues();
+            SortableBinaryDocValues dv = ifd.load(leaf).getBytesValues();
             if (dv.advanceExact(0)) {
                 hasValues[0] = true;
                 int count = dv.docValueCount();

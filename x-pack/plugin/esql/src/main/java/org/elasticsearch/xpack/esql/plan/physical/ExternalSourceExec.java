@@ -104,13 +104,14 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     private final Map<String, Object> sourceMetadata;
     private final Integer estimatedRowSize;
     private final List<ExternalSplit> splits;
-    // Registered dataset identifier when this exec came from FROM <dataset>, null for inline
-    // EXTERNAL. Serialized so the data-node operator factory can populate _index with the
-    // user-facing dataset name without having to re-derive it from cluster state.
+    // Registered dataset identifier when this exec came from FROM <dataset>, null for a bare glob.
+    // Nothing on this version's data node reads it: _name is answered on the coordinator from
+    // ExternalRelation.datasetName(), and _index answers SQL NULL. It stays serialized because a 9.5
+    // data node composes _index from this slot.
     @Nullable
     private final String datasetName;
-    // Declared read-instructions (renames, _id.path, per-column date formats), or DeclaredReadSpec.NONE. An execution input:
-    // the data-node operator physicalizes reader-facing names and stamps _id from it. Serialized (TV-gated) so the data
+    // Declared read-instructions (renames, per-column date formats), or DeclaredReadSpec.NONE. An execution input:
+    // the data-node operator physicalizes reader-facing names from it. Serialized (TV-gated) so the data
     // node needs no cluster-state re-derivation, and carried in info() (like datasetName) so a generic node-reflection
     // rebuild does not silently drop it — the renames used to ride the reflected `config` map and must stay as safe.
     private final DeclaredReadSpec declaredReadSpec;
@@ -143,8 +144,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
      * Flag set by {@code InsertExternalFieldExtraction} when (and only when) a paired
      * {@code ExternalFieldExtractExec} sits downstream to consume deferred-encoded columns. The
      * operator factory keys deferred extraction off this flag — NOT off {@code _rowPosition}
-     * presence in the projection, which {@code InjectRowPositionForExternalId} also produces for
-     * plain {@code _id} composition with no extract operator (enabling deferred mode there would
+     * presence in the projection, which {@code InjectRowPositionForRecordRef} also produces for
+     * plain {@code _file.record_ref} composition with no extract operator (enabling deferred mode there would
      * create a SourceExtractors registry that nothing ever closes).
      */
     private final boolean deferredExtraction;
@@ -192,8 +193,9 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     /**
      * Public 15-arg ctor used by {@link #info()} (via constructor reference) and by tree tests: the 13-arg shape above
      * plus {@code datasetName} and {@code declaredReadSpec}, so node-reflection reconstruction preserves both. Losing
-     * {@code datasetName} on a generic rewrite would silently null {@code _index}; losing {@code declaredReadSpec} would
-     * silently drop declared renames / {@code _id.path} (the same reflection safety the renames had while riding the
+     * {@code datasetName} on a generic rewrite would drop it from the wire, and a 9.5 data node reads that slot to
+     * compose {@code _index}; losing {@code declaredReadSpec} would
+     * silently drop the declared renames (the same reflection safety they had while riding the
      * reflected {@code config} map). This is the longest public ctor — {@code EsqlNodeSubclassTests} keys the required
      * {@link #info()} arity off it. Passes {@code null} for {@code pushedTopN} / {@code unifiedSchema}; those are
      * transient hints carried via their {@code with*} methods.
@@ -454,7 +456,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             declaredReadSpec.writeTo(out);
         } else if (declaredReadSpec.isEmpty() == false) {
             // Silently dropping a non-empty spec toward an older data node would return wrong rows (physical names,
-            // synthetic _id, unparsed dates). Reject loudly instead — mirrors PutDatasetAction's older-master reject.
+            // unparsed dates). Reject loudly instead — mirrors PutDatasetAction's older-master reject.
             throw new IllegalArgumentException(
                 "declared dataset read-instructions are not supported on all nodes in the cluster; retry after the upgrade"
             );
@@ -850,7 +852,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     }
 
     /**
-     * The declared read-instructions (renames, {@code _id.path}), or {@link DeclaredReadSpec#NONE}. Consumed on the data
+     * The declared read-instructions (renames, per-column date formats), or {@link DeclaredReadSpec#NONE}. Consumed on the data
      * node by {@code FileSourceFactory} (physicalization) and the pushdown rules; see the field Javadoc.
      */
     public DeclaredReadSpec declaredReadSpec() {
@@ -923,11 +925,14 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         // unifiedSchema: also excluded — the optimizer's attribute-rewriting rules walk every arg
         // in info() and would prune the Unified schema along with `attributes`, defeating its
         // whole purpose. Preserved through with* methods which carry it explicitly.
-        // datasetName: INCLUDED — it is a plain String (attribute rewriting cannot prune it) and
-        // it feeds the per-row _index value; excluding it would silently null _index whenever a
-        // generic rule reconstructs this node via node reflection. Mirrors ExternalRelation#info.
+        // datasetName: INCLUDED — it is a plain String (attribute rewriting cannot prune it) and it
+        // is what a 9.5 data node reads to compose _index during a rolling upgrade; excluding it
+        // would drop the slot whenever a generic rule reconstructs this node via node reflection.
+        // No node on this version reads it: _name is folded on the logical relation by
+        // MaterializeRelationClassAndName, and _index is a null constant here.
+        // Mirrors ExternalRelation#info.
         // declaredReadSpec: INCLUDED for the same reason — it carries no Attributes (attribute
-        // rewriting cannot prune it) and holds the declared renames / _id.path; the renames used
+        // rewriting cannot prune it) and holds the declared renames; the renames used
         // to ride the reflected `config` map, so dropping them on a generic reflection rebuild
         // would be a silent regression. Mirrors datasetName.
         // deferredExtraction: excluded — transient local-execution signal like pushedTopN, set by

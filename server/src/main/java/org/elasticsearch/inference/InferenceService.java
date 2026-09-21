@@ -17,6 +17,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.Closeable;
 import java.util.EnumSet;
@@ -135,6 +136,23 @@ public interface InferenceService extends Closeable {
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     );
+
+    /**
+     * Same as {@link #infer(Model, List, boolean, Map, InputType, TimeValue, ActionListener)}, with the requests sent by the
+     * service registered as children of {@code parentTaskId}.
+     */
+    default void infer(
+        Model model,
+        List<String> input,
+        boolean stream,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        @Nullable TimeValue timeout,
+        TaskId parentTaskId,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        infer(model, input, stream, taskSettings, inputType, timeout, listener);
+    }
 
     /**
      * Whether this service supports non-streaming chat completion via the unified API.

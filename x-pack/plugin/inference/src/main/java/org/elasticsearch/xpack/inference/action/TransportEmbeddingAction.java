@@ -19,6 +19,7 @@ import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
@@ -74,6 +75,7 @@ public class TransportEmbeddingAction extends BaseTransportInferenceAction<Embed
         Model model,
         EmbeddingAction.Request request,
         InferenceService service,
+        TaskId taskId,
         ActionListener<InferenceServiceResults> listener
     ) {
         service.embeddingInfer(model, request.getEmbeddingRequest(), request.getTimeout(), listener);

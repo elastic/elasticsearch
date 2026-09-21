@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -112,14 +113,7 @@ public class AllocationDeciders {
     }
 
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        final IndexMetadata indexMetadata = allocation.metadata().indexMetadata(shardRouting.index());
-        return withDecidersCheckingShardIgnoredNodes(
-            allocation,
-            shardRouting,
-            node,
-            decider -> decider.canRemain(indexMetadata, shardRouting, node, allocation),
-            (decider, decision) -> Strings.format("Can not remain [%s] on node [%s]. [%s]: %s", shardRouting, node, decider, decision)
-        );
+        return canRemain(shardRouting, node, allocation, (decider, decision) -> {});
     }
 
     /**
@@ -136,20 +130,35 @@ public class AllocationDeciders {
      * decision is {@link Decision.Type#YES} or {@link Decision.Type#THROTTLE}.
      */
     public CanRemainWithDeciderLabel canRemainWithDeciderLabel(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        final IndexMetadata indexMetadata = allocation.metadata().indexMetadata(shardRouting.index());
         final String[] labelHolder = { null };
         final Decision.Type[] worstSeen = { Decision.Type.YES };
-        final Decision decision = withDecidersCheckingShardIgnoredNodes(allocation, shardRouting, node, decider -> {
-            Decision d = decider.canRemain(indexMetadata, shardRouting, node, allocation);
-            if ((d.type() == Decision.Type.NOT_PREFERRED || d.type() == Decision.Type.NO)
-                && worstSeen[0].compareToBetweenDecisions(d.type()) > 0) {
-                worstSeen[0] = d.type();
+        final var canRemainDecision = canRemain(shardRouting, node, allocation, (decider, decision) -> {
+            if ((decision.type() == Decision.Type.NOT_PREFERRED || decision.type() == Decision.Type.NO)
+                && worstSeen[0].compareToBetweenDecisions(decision.type()) > 0) {
+                worstSeen[0] = decision.type();
                 labelHolder[0] = decider.getClass().getSimpleName();
             }
-            return d;
-        }, (decider, dec) -> Strings.format("Can not remain [%s] on node [%s]. [%s]: %s", shardRouting, node, decider, dec));
-        final boolean relevant = decision.type() == Decision.Type.NOT_PREFERRED || decision.type() == Decision.Type.NO;
-        return new CanRemainWithDeciderLabel(decision, relevant ? labelHolder[0] : null);
+        });
+
+        final boolean relevant = canRemainDecision.type() == Decision.Type.NOT_PREFERRED || canRemainDecision.type() == Decision.Type.NO;
+        return new CanRemainWithDeciderLabel(canRemainDecision, relevant ? labelHolder[0] : null);
+    }
+
+    /**
+     * Common canRemain logic, reused by callers that are interested in the decider label and those that are not
+     */
+    private Decision canRemain(
+        ShardRouting shardRouting,
+        RoutingNode node,
+        RoutingAllocation allocation,
+        BiConsumer<AllocationDecider, Decision> decisionConsumer
+    ) {
+        final IndexMetadata indexMetadata = allocation.metadata().indexMetadata(shardRouting.index());
+        return withDecidersCheckingShardIgnoredNodes(allocation, shardRouting, node, decider -> {
+            Decision decision = decider.canRemain(indexMetadata, shardRouting, node, allocation);
+            decisionConsumer.accept(decider, decision);
+            return decision;
+        }, (decider, decision) -> Strings.format("Can not remain [%s] on node [%s]. [%s]: %s", shardRouting, node, decider, decision));
     }
 
     /**

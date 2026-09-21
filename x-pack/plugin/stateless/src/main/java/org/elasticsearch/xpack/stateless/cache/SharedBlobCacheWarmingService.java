@@ -391,6 +391,16 @@ public class SharedBlobCacheWarmingService {
         Setting.Property.Dynamic
     );
 
+    /// Warming tasks requesting at most this many bytes jump ahead of larger tasks in the
+    /// admission queue ([#warmingTaskRunner]). `0b` disables the tier, restoring strict
+    /// creation order. Experimental: see elasticsearch-team#4934.
+    public static final Setting<ByteSizeValue> SMALL_WARMING_TASK_PRIORITY_SIZE_SETTING = Setting.byteSizeSetting(
+        "stateless.blob_cache_warming.small_task_priority_size",
+        ByteSizeValue.ofMb(16),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final StatelessSharedBlobCacheService cacheService;
     private final ThreadPool threadPool;
     private final Executor fetchExecutor;
@@ -417,6 +427,7 @@ public class SharedBlobCacheWarmingService {
     private volatile double idLookupPrewarmRatio;
     private volatile long maxUploadPrewarmSize;
     private volatile int warmByteRangePerFileConcurrency;
+    private volatile long smallWarmingTaskPrioritySize;
     private final WarmingRatioProvider warmingRatioProvider;
     private volatile TimeValue searchRecoveryWarmingRelocationWithShutdownTimeout;
     private volatile TimeValue searchRecoveryWarmingRelocationTimeout;
@@ -578,6 +589,10 @@ public class SharedBlobCacheWarmingService {
         clusterSettings.initializeAndWatch(
             WARM_BYTE_RANGE_PER_FILE_CONCURRENCY_SETTING,
             value -> this.warmByteRangePerFileConcurrency = value
+        );
+        clusterSettings.initializeAndWatch(
+            SMALL_WARMING_TASK_PRIORITY_SIZE_SETTING,
+            value -> this.smallWarmingTaskPrioritySize = value.getBytes()
         );
     }
 
@@ -1433,6 +1448,8 @@ public class SharedBlobCacheWarmingService {
     }
 
     protected void scheduleWarmingTask(AbstractWarmingTask warmTask) {
+        final long threshold = smallWarmingTaskPrioritySize;
+        warmTask.prioritized = threshold > 0 && warmTask.requestedBytes() <= threshold;
         warmingTaskRunner.enqueueTask(warmTask);
     }
 
@@ -1741,6 +1758,7 @@ public class SharedBlobCacheWarmingService {
         private final ByteRange byteRangeToWarm;
         private final long blobSize;
         private final long timestampMillis;
+        private volatile WarmBlobByteRangeTask task;
 
         BlobByteRangeWarmer(
             SharedBlobCacheWarmingService.WarmingRun warmingRun,
@@ -1760,9 +1778,16 @@ public class SharedBlobCacheWarmingService {
         }
 
         void run() {
-            scheduleWarmingTask(
-                new WarmBlobByteRangeTask(warmingRun.type, blobFile, byteRangeToWarm, blobSize, timestampMillis, listeners.acquire())
+            var warmTask = new WarmBlobByteRangeTask(
+                warmingRun.type,
+                blobFile,
+                byteRangeToWarm,
+                blobSize,
+                timestampMillis,
+                listeners.acquire()
             );
+            this.task = warmTask;
+            scheduleWarmingTask(warmTask);
         }
 
         @Override
@@ -1774,16 +1799,18 @@ public class SharedBlobCacheWarmingService {
                 Map.of(BCC_SIZE_ATTRIBUTE_KEY, bccSizeBucket(blobSize))
             );
             warmingRequestedBytesTotalMetric.incrementBy(byteRangeToWarm.length(), Map.of(BCC_SIZE_ATTRIBUTE_KEY, bccSizeBucket(blobSize)));
+            final var warmTask = task;
             logger.log(
-                duration >= 5000 ? Level.INFO : Level.DEBUG,
-                "offline warming {} {} warming {} completed in {} ms ({}, {} tasks, {} bytes copied to cache)",
+                Level.INFO,
+                "offline warming {} {} warming {} completed in {} ms ({}, {} tasks, {} bytes copied to cache, prioritized {})",
                 warmingRun.shardId(),
                 warmingRun.type(),
                 blobFile.termAndGeneration(),
                 duration,
                 byteRangeToWarm,
                 tasksCount.get(),
-                totalBytesCopied.get()
+                totalBytesCopied.get(),
+                warmTask != null && warmTask.isPrioritized()
             );
         }
     }
@@ -1934,6 +1961,11 @@ public class SharedBlobCacheWarmingService {
             }
 
             @Override
+            long requestedBytes() {
+                return blobLocation.fileLength();
+            }
+
+            @Override
             public void onResponse(Releasable releasable) {
                 // Indexing-only warmer. Thus, can pass UNKNOWN cache-region timestamps in maybeFetchRegion later as timestamps are only
                 // used by search shards.
@@ -1997,6 +2029,12 @@ public class SharedBlobCacheWarmingService {
                 this.queue = Objects.requireNonNull(queue);
                 this.blobRegion = queue.blobRegion;
                 logger.trace("{} {}: scheduled {}", warmingRun.shardId(), warmingRun.type(), blobRegion);
+            }
+
+            @Override
+            long requestedBytes() {
+                // All ranges of this task live within a single cache region, so the region size bounds them.
+                return cacheService.getRegionSize();
             }
 
             @Override
@@ -2154,6 +2192,11 @@ public class SharedBlobCacheWarmingService {
             }
 
             @Override
+            long requestedBytes() {
+                return byteRangeToWarm.length();
+            }
+
+            @Override
             public void onResponse(Releasable releasable) {
                 runningBccBlobsMetric.add(1, bccSizeAttributes);
                 enqueuedBccBlobsMetric.add(-1, bccSizeAttributes);
@@ -2219,14 +2262,28 @@ public class SharedBlobCacheWarmingService {
 
     /// Base class for warming tasks that establishes priority of warming tasks.
     /// All types have equal priority except [Type#INDEXING_MERGE] which has a lower priority.
-    /// Tasks of equal priority based on type are ordered by caller-defined `position`.
+    /// Tasks of equal priority based on type are ordered by caller-defined `position`, except that
+    /// tasks classified as small by [SharedBlobCacheWarmingService#SMALL_WARMING_TASK_PRIORITY_SIZE_SETTING]
+    /// compare ahead of the rest.
     abstract static class AbstractWarmingTask implements ActionListener<Releasable>, Comparable<AbstractWarmingTask> {
         protected final Type type;
         protected final long position;
 
+        /// Set by [SharedBlobCacheWarmingService#scheduleWarmingTask] before the task is enqueued,
+        /// so that [#compareTo] stays a pure function of task state.
+        private boolean prioritized;
+
         AbstractWarmingTask(Type warmingType, long position) {
             this.type = warmingType;
             this.position = position;
+        }
+
+        long requestedBytes() {
+            return Long.MAX_VALUE;
+        }
+
+        boolean isPrioritized() {
+            return prioritized;
         }
 
         @Override
@@ -2244,7 +2301,15 @@ public class SharedBlobCacheWarmingService {
                 }
             }
 
-            return that.type == Type.INDEXING_MERGE ? -1 : Long.compare(position, that.position);
+            if (that.type == Type.INDEXING_MERGE) {
+                return -1;
+            }
+
+            if (prioritized != that.prioritized) {
+                return prioritized ? -1 : 1;
+            }
+
+            return Long.compare(position, that.position);
         }
 
         @Override

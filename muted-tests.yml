@@ -823,3 +823,6 @@ tests:
 - class: org.elasticsearch.xpack.security.transport.CrossClusterSigningConfigReloaderIntegTests
   method: testAddAndRemoveClusterConfigsRuntime
   issue: https://github.com/elastic/elasticsearch/issues/159837
+- class: org.elasticsearch.xpack.security.transport.CrossClusterSigningConfigReloaderIntegTests
+  method: testDependentKeyConfigFilesUpdated
+  issue: https://github.com/elastic/elasticsearch/issues/159838

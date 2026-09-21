@@ -955,7 +955,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     executeMove(shardRouting, index, moveDecision, MoveType.NOT_PREFERRED);
                     canRemainMoveCounter.incrementBy(
                         1,
-                        canRemainMoveAttributes("not_preferred", refreshed.canRemainDeciderLabel(), null, shardRouting.primary())
+                        canRemainMoveAttributes(
+                            "not_preferred",
+                            refreshed.canRemainDeciderLabel(),
+                            null,
+                            shardRouting.primary(),
+                            nodeName(shardRouting.currentNodeId()),
+                            moveDecision.getTargetNode().getName()
+                        )
                     );
                     // Return after a single move so that the change can be simulated before further moves are made.
                     return true;
@@ -1071,7 +1078,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                     "no",
                                     moveDecisionWithLabel.canRemainDeciderLabel(),
                                     moveDecisionWithLabel.canAllocateNotPreferredDeciderLabel(),
-                                    shardRouting.primary()
+                                    shardRouting.primary(),
+                                    nodeName(shardRouting.currentNodeId()),
+                                    moveDecision.getTargetNode().getName()
                                 )
                             );
                             shardMoved.set(true);
@@ -1133,20 +1142,49 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             String canRemainDecision,
             String canRemainDecider,
             @Nullable String canAllocateNotPreferredDecider,
-            boolean primary
+            boolean primary,
+            String sourceNode,
+            String targetNode
         ) {
+            // Target node is only included when canRemain=NO clashes with canAllocate=NOT_PREFERRED,
+            // to keep metric cardinality manageable.
+            if (canAllocateNotPreferredDecider == null) {
+                return Map.of(
+                    "es_can_remain_decision",
+                    canRemainDecision,
+                    "es_can_remain_decider",
+                    canRemainDecider,
+                    "es_can_allocate_decision",
+                    "yes",
+                    "es_can_allocate_decider",
+                    "none",
+                    "es_shard_primary",
+                    primary,
+                    "es_source_node",
+                    sourceNode
+                );
+            }
             return Map.of(
                 "es_can_remain_decision",
                 canRemainDecision,
                 "es_can_remain_decider",
                 canRemainDecider,
                 "es_can_allocate_decision",
-                canAllocateNotPreferredDecider != null ? "not_preferred" : "yes",
+                "not_preferred",
                 "es_can_allocate_decider",
-                canAllocateNotPreferredDecider != null ? canAllocateNotPreferredDecider : "none",
+                canAllocateNotPreferredDecider,
                 "es_shard_primary",
-                primary
+                primary,
+                "es_source_node",
+                sourceNode,
+                "es_target_node",
+                targetNode
             );
+        }
+
+        private String nodeName(String nodeId) {
+            DiscoveryNode node = allocation.getClusterState().nodes().get(nodeId);
+            return node != null ? node.getName() : nodeId;
         }
 
         private void executeMove(ShardRouting shardRouting, ProjectIndex index, MoveDecision moveDecision, MoveType type) {

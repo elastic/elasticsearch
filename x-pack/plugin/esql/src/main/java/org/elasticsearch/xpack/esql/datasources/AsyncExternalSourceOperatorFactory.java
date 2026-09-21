@@ -385,10 +385,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.rowLimit = rowLimit;
         this.fileList = fileList;
         this.schemaMap = schemaMap != null ? schemaMap : Map.of();
-        // Route requested standard metadata names through VirtualColumnIterator's constant-block path by
-        // unioning them into the partition-column set. Analyzer.bindMetadataFields builds every
-        // ExternalMetadataAttribute from exactly two registries, so a third kind would fall through both
-        // arms below and silently become an all-null column. Fail loud instead.
+        // Route bound ExternalMetadataAttribute names through VirtualColumnIterator's constant-block
+        // path by unioning them into the partition-column set. Analyzer.bindMetadataFields builds
+        // every ExternalMetadataAttribute from exactly two registries, so a third kind would fall
+        // through both arms below and silently become an all-null column. Fail loud instead.
         Set<String> metadataNames = ExternalMetadataColumns.metadataNames(attributes);
         Set<String> stdMetaNames = new LinkedHashSet<>(metadataNames);
         stdMetaNames.retainAll(ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES);
@@ -400,20 +400,20 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             }
         }
         this.standardMetadataPerFileNames = stdMetaNames.isEmpty() ? Set.of() : Set.copyOf(stdMetaNames);
-        if (stdMetaNames.isEmpty()) {
+        if (metadataNames.isEmpty()) {
             this.partitionColumnNames = partitionColumnNames != null ? partitionColumnNames : Set.of();
         } else {
-            // Union the standard metadata names into the effective partition-column set so
-            // VirtualColumnIterator routes them through its constant-block path. Hive partition columns
-            // and {@code _file.*} always take precedence on key collision (they overlay last in
-            // the per-file merge).
-            Set<String> union = new LinkedHashSet<>(stdMetaNames);
+            // Union every bound metadata name (per-file constants and {@code _file.*}) so
+            // VirtualColumnIterator materialises them. Hive partition columns overlay last in
+            // the per-file value merge; a physical column with the same name is already dropped
+            // at bind time when METADATA requested the engine name.
+            Set<String> union = new LinkedHashSet<>(metadataNames);
             if (partitionColumnNames != null) {
                 union.addAll(partitionColumnNames);
             }
             this.partitionColumnNames = Collections.unmodifiableSet(union);
         }
-        // Resolve queryDataSchema AFTER the effective partitionColumnNames (including any standard
+        // Resolve queryDataSchema AFTER the effective partitionColumnNames (including any bound
         // metadata names unioned above) is final: the data-only schema must exclude
         // partition and virtual/metadata columns so its width matches the file-backed ColumnMapping
         // (a partition key may shadow a same-named physical column). See

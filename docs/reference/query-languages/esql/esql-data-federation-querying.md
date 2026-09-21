@@ -123,7 +123,7 @@ FROM access_logs METADATA _file.path, _file.name, _file.size
 | LIMIT 10
 ```
 
-When a name in the `METADATA` clause also exists as a file column, the engine-generated value is used and the file column of the same name is dropped. A warning names the shadowed column. Rename the file column in the dataset mapping to keep both values. Without `METADATA`, the file column is used as an ordinary data column. The synthesized `_source` document also omits the shadowed field. If that name is the dataset's `_id.path` stamp source and `METADATA _id` is also requested, the file column stays so the reader can stamp `_id`; it is not replaced by the engine value.
+When a name in the `METADATA` clause also exists as a file column, the engine-generated value is used and the file column of the same name is dropped. A warning names the shadowed column. Rename the file column in the dataset mapping to keep both values. Without `METADATA`, the file column is used as an ordinary data column.
 
 ## Use search functions
 
@@ -156,8 +156,7 @@ The limitations below include operations that require structures available only 
 | `KNN` | `KNN` requires a vector field from an index mapping, which a dataset does not have. | `… cannot operate on [<field>], which is not a field from an index mapping (the source is a federated data source, not an index)` |
 | More than 8 sources resolved in one `FROM` | A `FROM` that includes datasets runs one execution branch per resolved source, up to a limit of 8 branches. Query fewer sources together. | |
 | A column with conflicting types across sources | When you query a dataset together with other sources and the same column has types that cannot be reconciled, the query fails rather than returning mixed types. | `Column [<name>] has conflicting data types in subqueries` |
-| A file column whose name matches a requested `METADATA` name | The engine-generated value replaces the file column. Synthesized `_source` omits the shadowed field. Rename the file column in the dataset mapping to keep both. | A warning names the shadowed column. |
-| `_id.path` is a bindable metadata name (`_id` or `_file.*`) also requested in `METADATA` with `_id` | The file column stays so the reader can stamp `_id`. The engine-generated value is not used. | No warning. |
+| A file column whose name matches a requested `METADATA` name | The engine-generated value replaces the file column. Rename the file column in the dataset mapping to keep both. | A warning names the shadowed column. |
 | Document-level security (DLS) and field-level security (FLS) | A dataset's `read` grant cannot carry document- or field-level security. Queries where DLS or FLS applies to a dataset are rejected during authorization. The same check covers [{{esql}} views](esql-views.md). | `Datasets with document or field level security restrictions are not supported. Remove DLS/FLS restrictions from the affected datasets in the role definition, or exclude them from the request.` |
 | [Cross-cluster search](/reference/query-languages/esql/esql-cross-clusters.md) | Only local datasets can be queried. {applies_to}`stack: experimental 9.6` A dataset on a remote cluster is invisible: a wildcard that matches its name returns that cluster's indices beside it, and naming it directly resolves to nothing, so the remote's `skip_unavailable` setting decides whether the query fails or that cluster is skipped. In earlier versions, a query that matched a remote dataset failed. | {applies_to}`stack: experimental 9.6` `Unknown index [<cluster>:<dataset>]`, when `skip_unavailable` is `false`. In earlier versions, `ES\|QL queries with remote datasets are not supported. Matched [...]` |
 | Snapshot and restore | Data sources and datasets cannot be snapshotted or restored. | |

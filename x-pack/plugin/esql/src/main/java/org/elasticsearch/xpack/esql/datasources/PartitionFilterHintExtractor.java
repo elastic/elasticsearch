@@ -249,8 +249,7 @@ public final class PartitionFilterHintExtractor {
 
     /**
      * A {@code _file.*} predicate is a listing hint only when that name is in the relation's
-     * {@code METADATA} clause (after an {@code _id.path} stamp source has been omitted). Without
-     * the clause the name is an ordinary data column.
+     * {@code METADATA} clause. Without the clause the name is an ordinary data column.
      */
     private static boolean isUnrequestedFileMetadata(String columnName, Set<String> requestedMetadata) {
         return FileMetadataColumns.isFileMetadataColumn(columnName) && requestedMetadata.contains(columnName) == false;

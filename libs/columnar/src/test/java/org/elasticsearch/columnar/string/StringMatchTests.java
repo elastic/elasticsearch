@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.columnar.ColumnarTestUtils.assertDocIDRunEndContract;
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 
 /**
@@ -226,6 +227,76 @@ public class StringMatchTests extends ColumnarStringTestCase {
                 }
             }
         );
+    }
+
+    /**
+     * Every pushdown holds on a sparse column, not only a dense one. The column spans several presence blocks —
+     * one with every document present, one missing a few, one holding few — and each filter is checked against
+     * the values, collected in windows of every size, and asked for its runs, which must never pass a document
+     * that does not match.
+     */
+    public void testPushdownsOnSparseColumns() throws IOException {
+        final int blockDocs = 1 << 16;
+        final BytesRef[] docValues = new BytesRef[blockDocs * 2 + between(1000, 20000)];
+        final String[] vocabulary = { "", "a", "ab", "abc", "abd", "xyz", "a-longer-value" };
+        String current = randomFrom(vocabulary);
+        for (int d = 0; d < docValues.length; d++) {
+            if (random().nextInt(16) == 0) {
+                current = random().nextInt(10) == 0 ? "rare-" + d : randomFrom(vocabulary);
+            }
+            // All present, then missing a few, then holding few.
+            final boolean present = d < blockDocs || (d < 2 * blockDocs ? random().nextInt(50) != 0 : random().nextInt(20) == 0);
+            docValues[d] = present ? new BytesRef(current) : null;
+        }
+        final boolean sorted = randomBoolean();
+        if (sorted) {
+            // Values in term order, as an index sort on the field puts them, so a term is a run of ranks.
+            final List<BytesRef> present = new ArrayList<>();
+            for (BytesRef v : docValues) {
+                if (v != null) {
+                    present.add(v);
+                }
+            }
+            present.sort(BytesRef::compareTo);
+            int next = 0;
+            for (int d = 0; d < docValues.length; d++) {
+                if (docValues[d] != null) {
+                    docValues[d] = present.get(next++);
+                }
+            }
+        }
+        final String[] probes = { "", "a", "ab", "abc", "xyz", "zz", "rare-" + between(0, docValues.length) };
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
+            withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+                final String layout = (reader.hasDictionary() ? "dictionary" : "plain") + (sorted ? " sorted" : "");
+                for (String probe : probes) {
+                    final BytesRef term = new BytesRef(probe);
+                    assertSparse(layout + " term [" + probe + "]", docValues, v -> v.equals(probe), () -> reader.matchTerm(term));
+                    assertSparse(layout + " prefix [" + probe + "]", docValues, v -> v.startsWith(probe), () -> reader.matchPrefix(term));
+                    assertSparse(layout + " contains [" + probe + "]", docValues, v -> v.contains(probe), () -> reader.matchContains(term));
+                    assertSparse(
+                        layout + " any of [" + probe + ", xyz]",
+                        docValues,
+                        v -> v.equals(probe) || v.equals("xyz"),
+                        () -> reader.match(v -> v.bytesEquals(term) || v.utf8ToString().equals("xyz"))
+                    );
+                }
+            });
+        }
+    }
+
+    private void assertSparse(String label, BytesRef[] docValues, Predicate<String> test, Match match) throws IOException {
+        final List<Integer> expected = new ArrayList<>();
+        final FixedBitSet matching = new FixedBitSet(docValues.length);
+        for (int d = 0; d < docValues.length; d++) {
+            if (docValues[d] != null && test.test(docValues[d].utf8ToString())) {
+                expected.add(d);
+                matching.set(d);
+            }
+        }
+        assertEquals(label, expected, matched(match.get()));
+        assertWindowedAgrees(label, docValues.length, match);
+        assertDocIDRunEndContract(label, match::get, matching, docValues.length);
     }
 
     private static List<Integer> expected(BytesRef[][] docSlots, Predicate<String> test) {

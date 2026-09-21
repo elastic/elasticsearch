@@ -527,6 +527,9 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         private final int mask;
         private final FixedBitSet bits;
         private long loaded = -1;
+        /** The last run of held slots {@link #runEnd} found, {@code [runStart, runStop)}. */
+        private long runStart = -1;
+        private long runStop = -1;
 
         protected SlotWindow(SlotBlocks blocks, long... ranges) {
             assert ranges.length % 2 == 0 : "ranges come in pairs";
@@ -544,6 +547,50 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         final boolean holds(long slot) throws IOException {
             load(slot >>> shift);
             return bits.get((int) (slot & mask));
+        }
+
+        /** The first slot in {@code [from, to)} the window holds, or {@code -1}. */
+        final long next(long from, long to) throws IOException {
+            final long end = Math.min(to, blocks.numValues());
+            while (from < end) {
+                final long window = from >>> shift;
+                load(window);
+                final int at = bits.nextSetBit((int) (from & mask));
+                if (at != DocIdSetIterator.NO_MORE_DOCS) {
+                    final long slot = (window << shift) + at;
+                    return slot < end ? slot : -1;
+                }
+                from = (window + 1) << shift;
+            }
+            return -1;
+        }
+
+        /**
+         * The first slot in {@code [from, to)} the window does not hold, or {@code to}. A run ends where it ends from
+         * anywhere inside it, so the last run found is kept and asking again from inside it costs nothing.
+         */
+        final long runEnd(long from, long to) throws IOException {
+            if (from >= runStart && from < runStop) {
+                return Math.min(runStop, to);
+            }
+            final long end = Math.min(to, blocks.numValues());
+            long at = from;
+            while (at < end) {
+                final long window = at >>> shift;
+                load(window);
+                final int clear = bits.nextClearBit((int) (at & mask));
+                if (clear != DocIdSetIterator.NO_MORE_DOCS) {
+                    at = Math.min((window << shift) + clear, end);
+                    break;
+                }
+                at = (window + 1) << shift;
+            }
+            at = Math.min(at, end);
+            if (at > from) {
+                runStart = from;
+                runStop = at;
+            }
+            return at;
         }
 
         /** Sets the bits of every held slot in {@code [from, to)} into {@code dest} at {@code slot - offset}. */
@@ -591,14 +638,16 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     /** The documents holding a slot {@code window} holds. */
     protected final Slots slotsHeld(SlotWindow window) throws IOException {
         final ColumnIterator presence = iterator();
-        if (presence.isDense() && hasValueAddresses() == false) {
-            // A document is its own rank and its own slot, so the documents are the window's bits.
+        if (hasValueAddresses() == false) {
+            // One slot a document, the document's rank. Within a run of present documents the slot advances with
+            // the document, so a stretch of the window maps onto a stretch of documents by a constant offset; a
+            // dense column is one run.
             return new Slots() {
                 private int doc = -1;
 
                 @Override
                 long firstSlot() {
-                    return doc;
+                    return presence.rank();
                 }
 
                 @Override
@@ -618,13 +667,25 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
 
                 @Override
                 public int advance(int target) throws IOException {
-                    final long slot = window.next(target);
-                    return doc = slot < 0 ? NO_MORE_DOCS : (int) slot;
+                    int at = presence.docID() < target ? presence.advance(target) : presence.docID();
+                    while (at != NO_MORE_DOCS) {
+                        final long rank = presence.rank();
+                        final int runEnd = presence.docIDRunEnd();
+                        final long slot = window.next(rank, rank + (runEnd - at));
+                        if (slot >= 0) {
+                            final int found = at + (int) (slot - rank);
+                            return doc = found == at ? at : presence.advance(found);
+                        }
+                        at = presence.advance(runEnd);
+                    }
+                    return doc = NO_MORE_DOCS;
                 }
 
                 @Override
                 public int docIDRunEnd() throws IOException {
-                    return (int) window.runEnd(doc);
+                    final long rank = presence.rank();
+                    final int runEnd = presence.docIDRunEnd();
+                    return doc + (int) (window.runEnd(rank, rank + (runEnd - doc)) - rank);
                 }
 
                 @Override
@@ -632,7 +693,14 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
                     if (doc >= upTo) {
                         return;
                     }
-                    window.into(doc, Math.min(upTo, presence.cost()), bitSet, offset);
+                    int at = doc;
+                    while (at < upTo) {
+                        final long rank = presence.rank();
+                        final int runEnd = Math.min(presence.docIDRunEnd(), upTo);
+                        // A slot's bit is its document's: slot - (offset - (at - rank)) = at + (slot - rank) - offset.
+                        window.into(rank, rank + (runEnd - at), bitSet, offset - (at - (int) rank));
+                        at = presence.advance(runEnd);
+                    }
                     advance(upTo);
                 }
 
@@ -716,6 +784,39 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
             @Override
             public float matchCost() {
                 return 1f;
+            }
+
+            @Override
+            public int docIDRunEnd() throws IOException {
+                // Asked of any document the approximation is on, matching or not: one outside the range starts no run.
+                final int doc = presence.docID();
+                final int rank = presence.rank();
+                if (rank < firstRank || rank >= endRank) {
+                    return doc;
+                }
+                // Present documents in a run take consecutive ranks, and the range holds them up to its end.
+                return Math.min(presence.docIDRunEnd(), doc + (endRank - rank));
+            }
+
+            @Override
+            public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                int doc = presence.docID();
+                while (doc < upTo) {
+                    final int rank = presence.rank();
+                    if (rank >= endRank) {
+                        break;
+                    }
+                    final int runEnd = Math.min(presence.docIDRunEnd(), upTo);
+                    final int from = Math.max(rank, firstRank);
+                    final int to = Math.min(rank + (runEnd - doc), endRank);
+                    if (from < to) {
+                        bitSet.set(doc + (from - rank) - offset, doc + (to - rank) - offset);
+                    }
+                    doc = presence.advance(runEnd);
+                }
+                if (presence.docID() < upTo) {
+                    presence.advance(upTo);
+                }
             }
 
         });

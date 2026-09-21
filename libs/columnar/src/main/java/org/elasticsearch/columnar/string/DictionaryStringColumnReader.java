@@ -344,6 +344,17 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     private void collectFromOrdinals(ColumnIterator presence, OrdinalBlockMask mask, int upTo, FixedBitSet bitSet, int offset)
         throws IOException {
         int doc = presence.docID();
+        if (hasValueAddresses() == false) {
+            // One slot a document, the document's rank: a run of present documents is a run of slots, whose
+            // matching bits are copied a block of ordinals at a time. A dense column is one run.
+            while (doc < upTo && doc != DocIdSetIterator.NO_MORE_DOCS) {
+                final int rank = presence.rank();
+                final int runEnd = Math.min(presence.docIDRunEnd(), upTo);
+                mask.into(rank, rank + (runEnd - doc), bitSet, offset - (doc - rank));
+                doc = presence.advance(runEnd);
+            }
+            return;
+        }
         while (doc < upTo && doc != DocIdSetIterator.NO_MORE_DOCS) {
             final int rank = presence.rank();
             final long first = firstValueAddress(rank);
@@ -677,6 +688,19 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
 
         boolean matches(long valueAddress) {
             return matches.get((int) (valueAddress & blockMask));
+        }
+
+        /** Sets the bit {@code slot - offset} in {@code dest} of every matching slot in {@code [from, to)}. */
+        void into(long from, long to, FixedBitSet dest, int offset) throws IOException {
+            while (from < to) {
+                if (covers(from) == false) {
+                    load(from);
+                }
+                final long blockStart = (from >>> blockShift) << blockShift;
+                final long upTo = Math.min(to, blockStart + blockMask + 1);
+                FixedBitSet.orRange(matches, (int) (from - blockStart), dest, (int) (from - offset), (int) (upTo - from));
+                from = upTo;
+            }
         }
 
         /** Whether nothing names the value at {@code valueAddress}, so its own bytes have to decide it. */

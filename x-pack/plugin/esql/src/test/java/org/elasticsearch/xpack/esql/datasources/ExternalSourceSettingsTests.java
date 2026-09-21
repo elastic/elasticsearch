@@ -245,6 +245,16 @@ public class ExternalSourceSettingsTests extends ESTestCase {
             );
             assertThat(e.getMessage(), containsString("names no port"));
         }
+        for (String entry : List.of(":443", ":*")) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                entry,
+                () -> ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS.get(
+                    Settings.builder().putList(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY, entry).build()
+                )
+            );
+            assertThat(e.getMessage(), containsString("names no host"));
+        }
     }
 
     /** A whole URL is the third natural paste, and it admits nothing: the scheme's colon is not a port. */

@@ -16,6 +16,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
@@ -124,7 +125,7 @@ public class S3DataSourcePluginTests extends ESTestCase {
      */
     public void testAllowlistedHostIsAcceptedOverPlainHttp() throws IOException {
         Settings settings = Settings.builder()
-            .putList("esql.external.allowed_endpoint_hosts", "127.0.0.1:9000", "localhost:80", "127.0.0.1:443")
+            .putList(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY, "127.0.0.1:9000", "localhost:80", "127.0.0.1:443")
             .build();
         try (S3DataSourcePlugin plugin = new S3DataSourcePlugin()) {
             DataSourceValidator validator = plugin.datasourceValidators(settings).get("s3");

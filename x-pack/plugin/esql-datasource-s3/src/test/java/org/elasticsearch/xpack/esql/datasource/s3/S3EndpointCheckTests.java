@@ -236,6 +236,27 @@ public class S3EndpointCheckTests extends ESTestCase {
     }
 
     /**
+     * The historical generator builds {@code s3-<region>.<suffix>} from a region id, so a non-global region id
+     * beginning with a disabled label's tail would mint that family into the permitted set — {@code s3-fips-…}
+     * from an id {@code fips-…}. No such id exists at the pinned SDK; this makes the next bump answer for
+     * itself rather than leaving the property re-checked by nothing.
+     */
+    public void testNoRegionIdCouldMintADisabledFamily() {
+        for (Region region : Region.regions()) {
+            if (region.isGlobalRegion()) {
+                continue;
+            }
+            String id = region.id();
+            for (String disabled : List.of("fips", "accesspoint", "accelerate", "object-lambda", "outposts", "control", "external")) {
+                assertFalse(
+                    "region id [" + id + "] would make the historical generator mint an s3-" + disabled + " host",
+                    id.startsWith(disabled)
+                );
+            }
+        }
+    }
+
+    /**
      * Every AWS endpoint family outside the three this class accepts — the regional object endpoint, the
      * global one, and PrivateLink. Each of these is a real AWS host, under an AWS suffix, and each is
      * refused: an operator who needs one names it in {@code esql.external.allowed_endpoint_hosts} rather

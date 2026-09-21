@@ -483,7 +483,7 @@ public final class ExternalSourceSettings {
                     + "] entry ["
                     + entry
                     + "] names no port. Entries are matched against host:port, so write for example ["
-                    + entry
+                    + (entry.isEmpty() ? "minio.internal" : entry)
                     + ":443]; an entry without a port matches nothing."
             );
         }

@@ -234,7 +234,7 @@ A regional endpoint must name a region that the Elasticsearch version you are ru
 The global endpoint names no region. Setting any `endpoint` pins the host: cross-region redirection is off and a cross-region redirect is not followed, so `https://s3.amazonaws.com` reaches buckets in `us-east-1` and fails for buckets in other regions rather than being sent elsewhere. Omit `endpoint` instead: the region then comes from the dataset and every region is reachable.
 :::
 
-Every other AWS endpoint family is rejected, including FIPS endpoints, dual-stack endpoints, transfer acceleration, access points, object lambda, Outposts, the account-level control plane, the legacy `s3-external-1` alias, and S3 Express. So are plain `http`, a value without a scheme, and a host the URL syntax does not allow, such as an underscore or a non-numeric port.
+Every other AWS endpoint family is rejected, including FIPS endpoints, dual-stack endpoints, transfer acceleration, access points, object lambda, Outposts, the account-level control plane, the legacy `s3-external-1` alias, and S3 Express. A bucket-qualified endpoint such as `https://mybucket.s3.us-east-1.amazonaws.com` is also rejected: name the regional endpoint and let the bucket come from the dataset. So are plain `http`, a value without a scheme, and a host the URL syntax does not allow, such as an underscore or a non-numeric port.
 
 FIPS and dual-stack endpoints are rejected because this data source has never been tested against them. Naming one does reach it — AWS serves both — so this is a decision about what is supported rather than a technical limit. To use one, permit its host with the node setting described below.
 

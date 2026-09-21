@@ -144,7 +144,8 @@ final class S3EndpointCheck {
         stsHosts.add(STS_SERVICE + "." + globalSuffix);
         if (s3Hosts.isEmpty() || stsHosts.isEmpty()) {
             // Both come from SDK metadata. Empty would silently refuse every endpoint on the node, which
-            // reads as an outage rather than a missing dependency.
+            // reads as an outage rather than a missing dependency. This class is first touched by a
+            // data-source PUT, so the failure surfaces there rather than at node startup.
             throw new IllegalStateException("no AWS partition metadata available");
         }
         S3_ENDPOINT_HOSTS = Set.copyOf(s3Hosts);
@@ -190,7 +191,7 @@ final class S3EndpointCheck {
         }
         if (allowedByOperator.test(hostAndPort(uri))) {
             // Named by the node's own configuration, so the scheme is not examined either. The match is
-            // exact where the AWS rule below normalises, so a differing case or trailing root dot falls
+            // not normalised, unlike the AWS rule below, so a differing case or a trailing root dot falls
             // through to that rule rather than being waived here.
             return;
         }
@@ -255,7 +256,8 @@ final class S3EndpointCheck {
      * <ul>
      *   <li>the tail — {@code vpce-0a1b.ec2.us-east-1.vpce.amazonaws.com}, naming another service</li>
      *   <li>requiring {@code vpce-} — {@code evil.s3.us-east-1.vpce.amazonaws.com}</li>
-     *   <li>rejecting {@code vpce-svc-} — {@code vpce-svc-0c2d.s3.us-east-1.vpce.amazonaws.com}</li>
+     *   <li>rejecting {@code vpce-svc-} — {@code vpce-svc-0c2d.s3.us-east-1.vpce.amazonaws.com}, the prefix
+     *       of a customer-published service name, which is the one an attacker can mint</li>
      *   <li>the single-label limit — {@code a.b.vpce-0a1b.s3.us-east-1.vpce.amazonaws.com}</li>
      * </ul>
      *

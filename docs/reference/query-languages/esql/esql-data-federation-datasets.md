@@ -105,6 +105,19 @@ Datasets are managed under the `/_query/dataset` endpoint. All dataset operation
 A dataset cannot have the same name as an existing index, data stream, alias, or view, because dataset names share the same namespace. Dataset names must be lowercase and cannot begin with `-`, `_`, or `+`.
 :::
 
+$$$s3-resource-requirements$$$
+:::{dropdown} S3 bucket names an `s3` dataset cannot use
+:applies_to: stack: experimental 9.6+
+A bucket name can send the request somewhere other than the regional object endpoint on its own, which no `endpoint` setting on the data source can prevent. These `resource` values are rejected:
+
+- An S3 Express directory bucket, whose name ends `--x-s3` or `--xa-s3`.
+- A bucket name the AWS SDK routes off the regional object endpoint. The practical case is a name ending `--op-s3` that is long enough for the SDK to read an S3 on Outposts access point alias out of it; shorter names ending `--op-s3` are ordinary bucket names and are accepted.
+- A multi-region access point, given either as an alias ending `.mrap` or as its full hostname.
+- An ARN. Use the bucket name, or an access point alias if the bucket is behind an access point.
+
+There is no node setting that permits these; `esql.external.allowed_endpoint_hosts` governs the data source endpoint, not the bucket. Use a bucket reachable through the regional endpoint instead.
+:::
+
 ::::{tab-set}
 :group: api-ref
 

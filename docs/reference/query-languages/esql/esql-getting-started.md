@@ -262,7 +262,7 @@ FROM sample_data
 
 ## Access columns [esql-getting-started-access-columns]
 
-You can access columns by their name. If a name contains special characters, [it needs to be quoted](esql-syntax.md#esql-identifiers) with backticks (```).
+You can access columns by their name. If a name contains special characters or a [reserved keyword](esql-syntax.md#esql-reserved-keywords), [it needs to be quoted](esql-syntax.md#esql-identifiers) with backticks (```).
 
 Assigning an explicit name to a column created by `EVAL` or `STATS` is optional. If you don’t provide a name, the new column name is equal to the function expression. For example:
 

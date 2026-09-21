@@ -23,8 +23,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -34,6 +39,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -55,6 +61,13 @@ public abstract class LuceneOperator extends SourceOperator {
     public static final int SMALL_INDEX_BOUNDARY = LuceneSliceQueue.MAX_DOCS_PER_SLICE;
 
     protected final BlockFactory blockFactory;
+    protected final DriverContext driverContext;
+    private final QueryWarnings singleValueQueryWarnings;
+
+    /**
+     * {@link Warnings} for each {@link Query} that needs one. These exist per {@link Driver}.
+     */
+    private final IdentityHashMap<Query, Warnings> queryWarnings = new IdentityHashMap<>();
 
     /**
      * Count of the number of slices processed.
@@ -79,10 +92,17 @@ public abstract class LuceneOperator extends SourceOperator {
      */
     private long rowsEmitted;
 
-    protected LuceneOperator(BlockFactory blockFactory, int maxPageSize, LuceneSliceQueue sliceQueue) {
-        this.blockFactory = blockFactory;
+    protected LuceneOperator(
+        DriverContext driverContext,
+        int maxPageSize,
+        LuceneSliceQueue sliceQueue,
+        QueryWarnings singleValueQueryWarnings
+    ) {
+        this.driverContext = driverContext;
+        this.blockFactory = driverContext.blockFactory();
         this.maxPageSize = maxPageSize;
         this.sliceQueue = sliceQueue;
+        this.singleValueQueryWarnings = singleValueQueryWarnings;
     }
 
     public abstract static class Factory implements SourceOperator.SourceOperatorFactory {
@@ -91,6 +111,7 @@ public abstract class LuceneOperator extends SourceOperator {
         protected final int limit;
         protected final boolean needsScore;
         protected final LuceneSliceQueue sliceQueue;
+        protected final QueryWarnings singleValueQueryWarnings;
 
         /**
          * Build the factory.
@@ -106,8 +127,10 @@ public abstract class LuceneOperator extends SourceOperator {
             int taskConcurrency,
             int limit,
             boolean needsScore,
-            Function<ShardContext, ScoreMode> scoreModeFunction
+            Function<ShardContext, ScoreMode> scoreModeFunction,
+            QueryWarnings singleValueQueryWarnings
         ) {
+            this.singleValueQueryWarnings = singleValueQueryWarnings;
             this.limit = limit;
             this.dataPartitioning = dataPartitioning;
             this.sliceQueue = LuceneSliceQueue.create(
@@ -134,7 +157,7 @@ public abstract class LuceneOperator extends SourceOperator {
 
     @Override
     public final Page getOutput() {
-        try {
+        try (Releasable ignored = singleValueQueryWarnings.bind(driverContext, queryWarnings)) {
             Page page = getCheckedOutput();
             if (page != null) {
                 pagesEmitted++;

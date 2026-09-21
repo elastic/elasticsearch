@@ -22,6 +22,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
@@ -122,7 +123,8 @@ public abstract class LuceneMaxOperatorTestCase extends AnyOperatorTestCase {
             between(1, 8),
             FIELD_NAME,
             getNumberType(),
-            limit
+            limit,
+            QueryWarnings.EMIT
         );
     }
 

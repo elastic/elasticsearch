@@ -26,6 +26,7 @@ import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -120,16 +121,19 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     private final List<ShardContext> shardContexts;
     private final PhysicalSettings physicalSettings;
+    private final QueryWarnings singleValueQueryWarnings;
 
     public EsPhysicalOperationProviders(
         FoldContext foldContext,
         List<ShardContext> shardContexts,
         AnalysisRegistry analysisRegistry,
-        PhysicalSettings physicalSettings
+        PhysicalSettings physicalSettings,
+        QueryWarnings singleValueQueryWarnings
     ) {
         super(foldContext, analysisRegistry);
         this.shardContexts = shardContexts;
         this.physicalSettings = physicalSettings;
+        this.singleValueQueryWarnings = singleValueQueryWarnings;
     }
 
     @Override
@@ -254,7 +258,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 limit,
                 sortBuilders,
                 estimatedPerRowSortSize,
-                scoring
+                scoring,
+                singleValueQueryWarnings
             );
         } else {
             if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
@@ -267,7 +272,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                     context.queryPragmas().taskConcurrency(),
                     context.pageSize(rowEstimatedSize),
                     limit,
-                    scoring
+                    scoring,
+                    singleValueQueryWarnings
                 );
             }
         }
@@ -293,7 +299,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             context.queryPragmas().dataPartitioning(physicalSettings.defaultDataPartitioning()),
             LuceneOperator.SMALL_INDEX_BOUNDARY,
             context.queryPragmas().taskConcurrency(),
-            limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx())
+            limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx()),
+            singleValueQueryWarnings
         );
     }
 

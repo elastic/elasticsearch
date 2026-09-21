@@ -3860,6 +3860,14 @@ public class EsqlCapabilities {
         PROMQL_LABEL_FUNCTIONS(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * Support for PromQL {@code label_replace} and {@code label_join} placed above a {@code by(...)} aggregation without
+         * an enclosing aggregation of their own - as a top-level expression or under a {@code topk}/{@code bottomk}
+         * reduction - when the derived label is not one of the aggregate's groupings. The derived identity then only
+         * refines the aggregate's, so no two series can collapse onto one label set.
+         */
+        PROMQL_LABEL_FUNCTIONS_V2(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Fix mixing of millisecond roundings with nanosecond timestamps in time-series aggregations over
          * {@code date_nanos} indices. This covers window bucket expansion, the window merge in the final
          * aggregation, the window row filter for windows smaller than the time bucket, and the neighbor-bucket

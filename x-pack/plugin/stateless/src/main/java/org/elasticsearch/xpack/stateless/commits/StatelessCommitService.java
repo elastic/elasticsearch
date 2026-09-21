@@ -886,7 +886,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 maybeLogSlowBccUpload(virtualBcc, uploadResult);
                 final BatchedCompoundCommit uploadedBcc = uploadResult.batchedCompoundCommit();
                 final long ccGeneration = uploadedBcc.lastCompoundCommit().generation();
+                // NB: getSplitTargets() returns a live view of the shard's copy targets, which
+                // markSplitEnding() mutates concurrently. Capture whether there are any targets ONCE and
+                // drive every ownership decision below from that snapshot: re-reading the view could
+                // observe "non-empty" when scheduling the copy and "empty" afterwards, in which case both
+                // the copy task and this thread would run afterCopies()/cleanup() for the same upload.
+                // That double cleanup() double-closes virtualBcc and double-decRefs blobReference. (#156324)
                 final Set<ShardId> splitTargets = commitState.getSplitTargets();
+                final boolean hasSplitTargets = splitTargets.isEmpty() == false;
 
                 // Capture the translog release file before enqueuing the copy below: when there are split
                 // targets the copy task takes ownership of virtualBcc (and closes it in cleanup()), so
@@ -900,7 +907,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 // before generation N+1's upload can begin keeps copy submission — and therefore the
                 // fully-uploaded generation notifications gated on it — in generation order. The copy still
                 // runs concurrently with the next upload. (ES-12456, #154606)
-                final boolean copyTaskOwnsCleanup = splitTargets.isEmpty() == false
+                final boolean copyTaskOwnsCleanup = hasSplitTargets
                     && scheduleSplitTargetCopies(commitState, blobReference, uploadedBcc, ccGeneration, splitTargets);
 
                 try {
@@ -924,7 +931,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     }
                     return;
                 }
-                if (splitTargets.isEmpty()) {
+                if (hasSplitTargets == false) {
+                    // No copy was ever dispatched, so this thread completes the upload.
                     afterCopies(commitState, blobReference, uploadedBcc, ccGeneration);
                 } else if (copyTaskOwnsCleanup == false) {
                     // Copy scheduling failed (e.g. the service is shutting down); nothing else will clean up.
@@ -2928,6 +2936,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             assert failed || present : "target shard " + targetShardId + " not currently splitting from " + shardId;
         }
 
+        /**
+         * Returns a <em>live</em> unmodifiable view of the shard's split copy targets, which
+         * {@link #markSplitEnding} mutates concurrently. Callers must not re-read this view to make more than
+         * one control-flow decision about the same upload: two reads can disagree, which previously caused an
+         * upload to be completed twice. Capture what you need from it once instead.
+         */
         private Set<ShardId> getSplitTargets() {
             return Collections.unmodifiableSet(copyTargets);
         }

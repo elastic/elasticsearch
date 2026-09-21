@@ -1358,6 +1358,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // primary failure rather than replacing it.
         try (Closeable abortOnExit = () -> object.abortStream(stream)) {
             BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE);
+            stripLeadingBomFromReader(reader);
             CsvLogicalRecordReader recordReader = new CsvLogicalRecordReader(
                 reader,
                 options.quoteChar(),
@@ -1985,6 +1986,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             ? stream
             : new CsvRecordCappingInputStream(stream, context.maxRecordBytes());
         BufferedReader reader = new BufferedReader(new InputStreamReader(capped, options.encoding()), READER_BUFFER_SIZE);
+        if (context.firstSplit()) {
+            stripLeadingBomFromReader(reader);
+        }
         CsvLogicalRecordReader recordReader = recordEscapeAware
             ? new CsvLogicalRecordReader(
                 reader,
@@ -2614,7 +2618,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * {@code escaped}) treats a quote as literal data, so the raw delimiter split is correct there.
      */
     private static String[] splitFieldsForOptions(String line, CsvFormatOptions options) {
-        // The header is the file's first line, so a UTF-8 BOM (Excel/Windows) lands on its first field.
+        // A BOM on a header line that is not the file's first character (e.g. after a comment block)
+        // is not removed at the stream level; strip it here before splitting into field names.
         line = stripLeadingBom(line);
         if (options.quoting()) {
             return splitHeaderQuoteAware(
@@ -2746,11 +2751,27 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private static final char BOM = '\uFEFF';
 
     /**
-     * Strips a leading byte-order mark from the first line of a file. Excel/Windows CSV exports prepend a
-     * UTF-8 BOM ({@code EF BB BF}); without this the BOM would otherwise prefix the first column name.
+     * Strips a leading UTF-8 byte-order mark from {@code line} if present. Called for any header line
+     * that may carry a BOM — either at the file's start (covered upstream by {@link
+     * #stripLeadingBomFromReader}) or on a header line further in (after comments).
      */
     private static String stripLeadingBom(String line) {
         return line != null && line.isEmpty() == false && line.charAt(0) == BOM ? line.substring(1) : line;
+    }
+
+    /**
+     * Reads and discards a leading UTF-8 byte-order mark from {@code reader} if one is present.
+     * Called at the two {@link java.io.InputStreamReader} construction sites that own the file's start,
+     * so the BOM is gone before any per-record logic (comment detection, blank test, schema inference)
+     * runs. {@link BufferedReader} supports {@link java.io.Reader#mark(int)}, so the peek is safe to
+     * reverse when the first character is not a mark.
+     */
+    private static void stripLeadingBomFromReader(BufferedReader reader) throws IOException {
+        reader.mark(1);
+        int first = reader.read();
+        if (first != BOM) {
+            reader.reset();
+        }
     }
 
     /**

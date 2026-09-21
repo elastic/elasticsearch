@@ -2161,9 +2161,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     throw new IndexShardClosedException(shardId);
                 }
                 if (state != IndexShardState.RECOVERING) {
-                    String message = "Unexpected shard state [" + state + "] for shard [" + shardId + "]";
-                    assert false : message;
-                    throw new IllegalStateException(message);
+                    logger.error("Illegal shard state was during recovery [{}] for shard [{}] ", state, shardId);
+                    assert false : "Unexpected shard state [" + state + "] for shard [" + shardId + "]";
+                    throw new IllegalStateException("Unexpected shard state [" + state + "] for shard [" + shardId + "]");
                 }
                 recoveryState.setStage(RecoveryState.Stage.DONE);
             }
@@ -2176,9 +2176,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         throw new IndexShardClosedException(shardId);
                     }
                     if (state != IndexShardState.RECOVERING) {
-                        String message = "Unexpected shard state [" + state + "] for shard [" + shardId + "]";
-                        assert false : message;
-                        throw new IllegalStateException(message);
+                        logger.error("Illegal shard state was during recovery [{}] for shard [{}] ", state, shardId);
+                        assert false : "Unexpected shard state [" + state + "] for shard [" + shardId + "]";
+                        throw new IllegalStateException("Unexpected shard state [" + state + "] for shard [" + shardId + "]");
                     }
                     // It's ok if we missed the request, finish shard recovery, and let the master sort it out.
                     recoveryCancellationRequested = false;

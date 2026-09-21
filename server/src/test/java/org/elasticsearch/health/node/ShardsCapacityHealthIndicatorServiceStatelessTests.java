@@ -63,6 +63,7 @@ import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -248,6 +249,9 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
         assertThat(detailsJson, not(containsString("projc")));
     }
 
+    /**
+     * {@code size=0} still reports aggregate shard counts but omits the {@code projects} field.
+     */
     public void testSizeZeroOmitsProjects() throws IOException {
         int maxShardsPerNode = 44;
         var clusterService = createClusterService(
@@ -268,9 +272,9 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
         assertEquals(YELLOW, indicatorResult.status());
         assertThat(indexDetails(indicatorResult).get("current_used_shards"), is(35));
         assertThat(searchDetails(indicatorResult).get("current_used_shards"), is(35));
-        assertThat(projectsDetails(indexDetails(indicatorResult)), is(Map.of()));
-        assertThat(projectsDetails(searchDetails(indicatorResult)), is(Map.of()));
-        assertThat(Strings.toString(indicatorResult.details()), containsString("\"projects\":{}"));
+        assertThat(indexDetails(indicatorResult), not(hasKey("projects")));
+        assertThat(searchDetails(indicatorResult), not(hasKey("projects")));
+        assertThat(Strings.toString(indicatorResult.details()), not(containsString("\"projects\"")));
         assertThat(Strings.toString(indicatorResult.details()), not(containsString("proja")));
     }
 

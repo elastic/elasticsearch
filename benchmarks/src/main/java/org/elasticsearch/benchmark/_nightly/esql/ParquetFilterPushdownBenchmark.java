@@ -7,6 +7,7 @@
 
 package org.elasticsearch.benchmark._nightly.esql;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
@@ -30,8 +31,13 @@ import org.elasticsearch.xpack.esql.datasource.parquet.ParquetFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -85,7 +91,16 @@ public class ParquetFilterPushdownBenchmark {
     /** Small enough that the fixture holds many row groups, so there is something to skip. */
     private static final int ROW_GROUP_BYTES = 64 * 1024;
 
-    @Param({ "none", "scalarRange", "mvInRange" })
+    /**
+     * The shapes a Kibana panel actually sends. Every one of them is what {@code QueryDslTranslator} produces for
+     * the corresponding control, so the benchmark measures the translated vocabulary rather than an invented one:
+     * the time picker is a {@code range} on the time field, a filter pill "is" is a {@code match_phrase}, "is one
+     * of" is {@code terms}, "is not" is the same pill under {@code must_not}, and "exists" is {@code exists}.
+     * A panel always carries the time picker, so every compound shape is that range AND the pill.
+     *
+     * <p>{@code scalarRange} is the reference the time picker is measured against; {@code none} is the control.
+     */
+    @Param({ "none", "scalarRange", "mvInRange", "timeAndTerm", "timeAndTerms", "timeAndNotTerm", "timeAndExists", "timeAndNumericRange" })
     public String filterMode;
 
     @Param({ "1pct", "10pct" })
@@ -115,6 +130,9 @@ public class ParquetFilterPushdownBenchmark {
     /** One second between rows — a log cadence, and wide enough that no two rows share a millisecond. */
     private static final long TS_STEP_MILLIS = 1_000L;
 
+    /** Distinct values of the {@code svc} keyword column — the cardinality a filter pill typically selects from. */
+    private static final String[] SERVICES = { "checkout", "search", "auth", "cart", "billing", "shipping", "reviews", "media" };
+
     @Setup(Level.Trial)
     public void setup() throws IOException {
         BenchmarkLogging.configure();
@@ -137,10 +155,37 @@ public class ParquetFilterPushdownBenchmark {
         };
         long from = EPOCH_BASE_MILLIS;
         long to = EPOCH_BASE_MILLIS + windowRows * TS_STEP_MILLIS;
+        Expression timeWindow = new MvInRange(Source.EMPTY, ts(), lit(from), lit(to));
         Expression predicate = switch (filterMode) {
             case "none" -> null;
             case "scalarRange" -> new Range(Source.EMPTY, ts(), lit(from), true, lit(to), true, ZoneOffset.UTC);
-            case "mvInRange" -> new MvInRange(Source.EMPTY, ts(), lit(from), lit(to));
+            case "mvInRange" -> timeWindow;
+            // Filter pill "is": match_phrase on a keyword -> mv_contains.
+            case "timeAndTerm" -> new And(Source.EMPTY, timeWindow, new MvContains(Source.EMPTY, svc(), keyword(SERVICES[0])));
+            // Filter pill "is one of": terms -> mv_intersects over one list-valued literal.
+            case "timeAndTerms" -> new And(
+                Source.EMPTY,
+                timeWindow,
+                new MvIntersects(
+                    Source.EMPTY,
+                    svc(),
+                    new Literal(Source.EMPTY, List.of(new BytesRef(SERVICES[0]), new BytesRef(SERVICES[1])), DataType.KEYWORD)
+                )
+            );
+            // Filter pill negated: bool.must_not -> NOT over the same leaf.
+            case "timeAndNotTerm" -> new And(
+                Source.EMPTY,
+                timeWindow,
+                new Not(Source.EMPTY, new MvContains(Source.EMPTY, svc(), keyword(SERVICES[0])))
+            );
+            // Filter pill "exists" -> IS NOT NULL. The one common shape that is not an mv_ form.
+            case "timeAndExists" -> new And(Source.EMPTY, timeWindow, new IsNotNull(Source.EMPTY, opt()));
+            // A numeric range alongside the time picker, the second range a dashboard commonly carries.
+            case "timeAndNumericRange" -> new And(
+                Source.EMPTY,
+                timeWindow,
+                new MvInRange(Source.EMPTY, bytesCol(), longLit(0L), longLit(500L))
+            );
             default -> throw new IllegalArgumentException("unknown filterMode: " + filterMode);
         };
         // The planner's own path, so the benchmark cannot push something the engine would not.
@@ -178,6 +223,26 @@ public class ParquetFilterPushdownBenchmark {
         return new Literal(Source.EMPTY, epochMillis, DataType.DATETIME);
     }
 
+    private static ReferenceAttribute svc() {
+        return new ReferenceAttribute(Source.EMPTY, "svc", DataType.KEYWORD);
+    }
+
+    private static ReferenceAttribute opt() {
+        return new ReferenceAttribute(Source.EMPTY, "opt", DataType.KEYWORD);
+    }
+
+    private static ReferenceAttribute bytesCol() {
+        return new ReferenceAttribute(Source.EMPTY, "bytes", DataType.LONG);
+    }
+
+    private static Literal keyword(String value) {
+        return new Literal(Source.EMPTY, new BytesRef(value), DataType.KEYWORD);
+    }
+
+    private static Literal longLit(long value) {
+        return new Literal(Source.EMPTY, value, DataType.LONG);
+    }
+
     /**
      * {@code ts} ascending, or the same values shuffled by a fixed permutation so every row group spans the whole
      * range. The permutation multiplies by {@code 97} modulo {@link #ROWS}; 97 is coprime with {@code 200_000}, so
@@ -190,7 +255,10 @@ public class ParquetFilterPushdownBenchmark {
      * as a bare {@code int64} it would reach {@code buildLongPredicate} instead and measure the wrong arm.
      */
     private static byte[] fixture(boolean clustered) throws IOException {
-        StringBuilder schemaText = new StringBuilder("message bench { required int64 id; required int64 ts (TIMESTAMP(MILLIS,true));");
+        StringBuilder schemaText = new StringBuilder(
+            "message bench { required int64 id; required int64 ts (TIMESTAMP(MILLIS,true));"
+                + " required binary svc (UTF8); optional binary opt (UTF8); required int64 bytes;"
+        );
         for (int c = 0; c < PAYLOAD_COLUMNS; c++) {
             schemaText.append(" required binary c").append(c).append(" (UTF8);");
         }
@@ -211,6 +279,15 @@ public class ParquetFilterPushdownBenchmark {
                 Group g = factory.newGroup();
                 g.add("id", (long) i);
                 g.add("ts", EPOCH_BASE_MILLIS + tick * TS_STEP_MILLIS);
+                // svc: a low-cardinality keyword, the shape a filter pill matches on. One value in SERVICES is
+                // held by 1/SERVICES.length of the rows, so `svc == SERVICES[0]` is an independent selectivity
+                // that does not track the time window.
+                g.add("svc", SERVICES[(int) (tick % SERVICES.length)]);
+                // opt is present on half the rows, so `exists` selects half.
+                if (tick % 2 == 0) {
+                    g.add("opt", "present-" + tick);
+                }
+                g.add("bytes", tick % 1000);
                 for (int c = 0; c < PAYLOAD_COLUMNS; c++) {
                     g.add("c" + c, "payload-" + c + "-" + i);
                 }

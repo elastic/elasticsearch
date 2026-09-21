@@ -35,6 +35,7 @@ public abstract class MultiValuedBinaryColumnarPayloadLengthReader extends Block
     private final TrackingBinaryDocValues values;
     private final MultiValueColumnarPayloadBinaryDocValuesReader reader = new MultiValueColumnarPayloadBinaryDocValuesReader();
     private final BytesRef scratch = new BytesRef();
+    private final int[] lengthScratch = new int[1];
 
     MultiValuedBinaryColumnarPayloadLengthReader(Warnings warnings, TrackingBinaryDocValues values) {
         super(null);
@@ -43,6 +44,14 @@ public abstract class MultiValuedBinaryColumnarPayloadLengthReader extends Block
     }
 
     abstract int length(BytesRef bytesRef);
+
+    /**
+     * Whether the length wanted is the length in bytes, which the column knows without reading the value.
+     * A length counted any other way, such as code points, needs the bytes.
+     */
+    boolean countsBytes() {
+        return false;
+    }
 
     public abstract String toString();
 
@@ -94,6 +103,17 @@ public abstract class MultiValuedBinaryColumnarPayloadLengthReader extends Block
         }
         // Asked of the column where there is one, which knows how many slots the document has and which are null
         // without decoding anything. A segment arriving as an overlay rather than as a column has its payload read.
+        if (countsBytes() && values.docValues() instanceof StringColumnSource columnar) {
+            // The column keeps byte lengths apart from the values.
+            final int nonNull = columnar.nonNullLength(lengthScratch);
+            if (nonNull == 1) {
+                return lengthScratch[0];
+            }
+            if (nonNull > 1) {
+                registerSingleValueWarning(warnings);
+            }
+            return null;
+        }
         final int nonNull = values.docValues() instanceof StringColumnSource columnar
             ? columnar.nonNullValues(scratch)
             : reader.nonNullCount(values.docValues().binaryValue(), scratch);

@@ -156,6 +156,25 @@ public class ColumnarKeywordFunctionTests extends ESTestCase {
         }
     }
 
+    /** BYTE_LENGTH over a column whose values all have one length, which stores no lengths and answers from that one. */
+    public void testByteLengthOfOneLengthColumn() throws IOException {
+        final String[][] docs = new String[between(200, 800)][];
+        final List<Object> expected = new ArrayList<>();
+        for (int d = 0; d < docs.length; d++) {
+            docs[d] = new String[] { "v" + (char) ('a' + d % 26) + (char) ('a' + d % 7) };
+            expected.add(3);
+        }
+        assertLoaderMatches(
+            docs,
+            fieldName -> new ByteLengthFromBytesRefDocValuesBlockLoader(
+                new MockWarnings(),
+                fieldName,
+                BinaryDocValuesFormat.COLUMNAR_PAYLOAD
+            ),
+            expected
+        );
+    }
+
     private void assertLoaderMatches(
         String[][] docs,
         Function<String, BlockDocValuesReader.DocValuesBlockLoader> loaders,

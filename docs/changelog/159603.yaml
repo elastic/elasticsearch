@@ -1,12 +1,14 @@
 area: Search
 breaking:
   area: Search
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  details: Changes the `dense_vector` default fields API format to `array`
+  impact: Users that set `index.mapping.exclude_source_vectors` to `false` or use indices created prior to
+    Elasticsearch 9.2.0, and use string-encoded `dense_vector` values, will see different values returned by the
+    fields API by default. Prior to this change, the string-encoded values from source would be returned. After this
+    change, an array of numbers is returned.
   notable: false
   title: Add `array` and `binary` fields API formats to `dense_vector` field
 issues: []
 pr: 159603
-summary: Add `array` and `binary` vector formats to `dense_vector` field
+summary: Add `array` and `binary` fields API formats to `dense_vector` field
 type: "breaking, enhancement"

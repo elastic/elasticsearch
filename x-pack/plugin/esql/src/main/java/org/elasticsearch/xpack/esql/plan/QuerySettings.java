@@ -205,6 +205,25 @@ public final class QuerySettings {
         .build();
 
     @Param(
+        name = "wildcards_match_views",
+        type = { "boolean" },
+        applies_to = "serverless: unavailable\nstack: experimental 9.6+",
+        description = "When enabled, a wildcard in `FROM` also matches registered views."
+            + " Defaults to `false`, so a wildcard does not match a view and a view is reached by its"
+            + " exact name. Other abstractions a wildcard matches are unaffected.\n\n"
+            + "The default itself is configurable. If a query does not specify a value, the "
+            + "`esql.query.settings.wildcards_match_views` cluster setting supplies it. If that cluster setting is not "
+            + "configured either, the value is `false`. "
+            + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"ga\"}`"
+    )
+    public static final QuerySettingDef<Boolean> WILDCARDS_MATCH_VIEWS = QuerySettingDef.bool("wildcards_match_views")
+        .withDefault(Boolean.FALSE)
+        .withClusterDefault()
+        .withPreview()
+        .withRequestBody()
+        .build();
+
+    @Param(
         name = "approximation",
         type = { "boolean", "map_param" },
         since = "9.5+, preview =9.4",
@@ -256,6 +275,7 @@ public final class QuerySettings {
         APPROXIMATION,
         COLUMN_METADATA,
         WILDCARDS_MATCH_DATASETS,
+        WILDCARDS_MATCH_VIEWS,
         PROJECT_ROUTING,
         TIME_ZONE,
         UNMAPPED_FIELDS

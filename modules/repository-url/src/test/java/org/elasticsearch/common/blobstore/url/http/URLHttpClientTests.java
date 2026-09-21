@@ -223,7 +223,12 @@ public class URLHttpClientTests extends ESTestCase {
             try {
                 final Headers responseHeaders = exchange.getResponseHeaders();
                 final String contentType = randomFrom("text/plain", "text/html", "application/json", "application/xml");
-                responseHeaders.add("Content-Type", contentType + "; charset=" + randomAlphaOfLength(4));
+                final String charsetParam = randomFrom(
+                    "; charset=not-a-charset", // UnsupportedCharsetException
+                    "; charset=%%%", // IllegalCharsetNameException
+                    "; charset" // IllegalArgumentException: null charset name
+                );
+                responseHeaders.add("Content-Type", contentType + charsetParam);
 
                 final byte[] errorMessageBytes = randomByteArrayOfLength(randomIntBetween(1, 100));
                 exchange.sendResponseHeaders(errorCode, errorMessageBytes.length);

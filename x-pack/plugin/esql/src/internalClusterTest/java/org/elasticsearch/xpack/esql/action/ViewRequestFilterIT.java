@@ -55,7 +55,20 @@ import static org.hamcrest.Matchers.startsWith;
  */
 public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
 
-    private static final int ROWS = 30;
+    /**
+     * Six rows cover every {@code (status, region)} combination exactly once, so each expected result below can be written
+     * out as a literal:
+     * <pre>
+     *   id | status | region
+     *    0 |   200  |  eu
+     *    1 |   300  |  us
+     *    2 |   400  |  eu
+     *    3 |   200  |  us
+     *    4 |   300  |  eu
+     *    5 |   400  |  us
+     * </pre>
+     */
+    private static final int ROWS = 6;
     private static final String INDEX = "vrf_idx";
     /** View that passes all rows through — equivalent to a plain index query, so conformance holds trivially. */
     private static final String PASSTHROUGH_VIEW = "vrf_passthrough";
@@ -131,27 +144,42 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /** Runs {@code query} with the request filter and returns every row. */
+    private List<List<Object>> rows(String query, QueryBuilder filter) {
+        try (EsqlQueryResponse response = run(syncEsqlQueryRequest(query).filter(filter))) {
+            return getValuesList(response);
+        }
+    }
+
     // ─── Conformance: passthrough view must agree with direct index query ────────
+
+    /**
+     * The filter must select exactly {@code expectedIds} both on the index (Lucene path) and on the passthrough view
+     * (view-output path). Spelling the ids out, rather than only comparing the two paths to each other, means a failure
+     * says which path went wrong and how.
+     */
+    private void assertIndexAndPassthroughViewSelect(QueryBuilder filter, List<Object> expectedIds) {
+        assertThat("direct index query", ids(INDEX, filter), equalTo(expectedIds));
+        assertThat("passthrough view query", ids(PASSTHROUGH_VIEW, filter), equalTo(expectedIds));
+    }
 
     /**
      * A request filter on a passthrough view must select the exact same rows as the same filter on the underlying index.
      * This proves the filter is evaluated semantically, not accidentally filtered by some plan artefact.
      */
     public void testPassthroughViewConformanceTerm() {
-        QueryBuilder filter = QueryBuilders.termQuery("status", 300);
-        assertEquals("passthrough view and direct index must agree", ids(INDEX, filter), ids(PASSTHROUGH_VIEW, filter));
+        assertIndexAndPassthroughViewSelect(QueryBuilders.termQuery("status", 300), List.of(1, 4));
     }
 
     public void testPassthroughViewConformanceRange() {
-        QueryBuilder filter = QueryBuilders.rangeQuery("status").gte(300);
-        assertEquals("passthrough view and direct index must agree", ids(INDEX, filter), ids(PASSTHROUGH_VIEW, filter));
+        assertIndexAndPassthroughViewSelect(QueryBuilders.rangeQuery("status").gte(300), List.of(1, 2, 4, 5));
     }
 
     public void testPassthroughViewConformanceBool() {
         QueryBuilder filter = QueryBuilders.boolQuery()
             .must(QueryBuilders.termQuery("region", "eu"))
             .must(QueryBuilders.rangeQuery("status").gt(200));
-        assertEquals("passthrough view and direct index must agree", ids(INDEX, filter), ids(PASSTHROUGH_VIEW, filter));
+        assertIndexAndPassthroughViewSelect(filter, List.of(2, 4));
     }
 
     /**
@@ -161,12 +189,8 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
     public void testMissingFieldMatchesNothingOnView() {
         assertThat(ids(PASSTHROUGH_VIEW, QueryBuilders.termQuery("nope", "x")), empty());
         // And its negation matches everything.
-        EsqlQueryRequest req = syncEsqlQueryRequest("FROM " + PASSTHROUGH_VIEW + " | KEEP id | SORT id ASC").filter(
-            QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("nope", "x"))
-        );
-        try (EsqlQueryResponse resp = run(req)) {
-            assertThat(getValuesList(resp).size(), equalTo(ROWS));
-        }
+        QueryBuilder negated = QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("nope", "x"));
+        assertThat(ids(PASSTHROUGH_VIEW, negated), equalTo(List.of(0, 1, 2, 3, 4, 5)));
     }
 
     /**
@@ -214,21 +238,17 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
      */
     public void testRequestFilterComposesWithViewWhereClause() {
         // Filter matches the view's own predicate: all view rows are visible.
-        assertThat(
-            ids(PREFILTERED_VIEW, QueryBuilders.termQuery("status", 200)).size(),
-            equalTo((int) java.util.stream.IntStream.range(0, ROWS).filter(i -> status(i) == 200).count())
-        );
+        assertThat(ids(PREFILTERED_VIEW, QueryBuilders.termQuery("status", 200)), equalTo(List.of(0, 3)));
         // Filter is stricter than the view's predicate: nothing passes.
         assertThat(ids(PREFILTERED_VIEW, QueryBuilders.termQuery("status", 300)), empty());
     }
 
     /**
      * A filter on {@code region} on top of the pre-filtered view (which only emits status=200 rows) should select
-     * only the eu status=200 rows, not all eu rows.
+     * only the eu status=200 row (id 0), not all eu rows (0, 2, 4).
      */
     public void testRequestFilterOnPreFilteredViewIsComposedCorrectly() {
-        long expectedCount = java.util.stream.IntStream.range(0, ROWS).filter(i -> status(i) == 200 && region(i).equals("eu")).count();
-        assertThat(ids(PREFILTERED_VIEW, QueryBuilders.termQuery("region", "eu")).size(), equalTo((int) expectedCount));
+        assertThat(ids(PREFILTERED_VIEW, QueryBuilders.termQuery("region", "eu")), equalTo(List.of(0)));
     }
 
     // ─── Stats view: filter on computed field must work ─────────────────────────
@@ -242,14 +262,15 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
      * non-empty for any plausible count threshold, ruling out the "Lucene dropped everything" failure mode.
      */
     public void testFilterOnComputedStatsFieldWorks() {
-        // cnt must be > 0 for any region (every region has at least one row), so this should return both regions.
-        EsqlQueryRequest req = syncEsqlQueryRequest("FROM " + STATS_VIEW + " | SORT region ASC").filter(
-            QueryBuilders.rangeQuery("cnt").gt(0)
+        // Both regions have cnt == 3, so a threshold of 2 keeps both buckets; if the filter had been pushed into the
+        // source scan there would be no cnt field to match and the result would be empty.
+        assertThat(
+            "filter on computed cnt must keep both buckets intact",
+            rows("FROM " + STATS_VIEW + " | KEEP region, cnt | SORT region ASC", QueryBuilders.rangeQuery("cnt").gt(2)),
+            equalTo(List.of(List.of("eu", 3L), List.of("us", 3L)))
         );
-        try (EsqlQueryResponse resp = run(req)) {
-            List<Object> rows = getValuesList(resp).stream().map(r -> r.get(1)).toList();
-            assertThat("both regions must appear — filter on computed cnt must work", rows, containsInAnyOrder("eu", "us"));
-        }
+        // And a threshold above the actual counts removes both — proving the filter is evaluated against cnt's real value.
+        assertThat(rows("FROM " + STATS_VIEW + " | KEEP region, cnt", QueryBuilders.rangeQuery("cnt").gt(3)), empty());
     }
 
     /**
@@ -258,14 +279,10 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
      * aggregated output, and the result would be wrong.
      */
     public void testFilterOnGroupByKeyFromStatsViewSelectsCorrectBucket() {
-        EsqlQueryRequest req = syncEsqlQueryRequest("FROM " + STATS_VIEW + " | KEEP region | SORT region ASC").filter(
-            QueryBuilders.termQuery("region", "eu")
+        assertThat(
+            rows("FROM " + STATS_VIEW + " | KEEP region, cnt", QueryBuilders.termQuery("region", "eu")),
+            equalTo(List.of(List.of("eu", 3L)))
         );
-        try (EsqlQueryResponse resp = run(req)) {
-            List<List<Object>> rows = getValuesList(resp);
-            assertThat(rows.size(), equalTo(1));
-            assertThat(rows.getFirst().getFirst(), equalTo("eu"));
-        }
     }
 
     /**
@@ -273,11 +290,11 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
      * output in a trivially-true Filter.
      */
     public void testMatchAllOnStatsViewReturnsAllBuckets() {
-        EsqlQueryRequest req = syncEsqlQueryRequest("FROM " + STATS_VIEW).filter(QueryBuilders.matchAllQuery());
-        try (EsqlQueryResponse resp = run(req)) {
-            List<Object> rows = getValuesList(resp).stream().map(r -> r.get(1)).toList();
-            assertThat("match_all must leave every bucket visible", rows, containsInAnyOrder("eu", "us"));
-        }
+        assertThat(
+            "match_all must leave every bucket visible",
+            rows("FROM " + STATS_VIEW + " | KEEP region, cnt | SORT region ASC", QueryBuilders.matchAllQuery()),
+            equalTo(List.of(List.of("eu", 3L), List.of("us", 3L)))
+        );
     }
 
     // ─── Mixed view+index queries ────────────────────────────────────────────────
@@ -309,20 +326,12 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         String view2 = "vrf_view2";
         createView(view2, "FROM " + idx2);
 
-        QueryBuilder filter = QueryBuilders.termQuery("status", 300);
-        // Expected: all id values from both idx and idx2 where status==300.
-        List<Object> expectedFromIdx = ids(INDEX, filter);
-        List<Object> expectedFromIdx2 = ids(idx2, filter);
-        // Mixed query: FROM passthrough_view (over INDEX), view2 (over idx2).
-        EsqlQueryRequest req = syncEsqlQueryRequest("FROM " + PASSTHROUGH_VIEW + ", " + view2 + " | KEEP id | SORT id ASC").filter(filter);
-        try (EsqlQueryResponse resp = run(req)) {
-            List<Object> actual = getValuesList(resp).stream().map(List::getFirst).toList();
-            assertThat(
-                "both view branches must be filtered by status=300",
-                actual,
-                containsInAnyOrder(java.util.stream.Stream.concat(expectedFromIdx.stream(), expectedFromIdx2.stream()).toArray())
-            );
-        }
+        // status=300 is ids 1 and 4 in each index; idx2's copies sit at 1001 and 1004.
+        assertThat(
+            "both view branches must be filtered by status=300",
+            rows("FROM " + PASSTHROUGH_VIEW + ", " + view2 + " | KEEP id | SORT id ASC", QueryBuilders.termQuery("status", 300)),
+            equalTo(List.of(List.of(1), List.of(4), List.of(1001), List.of(1004)))
+        );
     }
 
     /**
@@ -343,19 +352,13 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         final int BASE3 = 2000;
         indexRows(idx3, BASE3);
 
-        QueryBuilder filter = QueryBuilders.termQuery("status", 300);
-        List<Object> expectedFromView = ids(PASSTHROUGH_VIEW, filter);
-        List<Object> expectedFromIndex = ids(idx3, filter);
         // View branch first, bare index second: one ViewUnionAll carrying one view branch and one bare-index branch.
-        EsqlQueryRequest req = syncEsqlQueryRequest("FROM " + PASSTHROUGH_VIEW + ", " + idx3 + " | KEEP id | SORT id ASC").filter(filter);
-        try (EsqlQueryResponse resp = run(req)) {
-            List<Object> actual = getValuesList(resp).stream().map(List::getFirst).toList();
-            assertThat(
-                "the view branch and the bare-index branch must both be filtered, by different paths",
-                actual,
-                containsInAnyOrder(java.util.stream.Stream.concat(expectedFromView.stream(), expectedFromIndex.stream()).toArray())
-            );
-        }
+        // status=300 is ids 1 and 4 from the view, 2001 and 2004 from the bare index.
+        assertThat(
+            "the view branch and the bare-index branch must both be filtered, by different paths",
+            rows("FROM " + PASSTHROUGH_VIEW + ", " + idx3 + " | KEEP id | SORT id ASC", QueryBuilders.termQuery("status", 300)),
+            equalTo(List.of(List.of(1), List.of(4), List.of(2001), List.of(2004)))
+        );
     }
 
     /**
@@ -393,23 +396,11 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         String view = "vrf_eval";
         createView(view, "FROM " + INDEX + " | EVAL region_upper = TO_UPPER(region)");
 
-        EsqlQueryRequest req = syncEsqlQueryRequest("FROM " + view + " | KEEP id, region_upper | SORT id ASC").filter(
-            QueryBuilders.termQuery("region_upper", "EU")
+        assertThat(
+            "the EVAL-computed field can only be filtered on the view's output",
+            rows("FROM " + view + " | KEEP id, region_upper | SORT id ASC", QueryBuilders.termQuery("region_upper", "EU")),
+            equalTo(List.of(List.of(0, "EU"), List.of(2, "EU"), List.of(4, "EU")))
         );
-        try (EsqlQueryResponse resp = run(req)) {
-            List<List<Object>> rows = getValuesList(resp);
-            List<Object> expectedIds = java.util.stream.IntStream.range(0, ROWS)
-                .filter(i -> region(i).equals("eu"))
-                .boxed()
-                .map(i -> (Object) i)
-                .toList();
-            assertThat(
-                "the EVAL-computed field can only be filtered on the view's output",
-                rows.stream().map(r -> r.get(0)).toList(),
-                equalTo(expectedIds)
-            );
-            assertTrue("every returned row must be an eu row", rows.stream().allMatch(r -> "EU".equals(r.get(1))));
-        }
     }
 
     /**
@@ -470,17 +461,10 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         String view = "vrf_keep";
         createView(view, "FROM " + INDEX + " | EVAL region_upper = TO_UPPER(region) | KEEP id, region_upper");
 
-        EsqlQueryRequest req = syncEsqlQueryRequest("FROM " + view + " | KEEP id, region_upper | SORT id ASC").filter(
-            QueryBuilders.termQuery("region_upper", "EU")
+        assertThat(
+            rows("FROM " + view + " | KEEP id, region_upper | SORT id ASC", QueryBuilders.termQuery("region_upper", "EU")),
+            equalTo(List.of(List.of(0, "EU"), List.of(2, "EU"), List.of(4, "EU")))
         );
-        try (EsqlQueryResponse resp = run(req)) {
-            List<Object> expectedIds = java.util.stream.IntStream.range(0, ROWS)
-                .filter(i -> region(i).equals("eu"))
-                .boxed()
-                .map(i -> (Object) i)
-                .toList();
-            assertThat(getValuesList(resp).stream().map(r -> r.get(0)).toList(), equalTo(expectedIds));
-        }
     }
 
     /**
@@ -492,14 +476,11 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         createView("vrf_keep_a", "FROM " + INDEX + " | KEEP id, status");
         createView("vrf_keep_b", "FROM " + INDEX + " | KEEP id, status");
 
-        QueryBuilder filter = QueryBuilders.termQuery("status", 300);
-        List<Object> fromOne = ids(INDEX, filter);
-        EsqlQueryRequest req = syncEsqlQueryRequest("FROM vrf_keep_a, vrf_keep_b | KEEP id | SORT id ASC").filter(filter);
-        try (EsqlQueryResponse resp = run(req)) {
-            List<Object> actual = getValuesList(resp).stream().map(r -> r.get(0)).toList();
-            // Each view is a separate branch over the same index, so every matching id appears once per view.
-            assertThat(actual, containsInAnyOrder(java.util.stream.Stream.concat(fromOne.stream(), fromOne.stream()).toArray()));
-        }
+        // Each view is a separate branch over the same index, so every status=300 id (1 and 4) appears once per view.
+        assertThat(
+            rows("FROM vrf_keep_a, vrf_keep_b | KEEP id | SORT id ASC", QueryBuilders.termQuery("status", 300)),
+            equalTo(List.of(List.of(1), List.of(1), List.of(4), List.of(4)))
+        );
     }
 
     // ─── Views whose body already branches ───────────────────────────────────────
@@ -557,15 +538,15 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
     public void testLiteralSubqueryBranchIsFilteredAtSourceWhileViewBranchIsFilteredAtOutput() {
         // region is a real field on the index (so the subquery branch can be filtered by Lucene) and also a grouping
         // key the stats view emits, so one filter is meaningful on both branches.
-        QueryBuilder filter = QueryBuilders.termQuery("region", "eu");
-        EsqlQueryRequest req = syncEsqlQueryRequest(
-            "FROM " + STATS_VIEW + ", (FROM " + INDEX + " | STATS cnt = COUNT(*) BY region) | KEEP region | SORT region ASC"
-        ).filter(filter);
-        try (EsqlQueryResponse resp = run(req)) {
-            List<Object> regions = getValuesList(resp).stream().map(List::getFirst).toList();
-            // One row from the view branch and one from the subquery branch, both narrowed to eu.
-            assertThat("both branches filtered to eu, by different paths", regions, containsInAnyOrder("eu", "eu"));
-        }
+        // One (eu, 3) row from the view branch and one from the subquery branch; the us buckets are gone from both.
+        assertThat(
+            "both branches filtered to eu, by different paths",
+            rows(
+                "FROM " + STATS_VIEW + ", (FROM " + INDEX + " | STATS cnt = COUNT(*) BY region) | KEEP region, cnt",
+                QueryBuilders.termQuery("region", "eu")
+            ),
+            equalTo(List.of(List.of("eu", 3L), List.of("eu", 3L)))
+        );
     }
 
     // ─── Fail-closed: unsupported DSL construct must fail the query ──────────────

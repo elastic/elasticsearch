@@ -77,7 +77,7 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                     // empty — that happens when all branches had only the <no-fields> marker, which was
                     // stripped by PruneColumns. In that case adopt the children's output (ALL_FIELDS_PROJECTED).
                     var newOutput = mergeExec.output().isEmpty() ? newChildren.getFirst().output() : mergeExec.output();
-                    return new MergeExec(mergeExec.source(), newChildren, newOutput);
+                    return new MergeExec(mergeExec.source(), newChildren, newOutput, mergeExec.kind());
                 }
                 return mergeExec;
             }

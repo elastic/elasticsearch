@@ -646,7 +646,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                             nextBlock.getRowCount(),
                             breaker,
                             formatReader.ioWatermark(),
-                            admitHold
+                            admitHold,
+                            formatReader.footerBytes()
                         );
                     } else {
                         future = ColumnChunkPrefetcher.prefetchAsync(
@@ -655,7 +656,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                             phaseColumns,
                             breaker,
                             formatReader.ioWatermark(),
-                            admitHold
+                            admitHold,
+                            formatReader.footerBytes()
                         );
                     }
                     future.whenComplete((ignored, error) -> admitHold.drop());
@@ -1378,7 +1380,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                         block,
                         predicateColumnPaths,
                         breaker,
-                        formatReader.ioWatermark()
+                        formatReader.ioWatermark(),
+                        formatReader.footerBytes()
                     );
                     currentChunksReleasable = fetched.release();
                     chunks = fetched.chunks();
@@ -1439,7 +1442,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                         rowGroupOrdinal,
                         block.getRowCount(),
                         breaker,
-                        formatReader.ioWatermark()
+                        formatReader.ioWatermark(),
+                        formatReader.footerBytes()
                     );
                     currentChunksReleasable = fetched.release();
                     chunks = fetched.chunks();
@@ -1940,7 +1944,15 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = null;
         try {
             future = rowRanges == null
-                ? ColumnChunkPrefetcher.prefetchAsync(storageObject, block, projectionOnlyColumnPaths, breaker, formatReader.ioWatermark())
+                ? ColumnChunkPrefetcher.prefetchAsync(
+                    storageObject,
+                    block,
+                    projectionOnlyColumnPaths,
+                    breaker,
+                    formatReader.ioWatermark(),
+                    null,
+                    formatReader.footerBytes()
+                )
                 : ColumnChunkPrefetcher.prefetchAsync(
                     storageObject,
                     block,
@@ -1950,7 +1962,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     rowGroupOrdinal,
                     block.getRowCount(),
                     breaker,
-                    formatReader.ioWatermark()
+                    formatReader.ioWatermark(),
+                    null,
+                    formatReader.footerBytes()
                 );
             return StorageRetryCancellation.getWithCancellationChecks(future);
         } catch (TaskCancelledException cancelled) {
@@ -1984,7 +1998,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                         block,
                         projectionOnlyColumnPaths,
                         breaker,
-                        formatReader.ioWatermark()
+                        formatReader.ioWatermark(),
+                        formatReader.footerBytes()
                     )
                     : ColumnChunkPrefetcher.fetchSync(
                         storageObjectForFallback(),
@@ -1995,7 +2010,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                         rowGroupOrdinal,
                         block.getRowCount(),
                         breaker,
-                        formatReader.ioWatermark()
+                        formatReader.ioWatermark(),
+                        formatReader.footerBytes()
                     );
             } catch (Throwable retryFailure) {
                 if (retryFailure != asyncFailure) {

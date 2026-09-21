@@ -257,7 +257,7 @@ public class DecodedVectorTests extends ESTestCase {
 
         float[] expectedFloats = expectedFloatsFromBytes(expectedBytes);
         assertArrayEquals(expectedFloats, decoded.toFloatArray(), 0f);
-        assertEquals(toFloatObjectList(expectedFloats), decoded.toFloatList());
+        assertEquals(toIntObjectList(expectedBytes), decoded.toValueList());
     }
 
     private static void assertFloatVector(DecodedVector decoded, float[] expectedFloats, float delta) {
@@ -265,7 +265,7 @@ public class DecodedVectorTests extends ESTestCase {
         assertThat(expectThrows(IllegalStateException.class, decoded::bytes).getMessage(), containsString("not a byte vector"));
         assertArrayEquals(expectedFloats, decoded.toFloatArray(), delta);
 
-        List<Object> actualList = decoded.toFloatList();
+        List<Object> actualList = decoded.toValueList();
         assertEquals(expectedFloats.length, actualList.size());
         for (int i = 0; i < expectedFloats.length; i++) {
             assertThat(actualList.get(i), instanceOf(Float.class));
@@ -299,11 +299,10 @@ public class DecodedVectorTests extends ESTestCase {
         return buffer.array();
     }
 
-    /** Boxes each float as a {@link Float} in a {@code List<Object>} matching {@link DecodedVector#toFloatList()}. */
-    private static List<Object> toFloatObjectList(float[] floats) {
-        List<Object> list = new ArrayList<>(floats.length);
-        for (float f : floats) {
-            list.add(f);
+    private static List<Object> toIntObjectList(byte[] bytes) {
+        List<Object> list = new ArrayList<>(bytes.length);
+        for (byte b : bytes) {
+            list.add((int) b);
         }
         return list;
     }

@@ -98,19 +98,23 @@ class DenseVectorSourceValueFetcher extends SourceValueFetcher {
     }
 
     /**
-     * Decodes source values to a list of {@code Float}. Used for {@code format: "array"}.
+     * Decodes source values to a list of numbers. Used for {@code format: "array"}.
+     * Returns {@code Integer} components for byte and bit fields, {@code Float} otherwise.
      */
     private List<Object> arrayValues(Object sourceValue) {
         switch (sourceValue) {
             case List<?> v -> {
                 List<Object> values = new ArrayList<>(v.size());
                 for (Object o : v) {
-                    values.add(NumberFieldMapper.NumberType.FLOAT.parse(o, false));
+                    values.add(switch (elementType) {
+                        case BYTE, BIT -> NumberFieldMapper.NumberType.BYTE.parse(o, false).intValue();
+                        case FLOAT, BFLOAT16 -> NumberFieldMapper.NumberType.FLOAT.parse(o, false);
+                    });
                 }
                 return values;
             }
             case String s -> {
-                return DecodedVector.decode(s, elementType, dims, parseHexStrings()).toFloatList();
+                return DecodedVector.decode(s, elementType, dims, parseHexStrings()).toValueList();
             }
             default -> throw unsupportedSourceValue(sourceValue);
         }

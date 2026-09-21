@@ -120,11 +120,12 @@ public abstract sealed class DecodedVector permits DecodedVector.ByteVector, Dec
     public abstract float[] toFloatArray();
 
     /**
-     * Returns the vector components as a list of floats.
+     * Returns the vector components as a list of numbers: {@code Integer} for byte-backed vectors,
+     * {@code Float} otherwise.
      *
-     * @return list of boxed float components
+     * @return list of numeric components
      */
-    public abstract List<Object> toFloatList();
+    public abstract List<Object> toValueList();
 
     /**
      * Returns the base64 encoding of this vector, one byte per component for byte vectors and four big-endian
@@ -162,10 +163,10 @@ public abstract sealed class DecodedVector permits DecodedVector.ByteVector, Dec
         }
 
         @Override
-        public List<Object> toFloatList() {
+        public List<Object> toValueList() {
             List<Object> values = new ArrayList<>(bytes.length);
             for (byte b : bytes) {
-                values.add((float) b);
+                values.add((int) b);
             }
             return values;
         }
@@ -192,7 +193,7 @@ public abstract sealed class DecodedVector permits DecodedVector.ByteVector, Dec
         }
 
         @Override
-        public List<Object> toFloatList() {
+        public List<Object> toValueList() {
             int count = buffer.remaining() / Float.BYTES;
             List<Object> values = new ArrayList<>(count);
             for (int i = 0; i < count; i++) {
@@ -221,7 +222,7 @@ public abstract sealed class DecodedVector permits DecodedVector.ByteVector, Dec
         }
 
         @Override
-        public List<Object> toFloatList() {
+        public List<Object> toValueList() {
             List<Object> values = new ArrayList<>(floats.length);
             for (float f : floats) {
                 values.add(f);

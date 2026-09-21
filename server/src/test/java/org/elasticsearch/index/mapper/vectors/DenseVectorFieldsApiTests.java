@@ -383,19 +383,31 @@ public class DenseVectorFieldsApiTests extends ESSingleNodeTestCase {
                 assertArrayEquals(label, spec.bytes(), decoded);
             } else {
                 // potentially lossy: decode the big-endian float32 payload and compare with delta
-                assertFloatVector(label, spec.floats(), decodeFloat32(decoded), spec.delta(ingestFormat));
+                assertVectorComponents(label, spec.floats(), decodeFloat32(decoded), spec.delta(ingestFormat), Float.class);
             }
         } else {
-            assertFloatVector(label, spec.floats(), values, spec.delta(ingestFormat));
+            assertVectorComponents(
+                label,
+                spec.floats(),
+                values,
+                spec.delta(ingestFormat),
+                spec.isByteEncoded() ? Integer.class : Float.class
+            );
         }
     }
 
-    private static void assertFloatVector(String label, float[] expected, List<Object> actual, float delta) {
+    private static void assertVectorComponents(
+        String label,
+        float[] expected,
+        List<Object> actual,
+        float delta,
+        Class<? extends Number> expectedType
+    ) {
         assertEquals(label + " component count", expected.length, actual.size());
         for (int i = 0; i < expected.length; i++) {
             Object actualValue = actual.get(i);
-            assertThat(actualValue, instanceOf(Float.class));
-            assertEquals(label + " component[" + i + "]", expected[i], (Float) actualValue, delta);
+            assertThat(actualValue, instanceOf(expectedType));
+            assertEquals(label + " component[" + i + "]", expected[i], ((Number) actualValue).floatValue(), delta);
         }
     }
 

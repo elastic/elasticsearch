@@ -7,15 +7,7 @@
 
 package org.elasticsearch.xpack.esql;
 
-import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-
-import java.util.List;
-
-import static org.elasticsearch.test.MapMatcher.assertMap;
-import static org.elasticsearch.test.MapMatcher.matchesMap;
-import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
 /**
  * Reruns the entire {@link EsqlSecurityIT} field-level-security suite with the FLS indices in {@code logsdb} mode, proving that ESQL
@@ -48,92 +40,56 @@ public class EsqlSecurityLogsdbIT extends EsqlSecurityIT {
     }
 
     /**
-     * Override this test because LOAD_ALL surfaces an extra empty {@code @timestamp} column. We must drop this field in order to line up
-     * the columns with the base run.
+     * LOAD_ALL surfaces an extra empty {@code @timestamp} column in this mode, which has to be dropped for the columns to line up
+     * with the base run.
      */
     @Override
-    public void testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll() throws Exception {
-        assumeTrue(
-            "Requires unmapped_fields=LOAD_ALL support",
-            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.capabilityName()))
-        );
-        // drop timestamp as described in the javadoc
-        String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM " + INDEX_PARTIAL_MAPPING + " | SORT salary | LIMIT 10 | DROP @timestamp";
-
-        Response adminResp = runESQLCommand("test-admin", query);
-        assertOK(adminResp);
-        assertMap(
-            entityAsMap(adminResp),
-            matchesMap().extraOk()
-                .entry(
-                    "columns",
-                    List.of(
-                        matchesMap().entry("name", "value").entry("type", "double"),
-                        matchesMap().entry("name", "salary").entry("type", "keyword"),
-                        matchesMap().entry("name", "hire_date").entry("type", "keyword"),
-                        matchesMap().entry("name", "ip_addr").entry("type", "keyword"),
-                        matchesMap().entry("name", "org").entry("type", "keyword")
-                    )
-                )
-                .entry(
-                    "values",
-                    List.of(
-                        List.of(10.0, "100000", "2024-01-01", "10.0.0.1", "sales"),
-                        List.of(20.0, "200000", "2023-06-15", "10.0.0.2", "engineering")
-                    )
-                )
-        );
-
-        Response restrictedResp = runESQLCommand("fls_deny_value_org_user", query);
-        assertOK(restrictedResp);
-        assertMap(
-            entityAsMap(restrictedResp),
-            matchesMap().extraOk()
-                .entry(
-                    "columns",
-                    List.of(
-                        matchesMap().entry("name", "salary").entry("type", "keyword"),
-                        matchesMap().entry("name", "hire_date").entry("type", "keyword"),
-                        matchesMap().entry("name", "ip_addr").entry("type", "keyword")
-                    )
-                )
-                .entry("values", List.of(List.of("100000", "2024-01-01", "10.0.0.1"), List.of("200000", "2023-06-15", "10.0.0.2")))
-        );
+    protected String dropModeSpecificColumns() {
+        return " | DROP @timestamp";
     }
 
     // FLS drops the keyword synthetic-source delegate so a granted text field reconstructs to null
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/6714")
     public void testFieldLevelSecurityAllow() throws Exception {}
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/6714")
     public void testFieldLevelSecurityAllowPartial() throws Exception {}
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/6714")
     public void testFieldLevelSecurityPartiallyUnmappedLoad() throws Exception {}
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/6714")
     public void testFieldLevelSecurityPartiallyUnmappedNullify() throws Exception {}
 
-    // except:_source fails to strip values reconstructed from _ignored_source
+    // FLS-excluded fields are still reconstructed from _ignored_source (both the except:_source and the grant-allow-list shapes)
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/13332")
     public void testFieldLevelSecuritySourceDisabledMultiIndex() throws Exception {}
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/13332")
     public void testFieldLevelSecuritySourceDisabledMultiIndexPartialMappingNonKeyword() throws Exception {}
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/13332")
     public void testFieldLevelSecuritySourceDisabledWithUnmappedFieldsLoad() throws Exception {}
 
     @Override
-    @AwaitsFix(bugUrl = "TODO")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/13332")
     public void testFieldLevelSecuritySourceDisabledWithUnmappedFieldsLoadAndCast() throws Exception {}
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/13332")
+    public void testFieldLevelSecuritySourceDisabledWithUnmappedFieldsLoadAll() throws Exception {}
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/security/issues/13332")
+    public void testFLS_SourceDisabled_MultiIndex_WithUnmappedFieldsLoadAll() throws Exception {}
+
 }

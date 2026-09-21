@@ -270,6 +270,93 @@ dls_user2:
       privileges: [ 'read' ]
       query: '{"match": {"org": "sales"}}'
 
+dls_partial_mapping:
+  cluster: []
+  indices:
+    - names: [ 'index-partial-mapping' ]
+      privileges: [ 'read' ]
+      query: '{"range": {"value": {"lt": 15}}}'
+
+dls_fls_partial_mapping:
+  cluster: []
+  indices:
+    - names: [ 'index-partial-mapping' ]
+      privileges: [ 'read' ]
+      query: '{"range": {"value": {"lt": 15}}}'
+      field_security:
+        grant: [ '*' ]
+        except: [ 'org' ]
+
+dls_shapes:
+  cluster: []
+  indices:
+    - names: [ 'index-load-all-shapes' ]
+      privileges: [ 'read' ]
+      query: '{"range": {"value": {"lt": 15}}}'
+
+fls_shapes_grant_value:
+  cluster: []
+  indices:
+    - names: [ 'index-load-all-shapes' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ 'value' ]
+
+fls_shapes_grant_value_org:
+  cluster: []
+  indices:
+    - names: [ 'index-load-all-shapes' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ 'value', 'org' ]
+
+fls_shapes_except_ssn:
+  cluster: []
+  indices:
+    - names: [ 'index-load-all-shapes' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ '*' ]
+        except: [ 'profile.ssn' ]
+
+fls_shapes_except_org:
+  cluster: []
+  indices:
+    - names: [ 'index-load-all-shapes' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ '*' ]
+        except: [ 'org' ]
+
+fls_shapes_no_source:
+  cluster: []
+  indices:
+    - names: [ 'index-load-all-shapes' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ '*' ]
+        except: [ '_source' ]
+
+read_load_all_shapes:
+  cluster: []
+  indices:
+    - names: [ 'index-load-all-shapes' ]
+      privileges: [ 'read' ]
+
+read_lookup_load_all_shapes:
+  cluster: []
+  indices:
+    - names: [ 'lookup-load-all-shapes' ]
+      privileges: [ 'read' ]
+
+fls_lookup_shapes_deny_secret:
+  cluster: []
+  indices:
+    - names: [ 'lookup-load-all-shapes' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ '*' ]
+        except: [ 'lookup_secret' ]
 
 logs_foo_all:
   cluster: []

@@ -53,6 +53,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
@@ -885,8 +886,11 @@ public class CsvTestsDataLoader {
 
     public static void deleteViews(RestClient client) throws IOException {
         if (clusterSupportsViews(client)) {
-            logger.debug("Deleting views");
-            deleteViews(client, VIEW_CONFIGS.keySet());
+            var views = listViews(client);
+            if (views.isEmpty() == false) {
+                logger.debug("Deleting views {}", views);
+                deleteViews(client, views);
+            }
         } else {
             logger.info("Skipping deleting views as the cluster does not support views");
         }
@@ -1022,6 +1026,23 @@ public class CsvTestsDataLoader {
         } catch (ResponseException e) {
             return false;
         }
+    }
+
+    private static Set<String> listViews(RestClient client) throws IOException {
+        Response response = client.performRequest(new Request("GET", "/_query/view/*"));
+        JsonNode json = new ObjectMapper().readTree(response.getEntity().getContent());
+        JsonNode views = json.get("views");
+        if (views == null || views.isArray() == false) {
+            return Set.of();
+        }
+        Set<String> names = new TreeSet<>();
+        for (JsonNode view : views) {
+            JsonNode name = view.get("name");
+            if (name != null) {
+                names.add(name.asText());
+            }
+        }
+        return names;
     }
 
     private static void deleteViews(RestClient client, Set<String> viewNames) throws IOException {

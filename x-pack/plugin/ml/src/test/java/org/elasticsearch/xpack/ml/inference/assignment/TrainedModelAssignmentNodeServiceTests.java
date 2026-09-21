@@ -500,11 +500,18 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
     }
 
-    public void testClusterChanged_WhenAssignmentIsRoutedToShuttingDownNodeButAlreadyRemoved_DoesNotCallStop() {
+    public void testClusterChangedWhenStoppingRouteHasNoLocalTaskOnShuttingDownNodeShouldMarkRouteStopped() {
         final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = createService();
         final DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId(NODE_ID).add(DiscoveryNodeUtils.create(NODE_ID, NODE_ID)).build();
         String modelOne = "model-1";
         String deploymentOne = "deployment-1";
+
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings({ "unchecked", "rawtypes" })
+            ActionListener<AcknowledgedResponse> listener = (ActionListener) invocationOnMock.getArguments()[1];
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return null;
+        }).when(trainedModelAssignmentService).updateModelAssignmentState(any(), any());
 
         var taskParams = newParams(deploymentOne, modelOne);
 
@@ -533,11 +540,73 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
 
         trainedModelAssignmentNodeService.clusterChanged(event);
 
-        verify(deploymentManager, never()).stopAfterCompletingPendingWork(any(), any());
-        verify(trainedModelAssignmentService, never()).updateModelAssignmentState(
-            any(UpdateTrainedModelAssignmentRoutingInfoAction.Request.class),
-            any()
+        ArgumentCaptor<UpdateTrainedModelAssignmentRoutingInfoAction.Request> requestCapture = ArgumentCaptor.forClass(
+            UpdateTrainedModelAssignmentRoutingInfoAction.Request.class
         );
+        verify(deploymentManager, never()).stopAfterCompletingPendingWork(any(), any());
+        verify(trainedModelAssignmentService, times(1)).updateModelAssignmentState(requestCapture.capture(), any());
+        UpdateTrainedModelAssignmentRoutingInfoAction.Request request = requestCapture.getValue();
+        assertThat(request.getNodeId(), equalTo(NODE_ID));
+        assertThat(request.getDeploymentId(), equalTo(deploymentOne));
+        assertThat(request.getUpdate().getStateAndReason().get().getState(), equalTo(RoutingState.STOPPED));
+        verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
+    }
+
+    public void testClusterChangedWhenStoppingRouteHasNoLocalTaskAndOtherNodeStartingShouldMarkRouteStopped() {
+        final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = createService();
+        String node2 = "test-node-2";
+        final DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .localNodeId(NODE_ID)
+            .add(DiscoveryNodeUtils.create(NODE_ID, NODE_ID))
+            .add(DiscoveryNodeUtils.create(node2, node2))
+            .build();
+        String modelOne = "model-1";
+        String deploymentOne = "deployment-1";
+
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings({ "unchecked", "rawtypes" })
+            ActionListener<AcknowledgedResponse> listener = (ActionListener) invocationOnMock.getArguments()[1];
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return null;
+        }).when(trainedModelAssignmentService).updateModelAssignmentState(any(), any());
+
+        var taskParams = newParams(deploymentOne, modelOne);
+
+        ClusterChangedEvent event = new ClusterChangedEvent(
+            "testClusterChanged",
+            ClusterState.builder(new ClusterName("testClusterChanged"))
+                .nodes(nodes)
+                .metadata(
+                    Metadata.builder()
+                        .putCustom(
+                            TrainedModelAssignmentMetadata.NAME,
+                            TrainedModelAssignmentMetadata.Builder.empty()
+                                .addNewAssignment(
+                                    deploymentOne,
+                                    TrainedModelAssignment.Builder.empty(taskParams, null)
+                                        .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STOPPING, ""))
+                                        .addRoutingEntry(node2, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
+                                )
+                                .build()
+                        )
+                        .putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata(NODE_ID))
+                        .build()
+                )
+                .build(),
+            ClusterState.EMPTY_STATE
+        );
+
+        trainedModelAssignmentNodeService.clusterChanged(event);
+
+        ArgumentCaptor<UpdateTrainedModelAssignmentRoutingInfoAction.Request> requestCapture = ArgumentCaptor.forClass(
+            UpdateTrainedModelAssignmentRoutingInfoAction.Request.class
+        );
+        verify(deploymentManager, never()).stopAfterCompletingPendingWork(any(), any());
+        verify(trainedModelAssignmentService, times(1)).updateModelAssignmentState(requestCapture.capture(), any());
+        UpdateTrainedModelAssignmentRoutingInfoAction.Request request = requestCapture.getValue();
+        assertThat(request.getNodeId(), equalTo(NODE_ID));
+        assertThat(request.getDeploymentId(), equalTo(deploymentOne));
+        assertThat(request.getUpdate().getStateAndReason().get().getState(), equalTo(RoutingState.STOPPED));
         verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
     }
 

@@ -7,16 +7,12 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -47,7 +43,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DynamicFieldType;
-import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -55,7 +50,6 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -390,15 +384,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         return new DefaultShardContextForUnmappedField(ctx, unmappedField);
     }
 
-    /** A hack to pretend an unmapped field still exists. */
+    /** Wraps a shard context so that an unmapped field bypasses the mapped-field gate in {@link DefaultShardContext#blockLoader}. */
     private static class DefaultShardContextForUnmappedField extends DefaultShardContext {
-        private static final FieldType UNMAPPED_FIELD_TYPE = new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE);
-        static {
-            UNMAPPED_FIELD_TYPE.setDocValuesType(DocValuesType.NONE);
-            UNMAPPED_FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            UNMAPPED_FIELD_TYPE.setStored(false);
-            UNMAPPED_FIELD_TYPE.freeze();
-        }
         private final KeywordEsField unmappedEsField;
 
         DefaultShardContextForUnmappedField(DefaultShardContext ctx, PotentiallyUnmappedKeywordEsField unmappedEsField) {
@@ -408,31 +395,43 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         @Override
         public boolean isMappedField(String name) {
-            // For the unmapped field we are loading, bypass the mapped-field gate.
-            // This allows both truly unmapped fields (which use a source-based loader) and
-            // dynamic subfields of flattened fields (which use the keyed block loader) to
-            // produce real values rather than ConstantNull.
+            // Bypass the mapped-field gate for the target field so dynamic subfields of flattened
+            // fields (which resolve to a non-null fieldType) produce their keyed block loader
+            // rather than ConstantNull.
             return name.equals(unmappedEsField.getName()) || super.isMappedField(name);
         }
 
         @Override
-        public @Nullable MappedFieldType fieldType(String name) {
-            var superResult = super.fieldType(name);
-            return superResult == null && name.equals(unmappedEsField.getName()) ? createUnmappedFieldType(name, this) : superResult;
+        public BlockLoader blockLoader(
+            String name,
+            boolean asUnsupportedSource,
+            MappedFieldType.FieldExtractPreference fieldExtractPreference,
+            BlockLoaderFunctionConfig blockLoaderFunctionConfig,
+            org.elasticsearch.index.mapper.blockloader.Warnings warnings,
+            ByteSizeValue blockLoaderSizeOrdinals,
+            ByteSizeValue blockLoaderSizeScript
+        ) {
+            // Both of KeywordFieldType#blockLoader's paths mangle an object value from _source, so read _source directly via
+            // UnmappedKeywordBlockLoader - see that class for the two broken paths and the issues (#156381, #156433).
+            if (asUnsupportedSource == false && name.equals(unmappedEsField.getName()) && super.fieldType(name) == null) {
+                assert blockLoaderFunctionConfig == null
+                    : "cannot fuse [" + blockLoaderFunctionConfig + "] into loading unmapped field [" + name + "]";
+                return unmappedKeywordBlockLoader(name, this);
+            }
+            return super.blockLoader(
+                name,
+                asUnsupportedSource,
+                fieldExtractPreference,
+                blockLoaderFunctionConfig,
+                warnings,
+                blockLoaderSizeOrdinals,
+                blockLoaderSizeScript
+            );
         }
 
-        static MappedFieldType createUnmappedFieldType(String name, DefaultShardContext context) {
-            var builder = new KeywordFieldMapper.Builder(name, context.ctx.getIndexSettings());
-            builder.docValues(false);
-            builder.indexed(false);
-            return new KeywordFieldMapper.KeywordFieldType(
-                name,
-                IndexType.terms(false, false),
-                new TextSearchInfo(UNMAPPED_FIELD_TYPE, builder.similarity(), Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
-                Lucene.KEYWORD_ANALYZER,
-                builder,
-                context.ctx.isSourceSynthetic()
-            );
+        static BlockLoader unmappedKeywordBlockLoader(String name, DefaultShardContext context) {
+            Set<String> sourcePaths = context.ctx.isSourceEnabled() ? context.ctx.sourcePath(name) : Set.of();
+            return new UnmappedKeywordBlockLoader(name, sourcePaths, context.ctx.getIndexSettings().getIgnoredSourceFormat());
         }
     }
 

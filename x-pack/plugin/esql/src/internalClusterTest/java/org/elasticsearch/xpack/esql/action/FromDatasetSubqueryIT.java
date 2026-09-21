@@ -23,6 +23,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * End-to-end integration for subqueries in the FROM clause whose source is a registered dataset
@@ -546,10 +548,10 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         registerEmployees();
 
         // Standard metadata binds on a dataset inside a subquery, consistent with how it binds on a
-        // regular index in the same position (see IndexResolutionIT / subquery.csv-spec). _index
-        // resolves to the dataset name. This used to be rejected only because dataset metadata was
-        // unsupported anywhere; it is supported now. KEEP is irrelevant to metadata presence on the
-        // FROM path: METADATA _index surfaces _index with no explicit KEEP.
+        // regular index in the same position (see IndexResolutionIT / subquery.csv-spec). On a dataset
+        // _index answers NULL -- a dataset is not an index -- and what this test pins is that it binds
+        // and surfaces, not what it holds. KEEP is irrelevant to metadata presence on the FROM path:
+        // METADATA _index surfaces _index with no explicit KEEP.
         try (var response = run(syncEsqlQueryRequest("FROM (FROM employees METADATA _index) | LIMIT 1"), TIMEOUT)) {
             List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
             assertThat("_index must surface without an explicit KEEP, got " + names, names, hasItem("_index"));
@@ -557,7 +559,7 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
             int idx = names.indexOf("_index");
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
-            assertThat(rows.get(0).get(idx).toString(), equalTo("employees"));
+            assertThat("_index is null on a dataset", rows.get(0).get(idx), nullValue());
         }
     }
 
@@ -591,7 +593,7 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
 
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
-            assertThat(rows.get(0).get(names.indexOf("_index")).toString(), equalTo("employees"));
+            assertThat(rows.get(0).get(names.indexOf("_index")), nullValue());
             assertThat(rows.get(0).get(names.indexOf("_file.path")).toString(), containsString(".csv"));
         }
     }
@@ -610,7 +612,7 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
                 assertThat(query + " must surface _file.path without KEEP, got " + names, names, hasItem("_file.path"));
 
                 List<List<Object>> rows = getValuesList(response);
-                assertThat(rows.get(0).get(names.indexOf("_index")).toString(), equalTo("employees"));
+                assertThat(rows.get(0).get(names.indexOf("_index")), nullValue());
                 assertThat(rows.get(0).get(names.indexOf("_file.path")).toString(), containsString(".csv"));
             }
         }
@@ -900,7 +902,8 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
             """), TIMEOUT)) {
             assertColumnNames(response.columns(), List.of("first_name", "last_name", "_index"));
             assertColumnTypes(response.columns(), List.of("keyword", "keyword", "keyword"));
-            assertValues(response.values(), List.of(List.of("Alice", "Anderson", "employees")));
+            // Both branches are datasets, so _index is null on either side of the union.
+            assertValues(response.values(), List.of(Arrays.asList("Alice", "Anderson", null)));
         }
     }
 

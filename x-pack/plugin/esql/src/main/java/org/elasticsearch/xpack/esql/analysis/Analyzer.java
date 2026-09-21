@@ -80,7 +80,6 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
-import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
@@ -105,6 +104,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.UnaryAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
@@ -684,12 +684,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * avoiding the need for source-specific logical plan nodes in core ESQL code.
      * <p>
      * Binds the user's {@code METADATA ...} clause. Every name in
-     * {@link MetadataAttribute#ATTRIBUTES_MAP} (standard names like {@code _id}/{@code _index}/...)
-     * and every name in {@link org.elasticsearch.xpack.esql.datasources.FileMetadataColumns#COLUMNS}
+     * {@link ExternalMetadataColumns#STANDARD_NAMES}
+     * ({@code _index}, {@code _score}, {@code _ignored}, ...) and every name in
+     * {@link FileMetadataColumns#COLUMNS}
      * ({@code _file.path}, {@code _file.name}, ...) becomes an {@link ExternalMetadataAttribute} of
-     * the registered type. A same-named physical column is dropped and a warning is deferred; the
-     * engine-generated value is used. Unknown names propagate as-is for the verifier to flag with
-     * the existing "Unresolved metadata pattern" diagnostic.
+     * the registered type. {@code _id}, {@code _version} and {@code _source} are among the standard
+     * names and bind to a column that is SQL NULL on every row, because a file holds no document
+     * identity, no document version and no stored source. A same-named physical column is dropped
+     * and a warning is deferred; the engine-generated value is used. Unknown names propagate as-is
+     * for the verifier to flag with the existing "Unresolved metadata pattern" diagnostic.
      */
     private static class ResolveExternalRelations extends ParameterizedAnalyzerRule<UnresolvedExternalRelation, AnalyzerContext> {
 
@@ -711,14 +714,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             var metadata = resolvedSource.metadata();
-            // Partition columns are path-derived and appear in the schema as plain ReferenceAttributes (indistinguishable
-            // from data columns by type), so pass their names explicitly: _id.path pointing at a partition column must be
-            // rejected loudly (the reader stamps _id per row from a data column, not from a path-derived constant).
-            PartitionMetadata partitionMetadata = resolvedSource.fileList() != null ? resolvedSource.fileList().partitionMetadata() : null;
-            Set<String> partitionColumnNames = partitionMetadata != null && partitionMetadata.isEmpty() == false
-                ? partitionMetadata.partitionColumns().keySet()
-                : Set.of();
-            MetadataBindResult bindResult = bindMetadataFields(plan, metadata.schema(), partitionColumnNames, context);
+            MetadataBindResult bindResult = bindMetadataFields(plan, metadata.schema(), context);
             ExternalRelation relation = new ExternalRelation(
                 plan.source(),
                 tablePath,
@@ -744,36 +740,25 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private record MetadataBindResult(List<Attribute> schema, List<? extends NamedExpression> unresolvedMetadata) {}
 
         /**
-         * Walks the user's METADATA clause. Names registered in
-         * {@link MetadataAttribute#ATTRIBUTES_MAP} or
-         * {@link org.elasticsearch.xpack.esql.datasources.FileMetadataColumns#COLUMNS} are bound
+         * Walks the user's METADATA clause. Names in
+         * {@link ExternalMetadataColumns#STANDARD_NAMES} or
+         * {@link FileMetadataColumns#COLUMNS} are bound
          * to an {@link ExternalMetadataAttribute} appended to the source's natural schema. A
          * same-named physical column is dropped from that schema (every attribute of that name,
          * so a repeated header cannot leave a survivor) and a warning is deferred through
-         * {@code context}. Names registered in neither stay as
+         * {@code context}. Names in neither stay as
          * {@code UnresolvedMetadataAttributeExpression} in the returned {@code unresolvedMetadata}
          * list: the verifier picks them up via the relation's expression walk and fires its native
          * {@code "Unresolved metadata pattern [...]"} error, matching the diagnostic indexed
          * {@code FROM x METADATA _typo} produces.
-         * <p>
-         * When {@code mappings._id.path} is set and {@code _id} is requested, the bind is skipped
-         * for the id-path column itself so the file column stays for the reader to stamp from.
-         * A colliding physical {@code _id} is shadowed like any other metadata name unless the
-         * path is {@code _id}.
          */
         private static MetadataBindResult bindMetadataFields(
             UnresolvedExternalRelation plan,
             List<Attribute> baseSchema,
-            Set<String> partitionColumnNames,
             AnalyzerContext context
         ) {
             if (plan.metadataFields().isEmpty()) {
                 return new MetadataBindResult(baseSchema, List.of());
-            }
-            String declaredIdPath = plan.declaredIdPath();
-            Set<String> requestedNames = new LinkedHashSet<>();
-            for (NamedExpression requested : plan.metadataFields()) {
-                requestedNames.add(MetadataAttribute.metadataName(requested));
             }
             Set<String> baseNames = new LinkedHashSet<>();
             for (Attribute a : baseSchema) {
@@ -791,62 +776,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (emitted.contains(name)) {
                     continue;
                 }
-                DataType type = MetadataAttribute.dataType(name);
+                // The standard metadata names a dataset answers. _id, _version and _source are among
+                // them and bind to an all-NULL column: a file holds no document identity, version or
+                // stored source. The _file.* family is the other half, resolved just below.
+                DataType type = ExternalMetadataColumns.STANDARD_NAMES.contains(name) ? MetadataAttribute.dataType(name) : null;
                 if (type == null) {
                     type = FileMetadataColumns.COLUMNS.get(name);
                 }
                 if (type == null) {
-                    // Unknown name: keep the unresolved expression so the verifier picks it up via
-                    // ExternalRelation#metadataFields() and fires its native unresolved-pattern error.
+                    // A name a dataset does not answer. Forwarded as-is: it already carries the message the
+                    // verifier reports through ExternalRelation#metadataFields(), and forwarding keeps _doc
+                    // (injected by TS_INFO / METRICS_INFO, never typed by the user) on its pass-through path.
                     if (unresolved == null) {
                         unresolved = new ArrayList<>();
                     }
                     unresolved.add(requested);
                     continue;
-                }
-                // _id.path names the column the reader stamps _id from. If that column is itself
-                // requested via METADATA, skip the bind and leave the file column in place. A
-                // colliding physical _id is shadowed unless the path is _id itself.
-                if (ExternalMetadataColumns.idPathKeepsPhysical(declaredIdPath, requestedNames)
-                    && name.equals(declaredIdPath)
-                    && baseNames.contains(name)) {
-                    continue;
-                }
-                // If the dataset declares _id.path but the resolved schema has no such DATA column
-                // (a typo, the files lost it, or it is a partition/virtual column the reader never
-                // materializes per row), reject the _id request rather than returning silently-null
-                // ids. Fires only when _id is actually asked for: a bad _id.path on a query that
-                // never reads _id is moot, like any other unread column.
-                if (ExternalMetadataColumns.ID.equals(name)) {
-                    if (declaredIdPath != null) {
-                        Attribute idSource = null;
-                        for (Attribute a : baseSchema) {
-                            if (a.name().equals(declaredIdPath)) {
-                                idSource = a;
-                                break;
-                            }
-                        }
-                        if (idSource == null) {
-                            throw new IllegalArgumentException(
-                                "[_id] is declared to come from column ["
-                                    + declaredIdPath
-                                    + "] (mappings._id.path), but no such column exists in the dataset's schema"
-                            );
-                        }
-                        // A partition column is a path-derived constant surfaced as a plain ReferenceAttribute (not a
-                        // Virtual/ExternalMetadata attribute), so it slips the type checks above; the reader classifies
-                        // it in the partition branch and never stamps _id from it (silent null id). Reject it here.
-                        if (idSource instanceof VirtualAttribute
-                            || idSource instanceof ExternalMetadataAttribute
-                            || partitionColumnNames.contains(declaredIdPath)) {
-                            throw new IllegalArgumentException(
-                                "[_id] is declared to come from ["
-                                    + declaredIdPath
-                                    + "] (mappings._id.path), which is not a data column of the files; _id must come from a "
-                                    + "column the reader materializes per row"
-                            );
-                        }
-                    }
                 }
                 if (enriched == null) {
                     enriched = new ArrayList<>(baseSchema);
@@ -4157,11 +4102,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Map<String, FieldAttribute> unionFields = new HashMap<>();
             Holder<Boolean> aborted = new Holder<>(Boolean.FALSE);
             var newPlan = plan.transformExpressionsOnly(AggregateFunction.class, aggFunc -> {
+                Expression field;
+                if (aggFunc instanceof UnaryAggregateFunction uaf) {
+                    field = uaf.field();
+                } else if (aggFunc instanceof TimeSeriesAggregateFunction tsaf) {
+                    field = tsaf.field();
+                } else {
+                    return aggFunc;
+                }
                 Expression child;
-                if (aggFunc.field() instanceof ToAggregateMetricDouble toAMD) {
+                if (field instanceof ToAggregateMetricDouble toAMD) {
                     child = tryToTransformFunction(aggFunc, toAMD.field(), aborted, unionFields, context);
                 } else {
-                    child = tryToTransformFunction(aggFunc, aggFunc.field(), aborted, unionFields, context);
+                    child = tryToTransformFunction(aggFunc, field, aborted, unionFields, context);
                 }
                 return child;
             }).transformExpressionsOnly(EsqlBinaryComparison.class, comparison -> {
@@ -4254,8 +4207,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (aggFunc instanceof AvgOverTime avgOT) {
                     return new Div(
                         aggFunc.source(),
-                        new SumOverTime(aggFunc.source(), field, aggFunc.filter(), aggFunc.window(), avgOT.timestamp()),
-                        new CountOverTime(aggFunc.source(), field, aggFunc.filter(), aggFunc.window(), avgOT.timestamp())
+                        new SumOverTime(aggFunc.source(), field, avgOT.timestamp(), aggFunc.filter(), aggFunc.window()),
+                        new CountOverTime(aggFunc.source(), field, avgOT.timestamp(), aggFunc.filter(), aggFunc.window())
                     );
                 }
 
@@ -4280,7 +4233,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return new Sum(aggFunc.source(), children.getFirst());
                 }
                 if (aggFunc instanceof CountOverTime cot) {
-                    return new SumOverTime(aggFunc.source(), children.getFirst(), aggFunc.filter(), aggFunc.window(), cot.timestamp());
+                    return new SumOverTime(aggFunc.source(), children.getFirst(), cot.timestamp(), aggFunc.filter(), aggFunc.window());
                 }
                 return aggFunc.replaceChildren(children);
             }
@@ -4404,10 +4357,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             plan.forEachUp(EsRelation.class, esRelation -> { indexMode.set(esRelation.indexMode()); });
             final boolean isTimeSeries = indexMode.get().isTsdb();
             return plan.transformExpressionsOnly(AggregateFunction.class, aggFunc -> {
+                Expression field;
+                if (aggFunc instanceof UnaryAggregateFunction uaf) {
+                    field = uaf.field();
+                } else if (aggFunc instanceof TimeSeriesAggregateFunction tsaf) {
+                    field = tsaf.field();
+                } else {
+                    return aggFunc;
+                }
                 if (ImplicitCastAggregateMetricDoubles.hasNativeSupport(aggFunc, isTimeSeries)) {
                     return aggFunc;
                 }
-                if (aggFunc.field() instanceof FieldAttribute fa && fa.field().getDataType() == AGGREGATE_METRIC_DOUBLE) {
+                if (field instanceof FieldAttribute fa && fa.field().getDataType() == AGGREGATE_METRIC_DOUBLE) {
                     Expression newField = FromAggregateMetricDouble.withMetric(
                         fa.source(),
                         fa,

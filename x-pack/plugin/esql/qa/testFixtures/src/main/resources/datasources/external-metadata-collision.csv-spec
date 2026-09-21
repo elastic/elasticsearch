@@ -38,9 +38,9 @@ FROM md_collision METADATA _id, _index, _version, _source, _ignored, _index_mode
 warningRegex:Physical columns \[.*\] in dataset \[md_collision\] are shadowed by METADATA
 
 row_no:integer | _id:keyword | _index:keyword | _version:long | _source:_source | _ignored:keyword | _index_mode:keyword | _tsid:null | _size:integer | _score:double | _file.path:keyword | _file.name:keyword | _file.directory:keyword | _file.size:long | _file.modified:keyword | _file.record_ref:long
-1              | {any}       | "md_collision" | {any}         | {any}           | null             | null                | null        | null          | null          | {any}              | {any}              | {any}                   | {any}           | {any}                 | {any}
-2              | {any}       | "md_collision" | {any}         | {any}           | null             | null                | null        | null          | null          | {any}              | {any}              | {any}                   | {any}           | {any}                 | {any}
-3              | {any}       | "md_collision" | {any}         | {any}           | null             | null                | null        | null          | null          | {any}              | {any}              | {any}                   | {any}           | {any}                 | {any}
+1              | null        | null           | null          | null            | null             | null                | null        | null          | null          | {any}              | {any}              | {any}                   | {any}           | {any}                 | {any}
+2              | null        | null           | null          | null            | null             | null                | null        | null          | null          | {any}              | {any}              | {any}                   | {any}           | {any}                 | {any}
+3              | null        | null           | null          | null            | null             | null                | null        | null          | null          | {any}              | {any}              | {any}                   | {any}           | {any}                 | {any}
 ;
 
 scoreFilterUsesPhysical

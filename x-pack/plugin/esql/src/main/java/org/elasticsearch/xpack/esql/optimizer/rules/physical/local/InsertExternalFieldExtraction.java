@@ -11,10 +11,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
-import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
@@ -165,32 +163,6 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
         }
 
         List<Attribute> sourceOutput = externalSource.output();
-        // When `_source` is projected, its synthesizer needs every file-resident data column at
-        // compose time. Deferring those columns would render `{}`. Pin every data attribute as
-        // eager in that case; the synthesizer runs on the producer thread before the TopN gate.
-        // Side effect: with `_source` projected the deferred set is empty by construction —
-        // the {@link VirtualAttribute} arm catches every metadata attribute ({@link
-        // ExternalMetadataAttribute} implements {@link VirtualAttribute}) and the data-column pin
-        // arm catches everything else. {@link #DEFERRED_COLUMN_MIN} then bails out, so TopN
-        // late-materialisation is disabled for `_source` queries (correctness preserves over the
-        // I/O optimisation).
-        boolean sourceProjected = false;
-        boolean idProjected = false;
-        for (Attribute a : sourceOutput) {
-            if (a instanceof ExternalMetadataAttribute) {
-                if (ExternalMetadataColumns.SOURCE.equals(a.name())) {
-                    sourceProjected = true;
-                } else if (ExternalMetadataColumns.ID.equals(a.name())) {
-                    idProjected = true;
-                }
-            }
-        }
-        // When `_id` is projected and mappings._id.path names a file-resident data column,
-        // VirtualColumnIterator stamps `_id` from that column on the reader page. Deferring
-        // the stamp source leaves idPathDataChannel == -1 and `_id` is constant-null. Pin
-        // that one data column eager; other projection columns can still defer. Keep-physical
-        // `_file.path` (a ReferenceAttribute, not VirtualAttribute) takes this path too.
-        String idPath = idProjected ? externalSource.declaredReadSpec().idPath() : null;
         // The second non-file-resident family: hive-style partition columns. Unlike {@code _file.*}
         // they carry no {@link VirtualAttribute} marker — they are surfaced as plain
         // {@link org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute}s on purpose, so
@@ -214,11 +186,6 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
             // {@code PARTITION_COLUMNS_KEY} stamp).
             if (a instanceof VirtualAttribute || eagerRefs.contains(a) || partitionColumns.contains(a.name())) {
                 eagerColumns.add(a);
-            } else if (sourceProjected && a instanceof ExternalMetadataAttribute == false) {
-                // File-resident data column under `_source` projection — must be eager.
-                eagerColumns.add(a);
-            } else if (idPath != null && idPath.equals(a.name())) {
-                eagerColumns.add(a);
             } else {
                 deferredColumns.add(a);
             }
@@ -236,7 +203,7 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
 
         // withDeferredExtraction is the operator factory's signal that this exec is paired with the
         // ExternalFieldExtractExec built below — _rowPosition presence alone is ambiguous, since
-        // InjectRowPositionForExternalId also injects it for plain _id composition.
+        // InjectRowPositionForRecordRef also injects it for plain _file.record_ref composition.
         ExternalSourceExec narrowedSource = externalSource.withAttributes(narrowedAttributes).withDeferredExtraction();
         // Rebuild the (TopN, …, ExternalSourceExec) spine with the narrowed source at the bottom.
         // Every intermediate node's children are unchanged except for the source-replacement at the

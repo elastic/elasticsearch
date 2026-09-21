@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
-import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
@@ -92,7 +91,7 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         assertEquals(List.of("id", ColumnExtractor.ROW_POSITION_COLUMN), narrowedNames);
 
         // The paired-exec flag — not _rowPosition presence — is the operator factory's signal to
-        // enable deferred extraction. InjectRowPositionForExternalId produces the same projection
+        // enable deferred extraction. InjectRowPositionForRecordRef produces the same projection
         // shape with no extract operator downstream, where deferred mode would create a
         // SourceExtractors registry nothing ever closes.
         assertTrue("narrowed source must carry the deferred-extraction flag", narrowed.deferredExtraction());
@@ -100,8 +99,8 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
 
     /**
      * A source whose projection contains {@code _rowPosition} but that was never paired with an
-     * {@code ExternalFieldExtractExec} (the InjectRowPositionForExternalId shape — plain
-     * {@code METADATA _id}, no TopN) must NOT carry the deferred-extraction flag: with no extract
+     * {@code ExternalFieldExtractExec} (the InjectRowPositionForRecordRef shape — plain
+     * {@code METADATA _file.record_ref}, no TopN) must NOT carry the deferred-extraction flag: with no extract
      * operator downstream, deferred mode would leak the SourceExtractors registry, its
      * ColumnExtractors, and the factory's onClose budget.
      */
@@ -474,64 +473,7 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         assertEquals(List.of("id", "STATION", ColumnExtractor.ROW_POSITION_COLUMN), narrowedNames);
     }
 
-    public void testIdPathDataColumnPinnedEager() {
-        Attribute sortKey = field("ts", DataType.DATETIME);
-        Attribute id = new ExternalMetadataAttribute(Source.EMPTY, ExternalMetadataColumns.ID, DataType.KEYWORD);
-        Attribute firstName = field("first_name", DataType.KEYWORD);
-        List<Attribute> schema = List.of(
-            sortKey,
-            id,
-            firstName,
-            field("a", DataType.KEYWORD),
-            field("b", DataType.KEYWORD),
-            field("c", DataType.INTEGER)
-        );
-        ExternalSourceExec source = parquetSource(schema, null).withDeclaredReadSpec(DeclaredReadSpec.of(Map.of(), "first_name"));
-        TopNExec topN = topN(sortKey, 100, source);
-
-        PhysicalPlan rewritten = applyRule(topN, columnExtractorAwareRegistry());
-        ExternalFieldExtractExec extract = (ExternalFieldExtractExec) rewritten;
-
-        List<String> deferredNames = extract.attributesToExtract().stream().map(Attribute::name).toList();
-        assertEquals(List.of("a", "b", "c"), deferredNames);
-
-        ExternalSourceExec narrowed = (ExternalSourceExec) ((TopNExec) extract.child()).child();
-        List<String> narrowedNames = narrowed.output().stream().map(Attribute::name).toList();
-        assertEquals(List.of("ts", ExternalMetadataColumns.ID, "first_name", ColumnExtractor.ROW_POSITION_COLUMN), narrowedNames);
-    }
-
-    public void testKeepPhysicalFilePathIdPathPinnedEager() {
-        Attribute sortKey = field("ts", DataType.DATETIME);
-        Attribute id = new ExternalMetadataAttribute(Source.EMPTY, ExternalMetadataColumns.ID, DataType.KEYWORD);
-        Attribute filePath = refField(FileMetadataColumns.PATH, DataType.KEYWORD);
-        List<Attribute> schema = List.of(
-            sortKey,
-            id,
-            filePath,
-            field("a", DataType.KEYWORD),
-            field("b", DataType.KEYWORD),
-            field("c", DataType.INTEGER)
-        );
-        ExternalSourceExec source = parquetSource(schema, null).withDeclaredReadSpec(
-            DeclaredReadSpec.of(Map.of(), FileMetadataColumns.PATH)
-        );
-        TopNExec topN = topN(sortKey, 100, source);
-
-        PhysicalPlan rewritten = applyRule(topN, columnExtractorAwareRegistry());
-        ExternalFieldExtractExec extract = (ExternalFieldExtractExec) rewritten;
-
-        List<String> deferredNames = extract.attributesToExtract().stream().map(Attribute::name).toList();
-        assertEquals(List.of("a", "b", "c"), deferredNames);
-
-        ExternalSourceExec narrowed = (ExternalSourceExec) ((TopNExec) extract.child()).child();
-        List<String> narrowedNames = narrowed.output().stream().map(Attribute::name).toList();
-        assertEquals(
-            List.of("ts", ExternalMetadataColumns.ID, FileMetadataColumns.PATH, ColumnExtractor.ROW_POSITION_COLUMN),
-            narrowedNames
-        );
-    }
-
-    public void testIdWithoutIdPathDoesNotPinDataColumn() {
+    public void testIdDoesNotPinDataColumn() {
         Attribute sortKey = field("ts", DataType.DATETIME);
         Attribute id = new ExternalMetadataAttribute(Source.EMPTY, ExternalMetadataColumns.ID, DataType.KEYWORD);
         List<Attribute> schema = List.of(
@@ -550,36 +492,6 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
 
         List<String> deferredNames = extract.attributesToExtract().stream().map(Attribute::name).toList();
         assertEquals(List.of("first_name", "a", "b", "c"), deferredNames);
-    }
-
-    public void testIdPathWithoutProjectedIdDoesNotPin() {
-        Attribute sortKey = field("ts", DataType.DATETIME);
-        List<Attribute> schema = List.of(
-            sortKey,
-            field("first_name", DataType.KEYWORD),
-            field("a", DataType.KEYWORD),
-            field("b", DataType.KEYWORD),
-            field("c", DataType.INTEGER)
-        );
-        ExternalSourceExec source = parquetSource(schema, null).withDeclaredReadSpec(DeclaredReadSpec.of(Map.of(), "first_name"));
-        TopNExec topN = topN(sortKey, 100, source);
-
-        PhysicalPlan rewritten = applyRule(topN, columnExtractorAwareRegistry());
-        ExternalFieldExtractExec extract = (ExternalFieldExtractExec) rewritten;
-
-        List<String> deferredNames = extract.attributesToExtract().stream().map(Attribute::name).toList();
-        assertEquals(List.of("first_name", "a", "b", "c"), deferredNames);
-    }
-
-    public void testBailsWhenIdPathPinningLeavesTooFewDeferred() {
-        Attribute sortKey = field("ts", DataType.DATETIME);
-        Attribute id = new ExternalMetadataAttribute(Source.EMPTY, ExternalMetadataColumns.ID, DataType.KEYWORD);
-        List<Attribute> schema = List.of(sortKey, id, field("first_name", DataType.KEYWORD), field("a", DataType.KEYWORD));
-        ExternalSourceExec source = parquetSource(schema, null).withDeclaredReadSpec(DeclaredReadSpec.of(Map.of(), "first_name"));
-        TopNExec topN = topN(sortKey, 100, source);
-
-        PhysicalPlan result = applyRule(topN, columnExtractorAwareRegistry());
-        assertSame("rule must bail when pinning the id-path column leaves too few deferred", topN, result);
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -629,7 +541,7 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
     /** A source reading with the given {@code error_mode} and declared-type columns — the pair the row-drop guard keys on. */
     private static ExternalSourceExec parquetSource(List<Attribute> schema, String errorMode, Set<String> declaredTypeColumns) {
         return parquetSource(schema, null, Map.of(), Map.of(ErrorPolicy.CONFIG_ERROR_MODE, errorMode)).withDeclaredReadSpec(
-            DeclaredReadSpec.of(Map.of(), null, Map.of(), declaredTypeColumns)
+            DeclaredReadSpec.of(Map.of(), Map.of(), declaredTypeColumns)
         );
     }
 

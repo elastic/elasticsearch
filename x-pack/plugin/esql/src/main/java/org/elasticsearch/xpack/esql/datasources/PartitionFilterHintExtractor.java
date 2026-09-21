@@ -169,17 +169,11 @@ public final class PartitionFilterHintExtractor {
 
     /**
      * Names from the relation's {@code METADATA} clause that listing may treat as engine values.
-     * An {@code _id.path} stamp source is omitted when {@link ExternalMetadataColumns#idPathKeepsPhysical}
-     * says it stays a file column.
      */
     private static Set<String> requestedMetadataNames(UnresolvedExternalRelation rel) {
         Set<String> names = new LinkedHashSet<>();
         for (NamedExpression field : rel.metadataFields()) {
             names.add(MetadataAttribute.metadataName(field));
-        }
-        String idPath = rel.declaredIdPath();
-        if (ExternalMetadataColumns.idPathKeepsPhysical(idPath, names) && FileMetadataColumns.isFileMetadataColumn(idPath)) {
-            names.remove(idPath);
         }
         return names;
     }

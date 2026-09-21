@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -26,20 +25,6 @@ import java.util.Set;
  */
 public class ExternalMetadataColumnsTests extends ESTestCase {
 
-    public void testIdPathKeepsPhysicalWhenIdRequestedAndPathSet() {
-        assertTrue(ExternalMetadataColumns.idPathKeepsPhysical(FileMetadataColumns.PATH, Set.of(ExternalMetadataColumns.ID)));
-        assertTrue(
-            ExternalMetadataColumns.idPathKeepsPhysical(
-                FileMetadataColumns.PATH,
-                Set.of(ExternalMetadataColumns.ID, FileMetadataColumns.PATH)
-            )
-        );
-        assertTrue(ExternalMetadataColumns.idPathKeepsPhysical("_id", Set.of(ExternalMetadataColumns.ID)));
-        assertFalse(ExternalMetadataColumns.idPathKeepsPhysical(FileMetadataColumns.PATH, Set.of(FileMetadataColumns.PATH)));
-        assertFalse(ExternalMetadataColumns.idPathKeepsPhysical(null, Set.of(ExternalMetadataColumns.ID)));
-        assertFalse(ExternalMetadataColumns.idPathKeepsPhysical("first_name", Set.of()));
-    }
-
     public void testMetadataNamesFollowAttributeBinding() {
         Set<String> names = new HashSet<>(ExternalMetadataColumns.STANDARD_NAMES);
         names.addAll(FileMetadataColumns.NAMES);
@@ -55,29 +40,39 @@ public class ExternalMetadataColumnsTests extends ESTestCase {
         }
     }
 
-    public void testIndexCarriesDatasetName() {
-        Map<String, Object> constants = ExternalMetadataColumns.extractPerFileConstants("events", 1700000000000L);
-        assertEquals(new BytesRef("events"), constants.get(ExternalMetadataColumns.INDEX));
-        assertEquals(1700000000000L, constants.get(ExternalMetadataColumns.VERSION));
-    }
-
     /**
-     * The null arm of {@code _index} is defensive-only today — {@code FROM <dataset>} always binds
-     * a name and no other query surface binds standard metadata — but the contract is load-bearing
-     * for any future bare-URI grammar: with no dataset name there is nothing honest to report, so
-     * {@code _index} must be SQL NULL, never an invented identifier.
+     * {@code _index} names an index and a dataset is not one, so it binds and answers SQL NULL rather
+     * than the dataset name. The name that does answer for a dataset is {@code _name}, folded in the
+     * plan by {@code MaterializeRelationClassAndName} and never reaching a reader.
      */
-    public void testIndexIsNullWithoutDatasetName() {
-        Map<String, Object> constants = ExternalMetadataColumns.extractPerFileConstants(null, 1700000000000L);
+    public void testIndexAnswersNull() {
+        Map<String, Object> constants = ExternalMetadataColumns.extractPerFileConstants();
         assertTrue(constants.containsKey(ExternalMetadataColumns.INDEX));
         assertNull(constants.get(ExternalMetadataColumns.INDEX));
     }
 
-    /** Zero is the {@code FileList} convention for a missing mtime: {@code _version} renders null, not epoch zero. */
-    public void testVersionTreatsZeroMtimeAsUnknown() {
-        Map<String, Object> constants = ExternalMetadataColumns.extractPerFileConstants("events", 0L);
-        assertTrue(constants.containsKey(ExternalMetadataColumns.VERSION));
-        assertNull(constants.get(ExternalMetadataColumns.VERSION));
+    /**
+     * A file holds no document identity, no document version and no stored source. All three names still bind —
+     * so a query naming them is answered rather than rejected — and every row is SQL NULL, which is what the
+     * dataset actually knows. A value composed at the reader would be an invention.
+     */
+    public void testIdentityVersionAndSourceAnswerNull() {
+        Map<String, Object> constants = ExternalMetadataColumns.extractPerFileConstants();
+        for (String name : List.of(ExternalMetadataColumns.ID, ExternalMetadataColumns.VERSION, ExternalMetadataColumns.SOURCE)) {
+            assertTrue("[" + name + "] must be bindable", ExternalMetadataColumns.STANDARD_NAMES.contains(name));
+            assertTrue("[" + name + "] must carry a per-file entry", constants.containsKey(name));
+            assertNull("[" + name + "] must answer SQL NULL", constants.get(name));
+        }
+    }
+
+    /**
+     * Every per-file constant is null, with no exception. Pins the set as a whole so a name given a composed value
+     * has to change this assertion rather than slip in beside the null arm.
+     */
+    public void testEveryPerFileConstantIsNull() {
+        for (Map.Entry<String, Object> constant : ExternalMetadataColumns.extractPerFileConstants().entrySet()) {
+            assertNull("[" + constant.getKey() + "] must answer SQL NULL", constant.getValue());
+        }
     }
 
     /**
@@ -95,5 +90,20 @@ public class ExternalMetadataColumnsTests extends ESTestCase {
                 ExternalMetadataColumns.STANDARD_NAMES.contains(name)
             );
         }
+    }
+
+    /**
+     * Equality, not containment: a name added to {@link MetadataAttribute#ATTRIBUTES_MAP} and not here would bind on
+     * an index and error on a dataset, which is the outcome bind-and-NULL exists to rule out.
+     */
+    public void testStandardNamesAreBindableAndAnswered() {
+        assertEquals(
+            "every metadata name the analyzer registers must be answerable on a dataset, and vice versa",
+            MetadataAttribute.ATTRIBUTES_MAP.keySet(),
+            ExternalMetadataColumns.STANDARD_NAMES
+        );
+        // The call is the guard, not a containment check on what it returns: it walks the same set, so every name is
+        // present by construction. perFileValue's default arm is what fires for a name nobody gave a value.
+        ExternalMetadataColumns.extractPerFileConstants();
     }
 }

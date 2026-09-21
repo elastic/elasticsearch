@@ -2,7 +2,7 @@
 navigation_title: "Add datasets"
 description: "Create ES|QL Data Federation datasets to query files in external storage. Choose file formats, adjust Parquet and CSV parsing, and control schema inference."
 applies_to:
-  stack: experimental =9.5
+  stack: experimental 9.5+
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -160,7 +160,7 @@ After creating a dataset, you can check the field mappings that {{es}} inferred 
 
 By default, {{es}} infers a dataset's schema from its files. You can instead add an optional `mappings` block to the create or update request to control column names and types. Dataset mappings are currently available only through the API. The {{kib}} **Add dataset** flyout does not expose them.
 
-The following example declares the complete schema, renames the physical `event_time` column to `@timestamp`, supplies its date format, and uses `request_id` as the row's `_id`:
+The following example declares the complete schema, renames the physical `event_time` column to `@timestamp`, and supplies its date format:
 
 ```console
 PUT /_query/dataset/access_logs
@@ -178,9 +178,6 @@ PUT /_query/dataset/access_logs
       "request_id": { "type": "keyword" },
       "service": { "type": "keyword" },
       "status_code": { "type": "integer" }
-    },
-    "_id": {
-      "path": "request_id"
     }
   }
 }
@@ -191,7 +188,7 @@ The `mappings` block supports the following properties:
 - `properties`: Columns keyed by their logical name. Each column requires a `type`.
   - `path`: Optional physical column name. Use it to expose a file column under a different logical name, including renaming a timestamp column to `@timestamp`. To keep a file column whose name matches a metadata name, rename it here before requesting that name via `METADATA`.
   - `format`: Optional date parsing pattern for a column with type `date`.
-- `_id.path`: Optional. Names the file column whose value becomes each row's `_id` when a query requests `METADATA _id`. Any data column works, and its value is returned as a `keyword`. You do not list the source column in `METADATA`, only `_id`. Without `_id.path`, {{es}} generates `_id`. If a file column is itself named `_id`, set `_id.path` to `_id` to use it: the column keeps its own type and is not replaced by the generated value. Likewise, if `_id.path` names a `_file.*` column and you also request that name in `METADATA`, the file column is kept.
+- `_id.path` {applies_to}`stack: experimental =9.5`: Optional source column whose value becomes the row's `_id`. Later versions reject an `_id` block in `mappings`.
 - `dynamic`: Controls undeclared columns. The default, `true`, overlays the declared columns on the inferred schema. Set it to `false` to treat the declaration as the complete schema, skip schema inference for text formats, and leave undeclared columns unavailable to queries.
 
 :::{note}

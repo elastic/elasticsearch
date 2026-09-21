@@ -1295,7 +1295,6 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             (Runnable r) -> r.run()
         )
             .sliceQueue(sliceQueue)
-            .datasetName("ds")
             .pushedExpressions(List.of(pushed))
             .pushdownSupport(filters -> FilterPushdownSupport.PushdownResult.all("opaque"))
             .build();

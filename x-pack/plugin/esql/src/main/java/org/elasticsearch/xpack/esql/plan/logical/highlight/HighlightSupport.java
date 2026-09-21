@@ -91,7 +91,7 @@ public final class HighlightSupport {
      * Unlabeled leaves do not constrain the result. Disagreement is reported by {@link #requireUniformAnalyzer}.
      */
     public static @Nullable String uniformAnalyzerOf(Expression query) {
-        Set<String> named = namedLeafAnalyzers(query);
+        LinkedHashSet<String> named = namedLeafAnalyzers(query);
         return named.size() == 1 ? named.iterator().next() : null;
     }
 
@@ -138,7 +138,7 @@ public final class HighlightSupport {
      * @throws IllegalArgumentException when they disagree
      */
     public static void requireUniformAnalyzer(Expression query, @Nullable String commandAnalyzerName, @Nullable String valueAnalyzerName) {
-        Set<String> named = namedLeafAnalyzers(query);
+        LinkedHashSet<String> named = namedLeafAnalyzers(query);
         Set<String> canonicalLeaves = new LinkedHashSet<>();
         for (String leaf : named) {
             canonicalLeaves.add(canonicalAnalyzerName(leaf));
@@ -179,8 +179,8 @@ public final class HighlightSupport {
         return name == null || AnalyzedTextExpression.STANDARD_ANALYZER.equals(name) ? AnalyzedTextExpression.STANDARD_ANALYZER : name;
     }
 
-    private static Set<String> namedLeafAnalyzers(Expression query) {
-        Set<String> names = new LinkedHashSet<>();
+    private static LinkedHashSet<String> namedLeafAnalyzers(Expression query) {
+        LinkedHashSet<String> names = new LinkedHashSet<>();
         query.forEachDown(FullTextFunction.class, leaf -> {
             String analyzer = analyzerNameOf(leaf);
             if (analyzer != null) {

@@ -81,7 +81,8 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
                         hitField = new DocumentField(scriptFieldName, values);
                         // script fields are never meta-fields
                         hitContext.hit().setDocumentField(hitField);
-                        context.chargeScriptFieldsBytes(hitField.ramBytesUsedEstimate());
+                        // Note: bytes are charged to the circuit breaker by FetchPhase#nextDoc after all
+                        // sub-phases have run, via SearchHitRamUsageEstimator.estimateDocumentFields.
                     }
                 }
             }

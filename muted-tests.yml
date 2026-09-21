@@ -225,12 +225,6 @@ tests:
 - class: org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignatureManagerTests
   method: testSignAndVerifyPKCS12orBCFKS
   issue: https://github.com/elastic/elasticsearch/issues/159807
-- class: org.elasticsearch.xpack.security.transport.CrossClusterSigningConfigReloaderIntegTests
-  method: testAddSecureSettingsConfigRuntime
-  issue: https://github.com/elastic/elasticsearch/issues/159808
-- class: org.elasticsearch.xpack.security.transport.CrossClusterSigningConfigReloaderIntegTests
-  method: testInitialBadDependentFileAvailableAfterUpdate
-  issue: https://github.com/elastic/elasticsearch/issues/159809
 - class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
   method: testEsqlTermsAggregationByMethod
   issue: https://github.com/elastic/elasticsearch/issues/159816

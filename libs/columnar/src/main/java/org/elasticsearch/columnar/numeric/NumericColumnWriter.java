@@ -27,7 +27,7 @@ import java.io.IOException;
  *
  * <p>Nothing column-proportional is held on the heap: values are streamed one block at a time, and
  * both address tables — the per-block byte offsets and, when the column is multi-valued, the
- * per-document value addresses — are written through {@link MonotonicWriter} to temporary files. The
+ * per-document value addresses — are written through {@link MonotonicWriter} straight into their files. The
  * value-address table is written only when {@code numValues > numDocsWithField}; otherwise a
  * document's value address is its iterator rank.
  */
@@ -36,7 +36,7 @@ public final class NumericColumnWriter {
     private NumericColumnWriter() {}
 
     /**
-     * Encodes a numeric column into {@code data}: iterator metadata, block-encoded values, and an
+     * Encodes a numeric column into {@code outputs}: iterator metadata, block-encoded values, and an
      * optional skip index; returns the column metadata needed to reconstruct the column at read time.
      *
      * @param maxDoc           documents in the segment

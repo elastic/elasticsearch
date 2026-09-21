@@ -20,11 +20,9 @@ import org.elasticsearch.columnar.substrate.MonotonicWriter;
 import java.io.IOException;
 
 /**
- * Describes a string column — single- or multi-valued. Slots live in one value-address-indexed,
- * block-encoded store in the order they were written (never reordered), addressed by a compact
- * {@code DirectMonotonic} table of per-block byte offsets. The offset table is per block rather than per
- * value so its size is a fraction of the column's — the position of a value inside its block comes from
- * decoding the block, which a read has to do anyway.
+ * Describes a string column — single- or multi-valued. Slots are addressed by value address in the order
+ * they were written (never reordered). What places a value in the column's bytes is kept per block rather than
+ * per value, so it is a fraction of the column's size.
  *
  * <p>A column takes one of two layouts, and each says only what its own layout has. {@link Plain} reads its
  * values straight out of {@link Plain#values()}. {@link Dictionary} instead reads an ordinal from
@@ -78,8 +76,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
      * and a document's value address is its rank.
      *
      * <p>Shared by both layouts, unlike the nulls: finding where a document's slots are is the same question
-     * whichever layout names them. Both parts store their data in the data file, read off-heap from the
-     * mapped input, and keep their small metadata here.
+     * whichever layout names them. The counts are in the addressing and the bases in the navigation, both
+     * read off-heap from the mapped input, and their small metadata is kept here.
      */
     SlotAddressing addressing();
 

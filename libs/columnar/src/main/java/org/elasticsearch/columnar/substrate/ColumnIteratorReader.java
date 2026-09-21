@@ -26,7 +26,7 @@ public final class ColumnIteratorReader {
 
     /**
      * @param meta the field's column-iterator metadata
-     * @param data the data file holding the sparse structure; cloned per iterator, so the caller
+     * @param data the addressing file holding the sparse structure; cloned per iterator, so the caller
      *             keeps ownership. May be {@code null} for empty or dense fields, which read no data.
      */
     public ColumnIteratorReader(ColumnIteratorMetadata meta, IndexInput data) {

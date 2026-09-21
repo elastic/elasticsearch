@@ -67,7 +67,7 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
     /** What is kept per document: presence, slot counts, value addresses. */
     static final String ADDRESSING_CODEC = "ColumNARAddressing";
     static final String ADDRESSING_EXTENSION = "cna";
-    /** A plain column's value lengths, read without the values by a predicate on lengths. */
+    /** A plain column's value lengths, which place its values and say which slots are null. */
     static final String LENGTHS_CODEC = "ColumNARLengths";
     static final String LENGTHS_EXTENSION = "cnl";
     /** What is kept per block or per chunk and locates everything else; small, and read up front. */

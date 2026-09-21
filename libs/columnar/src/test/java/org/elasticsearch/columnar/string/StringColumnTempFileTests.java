@@ -144,7 +144,7 @@ public class StringColumnTempFileTests extends ColumnarStringTestCase {
 
     /**
      * A dictionary column with escapes among its values. When {@code multiValued}, its documents hold
-     * differing numbers of slots, which is what puts the counts in a temporary file of their own.
+     * differing numbers of slots, so the column writes slot counts too, straight into the addressing.
      */
     private BytesRef[][] column(boolean multiValued) {
         final String[] terms = { "alpha", "bravo", "charlie" };

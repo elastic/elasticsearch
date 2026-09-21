@@ -41,7 +41,8 @@ import java.util.List;
  * Writes a string column — single- or multi-valued. Slots are written in the order the
  * {@link StringColumnValues} cursor yields them and are never reordered.
  *
- * <p>Nothing column-proportional is held on the heap: values and tables go into their files as they arrive.
+ * <p>Nothing column-proportional is held on the heap: values and tables go into their files as they arrive,
+ * and only a dictionary column stages its ordinals and escapes.
  * Blocks count values while chunks bound how many bytes are compressed at once.
  *
  * <p>Which {@link StringColumnLayout} a column takes is decided from its values: a dictionary when the terms
@@ -70,8 +71,8 @@ public final class StringColumnWriter {
     private StringColumnWriter() {}
 
     /**
-     * Encodes a string column into {@code data}: iterator metadata, the block-encoded values, then the block
-     * offset table; returns the metadata needed to reconstruct the column at read time.
+     * Encodes a string column into {@code outputs}: iterator metadata, then the values in whichever layout the
+     * column takes; returns the metadata needed to reconstruct the column at read time.
      *
      * @param maxDoc                    documents in the segment
      * @param totals                    the documents holding a slot, the slots, the null slots and the shortest
@@ -82,8 +83,8 @@ public final class StringColumnWriter {
      * @param options                   how the column is written: its dictionary policy, its chunk codec and
      *                                  the units its streams are sized in
      * @param known                     a vocabulary already worked out for these values, or null to survey them
-     * @param directory                 directory used for the temporary table files
-     * @param context                   IO context for the temporary table files
+     * @param directory                 directory a dictionary column stages its ordinals and escapes in
+     * @param context                   IO context for those staged files
      * @param outputs                   values to its data, per-document tables to its addressing, per-block
      *                                  and per-chunk tables to its navigation
      */

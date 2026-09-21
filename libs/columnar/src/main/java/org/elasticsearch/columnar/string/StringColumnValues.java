@@ -34,9 +34,8 @@ public abstract class StringColumnValues extends DocIdSetIterator {
 
     /**
      * How many of the current document's slots are null. Separate from the cursor so the column writer's
-     * counting pass — which needs the total up front, because a {@code DirectMonotonic} table is built
-     * against a known entry count — can get it without pulling every value through, which on merge would
-     * decode every block twice.
+     * counting pass, which needs the total up front, can get it without pulling every value through, which
+     * on merge would decode every block twice.
      */
     public abstract int nullCount() throws IOException;
 

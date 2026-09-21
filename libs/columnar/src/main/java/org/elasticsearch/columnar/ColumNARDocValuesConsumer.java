@@ -648,9 +648,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
 
     /**
      * Counts the column in one pass, then streams the slots block by block from fresh cursors — never
-     * buffering the whole field on-heap. All three totals the pass collects are needed up front: the value
-     * addresses and the null slots are {@code DirectMonotonic} tables, which are built against a known
-     * entry count.
+     * buffering the whole field on-heap. The totals the pass collects are needed up front: they decide whether
+     * a plain column stores lengths at all, and where its blocks of values end.
      *
      * <p>A cursor that already knows them — a merge of our own columns, which each recorded theirs — reports
      * them instead and the pass is skipped. The writer's own asserts still check the totals against what it

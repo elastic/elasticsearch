@@ -140,6 +140,19 @@ public class SchemaOnlyPathExtractorTests extends ESTestCase {
         return new UnresolvedAttribute(SRC, name);
     }
 
+    /**
+     * A zero of any other numeric type is a limit {@code SkipQueryOnLimitZero} does not remove, so treating it as
+     * schema-only would leave a plan that survives to execution reading its rows from a bounded listing.
+     */
+    public void testNonIntegerZeroIsNotSchemaOnly() {
+        for (DataType type : List.of(DataType.LONG, DataType.DOUBLE)) {
+            Expression zero = new Literal(SRC, type == DataType.LONG ? (Object) 0L : (Object) 0.0d, type);
+            LogicalPlan plan = new Limit(SRC, zero, externalRelation(PATH));
+
+            assertEquals("a " + type + " zero must resolve as a reading query", Set.of(), SchemaOnlyPathExtractor.pathsReadingNoRows(plan));
+        }
+    }
+
     private static Expression intLiteral(int value) {
         return new Literal(SRC, value, DataType.INTEGER);
     }

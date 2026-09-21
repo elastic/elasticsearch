@@ -437,4 +437,23 @@ public class FileListCompactorTests extends ESTestCase {
         PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries, WarningSinks.FAILING);
         return new GenericFileList(entries, pattern, pm == null || pm.isEmpty() ? null : pm);
     }
+
+    /**
+     * Neither compacted encoding carries the truncation flag, and the check keeping a bounded listing out of the
+     * shared listing cache reads exactly that flag, so a truncated list must come back uncompacted and unchanged.
+     */
+    public void testCompactRefusesATruncatedListing() {
+        List<StorageEntry> entries = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            entries.add(new StorageEntry(StoragePath.of("s3://b/year=2024/f-" + i + ".parquet"), 100L, Instant.EPOCH));
+        }
+        String pattern = "s3://b/*" + "*/*.parquet";
+        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries, WarningSinks.FAILING);
+        GenericFileList truncated = new GenericFileList(entries, pattern, pm, List.of(), true);
+        GenericFileList complete = new GenericFileList(entries, pattern, pm, List.of(), false);
+
+        assertSame("a truncated listing must not be compacted", truncated, FileListCompactor.compact("s3://b/", truncated));
+        assertTrue(FileListCompactor.compact("s3://b/", truncated).isTruncated());
+        assertNotSame("the same listing untruncated is the control", complete, FileListCompactor.compact("s3://b/", complete));
+    }
 }

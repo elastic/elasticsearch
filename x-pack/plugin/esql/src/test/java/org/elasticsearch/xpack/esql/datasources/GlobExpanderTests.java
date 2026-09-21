@@ -3547,6 +3547,55 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * The one user-visible way a bounded answer is narrower than an unbounded one: a partition column's type
+     * comes from the values seen, so a column that is integral within the bound and non-numeric beyond it types
+     * differently. The unbounded expansion over the same listing is the control.
+     */
+    public void testBoundedListingTypesPartitionColumnsFromTheValuesItVisited() throws IOException {
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < 1000; i++) {
+            listing.add(entry(String.format(Locale.ROOT, "s3://bucket/data/year=2024/f-%04d.parquet", i), 100));
+        }
+        listing.add(entry("s3://bucket/data/year=unknown/late.parquet", 100));
+
+        FileList bounded = GlobExpander.expand(
+            "s3://bucket/data/**/*.parquet",
+            new CountingStubProvider(listing),
+            null,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            1000
+        );
+        FileList unbounded = GlobExpander.expand(
+            "s3://bucket/data/**/*.parquet",
+            new CountingStubProvider(listing),
+            null,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE
+        );
+
+        assertTrue(bounded.isTruncated());
+        assertFalse(unbounded.isTruncated());
+        assertEquals(Set.of("year"), bounded.partitionMetadata().partitionColumns().keySet());
+        assertEquals(Set.of("year"), unbounded.partitionMetadata().partitionColumns().keySet());
+        assertEquals(
+            "the value that widens the type is beyond the bound",
+            DataType.KEYWORD,
+            unbounded.partitionMetadata().partitionColumns().get("year")
+        );
+        assertNotEquals(
+            "a bounded listing must type from the prefix, not the dataset",
+            DataType.KEYWORD,
+            bounded.partitionMetadata().partitionColumns().get("year")
+        );
+    }
+
+    /**
      * The property that keeps FIRST_FILE_WINS's answer identical under a bound: the anchor it reads is the file
      * at index 0, a bound keeps a prefix in listing order, and the compacted encodings reproduce each file at the
      * index it was listed at. So the bounded and unbounded enumerations must agree on index 0 — and on every

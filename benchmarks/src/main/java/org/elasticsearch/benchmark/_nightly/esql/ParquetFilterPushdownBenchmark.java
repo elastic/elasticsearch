@@ -30,6 +30,10 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -98,12 +102,6 @@ public class ParquetFilterPushdownBenchmark {
 
     private static final int ROWS = 200_000;
 
-    static {
-        if (false == "true".equals(System.getProperty("skipSelfTest"))) {
-            selfTest();
-        }
-    }
-
     /** {@link #ROWS} when measured; the self-test shrinks it to keep the per-PR smoke test fast. */
     int rows = ROWS;
     /** Small enough that the fixture holds many row groups, so there is something to skip. */
@@ -118,7 +116,7 @@ public class ParquetFilterPushdownBenchmark {
      *
      * <p>{@code scalarRange} is the reference the time picker is measured against; {@code none} is the control.
      */
-    @Param({ "none", "scalarRange", "mvInRange", "timeAndTerm", "timeAndTerms", "timeAndNotTerm", "timeAndExists", "timeAndNumericRange" })
+    @Param({ "none", "scalarRange", "mvInRange", "timeAndTerm", "timeAndTerms", "timeAndNotTerm", "timeAndExists", "timeAndNumericRange", "timeAndGreater", "timeAndAtMost" })
     public String filterMode;
 
     @Param({ "1pct", "10pct" })
@@ -135,11 +133,22 @@ public class ParquetFilterPushdownBenchmark {
     @Param({ "narrow", "wide" })
     public String projection;
 
+    /**
+     * The time column's type. {@code datetime} is a {@code TIMESTAMP(MILLIS)} column read as {@code DATETIME};
+     * {@code date_nanos} is a {@code TIMESTAMP(MICROS)} column read as {@code DATE_NANOS} — the unit most Parquet
+     * writers emit, and the one where the statistics path rescales each bound onto the column's unit.
+     */
+    @Param({ "datetime", "date_nanos" })
+    public String timeType;
+
     private BlockFactory blockFactory;
     private StorageObject storageObject;
     private long fixtureBytes;
     private Object pushedFilter;
     private List<String> projectedColumns;
+    /** One instance per trial, shared by the predicate and the layout: Layout resolves by NameId. */
+    private ReferenceAttribute ts;
+    private boolean nanos;
     private ExpressionEvaluator retainedFilter;
     private DriverContext driverContext;
 
@@ -156,6 +165,12 @@ public class ParquetFilterPushdownBenchmark {
     @Setup(Level.Trial)
     public void setup() throws IOException {
         BenchmarkLogging.configure();
+        nanos = switch (timeType) {
+            case "datetime" -> false;
+            case "date_nanos" -> true;
+            default -> throw new IllegalArgumentException("unknown timeType: " + timeType);
+        };
+        ts = new ReferenceAttribute(Source.EMPTY, "ts", nanos ? DataType.DATE_NANOS : DataType.DATETIME);
         blockFactory = DatasourceBenchmarks.newBlockFactory();
         // The predicate columns are in the page because the retained filter has to read them: predicateColumnNames
         // drives their materialization in a real query too, so leaving them out would measure a page the engine
@@ -166,7 +181,7 @@ public class ParquetFilterPushdownBenchmark {
                 projectedColumns.add("c" + c);
             }
         }
-        byte[] bytes = fixture("clustered".equals(clustering), rows);
+        byte[] bytes = fixture("clustered".equals(clustering), rows, nanos);
         fixtureBytes = bytes.length;
         storageObject = DatasourceBenchmarks.inMemoryStorageObject(bytes, "memory://filter-bench.parquet");
 
@@ -216,6 +231,11 @@ public class ParquetFilterPushdownBenchmark {
                 timeWindow,
                 new MvInRange(Source.EMPTY, bytesCol(), longLit(0L), longLit(500L))
             );
+            // One-sided range, strict: {"range": {"bytes": {"gt": 500}}} -> mv_greater with no options.
+            case "timeAndGreater" -> new And(Source.EMPTY, timeWindow, new MvGreater(Source.EMPTY, bytesCol(), longLit(500L)));
+            // One-sided range, inclusive: {"range": {"bytes": {"lte": 500}}} -> mv_less carrying include_bound, which
+            // is the shape whose bound the row arm has to read rather than assume.
+            case "timeAndAtMost" -> new And(Source.EMPTY, timeWindow, new MvLess(Source.EMPTY, bytesCol(), longLit(500L), includeBound()));
             default -> throw new IllegalArgumentException("unknown filterMode: " + filterMode);
         };
         // The planner's own path, so the benchmark cannot push something the engine would not.
@@ -250,23 +270,32 @@ public class ParquetFilterPushdownBenchmark {
             for (String selectivity : Utils.possibleValues(ParquetFilterPushdownBenchmark.class, "selectivity")) {
                 for (String clustering : Utils.possibleValues(ParquetFilterPushdownBenchmark.class, "clustering")) {
                     for (String projection : Utils.possibleValues(ParquetFilterPushdownBenchmark.class, "projection")) {
+                      for (String timeType : Utils.possibleValues(ParquetFilterPushdownBenchmark.class, "timeType")) {
                         ParquetFilterPushdownBenchmark bench = new ParquetFilterPushdownBenchmark();
                         bench.rows = DatasourceBenchmarks.SELF_TEST_ROW_COUNT;
                         bench.filterMode = filterMode;
                         bench.selectivity = selectivity;
                         bench.clustering = clustering;
                         bench.projection = projection;
-                        String cell = filterMode + "/" + selectivity + "/" + clustering + "/" + projection;
+                        bench.timeType = timeType;
+                        String cell = filterMode + "/" + selectivity + "/" + clustering + "/" + projection + "/" + timeType;
                         try {
                             bench.setup();
                             int actual = bench.filteredScan(new ReadMetrics());
-                            int expected = expectedSurvivors(filterMode, "1pct".equals(selectivity) ? bench.rows / 100 : bench.rows / 10, bench.rows);
+                            int expected = expectedSurvivors(
+                                filterMode,
+                                "1pct".equals(selectivity) ? bench.rows / 100 : bench.rows / 10,
+                                bench.rows
+                            );
                             if (actual != expected) {
-                                throw new AssertionError("ParquetFilterPushdownBenchmark[" + cell + "] kept " + actual + " rows, expected " + expected);
+                                throw new AssertionError(
+                                    "ParquetFilterPushdownBenchmark[" + cell + "] kept " + actual + " rows, expected " + expected
+                                );
                             }
                         } catch (IOException e) {
                             throw new AssertionError("ParquetFilterPushdownBenchmark[" + cell + "] failed", e);
                         }
+                      }
                     }
                 }
             }
@@ -286,6 +315,8 @@ public class ParquetFilterPushdownBenchmark {
                 case "timeAndNotTerm" -> inWindow && t % SERVICES.length != 0;
                 case "timeAndExists" -> inWindow && t % 2 == 0;
                 case "timeAndNumericRange" -> inWindow && t % 1000 <= 500;
+                case "timeAndGreater" -> inWindow && t % 1000 > 500;
+                case "timeAndAtMost" -> inWindow && t % 1000 <= 500;
                 default -> throw new IllegalArgumentException("unknown filterMode: " + filterMode);
             };
             if (keep) {
@@ -335,15 +366,22 @@ public class ParquetFilterPushdownBenchmark {
     // NameId per construction, and Layout resolves by NameId, so a second instance of the same column is a
     // different attribute to the evaluator and resolves to nothing.
     private static final ReferenceAttribute ID = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
-    private static final ReferenceAttribute TS = new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME);
     private static final ReferenceAttribute SVC = new ReferenceAttribute(Source.EMPTY, "svc", DataType.KEYWORD);
     private static final ReferenceAttribute OPT = new ReferenceAttribute(Source.EMPTY, "opt", DataType.KEYWORD);
     private static final ReferenceAttribute BYTES = new ReferenceAttribute(Source.EMPTY, "bytes", DataType.LONG);
 
-    private static ReferenceAttribute attributeFor(String name) {
+    // After every static the self-test reads: static initialisers run in textual order, so placed any earlier it
+    // would run while SERVICES and the attribute constants above are still null.
+    static {
+        if (false == "true".equals(System.getProperty("skipSelfTest"))) {
+            selfTest();
+        }
+    }
+
+    private ReferenceAttribute attributeFor(String name) {
         return switch (name) {
             case "id" -> ID;
-            case "ts" -> TS;
+            case "ts" -> ts;
             case "svc" -> SVC;
             case "opt" -> OPT;
             case "bytes" -> BYTES;
@@ -351,12 +389,15 @@ public class ParquetFilterPushdownBenchmark {
         };
     }
 
-    private static ReferenceAttribute ts() {
-        return TS;
+    private ReferenceAttribute ts() {
+        return ts;
     }
 
-    private static Literal lit(long epochMillis) {
-        return new Literal(Source.EMPTY, epochMillis, DataType.DATETIME);
+    /** A bound at {@code epochMillis}, in the time column's own domain. */
+    private Literal lit(long epochMillis) {
+        return nanos
+            ? new Literal(Source.EMPTY, epochMillis * 1_000_000L, DataType.DATE_NANOS)
+            : new Literal(Source.EMPTY, epochMillis, DataType.DATETIME);
     }
 
     private static ReferenceAttribute svc() {
@@ -375,6 +416,13 @@ public class ParquetFilterPushdownBenchmark {
         return new Literal(Source.EMPTY, new BytesRef(value), DataType.KEYWORD);
     }
 
+    private static Expression includeBound() {
+        return new MapExpression(
+            Source.EMPTY,
+            List.of(Literal.keyword(Source.EMPTY, MvCompare.INCLUDE_BOUND), new Literal(Source.EMPTY, true, DataType.BOOLEAN))
+        );
+    }
+
     private static Literal longLit(long value) {
         return new Literal(Source.EMPTY, value, DataType.LONG);
     }
@@ -383,7 +431,8 @@ public class ParquetFilterPushdownBenchmark {
      * The fixture. Every column is derived from one tick per row, so the two layouts hold exactly the same rows and
      * differ only in their order — which is what makes {@code clustering} a control.
      *
-     * <p>{@code ts} is a real {@code TIMESTAMP(MILLIS)} column, one second apart from a fixed instant, so the
+     * <p>{@code ts} is a real timestamp column — {@code TIMESTAMP(MILLIS)} or {@code TIMESTAMP(MICROS)}, per
+     * {@code timeType} — one second apart from a fixed instant, so the
      * pushdown reaches {@code buildDatetimePredicate} — the path a filter on a time field actually takes.
      *
      * <p>{@code svc}, {@code opt} and {@code bytes} are derived from the tick modulo a small number, so in both
@@ -412,9 +461,9 @@ public class ParquetFilterPushdownBenchmark {
         return ticks;
     }
 
-    private static byte[] fixture(boolean clustered, int rows) throws IOException {
+    private static byte[] fixture(boolean clustered, int rows, boolean nanos) throws IOException {
         StringBuilder schemaText = new StringBuilder(
-            "message bench { required int64 id; required int64 ts (TIMESTAMP(MILLIS,true));"
+            "message bench { required int64 id; required int64 ts (TIMESTAMP(" + (nanos ? "MICROS" : "MILLIS") + ",true));"
                 + " required binary svc (UTF8); optional binary opt (UTF8); required int64 bytes;"
         );
         for (int c = 0; c < PAYLOAD_COLUMNS; c++) {
@@ -437,7 +486,8 @@ public class ParquetFilterPushdownBenchmark {
                 long tick = ticks[i];
                 Group g = factory.newGroup();
                 g.add("id", (long) i);
-                g.add("ts", EPOCH_BASE_MILLIS + tick * TS_STEP_MILLIS);
+                long millis = EPOCH_BASE_MILLIS + tick * TS_STEP_MILLIS;
+                g.add("ts", nanos ? millis * 1_000L : millis);
                 // svc: a low-cardinality keyword, the shape a filter pill matches on. One value in SERVICES is
                 // held by 1/SERVICES.length of the rows, so `svc == SERVICES[0]` is an independent selectivity
                 // that does not track the time window.

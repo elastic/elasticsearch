@@ -16,6 +16,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
@@ -116,6 +117,15 @@ public class ExternalFailuresTests extends ESTestCase {
         RuntimeException classifiedWrapped = ExternalFailures.classify(wrapped);
         assertThat(classifiedWrapped, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classifiedWrapped));
+    }
+
+    public void testCredentialsExpiredPassesThroughAs400() {
+        var expired = new ExternalCredentialsExpiredException("Session credentials expired reading [s3://b/k]");
+        assertSame(expired, ExternalFailures.classify(expired));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(expired)));
+        assertSame(expired, ExternalFailures.surface(expired, "ctx"));
+        assertNotNull(ExceptionsHelper.unwrap(new ExecutionException(expired), ExternalCredentialsExpiredException.class));
+        assertNull(ExceptionsHelper.unwrap(new IOException("HTTP 400 ExpiredToken"), ExternalCredentialsExpiredException.class));
     }
 
     public void testObjectChangedPassesThroughAs503() {

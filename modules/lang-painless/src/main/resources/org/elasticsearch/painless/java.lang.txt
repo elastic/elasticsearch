@@ -40,7 +40,7 @@ class java.lang.Comparable {
 
 class java.lang.Iterable {
   void org.elasticsearch.painless.api.Augmentation forEach(Consumer) @script_aware
-  Iterator iterator()
+  Iterator iterator() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="iteratorBytes"]
   Spliterator spliterator()
   # some adaptations of groovy wmethods
   boolean org.elasticsearch.painless.api.Augmentation any(Predicate) @script_aware

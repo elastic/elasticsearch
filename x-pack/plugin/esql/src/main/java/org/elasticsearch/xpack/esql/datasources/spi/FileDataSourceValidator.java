@@ -751,12 +751,25 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
         // No usable explicit format: the pattern must imply exactly one format. A missing resource
         // already recorded "[resource] is required"; do not pile on a format error naming null.
-        // A resource that failed the scheme/URI check is the same: the URI is already rejected, and
-        // a second "cannot determine format" error would collapse distinct addressing failures onto
-        // the format message.
-        if (resource == null || errors.validationErrors().isEmpty() == false) {
+        if (resource == null) {
             Set<String> effective = effectiveDatasetKeys(COORDINATOR_DATASET_KEYS);
             rejectUnknownFields(settings, effective, errors);
+            return effective;
+        }
+        // A resource that failed the scheme/URI check is in the same dead end, but format-specific
+        // keys must not be reported as unknown: they are only unresolvable because the resource
+        // already failed, and the scheme error is the one the user should act on. Genuinely
+        // independent coordinator-level faults (e.g. a malformed error_mode) still accumulate.
+        if (errors.validationErrors().isEmpty() == false) {
+            Set<String> effective = effectiveDatasetKeys(COORDINATOR_DATASET_KEYS);
+            Set<String> allFormatKeys = allFormatConfigKeys();
+            Map<String, Object> nonFormatSettings = new HashMap<>();
+            for (Map.Entry<String, Object> entry : settings.entrySet()) {
+                if (allFormatKeys.contains(entry.getKey()) == false) {
+                    nonFormatSettings.put(entry.getKey(), entry.getValue());
+                }
+            }
+            rejectUnknownFields(nonFormatSettings, effective, errors);
             return effective;
         }
         try {

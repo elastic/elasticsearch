@@ -545,6 +545,34 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertEquals(2, e.validationErrors().size());
     }
 
+    public void testSchemeFailureDoesNotAlsoReportFormatKeysUnknown() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> formatAwareValidator.validateDataset(Map.of(), "gs://wrong-scheme/data.csv", Map.of("delimiter", "|"))
+        );
+        // One error only: the scheme. `delimiter` is real CSV vocabulary; it must not appear as unknown.
+        assertThat(e.validationErrors(), hasSize(1));
+        assertThat(e.validationErrors().get(0), containsString("must use one of the supported URI schemes"));
+    }
+
+    public void testSchemeFailureDoesNotAlsoReportSchemaSampleSizeUnknown() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> formatAwareValidator.validateDataset(Map.of(), "/tmp/fixtures/simple.csv", Map.of("schema_sample_size", 500))
+        );
+        assertThat(e.validationErrors(), hasSize(1));
+        assertThat(e.validationErrors().get(0), containsString("must use one of the supported URI schemes"));
+    }
+
+    public void testSchemeFailureStillAccumulatesInvalidCoordinatorValue() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> formatAwareValidator.validateDataset(Map.of(), "gs://wrong-scheme/data.csv", Map.of("error_mode", "banana"))
+        );
+        assertThat(e.validationErrors(), hasSize(2));
+        assertThat(e.validationErrors(), hasItem(containsString("must use one of the supported URI schemes")));
+    }
+
     // --- Coordinator data-shape key validation (strict, via the owning query-path parsers) ---
 
     public void testValidateDatasetSchemaResolutionAllValues() {

@@ -381,12 +381,6 @@ tests:
 - class: org.elasticsearch.client.RestClientSingleHostIntegTests
   method: testRequestResetAndAbort
   issue: https://github.com/elastic/elasticsearch/issues/156177
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecDenseVectorAggsIT
-  method: test {csv-spec:dense_vector_aggs.sumDenseVectorOverflow}
-  issue: https://github.com/elastic/elasticsearch/issues/156194
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecDenseVectorAggsIT
-  method: test {csv-spec:dense_vector_aggs.sumDenseVectorOverflow}
-  issue: https://github.com/elastic/elasticsearch/issues/156194
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationIT
   method: test {csv-spec:approximation.Inline stats by}
   issue: https://github.com/elastic/elasticsearch/issues/156264
@@ -606,9 +600,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/400_columnar_default_field/query_string is lenient about unparseable literals in columnar mode}
   issue: https://github.com/elastic/elasticsearch/issues/159307
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecStringIT
-  method: test {csv-spec:string.base64DecodeMixedMvExpandSort}
-  issue: https://github.com/elastic/elasticsearch/issues/159359
 - class: org.elasticsearch.cluster.metadata.MetadataCreateIndexServiceTests
   method: testRegistryInstalledTemplatePassedToProviderForManagedTemplate
   issue: https://github.com/elastic/elasticsearch/issues/158860

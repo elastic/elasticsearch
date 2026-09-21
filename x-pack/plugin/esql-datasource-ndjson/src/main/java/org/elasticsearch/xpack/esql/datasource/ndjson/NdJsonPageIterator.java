@@ -95,10 +95,6 @@ final class NdJsonPageIterator extends BufferingPageIterator {
     private final Map<String, String> declaredDateFormats;
     /** Kept so the row-count licence can be evaluated at emit time, once the decoder knows what it dropped. */
     private final ErrorPolicy errorPolicy;
-    /**
-     * Whether this read's error policy makes its row count independent of the resolved read configuration (FAIL_FAST only). Derived at
-     * construction because the policy itself is consumed while opening the stream and is not retained.
-     */
 
     /** Full file schema as passed by the planner. Non-null on the wholeFileRead path; used for fingerprint at close. */
     private final List<Attribute> fingerprintSchema;

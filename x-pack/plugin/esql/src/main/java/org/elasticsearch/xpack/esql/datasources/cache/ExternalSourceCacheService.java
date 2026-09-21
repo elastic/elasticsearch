@@ -643,16 +643,13 @@ public class ExternalSourceCacheService implements Closeable {
             if (fingerprint != null) {
                 whole.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
             }
-            // Load-bearing on the stripes.size() == 1 branch, which bypasses mergeStatistics entirely; on the fold
-            // branch this is now an idempotent overwrite, since the merge folds the read configuration itself. The
-            // value written here is the entry's own, and stripes within one entry are same-configuration by the
-            // read-configuration gate in applyStripeDelta, so the two agree by construction.
+            // Re-attached here because the single-stripe branch bypasses mergeStatistics; on the fold branch it is
+            // an idempotent overwrite. The value is the entry's own, and applyStripeDelta's gate keeps an entry's
+            // stripes to one read configuration, so the two agree by construction.
             if (readConfig != null && readConfig.isEmpty() == false) {
                 whole.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
             }
-            // The licence the same way: load-bearing on the single-stripe branch, an idempotent overwrite on the
-            // fold branch. Losing it would leave a chunked FAIL_FAST read unable to license the crossing an
-            // unchunked one can — a safe-miss, but one with no reason behind it.
+            // The licence rides the same way, so a chunked read licenses what an unchunked one would.
             if (rowCountReadConfigIndependent) {
                 whole.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
             }
@@ -1241,10 +1238,8 @@ public class ExternalSourceCacheService implements Closeable {
     ) {
         List<Map<String, Object>> maps = new ArrayList<>(chain.size());
         for (SourceStatsContribution.StripeFragment f : chain) {
-            // Fragments in a chain are already required to agree on their read configuration (foldStripeFragments),
-            // so any one of them carries the chain's — and the licence rides the same way. Hardcoding it off here
-            // would leave a chunked FAIL_FAST read unable to license the crossing a whole-file FAIL_FAST read can,
-            // an asymmetry with no reason behind it.
+            // foldStripeFragments already requires a chain to agree on its read configuration, so any fragment
+            // carries the chain's — and the licence with it, so a chunked read licenses what an unchunked one would.
             maps.add(toFlatMap(f.stats(), f.mtimeMillis(), f.configFingerprint(), f.readConfig(), f.rowCountReadConfigIndependent()));
         }
         // Shared merge+rekey tail: for a single-fragment chain toFlatMap already attached the same
@@ -1576,12 +1571,10 @@ public class ExternalSourceCacheService implements Closeable {
      */
     private static Map<String, Object> foldCommittedStripes(Map<String, Object> enriched, StripeDelta delta) {
         long lastIndex = enriched.get(ExternalStats.STRIPE_LAST_INDEX_KEY) instanceof Number n ? n.longValue() : -1L;
-        // The fold describes THIS entry, so it is keyed with the entry's own read configuration rather than the
-        // configuration of whichever delta happened to complete it. Taking the delta's would relabel the entry as a
-        // read it never made, which is exactly what a crossed contribution must not do.
-        // The entry's own, or none. Falling back to the delta's would stamp an entry that never said what read
-        // produced it with the identity of a read it did not make — and "unknown" must never become a known value,
-        // because a later serve compares against it. When the two agree this is the delta's value anyway.
+        // The entry's own read configuration, or none. Falling back to whichever delta completed the fold would
+        // stamp an entry that never said what read produced it with the identity of a read it did not make — and
+        // "unknown" must never become a known value, because a later serve compares against it. When the two agree
+        // this is the delta's value anyway.
         Object entryReadConfig = enriched.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
         String readConfig = entryReadConfig instanceof String c ? c : null;
         // And the licence is the AND over what the entry actually holds: one committed stripe whose count is a

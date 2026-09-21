@@ -120,10 +120,6 @@ public final class SourceStatisticsSerializer {
     }
 
     /**
-     * Merges statistics entries into a new map that includes both the original sourceMetadata
-     * entries and the serialized statistics. Returns the original map if statistics are absent.
-     */
-    /**
      * Stamps onto {@code base} what the producing read did: the physical column names it bound in read order, the
      * type each was read at, the declared date patterns, the binding mode, and whether a blank string cell held the
      * empty string. Identity data, not measurement — it lets a per-column merge pair columns by name and compare the
@@ -163,6 +159,10 @@ public final class SourceStatisticsSerializer {
         return base;
     }
 
+    /**
+     * Merges statistics entries into a new map that includes both the original sourceMetadata
+     * entries and the serialized statistics. Returns the original map if statistics are absent.
+     */
     public static Map<String, Object> embedStatistics(Map<String, Object> sourceMetadata, SourceStatistics statistics) {
         if (statistics == null) {
             return sourceMetadata;
@@ -551,8 +551,8 @@ public final class SourceStatisticsSerializer {
      * <p>
      * An entry's statistics measure the rows the read that produced them produced, so a read of a different shape
      * must not be handed them. The physical record count is the exception, and only where the producer licensed it
-     * ({@link ExternalStats#ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY}): under {@code FAIL_FAST} that count is the same number
-     * for every declaration.
+     * ({@link ExternalStats#ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY}): a licensed count is the file's physical one, so
+     * it is the same number for every declaration.
      * <p>
      * The gate bites only when the entry carries a read configuration at all. An entry stamped by a rail that computes none is
      * left exactly as it was before read configurations existed, so the columnar readers — which harvest without stamping — keep

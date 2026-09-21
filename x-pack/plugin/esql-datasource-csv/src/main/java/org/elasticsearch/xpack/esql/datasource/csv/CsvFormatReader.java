@@ -1736,12 +1736,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * sites that replay the prefetched rows). {@code null} otherwise — the planning-time
      * {@code metadata()} path discards the sample after type inference, so the offsets are dead
      * data and skipping their capture keeps that call site allocation-free.
+     *
+     * @param rowsDropped rows the sampling window lost to a parse failure. They never reach {@code onRowError}, so
+     *                    without carrying them here a read that dropped a row while sampling would still license its
+     *                    survivor count as the file's physical record count.
      */
-       /**
-        * @param rowsDropped rows the sampling window lost to a parse failure. They never reach {@code onRowError}, so
-        *                    without carrying them here a read that dropped a row while sampling would still license its
-        *                    survivor count as the file's physical record count.
-        */
     record SchemaSample(List<String[]> rows, long reservedBytes, long[] rowStartBytes, boolean recordCapDropped, long rowsDropped) {}
 
     /** Hard cap on consecutive parse failures during schema sampling, applied INDEPENDENTLY of

@@ -3456,31 +3456,29 @@ public class ExternalSourceResolver {
      *       count.</li>
      * </ul>
      * The two guards make the served row-count a correct NUMBER for every declaration, and for every DECLARED
-     * reader its own answer. One direction is not covered and is disclosed below. An earlier revision of this
-     * javadoc disclosed a different residual here, which does not exist: a strict dataset
-     * declaring FEWER columns than the file was believed to ERROR on {@code COUNT(*)} under {@code FAIL_FAST}
-     * (rows overflowing the declared width), which a foreign declaration's warm count would then mask. The premise
-     * is false: such a read binds by name, and the row-width limit it carries is the FILE's own column count,
-     * never the declaration's ({@code CsvFormatReader#initProjection} takes the bound from the bound file's header,
-     * or lifts it entirely for a headerless file, which supplies no width) — so declaring FEWER columns than the file
-     * does not shrink how wide a row may be, and no row overflows a narrower declaration. A declared column the file
-     * lacks null-fills with a warning, and declared-type/date-pattern conversion touches
-     * only projected columns, of which an ungrouped {@code COUNT(*)} has none. NDJSON binds by key with no width
-     * concept. So a narrower strict declaration's own {@code COUNT(*)} commits the physical record count — the same
-     * number the shared entry serves — and the file+config-shared entry is exact for the one statistic it serves.
+     * reader its own answer. One direction is not covered and is disclosed below.
      * <p>
-     * The direction that IS open runs the other way, and is a pre-existing property of the {@code FAIL_FAST}
-     * licence rather than anything this identity introduces. A read bound POSITIONALLY — a pinned-inferred read —
-     * carries a row-width tripwire set by the PINNED schema's width, so a file whose later rows are wider than that
-     * aborts on {@code COUNT(*)} when read that way. A declared read of the same file+config can still complete where
-     * the positional one aborts, commit the physical count, and stamp it read-configuration-independent; the entry
-     * matches on path, mtime and config fingerprint, so the licence carries that count back to the positional reader,
-     * which then answers where its own scan errors. A masked abort, not a wrong number, and it flaps with cache
-     * state. The gap is narrower than it was: a headered declared read now aborts on any row wider than that file's
-     * own header, so the two diverge only where the pinned width differs from the file's header (a glob whose later
-     * files are wider than the first), or for a HEADERLESS declared read, which carries no width bound at all. Withdrawing the licence
-     * would close it and stop every strict dataset warming; scoping it to the binding mode that produced the count
-     * would close it without that cost, and is the shape of the fix if this is ever worth closing.
+     * Declaring FEWER columns than the file is not that direction. Such a read binds by name, and the row-width
+     * limit it carries is the FILE's own column count, never the declaration's ({@code CsvFormatReader#initProjection}
+     * takes the bound from the bound file's header, or lifts it entirely for a headerless file, which supplies no
+     * width), so no row overflows a narrower declaration. A declared column the file lacks null-fills with a warning,
+     * and declared-type and date-pattern conversion touch only projected columns, of which an ungrouped
+     * {@code COUNT(*)} has none. NDJSON binds by key with no width concept. So a narrower strict declaration's own
+     * {@code COUNT(*)} commits the physical record count — the same number the shared entry serves.
+     * <p>
+     * The direction that IS open runs the other way, and it is the licence's property rather than this identity's.
+     * A read bound POSITIONALLY — a pinned-inferred read — carries a row-width tripwire set by the PINNED schema's
+     * width, so a file whose later rows are wider than that loses them: under {@code FAIL_FAST} the scan aborts, and
+     * under {@code NULL_FIELD} the reader drops the row as structurally malformed and its count is a survivor count.
+     * A wider read of the same file+config completes, commits the physical count and licenses it, and the entry
+     * matches on path, mtime and config fingerprint — so the question is whether that count can be served to the
+     * narrower read. Under {@code FAIL_FAST} it masks an abort rather than answering wrongly. Under the measured
+     * licence the narrower read no longer aborts, which would make it a wrong number, and two rules stop it: a
+     * crossing is refused into an entry already holding an unlicensed count, and an unlicensed count landing on an
+     * entry withdraws the licence of the count it replaces. {@code ExternalMultiFileWarmAggregateFoldIT}'s
+     * {@code testALicensedCountDoesNotAnswerForAReadThatDropsWiderRows} pins the answer over a ragged corpus, in
+     * both orders. What remains open is the {@code FAIL_FAST} masked abort, which flaps with cache state; scoping
+     * the licence to the binding mode that produced the count would close it, and is the shape of the fix.
      * File-typed (columnar) formats are excluded: they already warm via split-discovery per-split stats, and the strict
      * columnar coercibility check seeds a physical-schema entry under the inferred key. The non-cacheable branch (e.g.
      * HTTP, no stable mtime) keeps the stat-less metadata: there is nothing to warm from. Warming MIN/MAX and the
@@ -3558,12 +3556,14 @@ public class ExternalSourceResolver {
      * except {@code skip_row}, where a declared type coercion failure drops the record, so two declarations over the
      * same files can count different rows.
      * <p>
-     * Under {@code null_field} a read can still drop a record for a reason the declaration decides, so the argument
-     * does not rest on drops being declaration-independent. It rests on two things: a drop decided by the
-     * projection suppresses the publish at the producer ({@code projectionDependentDrop} in both text readers), and
-     * the memoized count serves only a bare {@code COUNT(*)}
-     * ({@code ExternalSourceAggregatePushdown#canServeAllFromStats}), which projects nothing. A change to either
-     * reopens this gate. The single-file rail keeps its own, stricter gate ({@link #rowCountMayWarm}).
+     * Under {@code null_field} a coercion failure nulls the cell and keeps the record
+     * ({@link DeclaredReadSpec#dropsRowsOnCoercionFailure} is {@code skip_row} only), and what can still drop a
+     * record there is structural — a row wider than the file's own header, a tokeniser fault — which the file
+     * decides, not the declaration. Two further things hold the gate: a drop decided by the projection suppresses
+     * the publish at the producer ({@code projectionDependentDrop} in both text readers), and the memo holds a row
+     * count and nothing else ({@code ExternalSourceCacheService#putDatasetAggregate}), so the only aggregate it can
+     * answer is a bare {@code COUNT(*)}, which projects nothing. A change to either reopens this gate. The
+     * single-file rail keeps its own, stricter gate ({@link #rowCountMayWarm}).
      */
     private boolean strictMultiFileRowCountMayWarm(String sourceType, Map<String, Object> config) {
         FormatReader reader = dataSourceModule.formatReaderRegistry().findByName(sourceType);
@@ -3577,12 +3577,14 @@ public class ExternalSourceResolver {
 
     /**
      * True when a successful scan's row-count is INDEPENDENT of the declared schema, so it is safe to serve from a
-     * file+config-shared cache entry. This holds only under a {@link ErrorPolicy.Mode#FAIL_FAST} policy: any
+     * file+config-shared cache entry. This gate holds only under a {@link ErrorPolicy.Mode#FAIL_FAST} policy: any
      * structural error (e.g. a malformed record) aborts the query before publish, and a declared read's row-width
      * limit is the FILE's own width rather than the declaration's, so a committed {@code FAIL_FAST} row-count equals
      * the physical record count for any declaration. Under {@link ErrorPolicy.Mode#SKIP_ROW} or {@link ErrorPolicy.Mode#NULL_FIELD}
      * rows can be dropped (the CSV reader drops a structurally-malformed row even under NULL_FIELD), so a committed
-     * count is a survivor count; only {@code FAIL_FAST} guarantees the physical record count, and lenient reads
+     * count may be a survivor count. The producer's measured licence
+     * ({@code ExternalStats#ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY}) decides that per read; this gate does not,
+     * and stays where it was; only {@code FAIL_FAST} guarantees the physical record count, and lenient reads
      * conservatively stay off the shared warm path. Resolved through {@link ErrorPolicy#fromConfig} against the reader's own default so
      * it is format-agnostic (and catches the implicit {@code SKIP_ROW} a bare {@code max_errors} selects).
      */

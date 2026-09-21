@@ -53,15 +53,15 @@ public final class ExternalStats {
     public static final String READ_CONFIG_FINGERPRINT_KEY = "_stats.read_config_fingerprint";
 
     /**
-     * Set by a producer whose error policy makes the harvested row count INDEPENDENT of the resolved read configuration: under
-     * {@code FAIL_FAST} any structural mismatch aborts the query before publish, so a committed row count is the
-     * file's physical record count and is the same number for every way of reading it. That is the one statistic
-     * that may legitimately cross resolved read configurations, and this flag is how the producer — the only party that knows its
-     * effective policy — licenses the crossing.
+     * Set by a producer whose harvested row count is the file's PHYSICAL record count — the same number for every way
+     * of reading the file — rather than a count of the rows this read happened to keep. Only the producer knows what
+     * its read dropped, so only the producer can license the crossing.
      * <p>
-     * Absent means "no licence": the row count is treated as read-config-scoped like every other statistic. Under
-     * {@code skip_row} or {@code null_field} rows can be dropped, so the count is a survivor count for that read
-     * rather than the file's physical record count, and may not be shared.
+     * The producer measures it rather than reading it off the mode's name: {@code fail_fast} aborts before publish,
+     * so a committed count is physical; {@code null_field} qualifies only where the read dropped nothing, and for CSV
+     * only where it was headered, because a headerless positional read bounds a row by its own schema's width;
+     * {@code skip_row} never qualifies. Absent means no licence, and the count is then scoped to its read like every
+     * other statistic.
      */
     public static final String ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY = "_stats.row_count_read_config_independent";
 

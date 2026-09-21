@@ -66,7 +66,8 @@ public class DeclaredReadSpecTests extends AbstractWireSerializingTestCase<Decla
             case 0 -> renames.put(randomAlphaOfLength(6), randomAlphaOfLength(6));
             case 1 -> dateFormats.put(randomAlphaOfLength(6), randomFrom("epoch_millis", "yyyy-MM-dd"));
             case 2 -> declaredTypeColumns.add(randomAlphaOfLength(6));
-            default -> declared = declared == false; // both flags move together; see randomDeclaredReadSpec
+            case 3 -> declared = declared == false; // both flags move together; see randomDeclaredReadSpec
+            default -> throw new AssertionError("unreachable");
         }
         return DeclaredReadSpec.of(renames, dateFormats, declaredTypeColumns, declared, declared);
     }

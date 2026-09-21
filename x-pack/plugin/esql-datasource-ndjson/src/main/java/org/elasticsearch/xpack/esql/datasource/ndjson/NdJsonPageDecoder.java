@@ -813,6 +813,11 @@ public class NdJsonPageDecoder implements Closeable {
         return sourceEnd;
     }
 
+    /** Records lost by this read; the row-count licence is granted on this being zero, not on the mode's name. */
+    long rowsDropped() {
+        return rowsDropped;
+    }
+
     /**
      * Whole-line JSON failures always drop the line. {@link ErrorPolicy.Mode#NULL_FIELD} is treated
      * like {@link ErrorPolicy.Mode#SKIP_ROW} here; per-field null-fill would require partial decode support.
@@ -848,11 +853,6 @@ public class NdJsonPageDecoder implements Closeable {
      * {@code CsvFormatReader} routes its own constraint violation (a field over {@code max_field_size}) through
      * {@code onRowError} rather than {@code onFieldError}.
      */
-    /** Records lost by this read; the row-count licence is granted on this being zero, not on the mode's name. */
-    long rowsDropped() {
-        return rowsDropped;
-    }
-
     private void onNdjsonLineParseError(JsonProcessingException e, long logicalRowIndex, String phaseLabel) {
         // Described once, for the strict message, the client warning and the log alike. The row index is the
         // one part a user can act on -- it names the line to go and look at -- and CsvFormatReader's own

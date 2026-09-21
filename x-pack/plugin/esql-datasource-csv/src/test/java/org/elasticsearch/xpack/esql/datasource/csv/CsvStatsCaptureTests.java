@@ -269,7 +269,6 @@ public class CsvStatsCaptureTests extends ESTestCase {
         );
     }
 
-    /** Binds a capture sink, drains the reader to EOF, returns the single contribution for the path (or null). */
     /**
      * The row-count licence says "this count is the file's physical record count, so it means the same number for
      * every way of reading the file". It is measured, not inferred from the error mode's name.
@@ -354,6 +353,7 @@ public class CsvStatsCaptureTests extends ESTestCase {
         );
     }
 
+    /** Binds a capture sink, drains the reader to EOF, returns the single contribution for the path (or null). */
     private Map<String, Object> capture(StorageObject o, FormatReadContext ctx) throws Exception {
         List<Map<String, Object>> all = captureAll(o, ctx);
         return all == null ? null : all.get(0);

@@ -281,6 +281,83 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
     }
 
     /**
+     * A ragged corpus: the anchor part has three columns and the later part four. Under {@code first_file_wins} the
+     * inferred dataset reads every part at the anchor's three, and the CSV reader drops a row wider than the schema
+     * it was read at — so that dataset's own COUNT(*) does not include the wider part's rows. A declared dataset over
+     * the same files reads all four columns, drops nothing, and its count is licensed as the file's physical one.
+     * <p>
+     * The question this pins is whether that licensed count can then answer for the narrower read, which would make
+     * a warm COUNT(*) disagree with the cold one over the same dataset. Warm must equal cold, whichever ran first.
+     */
+    public void testALicensedCountDoesNotAnswerForAReadThatDropsWiderRows() throws Exception {
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("part-00.csv"), "id,color,value\n1,red,10\n2,blue,20\n", StandardCharsets.UTF_8);
+        Files.writeString(
+            dir.resolve("part-01.csv"),
+            "id,color,value,extra\n3,green,30,x\n4,black,40,y\n5,white,50,z\n",
+            StandardCharsets.UTF_8
+        );
+
+        // What the narrow read counts on its own, with nothing warm: the baseline every later answer must match.
+        String cold = registerDataset(
+            "ragged_cold_csv",
+            globUri(dir, "*.csv"),
+            Map.of("format", "csv", "error_mode", "null_field", "schema_resolution", "first_file_wins", "file_sort_by", "name")
+        );
+        long narrowCount;
+        try (var response = run(syncEsqlQueryRequest("FROM " + cold + " | STATS c = COUNT(*)"), TimeValue.timeValueMinutes(5))) {
+            narrowCount = (Long) response.response().column(0).iterator().next();
+        }
+        assertThat("the premise: the narrow read must drop the wider part's rows", narrowCount, equalTo(2L));
+
+        LinkedHashMap<String, DatasetFieldMapping> fourColumns = new LinkedHashMap<>();
+        fourColumns.put("id", new DatasetFieldMapping("integer", null));
+        fourColumns.put("color", new DatasetFieldMapping("keyword", null));
+        fourColumns.put("value", new DatasetFieldMapping("integer", null));
+        fourColumns.put("extra", new DatasetFieldMapping("keyword", null));
+        String declared = registerStrictDataset(
+            "ragged_declared_csv",
+            globUri(dir, "*.csv"),
+            fourColumns,
+            Map.of("format", "csv", "error_mode", "null_field")
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM " + declared + " | STATS c = COUNT(*)"), TimeValue.timeValueMinutes(5))) {
+            assertSingleLong(response, 5L);
+        }
+
+        // The order that matters: a wider read fills the per-file entries FIRST, before the narrow read has
+        // measured anything of its own. A union_by_name dataset over an untouched copy of the same corpus reads
+        // all four columns, drops nothing, and its counts are licensed as the files' physical ones.
+        Path fresh = createTempDir();
+        Files.writeString(fresh.resolve("part-00.csv"), "id,color,value\n1,red,10\n2,blue,20\n", StandardCharsets.UTF_8);
+        Files.writeString(
+            fresh.resolve("part-01.csv"),
+            "id,color,value,extra\n3,green,30,x\n4,black,40,y\n5,white,50,z\n",
+            StandardCharsets.UTF_8
+        );
+        String union = registerDataset(
+            "ragged_union_csv",
+            globUri(fresh, "*.csv"),
+            Map.of("format", "csv", "error_mode", "null_field", "schema_resolution", "union_by_name")
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM " + union + " | STATS c = COUNT(*)"), TimeValue.timeValueMinutes(5))) {
+            assertSingleLong(response, 5L);
+        }
+
+        String narrow = registerDataset(
+            "ragged_narrow_csv",
+            globUri(fresh, "*.csv"),
+            Map.of("format", "csv", "error_mode", "null_field", "schema_resolution", "first_file_wins", "file_sort_by", "name")
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM " + narrow + " | STATS c = COUNT(*)"), TimeValue.timeValueMinutes(5))) {
+            assertSingleLong(response, narrowCount);
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM " + narrow + " | STATS c = COUNT(*)"), TimeValue.timeValueMinutes(5))) {
+            assertSingleLong(response, narrowCount);
+        }
+    }
+
+    /**
      * Under first_file_wins the anchor types {@code color} as an integer, so part {@link #MIXED_PART}'s letter cell is
      * null-filled: that column lost a cell in that part. {@code value} lost nothing in any part, so its warm MIN/MAX
      * must be served even though a sibling column of the same file was damaged.

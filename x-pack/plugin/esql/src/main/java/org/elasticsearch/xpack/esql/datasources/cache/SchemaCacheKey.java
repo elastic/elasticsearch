@@ -158,14 +158,13 @@ public record SchemaCacheKey(
      * Under a lenient error policy ({@code skip_row}/{@code null_field}) a harvested row count IS
      * declaration-dependent, which is why the resolved read configuration now participates in the stats identity
      * ({@link ReadConfigFingerprint}): a harvest may only enrich, and an entry may only serve, a read of the
-     * same read configuration. What still crosses read configurations is the physical record count under
-     * {@code FAIL_FAST}, licensed by the producer because there the count is the same number for every
-     * declaration.
+     * same read configuration. What still crosses read configurations is the physical record count,
+     * licensed by the producer that measured it because such a count is the same number for every declaration.
      * <p>
-     * <b>The dataset aggregate does NOT inherit that gate</b>, and an earlier revision of this javadoc claimed it
-     * did. The aggregate entry stores a bare row count with no read-configuration stamp and no licence, so the
-     * serve path's unstamped pass-through — which exists for the columnar readers, that harvest without stamping —
-     * fires on it. Nothing compares the configuration that produced the aggregate against the one consuming it.
+     * <b>The dataset aggregate does NOT inherit that gate.</b> The aggregate entry stores a bare row count with no
+     * read-configuration stamp and no licence, so the serve path's unstamped pass-through — which exists for the
+     * columnar readers, that harvest without stamping — fires on it. Nothing compares the configuration that
+     * produced the aggregate against the one consuming it.
      * <p>
      * It is not a wrong answer today, and each reason is an accident rather than a guard. The strict multi-file
      * rail reaches the aggregate under its own key ({@link #NAME_BOUND_MARKER}), so it never shares a memo with an

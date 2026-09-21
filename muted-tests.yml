@@ -814,18 +814,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:METRICS}
   issue: https://github.com/elastic/elasticsearch/issues/159827
-- class: org.elasticsearch.xpack.security.transport.CrossClusterSigningConfigReloaderIntegTests
-  method: testAddSecureSettingsConfigRuntime
-  issue: https://github.com/elastic/elasticsearch/issues/159808
-- class: org.elasticsearch.xpack.security.transport.CrossClusterSigningConfigReloaderIntegTests
-  method: testInitialBadDependentFileAvailableAfterUpdate
-  issue: https://github.com/elastic/elasticsearch/issues/159809
-- class: org.elasticsearch.xpack.security.transport.CrossClusterSigningConfigReloaderIntegTests
-  method: testAddAndRemoveClusterConfigsRuntime
-  issue: https://github.com/elastic/elasticsearch/issues/159837
-- class: org.elasticsearch.xpack.security.transport.CrossClusterSigningConfigReloaderIntegTests
-  method: testDependentKeyConfigFilesUpdated
-  issue: https://github.com/elastic/elasticsearch/issues/159838
 - class: org.elasticsearch.xpack.stateless.engine.StatelessLiveVersionMapTests
   method: testLiveVersionMapMemoryUsed
   issue: https://github.com/elastic/elasticsearch/issues/159839

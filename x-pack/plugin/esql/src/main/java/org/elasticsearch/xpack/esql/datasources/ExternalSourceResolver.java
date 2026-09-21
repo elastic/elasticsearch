@@ -2794,11 +2794,20 @@ public class ExternalSourceResolver {
      * missing object, a wrong format, a truncated footer and an empty file with one identical sentence — and the
      * factories already build that same sentence one level down, so the wrapper also duplicated it. It now carries
      * the diagnosis instead.
+     * <p>
+     * Returns a {@link ExternalFailures.LocatedException} so {@code mapResolveFailure} — which only knows the
+     * outer path (a glob) and not this specific file — can still expose the specific file path to authorised
+     * callers via {@code LocatedException.resolve(true)}.
      */
     private static RuntimeException lastFactoryFailure(String path, Exception lastFailure) {
-        // The path is intentionally omitted from the message; mapResolveFailure wraps the result in a
-        // LocatedException so authorised callers can still see it.
-        return new IllegalArgumentException(ExternalFailures.rootDetail(lastFailure), lastFailure);
+        String detail = ExternalFailures.rootDetail(lastFailure);
+        Throwable rootCause = ExternalFailures.rootCause(lastFailure);
+        RuntimeException unlocated = new IllegalArgumentException(detail, rootCause);
+        RuntimeException located = new IllegalArgumentException(
+            ExternalFailures.locate("Failed to resolve external source", path, detail),
+            rootCause
+        );
+        return ExternalFailures.locatedException(unlocated, located);
     }
 
     private SourceMetadata resolveSingleSource(String path, Map<String, Object> config) {

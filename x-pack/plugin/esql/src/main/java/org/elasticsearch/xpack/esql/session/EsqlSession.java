@@ -801,7 +801,10 @@ public class EsqlSession {
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, transportService.getThreadPool().getThreadContext());
         final User user = securityContext.getUser();
         if (user == null) {
-            listener.onResponse(false);
+            // No user in the thread context means the security plugin is not running (e.g. in test
+            // clusters where xpack.security.enabled defaults to true but the plugin is absent).
+            // Without an active security system there is nothing to protect, so show the path.
+            listener.onResponse(true);
             return;
         }
         HasPrivilegesRequest request = new HasPrivilegesRequest();

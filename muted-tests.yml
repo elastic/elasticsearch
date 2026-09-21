@@ -231,6 +231,9 @@ tests:
 - class: org.elasticsearch.datastreams.MultiClustersIT
   method: testFields
   issue: https://github.com/elastic/elasticsearch/issues/159845
+- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
+  method: builds distribution from branches via archives extractedAssemble
+  issue: https://github.com/elastic/elasticsearch/issues/159719
 
 # Examples:
 #

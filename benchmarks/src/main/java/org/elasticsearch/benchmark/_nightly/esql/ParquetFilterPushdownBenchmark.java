@@ -116,7 +116,7 @@ public class ParquetFilterPushdownBenchmark {
      *
      * <p>{@code scalarRange} is the reference the time picker is measured against; {@code none} is the control.
      */
-    @Param({ "none", "scalarRange", "mvInRange", "timeAndTerm", "timeAndTerms", "timeAndNotTerm", "timeAndExists", "timeAndNumericRange", "timeAndGreater", "timeAndAtMost" })
+    @Param({ "none", "scalarRange", "mvInRange", "timeAndTerm", "timeAndTerms", "timeAndNotTerm", "timeAndExists", "timeAndNumericRange", "timeAndGreater", "timeAndAtMost", "timeAndGreaterSelective", "timeAndAtMostSelective" })
     public String filterMode;
 
     @Param({ "1pct", "10pct" })
@@ -236,6 +236,10 @@ public class ParquetFilterPushdownBenchmark {
             // One-sided range, inclusive: {"range": {"bytes": {"lte": 500}}} -> mv_less carrying include_bound, which
             // is the shape whose bound the row arm has to read rather than assume.
             case "timeAndAtMost" -> new And(Source.EMPTY, timeWindow, new MvLess(Source.EMPTY, bytesCol(), longLit(500L), includeBound()));
+            // The same two forms against a bound that keeps ~1% instead of half. A row mask can only pay by the
+            // decoding it avoids, so a leaf that discards half the rows cannot show what these forms are worth.
+            case "timeAndGreaterSelective" -> new And(Source.EMPTY, timeWindow, new MvGreater(Source.EMPTY, bytesCol(), longLit(990L)));
+            case "timeAndAtMostSelective" -> new And(Source.EMPTY, timeWindow, new MvLess(Source.EMPTY, bytesCol(), longLit(9L), includeBound()));
             default -> throw new IllegalArgumentException("unknown filterMode: " + filterMode);
         };
         // The planner's own path, so the benchmark cannot push something the engine would not.
@@ -317,6 +321,8 @@ public class ParquetFilterPushdownBenchmark {
                 case "timeAndNumericRange" -> inWindow && t % 1000 <= 500;
                 case "timeAndGreater" -> inWindow && t % 1000 > 500;
                 case "timeAndAtMost" -> inWindow && t % 1000 <= 500;
+                case "timeAndGreaterSelective" -> inWindow && t % 1000 > 990;
+                case "timeAndAtMostSelective" -> inWindow && t % 1000 <= 9;
                 default -> throw new IllegalArgumentException("unknown filterMode: " + filterMode);
             };
             if (keep) {

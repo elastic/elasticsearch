@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.packageloader.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -16,6 +18,8 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
@@ -47,14 +51,20 @@ import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 import static java.net.HttpURLConnection.HTTP_OK;
 import static java.net.HttpURLConnection.HTTP_PARTIAL;
 import static java.net.HttpURLConnection.HTTP_SEE_OTHER;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Helper class for downloading pre-trained Elastic models, available on ml-models.elastic.co or as file
  */
 final class ModelLoaderUtils {
 
+    private static final Logger logger = LogManager.getLogger(ModelLoaderUtils.class);
+
     public static String METADATA_FILE_EXTENSION = ".metadata.json";
     public static String MODEL_FILE_EXTENSION = ".pt";
+
+    // Number of times the remaining byte range is re-requested after a transient IOException
+    static final int MAX_RETRIES = 2;
 
     private static ByteSizeValue VOCABULARY_SIZE_LIMIT = new ByteSizeValue(20, ByteSizeUnit.MB);
     private static final String VOCABULARY = "vocabulary";
@@ -74,25 +84,29 @@ final class ModelLoaderUtils {
 
         record BytesAndPartIndex(BytesArray bytes, int partIndex) {}
 
-        private final InputStream inputStream;
+        private final CheckedFunction<RequestRange, InputStream, IOException> streamOpener;
+        private final RequestRange range;
         private final int chunkSize;
         private final AtomicLong totalBytesRead = new AtomicLong();
         private final AtomicInteger currentPart;
         private final int lastPartNumber;
         private final byte[] buf;
+        private InputStream inputStream;
 
         HttpStreamChunker(URI uri, RequestRange range, int chunkSize) {
-            var inputStream = getHttpOrHttpsInputStream(uri, range);
-            this.inputStream = inputStream;
-            this.chunkSize = chunkSize;
-            this.lastPartNumber = range.startPart() + range.numParts();
-            this.currentPart = new AtomicInteger(range.startPart());
-            this.buf = new byte[chunkSize];
+            this(range, chunkSize, remaining -> getHttpOrHttpsInputStream(uri, remaining));
         }
 
-        // This ctor exists for testing purposes only.
+        // This ctor exists for testing purposes only. The stream cannot be reopened, so reads are not retried.
         HttpStreamChunker(InputStream inputStream, RequestRange range, int chunkSize) {
+            this(range, chunkSize, null);
             this.inputStream = inputStream;
+        }
+
+        // Visible for testing
+        HttpStreamChunker(RequestRange range, int chunkSize, CheckedFunction<RequestRange, InputStream, IOException> streamOpener) {
+            this.streamOpener = streamOpener;
+            this.range = range;
             this.chunkSize = chunkSize;
             this.lastPartNumber = range.startPart() + range.numParts();
             this.currentPart = new AtomicInteger(range.startPart());
@@ -103,7 +117,30 @@ final class ModelLoaderUtils {
             return currentPart.get() < lastPartNumber;
         }
 
+        /**
+         * Read the next chunk, re-requesting the not yet downloaded part of the range if the connection
+         * drops mid download. A single dropped connection - for example a peer closing without a TLS
+         * close_notify - should not fail the whole model import.
+         */
         public BytesAndPartIndex next() throws IOException {
+            for (int attempt = 0;; attempt++) {
+                try {
+                    if (inputStream == null) {
+                        inputStream = openRemainingRange();
+                    }
+                    return readChunk();
+                } catch (IOException e) {
+                    IOUtils.closeWhileHandlingException(inputStream);
+                    inputStream = null;
+                    if (streamOpener == null || attempt == MAX_RETRIES) {
+                        throw e;
+                    }
+                    logger.warn(() -> format("retrying model download for range [%s]", remainingRange().bytesRange()), e);
+                }
+            }
+        }
+
+        private BytesAndPartIndex readChunk() throws IOException {
             int bytesRead = 0;
 
             while (bytesRead < chunkSize) {
@@ -121,6 +158,26 @@ final class ModelLoaderUtils {
             } else {
                 return new BytesAndPartIndex(BytesArray.EMPTY, currentPart.get());
             }
+        }
+
+        private InputStream openRemainingRange() throws IOException {
+            if (streamOpener == null) {
+                throw new IOException("model download stream cannot be reopened");
+            }
+            try {
+                return streamOpener.apply(remainingRange());
+            } catch (UncheckedIOException e) {
+                throw e.getCause();
+            }
+        }
+
+        private RequestRange remainingRange() {
+            return new RequestRange(
+                range.rangeStart() + totalBytesRead.get(),
+                range.rangeEnd(),
+                currentPart.get(),
+                lastPartNumber - currentPart.get()
+            );
         }
 
         public long getTotalBytesRead() {

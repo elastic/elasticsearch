@@ -286,7 +286,11 @@ public class DatafeedRunnerTests extends ESTestCase {
         assertThat(datafeedRunner.isRunning(task), is(false));
         verify(auditor).info(
             eq(JOB_ID),
-            argThat(message -> message != null && message.contains("failed to extract data on 3 consecutive occasions"))
+            argThat(
+                message -> message != null
+                    && message.contains("Datafeed auto-stopped after 3 consecutive real-time extraction failures")
+                    && message.contains("extraction boom")
+            )
         );
     }
 

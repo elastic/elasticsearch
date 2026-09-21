@@ -555,7 +555,9 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
     }
 
     public void testApplyMaxConsecutiveExtractionFailures() {
-        DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig("foo");
+        DatafeedConfig datafeed = new DatafeedConfig.Builder(DatafeedConfigTests.createRandomizedDatafeedConfig("foo"))
+            .setMaxConsecutiveExtractionFailures(null)
+            .build();
         assertThat(datafeed.getMaxConsecutiveExtractionFailures(), is(nullValue()));
 
         DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setMaxConsecutiveExtractionFailures(25).build();

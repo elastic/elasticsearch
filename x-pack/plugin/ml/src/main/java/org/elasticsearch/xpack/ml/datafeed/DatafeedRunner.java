@@ -390,7 +390,8 @@ public class DatafeedRunner {
                         if (holder.shouldStopAfterConsecutiveExtractionFailures(consecutiveExtractionFailures)) {
                             String extractionFailureMessage = Messages.getMessage(
                                 Messages.JOB_AUDIT_DATAFEED_STOPPED_CONSECUTIVE_EXTRACTION_FAILURES,
-                                consecutiveExtractionFailures
+                                consecutiveExtractionFailures,
+                                ExceptionsHelper.findSearchExceptionRootCause(e).getMessage()
                             );
                             logger.warn("[{}] {}", jobId, extractionFailureMessage);
                             // Clean stop of the datafeed, leaving the job open so it can be restarted once the

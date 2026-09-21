@@ -1002,7 +1002,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
     @Override
     protected DatafeedConfig mutateInstance(DatafeedConfig instance) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(instance);
-        switch (between(0, CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled() ? 14 : 12)) {
+        switch (between(0, CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled() ? 15 : 13)) {
             case 0:
                 builder.setId(instance.getId() + randomValidDatafeedId());
                 break;
@@ -1102,13 +1102,22 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
                 }
                 break;
             case 13:
+                if (instance.getMaxConsecutiveExtractionFailures() == null) {
+                    builder.setMaxConsecutiveExtractionFailures(randomFrom(-1, randomIntBetween(1, 100)));
+                } else if (instance.getMaxConsecutiveExtractionFailures() == -1) {
+                    builder.setMaxConsecutiveExtractionFailures(randomIntBetween(1, 100));
+                } else {
+                    builder.setMaxConsecutiveExtractionFailures(instance.getMaxConsecutiveExtractionFailures() + 1);
+                }
+                break;
+            case 14:
                 if (instance.getCloudInternalCredential() == null) {
                     builder.setCloudInternalCredential(randomPersistedCloudCredential());
                 } else {
                     builder.setCloudInternalCredential(null);
                 }
                 break;
-            case 14:
+            case 15:
                 if (instance.getProjectRouting() == null) {
                     builder.setProjectRouting("_alias:" + randomAlphaOfLengthBetween(1, 10) + "-*");
                 } else {
@@ -1129,6 +1138,9 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         }
         if (version.supports(DatafeedConfig.DATAFEED_CLOUD_INTERNAL_CREDENTIAL) == false) {
             builder.setCloudInternalCredential(null);
+        }
+        if (version.supports(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES) == false) {
+            builder.setMaxConsecutiveExtractionFailures(null);
         }
         return builder.build();
     }

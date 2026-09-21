@@ -2802,6 +2802,15 @@ public class ExternalSourceResolver {
     private static RuntimeException lastFactoryFailure(String path, Exception lastFailure) {
         String detail = ExternalFailures.rootDetail(lastFailure);
         Throwable rootCause = ExternalFailures.rootCause(lastFailure);
+        // Status-bearing exceptions (503, 429, etc.) carry their own HTTP status and must flow
+        // through mapResolveFailure's recovery arms unmodified. LocatedException is checked first
+        // in mapResolveFailure, so wrapping these would bypass status recovery.
+        // EsRejectedExecutionException extends RejectedExecutionException (not ElasticsearchException),
+        // so it requires an explicit check here.
+        if (rootCause instanceof org.elasticsearch.ElasticsearchException
+            || rootCause instanceof EsRejectedExecutionException) {
+            return new IllegalArgumentException(detail, rootCause);
+        }
         RuntimeException unlocated = new IllegalArgumentException(detail, rootCause);
         RuntimeException located = new IllegalArgumentException(
             ExternalFailures.locate("Failed to resolve external source", path, detail),

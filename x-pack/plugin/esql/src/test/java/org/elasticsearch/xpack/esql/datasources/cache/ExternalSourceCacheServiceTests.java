@@ -987,6 +987,97 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * An entry that never recorded which read produced it must not be stamped with the identity of a read that
+     * merely enriched it. "Unknown" is not a value a later serve may compare against.
+     */
+    public void testUnstampedEntryIsNotRelabelledByACrossedDelta() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/unstamped.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.TRUE, null, false)
+            );
+            // No READ_CONFIG_FINGERPRINT_KEY: this entry does not say what read produced it.
+            service.getOrComputeSchema(
+                key,
+                k -> SchemaCacheEntry.from(
+                    schema,
+                    "csv",
+                    path,
+                    Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp", ExternalStats.COLUMNS_IN_FILE_ORDER_KEY, Boolean.TRUE),
+                    Map.of()
+                )
+            );
+
+            Map<String, Object> foreign = stripeFragment(mtime, "fp", 30L, 100L, 0, 0, 100, true, true, true);
+            foreign.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-foreign");
+            foreign.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            foreign.put(ExternalStats.READ_COLUMN_NAMES_KEY, List.of("id"));
+            foreign.put(ExternalStats.READ_COLUMN_TYPES_KEY, List.of("long"));
+            foreign.put(ExternalStats.READ_BINDING_KEY, ExternalStats.BINDING_BY_POSITION);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(foreign)));
+
+            SchemaCacheEntry after = service.getOrComputeSchema(key, k -> { throw new AssertionError("cached"); });
+            assertNotEquals(
+                "an entry that said nothing about its read must not be relabelled with the foreign one",
+                "config-foreign",
+                after.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY)
+            );
+        }
+    }
+
+    /**
+     * A licence describes the count beside it. When a later fold of the same entry is not licensed, the earlier
+     * licence must go with the count it described — enrichment only ever adds keys, so a stale TRUE would otherwise
+     * sit beside a survivor count and offer it to another read as the file's physical one.
+     */
+    public void testLicenceIsWithdrawnWhenTheFoldIsNoLongerLicensed() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/licence.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.TRUE, null, false)
+            );
+            service.getOrComputeSchema(
+                key,
+                k -> SchemaCacheEntry.from(
+                    schema,
+                    "csv",
+                    path,
+                    Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp", ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-own"),
+                    Map.of()
+                )
+            );
+
+            // A licensed whole-file cover of the file: the fold carries the licence.
+            Map<String, Object> licensed = stripeFragment(mtime, "fp", 30L, 100L, 0, 0, 100, true, true, true);
+            licensed.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-own");
+            licensed.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(licensed)));
+            assertEquals(
+                "the first fold is licensed",
+                Boolean.TRUE,
+                service.getOrComputeSchema(key, k -> { throw new AssertionError("cached"); })
+                    .safeMetadata()
+                    .get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)
+            );
+
+            // The same file re-covered by a read that dropped rows: same stripes, no licence.
+            Map<String, Object> unlicensed = stripeFragment(mtime, "fp", 29L, 100L, 0, 0, 100, true, true, true);
+            unlicensed.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-own");
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(unlicensed)));
+
+            SchemaCacheEntry after = service.getOrComputeSchema(key, k -> { throw new AssertionError("cached"); });
+            assertNull(
+                "the licence must not outlive the count it described",
+                after.safeMetadata().get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)
+            );
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private static Map<String, Object> stripeAt(SchemaCacheEntry entry, long ordinal) {
         Object stripe = entry.safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + ordinal);

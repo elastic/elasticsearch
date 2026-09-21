@@ -1388,6 +1388,12 @@ public class ExternalSourceCacheService implements Closeable {
             Map<String, Object> wholeFile = foldCommittedStripes(enriched, delta);
             if (wholeFile != null) {
                 clearStripeState(enriched); // compaction: the fold subsumes the stripes; entry weight back to O(1)
+                if (wholeFile.containsKey(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY) == false) {
+                    // This fold is not licensed. An earlier one may have been, and putAll only ever adds — so the
+                    // stale licence would outlive the count it described and let a foreign read take this entry's
+                    // new, unlicensed count as the file's physical one.
+                    enriched.remove(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY);
+                }
                 enriched.putAll(wholeFile);
                 if (completedFold == null) {
                     completedFold = wholeFile;
@@ -1551,8 +1557,11 @@ public class ExternalSourceCacheService implements Closeable {
         // The fold describes THIS entry, so it is keyed with the entry's own read configuration rather than the
         // configuration of whichever delta happened to complete it. Taking the delta's would relabel the entry as a
         // read it never made, which is exactly what a crossed contribution must not do.
+        // The entry's own, or none. Falling back to the delta's would stamp an entry that never said what read
+        // produced it with the identity of a read it did not make — and "unknown" must never become a known value,
+        // because a later serve compares against it. When the two agree this is the delta's value anyway.
         Object entryReadConfig = enriched.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
-        String readConfig = entryReadConfig instanceof String c ? c : delta.readConfig();
+        String readConfig = entryReadConfig instanceof String c ? c : null;
         // And the licence is the AND over what the entry actually holds: one committed stripe whose count is a
         // survivor count makes the folded count one too. The multi-stripe merge already ANDs it; this makes the
         // single-stripe branch agree instead of trusting the last delta to speak for all of them.

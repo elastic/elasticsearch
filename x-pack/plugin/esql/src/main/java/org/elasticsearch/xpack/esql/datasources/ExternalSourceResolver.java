@@ -976,7 +976,7 @@ public class ExternalSourceResolver {
             // Strict declaration is the whole schema for every file, so inference is skipped — listing plus,
             // for columnar formats, one anchor footer read. The non-strict overlay is applied by the caller.
             if (isDeclaredSchema(declaredMapping) && datasetFormat != null) {
-                listener.onResponse(resolveStrictMultiFile(path, storagePath, provider, hints, fileConfig, declaredMapping));
+                listener.onResponse(resolveStrictMultiFile(path, storagePath, provider, hints, fileConfig, declaredMapping, requiresStats));
                 return;
             }
             FileList listing = listAndRecord(path, storagePath, provider, hints, fileConfig, schemaResolution, cacheable);
@@ -3611,7 +3611,8 @@ public class ExternalSourceResolver {
         StorageProvider provider,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         Map<String, Object> config,
-        DatasetMapping declaredMapping
+        DatasetMapping declaredMapping,
+        boolean requiresStats
     ) throws Exception {
         // Fail closed on an ambiguous pattern before listing. Same helper as the inferred rail.
         String sourceType = FormatNameResolver.datasetFormat(config, path, dataSourceModule.formatReaderRegistry());
@@ -3674,7 +3675,10 @@ public class ExternalSourceResolver {
         // why this rail can warm COUNT(*) without any per-file statistics: there is nothing per-file to reconcile.
         // The key carries the binding mode, so this count is never served to a positional read of the same glob,
         // which bounds a row's width differently and so counts a different row set.
-        if (isCacheable(provider)
+        // Gated on requiresStats for the same reason the inferred rail's aggregation is: a query shape that only
+        // needs the schema pays nothing for a row count it will not read.
+        if (requiresStats
+            && isCacheable(provider)
             && FILE_TYPED_FORMATS.contains(sourceType) == false
             && strictMultiFileRowCountMayWarm(sourceType, config)) {
             DatasetAggregatePrefetch prefetch = prefetchDatasetAggregate(listing, config, true, true);

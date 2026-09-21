@@ -67,9 +67,10 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     private static final Logger logger = LogManager.getLogger(ThrottlingRecoveryService.class);
 
     /// Controls the max number of concurrent recoveries allowed on this data node. Excludes peer recoveries for which this
-    /// node is the source, see [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING]. Includes
-    /// both recoveries of unassigned shards and relocations. See also [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING]
-    /// which imposes an additional throttle on relocations only.
+    /// node is the source, see [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING].
+    /// Includes both recoveries of unassigned shards and relocations.
+    /// See also [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING] which imposes an additional
+    /// throttle on relocations only.
     ///
     public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING = Setting.intSetting(
         "indices.recovery.max_concurrent_incoming_recoveries",

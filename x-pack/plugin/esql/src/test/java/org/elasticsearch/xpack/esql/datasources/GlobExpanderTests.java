@@ -3547,6 +3547,34 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * A bounded drain must not ask the iterator for another entry once it has reached the bound. On a paging store
+     * {@code hasNext()} is the call that fetches the next page, so asking once too often turns a one-page listing
+     * into two requests - the saving the bound exists for, spent on a page that is then discarded.
+     */
+    public void testBoundedListingDoesNotAskPastTheBound() throws IOException {
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < 1005; i++) {
+            listing.add(entry(String.format(Locale.ROOT, "s3://bucket/data/f-%04d.parquet", i), 100));
+        }
+        CountingStubProvider provider = new CountingStubProvider(listing);
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/**/*.parquet",
+            provider,
+            null,
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            1000
+        );
+
+        assertTrue(result.isTruncated());
+        assertEquals(1000, provider.keysPulled());
+        assertEquals("the drain must stop asking at the bound, not one call past it", 1000, provider.hasNextCalls());
+    }
+
+    /**
      * The one user-visible way a bounded answer is narrower than an unbounded one: a partition column's type
      * comes from the values seen, so a column that is integral within the bound and non-numeric beyond it types
      * differently. The unbounded expansion over the same listing is the control.
@@ -3667,6 +3695,7 @@ public class GlobExpanderTests extends ESTestCase {
     /** Counts what the drain actually pulled, which is what separates a saved request from a filtered key. */
     private static class CountingStubProvider extends StubProvider {
         private int keysPulled;
+        private int hasNextCalls;
 
         CountingStubProvider(List<StorageEntry> listing) {
             super(listing);
@@ -3676,12 +3705,22 @@ public class GlobExpanderTests extends ESTestCase {
             return keysPulled;
         }
 
+        /**
+         * Calls to {@code hasNext()}, which is what costs a request on a paging store: the S3 iterator fetches the
+         * next {@code ListObjectsV2} page there as soon as the current one is exhausted. A drain that asks after it
+         * has already reached its bound buys a page it discards.
+         */
+        int hasNextCalls() {
+            return hasNextCalls;
+        }
+
         @Override
         public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
             StorageIterator delegate = super.listObjects(prefix, recursive);
             return new StorageIterator() {
                 @Override
                 public boolean hasNext() {
+                    hasNextCalls++;
                     return delegate.hasNext();
                 }
 

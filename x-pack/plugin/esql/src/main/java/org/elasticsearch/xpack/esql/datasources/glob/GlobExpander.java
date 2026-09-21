@@ -609,18 +609,16 @@ public final class GlobExpander {
         String excludedExampleEntry = null;
         int listed = 0;
 
-        // Set when the drain stopped at listingBound rather than exhausting the glob.
+        // Set below, once the drain has stopped: true when it stopped at listingBound rather than exhausting.
         boolean truncated = false;
         try (StorageIterator iterator = provider.listObjects(prefix, recursive)) {
-            while (iterator.hasNext()) {
-                if (listed >= listingBound) {
-                    // The saving depends on the provider: the S3 iterator issues its next ListObjectsV2 only
-                    // when the current page is exhausted, so stopping here is requests never made, while the
-                    // local provider walks the whole tree before the first hasNext() and only caps what is
-                    // kept. Correctness does not depend on which.
-                    truncated = true;
-                    break;
-                }
+            // The bound is tested before hasNext(), not inside the loop: on S3 hasNext() fetches the next page as
+            // soon as the current one is exhausted, so asking it after the bound is reached buys a ListObjectsV2
+            // whose result is then discarded. Reaching the bound therefore marks the listing truncated without
+            // establishing that more keys exist - a dataset of exactly listingBound keys is marked truncated when it is
+            // not. That costs such a dataset its cache entry and an exact file count, and saves every larger one a
+            // request.
+            while (listed < listingBound && iterator.hasNext()) {
                 StorageEntry entry = iterator.next();
                 listed++;
                 checkListedObjectsLimit(listed, maxListedObjects);
@@ -664,6 +662,8 @@ public final class GlobExpander {
                 }
             }
         }
+
+        truncated = listed >= listingBound;
 
         List<String> listingWarnings = new ArrayList<>();
         if (excludedCount > 0) {

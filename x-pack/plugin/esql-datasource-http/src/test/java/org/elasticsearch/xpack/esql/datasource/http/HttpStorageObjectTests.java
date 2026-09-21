@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
@@ -40,6 +41,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
@@ -199,6 +201,85 @@ public class HttpStorageObjectTests extends ESTestCase {
         ExternalUnavailableException eue = (ExternalUnavailableException) error.get();
         assertFalse(eue.throttling());
         assertThat(eue.getCause(), instanceOf(IOException.class));
+    }
+
+    /**
+     * The truncated-body case: a 206 range that closes short of the requested length. Driven through
+     * the real {@link DirectByteBufferBodyHandlers} subscriber, then wrapped the way the JDK
+     * {@code HttpClient} wraps a body-processing failure ({@code CompletionException} of
+     * {@code IOException} of the typed exception). Unwrap must return that same EUE so the
+     * specific short-body message survives; a one-level peel would retype it as a generic
+     * {@code typeTransportFailure} ("transient read failure").
+     */
+    public void testAsyncShortBodyIsRetryable503() throws Exception {
+        int requested = 10;
+        HttpClient mockClient = mock(HttpClient.class);
+        mockSendAsyncLikeHttpClient(mockClient, HttpStatus.SC_PARTIAL_CONTENT, List.of(ByteBuffer.wrap(new byte[requested - 5])));
+
+        StoragePath path = StoragePath.of("https://example.com/file.parquet");
+        HttpStorageObject object = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+
+        Exception thrown = readAsyncFailure(object, requested);
+
+        assertThat(thrown, instanceOf(ExternalUnavailableException.class));
+        assertFalse(((ExternalUnavailableException) thrown).throttling());
+        assertThat(thrown.getMessage(), containsString("shorter than expected"));
+        assertThat(thrown.getMessage(), containsString(path.toString()));
+        assertThat(thrown.getMessage(), not(containsString("transient read failure")));
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(thrown));
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ExternalFailures.classify(thrown)));
+    }
+
+    /**
+     * Same truncated-body case as {@link #testAsyncShortBodyIsRetryable503}, but the origin
+     * ignores {@code Range} and answers {@code 200 OK}. {@code readAsyncFailure} uses position
+     * {@code 0}, so skip is 0 and the short fill is the 200 path. The leaf EUE must survive the
+     * mapper; a one-level peel would retype it as a generic {@code typeTransportFailure}
+     * ("transient read failure").
+     */
+    public void testAsyncShortBodyOn200IsRetryable503() throws Exception {
+        int requested = 10;
+        HttpClient mockClient = mock(HttpClient.class);
+        mockSendAsyncLikeHttpClient(mockClient, HttpStatus.SC_OK, List.of(ByteBuffer.wrap(new byte[requested - 5])));
+
+        StoragePath path = StoragePath.of("https://example.com/file.parquet");
+        HttpStorageObject object = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+
+        Exception thrown = readAsyncFailure(object, requested);
+
+        assertThat(thrown, instanceOf(ExternalUnavailableException.class));
+        assertFalse(((ExternalUnavailableException) thrown).throttling());
+        assertThat(thrown.getMessage(), containsString("shorter than expected"));
+        assertThat(thrown.getMessage(), containsString(path.toString()));
+        assertThat(thrown.getMessage(), not(containsString("transient read failure")));
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(thrown));
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ExternalFailures.classify(thrown)));
+    }
+
+    /**
+     * The 503 has to survive whatever shape the failure reaches the completion handler in. A single
+     * {@code getCause()} peel there sees past the type in both of these — a typed exception carrying
+     * a cause of its own, and one buried under the JDK body-processing wrap — and the read is then
+     * retyped as a generic transport EUE ("transient read failure").
+     */
+    public void testAsyncUnavailableSurvivesWrapping() throws Exception {
+        StoragePath path = StoragePath.of("https://example.com/file.parquet");
+        ExternalUnavailableException withCause = new ExternalUnavailableException(
+            "HTTP response body shorter than expected reading [" + path + "]",
+            new IOException("connection reset")
+        );
+        HttpClient direct = mock(HttpClient.class);
+        doReturn(CompletableFuture.failedFuture(withCause)).when(direct).sendAsync(any(), any());
+        assertSame(withCause, readAsyncFailure(new HttpStorageObject(direct, path, HttpConfiguration.defaults()), 10));
+
+        ExternalUnavailableException wrapped = new ExternalUnavailableException("HTTP response body shorter than expected");
+        HttpClient jdkWrapped = mock(HttpClient.class);
+        doReturn(
+            CompletableFuture.failedFuture(
+                new CompletionException(new IOException("HTTP body processing failed: " + wrapped.getMessage(), wrapped))
+            )
+        ).when(jdkWrapped).sendAsync(any(), any());
+        assertSame(wrapped, readAsyncFailure(new HttpStorageObject(jdkWrapped, path, HttpConfiguration.defaults()), 10));
     }
 
     public void testReadBytesAsync206UsesBodyHandler() throws Exception {
@@ -533,6 +614,54 @@ public class HttpStorageObjectTests extends ESTestCase {
             (org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException) error.get();
         assertFalse("500 is retryable but not throttling", eue.throttling());
         assertEquals("no retry-after on a plain 500", 0L, eue.retryAfterMs());
+    }
+
+    /**
+     * Drives the body handler the way the JDK {@link HttpClient} does: apply the handler, deliver
+     * {@code onSubscribe}/{@code onNext}/{@code onComplete}, then complete {@code sendAsync} with
+     * {@code CompletionException(IOException("HTTP body processing failed: …", failure))} when the
+     * subscriber fails. Unlike {@link #mockSendAsyncWithBodyChunks}, this does not {@code get()} the
+     * body future (that would throw inside the mock instead of completing {@code sendAsync}
+     * exceptionally).
+     */
+    @SuppressWarnings("unchecked")
+    private static void mockSendAsyncLikeHttpClient(HttpClient mockClient, int statusCode, List<ByteBuffer> bodyChunks) {
+        doAnswer(invocation -> {
+            HttpResponse.BodyHandler<DirectReadBuffer> handler = invocation.getArgument(1);
+            HttpResponse.ResponseInfo responseInfo = mock(HttpResponse.ResponseInfo.class);
+            when(responseInfo.statusCode()).thenReturn(statusCode);
+            HttpResponse.BodySubscriber<DirectReadBuffer> subscriber = handler.apply(responseInfo);
+            subscriber.onSubscribe(new NoOpSubscription());
+            subscriber.onNext(bodyChunks);
+            subscriber.onComplete();
+
+            CompletableFuture<HttpResponse<DirectReadBuffer>> clientFuture = new CompletableFuture<>();
+            subscriber.getBody().whenComplete((body, failure) -> {
+                if (failure == null) {
+                    fail("expected the body subscriber to fail");
+                    return;
+                }
+                clientFuture.completeExceptionally(
+                    new CompletionException(new IOException("HTTP body processing failed: " + failure.getMessage(), failure))
+                );
+            });
+            return clientFuture;
+        }).when(mockClient).sendAsync(any(), any());
+    }
+
+    /** Reads {@code length} bytes through the native async path and returns the failure handed to the listener. */
+    private static Exception readAsyncFailure(HttpStorageObject object, long length) throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        object.readBytesAsync(0, length, FACTORY, Runnable::run, ActionListener.wrap(result -> {
+            result.close();
+            fail("expected the read to fail");
+        }, e -> {
+            error.set(e);
+            latch.countDown();
+        }));
+        assertTrue("listener was never notified", latch.await(5, TimeUnit.SECONDS));
+        return error.get();
     }
 
     @SuppressWarnings("unchecked")

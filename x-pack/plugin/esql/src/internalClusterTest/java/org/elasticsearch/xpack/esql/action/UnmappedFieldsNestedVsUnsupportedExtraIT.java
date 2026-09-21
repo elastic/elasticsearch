@@ -26,9 +26,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * {@code SET unmapped_fields} for nested {@code item.extra} vs unsupported {@code extra} ({@code ip_range}) vs the same
- * {@code item.extra} with no mapping at all vs {@code item.extra} under a {@code flattened} parent. Each parameter is
- * one cell of the table; classified on the hidden (nested / unsupported-mapped / never-mapped / flattened) index.
+ * {@code SET unmapped_fields} for nested {@code item.extra} vs a nested parent with no declared subfields vs unsupported
+ * {@code extra} ({@code ip_range}) vs the same {@code item.extra} with no mapping at all vs {@code item.extra} under a
+ * {@code flattened} parent. Each parameter is one cell of the table; classified on the hidden index of each scenario.
  * <p>
  * Nested subfields are hidden from field caps ({@code -nested}), so ES|QL treats them as unmapped: load modes read them
  * from {@code _source} as keyword and {@code nullify} nulls them. That is why the nested column always equals the
@@ -49,11 +49,21 @@ public class UnmappedFieldsNestedVsUnsupportedExtraIT extends AbstractEsqlIntegT
      * @param mapping {@code unmapped_both} / {@code mapped_both} / {@code mapped_only_nested}
      * @param keep {@code *} or {@code x}
      * @param nested result on the nested index
+     * @param nestedNoField result on the index where {@code item} is nested but declares no subfields at all
      * @param unsupported result on the unsupported index
      * @param noField result on the index where the leaf is not mapped at all; must equal {@code nested}
      * @param flattened result on the index where {@code item} is mapped {@code flattened}
      */
-    record Cell(String mode, String mapping, String keep, Presence nested, Presence unsupported, Presence noField, Presence flattened) {
+    record Cell(
+        String mode,
+        String mapping,
+        String keep,
+        Presence nested,
+        Presence nestedNoField,
+        Presence unsupported,
+        Presence noField,
+        Presence flattened
+    ) {
         @Override
         public String toString() {
             return mode
@@ -63,6 +73,8 @@ public class UnmappedFieldsNestedVsUnsupportedExtraIT extends AbstractEsqlIntegT
                 + keep
                 + " → nested="
                 + nested
+                + " nestedNoField="
+                + nestedNoField
                 + " unsupported="
                 + unsupported
                 + " noField="
@@ -83,6 +95,8 @@ public class UnmappedFieldsNestedVsUnsupportedExtraIT extends AbstractEsqlIntegT
      * Expected result of each column, per hidden-index scenario:
      * <ul>
      * <li>nested: follows the unmapped-field rules - loaded from {@code _source} in load modes, null under nullify.</li>
+     * <li>nestedNoField: nested parent that declares no subfields at all. Must always equal nested: whether the leaf is
+     *     declared under the nested parent or not is invisible outside the shard.</li>
      * <li>noField: the same leaf simply not mapped. Must always equal nested: the nested mapping "does not exist".</li>
      * <li>flattened: the Verifier rejects loading the sub-key, so cells that would load it error instead.
      *     Exception: {@code LOAD_ALL} + {@code KEEP *} with nothing referencing it - {@code _source} discovery surfaces it.</li>
@@ -91,27 +105,27 @@ public class UnmappedFieldsNestedVsUnsupportedExtraIT extends AbstractEsqlIntegT
     @ParametersFactory(argumentFormatting = "%1$s")
     public static List<Object[]> params() {
         return List.of(
-            // mode, mapping, KEEP, nested, unsupported, noField, flattened
-            cell("nullify", "unmapped_both", "*", ABSENT, ABSENT, ABSENT, ABSENT),
-            cell("nullify", "unmapped_both", "x", NULL, NULL, NULL, NULL),
-            cell("nullify", "mapped_both", "*", NULL, NULL, NULL, NULL),
-            cell("nullify", "mapped_both", "x", NULL, NULL, NULL, NULL),
-            cell("nullify", "mapped_only_nested", "*", ABSENT, NULL, ABSENT, ABSENT),
-            cell("nullify", "mapped_only_nested", "x", NULL, NULL, NULL, NULL),
+            // mode, mapping, KEEP, nested, nestedNoField, unsupported, noField, flattened
+            cell("nullify", "unmapped_both", "*", ABSENT, ABSENT, ABSENT, ABSENT, ABSENT),
+            cell("nullify", "unmapped_both", "x", NULL, NULL, NULL, NULL, NULL),
+            cell("nullify", "mapped_both", "*", NULL, NULL, NULL, NULL, NULL),
+            cell("nullify", "mapped_both", "x", NULL, NULL, NULL, NULL, NULL),
+            cell("nullify", "mapped_only_nested", "*", ABSENT, ABSENT, NULL, ABSENT, ABSENT),
+            cell("nullify", "mapped_only_nested", "x", NULL, NULL, NULL, NULL, NULL),
 
-            cell("load", "unmapped_both", "*", ABSENT, ABSENT, ABSENT, ABSENT),
-            cell("load", "unmapped_both", "x", LOADED, LOADED, LOADED, VERIFIER_ERROR),
-            cell("load", "mapped_both", "*", LOADED, NULL, LOADED, VERIFIER_ERROR),
-            cell("load", "mapped_both", "x", LOADED, NULL, LOADED, VERIFIER_ERROR),
-            cell("load", "mapped_only_nested", "*", ABSENT, NULL, ABSENT, ABSENT),
-            cell("load", "mapped_only_nested", "x", LOADED, NULL, LOADED, VERIFIER_ERROR),
+            cell("load", "unmapped_both", "*", ABSENT, ABSENT, ABSENT, ABSENT, ABSENT),
+            cell("load", "unmapped_both", "x", LOADED, LOADED, LOADED, LOADED, VERIFIER_ERROR),
+            cell("load", "mapped_both", "*", LOADED, LOADED, NULL, LOADED, VERIFIER_ERROR),
+            cell("load", "mapped_both", "x", LOADED, LOADED, NULL, LOADED, VERIFIER_ERROR),
+            cell("load", "mapped_only_nested", "*", ABSENT, ABSENT, NULL, ABSENT, ABSENT),
+            cell("load", "mapped_only_nested", "x", LOADED, LOADED, NULL, LOADED, VERIFIER_ERROR),
 
-            cell("load_all", "unmapped_both", "*", LOADED, LOADED, LOADED, LOADED),
-            cell("load_all", "unmapped_both", "x", LOADED, LOADED, LOADED, VERIFIER_ERROR),
-            cell("load_all", "mapped_both", "*", LOADED, NULL, LOADED, VERIFIER_ERROR),
-            cell("load_all", "mapped_both", "x", LOADED, NULL, LOADED, VERIFIER_ERROR),
-            cell("load_all", "mapped_only_nested", "*", LOADED, NULL, LOADED, LOADED),
-            cell("load_all", "mapped_only_nested", "x", LOADED, NULL, LOADED, VERIFIER_ERROR)
+            cell("load_all", "unmapped_both", "*", LOADED, LOADED, LOADED, LOADED, LOADED),
+            cell("load_all", "unmapped_both", "x", LOADED, LOADED, LOADED, LOADED, VERIFIER_ERROR),
+            cell("load_all", "mapped_both", "*", LOADED, LOADED, NULL, LOADED, VERIFIER_ERROR),
+            cell("load_all", "mapped_both", "x", LOADED, LOADED, NULL, LOADED, VERIFIER_ERROR),
+            cell("load_all", "mapped_only_nested", "*", LOADED, LOADED, NULL, LOADED, LOADED),
+            cell("load_all", "mapped_only_nested", "x", LOADED, LOADED, NULL, LOADED, VERIFIER_ERROR)
         );
     }
 
@@ -120,11 +134,12 @@ public class UnmappedFieldsNestedVsUnsupportedExtraIT extends AbstractEsqlIntegT
         String mapping,
         String keep,
         Presence nested,
+        Presence nestedNoField,
         Presence unsupported,
         Presence noField,
         Presence flattened
     ) {
-        return new Object[] { new Cell(mode, mapping, keep, nested, unsupported, noField, flattened) };
+        return new Object[] { new Cell(mode, mapping, keep, nested, nestedNoField, unsupported, noField, flattened) };
     }
 
     private final Cell cell;
@@ -150,6 +165,7 @@ public class UnmappedFieldsNestedVsUnsupportedExtraIT extends AbstractEsqlIntegT
         };
         boolean keepStar = cell.keep.equals("*");
         String[] nested = createExtraLeafIndices("nest_", "obj_", extraMappedOnHidden, extraMappedOnOther);
+        String[] nestedNoField = createNestedNoFieldExtraIndices("nnofld_", "nnoobj_", extraMappedOnOther);
         String[] unsupported = createUnsupportedExtraIndices("unsup_", "plain_", extraMappedOnHidden, extraMappedOnOther);
         String[] noField = createNoFieldExtraIndices("nofld_", "noobj_", extraMappedOnOther);
         String[] flattened = createFlattenedExtraIndices("flat_", "flobj_", extraMappedOnOther);
@@ -159,6 +175,10 @@ public class UnmappedFieldsNestedVsUnsupportedExtraIT extends AbstractEsqlIntegT
         assertThat(
             presence(prefix + "FROM " + nested[0] + ", " + nested[1] + " | KEEP " + nestedKeep + " | SORT id", "item.extra"),
             equalTo(cell.nested)
+        );
+        assertThat(
+            presence(prefix + "FROM " + nestedNoField[0] + ", " + nestedNoField[1] + " | KEEP " + nestedKeep + " | SORT id", "item.extra"),
+            equalTo(cell.nestedNoField)
         );
         assertThat(
             presence(prefix + "FROM " + unsupported[0] + ", " + unsupported[1] + " | KEEP " + unsupportedKeep + " | SORT id", "extra"),
@@ -193,6 +213,31 @@ public class UnmappedFieldsNestedVsUnsupportedExtraIT extends AbstractEsqlIntegT
         String hidden = hiddenPrefix + randomIdentifier();
         String other = otherPrefix + randomIdentifier();
         createIndex(hidden, extraLeafMapping(false, false));
+        createIndex(other, extraLeafMapping(false, extraMappedOnOther));
+        indexItemDocs(hidden, other);
+        return new String[] { hidden, other };
+    }
+
+    /**
+     * Same shape as {@link #createExtraLeafIndices}, but the hidden index maps {@code item} as a nested parent with no
+     * declared subfields at all: neither {@code value} nor {@code extra} exist anywhere in its mapping.
+     */
+    private String[] createNestedNoFieldExtraIndices(String hiddenPrefix, String otherPrefix, boolean extraMappedOnOther) {
+        String hidden = hiddenPrefix + randomIdentifier();
+        String other = otherPrefix + randomIdentifier();
+        createIndex(hidden, """
+            {
+              "dynamic": false,
+              "properties": {
+                "id": {
+                  "type": "keyword"
+                },
+                "item": {
+                  "type": "nested",
+                  "dynamic": false
+                }
+              }
+            }""");
         createIndex(other, extraLeafMapping(false, extraMappedOnOther));
         indexItemDocs(hidden, other);
         return new String[] { hidden, other };

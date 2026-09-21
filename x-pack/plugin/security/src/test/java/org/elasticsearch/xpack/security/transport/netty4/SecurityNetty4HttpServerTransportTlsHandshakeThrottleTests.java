@@ -1013,45 +1013,49 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
     private static final String TOTAL_DROPPED_METRIC = METRIC_PREFIX + "dropped.total";
 
     /**
-     * Inbound handler that splits the first inbound {@link ByteBuf} into two halves and delivers them as separate
-     * {@code channelRead} events, simulating a TLS ClientHello that arrives across two TCP segments.
+     * Inbound handler that splits the first inbound {@link ByteBuf} into a random number of pieces at random offsets and delivers them as
+     * separate {@code channelRead} events, simulating a TLS ClientHello that arrives across multiple TCP segments.
      */
     private static class PacketSplitter extends ChannelInboundHandlerAdapter {
         private boolean fired = false;
-        private boolean awaitingSecondChunk = false;
+        private boolean splitting = false;
 
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-            if (fired || msg instanceof ByteBuf == false) {
-                ctx.fireChannelRead(msg);
-                return;
-            }
-            final ByteBuf buf = (ByteBuf) msg;
-            if (buf.readableBytes() < 2) {
+            if (fired || !(msg instanceof ByteBuf buf) || buf.readableBytes() < 2) {
                 ctx.fireChannelRead(msg);
                 return;
             }
             fired = true;
-            awaitingSecondChunk = true;
-            final int firstSize = buf.readableBytes() / 2;
-            final ByteBuf first = buf.readRetainedSlice(firstSize);
-            final ByteBuf second = buf.readRetainedSlice(buf.readableBytes());
+            splitting = true;
+            final int pieces = Math.min(ESTestCase.between(2, 8), buf.readableBytes());
+            final ByteBuf[] chunks = new ByteBuf[pieces];
+            for (int i = 0; i < pieces - 1; i++) {
+                chunks[i] = buf.readRetainedSlice(ESTestCase.between(1, buf.readableBytes() - (pieces - 1 - i)));
+            }
+            chunks[pieces - 1] = buf.readRetainedSlice(buf.readableBytes());
             buf.release();
-            ctx.fireChannelRead(first);
+            ctx.fireChannelRead(chunks[0]);
+            scheduleChunks(ctx, chunks, 1);
+        }
+
+        private void scheduleChunks(ChannelHandlerContext ctx, ByteBuf[] chunks, int index) {
             ctx.executor().execute(() -> {
-                awaitingSecondChunk = false;
-                ctx.fireChannelRead(second);
-                ctx.fireChannelReadComplete();
+                ctx.fireChannelRead(chunks[index]);
+                if (index + 1 < chunks.length) {
+                    scheduleChunks(ctx, chunks, index + 1);
+                } else {
+                    splitting = false;
+                    ctx.fireChannelReadComplete();
+                }
             });
         }
 
         @Override
         public void channelReadComplete(ChannelHandlerContext ctx) {
-            if (awaitingSecondChunk) {
-                // suppress intermediate channelReadComplete; the scheduled task fires it after the second chunk
-                return;
+            if (splitting == false) {
+                ctx.fireChannelReadComplete();
             }
-            ctx.fireChannelReadComplete();
         }
     }
 

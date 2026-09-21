@@ -44,6 +44,50 @@ public final class AllocSizes {
      */
     public static final long ITERATOR_BYTES = pad8(OBJECT_HEADER + 2L * Integer.BYTES + 3L * REFERENCE_SIZE);
 
+    /**
+     * Number of capturing groups assumed for a regex operator whose pattern is not a literal. A {@code Pattern} held in a
+     * variable or returned by a call is only known at runtime, so its arrays are charged for this many entries. Ten covers
+     * typical patterns; a pattern with more groups is under-charged by the extra entries alone.
+     */
+    private static final int REGEX_ASSUMED_GROUPS = 10;
+
+    /** Heap size of the {@code ReadLimitedCharSequence} that wraps a regex input: a header, three references and four {@code int}s. */
+    private static final long REGEX_WRAPPER_BYTES = pad8(OBJECT_HEADER + 3L * REFERENCE_SIZE + 4L * Integer.BYTES);
+
+    /**
+     * Heap size of what one use of a regex operator ({@code =~} or {@code ==~}) allocates when the pattern is not a literal,
+     * so the real group count is unknown. See {@link #matcherBytes(int)}, which this calls with
+     * {@link #REGEX_ASSUMED_GROUPS}.
+     */
+    public static final long MATCHER_BYTES = matcherBytes(REGEX_ASSUMED_GROUPS);
+
+    /**
+     * Heap size of what one use of a regex operator ({@code =~} or {@code ==~}) allocates for a pattern with {@code groups}
+     * capturing groups. Two objects and three arrays:
+     *
+     * <ul>
+     * <li>the {@code Matcher} object, six references, nine {@code int}s and four {@code boolean}s;</li>
+     * <li>{@code groups}, two {@code int}s per capturing group, counting the whole match as a group;</li>
+     * <li>{@code locals}, one {@code int} per pattern local, charged at the same length as {@code groups};</li>
+     * <li>{@code localsPos}, one reference per transparent-bounds local, charged at one per capturing group;</li>
+     * <li>the {@code ReadLimitedCharSequence} that wraps the input.</li>
+     * </ul>
+     *
+     * <p>A literal pattern is a compile-time constant, so the emitter reads its real group count and the charge is exact.
+     * Any other {@code Pattern} expression falls back to {@link #MATCHER_BYTES}. The wrapper is only built when a regex limit
+     * factor is set, so an unlimited regex is over-charged by its size. The regex literal itself is a static constant on the
+     * script class, allocated once at class load, and is never charged.
+     */
+    public static long matcherBytes(int groups) {
+        // Group 0 is the whole match, so a pattern with no capturing groups still gets one slot pair.
+        long slots = 2L * (groups + 1L);
+
+        return pad8(OBJECT_HEADER + 6L * REFERENCE_SIZE + 9L * Integer.BYTES + 4L) + arrayBytes(slots, Integer.BYTES) + arrayBytes(
+            slots,
+            Integer.BYTES
+        ) + arrayBytes(groups + 1L, REFERENCE_SIZE) + REGEX_WRAPPER_BYTES;
+    }
+
     /** Rounds {@code bytes} up to the nearest 8-byte alignment boundary, saturating rather than overflowing near {@link Long#MAX_VALUE}. */
     public static long pad8(long bytes) {
         return addSat(bytes, 7L) & ~7L;

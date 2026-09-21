@@ -46,7 +46,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 
-public class Count extends AggregateFunction implements ToAggregator, SurrogateExpression, AggregateMetricDoubleNativeSupport {
+public class Count extends UnaryAggregateFunction
+    implements
+        ToAggregator,
+        SurrogateExpression,
+        AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Count.class)
         .unary(Count::new)
@@ -156,11 +160,6 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
     }
 
     @Override
-    public AggregateFunction withFilter(Expression filter) {
-        return new Count(source(), field(), filter, window());
-    }
-
-    @Override
     public Count replaceChildren(List<Expression> newChildren) {
         return new Count(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
@@ -241,7 +240,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
         return null;
     }
 
-    public static Expression AggregateMetricDoubleSurrogate(AggregateFunction af) {
+    public static Expression AggregateMetricDoubleSurrogate(UnaryAggregateFunction af) {
         var s = af.source();
         return new Sum(
             s,

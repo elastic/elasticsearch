@@ -252,10 +252,20 @@ public class DenseVectorFieldsApiTests extends ESSingleNodeTestCase {
     }
 
     /**
+     * Test all cases in one test to reduce the number of times the index is created.
+     */
+    public void testFetch() {
+        fetchArrayFormatTestCase();
+        fetchBinaryFormatTestCase();
+        fetchNestedArrayFormatTestCase();
+        fetchNestedBinaryFormatTestCase();
+    }
+
+    /**
      * Verifies that the fields API with no format (defaulting to {@code "array"}) or with {@code format: "array"}
      * always returns the same list of float components, regardless of which format was used to ingest the vector.
      */
-    public void testFetchArrayFormat() {
+    public void fetchArrayFormatTestCase() {
         for (VectorFormat vectorFormat : new VectorFormat[] { null, VectorFormat.ARRAY }) {
             forEachSpecFormatAndField((spec, ingest, field) -> assertField(spec, ingest, field, vectorFormat));
         }
@@ -266,7 +276,7 @@ public class DenseVectorFieldsApiTests extends ESSingleNodeTestCase {
      * form of the vector (raw bytes for byte/bit fields, big-endian float32 for float/bfloat16 fields),
      * regardless of which format was used to ingest the vector.
      */
-    public void testFetchBinaryFormat() {
+    public void fetchBinaryFormatTestCase() {
         forEachSpecFormatAndField((spec, ingest, field) -> assertField(spec, ingest, field, VectorFormat.BINARY));
     }
 
@@ -275,7 +285,7 @@ public class DenseVectorFieldsApiTests extends ESSingleNodeTestCase {
      * array and for each entry of the doubly-nested {@code nested.inner} array, fetching both levels in a
      * single request, regardless of which format was used to ingest the vectors.
      */
-    public void testFetchNestedArrayFormat() {
+    public void fetchNestedArrayFormatTestCase() {
         for (VectorFormat vectorFormat : new VectorFormat[] { null, VectorFormat.ARRAY }) {
             forEachSpecFormatAndField((spec, ingest, field) -> assertNestedField(spec, ingest, field, vectorFormat));
         }
@@ -286,7 +296,7 @@ public class DenseVectorFieldsApiTests extends ESSingleNodeTestCase {
      * array and for each entry of the doubly-nested {@code nested.inner} array, fetching both levels in a
      * single request, regardless of which format was used to ingest the vectors.
      */
-    public void testFetchNestedBinaryFormat() {
+    public void fetchNestedBinaryFormatTestCase() {
         forEachSpecFormatAndField((spec, ingest, field) -> assertNestedField(spec, ingest, field, VectorFormat.BINARY));
     }
 

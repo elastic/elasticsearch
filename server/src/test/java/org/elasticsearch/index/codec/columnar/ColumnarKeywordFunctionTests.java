@@ -28,6 +28,7 @@ import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnSource;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -156,6 +157,40 @@ public class ColumnarKeywordFunctionTests extends ESTestCase {
         }
     }
 
+    /** BYTE_LENGTH over documents without the field among every other shape, which read as null. */
+    public void testByteLengthWithDocumentsWithoutTheField() throws IOException {
+        final String[][] docs = new String[between(200, 800)][];
+        final List<Object> expected = new ArrayList<>();
+        for (int d = 0; d < docs.length; d++) {
+            docs[d] = switch (random().nextInt(6)) {
+                case 0 -> null;
+                case 1 -> new String[] { "abc" };
+                case 2 -> new String[] { null, "one-left" };
+                case 3 -> new String[] { "a", "b" };
+                case 4 -> new String[0];
+                default -> new String[] { "term-" + (d % 5) };
+            };
+            String only = null;
+            int nonNull = 0;
+            for (String slot : docs[d] == null ? new String[0] : docs[d]) {
+                if (slot != null) {
+                    nonNull++;
+                    only = slot;
+                }
+            }
+            expected.add(nonNull == 1 ? new BytesRef(only).length : null);
+        }
+        assertLoaderMatches(
+            docs,
+            fieldName -> new ByteLengthFromBytesRefDocValuesBlockLoader(
+                new MockWarnings(),
+                fieldName,
+                BinaryDocValuesFormat.COLUMNAR_PAYLOAD
+            ),
+            expected
+        );
+    }
+
     /** BYTE_LENGTH over a column whose values all have one length, which stores no lengths and answers from that one. */
     public void testByteLengthOfOneLengthColumn() throws IOException {
         final String[][] docs = new String[between(200, 800)][];
@@ -175,6 +210,110 @@ public class ColumnarKeywordFunctionTests extends ESTestCase {
         );
     }
 
+    /**
+     * BYTE_LENGTH read in pages of several sizes, and in a page naming a document more than once, against the same
+     * lengths read a document at a time. The page path resolves every document at once and answers from the lengths
+     * the column keeps, so what it reads has to agree with what one document at a time reads, wherever the page
+     * boundaries fall.
+     */
+    public void testByteLengthPagesAgreeWithSingleDocuments() throws IOException {
+        final String[][] docs = new String[between(400, 1200)][];
+        for (int d = 0; d < docs.length; d++) {
+            docs[d] = switch (random().nextInt(6)) {
+                case 0 -> null;
+                case 1 -> new String[] { null };
+                case 2 -> new String[] { randomAlphaOfLengthBetween(1, 12), randomAlphaOfLengthBetween(1, 12) };
+                case 3 -> new String[0];
+                case 4 -> new String[] { null, randomAlphaOfLengthBetween(0, 30) };
+                default -> new String[] { randomAlphaOfLengthBetween(0, 30) };
+            };
+        }
+        withColumn(docs, (loader, leaf) -> {
+            for (int page : new int[] { 1, 2, 7, 128, docs.length }) {
+                for (int from = 0; from < docs.length; from += page) {
+                    final int count = Math.min(page, docs.length - from);
+                    final BlockLoader.Docs wanted = docs(from, count);
+                    final TestBlock asPage = (TestBlock) loader.reader(NOOP, leaf).read(TestBlock.factory(), wanted, 0, false);
+                    assertEquals("positions at " + from + " in pages of " + page, count, asPage.size());
+                    for (int i = 0; i < count; i++) {
+                        final TestBlock alone = (TestBlock) loader.reader(NOOP, leaf)
+                            .read(TestBlock.factory(), docs(from + i, 1), 0, false);
+                        assertEquals("page of " + page + " document " + (from + i), alone.get(0), asPage.get(i));
+                    }
+                }
+            }
+        });
+    }
+
+    /** BYTE_LENGTH over a page naming documents more than once, which a lookup or a top-n asks for. */
+    public void testByteLengthOfRepeatedDocuments() throws IOException {
+        final String[][] docs = new String[between(50, 200)][];
+        for (int d = 0; d < docs.length; d++) {
+            docs[d] = random().nextInt(5) == 0 ? null : new String[] { randomAlphaOfLengthBetween(0, 20) };
+        }
+        final List<Integer> repeated = new ArrayList<>();
+        for (int d = 0; d < docs.length; d++) {
+            repeated.add(d);
+            if (random().nextBoolean()) {
+                repeated.add(d);
+            }
+        }
+        final int[] wanted = repeated.stream().mapToInt(Integer::intValue).toArray();
+        withColumn(docs, (loader, leaf) -> {
+            final BlockLoader.Docs asked = new BlockLoader.Docs() {
+                @Override
+                public int count() {
+                    return wanted.length;
+                }
+
+                @Override
+                public int get(int i) {
+                    return wanted[i];
+                }
+
+                @Override
+                public boolean mayContainDuplicates() {
+                    return true;
+                }
+            };
+            final TestBlock block = (TestBlock) loader.reader(NOOP, leaf).read(TestBlock.factory(), asked, 0, false);
+            assertEquals("positions", wanted.length, block.size());
+            for (int i = 0; i < wanted.length; i++) {
+                final String[] slots = docs[wanted[i]];
+                final Object expected = slots == null || slots.length != 1 || slots[0] == null ? null : new BytesRef(slots[0]).length;
+                assertEquals("position " + i + " (document " + wanted[i] + ")", expected, block.get(i));
+            }
+        });
+    }
+
+    /** Indexes {@code docs} as one columnar segment and hands the BYTE_LENGTH loader and the leaf to {@code check}. */
+    private void withColumn(
+        String[][] docs,
+        CheckedBiConsumer<BlockDocValuesReader.DocValuesBlockLoader, LeafReaderContext, IOException> check
+    ) throws IOException {
+        final FieldType type = columnarBinaryFieldType();
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec()))) {
+                for (String[] slots : docs) {
+                    final Document doc = new Document();
+                    if (slots != null) {
+                        doc.add(new Field(FIELD, encode(slots), type));
+                    }
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final LeafReaderContext leaf = reader.leaves().get(0);
+                assertThat("the field is a column", leaf.reader().getBinaryDocValues(FIELD), instanceOf(StringColumnSource.class));
+                check.accept(
+                    new ByteLengthFromBytesRefDocValuesBlockLoader(new MockWarnings(), FIELD, BinaryDocValuesFormat.COLUMNAR_PAYLOAD),
+                    leaf
+                );
+            }
+        }
+    }
+
     private void assertLoaderMatches(
         String[][] docs,
         Function<String, BlockDocValuesReader.DocValuesBlockLoader> loaders,
@@ -185,7 +324,10 @@ public class ColumnarKeywordFunctionTests extends ESTestCase {
             try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec()))) {
                 for (String[] slots : docs) {
                     final Document doc = new Document();
-                    doc.add(new Field(FIELD, encode(slots), type));
+                    // A null entry is a document without the field at all.
+                    if (slots != null) {
+                        doc.add(new Field(FIELD, encode(slots), type));
+                    }
                     writer.addDocument(doc);
                 }
                 writer.forceMerge(1);

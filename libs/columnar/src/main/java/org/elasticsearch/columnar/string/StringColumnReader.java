@@ -1039,6 +1039,40 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         return appendPage(count, sink);
     }
 
+    /**
+     * For each of {@code docs[offset..offset+count)}, in ascending order: how many non-null values the document holds,
+     * capped at two, into {@code counts}, and where it holds exactly one, that value's length in bytes into
+     * {@code lengths}. The documents are resolved a page at a time and no value is decoded where the column keeps its
+     * lengths apart.
+     */
+    public void readByteLengths(int[] docs, int offset, int count, int[] counts, int[] lengths) throws IOException {
+        if (count == 0) {
+            return;
+        }
+        growPageDocs(count);
+        ranksOfAll(docs, offset, count);
+        final boolean oneApiece = pageable();
+        for (int i = 0; i < count; i++) {
+            final int rank = pageRanks[i];
+            if (rank == ColumnIterator.NO_RANK) {
+                counts[i] = 0;
+            } else if (oneApiece) {
+                counts[i] = 1;
+                lengths[i] = byteLengthAt(rank);
+            } else {
+                final long first = firstValueAddress(rank);
+                final long slots = valueCount(rank);
+                int found = 0;
+                for (long s = 0; s < slots && found < 2; s++) {
+                    if (isNullSlot(first + s) == false && found++ == 0) {
+                        lengths[i] = byteLengthAt(first + s);
+                    }
+                }
+                counts[i] = found;
+            }
+        }
+    }
+
     /** Hands {@code count} resolved ranks to the sink, in whichever form the column's values take. */
     protected abstract boolean appendPage(int count, StringBlockSink sink) throws IOException;
 

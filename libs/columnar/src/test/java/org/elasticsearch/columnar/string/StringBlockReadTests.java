@@ -520,6 +520,73 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
         assertPagesOfSparseColumn(true);
     }
 
+    /**
+     * The byte length of each document's only value, read a page at a time: how many non-null values a document
+     * holds, capped at two, and the length when it holds one. Every document shape, on columns of one length and of
+     * many, with and without a dictionary, across presence blocks.
+     */
+    public void testByteLengths() throws IOException {
+        final int blockDocs = 1 << 16;
+        final boolean singleValued = randomBoolean();
+        final boolean oneLength = singleValued && randomBoolean();
+        final BytesRef[][] docSlots = new BytesRef[blockDocs + between(1000, 20000)][];
+        final String[] terms = oneLength ? new String[] { "aaaa", "bbbb", "cccc" } : new String[] { "", "a", "bb", "ccc", "dddd" };
+        for (int d = 0; d < docSlots.length; d++) {
+            final boolean present = oneLength || d < blockDocs || random().nextInt(20) == 0;
+            if (present == false) {
+                continue;
+            }
+            final int slots = singleValued || random().nextInt(4) != 0 ? 1 : between(0, 3);
+            docSlots[d] = new BytesRef[slots];
+            for (int i = 0; i < slots; i++) {
+                final boolean nullSlot = singleValued == false && random().nextInt(6) == 0;
+                final String value = random().nextInt(30) == 0 && oneLength == false ? "rare-" + d : randomFrom(terms);
+                docSlots[d][i] = nullSlot ? null : new BytesRef(value);
+            }
+        }
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
+            withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+                int from = 0;
+                while (from < docSlots.length) {
+                    final List<Integer> asked = new ArrayList<>();
+                    final int pageLength = randomFrom(1, 7, 128, between(1, 4096));
+                    for (int d = from; d < docSlots.length && asked.size() < pageLength; d++) {
+                        if (random().nextInt(4) != 0) {
+                            asked.add(d);
+                            if (random().nextInt(50) == 0) {
+                                asked.add(d);
+                            }
+                        }
+                    }
+                    if (asked.isEmpty()) {
+                        break;
+                    }
+                    from = asked.get(asked.size() - 1) + 1 + between(0, 64);
+                    final int[] docs = asked.stream().mapToInt(Integer::intValue).toArray();
+                    final int[] counts = new int[docs.length];
+                    final int[] lengths = new int[docs.length];
+                    reader.readByteLengths(docs, 0, docs.length, counts, lengths);
+                    for (int i = 0; i < docs.length; i++) {
+                        int nonNull = 0;
+                        int length = -1;
+                        if (docSlots[docs[i]] != null) {
+                            for (BytesRef slot : docSlots[docs[i]]) {
+                                if (slot != null && nonNull++ == 0) {
+                                    length = slot.length;
+                                }
+                            }
+                        }
+                        final String label = (reader.hasDictionary() ? "dictionary" : "plain") + " document " + docs[i];
+                        assertEquals(label + " values", Math.min(nonNull, 2), counts[i]);
+                        if (nonNull == 1) {
+                            assertEquals(label + " length", length, lengths[i]);
+                        }
+                    }
+                }
+            });
+        }
+    }
+
     private void assertPagesOfSparseColumn(boolean singleValued) throws IOException {
         final int blockDocs = 1 << 16;
         final BytesRef[][] docSlots = new BytesRef[blockDocs * 2 + between(1000, 20000)][];

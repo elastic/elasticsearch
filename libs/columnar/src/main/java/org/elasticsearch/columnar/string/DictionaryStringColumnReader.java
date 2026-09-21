@@ -147,6 +147,24 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     }
 
     /**
+     * The length of the value at {@code valueAddress}, read off the term the ordinal names, or off the
+     * escaped bytes where the slot escaped.
+     */
+    @Override
+    public int byteLengthAt(long valueAddress) throws IOException {
+        final int ordinal = ordinalAt(valueAddress);
+        if (ordinal == escapeOrdinal) {
+            escapes.get(escapeRankOf(valueAddress), lengthScratch);
+            return lengthScratch.length;
+        }
+        // A term's bytes are stored as they are, so reading one decodes nothing.
+        return termAt(ordinal, lengthScratch).length;
+    }
+
+    /** Where {@link #byteLengthAt} reads a value it only measures. */
+    private final BytesRef lengthScratch = new BytesRef();
+
+    /**
      * The term at {@code ordinal}. The dictionary keeps an offset for each, so its bytes are read where they
      * lie. The {@link #dictionarySize()} terms take the ordinals from
      * {@link StringColumnMetadata.Dictionary#FIRST_TERM_ORDINAL} up, so the term a caller wants the

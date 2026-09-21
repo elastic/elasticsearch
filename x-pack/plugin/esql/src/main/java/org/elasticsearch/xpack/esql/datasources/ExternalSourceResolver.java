@@ -2824,8 +2824,7 @@ public class ExternalSourceResolver {
         // in mapResolveFailure, so wrapping these would bypass status recovery.
         // EsRejectedExecutionException extends RejectedExecutionException (not ElasticsearchException),
         // so it requires an explicit check here.
-        if (rootCause instanceof org.elasticsearch.ElasticsearchException
-            || rootCause instanceof EsRejectedExecutionException) {
+        if (rootCause instanceof org.elasticsearch.ElasticsearchException || rootCause instanceof EsRejectedExecutionException) {
             return new IllegalArgumentException(detail, rootCause);
         }
         RuntimeException unlocated = new IllegalArgumentException(detail, rootCause);

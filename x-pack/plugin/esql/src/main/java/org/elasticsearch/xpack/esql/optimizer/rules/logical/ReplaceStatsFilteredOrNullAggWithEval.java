@@ -126,7 +126,11 @@ public class ReplaceStatsFilteredOrNullAggWithEval extends OptimizerRules.Optimi
                 } else {
                     if (ij != null) { // this is an Aggregate part of right-hand side of an InlineJoin
                         plan = ij.replaceRight(
-                            ij.right().transformUp(Aggregate.class, agg -> updateAggregate(agg, newAggs, newEvals, newProjections))
+                            ij.right()
+                                .transformUp(
+                                    Aggregate.class,
+                                    agg -> agg == aggregate ? updateAggregate(agg, newAggs, newEvals, newProjections) : agg
+                                )
                         );
                     } else { // this is a standalone Aggregate
                         plan = updateAggregate(aggregate, newAggs, newEvals, newProjections);

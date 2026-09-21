@@ -1308,7 +1308,8 @@ class NodeConstruction {
             fileSettingsService,
             threadPool,
             projectResolver.supportsMultipleProjects(),
-            pluginsService.loadSingletonServiceProvider(IndexMetadataRestoreTransformer.class, NoOpRestoreTransformer::getInstance)
+            pluginsService.loadSingletonServiceProvider(IndexMetadataRestoreTransformer.class, NoOpRestoreTransformer::getInstance),
+            featureService
         );
 
         DiscoveryModule discoveryModule = createDiscoveryModule(
@@ -1411,7 +1412,8 @@ class NodeConstruction {
                 threadPool,
                 telemetryProvider,
                 repositoriesService,
-                fileSettingsHealthTracker
+                fileSettingsHealthTracker,
+                projectResolver
             )
         );
 
@@ -1630,7 +1632,8 @@ class NodeConstruction {
         ThreadPool threadPool,
         TelemetryProvider telemetryProvider,
         RepositoriesService repositoriesService,
-        FileSettingsHealthTracker fileSettingsHealthTracker
+        FileSettingsHealthTracker fileSettingsHealthTracker,
+        ProjectResolver projectResolver
     ) {
 
         MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
@@ -1644,7 +1647,7 @@ class NodeConstruction {
         var serverHealthIndicatorServices = Stream.of(
             new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService),
             new RepositoryIntegrityHealthIndicatorService(clusterService),
-            new DiskHealthIndicatorService(clusterService),
+            new DiskHealthIndicatorService(clusterService, projectResolver),
             new ShardsCapacityHealthIndicatorService(clusterService),
             new FileSettingsHealthIndicatorService()
         );

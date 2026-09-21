@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: [158818]
+pr: 158820
+summary: STOPPING trained model routes with no local deployment process no longer block ML node shutdown during node drain
+type: bug

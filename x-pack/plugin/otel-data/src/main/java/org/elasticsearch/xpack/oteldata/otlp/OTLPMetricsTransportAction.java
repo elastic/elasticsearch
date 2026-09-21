@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -49,6 +50,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Transport action for handling OpenTelemetry Protocol (OTLP) Metrics requests.
@@ -74,9 +76,10 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         ActionFilters actionFilters,
         ThreadPool threadPool,
         Client client,
-        ClusterService clusterService
+        ClusterService clusterService,
+        Settings settings
     ) {
-        super(NAME, transportService, actionFilters, threadPool, client);
+        super(NAME, transportService, actionFilters, threadPool, client, settings);
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         defaultMappingHints = MappingHints.fromSettings(clusterSettings.get(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING));
         clusterSettings.addSettingsUpdateConsumer(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING, histogramFieldTypeSetting -> {
@@ -101,8 +104,16 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         Set<ExemplarIdentity> exemplarIdentities = new HashSet<>();
         ProjectMetadata projectMetadata = clusterService.state().projectState(ProjectId.DEFAULT).metadata();
         Map<String, IndexVersion> indexVersions = new HashMap<>();
+        AtomicLong totalExpandedBytes = new AtomicLong();
         context.consume(dataPointGroup -> {
-            addMetricIndexRequest(bulkRequestBuilder, metricDocumentBuilder, dataPointGroup, projectMetadata, indexVersions);
+            addMetricIndexRequest(
+                bulkRequestBuilder,
+                metricDocumentBuilder,
+                dataPointGroup,
+                projectMetadata,
+                indexVersions,
+                totalExpandedBytes
+            );
             if (exemplarDocumentBuilder != null) {
                 addExemplarIndexRequests(
                     bulkRequestBuilder,
@@ -111,7 +122,8 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
                     context,
                     projectMetadata,
                     indexVersions,
-                    exemplarIdentities
+                    exemplarIdentities,
+                    totalExpandedBytes
                 );
             }
         });
@@ -147,7 +159,8 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         MetricDocumentBuilder metricDocumentBuilder,
         DataPointGroupingContext.DataPointGroup dataPointGroup,
         ProjectMetadata projectMetadata,
-        Map<String, IndexVersion> indexVersions
+        Map<String, IndexVersion> indexVersions,
+        AtomicLong totalExpandedBytes
     ) throws IOException {
         try (XContentBuilder xContentBuilder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
             var dynamicTemplates = Maps.<String, String>newHashMapWithExpectedSize(dataPointGroup.dataPoints().size());
@@ -171,6 +184,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
             if (indexVersion.onOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)) {
                 indexRequest.tsid(tsid);
             }
+            totalExpandedBytes.set(accountExpandedContent(totalExpandedBytes.get(), indexRequest));
             bulkRequestBuilder.add(indexRequest);
         }
     }
@@ -182,7 +196,8 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         DataPointGroupingContext context,
         ProjectMetadata projectMetadata,
         Map<String, IndexVersion> indexVersions,
-        Set<ExemplarIdentity> exemplarIdentities
+        Set<ExemplarIdentity> exemplarIdentities,
+        AtomicLong totalExpandedBytes
     ) throws IOException {
         TargetIndex targetIndex = dataPointGroup.targetIndex().exemplarsTarget();
         if (targetIndex == null) {
@@ -229,6 +244,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
                     if (indexVersion.onOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)) {
                         indexRequest.tsid(tsid);
                     }
+                    totalExpandedBytes.set(accountExpandedContent(totalExpandedBytes.get(), indexRequest));
                     bulkRequestBuilder.add(indexRequest);
                 }
             }

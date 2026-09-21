@@ -1,0 +1,7 @@
+area: ES|QL
+issues:
+ - 158609
+pr: 158646
+summary: '`LuceneSourceOperator` should take into consideration the buffered rows
+  and don''t yet mark as finished'
+type: bug

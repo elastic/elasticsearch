@@ -35,7 +35,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.index.codec.bwc.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesFormatTests;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer.BaseSortedDocValues;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
@@ -83,6 +83,24 @@ public class ES819TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTe
         }
     };
 
+    private final Codec codecWithOptimizedMerge = new Elasticsearch93Lucene104Codec() {
+
+        final DocValuesFormat docValuesFormat = new ES819Version3TSDBDocValuesFormat(
+            ESTestCase.randomIntBetween(2, 4096),
+            ESTestCase.randomIntBetween(1, 512),
+            true,
+            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+            true,
+            random().nextBoolean() ? NUMERIC_LARGE_BLOCK_SHIFT : NUMERIC_BLOCK_SHIFT,
+            random().nextBoolean()
+        );
+
+        @Override
+        public DocValuesFormat getDocValuesFormatForField(String field) {
+            return docValuesFormat;
+        }
+    };
+
     public static class TestES819TSDBDocValuesFormatVersion0 extends ES819TSDBDocValuesFormat {
 
         public TestES819TSDBDocValuesFormatVersion0() {
@@ -108,6 +126,11 @@ public class ES819TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTe
     @Override
     protected Codec getCodec() {
         return codec;
+    }
+
+    @Override
+    protected Codec getCodecWithOptimizedMerge() {
+        return codecWithOptimizedMerge;
     }
 
     public void testBinaryCompressionEnabled() {

@@ -46,6 +46,7 @@ import static org.elasticsearch.columnar.ColumnarTestUtils.singleValuedCursor;
 public class NumericPipelineSelectorTests extends ESTestCase {
 
     private static final byte[] DEFAULT_TRANSFORM_IDS = { DeltaTransform.ID, OffsetTransform.ID, GcdTransform.ID };
+    private static final byte[] ORDINAL_TRANSFORM_IDS = { RunTransform.ID, DeltaTransform.ID, OffsetTransform.ID, PatchedTransform.ID };
     private static final byte[] SPLIT_DELTA_TRANSFORM_IDS = {
         SplitDeltaTransform.ID,
         DeltaTransform.ID,
@@ -71,6 +72,10 @@ public class NumericPipelineSelectorTests extends ESTestCase {
         assertTransformIds((f, t) -> NumericPipeline::defaultPipeline, longValues(), DEFAULT_TRANSFORM_IDS);
     }
 
+    public void testOrdinalPipelineTransformIds() throws IOException {
+        assertTransformIds((f, t) -> NumericPipeline::runsAndOutliersPipeline, longValues(), ORDINAL_TRANSFORM_IDS);
+    }
+
     public void testSplitDeltaPipelineTransformIds() throws IOException {
         assertTransformIds((f, t) -> NumericPipeline::monotonicLongPipeline, monotonicLongs(), SPLIT_DELTA_TRANSFORM_IDS);
     }
@@ -92,9 +97,9 @@ public class NumericPipelineSelectorTests extends ESTestCase {
             return NumericPipeline.defaultPipeline(bs);
         };
 
-        final ColumNARDocValuesFormat format = new ColumNARDocValuesFormat(capturingSelector, blockSize);
+        final ColumNARDocValuesFormat format = new ColumNARDocValuesFormat(capturingSelector, field -> ColumnarFieldType.LONG, blockSize);
 
-        final FieldType fieldType = columnarBinaryFieldType(ColumnarFieldType.LONG);
+        final FieldType fieldType = columnarBinaryFieldType();
         final BytesRefBuilder builder = new BytesRefBuilder();
         try (
             Directory dir = newDirectory();
@@ -173,6 +178,7 @@ public class NumericPipelineSelectorTests extends ESTestCase {
                     values.length,
                     values.length,
                     values.length,
+                    true,
                     () -> singleValuedCursor(values),
                     pipeline,
                     BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),

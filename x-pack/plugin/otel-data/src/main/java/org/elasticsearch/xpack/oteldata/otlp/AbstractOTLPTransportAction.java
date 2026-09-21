@@ -15,11 +15,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -38,6 +42,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
     private static final Logger logger = LogManager.getLogger(AbstractOTLPTransportAction.class);
     public static final int IGNORED_DATA_POINTS_MESSAGE_LIMIT = 10;
     private final Client client;
+    protected final long maxExpandedContentLength;
 
     @Inject
     public AbstractOTLPTransportAction(
@@ -45,10 +50,12 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         TransportService transportService,
         ActionFilters actionFilters,
         ThreadPool threadPool,
-        Client client
+        Client client,
+        Settings settings
     ) {
         super(name, transportService, actionFilters, in -> TransportAction.localOnly(), threadPool.executor(ThreadPool.Names.WRITE));
         this.client = client;
+        this.maxExpandedContentLength = HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH.get(settings).getBytes();
     }
 
     @Override
@@ -72,9 +79,9 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
 
             ProcessingContext finalContext = context;
             bulkRequestBuilder.execute(listener.delegateFailure((delegate, bulkResponse) -> {
-                if (bulkResponse.hasFailures()
-                    || finalContext.getIgnoredItems() > 0
-                    || finalContext.getWarningMessage().isEmpty() == false) {
+                if (finalContext.getIgnoredItems() > 0
+                    || finalContext.getWarningMessage().isEmpty() == false
+                    || needsPartialSuccess(bulkResponse)) {
                     handlePartialSuccess(bulkResponse, finalContext, delegate);
                 } else {
                     delegate.onResponse(new OTLPActionResponse(BytesArray.EMPTY));
@@ -82,9 +89,13 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
             }));
 
         } catch (InvalidProtocolBufferException e) {
+            logger.debug("invalid OTLP protobuf payload", e);
             listener.onFailure(
                 new ElasticsearchStatusException("Invalid OTLP protobuf payload: " + e.getMessage(), RestStatus.BAD_REQUEST, e)
             );
+        } catch (ElasticsearchStatusException e) {
+            logger.debug("failed to execute otlp request", e);
+            listener.onFailure(e);
         } catch (Exception e) {
             logger.error("failed to execute otlp request", e);
             listener.onFailure(e);
@@ -148,6 +159,26 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
     protected abstract ProcessingContext prepareBulkRequest(OTLPActionRequest request, BulkRequestBuilder bulkRequestBuilder)
         throws IOException;
 
+    /**
+     * Accounts for the memory used by a generated {@link IndexRequest} and rejects the request if the running total would exceed
+     * {@link HttpTransportSettings#SETTING_HTTP_MAX_PROTOBUF_EXPANDED_CONTENT_LENGTH}. Resource/scope attributes and labels are
+     * copied into every document, so {@link IndexRequest#ramBytesUsed()} reflects that fan-out.
+     *
+     * @param totalExpandedBytes bytes already accounted for from previously built index requests
+     * @param indexRequest       the newly built index request
+     * @return the updated running total including {@code indexRequest}
+     */
+    protected long accountExpandedContent(long totalExpandedBytes, IndexRequest indexRequest) {
+        long updatedTotal = totalExpandedBytes + indexRequest.ramBytesUsed();
+        if (updatedTotal > maxExpandedContentLength) {
+            throw new ElasticsearchStatusException(
+                "OTLP request rejected: expanded content would exceed limit [" + maxExpandedContentLength + "] bytes",
+                RestStatus.REQUEST_ENTITY_TOO_LARGE
+            );
+        }
+        return updatedTotal;
+    }
+
     private void handlePartialSuccess(
         BulkResponse bulkItemResponses,
         ProcessingContext context,
@@ -155,6 +186,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
     ) {
         // index -> status -> failure group
         Map<String, Map<RestStatus, FailureGroup>> failureGroups = new HashMap<>();
+        int failureStoreRedirects = 0;
         // If the request is only partially accepted
         // (i.e. when the server accepts only parts of the data and rejects the rest),
         // the server MUST respond with HTTP 200 OK.
@@ -177,6 +209,9 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
                 FailureGroup failureGroup = failureGroups.computeIfAbsent(failure.getIndex(), k -> new HashMap<>())
                     .computeIfAbsent(failure.getStatus(), k -> new FailureGroup(new AtomicInteger(0), failure.getMessage()));
                 failureGroup.failureCount().incrementAndGet();
+            } else if (isFailureStoreRedirect(bulkItemResponse)) {
+                failures++;
+                failureStoreRedirects++;
             }
         }
         if (bulkItemResponses.getItems().length == failures) {
@@ -200,6 +235,9 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
                 failureMessageBuilder.append("\n");
             }
         }
+        if (failureStoreRedirects > 0) {
+            failureMessageBuilder.append("Redirected ").append(failureStoreRedirects).append(" documents to the failure store.\n");
+        }
         failureMessageBuilder.append(context.getIgnoredItemsMessage(10));
         failureMessageBuilder.append(context.getWarningMessage());
         String message = failureMessageBuilder.toString();
@@ -209,6 +247,19 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
             MessageLite response = responseWithRejectedItems(failures + context.getIgnoredItems(), message);
             listener.onResponse(new OTLPActionResponse(response));
         }
+    }
+
+    private static boolean needsPartialSuccess(BulkResponse bulkResponse) {
+        for (BulkItemResponse item : bulkResponse.getItems()) {
+            if (item.isFailed() || isFailureStoreRedirect(item)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isFailureStoreRedirect(BulkItemResponse item) {
+        return item.isFailed() == false && item.getFailureStoreStatus() == IndexDocFailureStoreStatus.USED;
     }
 
     record FailureGroup(AtomicInteger failureCount, String failureMessageSample) {}

@@ -913,6 +913,12 @@ public class IndexEngine extends InternalEngine {
         }
     }
 
+    public void waitForCurrentCommitDurability(ActionListener<Void> listener) {
+        // The current Lucene generation may have been produced by a flush-by-refresh, which is never queued for BCC upload.
+        long genToWaitFor = Math.min(getCurrentGeneration(), statelessCommitService.getMaxPendingOrUploadedGeneration(shardId));
+        waitForCommitDurability(genToWaitFor, listener);
+    }
+
     @Override
     protected void waitForCommitDurability(long generation, ActionListener<Void> listener) {
         try {

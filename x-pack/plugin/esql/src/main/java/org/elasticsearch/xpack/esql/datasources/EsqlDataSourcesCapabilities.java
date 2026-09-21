@@ -12,8 +12,14 @@ public final class EsqlDataSourcesCapabilities {
     /** Advertises that this node exposes the data_sources + datasets CRUD endpoints. */
     public static final String DATA_SOURCES = "data_sources";
 
-    /** The dataset PUT body accepts a declared `mappings` block (types, path renames, format, _id). */
+    /** The dataset PUT body accepts a declared `mappings` block (types, path renames, format). */
     public static final String DATASET_DECLARED_SCHEMA = "dataset_declared_schema";
+
+    /**
+     * {@code region} is accepted on a dataset PUT (S3 plugin).
+     * A data-source PUT with {@code region} still succeeds but emits a deprecation warning.
+     */
+    public static final String DATASET_REGION = "dataset_region";
 
     /**
      * Signals that the data_source/dataset CRUD routes ({@code PUT/GET/DELETE /_query/data_source/{name}} and
@@ -28,6 +34,12 @@ public final class EsqlDataSourcesCapabilities {
      * also runs mixed-cluster, where a node without this capability accepts the declaration and answers 200.
      */
     public static final String DATASET_TEXT_TYPE_NOT_DECLARABLE = "dataset_text_type_not_declarable";
+
+    /**
+     * Registration rejects an {@code _id} mappings block. Gates the yaml pin on that rejection, because the suite also
+     * runs mixed-cluster, where a node without this capability parses the block and answers on the data source instead.
+     */
+    public static final String DATASET_ID_NOT_DECLARABLE = "dataset_id_not_declarable";
 
     private EsqlDataSourcesCapabilities() {}
 }

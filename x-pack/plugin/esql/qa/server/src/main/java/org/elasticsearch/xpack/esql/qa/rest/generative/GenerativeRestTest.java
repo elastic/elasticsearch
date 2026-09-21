@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.esql.qa.rest.generative;
 
+import com.carrotsearch.randomizedtesting.RandomizedContext;
+
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
@@ -83,8 +87,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     public static final int MAX_DEPTH = 20;
 
     /**
-     * Allowed error patterns that are tolerated only when the corresponding {@link GenerativeFeature} is in
-     * {@link #enabledFeatures()}. Layered onto the global {@link #ALLOWED_ERRORS} via {@link #additionalAllowedErrors()}
+     * Allowed error regex patterns that are tolerated only when the corresponding {@link GenerativeFeature} is in
+     * {@link #enabledFeatures()}. Strings follow the same regex conventions as {@link #ALLOWED_ERRORS}: they are
+     * wrapped to {@code .*<pattern>.*} with {@link Pattern#DOTALL} before matching. Subclasses that add literal
+     * (non-regex) strings via {@link #additionalAllowedErrors()} must escape them with {@link Pattern#quote} first.
+     * Layered onto the global {@link #ALLOWED_ERRORS} via {@link #additionalAllowedErrors()}
      * so muting a feature-specific failure doesn't widen the surface for runs that don't enable the feature.
      */
     private static final Map<GenerativeFeature, Set<String>> FEATURE_ALLOWED_ERRORS = Map.of(
@@ -127,8 +134,14 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             "FORK after subquery is not supported",
             // Full-text functions and the [:] operator are not allowed when the FROM clause resolves
             // to include external (parquet) datasets — the verifier rejects them with a message of the
-            // form "[X] function/operator cannot be used after from <pattern>".
-            "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after from .*"
+            // form "[X] function/operator cannot be used after from <pattern>" (explicit index list) or
+            // "cannot be used after FROM" (uppercase, when FROM * expands to include parquet indices).
+            "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after (?:FROM|from .+)",
+            // https://github.com/elastic/elasticsearch/issues/159358
+            // CHANGE_POINT + STATS + INLINE STATS causes the physical plan optimizer to lose the
+            // $$field$converted_to$type reference that ExternalSourceResolver introduces when merging
+            // schemas across heterogeneous sources (external parquet dataset + ES index).
+            ".*Plan \\[AggregateExec\\[.*optimized incorrectly due to missing references.*\\$\\$.*\\$converted_to\\$.*"
         )
     );
 
@@ -142,15 +155,23 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "MV_EXPAND .* cannot yet have an unbounded SORT .* before it",
         "The field names are too complex to process", // field_caps problem
         "must be \\[any type except counter types\\]", // TODO refine the generation of count()
+        // The generator can wrap to_counter() inside other functions (e.g. count(to_gauge(to_counter(x)))),
+        // producing an expression whose return type is a counter type, which EVAL rejects.
+        "EVAL does not support type \\[(?:counter_long|counter_double|counter_integer)\\] as the return data type.*",
         "INLINE STATS cannot be used after an explicit or implicit LIMIT command",
         // Full-text functions and `:` operator are not allowed after FORK
         "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after FORK",
+        // A FORK output column filled from a mapped text field cannot be searched: the merge drops the field's
+        // mapping analyzer, so the search would silently use the standard analyzer instead
+        "(?:(?:\\[(?:MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot search column \\[.*\\] after FORK",
         // Full-text functions and `:` operator are not allowed after HIGHLIGHT
         "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after HIGHLIGHT",
         // Full-text functions and `:` operator are not allowed after LIMIT (can arise when a FORK
         // branch contains a LIMIT and a full-text function appears in the command after the FORK)
         "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after LIMIT",
-        // Full-text functions are not allowed after DEDUP (can arise when a FORK branch contains
+        // Optimized SORT + LIMIT is TopN; the verifier reports that as "SORT and LIMIT"
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after SORT and LIMIT",
+        // Full-text functions are not allowed after DEDUP (can arise when a FORK branch contains)
         // a DEDUP and a full-text function appears in the WHERE after the FORK)
         "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after DEDUP",
         // Full-text functions mixed with lookup-side fields via OR cannot be pushed before LOOKUP JOIN _coordinator:
@@ -233,7 +254,16 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "class java\\.util\\.ArrayList cannot be cast to class java\\.lang\\.Boolean.*",
 
         // https://github.com/elastic/elasticsearch/issues/154080
-        "unexpected data type \\[NULL\\]"
+        "unexpected data type \\[NULL\\]",
+
+        // https://github.com/elastic/elasticsearch/issues/159298
+        "Invalid types \\[DATETIME, NULL\\] If you see this error, there is a bug in DateDiff\\.resolveType\\(\\)",
+
+        // Queries can time out in the test cluster (e.g. ip_location on non-IP values, wide
+        // inline-stats schemas, CHANGE_POINT + LOOKUP JOIN). The timeout itself is a test
+        // infrastructure limit; the query was valid ES|QL.
+        // https://github.com/elastic/elasticsearch/issues/158881
+        "\\d[\\d ,]*milliseconds timeout on connection.*"
     );
 
     /**
@@ -461,11 +491,13 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             } catch (Exception e) {
                 // query failures are AssertionErrors, if we get here it's an unexpected exception in the query generation
                 if (e instanceof AllowedGeneratorFailureException == false && isAllowedError(e.getMessage()) == false) {
-                    StringBuilder message = new StringBuilder();
-                    message.append("Generative tests, error generating new command \n");
-                    message.append("Previous query: \n");
-                    message.append(exec.previousResult == null ? "<no previous query>" : exec.previousResult.query());
-                    fail(e, message.toString());
+                    String previousQuery = exec.previousResult == null ? null : exec.previousResult.query();
+                    // fail(e, report) would run the report through Strings.format, which reinterprets any '%' in the
+                    // generated query as a format specifier.
+                    throw new AssertionError(
+                        "Generative tests, error generating new command\n" + failureReport(previousQuery, e.getMessage()),
+                        e
+                    );
                 }
             }
         }
@@ -590,13 +622,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isInlineStatsSubqueryAggregateExecBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isEvalWhereFilterBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isRenameInlineStatsProjectBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isEvalInlineStatsAggregateBug(ctx.normalizedErrorMessage, ctx.query), };
+        ctx -> isEvalInlineStatsAggregateBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isForkAttributesInSubplansBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isEvalInlineStatsProjectBug(ctx.normalizedErrorMessage, ctx.query), };
 
     /**
-     * Returns extra error-message patterns the {@link #enabledFeatures()} are allowed to surface. Aggregated
+     * Returns extra error-message regex patterns the {@link #enabledFeatures()} are allowed to surface. Aggregated
      * from {@link #FEATURE_ALLOWED_ERRORS}; subclasses may override to add more (e.g. tests with a different
-     * source command). Returned strings are wrapped to {@code .*<pattern>.*} and OR-ed with the base
-     * {@link #ALLOWED_ERRORS}.
+     * source command). Returned strings are treated as regex patterns, wrapped to {@code .*<pattern>.*} with
+     * {@link Pattern#DOTALL}, and OR-ed with the base {@link #ALLOWED_ERRORS}.
      */
     protected Set<String> additionalAllowedErrors() {
         Set<GenerativeFeature> features = enabledFeatures();
@@ -636,7 +670,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             allowedFailureRules = Stream.concat(
                 Arrays.stream(ALLOWED_FAILURE_RULES),
                 additionalAllowedErrors().stream()
-                    .map(s -> Pattern.compile(".*" + Pattern.quote(s) + ".*", Pattern.DOTALL))
+                    .map(s -> Pattern.compile(".*" + s + ".*", Pattern.DOTALL))
                     .<AllowedFailureRule>map(p -> ctx -> p.matcher(ctx.normalizedErrorMessage).matches())
             ).toList();
         }
@@ -673,7 +707,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             if (isAllowedFailure(new FailureContext(outputValidation.errorMessage(), result.query(), previousCommands, currentSchema))) {
                 return;
             }
-            fail("query: " + result.query() + "\nerror: " + outputValidation.errorMessage());
+            fail(failureReport(result.query(), outputValidation.errorMessage()));
         }
     }
 
@@ -685,7 +719,46 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         if (isAllowedFailure(new FailureContext(query.exception().getMessage(), query.query(), previousCommands, currentSchema))) {
             return;
         }
-        fail("query: " + query.query() + "\nexception: " + query.exception().getMessage());
+        fail(failureReport(query.query(), query.exception().getMessage()));
+    }
+
+    /** The {@code Warnings: [...]} block {@link ResponseException} inserts before the response body. */
+    private static final Pattern RESPONSE_WARNINGS = Pattern.compile("\nWarnings: \\[.*?]\n", Pattern.DOTALL);
+
+    /**
+     * Composes the message for a failing generated query. These run to tens of kilobytes and are truncated before
+     * they reach a filed issue, so the error goes near the top and the response warnings go last. A subclass that
+     * overrides this to add context should append it to {@code super}'s report rather than prepend it, to keep the
+     * bulky part in the tail that truncation eats.
+     *
+     * @param query the query the failure relates to: the one that failed, or the last one that ran when the
+     *              generator could not produce the next command; {@code null} when none was generated at all
+     * @param error the error message, or {@code null} when the failure carries no message
+     */
+    protected String failureReport(@Nullable String query, @Nullable String error) {
+        String warnings = "";
+        if (error == null) {
+            error = "<no error message>";
+        } else {
+            Matcher matcher = RESPONSE_WARNINGS.matcher(error);
+            if (matcher.find()) {
+                warnings = matcher.group().strip();
+                error = matcher.replaceFirst("\n");
+            }
+        }
+
+        StringBuilder report = new StringBuilder("query: ").append(query == null ? "<no query generated>" : query);
+        report.append("\nfeatures: ").append(enabledFeatures());
+        report.append("\nreproduce with -Dtests.seed=")
+            .append(RandomizedContext.current().getRunnerSeedAsString())
+            .append(" on build ")
+            .append(Build.current().hash())
+            .append(" (a seed only reproduces on the build that generated it)");
+        report.append("\nerror: ").append(error);
+        if (warnings.isEmpty() == false) {
+            report.append("\n").append(warnings);
+        }
+        return report.toString();
     }
 
     /**
@@ -1063,8 +1136,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     private static final Pattern FULL_TEXT_AFTER_SUBQUERY_IN_FROM_PATTERN = Pattern.compile(
         ".*(?:"
             // Any full-text function/operator after a pipeline-breaking command, LOOKUP JOIN, or a multi-source FROM union.
+            // "FROM" is included because UnionAll/Project often keep the FROM source text, so the first-token
+            // message is "after FROM" even though KQL/QSTR after a plain FROM is legal.
             + "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after "
-            + "(?:LIMIT|INLINE|LOOKUP|MV_EXPAND|STATS|SORT|CHANGE_POINT|DEDUP|LIMIT BY|TOP|[^\\n]*,\\s*\\(\\s*FROM\\b|\\(\\s*FROM\\b)"
+            + "(?:LIMIT|INLINE|LOOKUP|MV_EXPAND|STATS|SORT|FROM|CHANGE_POINT|DEDUP|LIMIT BY|TOP|"
+            + "[^\\n]*,\\s*\\(\\s*FROM\\b|\\(\\s*FROM\\b)"
             + "|"
             // QSTR/KQL are only valid directly after FROM/WHERE/SORT: tolerate them being rejected after any other command.
             + "\\[(?:KQL|QSTR)] function cannot be used after (?!(?:FROM|WHERE|SORT)\\b)\\w+"
@@ -1383,6 +1459,50 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return EVAL_COMMAND_PATTERN.matcher(query).find()
             && INLINE_STATS_COMMAND_PATTERN.matcher(query).find()
             && STATS_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern OPTIMIZED_INCORRECTLY_ATTRIBUTES_IN_SUBPLANS_PATTERN = Pattern.compile(
+        ".*optimized incorrectly due to missing attributes in subplans.*",
+        Pattern.DOTALL
+    );
+
+    /**
+     * FORK + STATS (or INLINE STATS) followed by DROP _fork causes the optimizer to lose track
+     * of grouping-key references, producing "optimized incorrectly due to missing attributes in
+     * subplans". Distinct from {@link #isForkOptimizedIncorrectlyBug} which catches the
+     * "missing references" variant.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/136927">#136927</a>,
+     * <a href="https://github.com/elastic/elasticsearch/issues/146165">#146165</a>.
+     */
+    static boolean isForkAttributesInSubplansBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_ATTRIBUTES_IN_SUBPLANS_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return FORK_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    /**
+     * EVAL reassigning an existing index field followed by INLINE STATS (without a downstream
+     * plain STATS) causes the optimizer to drop the EVAL-reassigned reference from the Project
+     * plan node. Same root cause as {@link #isRenameInlineStatsProjectBug} (#154145): INLINE
+     * STATS with a null-typed aggregate input confuses an optimizer rule into dropping unrelated
+     * derived references; here the derived references come from EVAL reassignments rather than
+     * RENAME.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/154145">#154145</a>.
+     */
+    static boolean isEvalInlineStatsProjectBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return EVAL_COMMAND_PATTERN.matcher(query).find()
+            && INLINE_STATS_COMMAND_PATTERN.matcher(query).find()
+            && FORK_COMMAND_PATTERN.matcher(query).find() == false;
     }
 
     @Override

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.datasources.DecompressionCodecRegistry;
+import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractDataSourceValidatorTests;
@@ -92,7 +93,8 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         "header_row",
         "column_prefix",
         "trim_spaces",
-        "schema_sample_size"
+        "schema_sample_size",
+        "skip_rows"
     );
 
     // The real production resolver (FormatConfigKeyResolver.of, the same factory EsqlPlugin uses),
@@ -578,12 +580,17 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertThat(e.getMessage(), containsString("first_file_wins"));
     }
 
-    public void testValidateDatasetFileSortByRejectedWhenSchemaResolutionOmitted() {
-        var e = expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_sort_by", "name"))
-        );
-        assertThat(e.getMessage(), containsString("first_file_wins"));
+    public void testValidateDatasetOmittedSchemaResolutionMaterializesFirstFileWins() {
+        Map<String, Object> first = validator.validateDataset(Map.of(), "s3://b/p", Map.of());
+        Map<String, Object> second = validator.validateDataset(Map.of(), "s3://b/p", Map.of());
+        assertEquals("first_file_wins", first.get("schema_resolution"));
+        assertEquals(first, second);
+    }
+
+    public void testValidateDatasetFileSortByAcceptedWhenSchemaResolutionOmitted() {
+        Map<String, Object> result = validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_sort_by", "name"));
+        assertEquals("first_file_wins", result.get("schema_resolution"));
+        assertEquals("name", result.get("file_sort_by"));
     }
 
     public void testValidateDatasetFileSortByAcceptedWithFirstFileWins() {
@@ -621,7 +628,15 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasetMaxErrors() {
-        assertEquals("100", validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_errors", "100")).get("max_errors"));
+        // A bare budget without error_mode is refused — the mode is the user's decision.
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_errors", "100")));
+    }
+
+    public void testValidateDatasetMaxErrorsWithExplicitMode() {
+        assertEquals(
+            "100",
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_errors", "100", "error_mode", "skip_row")).get("max_errors")
+        );
     }
 
     public void testValidateDatasetMaxErrorsNonNumber() {
@@ -629,7 +644,16 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasetMaxErrorRatio() {
-        assertEquals("0.1", validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_error_ratio", "0.1")).get("max_error_ratio"));
+        // A bare budget without error_mode is refused — the mode is the user's decision.
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_error_ratio", "0.1")));
+    }
+
+    public void testValidateDatasetMaxErrorRatioWithExplicitMode() {
+        assertEquals(
+            "0.1",
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_error_ratio", "0.1", "error_mode", "null_field"))
+                .get("max_error_ratio")
+        );
     }
 
     public void testValidateDatasetMaxErrorRatioOutOfRange() {
@@ -928,42 +952,38 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testUnknownFormatWithFormatSettingGivesSetFormatHint() {
-        // No explicit format, unknown extension, format-specific setting present: targeted hint.
+        // No explicit format, unknown extension: fail closed. Format-specific keys are not diagnosed
+        // separately once the pattern itself cannot imply a format.
         var e = expectThrows(
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("delimiter", "|"))
         );
-        assertEquals(List.of(FileDataSourceValidator.cannotDetermineFormatError("s3://test", Set.of("delimiter"))), e.validationErrors());
+        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage("s3://test")), e.validationErrors());
     }
 
     public void testUnknownFormatGenuineTypoReportedAsUnknownSetting() {
-        // No explicit format, unknown extension, a key no registered format recognises: this is a real
-        // typo and must read as an unknown setting, not a misleading "set format" hint.
+        // Prefix without format is refused before per-key checks, so a typo is not reported as unknown setting.
         var e = expectThrows(
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("not_a_setting", "x"))
         );
-        assertThat(e.validationErrors(), hasSize(1));
-        assertThat(e.validationErrors().get(0), containsString("unknown setting [not_a_setting]"));
-        assertThat(e.validationErrors().get(0), containsString("file_sort_by"));
-        assertThat(e.validationErrors().get(0), containsString("file_order"));
-        assertThat(e.getMessage(), not(containsString("cannot determine format")));
+        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage("s3://test")), e.validationErrors());
     }
 
     public void testUnknownFormatMixedKeysReportBothDiagnoses() {
-        // A real format-specific key gets the "set format" hint; a genuine typo gets "unknown setting".
         var e = expectThrows(
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("delimiter", "|", "not_a_setting", "x"))
         );
-        assertThat(e.validationErrors(), hasItem(FileDataSourceValidator.cannotDetermineFormatError("s3://test", Set.of("delimiter"))));
-        assertThat(e.validationErrors(), hasItem(containsString("unknown setting [not_a_setting]")));
+        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage("s3://test")), e.validationErrors());
     }
 
     public void testUnknownFormatBaseSettingsOnlyAccepted() {
-        // No explicit format, unknown extension, only base settings -> accepted (resolves per-file at query).
-        var result = formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("partition_detection", "hive"));
-        assertEquals("hive", result.get("partition_detection"));
+        var e = expectThrows(
+            ValidationException.class,
+            () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("partition_detection", "hive"))
+        );
+        assertEquals(List.of(FormatNameResolver.ambiguousDatasetFormatMessage("s3://test")), e.validationErrors());
     }
 
     public void testFormatAutoFallsBackToExtension() {
@@ -1247,6 +1267,28 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertThat(e.getMessage(), not(containsString("does not accept an ARN")));
     }
 
+    public void testValidateDatasetRejectsEmptyLocation() {
+        // s3:// matches the scheme check but names no bucket. Must fail as an incomplete location,
+        // not as "cannot determine a format" — that message is for a complete URI whose pattern
+        // implies no registered format.
+        var e = expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://", Map.of()));
+        assertThat(e.getMessage(), containsString("is not a complete object location"));
+        assertThat(e.getMessage(), not(containsString("cannot determine")));
+        var withSlash = expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3:///", Map.of()));
+        assertThat(withSlash.getMessage(), containsString("is not a complete object location"));
+    }
+
+    public void testFormatAwareValidatorEmptyLocationIsIncompleteNotFormat() {
+        FileDataSourceValidator v = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+            .withResourceCheck(S3ResourceCheck::validate)
+            .withFormatConfigKeyResolver(CSV_RESOLVER)
+            .withFormatReaderRegistry(csvGzipRegistry());
+        var e = expectThrows(ValidationException.class, () -> v.validateDataset(Map.of(), "s3://", Map.of()));
+        assertThat(e.getMessage(), containsString("is not a complete object location"));
+        assertThat(e.getMessage(), not(containsString("cannot determine")));
+        assertEquals(1, e.validationErrors().size());
+    }
+
     public void testValidateDatasetRejectsAccessPointArn() {
         var e = expectThrows(
             ValidationException.class,
@@ -1441,6 +1483,39 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         // to no format in this test resolver); after fix it is accepted because the last dot wins.
         var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/data.parquet?x=.csv", Map.of("delimiter", ";"));
         assertEquals(";", result.get("delimiter"));
+    }
+
+    /** Validator configured as the plugin does: additional dataset key + deprecation hook for region. */
+    private final FileDataSourceValidator pluginValidator = new FileDataSourceValidator(
+        "s3",
+        S3Configuration::fromMap,
+        Set.of("s3", "s3a", "s3n")
+    ).withAdditionalDatasetKeys(Set.of("region"))
+        .withDeprecatedDatasourceKey(
+            "region",
+            "[region] on a data source is deprecated and will be ignored; "
+                + "set [region] on the dataset instead, or omit it to have the bucket region detected automatically"
+        );
+
+    public void testValidateDatasetAcceptsRegion() {
+        // region is an additional dataset key registered by the S3 plugin; a dataset PUT with region
+        // must succeed without an "unknown field" error.
+        var result = pluginValidator.validateDataset(Map.of(), "s3://bucket/data.parquet", Map.of("region", "eu-west-1"));
+        assertEquals("eu-west-1", result.get("region"));
+    }
+
+    public void testValidateDatasourceRegionDeprecationWarningEmitted() {
+        // Placing region on a data source is valid (backward compat) but deprecated.
+        // The PUT must succeed, emit the expected deprecation warning, and store the value unchanged
+        // so GET still returns it (the storage provider ignores it; only the dataset-level value is used).
+        var stored = pluginValidator.validateDatasource(
+            Map.of("access_key", "AKIAIOSFODNN7EXAMPLE", "secret_key", "secret", "region", "us-east-1")
+        );
+        assertEquals("us-east-1", stored.get("region").nonSecretValue());
+        assertWarnings(
+            "[region] on a data source is deprecated and will be ignored; "
+                + "set [region] on the dataset instead, or omit it to have the bucket region detected automatically"
+        );
     }
 
     public void testUnsupportedSchemeListsTheSchemesInAStableOrder() {

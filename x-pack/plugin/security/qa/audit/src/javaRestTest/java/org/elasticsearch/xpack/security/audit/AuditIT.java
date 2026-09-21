@@ -55,15 +55,21 @@ public class AuditIT extends ESRestTestCase {
     private static final String API_USER = "api_user";
     private static final DateTimeFormatter TSTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss,SSSZ");
 
+    private static final String ENCRYPTION_PASSWORD_ID = "test";
+
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(1) // A single node makes it easier to find audit events
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
+        .setting("xpack.security.authc.token.enabled", "true")
         .setting("xpack.security.audit.enabled", "true")
         .setting("xpack.security.audit.logfile.events.include", "[ \"_all\" ]")
         .setting("xpack.security.audit.logfile.events.emit_request_body", "true")
+        .setting("esql.federation.enabled", "true")
+        .keystore("cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID, "audit-it-encryption-password")
+        .keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID)
         .user("admin_user", "admin-password")
         .user(API_USER, "api-password", "superuser", false)
         .build();
@@ -110,6 +116,58 @@ public class AuditIT extends ESRestTestCase {
         });
     }
 
+    public void testFilteringOfDataSourceCredentials() throws Exception {
+        final String dataSourceName = randomAlphaOfLength(4).toLowerCase(Locale.ROOT) + randomIntBetween(100, 999);
+        final String accessKey = randomAlphaOfLength(20);
+        final String secretKey = randomAlphaOfLength(40);
+        final Request request = new Request("PUT", "/_query/data_source/" + dataSourceName);
+        request.setJsonEntity(
+            "{\"type\":\"s3\",\"settings\":{\"access_key\":\""
+                + accessKey
+                + "\",\"secret_key\":\""
+                + secretKey
+                + "\",\"endpoint\":\"http://localhost:12345\"}}"
+        );
+        executeAndVerifyAudit(request, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
+            String body = asInstanceOf(String.class, event.get(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME));
+            assertThat(body, containsString("\"type\""));
+            assertThat(body, not(containsString(accessKey)));
+            assertThat(body, not(containsString(secretKey)));
+            assertThat(toJson(event), not(containsString(accessKey)));
+            assertThat(toJson(event), not(containsString(secretKey)));
+        });
+    }
+
+    /**
+     * Verifies that a data source PUT via the {@code source} query parameter is rejected with HTTP 400.
+     * Using {@code contentParser()} instead of {@code contentOrSourceParamParser()} in the REST handler
+     * prevents successful registration from a query string, which is the primary goal: credentials in
+     * the query string would otherwise be stored in cluster state and appear in query logs.
+     * <p>
+     * Note: the {@code url.query} field of an {@code authentication_failed} audit event is still written
+     * before the handler runs (SecurityRestFilter writes auth events before dispatching), so the query
+     * string is audited regardless of whether the handler accepts the request. This test only asserts
+     * that no successful registration occurs.
+     */
+    public void testDataSourceDefinitionInQueryStringRejected() throws Exception {
+        final String dataSourceName = randomAlphaOfLength(4).toLowerCase(Locale.ROOT) + randomIntBetween(100, 999);
+        final String accessKey = randomAlphaOfLength(20);
+        final String secretKey = randomAlphaOfLength(40);
+        final Request request = new Request("PUT", "/_query/data_source/" + dataSourceName);
+        request.addParameter(
+            "source",
+            "{\"type\":\"s3\",\"settings\":{\"access_key\":\""
+                + accessKey
+                + "\",\"secret_key\":\""
+                + secretKey
+                + "\",\"endpoint\":\"http://localhost:12345\"}}"
+        );
+        request.addParameter("source_content_type", "application/json");
+        request.addParameter("ignore", "400");
+        final Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(400));
+    }
+
     public void testAuditAuthenticationSuccessForStreamingRequest() throws Exception {
         final Request request = new Request("POST", "/testindex/_bulk");
         final String content = """
@@ -149,6 +207,42 @@ public class AuditIT extends ESRestTestCase {
             final String eventJson = toJson(event);
             assertThat(eventJson, not(containsString(encodedCredential)));
         });
+    }
+
+    public void testFilteringOfUserManagedServiceAccountTokenRequestBody() throws Exception {
+        final String namespace = "audit" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
+        final String serviceName = "svc" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
+        final Request putAccountRequest = new Request("PUT", "/_security/service/" + namespace + "/" + serviceName);
+        putAccountRequest.setJsonEntity("{\"roles\":[\"superuser\"],\"enabled\":true}");
+        client().performRequest(putAccountRequest);
+        try {
+            final Request createTokenRequest = new Request(
+                "POST",
+                "/_security/service/" + namespace + "/" + serviceName + "/credential/token/exchange-token"
+            );
+            final Map<String, Object> token = asMap(responseAsMap(client().performRequest(createTokenRequest)).get("token"));
+            final String serviceAccountToken = (String) token.get("value");
+            assertThat(serviceAccountToken, notNullValue());
+
+            final Request exchangeRequest = new Request("POST", "/_security/oauth2/token");
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                builder.startObject()
+                    .field("grant_type", "_user_managed_service_account")
+                    .field("service_account_token", serviceAccountToken)
+                    .endObject();
+                exchangeRequest.setJsonEntity(Strings.toString(builder));
+            }
+            executeAndVerifyAudit(exchangeRequest, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
+                String body = asInstanceOf(String.class, event.get(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME));
+                assertThat(body, equalTo("{\"grant_type\":\"_user_managed_service_account\"}"));
+                assertThat(toJson(event), not(containsString(serviceAccountToken)));
+            });
+        } finally {
+            final Request deleteRequest = new Request("DELETE", "/_security/service/" + namespace + "/" + serviceName);
+            deleteRequest.addParameter("force", "true");
+            deleteRequest.addParameter("ignore", "404");
+            client().performRequest(deleteRequest);
+        }
     }
 
     public void testAuditPutUserManagedServiceAccount() throws Exception {

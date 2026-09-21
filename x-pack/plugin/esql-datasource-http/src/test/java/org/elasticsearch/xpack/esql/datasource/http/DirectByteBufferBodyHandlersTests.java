@@ -12,6 +12,8 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
 import java.lang.ref.Reference;
@@ -35,16 +37,14 @@ import static org.mockito.Mockito.when;
 public class DirectByteBufferBodyHandlersTests extends ESTestCase {
 
     private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+    private static final StoragePath PATH = StoragePath.of("https://example.com/file.parquet");
 
     /** Arbitrary non-zero slack, so a factory buffer that is larger than requested is not a rounding coincidence. */
     private static final int EXTRA_CAPACITY = 17;
 
     public void testFixedLengthSingleChunk() throws Exception {
         byte[] payload = randomByteArrayOfLength(between(1, 4096));
-        DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber subscriber = new DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber(
-            payload.length,
-            FACTORY
-        );
+        DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber subscriber = fixedLength(payload.length);
         subscriber.onSubscribe(new TestSubscription());
         subscriber.onNext(List.of(ByteBuffer.wrap(payload)));
         subscriber.onComplete();
@@ -58,10 +58,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
     public void testFixedLengthMultiChunk() throws Exception {
         byte[] payload = randomByteArrayOfLength(between(64, 8192));
         int mid = payload.length / 2;
-        DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber subscriber = new DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber(
-            payload.length,
-            FACTORY
-        );
+        DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber subscriber = fixedLength(payload.length);
         subscriber.onSubscribe(new TestSubscription());
         subscriber.onNext(List.of(ByteBuffer.wrap(payload, 0, mid), ByteBuffer.wrap(payload, mid, payload.length - mid)));
         subscriber.onComplete();
@@ -75,7 +72,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
     public void testFixedLengthOverAllocatedDestinationUsesExpectedLength() throws Exception {
         byte[] payload = randomByteArrayOfLength(between(32, 512));
         AtomicInteger closeCalls = new AtomicInteger();
-        DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber subscriber = new DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber(
+        DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber subscriber = fixedLength(
             payload.length,
             overAllocatingFactory(closeCalls)
         );
@@ -101,45 +98,44 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
 
     public void testFixedLengthShortBodyFails() {
         // 206 path: server claimed Partial Content but delivered fewer bytes than expectedLength.
-        // Must fail rather than silently return a short buffer, matching SkipThenFillDirectSubscriber
-        // (200 fallback) and KnownLengthAsyncResponseTransformer (S3).
+        // Must fail as a non-throttling EUE (like S3 KnownLengthAsyncResponseTransformer) rather
+        // than silently return a short buffer.
         byte[] payload = randomByteArrayOfLength(between(8, 64));
         int expectedLength = payload.length + between(1, 32);
-        DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber subscriber = new DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber(
-            expectedLength,
-            FACTORY
-        );
+        DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber subscriber = fixedLength(expectedLength);
         subscriber.onSubscribe(new TestSubscription());
         subscriber.onNext(List.of(ByteBuffer.wrap(payload)));
         subscriber.onComplete();
 
         ExecutionException ex = expectThrows(ExecutionException.class, () -> subscriber.getBody().get());
-        assertThat(ex.getCause(), instanceOf(IOException.class));
-        assertThat(ex.getCause().getMessage(), containsString("shorter than expected"));
-        assertThat(ex.getCause().getMessage(), containsString("received=" + payload.length));
-        assertThat(ex.getCause().getMessage(), containsString("expected=" + expectedLength));
+        assertThat(ex.getCause(), instanceOf(ExternalUnavailableException.class));
+        ExternalUnavailableException eue = (ExternalUnavailableException) ex.getCause();
+        assertFalse(eue.throttling());
+        assertThat(eue.getMessage(), containsString("shorter than expected"));
+        assertThat(eue.getMessage(), containsString("received=" + payload.length));
+        assertThat(eue.getMessage(), containsString("expected=" + expectedLength));
+        assertThat(eue.getMessage(), containsString(PATH.toString()));
     }
 
     public void testFixedLengthOverflowFails() {
         byte[] payload = randomByteArrayOfLength(32);
-        DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber subscriber = new DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber(
-            payload.length - 1,
-            FACTORY
-        );
+        DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber subscriber = fixedLength(payload.length - 1);
         subscriber.onSubscribe(new TestSubscription());
         subscriber.onNext(List.of(ByteBuffer.wrap(payload)));
 
         ExecutionException ex = expectThrows(ExecutionException.class, () -> subscriber.getBody().get());
-        assertThat(ex.getCause(), instanceOf(IOException.class));
-        assertThat(ex.getCause().getMessage(), containsString("exceeded expected length"));
+        assertThat(ex.getCause(), instanceOf(ExternalUnavailableException.class));
+        ExternalUnavailableException eue = (ExternalUnavailableException) ex.getCause();
+        assertFalse(eue.throttling());
+        assertThat(eue.getMessage(), containsString("exceeded expected length"));
+        assertThat(eue.getMessage(), containsString("cumulative=" + payload.length));
+        assertThat(eue.getMessage(), containsString("expected=" + (payload.length - 1)));
+        assertThat(eue.getMessage(), containsString(PATH.toString()));
     }
 
     public void testFixedLengthLateOnNextAfterCompleteIsIgnored() throws Exception {
         byte[] payload = randomByteArrayOfLength(32);
-        DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber subscriber = new DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber(
-            payload.length,
-            FACTORY
-        );
+        DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber subscriber = fixedLength(payload.length);
         subscriber.onSubscribe(new TestSubscription());
         subscriber.onNext(List.of(ByteBuffer.wrap(payload)));
         subscriber.onComplete();
@@ -154,10 +150,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         byte[] payload = randomByteArrayOfLength(32);
         AtomicInteger closeCalls = new AtomicInteger();
         DirectBufferFactory factory = length -> new DirectReadBuffer(ByteBuffer.allocate(length), closeCalls::incrementAndGet);
-        DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber subscriber = new DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber(
-            payload.length,
-            factory
-        );
+        DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber subscriber = fixedLength(payload.length, factory);
         RecordingSubscription subscription = new RecordingSubscription();
         subscriber.onSubscribe(subscription);
         subscriber.onNext(List.of(ByteBuffer.wrap(payload)));
@@ -172,10 +165,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
     public void testFixedLengthCancelBeforeSubscribeDoesNotAllocate() {
         AtomicInteger closeCalls = new AtomicInteger();
         DirectBufferFactory factory = length -> new DirectReadBuffer(ByteBuffer.allocate(length), closeCalls::incrementAndGet);
-        DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber subscriber = new DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber(
-            32,
-            factory
-        );
+        DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber subscriber = fixedLength(32, factory);
         assertTrue(subscriber.getBody().cancel(false));
         RecordingSubscription subscription = new RecordingSubscription();
 
@@ -189,10 +179,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
 
     public void testFixedLengthClosedResultIsNotRetainedBySubscriber() throws Exception {
         byte[] payload = randomByteArrayOfLength(1 << 20);
-        DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber subscriber = new DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber(
-            payload.length,
-            FACTORY
-        );
+        DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber subscriber = fixedLength(payload.length);
         CompletableFuture<DirectReadBuffer> body = subscriber.getBody();
         subscriber.onSubscribe(new TestSubscription());
         subscriber.onNext(List.of(ByteBuffer.wrap(payload)));
@@ -214,7 +201,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         byte[] fullBody = "0123456789ABCDEFGHIJ".getBytes(StandardCharsets.UTF_8);
         byte[] expected = "56789".getBytes(StandardCharsets.UTF_8);
         DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber subscriber =
-            new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(5, expected.length, FACTORY);
+            new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(5, expected.length, FACTORY, PATH);
         subscriber.onSubscribe(new TestSubscription());
         subscriber.onNext(List.of(ByteBuffer.wrap(fullBody, 0, 7), ByteBuffer.wrap(fullBody, 7, fullBody.length - 7)));
         subscriber.onComplete();
@@ -230,7 +217,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         byte[] expected = "56789".getBytes(StandardCharsets.UTF_8);
         AtomicInteger closeCalls = new AtomicInteger();
         DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber subscriber =
-            new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(5, expected.length, overAllocatingFactory(closeCalls));
+            new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(5, expected.length, overAllocatingFactory(closeCalls), PATH);
         subscriber.onSubscribe(new TestSubscription());
         subscriber.onNext(List.of(ByteBuffer.wrap(fullBody)));
         subscriber.onComplete();
@@ -255,7 +242,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         byte[] fullBody = "0123456789".getBytes(StandardCharsets.UTF_8);
         byte[] expected = "345".getBytes(StandardCharsets.UTF_8);
         DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber subscriber =
-            new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(3, expected.length, FACTORY);
+            new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(3, expected.length, FACTORY, PATH);
         subscriber.onSubscribe(new TestSubscription());
         subscriber.onNext(List.of(ByteBuffer.wrap(fullBody)));
         subscriber.onComplete();
@@ -271,7 +258,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         AtomicInteger closeCalls = new AtomicInteger();
         DirectBufferFactory factory = length -> new DirectReadBuffer(ByteBuffer.allocate(length), closeCalls::incrementAndGet);
         DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber subscriber =
-            new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(3, 3, factory);
+            new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(3, 3, factory, PATH);
         RecordingSubscription subscription = new RecordingSubscription();
         subscriber.onSubscribe(subscription);
         subscriber.onNext(List.of(ByteBuffer.wrap(fullBody)));
@@ -287,7 +274,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         AtomicInteger closeCalls = new AtomicInteger();
         DirectBufferFactory factory = length -> new DirectReadBuffer(ByteBuffer.allocate(length), closeCalls::incrementAndGet);
         DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber subscriber =
-            new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(3, 3, factory);
+            new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(3, 3, factory, PATH);
         assertTrue(subscriber.getBody().cancel(false));
         RecordingSubscription subscription = new RecordingSubscription();
 
@@ -304,7 +291,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         int length = 1 << 20;
         byte[] fullBody = randomByteArrayOfLength(skip + length);
         DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber subscriber =
-            new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(skip, length, FACTORY);
+            new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(skip, length, FACTORY, PATH);
         CompletableFuture<DirectReadBuffer> body = subscriber.getBody();
         subscriber.onSubscribe(new TestSubscription());
         subscriber.onNext(List.of(ByteBuffer.wrap(fullBody)));
@@ -325,39 +312,45 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
     public void testSkipThenFillPositionBeyondBodyFails() {
         byte[] fullBody = "0123456789".getBytes(StandardCharsets.UTF_8);
         DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber subscriber =
-            new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(20, 5, FACTORY);
+            new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(20, 5, FACTORY, PATH);
         subscriber.onSubscribe(new TestSubscription());
         subscriber.onNext(List.of(ByteBuffer.wrap(fullBody)));
         subscriber.onComplete();
 
         ExecutionException ex = expectThrows(ExecutionException.class, () -> subscriber.getBody().get());
-        assertThat(ex.getCause(), instanceOf(IOException.class));
-        assertThat(ex.getCause().getMessage(), containsString("beyond content length"));
+        assertThat(ex.getCause(), instanceOf(ExternalUnavailableException.class));
+        ExternalUnavailableException eue = (ExternalUnavailableException) ex.getCause();
+        assertFalse(eue.throttling());
+        assertThat(eue.getMessage(), containsString("beyond content length"));
+        assertThat(eue.getMessage(), containsString(PATH.toString()));
     }
 
     public void testSkipThenFillShortBodyAfterSkipFails() {
-        // Skip 2 of 8, then ask for 8 more bytes — only 6 are available. Must fail rather than
-        // silently return a short buffer, matching FixedLengthDirectSubscriber (206 path) and
-        // KnownLengthAsyncResponseTransformer (S3). Downstream Parquet readers trust the
-        // requested length when slicing the returned buffer.
+        // Skip 2 of 8, then ask for 8 more bytes — only 6 are available. Must fail as a
+        // non-throttling EUE (same typing as the 206 path) rather than silently return a short
+        // buffer. Downstream Parquet readers trust the requested length when slicing the returned
+        // buffer.
         byte[] fullBody = "01234567".getBytes(StandardCharsets.UTF_8);
         DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber subscriber =
-            new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(2, 8, FACTORY);
+            new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(2, 8, FACTORY, PATH);
         subscriber.onSubscribe(new TestSubscription());
         subscriber.onNext(List.of(ByteBuffer.wrap(fullBody)));
         subscriber.onComplete();
 
         ExecutionException ex = expectThrows(ExecutionException.class, () -> subscriber.getBody().get());
-        assertThat(ex.getCause(), instanceOf(IOException.class));
-        assertThat(ex.getCause().getMessage(), containsString("shorter than expected"));
-        assertThat(ex.getCause().getMessage(), containsString("received=6"));
-        assertThat(ex.getCause().getMessage(), containsString("expected=8"));
+        assertThat(ex.getCause(), instanceOf(ExternalUnavailableException.class));
+        ExternalUnavailableException eue = (ExternalUnavailableException) ex.getCause();
+        assertFalse(eue.throttling());
+        assertThat(eue.getMessage(), containsString("shorter than expected"));
+        assertThat(eue.getMessage(), containsString("received=6"));
+        assertThat(eue.getMessage(), containsString("expected=8"));
+        assertThat(eue.getMessage(), containsString(PATH.toString()));
     }
 
     public void testSkipThenFillAtEofWithNoBytesRemainingFails() {
         byte[] fullBody = "01234567".getBytes(StandardCharsets.UTF_8);
         DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber subscriber =
-            new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(fullBody.length, 5, FACTORY);
+            new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(fullBody.length, 5, FACTORY, PATH);
         subscriber.onSubscribe(new TestSubscription());
         subscriber.onNext(List.of(ByteBuffer.wrap(fullBody)));
         subscriber.onComplete();
@@ -365,17 +358,20 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         // Skip fully consumes the body, leaving zero bytes for the fill — fails via the strict
         // "shorter than expected" path (same as any other under-delivery after a successful skip).
         ExecutionException ex = expectThrows(ExecutionException.class, () -> subscriber.getBody().get());
-        assertThat(ex.getCause(), instanceOf(IOException.class));
-        assertThat(ex.getCause().getMessage(), containsString("shorter than expected"));
-        assertThat(ex.getCause().getMessage(), containsString("received=0"));
-        assertThat(ex.getCause().getMessage(), containsString("expected=5"));
+        assertThat(ex.getCause(), instanceOf(ExternalUnavailableException.class));
+        ExternalUnavailableException eue = (ExternalUnavailableException) ex.getCause();
+        assertFalse(eue.throttling());
+        assertThat(eue.getMessage(), containsString("shorter than expected"));
+        assertThat(eue.getMessage(), containsString("received=0"));
+        assertThat(eue.getMessage(), containsString("expected=5"));
+        assertThat(eue.getMessage(), containsString(PATH.toString()));
     }
 
     public void testRangeReadHandler206AccumulatesDirectBuffer() throws Exception {
         byte[] payload = "hello".getBytes(StandardCharsets.UTF_8);
         HttpResponse.ResponseInfo responseInfo = mock(HttpResponse.ResponseInfo.class);
         when(responseInfo.statusCode()).thenReturn(HttpStatus.SC_PARTIAL_CONTENT);
-        HttpResponse.BodyHandler<DirectReadBuffer> handler = DirectByteBufferBodyHandlers.ofRangeRead(0, payload.length, FACTORY);
+        HttpResponse.BodyHandler<DirectReadBuffer> handler = ofRangeRead(0, payload.length);
         HttpResponse.BodySubscriber<DirectReadBuffer> subscriber = handler.apply(responseInfo);
         subscriber.onSubscribe(new TestSubscription());
         subscriber.onNext(List.of(ByteBuffer.wrap(payload)));
@@ -394,7 +390,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         int status = randomFrom(HttpStatus.SC_NOT_FOUND, HttpStatus.SC_INTERNAL_SERVER_ERROR, HttpStatus.SC_FORBIDDEN);
         HttpResponse.ResponseInfo responseInfo = mock(HttpResponse.ResponseInfo.class);
         when(responseInfo.statusCode()).thenReturn(status);
-        HttpResponse.BodyHandler<DirectReadBuffer> handler = DirectByteBufferBodyHandlers.ofRangeRead(0, 1024, FACTORY);
+        HttpResponse.BodyHandler<DirectReadBuffer> handler = ofRangeRead(0, 1024);
         HttpResponse.BodySubscriber<DirectReadBuffer> subscriber = handler.apply(responseInfo);
         subscriber.onSubscribe(new TestSubscription());
         subscriber.onNext(List.of(ByteBuffer.wrap("error page body".getBytes(StandardCharsets.UTF_8))));
@@ -414,7 +410,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         int status = randomFrom(HttpStatus.SC_NOT_FOUND, HttpStatus.SC_INTERNAL_SERVER_ERROR, HttpStatus.SC_FORBIDDEN);
         HttpResponse.ResponseInfo responseInfo = mock(HttpResponse.ResponseInfo.class);
         when(responseInfo.statusCode()).thenReturn(status);
-        HttpResponse.BodyHandler<DirectReadBuffer> handler = DirectByteBufferBodyHandlers.ofRangeRead(0, 1024, FACTORY);
+        HttpResponse.BodyHandler<DirectReadBuffer> handler = ofRangeRead(0, 1024);
 
         // Simulate two failed HTTP responses back-to-back (same JVM, same class statics).
         for (int i = 0; i < 2; i++) {
@@ -433,7 +429,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         byte[] expected = "345".getBytes(StandardCharsets.UTF_8);
         HttpResponse.ResponseInfo responseInfo = mock(HttpResponse.ResponseInfo.class);
         when(responseInfo.statusCode()).thenReturn(HttpStatus.SC_OK);
-        HttpResponse.BodyHandler<DirectReadBuffer> handler = DirectByteBufferBodyHandlers.ofRangeRead(3, expected.length, FACTORY);
+        HttpResponse.BodyHandler<DirectReadBuffer> handler = ofRangeRead(3, expected.length);
         HttpResponse.BodySubscriber<DirectReadBuffer> subscriber = handler.apply(responseInfo);
         subscriber.onSubscribe(new TestSubscription());
         subscriber.onNext(List.of(ByteBuffer.wrap(fullBody)));
@@ -448,10 +444,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
     private void assertFixedLengthInvalidFactoryBufferRejected(ByteBuffer invalidBuffer, int expectedLength) {
         AtomicInteger closeCalls = new AtomicInteger();
         DirectBufferFactory factory = ignored -> new DirectReadBuffer(invalidBuffer, closeCalls::incrementAndGet);
-        DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber subscriber = new DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber(
-            expectedLength,
-            factory
-        );
+        DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber subscriber = fixedLength(expectedLength, factory);
         RecordingSubscription subscription = new RecordingSubscription();
 
         subscriber.onSubscribe(subscription);
@@ -468,7 +461,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         AtomicInteger closeCalls = new AtomicInteger();
         DirectBufferFactory factory = ignored -> new DirectReadBuffer(invalidBuffer, closeCalls::incrementAndGet);
         DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber subscriber =
-            new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(0, length, factory);
+            new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(0, length, factory, PATH);
         RecordingSubscription subscription = new RecordingSubscription();
 
         subscriber.onSubscribe(subscription);
@@ -479,6 +472,18 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         assertEquals(1, closeCalls.get());
         assertTrue(subscription.cancelled.get());
         assertEquals(0L, subscription.requested.get());
+    }
+
+    private static DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber fixedLength(int expectedLength) {
+        return fixedLength(expectedLength, FACTORY);
+    }
+
+    private static DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber fixedLength(int expectedLength, DirectBufferFactory factory) {
+        return new DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber(expectedLength, factory, PATH);
+    }
+
+    private static HttpResponse.BodyHandler<DirectReadBuffer> ofRangeRead(long skip, int length) {
+        return DirectByteBufferBodyHandlers.ofRangeRead(skip, length, FACTORY, PATH);
     }
 
     private static DirectBufferFactory overAllocatingFactory(AtomicInteger closeCalls) {

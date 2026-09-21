@@ -48,6 +48,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.englishFallbackWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mappingAnalyzerFallbackWarning;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
@@ -5039,31 +5041,28 @@ public class VerifierTests extends AnalyzerTestCase {
         );
     }
 
-    public void testHighlightQueryAnalyzerMustMatchValuesOrWith() {
+    /** Query analyzer and values analyzer may differ, exactly like {@code WHERE MATCH}. WITH sets only the values side. */
+    public void testHighlightQueryAndValuesAnalyzersMayDiffer() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
-        supportsHighlightImplicit(fullText()).error(
-            "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT",
-            containsString("HIGHLIGHT query analyzer [whitespace] does not match the values analyzer [standard]")
-        );
+        supportsHighlightImplicit(fullText()).query("FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT");
         supportsHighlightImplicit(fullText()).query(
             "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT WITH { \"analyzer\": \"whitespace\" }"
         );
     }
 
-    public void testHighlightMappingAnalyzerAgreesWithQueryWithoutWith() {
+    /** A mapping analyzer no longer has to match the borrowed query analyzer, and different ON fields may use different analyzers. */
+    public void testHighlightMappingAnalyzerAllowsAnyQueryAnalyzer() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         TestAnalyzer booksEnglish = supportsHighlightImplicit(
             analyzer().addIndex("books_english", "mapping-books_english.json").stripErrorPrefix(true)
         );
         booksEnglish.query("FROM books_english | WHERE MATCH(title, \"ring\") | HIGHLIGHT ON title");
-        booksEnglish.error(
-            "FROM books_english | WHERE MATCH(title, \"ring\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT ON title",
-            containsString("HIGHLIGHT query analyzer [whitespace] does not match the values analyzer [english]")
-        );
-        booksEnglish.error(
-            "FROM books_english | HIGHLIGHT \"ring\" ON title, publisher",
-            containsString("HIGHLIGHT ON fields use different values analyzers")
-        );
+        // Query analyzer whitespace and values analyzer english mirror WHERE MATCH exactly.
+        booksEnglish.query("FROM books_english | WHERE MATCH(title, \"ring\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT ON title");
+        // title uses english, publisher uses standard; each field gets its own values analyzer.
+        booksEnglish.query("FROM books_english | HIGHLIGHT \"ring\" ON title, publisher");
+        // The test analyzer has no analysis registry, so english is unresolvable and title falls back to standard.
+        assertWarnings(englishFallbackWarning("title"));
     }
 
     public void testHighlightImplicitDerivedQueryFailureIsFramedAsDerived() {
@@ -5165,6 +5164,13 @@ public class VerifierTests extends AnalyzerTestCase {
         supportsHighlight(fullText()).query(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title WITH { \"analyzer\": \"standard\" }"
         );
+        // Query analyzer diverges from values analyzer (mirrors WHERE MATCH; WITH sets only the values side).
+        supportsHighlight(fullText()).query("FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title");
+        // Each leaf's analyzer shapes only its own query terms, so different leaves may use different analyzers.
+        supportsHighlight(fullText()).query(
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"simple\"}) OR"
+                + " MATCH(body, \"bar\", {\"analyzer\": \"whitespace\"}) ON title, body"
+        );
         // Full-text functions inside a HIGHLIGHT query are used to define highlighting terms, not as Lucene filter predicates.
         // They must be allowed on non-STANDARD (e.g. time-series) indices.
         supportsHighlight(k8s()).query("TS k8s | HIGHLIGHT MATCH(event_log, \"fox\") ON event_log");
@@ -5228,13 +5234,15 @@ public class VerifierTests extends AnalyzerTestCase {
             );
     }
 
-    /** WITH must name the same analyzer as the borrowed WHERE leaf. */
-    public void testHighlightWithAnalyzerMustMatchBorrowedLeaf() {
+    /**
+     * WITH sets the values analyzer; a borrowed leaf's {@code analyzer} option remains the query analyzer. The two
+     * do not need to match, just like {@code WHERE MATCH} vs. an index's mapping analyzer.
+     */
+    public void testHighlightWithAnalyzerDivergesFromBorrowedLeaf() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
-        supportsHighlightImplicit(fullText()).error(
+        supportsHighlightImplicit(fullText()).query(
             "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"})"
-                + " | HIGHLIGHT ON title WITH { \"analyzer\": \"keyword\" }",
-            containsString("HIGHLIGHT WITH analyzer [keyword] does not match analyzer [whitespace] specified by the query")
+                + " | HIGHLIGHT ON title WITH { \"analyzer\": \"keyword\" }"
         );
         supportsHighlightImplicit(fullText()).query(
             "FROM test | WHERE MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"})"
@@ -5259,7 +5267,7 @@ public class VerifierTests extends AnalyzerTestCase {
                 allOf(
                     containsString("HIGHLIGHT derived its query from a preceding WHERE"),
                     containsString("refers to analyzer [my_custom_analyzer]"),
-                    containsString("Per-index custom analyzers cannot be used in HIGHLIGHT"),
+                    containsString("Specify WITH {\"analyzer\": <registered analyzer>}"),
                     not(containsString("[my_custom_analyzer] is not a registered analyzer"))
                 )
             );
@@ -5278,10 +5286,7 @@ public class VerifierTests extends AnalyzerTestCase {
                     + borrowed
                     + "\"})"
                     + " | HIGHLIGHT ON title WITH { \"analyzer\": \"my_custom_analyzer\" }",
-                allOf(
-                    containsString("[my_custom_analyzer] is not a registered analyzer"),
-                    not(containsString("Per-index custom analyzers cannot be used in HIGHLIGHT"))
-                )
+                containsString("[my_custom_analyzer] is not a registered analyzer")
             );
         }
     }
@@ -5304,6 +5309,8 @@ public class VerifierTests extends AnalyzerTestCase {
         supportsHighlight(analyzer().addIndex("test", "mapping-text-custom-analyzer.json").stripErrorPrefix(true)).query(
             "FROM test | HIGHLIGHT \"fox\" ON title"
         );
+        // my_index_analyzer is a per-index custom analyzer; the node cannot build it, so title falls back to standard.
+        assertWarnings(mappingAnalyzerFallbackWarning("title", "my_index_analyzer"));
     }
 
     public void testHighlightRejectsInvalidQueries() {
@@ -5343,15 +5350,6 @@ public class VerifierTests extends AnalyzerTestCase {
         supportsHighlight(fullText()).error(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"not_a_real_analyzer\"}) ON title",
             containsString("[not_a_real_analyzer] is not a registered analyzer")
-        );
-        supportsHighlight(fullText()).error(
-            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title",
-            containsString("HIGHLIGHT query analyzer [whitespace] does not match the values analyzer [standard]")
-        );
-        supportsHighlight(fullText()).error(
-            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"simple\"}) OR"
-                + " MATCH(body, \"bar\", {\"analyzer\": \"whitespace\"}) ON title, body",
-            containsString("HIGHLIGHT full-text functions use different analyzers [simple, whitespace]")
         );
         supportsHighlight(fullText()).error(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\") ON body",

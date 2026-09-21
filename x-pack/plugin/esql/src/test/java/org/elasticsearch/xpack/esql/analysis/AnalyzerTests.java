@@ -173,6 +173,7 @@ import static org.elasticsearch.xpack.esql.TestAnalyzer.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.englishFallbackWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
@@ -6720,6 +6721,8 @@ public class AnalyzerTests extends AnalyzerTestCase {
         );
         assertTrue(mapped.implicitQuery());
         assertNull(mapped.options());
+        // The test analyzer has no analysis registry, so english is unresolvable and title falls back to standard.
+        assertWarnings(englishFallbackWarning("title"));
     }
 
     public void testHighlightAnalyzerOnUnsupportedShapeDoesNotBorrow() {
@@ -6745,6 +6748,9 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertThat(title.field(), instanceOf(TextEsField.class));
         assertThat(((TextEsField) title.field()).analyzerName(), equalTo("english"));
         assertNull(highlight.options());
+        // The mapping analyzer name survives on TextEsField, but the values analyzer falls back to standard here
+        // because english is not registered in the test node.
+        assertWarnings(englishFallbackWarning("title"));
     }
 
     public void testHighlightImplicitQueryPassesDocPreservingCommands() {

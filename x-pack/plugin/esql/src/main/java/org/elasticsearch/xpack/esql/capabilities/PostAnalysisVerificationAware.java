@@ -11,6 +11,8 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 
+import java.util.function.Consumer;
+
 /**
  * Interface implemented by expressions or plans that require validation after query plan analysis,
  * when the indices and references have been resolved, but before the plan is transformed further by optimizations.
@@ -53,5 +55,14 @@ public interface PostAnalysisVerificationAware {
      */
     default void postAnalysisVerification(AnalysisRegistry analysisRegistry, Failures failures) {
         postAnalysisVerification(failures);
+    }
+
+    /**
+     * Overload that additionally exposes a {@code warnings} sink, backed by
+     * {@link org.elasticsearch.xpack.esql.analysis.AnalyzerContext#deferredHeaderWarnings()}: warnings emitted here
+     * only reach the client if verification succeeds. By default this delegates to the registry-only overload.
+     */
+    default void postAnalysisVerification(AnalysisRegistry analysisRegistry, Consumer<String> warnings, Failures failures) {
+        postAnalysisVerification(analysisRegistry, failures);
     }
 }

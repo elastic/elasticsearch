@@ -143,13 +143,17 @@ public class EsFieldTestUtils {
         EsField.TimeSeriesFieldType tsType = randomFrom(EsField.TimeSeriesFieldType.values());
         String analyzerName = null;
         int positionIncrementGap = TextEsField.DEFAULT_POSITION_INCREMENT_GAP;
+        boolean analyzerConflict = false;
         if (supportedOn == null || supportedOn.supports(TextEsField.FIELD_CAPS_INDEX_ANALYZER)) {
             analyzerName = randomBoolean() ? null : randomAlphaOfLength(6);
             if (analyzerName != null) {
                 positionIncrementGap = randomBoolean() ? TextEsField.DEFAULT_POSITION_INCREMENT_GAP : between(0, 1000);
+            } else {
+                // Only meaningful when the field has no shared analyzer name; the resolver never sets both.
+                analyzerConflict = randomBoolean();
             }
         }
-        return new TextEsField(name, properties, hasDocValues, isAlias, tsType, analyzerName, positionIncrementGap);
+        return new TextEsField(name, properties, hasDocValues, isAlias, tsType, analyzerName, positionIncrementGap, analyzerConflict);
     }
 
     public static PotentiallyUnmappedKeywordEsField randomPotentiallyUnmappedKeywordEsField(

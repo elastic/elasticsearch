@@ -2107,7 +2107,8 @@ Return of the King Being the Third Part of The Lord of the Rings | null
 ;
 
 
-# books and books_english disagree on title's analyzer, so HIGHLIGHT uses standard. "ring" matches "Ring", not "Rings".
+# books and books_english disagree on title's analyzer, so HIGHLIGHT uses standard and emits a warning.
+# "ring" matches "Ring", not "Rings".
 highlightMappingAnalyzerConflictFallsBackToStandard
 required_capability: highlight_mapping_analyzer
 
@@ -2118,6 +2119,7 @@ FROM books,books_english
 | SORT title
 ;
 
+warningRegex:HIGHLIGHT on \[title\] falls back to \[standard\]: the queried indices disagree on the analyzer for this field.*
 title:text | highlight_title:keyword
 Return of the King Being the Third Part of The Lord of the Rings | null
 ;
@@ -2342,6 +2344,58 @@ ROW title = to_text(["The Lord of the Rings"], { "analyzer": "english" }), autho
 
 highlight_title:keyword        | highlight_author:keyword
 The Lord of the <em>Rings</em> | Tolkien wrote about <em>rings</em>
+;
+
+
+# Query analyzer whitespace paints the exact token "Ring"; the mapping english analyzer indexes values.
+# Both sides used to be forced to agree; per-field analyzers are allowed now.
+highlightQueryAnalyzerDivergesFromMappingAnalyzer
+required_capability: highlight_mapping_analyzer
+
+# Query analyzer whitespace (leaf option), values analyzer english (books_english mapping). The two disagree, but the
+# query token "ring" still matches the english-analyzed field "Ring", so highlighting succeeds. This documents that
+# such divergence is now accepted rather than rejected as "must be the same".
+FROM books_english
+| WHERE MATCH(title, "ring", { "analyzer": "whitespace" }) AND book_no == "2936"
+| HIGHLIGHT
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+Fellowship of the <em>Ring</em> 2ND Edition
+;
+
+
+# Two ON fields with different values analyzers. Each field's own analyzer tokenizes its own values.
+highlightPerFieldValuesAnalyzersAreIndependent
+required_capability: highlight_mapping_analyzer
+
+FROM books_english
+| WHERE MATCH(title, "ring") AND book_no == "2714"
+| HIGHLIGHT "ring" ON title, publisher
+| KEEP highlight_title, highlight_publisher
+;
+
+highlight_title:keyword                                                    | highlight_publisher:keyword
+Return of the King Being the Third Part of The Lord of the <em>Rings</em> | null
+;
+
+
+# Distinguishes leaf-always-query-side from the previous WITH-strips-leaf behaviour.
+# Leaf {"analyzer": "keyword"} preserves "Rings" as a single case-sensitive token; the field is indexed with
+# standard (per WITH), which lowercases to "rings". Under WITH-strips-leaf, the leaf would be dropped and both
+# sides would use standard, so "Rings" would tokenize to "rings" and match. Under leaf-always-query-side, the
+# case mismatch produces no highlight. Every earlier CSV row agrees under both behaviours; this one does not.
+highlightLeafAnalyzerRemainsQuerySideEvenUnderWith
+required_capability: highlight_mapping_analyzer
+
+ROW title = to_text("The Lord of the Rings")
+| HIGHLIGHT MATCH(title, "Rings", {"analyzer": "keyword"}) ON title WITH {"analyzer": "standard"}
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+null
 ;
 
 

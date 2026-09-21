@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -26,7 +27,10 @@ import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 
 public class HighlightAnalyzersTests extends ESTestCase {
 
@@ -66,6 +70,64 @@ public class HighlightAnalyzersTests extends ESTestCase {
     // Mapping analyzer this node cannot build. Resolve returns standard instead of failing the query.
     public void testUnknownMappingAnalyzerFallsBackToStandard() {
         assertThat(names(textField("title", "my_index_analyzer")), contains("standard"));
+    }
+
+    // Same as above, but confirm a warning is emitted through the sink and names the field and analyzer.
+    public void testUnknownMappingAnalyzerEmitsFallbackWarning() {
+        List<String> warnings = new ArrayList<>();
+        HighlightAnalyzers.resolve(List.of(textField("title", "my_index_analyzer")), null, TEST_ANALYSIS_REGISTRY, warnings::add);
+        assertThat(warnings, hasSize(1));
+        assertThat(warnings.get(0), containsString("HIGHLIGHT on [title] falls back to [standard]"));
+        assertThat(warnings.get(0), containsString("analyzer [my_index_analyzer]"));
+        assertThat(warnings.get(0), containsString("WITH {\"analyzer\": <registered analyzer>}"));
+    }
+
+    // Two indices disagree on the analyzer. TextEsField.analyzerConflict is set and HighlightAnalyzers warns.
+    public void testMultiIndexAnalyzerConflictFallsBackAndWarns() {
+        FieldAttribute conflictField = new FieldAttribute(
+            EMPTY,
+            "title",
+            new TextEsField(
+                "title",
+                Map.of(),
+                false,
+                false,
+                EsField.TimeSeriesFieldType.NONE,
+                null,
+                TextEsField.DEFAULT_POSITION_INCREMENT_GAP,
+                true
+            )
+        );
+        List<String> warnings = new ArrayList<>();
+        Map<String, NamedAnalyzer> resolved = HighlightAnalyzers.resolve(
+            List.of(conflictField),
+            null,
+            TEST_ANALYSIS_REGISTRY,
+            warnings::add
+        );
+        assertThat(resolved.get("title").name(), equalTo("standard"));
+        assertThat(warnings, hasItem(containsString("indices disagree on the analyzer")));
+    }
+
+    // WITH takes precedence; a conflicting mapping analyzer must not produce a warning if the user set WITH.
+    public void testWithAnalyzerSuppressesConflictWarning() {
+        FieldAttribute conflictField = new FieldAttribute(
+            EMPTY,
+            "title",
+            new TextEsField(
+                "title",
+                Map.of(),
+                false,
+                false,
+                EsField.TimeSeriesFieldType.NONE,
+                null,
+                TextEsField.DEFAULT_POSITION_INCREMENT_GAP,
+                true
+            )
+        );
+        List<String> warnings = new ArrayList<>();
+        HighlightAnalyzers.resolve(List.of(conflictField), "keyword", TEST_ANALYSIS_REGISTRY, warnings::add);
+        assertThat(warnings, hasSize(0));
     }
 
     public void testUnknownCommandAndDeclaredAnalyzersThrow() {

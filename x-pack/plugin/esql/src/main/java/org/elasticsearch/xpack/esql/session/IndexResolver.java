@@ -566,14 +566,19 @@ public class IndexResolver {
         // TODO I think we only care about unmapped fields if we're aggregating on them. do we even then?
 
         if (type == TEXT) {
+            String sharedAnalyzer = sharedIndexAnalyzer(first, rest);
+            // conflict = at least one index reported an analyzer name and they did not all agree. "One index silent"
+            // is not a conflict: older nodes report null and we already fall back for those.
+            boolean analyzerConflict = sharedAnalyzer == null && anyReportsAnalyzer(first, rest);
             return new TextEsField(
                 name,
                 new HashMap<>(),
                 false,
                 isAlias,
                 timeSeriesFieldType,
-                sharedIndexAnalyzer(first, rest),
-                first.indexAnalyzerPositionIncrementGap()
+                sharedAnalyzer,
+                first.indexAnalyzerPositionIncrementGap(),
+                analyzerConflict
             );
         }
         if (type == KEYWORD) {
@@ -595,8 +600,9 @@ public class IndexResolver {
     /**
      * Analyzer name shared by every index for this text field, or {@code null} if they disagree on the name or
      * {@code position_increment_gap}, or any index omitted it (older node). HIGHLIGHT treats {@code null} as
-     * {@code standard} for that field only.
-     * TODO: surface the disagreement as a warning header.
+     * {@code standard} for that field only; the disagreement case is distinguished by
+     * {@link TextEsField#analyzerConflict()} and surfaced as a warning header from
+     * {@link org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightAnalyzers}.
      */
     @Nullable
     private static String sharedIndexAnalyzer(IndexFieldCapabilities first, List<IndexFieldCapabilities> rest) {
@@ -611,6 +617,19 @@ public class IndexResolver {
             }
         }
         return shared;
+    }
+
+    /** True if any index reports a non-null analyzer name for this field. Distinguishes "conflict" from "no analyzer". */
+    private static boolean anyReportsAnalyzer(IndexFieldCapabilities first, List<IndexFieldCapabilities> rest) {
+        if (first.indexAnalyzer() != null) {
+            return true;
+        }
+        for (IndexFieldCapabilities fc : rest) {
+            if (fc.indexAnalyzer() != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // Visible for testing.

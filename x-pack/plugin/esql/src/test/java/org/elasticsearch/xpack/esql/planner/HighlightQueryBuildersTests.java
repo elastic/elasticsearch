@@ -168,7 +168,7 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         });
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> HighlightQueryBuilders.verify(of("fox"), Map.of("title", analyzer), null, true, false, null)
+            () -> HighlightQueryBuilders.verify(of("fox"), Map.of("title", analyzer), true, false, null)
         );
         assertThat(e.getMessage(), containsString("test analyzer was used"));
     }
@@ -177,17 +177,17 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         Expression query = match("body", "fox", null);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> HighlightQueryBuilders.verify(query, TITLE_STANDARD, null, true, false, null)
+            () -> HighlightQueryBuilders.verify(query, TITLE_STANDARD, true, false, null)
         );
         assertThat(e.getMessage(), containsString("HIGHLIGHT query field [body] is not in ON fields [title]"));
-        HighlightQueryBuilders.verify(query, TITLE_STANDARD, null, false, false, null);
+        HighlightQueryBuilders.verify(query, TITLE_STANDARD, false, false, null);
     }
 
     public void testVerifyImplicitQueryFieldOutsideOnIsLenient() {
-        HighlightQueryBuilders.verify(queryString("body:fox", null), TITLE_STANDARD, null, false, true, null);
-        HighlightQueryBuilders.verify(queryString("fox", options("default_field", "body")), TITLE_STANDARD, null, false, true, null);
+        HighlightQueryBuilders.verify(queryString("body:fox", null), TITLE_STANDARD, false, true, null);
+        HighlightQueryBuilders.verify(queryString("fox", options("default_field", "body")), TITLE_STANDARD, false, true, null);
         Kql kql = new Kql(EMPTY, of("body: fox"), null, TEST_CFG);
-        HighlightQueryBuilders.verify(kql, TITLE_STANDARD, null, false, true, null);
+        HighlightQueryBuilders.verify(kql, TITLE_STANDARD, false, true, null);
     }
 
     // The registry hands plugin analyzers (AnalysisPlugin#getAnalyzers) back as bare Lucene analyzers with no position
@@ -385,7 +385,6 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         HighlightQueryBuilders.TranslatedQuery translated = HighlightQueryBuilders.translate(
             qstr,
             Map.of("title", resolved(HighlightQueryBuilders.DEFAULT_ANALYZER_NAME)),
-            null,
             analysisRegistry
         );
         TermQuery term = asInstanceOf(TermQuery.class, translated.query());
@@ -396,24 +395,17 @@ public class HighlightQueryBuildersTests extends ESTestCase {
     }
 
     /**
-     * MATCH analyzer tokenizes the query. The field analyzer tokenizes the document. WITH strips the leaf option
-     * so both sides use the command analyzer.
+     * A leaf {@code analyzer} option is always query-side (like {@code WHERE MATCH}). The field analyzer tokenizes
+     * the document. Selecting a different field analyzer via WITH does not change how the query is tokenized.
+     * {@code english} would stem "Rings" to "ring"; {@code whitespace} preserves it unchanged.
      */
-    public void testCommandAnalyzerStripsLeafAnalyzerFromQueryText() {
-        Expression query = match("title", "Rings", options("analyzer", "standard"));
+    public void testLeafAnalyzerIsAlwaysQuerySide() {
+        Expression query = match("title", "Rings", options("analyzer", "whitespace"));
         Map<String, NamedAnalyzer> english = Map.of("title", resolved("english"));
 
-        TermQuery leafAnalyzed = asInstanceOf(
-            TermQuery.class,
-            HighlightQueryBuilders.translate(query, english, null, analysisRegistry).query()
-        );
-        assertThat(leafAnalyzed.getTerm(), equalTo(new Term("title", "rings")));
-
-        TermQuery commandAnalyzed = asInstanceOf(
-            TermQuery.class,
-            HighlightQueryBuilders.translate(query, english, "english", analysisRegistry).query()
-        );
-        assertThat(commandAnalyzed.getTerm(), equalTo(new Term("title", "ring")));
+        // Field analyzer english, leaf analyzer whitespace: query keeps case as "Rings".
+        TermQuery term = asInstanceOf(TermQuery.class, HighlightQueryBuilders.translate(query, english, analysisRegistry).query());
+        assertThat(term.getTerm(), equalTo(new Term("title", "Rings")));
     }
 
     public void testMultiFieldUsesEachFieldsAnalyzer() {
@@ -421,7 +413,7 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         Map<String, NamedAnalyzer> fieldAnalyzers = new LinkedHashMap<>();
         fieldAnalyzers.put("title", resolved("english"));
         fieldAnalyzers.put("body", resolved("whitespace"));
-        HighlightQueryBuilders.TranslatedQuery translated = HighlightQueryBuilders.translate(query, fieldAnalyzers, null, analysisRegistry);
+        HighlightQueryBuilders.TranslatedQuery translated = HighlightQueryBuilders.translate(query, fieldAnalyzers, analysisRegistry);
         assertThat(terms(translated.query()), containsInAnyOrder(new Term("title", "ring"), new Term("body", "Rings")));
     }
 
@@ -429,14 +421,14 @@ public class HighlightQueryBuildersTests extends ESTestCase {
         QueryString qstr = queryString("\"Fox Bar\"", options("quote_analyzer", "not-a-real-analyzer"));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> HighlightQueryBuilders.verify(qstr, TITLE_STANDARD, null, true, false, analysisRegistry)
+            () -> HighlightQueryBuilders.verify(qstr, TITLE_STANDARD, true, false, analysisRegistry)
         );
         assertThat(e.getMessage(), containsString("not-a-real-analyzer"));
     }
 
     public void testVerifyMultiFieldResolvesOffOnFieldLeafAnalyzerWithRegistry() {
         Expression query = new Or(EMPTY, match("title", "fox", null), match("body", "bar", options("analyzer", "simple")));
-        HighlightQueryBuilders.verify(query, TITLE_STANDARD, null, false, true, analysisRegistry);
+        HighlightQueryBuilders.verify(query, TITLE_STANDARD, false, true, analysisRegistry);
     }
 
     private static NamedAnalyzer resolved(String name) {

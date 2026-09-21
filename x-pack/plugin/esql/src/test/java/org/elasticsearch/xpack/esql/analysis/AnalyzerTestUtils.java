@@ -171,4 +171,24 @@ public final class AnalyzerTestUtils {
             IndexResolver.DO_NOT_GROUP
         );
     }
+
+    /**
+     * The header warning HIGHLIGHT emits when the mapping analyzer for {@code field} cannot be built on this node
+     * and the field silently falls back to {@code standard}. Kept in one place so tests that trip the fallback stay
+     * in sync with {@code HighlightAnalyzers}.
+     */
+    public static String mappingAnalyzerFallbackWarning(String field, String analyzerName) {
+        return "HIGHLIGHT on ["
+            + field
+            + "] falls back to [standard]: analyzer ["
+            + analyzerName
+            + "] is not registered on this node (per-index custom analyzer or unloaded plugin). "
+            + "Highlights may differ from what matched; specify WITH {\"analyzer\": <registered analyzer>}"
+            + " to control this.";
+    }
+
+    /** Fallback warning for the {@code english} mapping analyzer, which the test analysis registry cannot build. */
+    public static String englishFallbackWarning(String field) {
+        return mappingAnalyzerFallbackWarning(field, "english");
+    }
 }

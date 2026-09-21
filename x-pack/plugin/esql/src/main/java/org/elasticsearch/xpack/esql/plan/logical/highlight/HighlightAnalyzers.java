@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Analyzer used to tokenize each HIGHLIGHT ON field.
@@ -31,15 +32,29 @@ public final class HighlightAnalyzers {
 
     private HighlightAnalyzers() {}
 
-    /** Map from each ON field name to the analyzer that tokenizes that field's values, in ON order. */
+    /** Convenience overload for the local-planner path where warnings would be emitted twice. */
     public static Map<String, NamedAnalyzer> resolve(
         List<? extends NamedExpression> onFields,
         @Nullable String commandAnalyzerName,
         @Nullable AnalysisRegistry analysisRegistry
     ) {
+        return resolve(onFields, commandAnalyzerName, analysisRegistry, w -> {});
+    }
+
+    /**
+     * Map from each ON field name to the analyzer that tokenizes that field's values, in ON order.
+     * A mapping analyzer that fails to resolve on this node falls back to {@code standard} and emits a
+     * warning through {@code warnings}. Names typed by the user ({@code WITH}, {@code TO_TEXT}) still throw.
+     */
+    public static Map<String, NamedAnalyzer> resolve(
+        List<? extends NamedExpression> onFields,
+        @Nullable String commandAnalyzerName,
+        @Nullable AnalysisRegistry analysisRegistry,
+        Consumer<String> warnings
+    ) {
         Map<String, NamedAnalyzer> fieldAnalyzers = new LinkedHashMap<>();
         for (NamedExpression field : onFields) {
-            fieldAnalyzers.put(field.name(), analyzerOf(field, commandAnalyzerName, analysisRegistry));
+            fieldAnalyzers.put(field.name(), analyzerOf(field, commandAnalyzerName, analysisRegistry, warnings));
         }
         return fieldAnalyzers;
     }
@@ -47,20 +62,42 @@ public final class HighlightAnalyzers {
     private static NamedAnalyzer analyzerOf(
         NamedExpression field,
         @Nullable String commandAnalyzerName,
-        @Nullable AnalysisRegistry analysisRegistry
+        @Nullable AnalysisRegistry analysisRegistry,
+        Consumer<String> warnings
     ) {
         if (commandAnalyzerName != null) {
             return PlannerUtils.resolveAnalyzer(commandAnalyzerName, analysisRegistry);
         }
-        if (field instanceof FieldAttribute fa && fa.field() instanceof TextEsField text && text.analyzerName() != null) {
-            try {
-                NamedAnalyzer resolved = PlannerUtils.resolveAnalyzer(text.analyzerName(), analysisRegistry);
-                int gap = text.positionIncrementGap();
-                return resolved.getPositionIncrementGap(resolved.name()) == gap ? resolved : new NamedAnalyzer(resolved, gap);
-            } catch (InvalidArgumentException e) {
-                // index.analysis name this node cannot build. Fail open to standard. The name came from the mapping,
-                // not the query.
-                // TODO: warn when a mapping analyzer falls back.
+        if (field instanceof FieldAttribute fa && fa.field() instanceof TextEsField text) {
+            if (text.analyzerName() != null) {
+                try {
+                    NamedAnalyzer resolved = PlannerUtils.resolveAnalyzer(text.analyzerName(), analysisRegistry);
+                    int gap = text.positionIncrementGap();
+                    return resolved.getPositionIncrementGap(resolved.name()) == gap ? resolved : new NamedAnalyzer(resolved, gap);
+                } catch (InvalidArgumentException e) {
+                    // index.analysis name this node cannot build. Fail open to standard. The name came from the mapping,
+                    // not the query, so a hard error would punish the user for the mapping.
+                    warnings.accept(
+                        "HIGHLIGHT on ["
+                            + field.name()
+                            + "] falls back to [standard]: analyzer ["
+                            + text.analyzerName()
+                            + "] is not registered on this node (per-index custom analyzer or unloaded plugin). "
+                            + "Highlights may differ from what matched; specify WITH {\"analyzer\": <registered analyzer>}"
+                            + " to control this."
+                    );
+                    return PlannerUtils.resolveAnalyzer(HighlightQueryBuilders.DEFAULT_ANALYZER_NAME, analysisRegistry);
+                }
+            }
+            if (text.analyzerConflict()) {
+                // Indices behind the pattern disagreed on the analyzer name. Fall back to standard for this field only.
+                warnings.accept(
+                    "HIGHLIGHT on ["
+                        + field.name()
+                        + "] falls back to [standard]: the queried indices disagree on the analyzer for this field. "
+                        + "Highlights may differ from what matched; specify WITH {\"analyzer\": <registered analyzer>}"
+                        + " to control this."
+                );
                 return PlannerUtils.resolveAnalyzer(HighlightQueryBuilders.DEFAULT_ANALYZER_NAME, analysisRegistry);
             }
         }

@@ -1643,7 +1643,6 @@ public class LocalExecutionPlanner {
         HighlightQueryBuilders.TranslatedQuery translated = HighlightQueryBuilders.translate(
             queryExpr,
             fieldAnalyzers,
-            analyzerName,
             context.analysisRegistry()
         );
         List<NamedAnalyzer> perField = fieldNames.stream().map(fieldAnalyzers::get).toList();

@@ -10,13 +10,11 @@ package org.elasticsearch.xpack.esql.plan.logical.highlight;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -24,7 +22,6 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
@@ -98,133 +95,16 @@ public final class HighlightSupport {
     }
 
     /**
-     * Analyzer names the runtime context must resolve for this query.
-     * {@code quote_analyzer} is always included. The query builder keeps that option, so the name has to resolve.
-     * Leaf {@code analyzer} options are included only when {@code includeLeafAnalyzers} is true, because WITH
-     * {@code analyzer} strips them. Names on leaves outside ON are included so the option is validated before
-     * the field lookup.
+     * Analyzer names the runtime context must resolve for this query. Leaf {@code analyzer} and {@code quote_analyzer}
+     * options are both included: the query builder keeps them so the name has to resolve. Names on leaves outside
+     * ON are included so the option is validated before the field lookup.
      */
-    public static Set<String> analyzerNamesOf(Expression query, boolean includeLeafAnalyzers) {
+    public static Set<String> analyzerNamesOf(Expression query) {
         Set<String> names = new LinkedHashSet<>();
         query.forEachDown(FullTextFunction.class, leaf -> {
-            if (includeLeafAnalyzers) {
-                addIfPresent(names, analyzerNameOf(leaf));
-            }
+            addIfPresent(names, analyzerNameOf(leaf));
             addIfPresent(names, quoteAnalyzerNameOf(leaf));
         });
-        return names;
-    }
-
-    /**
-     * Analyzer every named full-text leaf agrees on, or {@code null} if none name one or they disagree.
-     * Unlabeled leaves do not constrain the result. Disagreement is reported by {@link #requireUniformAnalyzer}.
-     */
-    public static @Nullable String uniformAnalyzerOf(Expression query) {
-        LinkedHashSet<String> named = namedLeafAnalyzers(query);
-        return named.size() == 1 ? named.iterator().next() : null;
-    }
-
-    /**
-     * Unique non-standard values analyzer on {@code fields}, or {@code null} when every field omits one (or names
-     * {@code standard}). Mixed names throw. Mapping {@link TextEsField#analyzerName} and {@code TO_TEXT} declarations
-     * both count.
-     */
-    public static @Nullable String valuesAnalyzerName(List<? extends NamedExpression> fields) {
-        Set<String> names = new LinkedHashSet<>();
-        for (NamedExpression field : fields) {
-            names.add(canonicalAnalyzerName(valuesAnalyzerOfField(field)));
-        }
-        if (names.size() > 1) {
-            throw new IllegalArgumentException("HIGHLIGHT ON fields use different values analyzers " + names + "; they must be the same");
-        }
-        if (names.isEmpty()) {
-            return null;
-        }
-        String only = names.iterator().next();
-        return AnalyzedTextExpression.STANDARD_ANALYZER.equals(only) ? null : only;
-    }
-
-    /**
-     * Analyzer HIGHLIGHT uses for query rewrite and MemoryIndex: WITH if set, else the ON fields' values analyzer,
-     * else {@code null} meaning {@code standard}.
-     */
-    public static @Nullable String executionAnalyzerName(@Nullable String commandAnalyzerName, List<? extends NamedExpression> fields) {
-        return commandAnalyzerName != null ? commandAnalyzerName : valuesAnalyzerName(fields);
-    }
-
-    /**
-     * Named leaf analyzers must equal {@code commandAnalyzerName} when set, or all share one name when it is not.
-     *
-     * @throws IllegalArgumentException when they disagree
-     */
-    public static void requireUniformAnalyzer(Expression query, @Nullable String commandAnalyzerName) {
-        requireUniformAnalyzer(query, commandAnalyzerName, null);
-    }
-
-    /**
-     * Query leaf analyzers, WITH, and the ON-field values analyzer must name one analyzer (or all omit, which is
-     * {@code standard}). WITH, when set, is the highlight analyzer and overrides the values analyzer.
-     *
-     * @throws IllegalArgumentException when they disagree
-     */
-    public static void requireUniformAnalyzer(Expression query, @Nullable String commandAnalyzerName, @Nullable String valueAnalyzerName) {
-        LinkedHashSet<String> named = namedLeafAnalyzers(query);
-        Set<String> canonicalLeaves = new LinkedHashSet<>();
-        for (String leaf : named) {
-            canonicalLeaves.add(canonicalAnalyzerName(leaf));
-        }
-        if (canonicalLeaves.size() > 1) {
-            // Do not suggest WITH { "analyzer": ... } here: a single WITH value can never equal two distinct leaf analyzers, so
-            // that advice contradicts the WITH branch above. Point at the only remedy that works instead.
-            throw new IllegalArgumentException(
-                "HIGHLIGHT full-text functions use different analyzers "
-                    + named
-                    + "; use the same analyzer for every clause, or write an explicit HIGHLIGHT query using a single analyzer"
-            );
-        }
-        String highlight = canonicalAnalyzerName(commandAnalyzerName != null ? commandAnalyzerName : valueAnalyzerName);
-        if (canonicalLeaves.isEmpty() || canonicalLeaves.contains(highlight)) {
-            return;
-        }
-        String leaf = named.iterator().next();
-        if (commandAnalyzerName != null) {
-            throw new IllegalArgumentException(
-                "HIGHLIGHT WITH analyzer ["
-                    + commandAnalyzerName
-                    + "] does not match analyzer ["
-                    + leaf
-                    + "] specified by the query; they must be the same"
-            );
-        }
-        throw new IllegalArgumentException(
-            "HIGHLIGHT query analyzer ["
-                + leaf
-                + "] does not match the values analyzer ["
-                + (valueAnalyzerName != null ? valueAnalyzerName : AnalyzedTextExpression.STANDARD_ANALYZER)
-                + "]; they must be the same"
-        );
-    }
-
-    private static String valuesAnalyzerOfField(NamedExpression field) {
-        String declared = AnalyzedTextExpression.valuesAnalyzerOf(field);
-        if (declared != null) {
-            return declared;
-        }
-        if (field instanceof FieldAttribute fa && fa.field() instanceof TextEsField text) {
-            return text.analyzerName();
-        }
-        return null;
-    }
-
-    private static String canonicalAnalyzerName(@Nullable String name) {
-        return name == null || AnalyzedTextExpression.STANDARD_ANALYZER.equals(name) || "default".equals(name)
-            ? AnalyzedTextExpression.STANDARD_ANALYZER
-            : name;
-    }
-
-    private static LinkedHashSet<String> namedLeafAnalyzers(Expression query) {
-        LinkedHashSet<String> names = new LinkedHashSet<>();
-        query.forEachDown(FullTextFunction.class, leaf -> addIfPresent(names, analyzerNameOf(leaf)));
         return names;
     }
 

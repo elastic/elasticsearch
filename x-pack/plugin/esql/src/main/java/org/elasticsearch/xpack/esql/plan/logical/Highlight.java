@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
@@ -340,7 +341,7 @@ public class Highlight extends UnaryPlan
     }
 
     @Override
-    public void postAnalysisVerification(AnalysisRegistry analysisRegistry, Failures failures) {
+    public void postAnalysisVerification(AnalysisRegistry analysisRegistry, Consumer<String> warnings, Failures failures) {
         postAnalysisVerification(failures);
         if (query == null || query.resolved() == false || fields.isEmpty()) {
             return;
@@ -355,20 +356,7 @@ public class Highlight extends UnaryPlan
         if (verifyAnalyzerNames(commandAnalyzerName, failures, analysisRegistry)) {
             return;
         }
-        String valueAnalyzerName = null;
-        try {
-            valueAnalyzerName = HighlightSupport.valuesAnalyzerName(fields);
-        } catch (IllegalArgumentException e) {
-            failures.add(fail(this, "{}", e.getMessage()));
-            return;
-        }
-        try {
-            HighlightSupport.requireUniformAnalyzer(query, commandAnalyzerName, valueAnalyzerName);
-        } catch (IllegalArgumentException e) {
-            failures.add(fail(this, "{}", e.getMessage()));
-            return;
-        }
-        verifyQuery(commandAnalyzerName, failures, analysisRegistry);
+        verifyQuery(commandAnalyzerName, failures, analysisRegistry, warnings);
     }
 
     /** The user-set {@code WITH {"analyzer": ...}} name, or {@code null} when absent. */
@@ -379,27 +367,25 @@ public class Highlight extends UnaryPlan
 
     /**
      * Error for an unresolvable analyzer on an implicit WHERE query. Covers ON-field primaries, leaves outside ON,
-     * and {@code quote_analyzer}.
+     * and {@code quote_analyzer}. The cause (per-index custom analyzer, typo, or unloaded plugin) is not
+     * distinguishable here, so the message names the fact and gives the one workaround that always applies.
      */
     private static String borrowedUnresolvedAnalyzerMessage(String name) {
         return "HIGHLIGHT derived its query from a preceding WHERE, but that query refers to analyzer ["
             + name
-            + "], which is not a registered analyzer. Per-index custom analyzers cannot be used in HIGHLIGHT. "
-            + "Provide an explicit HIGHLIGHT query that does not use analyzer ["
-            + name
-            + "].";
+            + "], which is not a registered analyzer. Specify WITH {\"analyzer\": <registered analyzer>}; "
+            + "highlights may then differ from what matched.";
     }
 
-    private void verifyQuery(String commandAnalyzerName, Failures failures, AnalysisRegistry analysisRegistry) {
+    private void verifyQuery(String commandAnalyzerName, Failures failures, AnalysisRegistry analysisRegistry, Consumer<String> warnings) {
         try {
             // TO_TEXT declarations may not have been verified yet.
-            Map<String, NamedAnalyzer> fieldAnalyzers = HighlightAnalyzers.resolve(fields, commandAnalyzerName, analysisRegistry);
+            Map<String, NamedAnalyzer> fieldAnalyzers = HighlightAnalyzers.resolve(fields, commandAnalyzerName, analysisRegistry, warnings);
             // Enforce ON membership only when the query and field list are both explicit. An implicit query
             // treats a field outside ON as match-none instead of failing.
             HighlightQueryBuilders.verify(
                 query,
                 fieldAnalyzers,
-                commandAnalyzerName,
                 implicitQuery == false && derivedFields == false,
                 implicitQuery,
                 analysisRegistry
@@ -422,9 +408,7 @@ public class Highlight extends UnaryPlan
             failures.add(fail(this, "{}", commandFailure));
             return true;
         }
-        // WITH analyzer strips leaf analyzer options (HighlightQueryBuilders#withoutLeafAnalyzer), so an
-        // unresolvable name on an implicit WHERE leaf is ignored. An explicit HIGHLIGHT query still reports it.
-        Set<String> names = HighlightSupport.analyzerNamesOf(query, implicitQuery == false || commandAnalyzerName == null);
+        Set<String> names = HighlightSupport.analyzerNamesOf(query);
         names.remove(commandAnalyzerName);
         for (String name : names) {
             String failure = unresolvableMessage(name, analysisRegistry);

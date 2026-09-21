@@ -62,9 +62,15 @@ import java.util.concurrent.TimeUnit;
  * the scalar form, and the only thing that can separate them is the per-row cost of the retained filter, which
  * evaluates a different expression in each case.
  *
- * <p>{@code clustering} is the control. Sorted, a selective range leaves most row groups unreadable and pruning
- * pays. Shuffled, every row group spans the whole range, nothing can be skipped, and all three modes must land
- * together — if they do not, the benchmark is measuring something other than pruning.
+ * <p>Two mechanisms are in play and {@code clustering} separates them. Sorted, a selective range leaves most row
+ * groups unreadable and they are skipped whole. Shuffled, every row group spans the whole range and none can be
+ * skipped — but a filtered scan is still far faster than an unfiltered one at {@code wide} projection, because the
+ * row-level mask spares the payload columns the decoding of rows that will not survive. At {@code narrow}
+ * projection there is no payload to spare and a filter is worth nothing either way.
+ *
+ * <p>The control is {@code none} across {@code selectivity}: with no filter the parameter is inert, so those two
+ * cells run identical work. Their spread is the run's drift floor, and no difference smaller than it means
+ * anything.
  */
 @Fork(2)
 @Warmup(iterations = 5, time = 1)

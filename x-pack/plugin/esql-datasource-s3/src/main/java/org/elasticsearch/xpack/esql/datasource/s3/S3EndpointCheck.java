@@ -30,7 +30,9 @@ import java.util.function.Predicate;
  *
  * <p>A host is admitted by <em>membership</em>, not by parsing: {@link #S3_ENDPOINT_HOSTS} and
  * {@link #STS_ENDPOINT_HOSTS} are built at class load by crossing the enabled service labels with every
- * region the SDK knows, so a region the pinned SDK has not heard of is refused rather than pattern-matched.
+ * region the SDK knows, so a region the pinned SDK has not heard of is refused rather than pattern-matched,
+ * and readmitted by an SDK upgrade or meanwhile by an operator naming the host in
+ * {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings#ALLOWED_ENDPOINT_HOSTS}.
  * PrivateLink is the one shape with no such source, so it is matched against a generated tail with only the
  * endpoint id and its prefix read from the name. The two global endpoints are literals.
  *
@@ -47,9 +49,11 @@ final class S3EndpointCheck {
      * Every S3 endpoint family AWS serves, with only the regional object endpoint enabled: each enabled
      * label is crossed with every region to build {@link #S3_ENDPOINT_HOSTS}. Uncommenting a line is the
      * first step in readmitting a family, never the whole of it — the enabled element carries no trailing
-     * comma, and {@code s3express}, {@code s3-external-1} and the acceleration forms are not spelled
-     * {@code <label>.<region>.<suffix>}, which is the only shape this crossing builds. The historical
-     * {@code s3-<region>} spelling and dual-stack are absent for the same reason.
+     * comma, {@code s3express} carries an availability-zone token rather than a fixed label to enable, and
+     * {@code s3-external-1} and the acceleration forms are not spelled {@code <label>.<region>.<suffix>},
+     * which is the only shape this crossing builds. The historical {@code s3-<region>} spelling is absent
+     * because it carries the region inside the label and is generated separately below; dual-stack because
+     * it sits between service and region, so no host built from this list can carry it.
      *
      * <p>All are disabled because nothing has been tested against them, not because they cannot be reached.
      */
@@ -123,7 +127,10 @@ final class S3EndpointCheck {
             s3Tails.add("." + S3_SERVICE + "." + id + ".vpce." + suffix);
             stsTails.add("." + STS_SERVICE + "." + id + ".vpce." + suffix);
         }
-        // The global endpoints. Only the bare service label has one. This lookup answers for the commercial
+        // The global endpoints. Only the bare service label has one. Naming no region does not relax the
+        // region requirement: with an endpoint set, cross-region access is off and the discovered-region
+        // retry re-signs against the same host, so one reaches us-east-1 and fails elsewhere rather than
+        // being sent on. This lookup answers for the commercial
         // partition whichever global pseudo-region it is given, so it is not partition-aware — which matters
         // the moment another partition's global form is admitted.
         String globalSuffix = PartitionMetadata.of(Region.AWS_GLOBAL).dnsSuffix();

@@ -453,17 +453,29 @@ public final class ExternalSourceSettings {
     );
 
     /**
-     * Refuses an entry that names no port, and one that names no host. Entries are matched against
-     * {@code host:port}, so one written as a bare hostname — the natural thing to copy from a URL — matches
-     * nothing, and so does one written as a bare port. Either way the refusal the operator then sees talks
-     * about the endpoint rather than about the entry that failed to admit it. Since this setting is the only
-     * way past a security control, that silence is worth refusing at startup instead.
+     * Refuses an entry that is not {@code host:port}: a bare hostname, a bare port, or a whole URL — the
+     * three natural things to paste. None of them matches anything, and the refusal the operator then sees
+     * talks about the endpoint rather than about the entry that failed to admit it. Since this setting is the
+     * only way past a security control, that silence is worth refusing at startup instead.
      */
     private static void validateEndpointHostEntry(String entry) {
-        // A bracketed IPv6 literal carries colons of its own, so the port separator is the first one after
-        // the closing bracket rather than the first one in the entry.
+        if (entry.contains("://")) {
+            throw new IllegalArgumentException(
+                "["
+                    + ALLOWED_ENDPOINT_HOSTS_KEY
+                    + "] entry ["
+                    + entry
+                    + "] is a URL. Entries are matched against host:port, so drop the scheme and any path."
+            );
+        }
+        // A bracketed IPv6 literal carries colons of its own, so the port separator is looked for after the
+        // closing bracket. It is the last colon rather than the first, so an entry that carries more than one
+        // is refused below for naming no port rather than read as though the first were the separator.
         int afterHost = entry.startsWith("[") ? entry.indexOf(']') : 0;
-        int portSeparator = afterHost < 0 ? -1 : entry.indexOf(':', afterHost);
+        int portSeparator = afterHost < 0 ? -1 : entry.lastIndexOf(':');
+        if (portSeparator < afterHost) {
+            portSeparator = -1;
+        }
         if (portSeparator < 0 || portSeparator == entry.length() - 1) {
             throw new IllegalArgumentException(
                 "["

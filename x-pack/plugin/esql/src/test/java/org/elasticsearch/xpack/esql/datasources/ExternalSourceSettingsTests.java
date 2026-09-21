@@ -247,6 +247,20 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         }
     }
 
+    /** A whole URL is the third natural paste, and it admits nothing: the scheme's colon is not a port. */
+    public void testAllowedEndpointHostsRefuseAUrl() {
+        for (String entry : List.of("http://minio.internal:9000", "https://minio.internal:9000", "https://minio.internal")) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                entry,
+                () -> ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS.get(
+                    Settings.builder().putList(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY, entry).build()
+                )
+            );
+            assertThat(e.getMessage(), containsString("is a URL"));
+        }
+    }
+
     public void testAllowedEndpointHostsAcceptsPortBearingEntries() {
         Settings settings = Settings.builder()
             .putList(

@@ -20,12 +20,10 @@ import org.apache.hc.core5.http.message.BasicHeader;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -65,8 +63,8 @@ public final class IbmWatsonxRequestUtils {
                 }
                 return (String) map.get("access_token");
             });
-        } catch (IOException e) {
-            throw new XContentParseException("Failed to add Bearer token to the request");
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to retrieve IBM IAM access token for inference endpoint [" + inferenceId + "]", e);
         }
 
         Header bearerHeader = new BasicHeader(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);

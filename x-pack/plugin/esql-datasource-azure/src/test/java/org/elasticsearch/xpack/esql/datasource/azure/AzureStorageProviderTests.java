@@ -483,10 +483,7 @@ public class AzureStorageProviderTests extends ESTestCase {
         // testConnection() short-circuits on isAnonymous() before attempting to build the client.
         AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, null, "anonymous");
         AzureStorageProvider provider = new AzureStorageProvider(config, null, null);
-        TestConnectionNotSupportedException ex = expectThrows(
-            TestConnectionNotSupportedException.class,
-            provider::testConnection
-        );
+        TestConnectionNotSupportedException ex = expectThrows(TestConnectionNotSupportedException.class, provider::testConnection);
         assertThat(ex.getMessage(), containsString("anonymous"));
     }
 
@@ -495,10 +492,7 @@ public class AzureStorageProviderTests extends ESTestCase {
         // before calling clients(null), so no client is built and no network call is made.
         AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, null, "managed_identity");
         AzureStorageProvider provider = new AzureStorageProvider(config, null, null);
-        TestConnectionNotSupportedException ex = expectThrows(
-            TestConnectionNotSupportedException.class,
-            provider::testConnection
-        );
+        TestConnectionNotSupportedException ex = expectThrows(TestConnectionNotSupportedException.class, provider::testConnection);
         assertThat(ex.getMessage(), containsString("managed_identity"));
     }
 }

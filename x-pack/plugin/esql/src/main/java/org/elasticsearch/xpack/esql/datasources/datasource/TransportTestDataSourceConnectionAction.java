@@ -187,9 +187,12 @@ public class TransportTestDataSourceConnectionAction extends HandledTransportAct
                         // must not be surfaced in a public response. The untestable message field
                         // is for user-visible guidance (e.g. "create a dataset"), not debug info.
                         logger.debug("test-connection probe on node [{}] did not complete: {}", node, exp.getMessage());
-                        results.set(idx, new TestConnectionResult.Untestable(
-                            "The probe did not complete on one or more nodes within the timeout; the backend may still be reachable"
-                        ));
+                        results.set(
+                            idx,
+                            new TestConnectionResult.Untestable(
+                                "The probe did not complete on one or more nodes within the timeout; the backend may still be reachable"
+                            )
+                        );
                         if (remaining.decrementAndGet() == 0) {
                             listener.onResponse(aggregate(results));
                         }

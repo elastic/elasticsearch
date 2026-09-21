@@ -561,6 +561,8 @@ public class FileSplitProvider implements SplitProvider {
         int certifiedSkips = 0;
         long probedFileBytes = 0;
         List<FileTask> tasks = new ArrayList<>(fileList.fileCount());
+        // Unified schema is query-wide; one type map is identical for every file and never mutated.
+        Map<String, DataType> reconciledTypes = unifiedSchema != null ? attributesToTypeMap(unifiedSchema.attributes()) : null;
         // Hive / _file.* listing values already live in partitionValues. Overlay the engine
         // per-file constants only when a hint names one of them.
         boolean overlayPerFileConstants = filterHints.isEmpty() == false
@@ -642,7 +644,7 @@ public class FileSplitProvider implements SplitProvider {
                     partitionValues,
                     columnMapping,
                     readSchema,
-                    unifiedSchema != null ? attributesToTypeMap(unifiedSchema.attributes()) : null,
+                    reconciledTypes,
                     context.maxRecordBytes(),
                     context.declaredReadSpec(),
                     inferredFileTypes,

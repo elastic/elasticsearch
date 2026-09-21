@@ -904,7 +904,8 @@ public class EsqlSession {
         if (subPlan != null) {
             // code-path to execute subplans. The pinned-read accumulator gathers union_by_name widened reads across
             // every executed plan (each subplan and the final main plan) so the single reconcile at the end strips
-            // their polluting stat deltas regardless of which plan read a file pinned.
+            // their polluting stat deltas regardless of which plan read a file pinned. Each plan's pins are collected
+            // only after that plan's run succeeds, so the first discovery does not hold per-file PinnedColumns.
             executeSubPlan(
                 new DriverCompletionInfo.Accumulator(),
                 new HashMap<>(),
@@ -926,11 +927,12 @@ public class EsqlSession {
             if (explainContext != null) {
                 recordExplainCoordinatorPlan(physicalPlan);
             }
-            Map<String, PinnedColumns> pinnedReads = new HashMap<>();
-            collectPinnedReads(optimizedPlan, pinnedReads);
-            // execute main plan. Wrap the listener so the coordinator reconciles any data-node-captured
-            // source stats into ExternalSourceCacheService before delivering Result.
+            // execute main plan. Collect pinned reads only after execution so planning-time heap is
+            // not held for every file through discovery. Reconcile data-node-captured source stats
+            // into ExternalSourceCacheService before delivering Result.
             runner.run(physicalPlan, configuration, foldContext, planTimeProfile, listener.delegateFailureAndWrap((next, result) -> {
+                Map<String, PinnedColumns> pinnedReads = new HashMap<>();
+                collectPinnedReads(optimizedPlan, pinnedReads);
                 reconcileCapturedSourceStats(result.completionInfo(), pinnedReads);
                 next.onResponse(result);
             }));
@@ -1227,7 +1229,6 @@ public class EsqlSession {
         ActionListener<Result> listener
     ) {
         LOGGER.debug("Executing subplan:\n{}", subPlan.subPlan);
-        collectPinnedReads(subPlan.subPlan, pinnedReads);
         // Create a physical plan out of the logical sub-plan
         var physicalSubPlan = logicalPlanToPhysicalPlan(subPlan.subPlan, request, physicalPlanOptimizer, planTimeProfile);
         // An IN subquery may not have a pipeline breaker inside it, and mapper does not receive the SemiJoin node because only the right
@@ -1255,13 +1256,16 @@ public class EsqlSession {
                 LogicalPlan newMainPlan = subPlan.newMainPlan.apply(result);
                 LOGGER.debug("New main plan after subplan execution:\n{}", newMainPlan);
 
+                // Pins for this subplan are only consumed at the final reconcile. Collect after
+                // execution so they are not live through this subplan's discovery.
+                collectPinnedReads(subPlan.subPlan, pinnedReads);
+
                 // look for the next inlinejoin plan
                 var newSubPlan = firstSubPlan(newMainPlan, configuration, approximation, subPlansResults);
                 LOGGER.debug("Next subplan: {}", newSubPlan != null ? newSubPlan.subPlan() : "null");
 
                 if (newSubPlan == null) {
                     executionInfo.finishSubPlans();
-                    collectPinnedReads(newMainPlan, pinnedReads);
                     var newPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request, physicalPlanOptimizer, planTimeProfile);
                     if (explainContext != null) {
                         // Capture the post-substitution physical plan — the one that actually runs. For
@@ -1277,6 +1281,7 @@ public class EsqlSession {
                         releasingNext.delegateFailureAndWrap((finalListener, finalResult) -> {
                             completionInfoAccumulator.accumulate(finalResult.completionInfo());
                             DriverCompletionInfo merged = completionInfoAccumulator.finish();
+                            collectPinnedReads(newMainPlan, pinnedReads);
                             reconcileCapturedSourceStats(merged, pinnedReads);
                             EsqlCCSUtils.finalizeSubPlanOnlyRemoteClusters(executionInfo);
                             finalListener.onResponse(

@@ -45,8 +45,9 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
             TimeValue.timeValueMillis(removalThreshold),
             cooldown
         );
-        var currentState = Map.of(shardId, ThrottleState.throttled(0, randomIntBetween(1, 10)));
-        var removedState = Map.of(shardId, ThrottleState.throttleRemoved(0));
+        long applicationTime = randomLongBetween(0, now - cooldown - 1);
+        var currentState = Map.of(shardId, ThrottleState.throttled(applicationTime, randomIntBetween(1, 10)));
+        var removedState = Map.of(shardId, ThrottleState.throttleRemoved(applicationTime));
 
         long age = randomLongBetween(removalThreshold, activationThreshold);
         var stats = new ShardCommitUploadStats() {

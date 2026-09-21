@@ -50,8 +50,8 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
 
         // Block uploads to create a backlog.
         var uploadStarted = new CountDownLatch(1);
-        var blockUploadLatch = new CountDownLatch(1);
-        blockCommitUploads(indexNode, uploadStarted, blockUploadLatch);
+        var releaseUpload = new CountDownLatch(1);
+        blockCommitUploads(indexNode, uploadStarted, releaseUpload);
 
         indexDocs(indexName, 1000);
         refresh(indexName);
@@ -76,7 +76,7 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
         assertThrows(ElasticsearchTimeoutException.class, () -> bulkFuture.actionGet(TimeValue.timeValueMillis(500)));
 
         // Drain the backlog.
-        blockUploadLatch.countDown();
+        releaseUpload.countDown();
         flush(indexName);
 
         assertFalse(bulkFuture.isDone());
@@ -107,8 +107,8 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
 
         // Block uploads to create a backlog.
         var uploadStarted = new CountDownLatch(1);
-        var blockUploadLatch = new CountDownLatch(1);
-        blockCommitUploads(indexNode, uploadStarted, blockUploadLatch);
+        var releaseUpload = new CountDownLatch(1);
+        blockCommitUploads(indexNode, uploadStarted, releaseUpload);
 
         var bulkFuture = new PlainActionFuture<BulkResponse>();
         boolean bulkSubmitted = false;
@@ -133,7 +133,7 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
             assertFalse(bulkFuture.isDone());
 
             // Once the queue drains, the controller must remove its throttle and unblock the bulk.
-            blockUploadLatch.countDown();
+            releaseUpload.countDown();
             flush(indexName);
             assertFalse(bulkFuture.isDone());
             controller.runNow();
@@ -141,7 +141,7 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
             assertFalse(safeGet(bulkFuture).hasFailures());
         } finally {
             // Release blocked work even if an assertion fails.
-            blockUploadLatch.countDown();
+            releaseUpload.countDown();
             if (shard.indexingStats().getTotal().isThrottled()) {
                 shard.deactivateThrottling();
             }
@@ -161,8 +161,8 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
 
         // Block uploads to create a backlog.
         var uploadStarted = new CountDownLatch(1);
-        var blockUploadLatch = new CountDownLatch(1);
-        blockCommitUploads(indexNode, uploadStarted, blockUploadLatch);
+        var releaseUpload = new CountDownLatch(1);
+        blockCommitUploads(indexNode, uploadStarted, releaseUpload);
 
         indexDocs(indexName, 1000);
         refresh(indexName);
@@ -180,7 +180,7 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
         var uploadQueueControllerService = internalCluster().getInstance(UploadQueueControllerService.class, indexNode);
         uploadQueueControllerService.runNow();
 
-        blockUploadLatch.countDown();
+        releaseUpload.countDown();
 
         var metricsPlugin = internalCluster().getInstance(PluginsService.class, indexNode)
             .filterPlugins(TestTelemetryPlugin.class)

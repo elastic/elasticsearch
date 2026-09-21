@@ -303,7 +303,8 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
                         newState.put(shardId, ThrottleState.throttleRemoved(relativeTimeMillis.get()));
                     }
                 } else if (shardState != null) {
-                    // Retain the decision between thresholds so an active throttle is not lost
+                    // Neither threshold was crossed, so preserve the previous decision
+                    // without restarting its cooldown or incrementing consecutive applications.
                     newState.put(shardId, shardState);
                 }
             });

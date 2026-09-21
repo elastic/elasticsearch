@@ -6,31 +6,38 @@
  */
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
+import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -38,24 +45,43 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
-public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
+public class MlJobSnapshotUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
+
+    private static final boolean SKIP_ML_TESTS = Booleans.parseBoolean(System.getProperty("tests.ml.skip", "false"));
 
     private static final String JOB_ID = "ml-snapshots-upgrade-job";
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = buildCluster();
+
+    public MlJobSnapshotUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
+    }
 
     @BeforeClass
     public static void maybeSkip() {
         assumeFalse("Skip ML tests on unsupported glibc versions", SKIP_ML_TESTS);
     }
 
-    @Override
-    protected Collection<String> templatesToWaitFor() {
-        // We shouldn't wait for ML templates during the upgrade - production won't
-        if (CLUSTER_TYPE != ClusterType.OLD) {
-            return super.templatesToWaitFor();
+    @Before
+    public void waitForMlTemplates() throws Exception {
+        // We shouldn't wait for ML templates during the upgrade - production won't.
+        // On the old cluster, wait for the ML index templates to be installed before running tests.
+        if (isOldCluster()) {
+            for (String templateName : XPackRestTestConstants.ML_POST_V7120_TEMPLATES) {
+                assertBusy(() -> {
+                    Request request = new Request("GET", "/_index_template/" + templateName);
+                    assertOK(client().performRequest(request));
+                });
+            }
         }
-        return Stream.concat(XPackRestTestConstants.ML_POST_V7120_TEMPLATES.stream(), super.templatesToWaitFor().stream())
-            .collect(Collectors.toSet());
     }
 
     protected static void waitForPendingUpgraderTasks() throws Exception {
@@ -71,38 +97,42 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         adjustLoggingLevels.setJsonEntity("""
             {"persistent": {"logger.org.elasticsearch.xpack.ml": "trace"}}""");
         client().performRequest(adjustLoggingLevels);
-        switch (CLUSTER_TYPE) {
-            case OLD -> createJobAndSnapshots();
-            case MIXED -> {
-                assumeTrue("We should only test if old cluster is before new cluster", isOriginalClusterCurrent() == false);
-                assumeTrue(
-                    "Older versions could not always reliably determine if we were in a mixed cluster state",
-                    Version.fromString(UPGRADE_FROM_VERSION).onOrAfter(Version.V_9_3_0)
-                );
-                ensureHealth((request -> {
-                    request.addParameter("timeout", "70s");
-                    request.addParameter("wait_for_nodes", "3");
-                    request.addParameter("wait_for_status", "yellow");
-                }));
-                testSnapshotUpgradeFailsOnMixedCluster();
-            }
-            case UPGRADED -> {
-                assumeTrue("We should only test if old cluster is before new cluster", isOriginalClusterCurrent() == false);
-                ensureHealth((request -> {
-                    request.addParameter("timeout", "70s");
-                    request.addParameter("wait_for_nodes", "3");
-                    request.addParameter("wait_for_status", "yellow");
-                }));
-                testSnapshotUpgrade();
-                waitForPendingUpgraderTasks();
-            }
-            default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+
+        if (isOldCluster()) {
+            createJobAndSnapshots();
+        }
+        if (isMixedCluster()) {
+            assumeTrue("We should only test if old cluster is before new cluster", isOriginalClusterCurrent() == false);
+            assumeTrue(
+                "Snapshot upgrade is rejected only when DiscoveryNodes min/max Version differ",
+                Version.fromString(getOldClusterVersion()).equals(Version.fromString(Build.current().version())) == false
+            );
+            assumeTrue(
+                "Older versions could not always reliably determine if we were in a mixed cluster state",
+                Version.fromString(getOldClusterVersion()).onOrAfter("9.3.0")
+            );
+            ensureHealth((request -> {
+                request.addParameter("timeout", "70s");
+                request.addParameter("wait_for_nodes", "3");
+                request.addParameter("wait_for_status", "yellow");
+            }));
+            testSnapshotUpgradeFailsOnMixedCluster();
+        }
+        if (isUpgradedCluster()) {
+            assumeTrue("We should only test if old cluster is before new cluster", isOriginalClusterCurrent() == false);
+            ensureHealth((request -> {
+                request.addParameter("timeout", "70s");
+                request.addParameter("wait_for_nodes", "3");
+                request.addParameter("wait_for_status", "yellow");
+            }));
+            testSnapshotUpgrade();
+            waitForPendingUpgraderTasks();
         }
     }
 
     @SuppressWarnings("unchecked")
     private void testSnapshotUpgradeFailsOnMixedCluster() throws Exception {
-        Map<String, Object> jobs = entityAsMap(getJob(JOB_ID));
+        Map<String, Object> jobs = waitForJobConfig(JOB_ID);
 
         String currentSnapshot = ((List<String>) XContentMapValues.extractValue("jobs.model_snapshot_id", jobs)).get(0);
         Response getResponse = getModelSnapshots(JOB_ID);
@@ -114,13 +144,23 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
             .findFirst()
             .orElseThrow(() -> new ElasticsearchException("Not found snapshot other than " + currentSnapshot));
 
+        // Upgrade is rejected only while DiscoveryNodes reports distinct min/max release versions.
+        assertBusy(
+            () -> assertTrue(
+                "cluster should be mixed by node release version before testing upgrade rejection",
+                isMixedReleaseVersionCluster()
+            ),
+            30,
+            TimeUnit.SECONDS
+        );
+
         Exception ex = expectThrows(Exception.class, () -> upgradeJobSnapshot(JOB_ID, (String) snapshot.get("snapshot_id"), true));
         assertThat(ex.getMessage(), containsString("Cannot upgrade job"));
     }
 
     @SuppressWarnings("unchecked")
     private void testSnapshotUpgrade() throws Exception {
-        Map<String, Object> jobs = entityAsMap(getJob(JOB_ID));
+        Map<String, Object> jobs = waitForJobConfig(JOB_ID);
         String currentSnapshotId = ((List<String>) XContentMapValues.extractValue("jobs.model_snapshot_id", jobs)).get(0);
 
         Response getSnapshotsResponse = getModelSnapshots(JOB_ID);
@@ -304,6 +344,27 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
             now += bucketSpan.getMillis();
         }
         return data;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> waitForJobConfig(String jobId) throws Exception {
+        AtomicReference<Map<String, Object>> jobsHolder = new AtomicReference<>();
+        assertBusy(() -> {
+            Request getJob = new Request("GET", "_ml/anomaly_detectors/" + jobId);
+            // Transient 404 while ML config relocates during rolling upgrade.
+            Response response = performRequestRaisingAssertionOnTransientStatus(getJob, RestStatus.NOT_FOUND);
+            Map<String, Object> body = entityAsMap(response);
+            List<Map<String, Object>> jobs = (List<Map<String, Object>>) body.get("jobs");
+            assertThat("old-cluster setup phase did not persist job [" + jobId + "]", jobs, notNullValue());
+            assertThat(jobs, hasSize(1));
+            jobsHolder.set(body);
+        }, 30, TimeUnit.SECONDS);
+        return jobsHolder.get();
+    }
+
+    private boolean isMixedReleaseVersionCluster() throws IOException {
+        var versions = NodeInfo.getAll(adminClient()).stream().map(n -> Version.fromString(n.version())).collect(Collectors.toSet());
+        return versions.size() > 1;
     }
 
     protected Response getJob(String jobId) throws IOException {

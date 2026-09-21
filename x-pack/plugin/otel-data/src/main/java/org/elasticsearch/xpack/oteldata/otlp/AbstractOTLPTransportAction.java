@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -79,7 +80,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
 
             ProcessingContext finalContext = context;
             bulkRequestBuilder.execute(listener.delegateFailure((delegate, bulkResponse) -> {
-                if (bulkResponse.hasFailures() || finalContext.getIgnoredItems() > 0) {
+                if (finalContext.getIgnoredItems() > 0 || needsPartialSuccess(bulkResponse)) {
                     handlePartialSuccess(bulkResponse, finalContext, delegate);
                 } else {
                     delegate.onResponse(new OTLPActionResponse(BytesArray.EMPTY));
@@ -173,6 +174,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
     private void handlePartialSuccess(BulkResponse bulkResponse, ProcessingContext context, ActionListener<OTLPActionResponse> listener) {
         // index -> status -> failure group
         Map<String, Map<RestStatus, FailureGroup>> failureGroups = new HashMap<>();
+        int failureStoreRedirects = 0;
         // If the request is only partially accepted
         // (i.e. when the server accepts only parts of the data and rejects the rest),
         // the server MUST respond with HTTP 200 OK.
@@ -196,6 +198,9 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
                 FailureGroup failureGroup = failureGroups.computeIfAbsent(failure.getIndex(), k -> new HashMap<>())
                     .computeIfAbsent(failure.getStatus(), k -> new FailureGroup(new AtomicInteger(0), failure.getMessage()));
                 failureGroup.failureCount().incrementAndGet();
+            } else if (isFailureStoreRedirect(bulkItemResponse)) {
+                failures++;
+                failureStoreRedirects++;
             }
         }
         if (totalItems == failures) {
@@ -219,6 +224,9 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
                 failureMessageBuilder.append("\n");
             }
         }
+        if (failureStoreRedirects > 0) {
+            failureMessageBuilder.append("Redirected ").append(failureStoreRedirects).append(" documents to the failure store.\n");
+        }
         failureMessageBuilder.append(context.getIgnoredItemsMessage(10));
         String message = failureMessageBuilder.toString();
         if (status == RestStatus.TOO_MANY_REQUESTS) {
@@ -227,6 +235,19 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
             MessageLite response = responseWithRejectedItems(failures + context.getIgnoredItems(), message);
             listener.onResponse(new OTLPActionResponse(response));
         }
+    }
+
+    private static boolean needsPartialSuccess(BulkResponse bulkResponse) {
+        for (BulkItemResponse item : bulkResponse.getItems()) {
+            if (item.isFailed() || isFailureStoreRedirect(item)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isFailureStoreRedirect(BulkItemResponse item) {
+        return item.isFailed() == false && item.getFailureStoreStatus() == IndexDocFailureStoreStatus.USED;
     }
 
     record FailureGroup(AtomicInteger failureCount, String failureMessageSample) {}

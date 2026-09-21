@@ -38,8 +38,9 @@ import java.util.concurrent.TimeUnit;
  * committed.
  *
  * <p>The field layout emitted by this class is identical to that of {@link MetricDocumentBuilder}:
- * same field names, same nesting depth, same ordering. The {@code testTsidForBulkIsSame} integration tests
- * in {@code OTLPMetricsIndexingRestIT} guard this contract.
+ * same field names, same nesting depth, same ordering. The {@code OTLPMetricsEscfComparisonRestIT}
+ * integration test guards this contract by comparing {@code _id}, {@code _tsid}, and {@code _source}
+ * for each document across the two paths.
  */
 public final class MetricColumnarBuilder {
 
@@ -138,6 +139,7 @@ public final class MetricColumnarBuilder {
         writeAsciiStringField(row, "_metric_names_hash", metricNamesHash);
 
         // metrics object
+        long docCount = 0;
         row.startObject("metrics");
         for (int i = 0; i < dataPoints.size(); i++) {
             DataPoint dataPoint = dataPoints.get(i);
@@ -154,8 +156,14 @@ public final class MetricColumnarBuilder {
                     dynamicTemplateParams.put(metricFieldPath, Map.of(MetricDocumentBuilder.UNIT_FIELD, unit));
                 }
             }
+            if (mappingHints.docCount()) {
+                docCount = dataPoint.getDocCount();
+            }
         }
         row.endObject();
+        if (docCount > 0) {
+            row.longField("_doc_count", docCount);
+        }
 
         row.finishRow();
         return true;

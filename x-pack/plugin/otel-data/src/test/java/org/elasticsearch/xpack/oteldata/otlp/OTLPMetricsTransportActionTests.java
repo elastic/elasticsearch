@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -77,6 +78,7 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
             mock(ThreadPool.class),
             client,
             clusterService,
+            BigArrays.NON_RECYCLING_INSTANCE,
             settings
         );
     }

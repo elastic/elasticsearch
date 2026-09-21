@@ -33,7 +33,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -81,7 +80,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
             ProcessingContext finalContext = context;
             bulkRequestBuilder.execute(listener.delegateFailure((delegate, bulkResponse) -> {
                 if (bulkResponse.hasFailures() || finalContext.getIgnoredItems() > 0) {
-                    handlePartialSuccess(List.of(bulkResponse), finalContext, delegate);
+                    handlePartialSuccess(bulkResponse, finalContext, delegate);
                 } else {
                     delegate.onResponse(new OTLPActionResponse(BytesArray.EMPTY));
                 }
@@ -171,11 +170,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         return updatedTotal;
     }
 
-    private void handlePartialSuccess(
-        List<BulkResponse> bulkResponses,
-        ProcessingContext context,
-        ActionListener<OTLPActionResponse> listener
-    ) {
+    private void handlePartialSuccess(BulkResponse bulkResponse, ProcessingContext context, ActionListener<OTLPActionResponse> listener) {
         // index -> status -> failure group
         Map<String, Map<RestStatus, FailureGroup>> failureGroups = new HashMap<>();
         // If the request is only partially accepted
@@ -184,26 +179,23 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         // https://opentelemetry.io/docs/specs/otlp/#partial-success-1
         RestStatus status = RestStatus.OK;
         int failures = 0;
-        int totalItems = 0;
-        for (BulkResponse bulkResponse : bulkResponses) {
-            totalItems += bulkResponse.getItems().length;
-            for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
-                BulkItemResponse.Failure failure = bulkItemResponse.getFailure();
-                if (failure != null) {
-                    // we're counting each document as one item here
-                    // which is an approximation since one document can represent multiple OTLP items
-                    failures++;
-                    if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
-                        // If the server receives more requests than the client is allowed or the server is overloaded,
-                        // the server SHOULD respond with HTTP 429 Too Many Requests or HTTP 503 Service Unavailable
-                        // and MAY include "Retry-After" header with a recommended time interval in seconds to wait before retrying.
-                        // https://opentelemetry.io/docs/specs/otlp/#otlphttp-throttling
-                        status = RestStatus.TOO_MANY_REQUESTS;
-                    }
-                    FailureGroup failureGroup = failureGroups.computeIfAbsent(failure.getIndex(), k -> new HashMap<>())
-                        .computeIfAbsent(failure.getStatus(), k -> new FailureGroup(new AtomicInteger(0), failure.getMessage()));
-                    failureGroup.failureCount().incrementAndGet();
+        int totalItems = bulkResponse.getItems().length;
+        for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
+            BulkItemResponse.Failure failure = bulkItemResponse.getFailure();
+            if (failure != null) {
+                // we're counting each document as one item here
+                // which is an approximation since one document can represent multiple OTLP items
+                failures++;
+                if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
+                    // If the server receives more requests than the client is allowed or the server is overloaded,
+                    // the server SHOULD respond with HTTP 429 Too Many Requests or HTTP 503 Service Unavailable
+                    // and MAY include "Retry-After" header with a recommended time interval in seconds to wait before retrying.
+                    // https://opentelemetry.io/docs/specs/otlp/#otlphttp-throttling
+                    status = RestStatus.TOO_MANY_REQUESTS;
                 }
+                FailureGroup failureGroup = failureGroups.computeIfAbsent(failure.getIndex(), k -> new HashMap<>())
+                    .computeIfAbsent(failure.getStatus(), k -> new FailureGroup(new AtomicInteger(0), failure.getMessage()));
+                failureGroup.failureCount().incrementAndGet();
             }
         }
         if (totalItems == failures) {

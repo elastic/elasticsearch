@@ -1332,6 +1332,14 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         // out-of-range timestamp falls back to write index (index2)
         long outOfRange = currentTime.plus(10, ChronoUnit.HOURS).toEpochMilli() * 1_000_000L;
         assertThat(dataStream.selectTimeSeriesWriteIndices(new long[] { outOfRange }, project), equalTo(Set.of(index2)));
+
+        // Both min and max out of range (fall back to write index) but the middle timestamp lands in index1.
+        // The minIndex==maxIndex shortcut must NOT fire here (both raw lookups returned null), so index1
+        // must still be included in the result.
+        assertThat(
+            dataStream.selectTimeSeriesWriteIndices(new long[] { outOfRange, tsInIndex1, outOfRange }, project),
+            equalTo(Set.of(index2, index1))
+        );
     }
 
     public void testValidate() {

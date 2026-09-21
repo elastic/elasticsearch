@@ -255,6 +255,34 @@ public class MetricColumnarBuilderTests extends ESTestCase {
         assertFalse(batchBuilder.hasPartition(0));
     }
 
+    /** Dotted metric names (e.g. {@code gauge.0}) are written as a nested-path column, not a top-level key. */
+    public void testDottedMetricNameWritesNestedColumn() throws Exception {
+        ExportMetricsServiceRequest request = ExportMetricsServiceRequest.newBuilder()
+            .addResourceMetrics(
+                createResourceMetrics(
+                    List.of(keyValue("service.name", "svc")),
+                    List.of(
+                        createScopeMetrics("s", "1", List.of(createGaugeMetric("gauge.0", "1", List.of(createLongDataPoint(nowNanos)))))
+                    )
+                )
+            )
+            .build();
+
+        DataPointGroupingContext context = newContext();
+        context.groupDataPoints(request);
+
+        EscfBatchBuilder batchBuilder = new EscfBatchBuilder();
+        context.consume(group -> {
+            assertTrue(builder.buildMetricRow(batchBuilder, group, new HashMap<>(), new HashMap<>()));
+            batchBuilder.commit(0);
+        });
+        EscfBatch batch = batchBuilder.buildPartition(0);
+
+        assertEquals(1, batch.docCount());
+        // The dotted metric name "gauge.0" must produce a column at path "metrics.gauge.0".
+        assertFalse("metrics.gauge.0 column must be present", readLongColumn(batch, "metrics.gauge.0").isEmpty());
+    }
+
     /** An ARRAY attribute causes buildMetricRow to return false. */
     public void testBuildMetricRowReturnsFalseForArrayAttribute() throws Exception {
         ExportMetricsServiceRequest request = ExportMetricsServiceRequest.newBuilder()

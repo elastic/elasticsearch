@@ -647,15 +647,18 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             if (nanos < min) min = nanos;
             if (nanos > max) max = nanos;
         }
-        Index minIndex = selectTimeSeriesWriteIndex(Instant.ofEpochMilli(min / 1_000_000L), project);
-        if (minIndex == null) minIndex = getWriteIndex();
+        Index minIndexRaw = selectTimeSeriesWriteIndex(Instant.ofEpochMilli(min / 1_000_000L), project);
+        Index minIndex = minIndexRaw != null ? minIndexRaw : getWriteIndex();
         if (min == max) {
             return Set.of(minIndex);
         }
-        Index maxIndex = selectTimeSeriesWriteIndex(Instant.ofEpochMilli(max / 1_000_000L), project);
-        if (maxIndex == null) maxIndex = getWriteIndex();
+        Index maxIndexRaw = selectTimeSeriesWriteIndex(Instant.ofEpochMilli(max / 1_000_000L), project);
+        Index maxIndex = maxIndexRaw != null ? maxIndexRaw : getWriteIndex();
         // Backing index time ranges don't overlap, so if min and max resolve to the same index all timestamps do.
-        if (minIndex == maxIndex) {
+        // Only take this shortcut when both raw lookups returned a non-null result: if both min and max are
+        // out of every backing-index window, both fall back to the write index and appear equal even though
+        // a middle timestamp could land on an older backing index.
+        if (minIndexRaw != null && maxIndexRaw != null && minIndex == maxIndex) {
             return Set.of(minIndex);
         }
         Set<Index> result = new LinkedHashSet<>();

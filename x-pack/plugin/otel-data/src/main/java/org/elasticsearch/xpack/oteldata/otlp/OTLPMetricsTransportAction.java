@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.oteldata.otlp;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsPartialSuccess;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
+import io.opentelemetry.proto.common.v1.KeyValue;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BatchIndexingEnabled;
@@ -26,8 +28,10 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfBatchBuilder;
@@ -36,6 +40,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -51,9 +56,11 @@ import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -83,6 +90,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
     volatile MappingHints defaultMappingHints;
     private final ClusterService clusterService;
     private final BatchIndexingEnabled batchIndexingEnabled;
+    private final Recycler<BytesRef> bytesRefRecycler;
 
     @Inject
     public OTLPMetricsTransportAction(
@@ -91,6 +99,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         ThreadPool threadPool,
         Client client,
         ClusterService clusterService,
+        BigArrays bigArrays,
         Settings settings
     ) {
         super(NAME, transportService, actionFilters, threadPool, client, settings);
@@ -101,6 +110,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         });
         this.clusterService = clusterService;
         this.batchIndexingEnabled = new BatchIndexingEnabled(clusterSettings);
+        this.bytesRefRecycler = bigArrays.bytesRefRecycler();
     }
 
     @Override
@@ -175,8 +185,28 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
             if (MetricColumnarBuilder.hasNonScalarAttributes(group.scope().getAttributesList())) {
                 return false;
             }
+            // OTel attribute lists allow duplicate keys; EscfRowBuffer rejects them. Detect here to
+            // avoid a mid-batch IllegalArgumentException that would propagate as a 500.
+            if (hasDuplicateAttributeKeys(group.dataPointAttributes())
+                || hasDuplicateAttributeKeys(group.resource().getAttributesList())
+                || hasDuplicateAttributeKeys(group.scope().getAttributesList())) {
+                return false;
+            }
         }
         return true;
+    }
+
+    private static boolean hasDuplicateAttributeKeys(List<KeyValue> attributes) {
+        if (attributes.size() <= 1) {
+            return false;
+        }
+        Set<String> seen = new HashSet<>(attributes.size());
+        for (int i = 0; i < attributes.size(); i++) {
+            if (seen.add(attributes.get(i).getKey()) == false) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void addEscfBatch(
@@ -187,7 +217,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
     ) throws IOException {
         // Collect (rowIndex -> IndexRequest) during the build pass, then attach source rows after buildPartition.
         Map<Integer, IndexRequest> rowRequests = new LinkedHashMap<>(groups.size());
-        try (EscfBatchBuilder batchBuilder = new EscfBatchBuilder()) {
+        try (EscfBatchBuilder batchBuilder = new EscfBatchBuilder(bytesRefRecycler)) {
             for (DataPointGroupingContext.DataPointGroup group : groups) {
                 var dynamicTemplates = Maps.<String, String>newHashMapWithExpectedSize(group.dataPoints().size());
                 var dynamicTemplateParams = Maps.<String, Map<String, String>>newHashMapWithExpectedSize(group.dataPoints().size());
@@ -220,6 +250,22 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
             // let BatchModeRouter / EscfBatchScatterer handle shard scatter downstream.
             EscfBatch batch = batchBuilder.buildPartition(0);
 
+            // Guard against coordinator heap exhaustion on large fan-out OTLP exports (resource/scope
+            // attributes copied into every row mean the batch can be significantly larger than the
+            // incoming protobuf payload).
+            long batchBytes = batch.ramBytesUsed();
+            if (batchBytes > maxExpandedContentLength) {
+                batch.close();
+                throw new ElasticsearchStatusException(
+                    "OTLP request rejected: ESCF batch ["
+                        + batchBytes
+                        + " b] would exceed expanded content limit ["
+                        + maxExpandedContentLength
+                        + " b]",
+                    RestStatus.REQUEST_ENTITY_TOO_LARGE
+                );
+            }
+
             // Attach source rows now that the batch object is stable.
             for (Map.Entry<Integer, IndexRequest> e : rowRequests.entrySet()) {
                 e.getValue().indexSource().setSourceRow(batch, e.getKey(), XContentType.JSON);
@@ -228,10 +274,10 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
             // Register the pre-built batch. BatchModeRouter will scatter it to shards and invoke
             // ForIndexDimensions.indexShard(requests, batch), which calls ColumnarTsidCalculator to
             // derive _tsid column-major (no pre-set tsid required on the IndexRequests).
+            // Ownership of the batch transfers to the bulk request here. EscfBatchBuilder.close() only
+            // releases *unbuilt* partitions (buildPartition nulls the slot), so closing the builder
+            // below does NOT close or invalidate the batch; that is the caller's (router's) responsibility.
             bulkRequestBuilder.setPreBuiltBatches(Map.of(target, batch));
-            // Note: the EscfBatch (and its backing columns) is closed when the try-with-resources block
-            // for EscfBatchBuilder exits. The batch data has been serialised at routing time, so the
-            // backing columns are no longer needed after the bulk completes.
         }
     }
 

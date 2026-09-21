@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_BYPASS_READ_TOTAL;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTED_REGIONS_MAX_FREQ;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTION_SCANNED_ENTRIES;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_EVICTION_SCAN_TIME;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_LOCK_ACQUIRE_TIME;
@@ -194,6 +195,7 @@ public class BlobCacheMetricsTests extends ESTestCase {
         assertThat(measurements.getFirst().attributes().keySet(), contains(LOCK_ACQUIRE_SITE_ATTRIBUTE_KEY));
     }
 
+<<<<<<< HEAD
     public void testSentinelTimestampsSkipAgeHistogram() {
         metrics.recordRead(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP);
         metrics.recordMiss(SharedBlobCacheService.UNKNOWN_TIMESTAMP);
@@ -333,6 +335,20 @@ public class BlobCacheMetricsTests extends ESTestCase {
         collectAndReset();
         assertEquals(1L, gaugeValue(BLOB_CACHE_READ_TOTAL));
         assertEquals(1L, gaugeValue(BLOB_CACHE_MISS_TOTAL));
+    }
+
+    public void testRecordEvictedRegionMaxFreq() {
+        int first = randomIntBetween(1, 50);
+        int second = randomIntBetween(1, 99);
+        metrics.recordEvictedRegionMaxFreq(first);
+        metrics.recordEvictedRegionMaxFreq(second);
+
+        var measurements = recordingMeterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_HISTOGRAM, BLOB_CACHE_EVICTED_REGIONS_MAX_FREQ);
+        assertThat(measurements, hasSize(2));
+        assertThat(measurements.getFirst().getLong(), is((long) first));
+        assertThat(measurements.getLast().getLong(), is((long) second));
+        assertThat(measurements.getFirst().attributes().isEmpty(), is(true));
     }
 
     private static void assertEvictionScanAttributes(

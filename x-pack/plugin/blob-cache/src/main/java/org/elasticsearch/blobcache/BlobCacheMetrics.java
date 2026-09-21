@@ -20,6 +20,7 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
@@ -36,6 +37,29 @@ public class BlobCacheMetrics {
     public static final String NON_ES_EXECUTOR_TO_RECORD = "other";
     public static final String BLOB_CACHE_COUNT_OF_EVICTED_USED_REGIONS_TOTAL = "es.blob_cache.count_of_evicted_used_regions.total";
     public static final String BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL = "es.blob_cache.count_of_evicted_regions.total";
+    public static final String BLOB_CACHE_EVICTED_REGIONS_MAX_FREQ = "es.blob_cache.evicted_regions_max_freq.histogram";
+    /**
+     * Upper-inclusive bucket boundaries for the peak LFU frequency of evicted regions.
+     * Default {@code max_freq} is 100, so recorded peaks are 1..99. {@code Long.MAX_VALUE} is a
+     * finite overflow bound so values above 99 (when {@code max_freq} is raised) stay visible on
+     * export paths that drop the unbounded {@code (last, +inf)} bucket.
+     */
+    public static final List<Long> EVICTED_REGION_MAX_FREQ_BUCKETS = List.of(
+        1L,
+        2L,
+        3L,
+        4L,
+        5L,
+        6L,
+        8L,
+        10L,
+        16L,
+        32L,
+        64L,
+        98L,
+        99L,
+        Long.MAX_VALUE
+    );
     public static final String SEARCH_ORIGIN_REMOTE_STORAGE_DOWNLOAD_TOOK_TIME = "es.blob_cache.search_origin.download_took_time.total";
     public static final String BLOB_CACHE_BYPASS_READ_TOTAL = "es.blob_cache.bypass_read.total";
     public static final String BLOB_CACHE_PREFETCH_TOTAL = "es.blob_cache.prefetch.total";
@@ -91,6 +115,7 @@ public class BlobCacheMetrics {
     private final LongCounter cacheMissCounter;
     private final LongCounter evictedCountNonZeroFrequency;
     private final LongCounter totalEvictedCount;
+    private final LongHistogram evictedRegionsMaxFreq;
     private final LongHistogram cacheMissLoadTimes;
     private final DoubleHistogram cachePopulationThroughput;
     private final LongCounter cachePopulationBytes;
@@ -194,6 +219,13 @@ public class BlobCacheMetrics {
                 BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL,
                 "The number of times a cache entry was evicted, irrespective of the frequency",
                 "entries"
+            ),
+            meterRegistry.registerLongHistogram(
+                BLOB_CACHE_EVICTED_REGIONS_MAX_FREQ,
+                "The highest LFU frequency an evicted cache region reached during its lifetime under LFU pressure, "
+                    + "excluding force-evictions",
+                "frequency",
+                EVICTED_REGION_MAX_FREQ_BUCKETS
             ),
             meterRegistry.registerLongHistogram(
                 "es.blob_cache.cache_miss_load_times.histogram",
@@ -303,6 +335,7 @@ public class BlobCacheMetrics {
         LongCounter cacheMissCounter,
         LongCounter evictedCountNonZeroFrequency,
         LongCounter totalEvictedCount,
+        LongHistogram evictedRegionsMaxFreq,
         LongHistogram cacheMissLoadTimes,
         DoubleHistogram cachePopulationThroughput,
         LongCounter cachePopulationBytes,
@@ -321,6 +354,7 @@ public class BlobCacheMetrics {
         this.cacheMissCounter = cacheMissCounter;
         this.evictedCountNonZeroFrequency = evictedCountNonZeroFrequency;
         this.totalEvictedCount = totalEvictedCount;
+        this.evictedRegionsMaxFreq = evictedRegionsMaxFreq;
         this.cacheMissLoadTimes = cacheMissLoadTimes;
         this.cachePopulationThroughput = cachePopulationThroughput;
         this.cachePopulationBytes = cachePopulationBytes;
@@ -347,6 +381,16 @@ public class BlobCacheMetrics {
 
     public LongCounter getTotalEvictedCount() {
         return totalEvictedCount;
+    }
+
+    /**
+     * Record the highest LFU frequency an evicted region reached during its lifetime under LFU
+     * pressure. Excludes force evictions. New regions start at
+     * frequency 1; decay and demote do not lower this peak.
+     */
+    public void recordEvictedRegionMaxFreq(int maxFreq) {
+        assert maxFreq >= 1 : maxFreq;
+        evictedRegionsMaxFreq.record(maxFreq);
     }
 
     public LongHistogram getCacheMissLoadTimes() {

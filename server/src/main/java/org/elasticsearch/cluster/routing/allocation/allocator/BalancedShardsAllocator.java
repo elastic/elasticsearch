@@ -957,7 +957,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         1,
                         canRemainMoveAttributes(
                             "not_preferred",
-                            refreshed.canRemainDeciderLabel(),
+                            refreshed.canRemainDeciderName(),
                             null,
                             shardRouting.primary(),
                             nodeName(shardRouting.currentNodeId()),
@@ -1041,12 +1041,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             while (shardsToCheck.hasNext()) {
                 final ShardRouting shardRouting = shardsToCheck.next();
                 final ProjectIndex index = projectIndex(shardRouting);
-                final MoveDecisionWithLabel moveDecisionWithLabel = decideMoveWithLabel(
+                final MoveDecisionWithDeciderName moveDecisionWithDeciderName = decideMoveWithDeciderName(
                     index,
                     shardRouting,
                     bestNonPreferredShardMovementsTracker::shardIsBetterThanCurrent
                 );
-                final MoveDecision moveDecision = moveDecisionWithLabel.moveDecision();
+                final MoveDecision moveDecision = moveDecisionWithDeciderName.moveDecision();
                 // A THROTTLE allocation decision can happen when not simulating
                 assert moveDecision.isDecisionTaken() == false
                     || allocation.isSimulating() == false
@@ -1067,7 +1067,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         bestNonPreferredShardMovementsTracker.putBestMoveDecision(
                             shardRouting,
                             moveDecision,
-                            moveDecisionWithLabel.canRemainDeciderLabel()
+                            moveDecisionWithDeciderName.canRemainDeciderName()
                         );
                     } else if (moveDecision.getAllocationDecision() == AllocationDecision.YES
                         || canAllocateDecisions == CanAllocateDecisions.YES_OR_NOT_PREFERRED) {
@@ -1076,8 +1076,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                 1,
                                 canRemainMoveAttributes(
                                     "no",
-                                    moveDecisionWithLabel.canRemainDeciderLabel(),
-                                    moveDecisionWithLabel.canAllocateNotPreferredDeciderLabel(),
+                                    moveDecisionWithDeciderName.canRemainDeciderName(),
+                                    moveDecisionWithDeciderName.canAllocateNotPreferredDeciderName(),
                                     shardRouting.primary(),
                                     nodeName(shardRouting.currentNodeId()),
                                     nodeName(moveDecision.getTargetNode())
@@ -1118,13 +1118,17 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * @param shardMoved True if a shard moved in this balancing round, false otherwise
          * @return The move decision to act on, recalculated if necessary
          */
-        private MoveDecisionWithLabel refreshDecisionIfRequired(
+        private MoveDecisionWithDeciderName refreshDecisionIfRequired(
             ProjectIndex index,
             BestShardMovementsTracker.StoredShardMovement storedShardMovement,
             boolean shardMoved
         ) {
             if (notPreferredLogger.isDebugEnabled() == false && shardMoved == false) {
-                return new MoveDecisionWithLabel(storedShardMovement.moveDecision(), storedShardMovement.canRemainDeciderLabel(), null);
+                return new MoveDecisionWithDeciderName(
+                    storedShardMovement.moveDecision(),
+                    storedShardMovement.canRemainDeciderName(),
+                    null
+                );
             }
 
             final var oldDebugMode = allocation.getDebugMode();
@@ -1132,7 +1136,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 allocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
             }
             try {
-                return decideMoveWithLabel(index, storedShardMovement.shardRouting(), ignored -> true);
+                return decideMoveWithDeciderName(index, storedShardMovement.shardRouting(), ignored -> true);
             } finally {
                 allocation.setDebugMode(oldDebugMode);
             }
@@ -1253,18 +1257,18 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * @return The {@link MoveDecision} for the shard
          */
         private MoveDecision decideMove(ProjectIndex index, ShardRouting shardRouting, Predicate<ShardRouting> nonPreferredPredicate) {
-            return decideMoveWithLabel(index, shardRouting, nonPreferredPredicate).moveDecision();
+            return decideMoveWithDeciderName(index, shardRouting, nonPreferredPredicate).moveDecision();
         }
 
-        private record MoveDecisionWithLabel(
+        private record MoveDecisionWithDeciderName(
             MoveDecision moveDecision,
-            @Nullable String canRemainDeciderLabel,
-            @Nullable String canAllocateNotPreferredDeciderLabel
+            @Nullable String canRemainDeciderName,
+            @Nullable String canAllocateNotPreferredDeciderName
         ) {}
 
-        private static final MoveDecisionWithLabel NOT_TAKEN = new MoveDecisionWithLabel(MoveDecision.NOT_TAKEN, null, null);
+        private static final MoveDecisionWithDeciderName NOT_TAKEN = new MoveDecisionWithDeciderName(MoveDecision.NOT_TAKEN, null, null);
 
-        private MoveDecisionWithLabel decideMoveWithLabel(
+        private MoveDecisionWithDeciderName decideMoveWithDeciderName(
             ProjectIndex index,
             ShardRouting shardRouting,
             Predicate<ShardRouting> nonPreferredPredicate
@@ -1283,7 +1287,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             final var canRemainResult = allocation.deciders().canRemainWithDeciderLabel(shardRouting, routingNode, allocation);
             final Decision canRemainDecision = canRemainResult.decision();
             if (canRemainDecision.type() != Decision.Type.NO && canRemainDecision.type() != Decision.Type.NOT_PREFERRED) {
-                return new MoveDecisionWithLabel(MoveDecision.createRemainYesDecision(canRemainDecision), null, null);
+                return new MoveDecisionWithDeciderName(MoveDecision.createRemainYesDecision(canRemainDecision), null, null);
             }
 
             // Check predicate to decide whether to assess movement options
@@ -1308,17 +1312,17 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
             // For canRemain=NO moves where the best available node only offers NOT_PREFERRED allocation,
             // capture which decider is responsible for that constraint.
-            final String canAllocateNotPreferredDeciderLabel;
+            final String canAllocateNotPreferredDeciderName;
             if (canRemainDecision.type() == Decision.Type.NO
                 && moveDecision.getAllocationDecision() == AllocationDecision.NOT_PREFERRED
                 && moveDecision.getTargetNode() != null) {
-                canAllocateNotPreferredDeciderLabel = allocation.deciders()
+                canAllocateNotPreferredDeciderName = allocation.deciders()
                     .canAllocateNotPreferredDeciderLabel(shardRouting, routingNodes.node(moveDecision.getTargetNode().getId()), allocation);
             } else {
-                canAllocateNotPreferredDeciderLabel = null;
+                canAllocateNotPreferredDeciderName = null;
             }
 
-            return new MoveDecisionWithLabel(moveDecision, canRemainResult.deciderLabel(), canAllocateNotPreferredDeciderLabel);
+            return new MoveDecisionWithDeciderName(moveDecision, canRemainResult.deciderLabel(), canAllocateNotPreferredDeciderName);
         }
 
         private MoveDecision decideMove(
@@ -1400,7 +1404,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             public record StoredShardMovement(
                 ShardRouting shardRouting,
                 MoveDecision moveDecision,
-                @Nullable String canRemainDeciderLabel
+                @Nullable String canRemainDeciderName
             ) {}
 
             // LinkedHashMap so we iterate in insertion order
@@ -1427,10 +1431,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 return comparison < 0;
             }
 
-            public void putBestMoveDecision(ShardRouting shardRouting, MoveDecision moveDecision, @Nullable String canRemainDeciderLabel) {
+            public void putBestMoveDecision(ShardRouting shardRouting, MoveDecision moveDecision, @Nullable String canRemainDeciderName) {
                 bestShardMovementsByNode.put(
                     shardRouting.currentNodeId(),
-                    new StoredShardMovement(shardRouting, moveDecision, canRemainDeciderLabel)
+                    new StoredShardMovement(shardRouting, moveDecision, canRemainDeciderName)
                 );
             }
 

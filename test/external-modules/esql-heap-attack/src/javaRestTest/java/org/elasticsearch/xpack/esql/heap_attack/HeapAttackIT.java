@@ -312,6 +312,22 @@ public class HeapAttackIT extends HeapAttackTestCase {
         return query(query.toString(), null);
     }
 
+    public void testSmallJsonString() throws IOException {
+        jsonString(5);
+    }
+
+    public void testHugeJsonString() throws IOException {
+        assertFoldCircuitBreaks(attempt -> jsonString(attempt * 50));
+    }
+
+    private Map<String, Object> jsonString(int evals) throws IOException {
+        StringBuilder query = startQuery();
+        query.append("ROW field = TO_STRING(42)");
+        query.repeat(" | EVAL field = JSON_STRING(field, field)", evals);
+        query.append("\"}");
+        return responseAsMap(query(query.toString(), null));
+    }
+
     /**
      * Returns many moderately long strings.
      */

@@ -58,6 +58,7 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
@@ -102,7 +103,6 @@ import org.elasticsearch.xpack.esql.datasources.FoldDateFunctionFiltersForListin
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
-import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
 import org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -609,6 +609,11 @@ public class EsqlSession {
 
                     var columnMetadata = new Holder<Map<NameId, Map<String, Object>>>();
                     var preMappedPlan = new Holder<LogicalPlan>();
+                    // Fail-closed: stays false until checkDatasetLocationPrivilege resolves.
+                    // Used to resolve LocatedException on the execution failure path, where the
+                    // SubscribableListener chain ends at .addListener(listener) rather than going
+                    // through analysisListener/reinstateLocationIfAuthorized.
+                    var callerHoldsDatasetLocationPrivilege = new Holder<>(false);
                     SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, planTimeProfile, l))
                         .<LogicalPlan>andThen(
                             (l, p) -> preMapper.preMapper(
@@ -621,6 +626,7 @@ public class EsqlSession {
                             checkDatasetLocationPrivilege(p, l);
                         })
                         .<Result>andThen((l, canSee) -> {
+                            callerHoldsDatasetLocationPrivilege.set(canSee);
                             LogicalPlan p = preMappedPlan.get();
                             columnMetadata.set(
                                 createColumnMetadata(
@@ -672,7 +678,13 @@ public class EsqlSession {
                                 )
                             );
                         })
-                        .addListener(listener);
+                        .addListener(ActionListener.wrap(listener::onResponse, e -> {
+                            if (e instanceof ExternalFailures.LocatedException located) {
+                                listener.onFailure(located.resolve(callerHoldsDatasetLocationPrivilege.get()));
+                            } else {
+                                listener.onFailure(e);
+                            }
+                        }));
                 }
             }
         );
@@ -772,7 +784,7 @@ public class EsqlSession {
     }
 
     /**
-     * Checks whether the caller has {@code indices:admin/esql/dataset/get} on every named dataset.
+     * Checks whether the caller has the {@code read_dataset_metadata} privilege on every named dataset.
      * Responds {@code true} if so, {@code false} otherwise (or if {@code datasetNames} is empty).
      * Fail-closed: any transport error or missing user resolves to {@code false} (redact).
      */
@@ -796,7 +808,12 @@ public class EsqlSession {
         request.username(user.principal());
         request.clusterPrivileges(new String[0]);
         RoleDescriptor.IndicesPrivileges[] indexPrivileges = datasetNames.stream()
-            .map(name -> RoleDescriptor.IndicesPrivileges.builder().indices(name).privileges(GetDatasetAction.NAME).build())
+            .map(
+                name -> RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(name)
+                    .privileges(EsqlDatasetActionNames.ESQL_DATASET_METADATA_PRIVILEGE_NAME)
+                    .build()
+            )
             .toArray(RoleDescriptor.IndicesPrivileges[]::new);
         request.indexPrivileges(indexPrivileges);
         request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
@@ -805,7 +822,9 @@ public class EsqlSession {
             HasPrivilegesAction.NAME,
             request,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(ActionListener.wrap(resp -> listener.onResponse(resp.isCompleteMatch()), e -> {
+            new ActionListenerResponseHandler<>(ActionListener.wrap(resp -> {
+                listener.onResponse(resp.isCompleteMatch());
+            }, e -> {
                 LOGGER.debug("dataset-location privilege check failed, treating as unauthorized", e);
                 listener.onResponse(false);
             }), HasPrivilegesResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)

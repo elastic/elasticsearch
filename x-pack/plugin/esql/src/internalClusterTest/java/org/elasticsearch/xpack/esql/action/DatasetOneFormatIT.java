@@ -54,7 +54,6 @@ public class DatasetOneFormatIT extends AbstractExternalDataSourceIT {
             () -> run(syncEsqlQueryRequest("FROM mixed_as_csv | STATS n = COUNT(*)"), TIMEOUT).close()
         );
         assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(), containsString(parquet.getFileName().toString()));
         assertThat(e.getMessage(), containsString("parquet"));
         assertThat(e.getMessage(), containsString("csv"));
     }

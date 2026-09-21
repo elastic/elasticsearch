@@ -510,10 +510,7 @@ public class AzureStorageProviderTests extends ESTestCase {
         // and the pre-check in testConnection() short-circuits before any client call.
         AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, null, "federated_identity");
         AzureStorageProvider provider = new AzureStorageProvider(config, null, null);
-        TestConnectionNotSupportedException ex = expectThrows(
-            TestConnectionNotSupportedException.class,
-            provider::testConnection
-        );
+        TestConnectionNotSupportedException ex = expectThrows(TestConnectionNotSupportedException.class, provider::testConnection);
         assertThat(ex.getMessage(), containsString("federated_identity"));
     }
 }

@@ -405,10 +405,7 @@ public class S3StorageProviderFailureTests extends ESTestCase {
     public void testTestConnectionAnonymousIsUntestable() {
         S3Configuration config = S3Configuration.fromFields(null, null, null, null, "anonymous");
         S3StorageProvider provider = new S3StorageProvider(config, null);
-        TestConnectionNotSupportedException ex = expectThrows(
-            TestConnectionNotSupportedException.class,
-            provider::testConnection
-        );
+        TestConnectionNotSupportedException ex = expectThrows(TestConnectionNotSupportedException.class, provider::testConnection);
         assertThat(ex.getMessage(), containsString("anonymous"));
     }
 
@@ -428,10 +425,7 @@ public class S3StorageProviderFailureTests extends ESTestCase {
         // Non-anonymous config so the short-circuit does not fire; we test the 403-AccessDenied branch.
         S3Configuration config = S3Configuration.fromFields("key", "secret", null, null);
         S3StorageProvider provider = new S3StorageProvider(config, client);
-        TestConnectionNotSupportedException ex = expectThrows(
-            TestConnectionNotSupportedException.class,
-            provider::testConnection
-        );
+        TestConnectionNotSupportedException ex = expectThrows(TestConnectionNotSupportedException.class, provider::testConnection);
         assertThat(ex.getMessage(), containsString("AccessDenied"));
     }
 }

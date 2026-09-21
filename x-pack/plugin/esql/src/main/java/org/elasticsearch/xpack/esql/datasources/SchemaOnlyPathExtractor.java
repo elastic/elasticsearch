@@ -21,40 +21,25 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Detects which external relations a query asks for a schema and no rows — the shape a UI issues
- * against a dataset before anything else, {@code FROM ds | LIMIT 0}.
- * <p>Such a query reads nothing: {@code SkipQueryOnLimitZero} replaces the plan with an empty
- * relation and split discovery never runs. But that rule is a <em>logical optimizer</em> rule, and
- * external resolution happens earlier, in {@code EsqlSession#preAnalyzeExternalSources} during
- * pre-analysis, so by the time the plan is emptied the listing has already been paid in full. The
- * parsed plan is available at that point, which is what makes the shape knowable early enough to
- * act on.
- * <p>The result of {@link #pathsReadingNoRows(LogicalPlan)} lets resolution list only what the
- * schema requires rather than what a scan would require. What each mode requires differs — a
- * declared mapping needs no file, {@code first_file_wins} needs one, {@code union_by_name} and
- * {@code strict} need every file by contract — so this set says only that no rows will be read,
- * and the resolver decides what follows from that.
- * <h2>Conservatism runs the opposite way to the stats extractor</h2>
- * {@link ExternalStatsRequirementExtractor} unions: a path under an ungrouped aggregate in any
- * branch must be resolved eagerly, because one resolution feeds every branch. Here the safe
- * direction is the reverse. One resolution feeds every branch, so a path read for its rows in
- * <em>any</em> branch — a {@code FORK} whose other arm has a real limit, a relation named twice in
- * one query — must be resolved as a reading query. A path therefore qualifies only when every one
- * of its occurrences sits under a zero limit, which is why this subtracts rather than unions.
- * <p>Both known gaps are conservative, and both leave work switched on that could have been
- * skipped: {@code LIMIT 0 BY k} is a {@code LimitBy}, not a {@code Limit}, and a limit that folds
- * to zero without being a {@link Literal} is not recognised. Neither can produce a wrong answer.
+ * Finds the external relations a query asks for a schema and no rows, the {@code FROM ds | LIMIT 0} shape.
+ * <p>{@code SkipQueryOnLimitZero} already empties such a plan, but it is a logical-optimizer rule and external
+ * resolution runs earlier, in {@code EsqlSession#preAnalyzeExternalSources}, so the listing is paid before the
+ * plan is emptied. The parsed plan is available there, which is what makes the shape knowable in time.
+ * <p>This says only that no rows will be read; how much of the glob a schema needs is the dataset's business,
+ * and the resolver decides it.
+ * <p>Unlike {@link ExternalStatsRequirementExtractor}, which unions, this subtracts: one resolution feeds every
+ * branch, so a path read for its rows in <em>any</em> branch must resolve as a reading query.
+ * <p>{@code LIMIT 0 BY k} is a {@code LimitBy} and an unfolded zero is not a {@link Literal}; both are missed,
+ * and both only leave work switched on.
  */
 public final class SchemaOnlyPathExtractor {
 
     private SchemaOnlyPathExtractor() {}
 
     /**
-     * Returns the literal {@code tablePath} of every {@link UnresolvedExternalRelation} whose rows
-     * are all discarded — every occurrence sits below a {@link Limit} of literal zero. The path-key
-     * derivation matches {@code PreAnalyzer} and {@code EsqlSession#extractExternalConfigs}
-     * ({@code BytesRefs.toString(literal.value())}), so the keys line up with the resolver's paths
-     * by construction.
+     * Returns the literal {@code tablePath} of every {@link UnresolvedExternalRelation} whose occurrences all
+     * sit below a {@link Limit} of literal zero. Path keys are derived as {@code PreAnalyzer} and
+     * {@code EsqlSession#extractExternalConfigs} derive them, so they line up with the resolver's paths.
      *
      * @param unresolvedPlan the root of the unresolved logical plan
      * @return the set of literal path strings whose resolution needs no rows read
@@ -94,16 +79,10 @@ public final class SchemaOnlyPathExtractor {
     }
 
     /**
-     * Whether a limit is the literal zero, tested exactly as {@code SkipQueryOnLimitZero} tests it — that rule
-     * compares against {@code Integer.valueOf(0)}, so a zero of any other numeric type is a limit it does NOT
-     * remove. Accepting one here would mark a path schema-only whose plan then survives to execution and reads
-     * its rows from a bounded listing. The rows are all discarded either way, so no answer changes; what breaks
-     * is the guarantee that a bounded listing never reaches split discovery, and that guarantee is worth more
-     * than the shapes this turns away.
-     *
-     * <p>Narrower than that rule in the other direction too: it folds the expression, and this cannot, because
-     * folding during pre-analysis would evaluate expressions before the plan is analysed. A zero that only folds
-     * later resolves as a reading query — slower, never wrong.
+     * Tested exactly as {@code SkipQueryOnLimitZero} tests it: that rule compares against
+     * {@code Integer.valueOf(0)} and folds the expression, this cannot fold during pre-analysis. Both
+     * differences must only turn paths away — a path marked schema-only whose plan then survives to execution
+     * would read its rows from a bounded listing.
      */
     private static boolean isLiteralZero(Expression limit) {
         return limit instanceof Literal literal && Integer.valueOf(0).equals(literal.value());

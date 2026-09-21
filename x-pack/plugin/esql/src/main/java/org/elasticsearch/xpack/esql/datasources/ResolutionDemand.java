@@ -10,44 +10,33 @@ package org.elasticsearch.xpack.esql.datasources;
 import java.util.Set;
 
 /**
- * What a query needs from one path's resolution, which is what decides how much of that path's glob has to be
- * listed and how many of its files have to be read.
+ * What a query needs from one path's resolution: how much of its glob must be listed and how many of its files
+ * read. Ordered by how much of the dataset each state touches.
  * <p>
- * The three states are ordered by how much of the dataset each one has to touch, and they are exclusive by
- * construction rather than by convention: {@link ExternalStatsRequirementExtractor} selects a path only when an
- * ungrouped aggregate sits above it, and an aggregate above a relation is exactly what stops
- * {@link SchemaOnlyPathExtractor} calling that relation schema-only. Holding them as one value keeps that
- * exclusivity a property of the type instead of an agreement between two sets that happen to be passed together.
+ * The states are exclusive by construction: {@link ExternalStatsRequirementExtractor} selects a path only when an
+ * ungrouped aggregate sits above it, which is exactly what stops {@link SchemaOnlyPathExtractor} calling it
+ * schema-only. One value rather than two sets keeps that a property of the type.
  */
 public enum ResolutionDemand {
 
     /**
-     * The query reads no rows from this path, so resolution owes it a schema and nothing else. How much of the
-     * glob a schema needs is a property of the dataset, not of the query: a declared mapping is the schema
-     * outright, {@code first_file_wins} takes it from one file, and {@code union_by_name} and {@code strict} read
-     * every file by contract. Only this state may bound a listing.
+     * No rows are read from this path, so resolution owes it a schema and nothing else. The only state that may
+     * bound a listing; how far the bound goes is the dataset's resolution mode, not the query's.
      */
     SCHEMA_ONLY,
 
-    /**
-     * The query reads rows. Resolution produces the full file set, because split discovery reads it from the plan.
-     */
+    /** Rows are read. Resolution produces the full file set, because split discovery takes it from the plan. */
     ROWS,
 
     /**
-     * The query is an ungrouped aggregate this path can answer from file metadata, so resolution reads every
-     * file's footer up front and split discovery is skipped entirely. The most expensive state, and worth it:
-     * the footers it reads are ones the query would otherwise read in a later phase.
+     * An ungrouped aggregate answerable from file metadata: resolution reads every footer up front and split
+     * discovery is skipped. The footers it reads are ones a later phase would have read anyway.
      */
     EAGER_STATS;
 
     /**
-     * The demand for {@code path}, given the two plan-derived sets.
-     *
-     * @param requiringStats paths under an ungrouped aggregate, or {@code null} for the legacy behaviour in which
-     *                       every path resolves eagerly
-     * @param readingNoRows  paths whose rows are all discarded, or {@code null} when the query shape was not
-     *                       examined
+     * @param requiringStats paths under an ungrouped aggregate, or {@code null} to resolve every path eagerly
+     * @param readingNoRows  paths whose rows are all discarded, or {@code null} if the shape was not examined
      */
     public static ResolutionDemand of(String path, Set<String> requiringStats, Set<String> readingNoRows) {
         if (requiringStats == null || requiringStats.contains(path)) {

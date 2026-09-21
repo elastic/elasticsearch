@@ -1167,9 +1167,8 @@ public class ExternalSourceResolver {
                         statsListener
                     );
                 }
-                // isTruncated matters as much as the count here: a bounded listing whose first page held one
-                // matching file reports fileCount() == 1 for a dataset of ninety thousand, and the anchor's stats
-                // would then be presented as the dataset's.
+                // A bounded listing whose first page held one matching file reports fileCount() == 1 for a
+                // dataset of ninety thousand, so the anchor's stats must not be presented as the dataset's.
             } else if (listing.fileCount() > 1 || listing.isTruncated()) {
                 // Defer branch (requiresStats == false): skip the N footer reads. The anchor-only stats are not
                 // representative of the whole glob, so mark them partial — exactly the state the failed-aggregation
@@ -1405,12 +1404,9 @@ public class ExternalSourceResolver {
      * {@link #cachedListing} regardless of merge strategy. Declared-schema resolution stays in
      * {@link #resolveStrictMultiFile}, which repeats the bounded-is-never-cached rule below.
      *
-     * <p>A listing that only has to answer a schema is bounded, and a bounded listing is a prefix of the dataset
-     * rather than the dataset. That makes the shared cache the hazard: an entry is keyed by the path and its
-     * filters, not by what the query that created it happened to need, so caching a prefix would serve it to the
-     * next query over the same glob and that query would read a fraction of the data and report success. Bounded
-     * listings therefore never touch the cache — not written to it, and not read from it, since a cache hit would
-     * silently hand back the full listing and lose the saving the bound exists for.
+     * <p>A bounded listing is a prefix of the dataset, and cache entries are keyed by the path and its filters
+     * rather than by what the query needed, so a bounded listing never touches the cache in either direction.
+     * See {@link #listingBoundFor}.
      */
     private FileList listAndRecord(
         String path,
@@ -1437,19 +1433,14 @@ public class ExternalSourceResolver {
     /**
      * How many keys this resolution may visit, or {@link Integer#MAX_VALUE} for the whole glob.
      *
-     * <p>This is the single place the question is answered, and it is answered before the caller chooses whether
-     * to consult the listing cache, because the two decisions are the same decision: a bound revoked after the
-     * cache has been bypassed yields a full listing that is neither read from nor written to it, which is worse
-     * than not bounding at all.
+     * <p>Answered here and nowhere else, and answered before the caller chooses whether to consult the listing
+     * cache, because the two are one decision: a bound revoked after the cache was bypassed lists the whole glob
+     * and neither reads nor writes the cache.
      *
-     * <p>Three conditions must all hold, and each of the last two is about the answer rather than the cost.
-     * The query must read no rows from this path, because split discovery takes its file set from the listing
-     * resolution produced. The mode's schema must not span every file. And nothing else may already be narrowing
-     * the listing: a bound keeps a prefix of what was listed, so it is a prefix of the same listing only when the
-     * listing is otherwise the whole glob in the provider's own order. A dataset-chosen file order and partition
-     * pruning each break that, and each would move the file {@code FIRST_FILE_WINS} reads for its schema — a
-     * different schema, not a slower query. The declared rail reads no file when a bound applies, so what is at
-     * stake there is the partition columns it derives from the paths, not a declared-type check.
+     * <p>All three must hold. The query reads no rows from this path, since split discovery takes its file set
+     * from this listing. The mode's schema does not span every file. And nothing else already narrows the
+     * listing — a dataset-chosen file order or partition pruning each make the listing something other than the
+     * whole glob in provider order, so a prefix of it would move the file {@code FIRST_FILE_WINS} reads.
      */
     private int listingBoundFor(
         ResolutionDemand demand,
@@ -1539,10 +1530,8 @@ public class ExternalSourceResolver {
             GlobExpander.listingCacheDiscriminator(path, hints, config)
         );
         FileList listing = cacheService.getOrComputeListing(listingKey, k -> expandAndCompact(path, provider, hints, config, storagePath));
-        // The compute above lists the whole glob, which is what keeps a bounded listing out of this cache. That is
-        // a property of one lambda, and the failure if it ever changes is silent: an entry here is keyed by the
-        // path and its filters, so a prefix stored under one would be served to a query that reads rows, which
-        // would scan part of the dataset and report success. Asserted rather than commented for that reason.
+        // The compute above lists the whole glob, which is what keeps a bounded listing out of this cache.
+        // Asserted rather than commented because the failure if that ever changes is silent.
         assert listing.isTruncated() == false : "a truncated listing must never enter the shared listing cache: " + path;
         // Caps are not part of the listing key: a raise must keep hitting. A later drop still has
         // to fail closed, or a cached FileList computed under a looser cap would bypass the setting
@@ -3684,16 +3673,11 @@ public class ExternalSourceResolver {
         // Strict multi-file still does the same glob listing as the inferred path — record it as discovery too, so
         // strict resolutions are not invisible in the discovery telemetry (mirrors resolveMultiFileSource).
         long discoveryStartNanos = System.nanoTime();
-        // A declaration is the whole schema for every file, so nothing this listing supplies can change the
-        // columns reported: it counts files and derives partition columns from the paths. Both of those do grow
-        // with the dataset, and both are handled rather than ignored — the count is marked partial below, and
-        // partition-column coverage is what partition_sample_size sets. The cache is bypassed for the reason it
-        // exists: a prefix must never be served to a reading query.
-        // schema_resolution is not consulted on this rail — a declared mapping is used whatever it says — so the
-        // breadth is the declaration's, not the mode's. The file order still is consulted, inside
-        // listingBoundFor: forListing answers NAME_ASC for every mode but first_file_wins, so a declared mapping
-        // is bounded only under first_file_wins, which is the default. That check also guards the partition
-        // columns this rail derives, which a different order would draw from a different set of paths.
+        // A declaration is the whole schema for every file, so this listing only counts files and derives
+        // partition columns from the paths: the count is marked partial below, coverage is partition_sample_size.
+        // A declared mapping is used whatever schema_resolution says, so the breadth is the declaration's. The
+        // file order is still consulted in listingBoundFor, where forListing answers NAME_ASC for every mode but
+        // first_file_wins — so a declared mapping is bounded only under first_file_wins, the default.
         int listingBound = listingBoundFor(demand, SchemaBreadth.DECLARATION, config, hints);
         if (path.indexOf(',') >= 0) {
             listing = GlobExpander.expand(
@@ -3734,13 +3718,9 @@ public class ExternalSourceResolver {
         // Then the columnar coercibility check, which reads the anchor footer — re-check cancellation first, as a wide
         // glob's listing above can be slow (mirrors resolveMultiFileSource's pre-footer re-check).
         throwIfCancelled();
-        // Not when nothing will be read. The check exists because a columnar reader meeting a declared type it
-        // cannot coerce emits nulls instead of failing, and it reads a file to catch that before the nulls appear.
-        // A query that discards every row never performs that cast, so the failure it warns about cannot occur in
-        // the query being asked — and the columns returned are the declared ones either way, since this check only
-        // throws and never alters the schema. Every query that reads rows still runs it, which is where the nulls
-        // would otherwise appear. The cost of not skipping is a file read on the one rail whose schema needs no
-        // file at all, which would leave a declared mapping no cheaper to report than an inferred one.
+        // Skipped when nothing will be read: this opens a file to catch a declared type a columnar reader would
+        // null out instead of failing on, and a query that discards every row never performs that cast. It only
+        // throws, never alters the schema, and every query that reads rows still runs it.
         if (demand.schemaOnly() == false) {
             rejectStrictColumnarUncoercibleTypes(
                 sourceType,
@@ -3759,22 +3739,17 @@ public class ExternalSourceResolver {
         );
         extMetadata = enrichWithFileCount(extMetadata, listing.fileCount());
         if (listing.isTruncated()) {
-            // The count above is the files seen within the bound, which is a floor rather than the dataset's
-            // total. Unmarked, a prefix's count is presented as the whole, and this rail is the one a declared
-            // mapping takes — the case a bound most often applies to. The inferred rail marks it in
-            // completeFirstFileWins; there is no shared site to do it in, because the two rails build their
-            // metadata separately.
+            // The count is a floor, not the dataset's total. The inferred rail marks it in completeFirstFileWins;
+            // the two rails build their metadata separately, so there is no shared site.
             extMetadata = markStatsAsPartial(extMetadata);
         }
         if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingSchemaWarnings::add);
         }
 
-        // A declared mapping is the whole schema for every file, so every entry of this map holds the
-        // same value and only the key differs. Build that value once and share the instance: composing an
-        // identical FileSchemaInfo — and a throwaway single-entry map to merge it — per file made the cost
-        // of answering proportional to the file count, for a schema fully known before the listing ran.
-        // FileSchemaInfo is a record, so one instance is safely shared across every key.
+        // Every entry holds the same value and only the key differs, so build it once. Composing an identical
+        // FileSchemaInfo per file made a fully-declared schema cost time proportional to the file count.
+        // FileSchemaInfo is a record, so sharing one instance across every key is safe.
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
         if (logicalSchema == null || logicalSchema.isEmpty()) {
             schemaMap = Map.of();

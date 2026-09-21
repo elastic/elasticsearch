@@ -205,11 +205,10 @@ public final class GlobExpander {
         PartitionConfig partitionConfig = PartitionConfig.fromConfig(config);
         ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
         FileOrderConfig fileOrder = FileOrderConfig.forListing(config);
-        // A backstop for direct callers of this public entry point, not the decision. The resolver declines the
-        // bound for both of these before it gets here, because it must decide BEFORE choosing whether to bypass
-        // the listing cache — revoking a bound below that choice leaves a full listing that was never cached,
-        // which is worse than not bounding. Repeated here because a bound honoured under either condition picks
-        // a different anchor than the unbounded listing would, and this class is reachable without the resolver.
+        // A backstop for direct callers, not the decision: the resolver declines the bound for both of these
+        // first, because it must decide before choosing whether to bypass the listing cache. Repeated here
+        // because this class is reachable without the resolver, and a bound honoured under either condition
+        // would pick a different anchor than the unbounded listing.
         boolean prefixOfTheWholeGlob = fileOrder.equals(FileOrderConfig.DEFAULT) && hasPartitionPruningHints(hints) == false;
         int effectiveBound = prefixOfTheWholeGlob ? listingBound : Integer.MAX_VALUE;
         // A comma list is several globs; a key budget has no single meaning across them, so it resolves unbounded.
@@ -311,11 +310,9 @@ public final class GlobExpander {
         if (failure == null && (narrowed.isResolved() == false || narrowed.fileCount() > 0)) {
             return narrowed;
         }
-        // Only the rewrite can throw spuriously: it may name a folder that does not exist, and the local
-        // filesystem throws there where object stores return empty. A bound cannot invent an IOException, so when
-        // the bound was the only narrowing the error is the storage's own — transient or not — and re-listing the
-        // whole glob would answer a schema request with the full enumeration the bound exists to avoid, and would
-        // bury the original error if it then succeeded. Surface it instead.
+        // Only the rewrite can throw spuriously — it may name a folder that does not exist, where the local
+        // filesystem throws and object stores return empty. A bound cannot invent an IOException, so when it was
+        // the only narrowing the error is the storage's own and is surfaced rather than retried.
         if (failure != null && rewritten == false) {
             throw failure;
         }
@@ -617,11 +614,10 @@ public final class GlobExpander {
         try (StorageIterator iterator = provider.listObjects(prefix, recursive)) {
             while (iterator.hasNext()) {
                 if (listed >= listingBound) {
-                    // What this saves depends on the provider, and only an object store pages lazily: the S3
-                    // iterator issues its next ListObjectsV2 when the current page is exhausted, so stopping here
-                    // is requests never made. The local filesystem provider walks the whole tree into a list
-                    // before the first hasNext(), so there the bound only caps what is kept. Correctness does not
-                    // depend on which it is; the saving does, and the datasets this exists for live on S3.
+                    // The saving depends on the provider: the S3 iterator issues its next ListObjectsV2 only
+                    // when the current page is exhausted, so stopping here is requests never made, while the
+                    // local provider walks the whole tree before the first hasNext() and only caps what is
+                    // kept. Correctness does not depend on which.
                     truncated = true;
                     break;
                 }

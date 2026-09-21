@@ -772,6 +772,11 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices(".ai-index-idx-elastic-index", ".ai-index-idx-elastic-index-*")
                     .privileges("all")
                     .build(),
+                // Context Engine AI index views. Kibana creates and deletes them with the AI index.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.CONTEXT_ENGINE_AI_INDEX_VIEWS)
+                    .privileges("create_view", "delete_view")
+                    .build(),
                 // Context Engine feedback-loop signals. Per-space, regular (non-system)
                 // user indices that Kibana creates and manages via the storage adapter
                 // (one index per Kibana space: context-engine-signals-<space>).

@@ -658,9 +658,6 @@ tests:
 - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
   method: testCohereEmbeddings {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/159164
-- class: org.elasticsearch.xpack.shutdown.NodeShutdownShardSnapshotsIT
-  method: testShardSnapshotsStatus
-  issue: https://github.com/elastic/elasticsearch/issues/159165
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
   method: testReshardWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/156004
@@ -675,12 +672,6 @@ tests:
 - class: org.elasticsearch.swisshash.BytesRefSwissHashPartitionTests
   method: testPartitionPaged
   issue: https://github.com/elastic/elasticsearch/issues/159303
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search/400_columnar_default_field/field-less query over a numeric and a keyword field in columnar mode}
-  issue: https://github.com/elastic/elasticsearch/issues/159306
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search/400_columnar_default_field/query_string is lenient about unparseable literals in columnar mode}
-  issue: https://github.com/elastic/elasticsearch/issues/159307
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecStringIT
   method: test {csv-spec:string.base64DecodeMixedMvExpandSort}
   issue: https://github.com/elastic/elasticsearch/issues/159359
@@ -736,9 +727,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:PARQUET_DATASET}
   issue: https://github.com/elastic/elasticsearch/issues/156789
-- class: org.elasticsearch.painless.resourceexhaustion.PainlessConcurrentAllocationIT
-  method: testConcurrentScriptsUnderLimitAllSucceed
-  issue: https://github.com/elastic/elasticsearch/issues/159759
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecMatchPhraseFunctionIT
   method: test {csv-spec:match-phrase-function.matchPhraseOnToStringOverIndexedTextFieldIsExact}
   issue: https://github.com/elastic/elasticsearch/issues/159767
@@ -751,9 +739,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecMatchPhraseFunctionIT
   method: test {csv-spec:match-phrase-function.matchPhraseOnToTextOverIndexedKeywordFieldViaEvalAlias}
   issue: https://github.com/elastic/elasticsearch/issues/159770
-- class: org.elasticsearch.painless.resourceexhaustion.PainlessConcurrentAllocationIT
-  method: testConcurrentScriptsOverLimitAllFail
-  issue: https://github.com/elastic/elasticsearch/issues/159771
 - class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
   method: testEsqlSource
   issue: https://github.com/elastic/elasticsearch/issues/159773
@@ -844,3 +829,17 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:PARQUET_DATASET}
   issue: https://github.com/elastic/elasticsearch/issues/156789
+- class: org.elasticsearch.xpack.enrich.action.TransportGetEnrichPolicyActionTests
+  issue: https://github.com/elastic/elasticsearch/issues/159896
+- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
+  method: testPreferredNodeIdsAreUsedDuringRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/159502
+- class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
+  method: testVirtualBatchedCompoundCommitUploadMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/159904
+- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusLogsdbFieldLevelSecurityChallengeRestIT
+  method: testEsqlSource
+  issue: https://github.com/elastic/elasticsearch/issues/159906
+- class: org.elasticsearch.xpack.logsdb.qa.BulkDynamicMappingChallengeRestIT
+  method: testRandomQueries
+  issue: https://github.com/elastic/elasticsearch/issues/159925

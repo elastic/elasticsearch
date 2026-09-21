@@ -48,6 +48,7 @@ import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
@@ -806,7 +807,16 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         var previousGenerationalFilesTermAndGen = this.lastAcquiredGenerationalFilesTermAndGen;
         try {
             final var reconciledMetadata = new HashMap<>(currentMetadata);
-            PrimaryTermAndGeneration generationalFilesTermAndGen = null;
+            //
+            // Distinct BCC term/generations referenced by the generational files in this incoming metadata.
+            //
+            // A fresh commit notification always references a single BCC since generation files are carried-over between BCC. But but PIT
+            // relocation metadata (see mergePITReaderMetadata) carries generational files accumulated across many BCCs over the PIT's
+            // lifetime. We pin every one of them so that opening the relocated commit (which re-opens these files and acquires each file's
+            // BCC term/generation, see acquireGenerationalFileTermAndGeneration) always finds them present in generationalFilesTermAndGens.
+            // Re-pinning BCCs that happen to be already held is intentional: it keeps them alive even if the only reader referencing them
+            // is closed concurrently while we open the relocated commit.
+            final Set<PrimaryTermAndGeneration> incomingGenerationalFilesTermAndGens = new HashSet<>();
             long commitSize = 0L;
             for (var entry : incomingFileRanges.entrySet()) {
                 final String fileName = entry.getKey();
@@ -816,32 +826,30 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                     // we expect generational files to be opened when the reader is refreshed and picks up the generational files for the
                     // first time and never reopened them after that (as segment core readers are handed over between refreshed reader
                     // instances).
-                    reconciledMetadata.putIfAbsent(fileName, reconciledRanges);
-                    if (generationalFilesTermAndGen == null) {
-                        generationalFilesTermAndGen = reconciledRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration();
+                    var incoming = reconciledRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration();
+                    if (reconciledMetadata.putIfAbsent(fileName, reconciledRanges) != null) {
+                        // read the first known location
+                        incoming = reconciledMetadata.get(fileName).blobLocation().getBatchedCompoundCommitTermAndGeneration();
                     }
-                    assert reconciledRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration().equals(generationalFilesTermAndGen)
-                        : "All generational files in an incoming commit batch must belong to the same BCC, but "
-                            + fileName
-                            + " belongs to BCC "
-                            + reconciledRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration()
-                            + " which differs from "
-                            + generationalFilesTermAndGen
-                            + " (established by a preceding generational file in this batch)";
+                    // Pin the BCC of the location we actually keep, which is what doOpenInput will use.
+                    incomingGenerationalFilesTermAndGens.add(incoming);
                 } else {
                     reconciledMetadata.put(fileName, reconciledRanges);
                 }
                 commitSize += reconciledRanges.blobLocation().fileLength();
             }
-            // If we have generational file(s) in the new commit, we create a ref counted instance that holds the term/generation of the
-            // batched compound commit so that it can be reported as used to the indexing shard in new commit responses. The ref counted
-            // instance will be decRef on the next commit update or when the directory is closed. Any generational file opened between two
-            // commits update should incRef the instance to indicate that the BCC term/generation is in use and decRef it once the file is
-            // closed. When fully decRefed, the BCC term/gen is removed from the set of used generations.
-            if (generationalFilesTermAndGen != null) {
-                var releasable = addGenerationalFileTermAndGeneration(generationalFilesTermAndGen);
+            // If we have generational file(s) in the new commit, we create ref counted instances that hold the term/generation of each
+            // referenced batched compound commit so that they can be reported as used to the indexing shard in new commit responses. The
+            // ref counted instances will be decRef on the next commit update or when the directory is closed. Any generational file opened
+            // between two commit updates should incRef the matching instance to indicate that the BCC term/generation is in use and decRef
+            // it once the file is closed. When fully decRefed, the BCC term/gen is removed from the set of used generations.
+            if (incomingGenerationalFilesTermAndGens.isEmpty() == false) {
+                final List<Releasable> releasables = new ArrayList<>(incomingGenerationalFilesTermAndGens.size());
+                for (final var termAndGen : incomingGenerationalFilesTermAndGens) {
+                    releasables.add(addGenerationalFileTermAndGeneration(termAndGen));
+                }
                 // use releaseOnce to decRef only once, either on commit update or directory close
-                this.lastAcquiredGenerationalFilesTermAndGen = Releasables.releaseOnce(releasable);
+                this.lastAcquiredGenerationalFilesTermAndGen = Releasables.releaseOnce(Releasables.wrap(releasables));
             } else if (pitContextRelocationTransfer) {
                 // commit has no generational files, and we're opening a PIT reader during relocation,
                 // in that case we don't want to decRef the current generational files term/gen until a

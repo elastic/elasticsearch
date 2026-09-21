@@ -1101,12 +1101,13 @@ public class ExternalSourceCacheService implements Closeable {
         long mtime = -1L;
         String fingerprint = null;
         String readConfig = null;
-        // Taken from the first fragment, NOT required to agree across them. The identity is not a function of the
-        // read configuration when that configuration is UNKNOWN: fragments of one file captured by scans that
+        // Kept only while every fragment says the same thing. Fragments of one file can be captured by scans that
         // resolved its schema differently (an inferred header scan and a non-first split handed the planner's
-        // schema) carry different column types and fold together today. Whether such a fold may then CROSS into an
-        // entry is decided where crossing is decided, not here.
+        // schema) and still fold together, because the identity is not a function of the read configuration when
+        // that configuration is UNKNOWN. What must not happen is the first fragment's identity speaking for the
+        // rest of them at the crossing, which only ever sees this one value.
         SourceStatsContribution.ReadIdentity readIdentity = null;
+        boolean first = true;
         // ordinal -> (start offset -> fragments starting there). Multiple fragments can share a start
         // (the same stripe prefix observed by two scans), so the value is a list.
         Map<Long, Map<Long, List<SourceStatsContribution.StripeFragment>>> byStripe = new HashMap<>();
@@ -1132,6 +1133,13 @@ public class ExternalSourceCacheService implements Closeable {
                     // wrong stat. Bail rather than guess; the next query re-harvests against the live version.
                     return null;
                 }
+            if (first == false && Objects.equals(readIdentity, f.readIdentity()) == false) {
+                // Fragments that describe their reads differently cannot all be described by the first one's
+                // identity, and the identity is what a crossing is decided on. No identity means no crossing,
+                // the same answer reconcileSourceStatsFromContributions gives for disagreeing whole-file reads.
+                readIdentity = null;
+            }
+            first = false;
             byStripe.computeIfAbsent(f.ordinal(), k -> new HashMap<>()).computeIfAbsent(f.start(), s -> new ArrayList<>()).add(f);
         }
         Map<Long, Map<String, Object>> complete = new HashMap<>();
@@ -1322,9 +1330,27 @@ public class ExternalSourceCacheService implements Closeable {
                 clearStripeState(enriched);
             }
             enriched.put(ExternalStats.STRIPE_GRID_KEY, delta.stripeSize());
+            // The whole-file survivor refusal asks whether the entry's own count is the file's. Its stripe-rail
+            // twin asks the same of the stripes: one committed stripe from a read that dropped rows describes a
+            // different row set from any crossing read's, so its measurements and theirs cannot be merged — and
+            // mergeCrossedStripe's assertion, which says the crossing rules make a disagreement impossible, is
+            // only true once this is refused here.
+            boolean entryHoldsSurvivorStripe = false;
+            for (Map.Entry<String, Object> committed : enriched.entrySet()) {
+                if (committed.getKey().startsWith(ExternalStats.STRIPE_ENTRY_PREFIX)
+                    && committed.getValue() instanceof Map<?, ?> committedStripe
+                    && Boolean.TRUE.equals(committedStripe.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)) == false) {
+                    entryHoldsSurvivorStripe = true;
+                    break;
+                }
+            }
             boolean crossedAnything = false;
             for (Map.Entry<Long, Map<String, Object>> stripe : delta.stripes().entrySet()) {
                 Map<String, Object> contribution = stripe.getValue();
+                if (sameRead == false && entryHoldsSurvivorStripe) {
+                    logger.debug("[{}] foreign stripe refused: a committed stripe of this entry counted survivors", path);
+                    continue;
+                }
                 if (sameRead == false) {
                     Map<String, Object> crossed = crossingStats(
                         existing,
@@ -1620,6 +1646,14 @@ public class ExternalSourceCacheService implements Closeable {
         }
         Map<String, Object> base = maps.get(0);
         Map<String, Object> merged = new HashMap<>(base);
+        // The licence holds for the merge only if every contribution carried it, as it does for a stripe fold:
+        // the first map's word is not the others'.
+        for (Map<String, Object> m : maps) {
+            if (m.containsKey(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY) == false) {
+                merged.remove(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY);
+                break;
+            }
+        }
         for (int i = 1; i < maps.size(); i++) {
             Map<String, Object> next = maps.get(i);
             if (sameReadConfig(base, next) == false) {
@@ -1768,6 +1802,14 @@ public class ExternalSourceCacheService implements Closeable {
                         mergedStats.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY)
                     );
                     if (sameRead) {
+                        if (coerced.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)
+                            && coerced.containsKey(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY) == false) {
+                            // This read's count is not the file's physical one, and putAll only ever adds: without
+                            // this the licence of the count being replaced — a crossed one, say — would outlive it
+                            // and offer this read's survivor count to another read as the file's. Same rule as
+                            // applyStripeDelta's fold.
+                            enriched.remove(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY);
+                        }
                         enriched.putAll(coerced);
                     } else {
                         // A crossed contribution adds to what this entry's own read measured; it never replaces it.

@@ -741,6 +741,117 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      * that saw {@code id} the same way and {@code color} differently may enrich the entry with {@code id} and the
      * row count, and with nothing of {@code color} — and the entry must still describe its OWN read afterwards.
      */
+    /**
+     * The stripe-rail twin of the survivor-count refusal: an entry holding a stripe from a read that dropped rows
+     * describes a different row set from the crossing read's, so nothing may cross into it. Without this,
+     * {@code mergeCrossedStripe}'s assertion — the crossing rules make a disagreement impossible — is not true.
+     */
+    public void testCrossingIsRefusedIntoAnEntryHoldingAnUnlicensedStripe() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/survivor-stripe.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.TRUE, null, false)
+            );
+            service.getOrComputeSchema(
+                key,
+                k -> SchemaCacheEntry.from(
+                    schema,
+                    "csv",
+                    path,
+                    Map.of(
+                        ExternalStats.CONFIG_FINGERPRINT_KEY,
+                        "fp",
+                        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+                        "config-own",
+                        ExternalStats.COLUMNS_IN_FILE_ORDER_KEY,
+                        Boolean.TRUE
+                    ),
+                    Map.of()
+                )
+            );
+
+            // The entry's own read committed stripe 0 and dropped rows doing it, so its count is not the file's.
+            Map<String, Object> ownStripe = stripeFragment(mtime, "fp", 30L, 100L, 0, 0, 100, true, true, false);
+            ownStripe.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-own");
+            ownStripe.put(SourceStatisticsSerializer.columnMinKey("id"), 5L);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(ownStripe)));
+
+            Map<String, Object> foreign = stripeFragment(mtime, "fp", 30L, 100L, 0, 0, 100, true, true, false);
+            foreign.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-foreign");
+            foreign.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            foreign.put(ExternalStats.READ_COLUMN_NAMES_KEY, List.of("id"));
+            foreign.put(ExternalStats.READ_COLUMN_TYPES_KEY, List.of("long"));
+            foreign.put(ExternalStats.READ_BINDING_KEY, ExternalStats.BINDING_BY_POSITION);
+            foreign.put(SourceStatisticsSerializer.columnMaxKey("id"), 99L);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(foreign)));
+
+            Map<String, Object> stripe = stripeAt(service.getOrComputeSchema(key, k -> { throw new AssertionError("cached"); }), 0);
+            assertNotNull("the entry's own stripe is still there", stripe);
+            assertEquals("and still holds what its own read measured", 5L, stripe.get(SourceStatisticsSerializer.columnMinKey("id")));
+            assertNull(
+                "nothing of a foreign read may join a stripe whose own read counted survivors",
+                stripe.get(SourceStatisticsSerializer.columnMaxKey("id"))
+            );
+        }
+    }
+
+    /**
+     * Fragments of one file can be captured by scans that resolved its schema differently while carrying no read
+     * configuration to tell them apart. They still fold, but the fold must not hand the first fragment's identity
+     * to the crossing, which is the only identity it would ever see.
+     */
+    public void testAFoldOfFragmentsThatDescribeDifferentReadsCrossesNothing() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/disagreeing-fragments.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.TRUE, null, false)
+            );
+            service.getOrComputeSchema(
+                key,
+                k -> SchemaCacheEntry.from(
+                    schema,
+                    "csv",
+                    path,
+                    Map.of(
+                        ExternalStats.CONFIG_FINGERPRINT_KEY,
+                        "fp",
+                        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+                        "config-own",
+                        ExternalStats.COLUMNS_IN_FILE_ORDER_KEY,
+                        Boolean.TRUE
+                    ),
+                    Map.of()
+                )
+            );
+
+            // Two halves of stripe 0, neither naming a read configuration, each describing a different read.
+            Map<String, Object> first = stripeFragment(mtime, "fp", 15L, 100L, 0, 0, 50, true, false, false);
+            first.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            first.put(ExternalStats.READ_COLUMN_NAMES_KEY, List.of("id"));
+            first.put(ExternalStats.READ_COLUMN_TYPES_KEY, List.of("long"));
+            first.put(ExternalStats.READ_BINDING_KEY, ExternalStats.BINDING_BY_POSITION);
+            first.put(SourceStatisticsSerializer.columnMaxKey("id"), 42L);
+            Map<String, Object> second = stripeFragment(mtime, "fp", 15L, 100L, 0, 50, 100, false, true, false);
+            second.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            second.put(ExternalStats.READ_COLUMN_NAMES_KEY, List.of("id"));
+            second.put(ExternalStats.READ_COLUMN_TYPES_KEY, List.of("integer"));
+            second.put(ExternalStats.READ_BINDING_KEY, ExternalStats.BINDING_BY_POSITION);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(first, second)));
+
+            SchemaCacheEntry after = service.getOrComputeSchema(key, k -> { throw new AssertionError("cached"); });
+            assertNull("a fold whose fragments describe different reads has no identity, so no column crosses", stripeAt(after, 0));
+            assertEquals(
+                "and the entry still describes its own read",
+                "config-own",
+                after.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY)
+            );
+        }
+    }
+
     public void testLicensedForeignStripeDeltaMergesIdenticallyReadColumnsOnly() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/a.csv";
@@ -967,6 +1078,96 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      * one. The row count crosses; the entry's own measurement of a column it already measured is kept rather than
      * replaced by the other read's.
      */
+    /**
+     * An entry never records a read identity, not even its own read's: the stamped keys travel on the wire
+     * contribution and {@code toFlatMap} drops them, so nothing writes them into an entry. The blank-cell conjunct in
+     * {@code crossingStats} therefore compares a crossing read's blank rule against the default, which is what
+     * {@code testStringColumnCrossesOnlyWhenBlankPoliciesAgree} exercises from the contribution's side.
+     */
+    public void testAnEntryRecordsNoReadIdentityOfItsOwn() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/own.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "color", DataType.KEYWORD, Nullability.TRUE, null, false)
+            );
+            Map<String, Object> own = new LinkedHashMap<>();
+            own.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+            own.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-A");
+            service.getOrComputeSchema(key, k -> SchemaCacheEntry.from(schema, "csv", path, own, Map.of()));
+
+            Map<String, Object> sameRead = wholeFileStats(mtime, "fp", 10L);
+            sameRead.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-A");
+            sameRead.put(ExternalStats.READ_COLUMN_NAMES_KEY, List.of("color"));
+            sameRead.put(ExternalStats.READ_COLUMN_TYPES_KEY, List.of("keyword"));
+            sameRead.put(ExternalStats.READ_BINDING_KEY, ExternalStats.BINDING_BY_NAME);
+            sameRead.put(ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY, Boolean.TRUE);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(sameRead)));
+
+            SchemaCacheEntry after = service.getOrComputeSchema(key, k -> { throw new AssertionError("cached"); });
+            assertEquals(
+                "the contribution must have reached the entry, or the assertions below say nothing",
+                10L,
+                after.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+            assertFalse("no binding is recorded on the entry", after.safeMetadata().containsKey(ExternalStats.READ_BINDING_KEY));
+            assertFalse("nor a blank rule", after.safeMetadata().containsKey(ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY));
+            assertFalse("nor the column names it was read under", after.safeMetadata().containsKey(ExternalStats.READ_COLUMN_NAMES_KEY));
+        }
+    }
+
+    /**
+     * The whole-file rail's counterpart to {@code testLicenceIsWithdrawnWhenTheFoldIsNoLongerLicensed}: an entry
+     * whose licensed count came from a crossing, then measured its own unlicensed count, must not keep offering that
+     * count as the file's physical one.
+     */
+    public void testWholeFileLicenceIsWithdrawnWhenTheEntrysOwnCountIsUnlicensed() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/withdraw.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.TRUE, null, false)
+            );
+            Map<String, Object> own = new LinkedHashMap<>();
+            own.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+            own.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-A");
+            own.put(ExternalStats.COLUMNS_IN_FILE_ORDER_KEY, Boolean.TRUE);
+            service.getOrComputeSchema(key, k -> SchemaCacheEntry.from(schema, "csv", path, own, Map.of()));
+
+            Map<String, Object> foreign = wholeFileStats(mtime, "fp", 100L);
+            foreign.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-B");
+            foreign.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            foreign.put(ExternalStats.READ_COLUMN_NAMES_KEY, List.of("id"));
+            foreign.put(ExternalStats.READ_COLUMN_TYPES_KEY, List.of("long"));
+            foreign.put(ExternalStats.READ_BINDING_KEY, ExternalStats.BINDING_BY_POSITION);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(foreign)));
+            assertEquals(
+                "the crossed count fills an entry that measured nothing, and says it is the file's",
+                Boolean.TRUE,
+                service.getOrComputeSchema(key, k -> {
+                    throw new AssertionError("cached");
+                }).safeMetadata().get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)
+            );
+
+            Map<String, Object> ownCount = wholeFileStats(mtime, "fp", 90L);
+            ownCount.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-A");
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(ownCount)));
+
+            SchemaCacheEntry after = service.getOrComputeSchema(key, k -> { throw new AssertionError("cached"); });
+            assertEquals(
+                "the entry's own read measured the count now held",
+                90L,
+                after.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+            assertFalse(
+                "an unlicensed count must not inherit the licence of the count it replaced",
+                after.safeMetadata().containsKey(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)
+            );
+        }
+    }
+
     public void testWholeFileCrossingKeepsTheEntrysOwnColumnMeasurements() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/probe.csv";

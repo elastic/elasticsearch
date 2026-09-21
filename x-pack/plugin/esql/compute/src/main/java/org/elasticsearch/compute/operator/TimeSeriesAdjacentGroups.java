@@ -84,39 +84,35 @@ final class TimeSeriesAdjacentGroups implements Releasable {
     private static void link(TimeSeriesBlockHash blockHash, BigArrays bigArrays, IntArray prevGroupIds, IntArray nextGroupIds) {
         final long numGroups = blockHash.numGroups();
         final int numTsids = blockHash.numTsids();
-        try (
-            IntArray groupsPerTsid = bigArrays.newIntArray(numTsids, true);
-            IntArray clusteredGroups = bigArrays.newIntArray(numGroups, false)
-        ) {
-            // Phase 1a: count the groups of each tsid, remembering the largest count to size the scratch array.
-            int maxGroupsPerTsid = 0;
+        try (IntArray clusteredGroups = bigArrays.newIntArray(numGroups, false)) {
+            // Phase 1a: count the groups of each tsid.
+            int[] positions = new int[numTsids];
             for (long groupId = 0; groupId < numGroups; groupId++) {
-                groupsPerTsid.increment(blockHash.tsidForGroup(groupId), 1);
+                int tsid = blockHash.tsidForGroup(groupId);
+                positions[tsid] = Math.incrementExact(positions[tsid]);
             }
-            // Phase 1b: exclusive prefix sums of the counts are the write offsets; scatter the groups by tsid.
-            try (IntArray writeOffsets = bigArrays.newIntArray(numTsids, false)) {
-                int offset = 0;
-                for (int tsid = 0; tsid < numTsids; tsid++) {
-                    writeOffsets.set(tsid, offset);
-                    int numGroupsForTsid = groupsPerTsid.get(tsid);
-                    offset += numGroupsForTsid;
-                    maxGroupsPerTsid = Math.max(maxGroupsPerTsid, numGroupsForTsid);
-                }
-                assert offset == numGroups : "expected " + numGroups + " groups but counted " + offset;
-                for (long groupId = 0; groupId < numGroups; groupId++) {
-                    int position = writeOffsets.increment(blockHash.tsidForGroup(groupId), 1) - 1;
-                    clusteredGroups.set(position, Math.toIntExact(groupId));
-                }
+            // Phase 1b: turn the counts into write offsets, remember the largest count, and scatter the groups by tsid.
+            int offset = 0;
+            int maxGroupsPerTsid = 0;
+            for (int tsid = 0; tsid < numTsids; tsid++) {
+                int count = positions[tsid];
+                positions[tsid] = offset;
+                offset = Math.addExact(offset, count);
+                maxGroupsPerTsid = Math.max(maxGroupsPerTsid, count);
+            }
+            assert offset == numGroups : "expected " + numGroups + " groups but counted " + offset;
+            for (long groupId = 0; groupId < numGroups; groupId++) {
+                int tsid = blockHash.tsidForGroup(groupId);
+                clusteredGroups.set(positions[tsid]++, Math.toIntExact(groupId));
             }
             // Phase 2: sort the groups of each tsid by timestamp (descending) and link consecutive ones.
             final GroupWithTimestamp[] sorted = new GroupWithTimestamp[maxGroupsPerTsid];
             for (int i = 0; i < sorted.length; i++) {
                 sorted[i] = new GroupWithTimestamp();
             }
-            long start = 0;
-            while (start < numGroups) {
-                final int tsid = blockHash.tsidForGroup(clusteredGroups.get(start));
-                final int count = groupsPerTsid.get(tsid);
+            for (int tsid = 0; tsid < numTsids; tsid++) {
+                final int start = tsid == 0 ? 0 : positions[tsid - 1];
+                final int count = positions[tsid] - start;
                 for (int i = 0; i < count; i++) {
                     int groupId = clusteredGroups.get(start + i);
                     sorted[i].groupId = groupId;
@@ -139,7 +135,6 @@ final class TimeSeriesAdjacentGroups implements Releasable {
                     nextGroupIds.set(olderGroupId, newerGroupId);
                     prevGroupIds.set(newerGroupId, olderGroupId);
                 }
-                start += count;
             }
         }
     }

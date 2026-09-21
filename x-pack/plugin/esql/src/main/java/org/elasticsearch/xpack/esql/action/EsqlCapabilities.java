@@ -643,6 +643,13 @@ public class EsqlCapabilities {
         SPATIAL_DISTANCE_PUSHDOWN_ENHANCEMENTS,
 
         /**
+         * Fix for a bug where {@code ST_DISTANCE} threw a {@code ClassCastException} when both its
+         * {@code geo_point} or {@code cartesian_point} arguments were extracted from doc-values
+         * simultaneously.
+         */
+        FIX_ST_DISTANCE_DOC_VALUES_AND_DOC_VALUES,
+
+        /**
          * Fix for spatial centroid when no records are found.
          */
         SPATIAL_CENTROID_NO_RECORDS,
@@ -1434,6 +1441,16 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/149509
          */
         SUBQUERY_IN_FROM_COMMAND_CARRY_OVER_SYNTHETIC_CONVERT_ATTRIBUTES,
+
+        /**
+         * Fix for the same conversion function applied more than once to the same attribute above a {@code UnionAll}
+         * (e.g. twice in one WHERE): {@code ResolveUnionTypesInUnionAll} dedupes the equal conversions into a single
+         * pushed-down alias and must replace every equal occurrence with the union output's attribute. Matching
+         * occurrences by identity used to leave all but one unreplaced, making the analyzer's Resolution batch loop
+         * until the rule execution limit.
+         * https://github.com/elastic/elasticsearch-serverless/issues/7693
+         */
+        SUBQUERY_IN_FROM_COMMAND_REPEATED_CONVERSIONS,
 
         /**
          * Fix for union types that have counter field renamed, but the data type is inconsistent with union all output.
@@ -3539,6 +3556,20 @@ public class EsqlCapabilities {
          * {@code CombineProjections} drops it.
          */
         TS_STATS_LITERAL_AGG_FIX,
+
+        /**
+         * Read an unmapped field straight from _source, so an object value reads as null rather than as Java's
+         * Map.toString(). Applies to both source modes.
+         * See https://github.com/elastic/elasticsearch/issues/158306.
+         */
+        OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE,
+
+        /**
+         * The {@code partition_detection} and {@code partition_path} dataset settings reach the read path:
+         * {@code none} suppresses detection and the Hive column-shadow substitution with it, and
+         * {@code template} binds and prunes on the templated column.
+         */
+        PARTITION_DETECTION_ON_READ_PATH,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -85,14 +85,12 @@ import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
-import org.elasticsearch.script.SortedBinaryDocValuesStringFieldScript;
 import org.elasticsearch.script.SortedSetDocValuesStringFieldScript;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.script.field.KeywordDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.runtime.StringScriptFieldFuzzyQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
@@ -840,15 +838,13 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexType.hasTerms()) {
                 return super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context, rewriteMethod);
             } else if (usesBinaryDocValues) {
-                return StringScriptFieldFuzzyQuery.build(
-                    new Script(""),
-                    ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx, indexVersion),
+                return ScanningBinaryDocValuesAutomatonQuery.forFuzzy(
                     name(),
                     indexedValueForSearch(value).utf8ToString(),
                     fuzziness.asDistance(BytesRefs.toString(value)),
                     prefixLength,
                     transpositions,
-                    context
+                    useArrayOrderBinaryDocValues
                 );
             } else {
                 return FuzzyQueries.create(
@@ -902,12 +898,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexType.hasTerms()) {
                 return super.termQueryCaseInsensitive(value, context);
             } else if (usesBinaryDocValues) {
-                return new StringScriptFieldTermQuery(
-                    new Script(""),
-                    ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx, indexVersion),
+                return ScanningBinaryDocValuesAutomatonQuery.forCaseInsensitiveTerm(
                     name(),
                     indexedValueForSearch(value).utf8ToString(),
-                    true
+                    useArrayOrderBinaryDocValues
                 );
             } else {
                 return new StringScriptFieldTermQuery(
@@ -1265,13 +1259,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
 
                 if (usesBinaryDocValues) {
-                    return new StringScriptFieldWildcardQuery(
-                        new Script(""),
-                        ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx, indexVersion),
-                        name(),
-                        value,
-                        false
-                    );
+                    return ScanningBinaryDocValuesAutomatonQuery.forWildcard(name(), value, false, useArrayOrderBinaryDocValues);
                 } else {
                     Term term = new Term(name(), value);
                     if (context.getCircuitBreaker() != null) {

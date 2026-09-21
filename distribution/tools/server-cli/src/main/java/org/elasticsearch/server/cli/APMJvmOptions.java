@@ -206,6 +206,10 @@ class APMJvmOptions {
         final Path tmpProperties = writeApmProperties(tmpdir, propertiesMap);
 
         final List<String> options = new ArrayList<>();
+        // Byte Buddy 1.18.10+ refuses Unsafe on JDK 26+ unless this is false. The agent still injects its
+        // bootstrap classes through Unsafe (IndyBootstrap). On older JDKs this matches Byte Buddy's default.
+        // It is a JVM system property, read during agent premain, so it cannot go in the agent config file.
+        options.add("-Dnet.bytebuddy.safe=false");
         // Use an agent argument to specify the config file instead of e.g. `-Delastic.apm.config_file=...`
         // because then the agent won't try to reload the file, and we can remove it after startup.
         options.add(agentCommandLineOption(agentJar, tmpProperties));

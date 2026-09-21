@@ -35,6 +35,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -157,6 +158,7 @@ public class APMJvmOptionsTests extends ESTestCase {
         );
 
         assertFalse(options.isEmpty());
+        assertThat(options, hasItem("-Dnet.bytebuddy.safe=false"));
 
         Properties properties = extractProperties(options);
         assertThat(properties.getProperty("metrics_interval"), equalTo("120s"));

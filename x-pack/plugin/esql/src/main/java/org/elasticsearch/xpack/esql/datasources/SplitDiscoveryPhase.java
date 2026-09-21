@@ -438,7 +438,6 @@ public final class SplitDiscoveryPhase {
             maxRecordBytes,
             isCancelled,
             exec.declaredReadSpec(),
-            exec.datasetName(),
             ExternalMetadataColumns.metadataNames(exec.output())
         );
 
@@ -496,7 +495,6 @@ public final class SplitDiscoveryPhase {
             maxRecordBytes,
             isCancelled,
             exec.declaredReadSpec(),
-            exec.datasetName(),
             ExternalMetadataColumns.metadataNames(exec.output())
         );
 

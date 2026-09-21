@@ -24,6 +24,10 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
     def setup() {
         // required for JarHell to work
         subProject(":libs:core") << "apply plugin:'java'"
+        // BaseInternalPluginBuildPlugin now wires these internal project dependencies directly,
+        // so the func-test fixture must provide matching stub projects when it applies the plugin.
+        subProject(":server") << "apply plugin:'java'"
+        subProject(":test:framework") << "apply plugin:'java'"
     }
 
     def "project with plugin applied is considered for maven central publication"() {

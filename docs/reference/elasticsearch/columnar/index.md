@@ -215,7 +215,7 @@ Columnar index modes don't store the original JSON `_source` on disk. Two `_sour
 **Columnar stored `_source`**
 :   Materializes and stores the columnar `_source` representation on disk at index time as doc values. Used automatically when synthetic columnar `_source` is not licensed, and can also be configured explicitly to speed up `_source` retrieval. For more information, see [Columnar source](/reference/elasticsearch/mapping-reference/mapping-source-field.md#columnar-stored).
 
-Both modes return the same content. `columnar_stored` changes only *when* the columnar `_source` is built — at index time instead of at query time — never what it contains.
+Both modes return the same content. `columnar_stored` changes only **when** the columnar `_source` is built (at index time instead of at query time), not what it contains.
 
 ### What columnar `_source` preserves [columnar-source-fidelity]
 
@@ -281,7 +281,7 @@ Both `logsdb` and the columnar modes default to synthetic `_source`, but they ma
 | Unmapped, `dynamic: false`, or `enabled: false` content | Retained in `_source` | Dropped |
 | Per-field source retention | `synthetic_source_keep`, `store` | Not available |
 
-`logsdb` achieves its higher fidelity by defaulting [`index.mapping.synthetic_source_keep`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source-keep) to `arrays` and by retaining the parts of a document that synthetic source can't otherwise reconstruct, at the cost of extra storage. Columnar modes trade that fidelity for a smaller storage footprint.
+`logsdb` achieves its higher fidelity by defaulting [`index.mapping.synthetic_source_keep`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source-keep) to `arrays` and by retaining the parts of a document that synthetic source can't otherwise reconstruct, at the cost of extra storage. Columnar modes trade that fidelity for a smaller storage footprint and improved indexing throughput.
 
 If a consumer of your data depends on an object array being returned faithfully, map that field as [`nested`](/reference/elasticsearch/mapping-reference/nested.md) before migrating to a columnar mode.
 

@@ -7,6 +7,7 @@
 rate_of_long_no_grouping_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
+required_capability: rate_with_interpolation_v4
 required_capability: fix_ts_block_loader_passthrough_aliasing
 
 PROMQL index=prometheus-k8s step=1m rate_bytes_in=(avg(rate(network.total_bytes_in[1m])))
@@ -14,22 +15,23 @@ PROMQL index=prometheus-k8s step=1m rate_bytes_in=(avg(rate(network.total_bytes_
 | SORT rate_bytes_in DESC, step DESC | LIMIT 10;
 
 rate_bytes_in:double | step:datetime
-26.69853             | 2024-05-10T00:05:00.000Z
-22.148003            | 2024-05-10T00:02:00.000Z
-18.744102            | 2024-05-10T00:12:00.000Z
-17.669007            | 2024-05-10T00:18:00.000Z
-17.386587            | 2024-05-10T00:21:00.000Z
-16.945882            | 2024-05-10T00:11:00.000Z
-16.65479             | 2024-05-10T00:08:00.000Z
-16.002437            | 2024-05-10T00:19:00.000Z
-15.515104            | 2024-05-10T00:01:00.000Z
-14.451021            | 2024-05-10T00:20:00.000Z
+14.799883 | 2024-05-10T00:18:00.000Z
+14.119262 | 2024-05-10T00:20:00.000Z
+13.925902 | 2024-05-10T00:02:00.000Z
+13.289138 | 2024-05-10T00:19:00.000Z
+12.610458 | 2024-05-10T00:05:00.000Z
+12.07523 | 2024-05-10T00:21:00.000Z
+10.808185 | 2024-05-10T00:15:00.000Z
+10.334846 | 2024-05-10T00:17:00.000Z
+9.976288 | 2024-05-10T00:08:00.000Z
+8.798457 | 2024-05-10T00:14:00.000Z
 ;
 
 rate_of_long_no_grouping_promql_implicit_range
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_implicit_range_selector
+required_capability: rate_with_interpolation_v4
 required_capability: fix_ts_block_loader_passthrough_aliasing
 
 PROMQL index=prometheus-k8s step=1m rate_bytes_in=(avg(rate(network.total_bytes_in)))
@@ -37,16 +39,16 @@ PROMQL index=prometheus-k8s step=1m rate_bytes_in=(avg(rate(network.total_bytes_
 | SORT rate_bytes_in DESC, step DESC | LIMIT 10;
 
 rate_bytes_in:double | step:datetime
-26.69853             | 2024-05-10T00:05:00.000Z
-22.148003            | 2024-05-10T00:02:00.000Z
-18.744102            | 2024-05-10T00:12:00.000Z
-17.669007            | 2024-05-10T00:18:00.000Z
-17.386587            | 2024-05-10T00:21:00.000Z
-16.945882            | 2024-05-10T00:11:00.000Z
-16.65479             | 2024-05-10T00:08:00.000Z
-16.002437            | 2024-05-10T00:19:00.000Z
-15.515104            | 2024-05-10T00:01:00.000Z
-14.451021            | 2024-05-10T00:20:00.000Z
+14.799883 | 2024-05-10T00:18:00.000Z
+14.119262 | 2024-05-10T00:20:00.000Z
+13.925902 | 2024-05-10T00:02:00.000Z
+13.289138 | 2024-05-10T00:19:00.000Z
+12.610458 | 2024-05-10T00:05:00.000Z
+12.07523 | 2024-05-10T00:21:00.000Z
+10.808185 | 2024-05-10T00:15:00.000Z
+10.334846 | 2024-05-10T00:17:00.000Z
+9.976288 | 2024-05-10T00:08:00.000Z
+8.798457 | 2024-05-10T00:14:00.000Z
 ;
 
 rate_of_long_grouping_promql
@@ -102,6 +104,7 @@ required_capability: promql_command_v0
 required_capability: ts_collapse
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: rate_with_interpolation_v4
 required_capability: fix_ts_block_loader_passthrough_aliasing
 
 PROMQL index=prometheus-k8s step=2m start="2024-05-10T00:15:00.000Z" end="2024-05-10T00:25:00.000Z" rate_bytes_in=(round(avg by (cluster) (rate(network.total_bytes_in[2m])), 0.000001))
@@ -110,13 +113,14 @@ PROMQL index=prometheus-k8s step=2m start="2024-05-10T00:15:00.000Z" end="2024-0
 
 rate_bytes_in:double                        | step:datetime                                                                                                                                                       | cluster:keyword
 [13.123848, 8.75881, 15.401155, 13.296465, 8.040258] | [2024-05-10T00:15:00.000Z, 2024-05-10T00:17:00.000Z, 2024-05-10T00:19:00.000Z, 2024-05-10T00:21:00.000Z, 2024-05-10T00:23:00.000Z] | prod
-[6.706234, 10.98925, 20.532065, 16.338379, 4.95977]  | [2024-05-10T00:15:00.000Z, 2024-05-10T00:17:00.000Z, 2024-05-10T00:19:00.000Z, 2024-05-10T00:21:00.000Z, 2024-05-10T00:23:00.000Z] | qa
-[9.408179, 4.30674, 7.12595, 9.412586, 1.460569]     | [2024-05-10T00:15:00.000Z, 2024-05-10T00:17:00.000Z, 2024-05-10T00:19:00.000Z, 2024-05-10T00:21:00.000Z, 2024-05-10T00:23:00.000Z] | staging
+[6.706234, 10.98925, 19.002404, 16.338379, 5.268518] | [2024-05-10T00:15:00.000Z, 2024-05-10T00:17:00.000Z, 2024-05-10T00:19:00.000Z, 2024-05-10T00:21:00.000Z, 2024-05-10T00:23:00.000Z] | qa
+[9.408179, 4.30674, 7.811308, 9.412586, 1.742799] | [2024-05-10T00:15:00.000Z, 2024-05-10T00:17:00.000Z, 2024-05-10T00:19:00.000Z, 2024-05-10T00:21:00.000Z, 2024-05-10T00:23:00.000Z] | staging
 ;
 
 rate_of_double_no_grouping_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
+required_capability: rate_with_interpolation_v4
 required_capability: fix_ts_block_loader_passthrough_aliasing
 
 PROMQL index=prometheus-k8s step=1m rate_cost=(sum(rate(network.total_cost[1m])))
@@ -124,16 +128,16 @@ PROMQL index=prometheus-k8s step=1m rate_cost=(sum(rate(network.total_cost[1m]))
 | SORT rate_cost DESC, step | LIMIT 10;
 
 rate_cost:double | step:datetime
-2.005998         | 2024-05-10T00:10:00.000Z
-1.395675         | 2024-05-10T00:18:00.000Z
-1.263711         | 2024-05-10T00:09:00.000Z
-1.092999         | 2024-05-10T00:19:00.000Z
-1.011984         | 2024-05-10T00:15:00.000Z
-0.999404         | 2024-05-10T00:16:00.000Z
-0.954623         | 2024-05-10T00:13:00.000Z
-0.92926          | 2024-05-10T00:06:00.000Z
-0.921813         | 2024-05-10T00:07:00.000Z
-0.913178         | 2024-05-10T00:12:00.000Z
+1.397023 | 2024-05-10T00:10:00.000Z
+1.282031 | 2024-05-10T00:18:00.000Z
+1.069795 | 2024-05-10T00:09:00.000Z
+0.932543 | 2024-05-10T00:19:00.000Z
+0.856001 | 2024-05-10T00:20:00.000Z
+0.849046 | 2024-05-10T00:16:00.000Z
+0.793344 | 2024-05-10T00:07:00.000Z
+0.78424 | 2024-05-10T00:06:00.000Z
+0.751522 | 2024-05-10T00:15:00.000Z
+0.749293 | 2024-05-10T00:14:00.000Z
 ;
 
 rate_with_filtering_promql
@@ -161,6 +165,7 @@ trange_absolute_with_rate_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: rate_with_interpolation_v4
 required_capability: fix_ts_block_loader_passthrough_aliasing
 
 PROMQL index=prometheus-k8s step=2m start="2024-05-10T00:15:00.000Z" end="2024-05-10T00:25:00.000Z" rate_bytes_in=(avg by (cluster) (rate(network.total_bytes_in[2m])))
@@ -169,14 +174,14 @@ PROMQL index=prometheus-k8s step=2m start="2024-05-10T00:15:00.000Z" end="2024-0
 | LIMIT 10;
 
 rate_bytes_in:double | step:datetime            | cluster:keyword
-1.460569             | 2024-05-10T00:23:00.000Z | staging
-4.30674              | 2024-05-10T00:17:00.000Z | staging
-4.95977              | 2024-05-10T00:23:00.000Z | qa
-6.706234             | 2024-05-10T00:15:00.000Z | qa
-7.12595              | 2024-05-10T00:19:00.000Z | staging
-8.040258             | 2024-05-10T00:23:00.000Z | prod
-8.75881              | 2024-05-10T00:17:00.000Z | prod
-9.408179             | 2024-05-10T00:15:00.000Z | staging
-9.412586             | 2024-05-10T00:21:00.000Z | staging
-10.98925             | 2024-05-10T00:17:00.000Z | qa
+1.742799 | 2024-05-10T00:23:00.000Z | staging
+4.30674 | 2024-05-10T00:17:00.000Z | staging
+5.268518 | 2024-05-10T00:23:00.000Z | qa
+6.706234 | 2024-05-10T00:15:00.000Z | qa
+7.811308 | 2024-05-10T00:19:00.000Z | staging
+8.040258 | 2024-05-10T00:23:00.000Z | prod
+8.75881 | 2024-05-10T00:17:00.000Z | prod
+9.408179 | 2024-05-10T00:15:00.000Z | staging
+9.412586 | 2024-05-10T00:21:00.000Z | staging
+10.98925 | 2024-05-10T00:17:00.000Z | qa
 ;

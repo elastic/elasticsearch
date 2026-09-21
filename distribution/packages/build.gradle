@@ -90,6 +90,93 @@ def addPackageContentMapping(def packageTask, Object source, String path, Intege
   }
 }
 
+def configureCommonPackageMetadata(def packageTask, String type, String architecture) {
+  packageTask.packageName = 'elasticsearch'
+  packageTask.version = project.version.toString().replaceAll(/\+.*$/, '').replace('-', '~')
+  if (type == 'deb') {
+    if (architecture == 'x64') {
+      packageTask.arch = 'amd64'
+    } else {
+      assert architecture == 'aarch64': architecture
+      packageTask.arch = 'arm64'
+    }
+  } else {
+    assert type == 'rpm': type
+    if (architecture == 'x64') {
+      packageTask.arch = 'X86_64'
+    } else {
+      assert architecture == 'aarch64': architecture
+      packageTask.arch = 'aarch64'
+    }
+  }
+
+  packageTask.maintainer = 'Elasticsearch Team <info@elastic.co>'
+  packageTask.summary = 'Distributed RESTful search engine built for the cloud'
+  packageTask.packageDescription = '''
+    Reference documentation can be found at
+    https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html
+    and the 'Elasticsearch: The Definitive Guide' book can be found at
+    https://www.elastic.co/guide/en/elasticsearch/guide/current/index.html
+  '''.stripIndent().trim()
+  packageTask.url = 'https://www.elastic.co/'
+  packageTask.user = 'root'
+  packageTask.permissionGroup = 'root'
+
+  String prefix = "${architecture == 'aarch64' ? 'aarch64-' : ''}${type}"
+  packageTask.destinationDirectory = file("${prefix}/build/distributions")
+  packageTask.archiveFileName.value(project.provider({ "${packageTask.packageName.get()}-${project.version}-${packageTask.archString}.${type}" }))
+}
+
+def configurePackageSigning(def packageTask) {
+  if (project.hasProperty('signing.password') && buildParams.snapshotBuild == false) {
+    packageTask.signingKeyId = project.hasProperty('signing.keyId') ? project.property('signing.keyId') : 'D88E42B4'
+    packageTask.signingKeyPassphrase = project.property('signing.password')
+    packageTask.signingKeyRingFile = project.hasProperty('signing.secretKeyRingFile') ?
+      project.file(project.property('signing.secretKeyRingFile')) :
+      new File(new File(project.providers.systemProperty('user.home').orElse('.gnupg').get()), 'secring.gpg')
+  }
+}
+
+def configurePackageScripts(def packageTask, String packagingFiles, boolean rpm) {
+  String scripts = "${packagingFiles}/scripts"
+  packageTask.preInstall file("${scripts}/preinst")
+  packageTask.postInstall file("${scripts}/postinst")
+  packageTask.preUninstall file("${scripts}/prerm")
+  packageTask.postUninstall file("${scripts}/postrm")
+  if (rpm) {
+    packageTask.postTrans file("${scripts}/posttrans")
+  }
+}
+
+def configureCommonDebDefaults(def packageTask) {
+  // jdeb does not provide a way to set the License control attribute so instead
+  // we set the license as "custom field", rendered without the XB- prefix in the
+  // binary package control file
+  packageTask.customFields.put('License', 'Elastic-License')
+  packageTask.packageGroup = 'web'
+  // versions found on oldest supported distro, centos-6
+  packageTask.requires('bash', '4.1', Flags.GREATER | Flags.EQUAL)
+  packageTask.requires 'libc6'
+  packageTask.requires 'adduser'
+  packageTask.requires('coreutils', '8.4', Flags.GREATER | Flags.EQUAL)
+  addPackageContentMapping(packageTask, 'src/deb/lintian/elasticsearch', '/usr/share/lintian/overrides', 0644, false, null)
+}
+
+def configureCommonRpmDefaults(def packageTask) {
+  packageTask.license = 'Elastic License'
+  packageTask.packageGroup = 'Application/Internet'
+  packageTask.requires '/bin/bash'
+  // version found on oldest supported distro, centos-6
+  packageTask.requires('coreutils', '8.4', Flags.GREATER | Flags.EQUAL)
+  packageTask.obsoletes(packageTask.packageName.get(), '7.0.0', Flags.LESS)
+  packageTask.prefix '/usr'
+  packageTask.packager = 'Elasticsearch'
+  packageTask.release = '1'
+  packageTask.os = Os.LINUX
+  packageTask.distribution = 'Elasticsearch'
+  packageTask.vendor = 'Elasticsearch'
+}
+
 // Common configuration that is package dependent. This can't be shared with the archive
 // distributions since we have different templated files that need to be consumed and the
 // packaging tasks declare their content as source-tree mappings rather than copy specs.
@@ -101,67 +188,17 @@ def commonPackageConfig(String type, String architecture) {
     }
     dependsOn "process${type.capitalize()}Files"
     dependsOn "process${type.capitalize()}BinFiles"
-    packageName = "elasticsearch"
-    version = project.version.toString().replaceAll(/\+.*$/, '').replace('-', '~')
-    if (type == 'deb') {
-      if (architecture == 'x64') {
-        arch = 'amd64'
-      } else {
-        assert architecture == 'aarch64': architecture
-        arch = 'arm64'
-      }
-    } else {
-      assert type == 'rpm': type
-      if (architecture == 'x64') {
-        arch = 'X86_64'
-      } else {
-        assert architecture == 'aarch64': architecture
-        arch = 'aarch64'
-      }
-    }
-
-    // package independent metadata
-    maintainer = 'Elasticsearch Team <info@elastic.co>'
-    summary = 'Distributed RESTful search engine built for the cloud'
-    packageDescription = '''
-      Reference documentation can be found at
-      https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html
-      and the 'Elasticsearch: The Definitive Guide' book can be found at
-      https://www.elastic.co/guide/en/elasticsearch/guide/current/index.html
-    '''.stripIndent().trim()
-    url = 'https://www.elastic.co/'
-    user = 'root'
-    permissionGroup = 'root'
-
-    // signing setup
-    if (project.hasProperty('signing.password') && buildParams.snapshotBuild == false) {
-      signingKeyId = project.hasProperty('signing.keyId') ? project.property('signing.keyId') : 'D88E42B4'
-      signingKeyPassphrase = project.property('signing.password')
-      signingKeyRingFile = project.hasProperty('signing.secretKeyRingFile') ?
-        project.file(project.property('signing.secretKeyRingFile')) :
-        new File(new File(project.providers.systemProperty('user.home').orElse('.gnupg').get()), 'secring.gpg')
-    }
-
-    // Follow elasticsearch's file naming convention
-    String prefix = "${architecture == 'aarch64' ? 'aarch64-' : ''}${type}"
-    destinationDirectory = file("${prefix}/build/distributions")
-    archiveFileName.value(project.provider({ "${packageName.get()}-${project.version}-${archString}.${type}" }))
+    def packageTask = delegate
+    configureCommonPackageMetadata(packageTask, type, architecture)
+    configurePackageSigning(packageTask)
 
     String packagingFiles = "build/packaging/${type}"
-    String scripts = "${packagingFiles}/scripts"
-    preInstall file("${scripts}/preinst")
-    postInstall file("${scripts}/postinst")
-    preUninstall file("${scripts}/prerm")
-    postUninstall file("${scripts}/postrm")
-    if (rpm) {
-      postTrans file("${scripts}/posttrans")
-    }
+    configurePackageScripts(packageTask, packagingFiles, rpm)
 
     // ========= content mappings =========
     // every intermediate directory below /usr/share/elasticsearch is registered as package
     // owned on rpm so it is removed on uninstallation; deb creates them implicitly
     String ownedParents = '/usr/share/elasticsearch'
-    def packageTask = delegate
 
     addPackageContentMapping(packageTask, "${packagingFiles}-bin", '/usr/share/elasticsearch/bin', 0755, rpm, ownedParents)
     addPackageContentMapping(packageTask, "${packagingFiles}/systemd/systemd-entrypoint", '/usr/share/elasticsearch/bin', 0755, rpm, ownedParents)
@@ -258,21 +295,7 @@ def commonPackageConfig(String type, String architecture) {
 Closure commonDebConfig(String architecture) {
   return {
     configure(commonPackageConfig('deb', architecture))
-
-    // jdeb does not provide a way to set the License control attribute so instead
-    // we set the license as "custom field", rendered without the XB- prefix in the
-    // binary package control file
-    customFields.put('License', 'Elastic-License')
-
-    packageGroup = 'web'
-
-    // versions found on oldest supported distro, centos-6
-    requires('bash', '4.1', Flags.GREATER | Flags.EQUAL)
-    requires 'libc6'
-    requires 'adduser'
-    requires('coreutils', '8.4', Flags.GREATER | Flags.EQUAL)
-
-    addPackageContentMapping(delegate, 'src/deb/lintian/elasticsearch', '/usr/share/lintian/overrides', 0644, false, null)
+    configureCommonDebDefaults(delegate)
   }
 }
 
@@ -287,22 +310,7 @@ tasks.register('buildDeb', Deb) {
 Closure commonRpmConfig(String architecture) {
   return {
     configure(commonPackageConfig('rpm', architecture))
-
-    license = 'Elastic License'
-
-    packageGroup = 'Application/Internet'
-    requires '/bin/bash'
-    // version found on oldest supported distro, centos-6
-    requires('coreutils', '8.4', Flags.GREATER | Flags.EQUAL)
-
-    obsoletes packageName.get(), '7.0.0', Flags.LESS
-
-    prefix '/usr'
-    packager = 'Elasticsearch'
-    release = '1'
-    os = Os.LINUX
-    distribution = 'Elasticsearch'
-    vendor = 'Elasticsearch'
+    configureCommonRpmDefaults(delegate)
   }
 }
 

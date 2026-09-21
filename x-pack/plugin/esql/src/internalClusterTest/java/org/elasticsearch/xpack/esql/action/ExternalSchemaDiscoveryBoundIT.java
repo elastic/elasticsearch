@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
  * reads the same dataset in the same cluster and counts what comes back. Every row is the assertion. Ordering
  * matters and is the point: reversing it would let both queries pass while proving nothing.
  */
-public class ExternalSchemaOnlyListingBoundIT extends AbstractExternalDataSourceIT {
+public class ExternalSchemaDiscoveryBoundIT extends AbstractExternalDataSourceIT {
 
     /** Past the 1,000-key default, so an unbounded answer and a bounded one cannot be confused. */
     private static final int FILE_COUNT = 2_500;
@@ -48,32 +48,32 @@ public class ExternalSchemaOnlyListingBoundIT extends AbstractExternalDataSource
         return List.of(CsvDataSourcePlugin.class);
     }
 
-    public void testReadingQueryAfterSchemaOnlyQuerySeesEveryFile() throws Exception {
+    public void testReadingQueryAfterSchemaDiscoverySeesEveryFile() throws Exception {
         String glob = writeDataset();
         String dataset = registerLocalFileDataset("bound_ffw", glob, Map.of("format", "csv", "schema_resolution", "first_file_wins"));
 
-        try (EsqlQueryResponse schemaOnly = run(syncEsqlQueryRequest("FROM " + dataset + " | LIMIT 0"), TIMEOUT)) {
-            assertThat("no rows are read", getValuesList(schemaOnly).size(), equalTo(0));
+        try (EsqlQueryResponse discovery = run(syncEsqlQueryRequest("FROM " + dataset + " | LIMIT 0"), TIMEOUT)) {
+            assertThat("no rows are read", getValuesList(discovery).size(), equalTo(0));
             // The exact columns, not a lower bound: the risk a bound introduces is a DIFFERENT schema, and a
             // count that is merely large enough cannot see that. Inferred, so `id` is whatever the reader makes
             // of the CSV — not the `long` the declared case below asks for.
-            assertThat(columnsOf(schemaOnly), equalTo(List.of("id:integer", "v:keyword")));
+            assertThat(columnsOf(discovery), equalTo(List.of("id:integer", "v:keyword")));
         }
 
         assertEveryRowIsReadable(dataset);
     }
 
     /** The same, for a declared mapping, whose listing is bounded on a different rail of the resolver. */
-    public void testReadingQueryAfterSchemaOnlyQueryOnDeclaredDatasetSeesEveryFile() throws Exception {
+    public void testReadingQueryAfterSchemaDiscoveryOnDeclaredDatasetSeesEveryFile() throws Exception {
         String glob = writeDataset();
         LinkedHashMap<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", null));
         properties.put("v", new DatasetFieldMapping("keyword", null));
         String dataset = registerStrictDataset("bound_declared", glob, properties, Map.of("format", "csv"));
 
-        try (EsqlQueryResponse schemaOnly = run(syncEsqlQueryRequest("FROM " + dataset + " | LIMIT 0"), TIMEOUT)) {
-            assertThat(getValuesList(schemaOnly).size(), equalTo(0));
-            assertThat(columnsOf(schemaOnly), equalTo(List.of("id:long", "v:keyword")));
+        try (EsqlQueryResponse discovery = run(syncEsqlQueryRequest("FROM " + dataset + " | LIMIT 0"), TIMEOUT)) {
+            assertThat(getValuesList(discovery).size(), equalTo(0));
+            assertThat(columnsOf(discovery), equalTo(List.of("id:long", "v:keyword")));
         }
 
         assertEveryRowIsReadable(dataset);
@@ -83,7 +83,7 @@ public class ExternalSchemaOnlyListingBoundIT extends AbstractExternalDataSource
      * Schema discovery twice over. The first leaves nothing cached under the dataset's key, so the second
      * must not find a prefix there and must still answer the same schema.
      */
-    public void testRepeatedSchemaOnlyQueryAnswersTheSameSchema() throws Exception {
+    public void testRepeatedSchemaDiscoveryAnswersTheSameSchema() throws Exception {
         String glob = writeDataset();
         String dataset = registerLocalFileDataset("bound_repeat", glob, Map.of("format", "csv"));
 

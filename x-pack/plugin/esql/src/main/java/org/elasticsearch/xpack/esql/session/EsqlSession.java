@@ -85,7 +85,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtractor;
 import org.elasticsearch.xpack.esql.datasources.FoldDateFunctionFiltersForListing;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
-import org.elasticsearch.xpack.esql.datasources.SchemaOnlyPathExtractor;
+import org.elasticsearch.xpack.esql.datasources.SchemaDiscoveryPathExtractor;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter;
@@ -1972,7 +1972,7 @@ public class EsqlSession {
         // the query all discards, so its resolution owes a schema and nothing else and may stop listing as soon
         // as it has one. What "having one" means is the dataset's business, not the query's: see
         // ExternalSourceResolver#listingBoundFor.
-        Set<String> pathsReadingNoRows = SchemaOnlyPathExtractor.pathsReadingNoRows(plan);
+        Set<String> pathsReadingNoRows = SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan);
 
         externalSourceResolver.resolve(
             preAnalysis.icebergPaths(),

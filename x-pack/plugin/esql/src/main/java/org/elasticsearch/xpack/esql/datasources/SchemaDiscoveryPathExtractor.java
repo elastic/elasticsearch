@@ -32,9 +32,9 @@ import java.util.Set;
  * <p>{@code LIMIT 0 BY k} is a {@code LimitBy} and an unfolded zero is not a {@link Literal}; both are missed,
  * and both only leave work switched on.
  */
-public final class SchemaOnlyPathExtractor {
+public final class SchemaDiscoveryPathExtractor {
 
-    private SchemaOnlyPathExtractor() {}
+    private SchemaDiscoveryPathExtractor() {}
 
     /**
      * Returns the literal {@code tablePath} of every {@link UnresolvedExternalRelation} whose occurrences all
@@ -81,7 +81,7 @@ public final class SchemaOnlyPathExtractor {
     /**
      * Tested exactly as {@code SkipQueryOnLimitZero} tests it: that rule compares against
      * {@code Integer.valueOf(0)} and folds the expression, this cannot fold during pre-analysis. Both
-     * differences must only turn paths away — a path marked schema-only whose plan then survives to execution
+     * differences must only turn paths away — a path marked schema discovery whose plan then survives to execution
      * would read its rows from a bounded listing.
      */
     private static boolean isLiteralZero(Expression limit) {

@@ -560,7 +560,7 @@ public class ExternalSourceResolver {
         resolve(paths, pathConfigs, filterHints, null, null, null, listener);
     }
 
-    /** As below, with no schema-only information: no path may bound its listing. */
+    /** As below, with no schema discovery information: no path may bound its listing. */
     public void resolve(
         List<String> paths,
         Map<String, Map<String, Object>> pathConfigs,
@@ -588,7 +588,7 @@ public class ExternalSourceResolver {
      * @param pathsReadingNoRows paths whose rows the query all discards, so resolution owes them a schema and
      *        nothing else and may stop listing once it has one. {@code null} leaves every path resolving as a
      *        reading query, which is what every existing call site does. See
-     *        {@link SchemaOnlyPathExtractor#pathsReadingNoRows}.
+     *        {@link SchemaDiscoveryPathExtractor#pathsReadingNoRows}.
      */
     public void resolve(
         List<String> paths,
@@ -1465,7 +1465,7 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints
     ) {
-        if (demand.schemaOnly() == false || schemaBreadth.answerableFromAPrefix() == false) {
+        if (demand.isSchemaDiscovery() == false || schemaBreadth.answerableFromAPrefix() == false) {
             return Integer.MAX_VALUE;
         }
         if (FileOrderConfig.forListing(config).equals(FileOrderConfig.DEFAULT) == false) {
@@ -3738,7 +3738,7 @@ public class ExternalSourceResolver {
         // Skipped when nothing will be read: this opens a file to catch a declared type a columnar reader would
         // null out instead of failing on, and a query that discards every row never performs that cast. It only
         // throws, never alters the schema, and every query that reads rows still runs it.
-        if (demand.schemaOnly() == false) {
+        if (demand.isSchemaDiscovery() == false) {
             rejectStrictColumnarUncoercibleTypes(
                 sourceType,
                 provider,

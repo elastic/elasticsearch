@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * a request never issued — and this harness cannot show it. What it does show is the per-file work that follows
  * the listing.
  */
-public class ExternalSchemaOnlyListingCostIT extends AbstractExternalDataSourceIT {
+public class ExternalSchemaDiscoveryCostIT extends AbstractExternalDataSourceIT {
 
     private static final int[] FILE_COUNTS = { 1000, 4000, 16000 };
 
@@ -81,7 +81,7 @@ public class ExternalSchemaOnlyListingCostIT extends AbstractExternalDataSourceI
         }
     }
 
-    public void testColdSchemaOnlyCostBySchemaAndPartitionConfig() throws Exception {
+    public void testColdSchemaDiscoveryCostBySchemaAndPartitionConfig() throws Exception {
         List<Cell> cells = List.of(
             new Cell("declared + partition none", null, true),
             new Cell("declared + partition AUTO", null, false),
@@ -138,7 +138,7 @@ public class ExternalSchemaOnlyListingCostIT extends AbstractExternalDataSourceI
             }
         }
 
-        StringBuilder table = new StringBuilder("\ncold schema-only (LIMIT 0), local provider, one query per fresh dataset\n");
+        StringBuilder table = new StringBuilder("\ncold schema discovery (LIMIT 0), local provider, one query per fresh dataset\n");
         table.append(String.format(Locale.ROOT, "%-36s", "cell"));
         for (int fileCount : FILE_COUNTS) {
             table.append(String.format(Locale.ROOT, "%12d files", fileCount));

@@ -14,8 +14,8 @@ import java.util.Set;
  * read. Ordered by how much of the dataset each state touches.
  * <p>
  * The states are exclusive by construction: {@link ExternalStatsRequirementExtractor} selects a path only when an
- * ungrouped aggregate sits above it, which is exactly what stops {@link SchemaOnlyPathExtractor} calling it
- * schema-only. One value rather than two sets keeps that a property of the type.
+ * ungrouped aggregate sits above it, which is exactly what stops {@link SchemaDiscoveryPathExtractor} calling it
+ * schema discovery. One value rather than two sets keeps that a property of the type.
  */
 public enum ResolutionDemand {
 
@@ -23,7 +23,7 @@ public enum ResolutionDemand {
      * No rows are read from this path, so resolution owes it a schema and nothing else. The only state that may
      * bound a listing; how far the bound goes is the dataset's resolution mode, not the query's.
      */
-    SCHEMA_ONLY,
+    SCHEMA_DISCOVERY,
 
     /** Rows are read. Resolution produces the full file set, because split discovery takes it from the plan. */
     ROWS,
@@ -42,7 +42,7 @@ public enum ResolutionDemand {
         if (requiringStats == null || requiringStats.contains(path)) {
             return EAGER_STATS;
         }
-        return readingNoRows != null && readingNoRows.contains(path) ? SCHEMA_ONLY : ROWS;
+        return readingNoRows != null && readingNoRows.contains(path) ? SCHEMA_DISCOVERY : ROWS;
     }
 
     /** Whether resolution must eagerly aggregate global statistics across every file. */
@@ -51,7 +51,7 @@ public enum ResolutionDemand {
     }
 
     /** Whether resolution may stop listing once it has what the schema needs. */
-    public boolean schemaOnly() {
-        return this == SCHEMA_ONLY;
+    public boolean isSchemaDiscovery() {
+        return this == SCHEMA_DISCOVERY;
     }
 }

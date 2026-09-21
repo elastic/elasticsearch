@@ -45,20 +45,20 @@ public class ResolutionDemandTests extends ESTestCase {
         ResolutionDemand demand = ResolutionDemand.of(PATH, Set.of(PATH), Set.of());
         assertEquals(ResolutionDemand.EAGER_STATS, demand);
         assertTrue(demand.requiresStats());
-        assertFalse("an eagerly-aggregated path reads every file, so it cannot be bounded", demand.schemaOnly());
+        assertFalse("an eagerly-aggregated path reads every file, so it cannot be bounded", demand.isSchemaDiscovery());
     }
 
-    public void testPathReadingNoRowsIsSchemaOnly() {
+    public void testPathReadingNoRowsNeedsSchemaDiscoveryOnly() {
         ResolutionDemand demand = ResolutionDemand.of(PATH, Set.of(), Set.of(PATH));
-        assertEquals(ResolutionDemand.SCHEMA_ONLY, demand);
-        assertTrue(demand.schemaOnly());
+        assertEquals(ResolutionDemand.SCHEMA_DISCOVERY, demand);
+        assertTrue(demand.isSchemaDiscovery());
         assertFalse(demand.requiresStats());
     }
 
     public void testPathInNeitherSetReadsRows() {
         ResolutionDemand demand = ResolutionDemand.of(PATH, Set.of(), Set.of());
         assertEquals(ResolutionDemand.ROWS, demand);
-        assertFalse("a reading query must list the whole glob, as before", demand.schemaOnly());
+        assertFalse("a reading query must list the whole glob, as before", demand.isSchemaDiscovery());
         assertFalse(demand.requiresStats());
     }
 
@@ -69,7 +69,7 @@ public class ResolutionDemandTests extends ESTestCase {
     /**
      * The exclusivity the enum exists to hold, asserted against the two extractors rather than restated: the
      * shape that puts a path in the stats set is an ungrouped aggregate above it, and an aggregate above a
-     * relation is exactly what stops the other extractor calling it schema-only. If either extractor is changed
+     * relation is exactly what stops the other extractor calling it schema discovery. If either extractor is changed
      * so that both can claim one path, this goes red and {@link ResolutionDemand#of} has to choose explicitly.
      */
     public void testTheTwoExtractorsCannotClaimTheSamePath() {
@@ -91,7 +91,7 @@ public class ResolutionDemandTests extends ESTestCase {
 
         for (Shape shape : shapes) {
             Set<String> stats = ExternalStatsRequirementExtractor.pathsRequiringEagerStats(shape.plan());
-            Set<String> noRows = SchemaOnlyPathExtractor.pathsReadingNoRows(shape.plan());
+            Set<String> noRows = SchemaDiscoveryPathExtractor.pathsReadingNoRows(shape.plan());
             assertEquals(shape.name() + ": eager stats", shape.expectStats(), stats.contains(PATH));
             assertEquals(shape.name() + ": reads no rows", shape.expectNoRows(), noRows.contains(PATH));
             assertFalse(shape.name() + ": no plan may put one path in both sets", stats.contains(PATH) && noRows.contains(PATH));
@@ -99,23 +99,23 @@ public class ResolutionDemandTests extends ESTestCase {
     }
 
     /** {@code STATS COUNT(*) | LIMIT 0} consumes every row to produce the one the limit discards. */
-    public void testAggregateUnderZeroLimitIsNotSchemaOnly() {
+    public void testAggregateUnderZeroLimitNeedsMoreThanSchemaDiscovery() {
         UnresolvedExternalRelation relation = new UnresolvedExternalRelation(SRC, Literal.keyword(SRC, PATH), Map.of());
         LogicalPlan plan = new Limit(SRC, new Literal(SRC, 0, DataType.INTEGER), new Aggregate(SRC, relation, List.of(), List.of()));
 
         // Asserted against the extractor directly as well: this shape is also in the eager-stats set, so of()
-        // answers EAGER_STATS — and therefore not schema-only — even if the schema-only extractor wrongly
+        // answers EAGER_STATS — and therefore not schema discovery — even if the schema discovery extractor wrongly
         // claimed the path, which would make the demand assertion alone unable to fail.
         assertFalse(
             "an aggregate below the zero limit consumes every row, so the relation is read",
-            SchemaOnlyPathExtractor.pathsReadingNoRows(plan).contains(PATH)
+            SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan).contains(PATH)
         );
         ResolutionDemand demand = ResolutionDemand.of(
             PATH,
             ExternalStatsRequirementExtractor.pathsRequiringEagerStats(plan),
-            SchemaOnlyPathExtractor.pathsReadingNoRows(plan)
+            SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan)
         );
 
-        assertFalse("bounding this would answer COUNT(*) from a prefix of the dataset", demand.schemaOnly());
+        assertFalse("bounding this would answer COUNT(*) from a prefix of the dataset", demand.isSchemaDiscovery());
     }
 }

@@ -156,7 +156,7 @@ public interface FileList {
      * Whether listing stopped at a caller-supplied bound rather than reaching the end of the glob, so this
      * list is a prefix of the files the pattern matches and {@link #fileCount()} is a floor, not a total.
      * <p>
-     * Only a schema-only resolution ever asks for a bound. Two invariants keep a truncated list away from
+     * Only a schema discovery resolution ever asks for a bound. Two invariants keep a truncated list away from
      * everything else: it is never written to the shared listing cache, where a reading query would later find
      * it and scan a fraction of the dataset, and it is never built for a query that reads rows. Both are
      * {@code ExternalSourceResolver#listingBoundFor}'s alone — the cache itself does not check, and omitting the

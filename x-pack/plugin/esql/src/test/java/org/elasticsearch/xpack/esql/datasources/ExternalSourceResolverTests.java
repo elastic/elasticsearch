@@ -347,7 +347,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * <p>
      * Counted rather than inferred: the resolve succeeded before this change too, having quietly paid for a file.
      */
-    public void testDeclaredSchemaOnlyResolveReadsNoFooter() throws Exception {
+    public void testDeclaredSchemaDiscoveryReadsNoFooter() throws Exception {
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("event_ts", new DatasetFieldMapping("long", null));
         List<Attribute> fileSchema = List.of(attr("event_ts", DataType.LONG));
@@ -368,13 +368,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
         // Two counters, because they catch different things: the format-reader counter sees a footer parse, the
         // provider counter sees any object opened at all, a length or mtime probe included. "The file is not
         // touched" is the second one being zero, and only the listing itself remaining.
-        AtomicInteger schemaOnlyReads = new AtomicInteger();
-        CountingStorageProvider schemaOnlyProvider = new CountingStorageProvider(listings, schemas);
-        ExternalSourceResolver schemaOnly = buildStatsResolver(schemaOnlyProvider, stats, schemaOnlyReads, null);
-        assertNotNull(resolveDeclared(schemaOnly, mapping, Set.of(DECLARED_GLOB)).resolvedSource(DECLARED_GLOB));
-        assertEquals("no footer is parsed when no rows are read", 0, schemaOnlyReads.get());
-        assertEquals("and no object is opened at all", 0, schemaOnlyProvider.schemaCallCount.get());
-        assertEquals("the listing itself still happens, once", 1, schemaOnlyProvider.listCallCount.get());
+        AtomicInteger discoveryReads = new AtomicInteger();
+        CountingStorageProvider discoveryProvider = new CountingStorageProvider(listings, schemas);
+        ExternalSourceResolver discovery = buildStatsResolver(discoveryProvider, stats, discoveryReads, null);
+        assertNotNull(resolveDeclared(discovery, mapping, Set.of(DECLARED_GLOB)).resolvedSource(DECLARED_GLOB));
+        assertEquals("no footer is parsed when no rows are read", 0, discoveryReads.get());
+        assertEquals("and no object is opened at all", 0, discoveryProvider.schemaCallCount.get());
+        assertEquals("the listing itself still happens, once", 1, discoveryProvider.listCallCount.get());
 
         // The control, and the half that must not regress: a query that reads rows still opens the anchor, because
         // that is where the silent-null cast this guards would happen.
@@ -2115,11 +2115,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * so it never consults the listing cache and a filesystem-backed test cannot see this at all. S3 does.
      *
      * <p>The second resolve is the assertion. It runs over the same glob, through the same cache, immediately
-     * after a schema-only resolve that listed a prefix — so if that prefix had been written to the cache it would
+     * after a schema discovery resolve that listed a prefix — so if that prefix had been written to the cache it would
      * be served here, and a query that reads rows would scan 1,000 files of a 2,500-file dataset and report
      * success.
      */
-    public void testSchemaOnlyResolveIsBoundedAndLeavesTheListingCacheClean() throws Exception {
+    public void testSchemaDiscoveryIsBoundedAndLeavesTheListingCacheClean() throws Exception {
         int wide = 2500;
         List<StorageEntry> listing = new ArrayList<>();
         Map<String, List<Attribute>> schemas = new HashMap<>();
@@ -2136,8 +2136,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             CountingStorageProvider provider = new CountingStorageProvider(Map.of(PREFIX, listing), schemas);
             ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, cacheService);
 
-            ExternalSourceResolution schemaOnly = resolveWithNoRowPaths(resolver, Set.of(GLOB));
-            ExternalSourceResolution.ResolvedSource bounded = schemaOnly.resolvedSource(GLOB);
+            ExternalSourceResolution discovery = resolveWithNoRowPaths(resolver, Set.of(GLOB));
+            ExternalSourceResolution.ResolvedSource bounded = discovery.resolvedSource(GLOB);
             assertNotNull(bounded);
             assertEquals("schema discovery stops at the key bound", 1000, bounded.fileList().fileCount());
             assertTrue("and says that it did", bounded.fileList().isTruncated());
@@ -2209,13 +2209,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
             CountingStorageProvider provider = new CountingStorageProvider(Map.of(PREFIX, listing), schemas);
             ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, cacheService);
 
-            ExternalSourceResolution.ResolvedSource first = resolveSchemaOnly(resolver, config).resolvedSource(GLOB);
+            ExternalSourceResolution.ResolvedSource first = resolveForSchemaDiscovery(resolver, config).resolvedSource(GLOB);
             assertNotNull(first);
             assertFalse("a dataset ordering the glob itself cannot be answered from a prefix", first.fileList().isTruncated());
             assertEquals(1500, first.fileList().fileCount());
             int listsAfterFirst = provider.listCallCount.get();
 
-            ExternalSourceResolution.ResolvedSource second = resolveSchemaOnly(resolver, config).resolvedSource(GLOB);
+            ExternalSourceResolution.ResolvedSource second = resolveForSchemaDiscovery(resolver, config).resolvedSource(GLOB);
             assertNotNull(second);
             assertEquals(1500, second.fileList().fileCount());
             assertEquals("the second resolve must be served from the listing cache", listsAfterFirst, provider.listCallCount.get());
@@ -2244,13 +2244,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
         StubStorageProvider provider = new StubStorageProvider(Map.of(PREFIX, listing), schemas);
         ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, null);
 
-        ExternalSourceResolution.ResolvedSource resolved = resolveSchemaOnly(resolver, config).resolvedSource(GLOB);
+        ExternalSourceResolution.ResolvedSource resolved = resolveForSchemaDiscovery(resolver, config).resolvedSource(GLOB);
         assertNotNull(resolved);
         assertEquals("the bound is whatever the dataset says", configured, resolved.fileList().fileCount());
         assertTrue(resolved.fileList().isTruncated());
     }
 
-    private ExternalSourceResolution resolveSchemaOnly(ExternalSourceResolver resolver, Map<String, Object> config) {
+    private ExternalSourceResolution resolveForSchemaDiscovery(ExternalSourceResolver resolver, Map<String, Object> config) {
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
         resolver.resolve(List.of(GLOB), Map.of(GLOB, new HashMap<>(config)), null, null, Set.of(), Set.of(GLOB), future);
         return future.actionGet();

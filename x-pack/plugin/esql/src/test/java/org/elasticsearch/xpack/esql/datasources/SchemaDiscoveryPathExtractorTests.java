@@ -36,7 +36,7 @@ import java.util.Set;
  * whose rows are actually consumed must stay out of the set, including when the same path is also
  * named by a branch that discards them.
  */
-public class SchemaOnlyPathExtractorTests extends ESTestCase {
+public class SchemaDiscoveryPathExtractorTests extends ESTestCase {
 
     private static final Source SRC = Source.EMPTY;
     private static final String PATH = "s3://bucket/data/*.parquet";
@@ -45,17 +45,17 @@ public class SchemaOnlyPathExtractorTests extends ESTestCase {
     public void testLimitZeroReadsNoRows() {
         LogicalPlan plan = new Limit(SRC, intLiteral(0), externalRelation(PATH));
 
-        assertEquals(Set.of(PATH), SchemaOnlyPathExtractor.pathsReadingNoRows(plan));
+        assertEquals(Set.of(PATH), SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan));
     }
 
     public void testPositiveLimitReadsRows() {
         LogicalPlan plan = new Limit(SRC, intLiteral(5), externalRelation(PATH));
 
-        assertEquals(Set.of(), SchemaOnlyPathExtractor.pathsReadingNoRows(plan));
+        assertEquals(Set.of(), SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan));
     }
 
     public void testNoLimitReadsRows() {
-        assertEquals(Set.of(), SchemaOnlyPathExtractor.pathsReadingNoRows(externalRelation(PATH)));
+        assertEquals(Set.of(), SchemaDiscoveryPathExtractor.pathsReadingNoRows(externalRelation(PATH)));
     }
 
     public void testLimitZeroAboveAFilterStillReadsNoRows() {
@@ -63,24 +63,28 @@ public class SchemaOnlyPathExtractorTests extends ESTestCase {
         Filter filter = new Filter(SRC, externalRelation(PATH), new GreaterThan(SRC, unresolved("x"), intLiteral(1)));
         LogicalPlan plan = new Limit(SRC, intLiteral(0), filter);
 
-        assertEquals(Set.of(PATH), SchemaOnlyPathExtractor.pathsReadingNoRows(plan));
+        assertEquals(Set.of(PATH), SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan));
     }
 
     public void testLimitZeroAboveProjectionStillReadsNoRows() {
         Keep keep = new Keep(SRC, externalRelation(PATH), List.of(unresolved("a")));
         LogicalPlan plan = new Limit(SRC, intLiteral(0), keep);
 
-        assertEquals(Set.of(PATH), SchemaOnlyPathExtractor.pathsReadingNoRows(plan));
+        assertEquals(Set.of(PATH), SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan));
     }
 
     public void testAggregateUnderLimitZeroStillReadsRows() {
         // STATS consumes rows to produce its one output row, and the outer LIMIT 0 discards that
-        // row rather than the scan. Marking this schema-only would resolve from one file and
+        // row rather than the scan. Marking this schema discovery would resolve from one file and
         // answer COUNT(*) wrongly if the shape ever survived to execution.
         Aggregate aggregate = new Aggregate(SRC, externalRelation(PATH), List.of(), List.<NamedExpression>of());
         LogicalPlan plan = new Limit(SRC, intLiteral(0), aggregate);
 
-        assertEquals("an aggregate below the zero limit still consumes rows", Set.of(), SchemaOnlyPathExtractor.pathsReadingNoRows(plan));
+        assertEquals(
+            "an aggregate below the zero limit still consumes rows",
+            Set.of(),
+            SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan)
+        );
     }
 
     /**
@@ -92,17 +96,21 @@ public class SchemaOnlyPathExtractorTests extends ESTestCase {
         Aggregate aggregate = new Aggregate(SRC, externalRelation(PATH), List.of(), List.<NamedExpression>of());
         LogicalPlan plan = new Limit(SRC, intLiteral(0), new InlineStats(SRC, aggregate));
 
-        assertEquals("INLINESTATS below the zero limit still consumes rows", Set.of(), SchemaOnlyPathExtractor.pathsReadingNoRows(plan));
+        assertEquals(
+            "INLINESTATS below the zero limit still consumes rows",
+            Set.of(),
+            SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan)
+        );
     }
 
     public void testInnerLimitZeroReadsNoRowsRegardlessOfOuterLimit() {
         Limit inner = new Limit(SRC, intLiteral(0), externalRelation(PATH));
         LogicalPlan plan = new Limit(SRC, intLiteral(10), inner);
 
-        assertEquals(Set.of(PATH), SchemaOnlyPathExtractor.pathsReadingNoRows(plan));
+        assertEquals(Set.of(PATH), SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan));
     }
 
-    public void testPathReadByAnyBranchIsNotSchemaOnly() {
+    public void testPathReadByAnyBranchNeedsMoreThanSchemaDiscovery() {
         // One resolution feeds every branch, so a path whose rows one arm consumes must resolve as
         // a reading query even though the other arm discards them. This is the case that makes the
         // extractor subtract rather than union.
@@ -112,7 +120,7 @@ public class SchemaOnlyPathExtractorTests extends ESTestCase {
             List.of()
         );
 
-        assertEquals("a path read by one arm is not schema-only", Set.of(), SchemaOnlyPathExtractor.pathsReadingNoRows(fork));
+        assertEquals("a path read by one arm is not schema discovery", Set.of(), SchemaDiscoveryPathExtractor.pathsReadingNoRows(fork));
     }
 
     public void testEachPathDecidedIndependently() {
@@ -122,14 +130,14 @@ public class SchemaOnlyPathExtractorTests extends ESTestCase {
             List.of()
         );
 
-        assertEquals(Set.of(PATH), SchemaOnlyPathExtractor.pathsReadingNoRows(fork));
+        assertEquals(Set.of(PATH), SchemaDiscoveryPathExtractor.pathsReadingNoRows(fork));
     }
 
     public void testNonLiteralPathIsOmittedRatherThanThrowing() {
         UnresolvedExternalRelation relation = new UnresolvedExternalRelation(SRC, unresolved("p"), Map.of());
         LogicalPlan plan = new Limit(SRC, intLiteral(0), relation);
 
-        assertEquals(Set.of(), SchemaOnlyPathExtractor.pathsReadingNoRows(plan));
+        assertEquals(Set.of(), SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan));
     }
 
     private static UnresolvedExternalRelation externalRelation(String path) {
@@ -142,14 +150,18 @@ public class SchemaOnlyPathExtractorTests extends ESTestCase {
 
     /**
      * A zero of any other numeric type is a limit {@code SkipQueryOnLimitZero} does not remove, so treating it as
-     * schema-only would leave a plan that survives to execution reading its rows from a bounded listing.
+     * schema discovery would leave a plan that survives to execution reading its rows from a bounded listing.
      */
-    public void testNonIntegerZeroIsNotSchemaOnly() {
+    public void testNonIntegerZeroNeedsMoreThanSchemaDiscovery() {
         for (DataType type : List.of(DataType.LONG, DataType.DOUBLE)) {
             Expression zero = new Literal(SRC, type == DataType.LONG ? (Object) 0L : (Object) 0.0d, type);
             LogicalPlan plan = new Limit(SRC, zero, externalRelation(PATH));
 
-            assertEquals("a " + type + " zero must resolve as a reading query", Set.of(), SchemaOnlyPathExtractor.pathsReadingNoRows(plan));
+            assertEquals(
+                "a " + type + " zero must resolve as a reading query",
+                Set.of(),
+                SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan)
+            );
         }
     }
 

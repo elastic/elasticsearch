@@ -119,7 +119,10 @@ public class DictionaryPolicyCurveTests extends ESTestCase {
                     new DictionaryPolicy(kb * 1024, 0.0, 1.0),
                     StringColumnOptions.DEFAULT_SUMMARY
                 );
-                assertNull(data + " named terms at " + kb + "KB", terms);
+                // NOTE: a column with nothing worth an ordinal still surveys its terms for the merge that reads it
+                // next, so what says these values are not named is an empty dictionary, not an absent vocabulary.
+                assertNotNull(data + " surveyed nothing at " + kb + "KB", terms);
+                assertEquals(data + " named terms at " + kb + "KB", 0, terms.size());
             }
         }
     }

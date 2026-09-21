@@ -573,7 +573,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     public void testConstantKeywordTermsEnumRespectsFieldLevelSecurity() {
-        assertAcked(prepareCreate("test").setMapping("field1", "type=constant_keyword,value=hidden-value"));
+        assertAcked(
+            prepareCreate("test").setMapping("field1", "type=constant_keyword,value=hidden-value", "field2", "type=alias,path=field1")
+        );
         prepareIndex("test").setSource("other", "value").get();
         refresh("test");
 
@@ -588,6 +590,12 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             .actionGet();
 
         assertThat(hidden.getTerms(), empty());
+
+        var hiddenViaAlias = client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+            .execute(TermsEnumAction.INSTANCE, new TermsEnumRequest("test").field("field2"))
+            .actionGet();
+
+        assertThat(hiddenViaAlias.getTerms(), empty());
     }
 
     public void testKnnSearch() throws IOException {

@@ -452,10 +452,14 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
             IndicesAccessControl indicesAccessControl = AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.get(threadContext);
             IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(shardId.getIndexName());
 
+            var indexService = indicesService.indexServiceSafe(shardId.getIndex());
+            var mappedFieldType = indexService.mapperService().fieldType(request.field());
+            var fieldName = mappedFieldType != null ? mappedFieldType.name() : request.field();
+
             if (indexAccessControl != null
                 && indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()
                 && (indexAccessControl.isDlsFlsImplicit() || FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(frozenLicenseState))
-                && indexAccessControl.getFieldPermissions().grantsAccessTo(request.field()) == false) {
+                && indexAccessControl.getFieldPermissions().grantsAccessTo(fieldName) == false) {
                 return false;
             }
 
@@ -465,7 +469,6 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 // Check to see if any of the roles defined for the current user rewrite to match_all
 
                 SecurityContext securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
-                final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
                 final SearchExecutionContext queryShardContext = indexService.newSearchExecutionContext(
                     shardId.id(),
                     0,

@@ -11,23 +11,16 @@ package org.elasticsearch.columnar.string;
 
 import org.elasticsearch.columnar.substrate.MonotonicWriter;
 
-import java.io.Closeable;
 import java.io.IOException;
 
 /**
- * A {@code DirectMonotonic} table of value addresses that a column may or may not need, streamed to a
- * temporary file rather than held on the heap. Holds what {@link AddressingWriter} and {@link NullSlotWriter}
- * share — an optional writer, the entries put into it, and closing it — and leaves each of them the part that
- * is theirs: when the table is worth writing at all, and what has to hold before it is closed.
- *
- * <p>Those differ more than they look. One table has an entry for every document and ends with a sentinel;
- * the other has one only for the addresses that hold a null and ends where it ends. What they have in common
- * is that a column that needs neither opens no file, and that a caller which miscounts what it is about to
- * write must not be able to leave a table the reader would trust.
+ * A {@code DirectMonotonic} table of value addresses that a column may or may not need, written as its entries
+ * arrive. A column that needs none writes nothing, and a caller that miscounts what it is about to write must
+ * not be able to leave a table the reader would trust, so the entries are counted either way.
  */
-abstract class SlotTableWriter implements Closeable {
+abstract class SlotTableWriter {
 
-    /** Null when the column does not need this table, in which case nothing is written and no file is opened. */
+    /** Null when the column does not need this table, in which case nothing is written. */
     private final MonotonicWriter table;
 
     /** Entries added so far, which each subclass checks against the total it was opened for. */
@@ -57,24 +50,17 @@ abstract class SlotTableWriter implements Closeable {
     }
 
     /**
-     * Closes the table into the navigation output, or answers {@link MonotonicWriter.Table#NONE} when the column
+     * Finishes the table, or answers {@link MonotonicWriter.Table#NONE} when the column
      * needs none. Subclasses check their totals before calling this.
      */
-    final MonotonicWriter.Table finishTable(org.apache.lucene.store.IndexOutput navigation) throws IOException {
-        return table == null ? MonotonicWriter.Table.NONE : table.finish(navigation);
+    final MonotonicWriter.Table finishTable() throws IOException {
+        return table == null ? MonotonicWriter.Table.NONE : table.finish();
     }
 
     /** Adds a final entry, for a table whose last value is a sentinel rather than an address of its own. */
     final void addSentinel(long value) throws IOException {
         if (table != null) {
             table.add(value);
-        }
-    }
-
-    @Override
-    public final void close() throws IOException {
-        if (table != null) {
-            table.close();
         }
     }
 }

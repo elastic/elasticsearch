@@ -10,7 +10,6 @@
 package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
@@ -114,23 +113,12 @@ public class ValueStreamRunsTests extends ESTestCase {
     private long write(List<BytesRef> values, ChunkCodec codec) throws IOException {
         try (Directory dir = newDirectory()) {
             try (ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, FILE, SEGMENT_ID)) {
-                try (
-                    ValueStream.Writer writer = new ValueStream.Writer(
-                        codec,
-                        ChunkBounds.ofBytes(65536),
-                        128,
-                        values.size(),
-                        dir,
-                        IOContext.DEFAULT,
-                        "runs",
-                        out.outputs()
-                    )
-                ) {
-                    for (BytesRef value : values) {
-                        writer.add(value);
-                    }
-                    writer.finish();
+                final ValueStream.Writer writer = new ValueStream.Writer(codec, ChunkBounds.ofBytes(65536), 128, out.outputs());
+                for (BytesRef value : values) {
+                    writer.add(value);
                 }
+                writer.finish();
+
             }
             return ColumnTestFiles.length(dir, FILE);
         }
@@ -152,23 +140,17 @@ public class ValueStreamRunsTests extends ESTestCase {
             try (Directory dir = newDirectory()) {
                 final ValueStream.Metadata metadata;
                 try (ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, FILE, SEGMENT_ID)) {
-                    try (
-                        ValueStream.Writer writer = new ValueStream.Writer(
-                            randomFrom(ChunkCodec.IDENTITY, ChunkCodec.ZSTD),
-                            ChunkBounds.ofBytes(randomFrom(64, 4096, 65536)),
-                            perBlock,
-                            values.size(),
-                            dir,
-                            IOContext.DEFAULT,
-                            "runs",
-                            out.outputs()
-                        )
-                    ) {
-                        for (BytesRef value : values) {
-                            writer.add(value);
-                        }
-                        metadata = writer.finish();
+                    final ValueStream.Writer writer = new ValueStream.Writer(
+                        randomFrom(ChunkCodec.IDENTITY, ChunkCodec.ZSTD),
+                        ChunkBounds.ofBytes(randomFrom(64, 4096, 65536)),
+                        perBlock,
+                        out.outputs()
+                    );
+                    for (BytesRef value : values) {
+                        writer.add(value);
                     }
+                    metadata = writer.finish();
+
                 }
                 final String label = "perBlock=" + perBlock + " n=" + values.size();
                 assertEquals(label + " numValues", values.size(), metadata.numValues());

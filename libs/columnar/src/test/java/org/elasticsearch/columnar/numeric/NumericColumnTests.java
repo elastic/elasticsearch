@@ -138,8 +138,6 @@ public class NumericColumnTests extends ESTestCase {
                     NumericPipeline.defaultPipeline(randomValidBlockSize()),
                     BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
                     SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID),
-                    dir,
-                    IOContext.DEFAULT,
                     out.outputs(),
                     skip
                 );
@@ -240,8 +238,6 @@ public class NumericColumnTests extends ESTestCase {
                     NumericPipeline.defaultPipeline(randomValidBlockSize()),
                     BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
                     SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID),
-                    dir,
-                    IOContext.DEFAULT,
                     out.outputs(),
                     skip
                 );

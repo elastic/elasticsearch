@@ -25,8 +25,9 @@ import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * A column stages its ordinals, its escapes and its slot counts in temporary files. Writing one can fail
- * partway through, and whatever it opened before the failure is still a file to delete.
+ * A dictionary column stages its ordinals and its escapes in temporary files, and nothing else: every table
+ * and every other stream goes straight into its file. Writing one can fail partway through, and whatever it
+ * opened before the failure is still a file to delete.
  */
 public class StringColumnTempFileTests extends ColumnarStringTestCase {
 
@@ -100,12 +101,10 @@ public class StringColumnTempFileTests extends ColumnarStringTestCase {
                 final FailsNthTempOutput counting = new FailsNthTempOutput(real, -1);
                 write(counting, docSlots);
                 total = counting.opened;
-                // Only a column whose slots are out of step with its documents stages counts, so the
-                // multi-valued shape is what puts that file through the failure paths below.
                 assertEquals(
-                    "counts staged for " + (multiValued ? "a multi-valued" : "a single-valued") + " column",
-                    multiValued,
-                    counting.suffixes.contains("columnar-counts")
+                    "the only temporary files, " + (multiValued ? "multi-valued" : "single-valued"),
+                    Set.of("columnar-ordinals", "columnar-escapes"),
+                    counting.suffixes
                 );
             }
             assertThat("a dictionary column stages more than one temporary file", total, greaterThan(1));
@@ -129,7 +128,7 @@ public class StringColumnTempFileTests extends ColumnarStringTestCase {
                                 + "] left behind when the write failed at temporary file "
                                 + failAt
                                 + (multiValued ? " (multi-valued)" : " (single-valued)"),
-                            name.contains("columnar-ordinals") || name.contains("columnar-escapes") || name.contains("columnar-counts")
+                            name.contains("columnar-ordinals") || name.contains("columnar-escapes")
                         );
                     }
                 } finally {

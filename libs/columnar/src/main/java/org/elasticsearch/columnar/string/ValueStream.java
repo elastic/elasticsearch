@@ -12,11 +12,8 @@ package org.elasticsearch.columnar.string;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LongValues;
 import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
@@ -29,7 +26,6 @@ import org.elasticsearch.columnar.substrate.MonotonicReader;
 import org.elasticsearch.columnar.substrate.MonotonicWriter;
 import org.elasticsearch.columnar.substrate.internal.ByteArrayInts;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 
@@ -151,15 +147,13 @@ public final class ValueStream {
     }
 
     /** Appends values in order, closing a chunk only on a block boundary so no block spans two chunks. */
-    public static final class Writer implements Closeable {
+    public static final class Writer {
 
         private final ChunkedBytesWriter chunks;
-        private final ColumnOutputs outputs;
         private final MonotonicWriter offsets;
         private final int valuesPerBlock;
         private long count = 0;
         private long valueBytes = 0;
-        private boolean closed = false;
         // A block's lengths are written ahead of its bytes, so the block is buffered until it is full. It
         // holds valuesPerBlock values, which is bounded and independent of the column.
         private final int[] pending;
@@ -175,36 +169,11 @@ public final class ValueStream {
         private int pendingCount = 0;
         private int pendingLength = 0;
 
-        public Writer(
-            ChunkCodec codec,
-            ChunkBounds chunkBounds,
-            int valuesPerBlock,
-            long numValues,
-            Directory dir,
-            IOContext ctx,
-            String prefix,
-            ColumnOutputs outputs
-        ) throws IOException {
+        public Writer(ChunkCodec codec, ChunkBounds chunkBounds, int valuesPerBlock, ColumnOutputs outputs) {
             this.valuesPerBlock = valuesPerBlock;
-            this.outputs = outputs;
             this.pending = new int[valuesPerBlock];
-            // Both hold a temporary file of their own. Whichever opens first is closed here if the one after
-            // it fails, since a writer that never finished being built is one nothing else can close.
-            ChunkedBytesWriter chunks = null;
-            MonotonicWriter offsets = null;
-            boolean success = false;
-            try {
-                chunks = new ChunkedBytesWriter(codec, chunkBounds, dir, ctx, prefix, outputs.data());
-                final long blocks = (numValues + valuesPerBlock - 1) / valuesPerBlock;
-                offsets = new MonotonicWriter(dir, ctx, prefix, blocks + 1L);
-                success = true;
-            } finally {
-                if (success == false) {
-                    IOUtils.closeWhileHandlingException(chunks, offsets);
-                }
-            }
-            this.chunks = chunks;
-            this.offsets = offsets;
+            this.chunks = new ChunkedBytesWriter(codec, chunkBounds, outputs.data(), outputs.navigation());
+            this.offsets = new MonotonicWriter(outputs.navigation());
         }
 
         public void add(BytesRef value) throws IOException {
@@ -381,22 +350,10 @@ public final class ValueStream {
                 flushBlock();
             }
             offsets.add(chunks.uncompressedLength());
-            final ChunkIndexMetadata index = ChunkIndexMetadata.of(chunks.finish(outputs.navigation()));
-            return new Metadata(count, valueBytes, valuesPerBlock, index, offsets.finish(outputs.navigation()));
+            final ChunkIndexMetadata index = ChunkIndexMetadata.of(chunks.finish());
+            return new Metadata(count, valueBytes, valuesPerBlock, index, offsets.finish());
         }
 
-        @Override
-        public void close() throws IOException {
-            if (closed) {
-                return;
-            }
-            closed = true;
-            try {
-                chunks.close();
-            } finally {
-                offsets.close();
-            }
-        }
     }
 
     /** Random access by value address; a block is decoded once and its value bounds kept for the next lookup. */

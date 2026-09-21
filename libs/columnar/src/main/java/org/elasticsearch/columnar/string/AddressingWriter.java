@@ -9,16 +9,12 @@
 
 package org.elasticsearch.columnar.string;
 
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.numeric.LongBlocks;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnOutputs;
 import org.elasticsearch.columnar.substrate.MonotonicWriter;
 
-import java.io.Closeable;
 import java.io.IOException;
 
 /**
@@ -32,10 +28,10 @@ import java.io.IOException;
  * needs {@link NullSlotWriter}.
  *
  * <p>A count is known only once the next document starts, so the counts arrive one document behind and the
- * last of them is closed by the total. Both the counts and the bases build where they belong while the
- * column's values are still being written, and land in it when they are done.
+ * last of them is closed by the total. The counts go to the addressing and the bases, one a block of counts,
+ * to the navigation, each as it is produced while the column's values are still being written.
  */
-final class AddressingWriter implements Closeable {
+final class AddressingWriter {
 
     /**
      * Documents to a block of counts when a caller names none. Small, so that a read landing in a block it
@@ -60,43 +56,21 @@ final class AddressingWriter implements Closeable {
      * @param numValues        slots across all of them, null slots included
      * @param countsBlockSize  documents a block of counts holds, and so the granularity of the bases
      */
-    static AddressingWriter open(
-        int numDocsWithField,
-        long numValues,
-        int countsBlockSize,
-        Directory directory,
-        IOContext context,
-        String name
-    ) throws IOException {
+    static AddressingWriter open(int numDocsWithField, long numValues, int countsBlockSize, ColumnOutputs outputs) {
         // A document holding several slots and one holding none both put the slots out of step with the
         // documents, and either way a rank stops being its own value address.
         if (numValues == numDocsWithField) {
             return new AddressingWriter(null, null, numDocsWithField, numValues, countsBlockSize);
         }
-        LongBlocks.Writer counts = null;
-        try {
-            // One count a document, through the chain that takes out the runs a column of like documents
-            // makes and the occasional document holding far more than the rest.
-            counts = LongBlocks.Writer.staged(
-                NumericPipeline.runsAndOutliersPipeline(countsBlockSize),
-                BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
-                numDocsWithField,
-                directory,
-                context,
-                name,
-                "columnar-counts"
-            );
-            final MonotonicWriter bases = new MonotonicWriter(
-                directory,
-                context,
-                name,
-                SlotAddressing.numBlocks(numDocsWithField, countsBlockSize)
-            );
-            return new AddressingWriter(counts, bases, numDocsWithField, numValues, countsBlockSize);
-        } catch (Throwable t) {
-            IOUtils.closeWhileHandlingException(counts);
-            throw t;
-        }
+        // One count a document, through the chain that takes out the runs a column of like documents makes and
+        // the occasional document holding far more than the rest.
+        final LongBlocks.Writer counts = new LongBlocks.Writer(
+            NumericPipeline.runsAndOutliersPipeline(countsBlockSize),
+            BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
+            outputs.addressing(),
+            outputs.navigation()
+        );
+        return new AddressingWriter(counts, new MonotonicWriter(outputs.navigation()), numDocsWithField, numValues, countsBlockSize);
     }
 
     private AddressingWriter(LongBlocks.Writer counts, MonotonicWriter bases, int numDocsWithField, long numValues, int countsBlockSize) {
@@ -122,7 +96,7 @@ final class AddressingWriter implements Closeable {
     }
 
     /**
-     * Writes the counts into the addressing and the bases, one a block of counts, into the navigation, {@code writtenSlots} being the number of slots the
+     * Finishes the counts and the bases, {@code writtenSlots} being the number of slots the
      * caller actually wrote — the address one past the column's last slot, which closes the last document's
      * count.
      *
@@ -131,7 +105,7 @@ final class AddressingWriter implements Closeable {
      * fill; one that reported the wrong slot total would close the last document on the wrong count, and
      * every read of that document would answer wrongly in a release build with nothing to say so.
      */
-    SlotAddressing finish(long writtenSlots, ColumnOutputs outputs) throws IOException {
+    SlotAddressing finish(long writtenSlots) throws IOException {
         if (written != numDocsWithField) {
             throw new IllegalStateException("wrote " + written + " documents, counted " + numDocsWithField);
         }
@@ -142,12 +116,7 @@ final class AddressingWriter implements Closeable {
             return SlotAddressing.NONE;
         }
         counts.add(writtenSlots - previousAddress);
-        final MonotonicWriter.Table basesTable = bases.finish(outputs.navigation());
-        return new SlotAddressing(counts.finish(outputs.addressing(), outputs.navigation()), basesTable);
-    }
-
-    @Override
-    public void close() throws IOException {
-        IOUtils.close(counts, bases);
+        final MonotonicWriter.Table basesTable = bases.finish();
+        return new SlotAddressing(counts.finish(), basesTable);
     }
 }

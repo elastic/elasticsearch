@@ -10,7 +10,6 @@
 package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
@@ -136,23 +135,17 @@ public class ValueStreamTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             final ValueStream.Metadata metadata;
             try (ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, FILE, SEGMENT_ID)) {
-                try (
-                    ValueStream.Writer writer = new ValueStream.Writer(
-                        codec,
-                        ChunkBounds.ofBytes(targetChunkBytes),
-                        valuesPerBlock,
-                        values.size(),
-                        dir,
-                        IOContext.DEFAULT,
-                        "stream",
-                        out.outputs()
-                    )
-                ) {
-                    for (BytesRef value : values) {
-                        writer.add(value);
-                    }
-                    metadata = writer.finish();
+                final ValueStream.Writer writer = new ValueStream.Writer(
+                    codec,
+                    ChunkBounds.ofBytes(targetChunkBytes),
+                    valuesPerBlock,
+                    out.outputs()
+                );
+                for (BytesRef value : values) {
+                    writer.add(value);
                 }
+                metadata = writer.finish();
+
             }
             assertEquals(label + " numValues", values.size(), metadata.numValues());
             long valueBytes = 0;

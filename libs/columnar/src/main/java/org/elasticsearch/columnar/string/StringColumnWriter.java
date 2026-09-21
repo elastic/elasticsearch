@@ -157,68 +157,50 @@ public final class StringColumnWriter {
         final ValueStream.Metadata written;
         final SlotAddressing addressing;
         final MonotonicWriter.Table nullSlotTable;
-        try (
-            ValueStream.Writer stream = new ValueStream.Writer(
-                chunkCodec,
-                sizes.plainChunks(),
-                valuesPerBlock,
-                numValues,
-                directory,
-                context,
-                data.getName(),
-                outputs
-            );
-            AddressingWriter slots = AddressingWriter.open(
-                numDocsWithField,
-                numValues,
-                sizes.slotCountsBlockSize(),
-                directory,
-                context,
-                data.getName()
-            );
-            // Bytes have no spare value to mean null with, so this layout alone tables its null slots.
-            NullSlotWriter nullSlots = NullSlotWriter.open(numNullSlots, directory, context, data.getName())
-        ) {
-            long valueAddress = 0;
-            final BytesRef empty = new BytesRef(BytesRef.EMPTY_BYTES);
-            StringColumnValues values = cursors.get();
-            // Whether the values arrive in term order, which lets a search bisect them instead of comparing
-            // every one. Free to know here: the values are already in hand, and the comparison is one memcmp.
-            // The first value out of order settles it, and the rest are written without being compared: what
-            // the comparison decides cannot be restored, and the value it would compare against is not kept.
-            final BytesRefBuilder previous = new BytesRefBuilder();
-            boolean hasPrevious = false;
-            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                slots.startDocument(valueAddress);
-                for (int i = 0, count = values.valueCount(); i < count; i++) {
-                    values.nextValue();
-                    final BytesRef value = values.value();
-                    if (value == null) {
-                        // A null stores zero bytes, so it takes an address like any other and the table above
-                        // is the only thing that tells it from an empty string. It has no place in term order
-                        // either, so a column holding one is not one a search can bisect.
-                        sorted = false;
-                        nullSlots.recordNull(valueAddress);
-                        stream.add(empty);
-                    } else {
-                        if (sorted) {
-                            if (hasPrevious && previous.get().compareTo(value) > 0) {
-                                sorted = false;
-                            } else {
-                                previous.copyBytes(value);
-                                hasPrevious = true;
-                            }
+        final ValueStream.Writer stream = new ValueStream.Writer(chunkCodec, sizes.plainChunks(), valuesPerBlock, outputs);
+        final AddressingWriter slots = AddressingWriter.open(numDocsWithField, numValues, sizes.slotCountsBlockSize(), outputs);
+        // Bytes have no spare value to mean null with, so this layout alone tables its null slots.
+        final NullSlotWriter nullSlots = NullSlotWriter.open(numNullSlots, outputs.navigation());
+        long valueAddress = 0;
+        final BytesRef empty = new BytesRef(BytesRef.EMPTY_BYTES);
+        StringColumnValues values = cursors.get();
+        // Whether the values arrive in term order, which lets a search bisect them instead of comparing
+        // every one. Free to know here: the values are already in hand, and the comparison is one memcmp.
+        // The first value out of order settles it, and the rest are written without being compared: what
+        // the comparison decides cannot be restored, and the value it would compare against is not kept.
+        final BytesRefBuilder previous = new BytesRefBuilder();
+        boolean hasPrevious = false;
+        for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+            slots.startDocument(valueAddress);
+            for (int i = 0, count = values.valueCount(); i < count; i++) {
+                values.nextValue();
+                final BytesRef value = values.value();
+                if (value == null) {
+                    // A null stores zero bytes, so it takes an address like any other and the table above
+                    // is the only thing that tells it from an empty string. It has no place in term order
+                    // either, so a column holding one is not one a search can bisect.
+                    sorted = false;
+                    nullSlots.recordNull(valueAddress);
+                    stream.add(empty);
+                } else {
+                    if (sorted) {
+                        if (hasPrevious && previous.get().compareTo(value) > 0) {
+                            sorted = false;
+                        } else {
+                            previous.copyBytes(value);
+                            hasPrevious = true;
                         }
-                        stream.add(value);
                     }
-                    valueAddress++;
+                    stream.add(value);
                 }
+                valueAddress++;
             }
-            written = stream.finish();
-            valuesWorthNaming = policy.enabled() == false || stream.runs() * StringColumnReader.MIN_PAGE_REPEAT <= numValues;
-            addressing = slots.finish(valueAddress, outputs);
-            nullSlotTable = nullSlots.finish(outputs.navigation());
         }
+        written = stream.finish();
+        valuesWorthNaming = policy.enabled() == false || stream.runs() * StringColumnReader.MIN_PAGE_REPEAT <= numValues;
+        addressing = slots.finish(valueAddress);
+        nullSlotTable = nullSlots.finish();
+
         return withSummary(
             StringColumnMetadata.plain(
                 iterator,
@@ -268,24 +250,13 @@ public final class StringColumnWriter {
             assert column.dictionarySize() == size : column.dictionarySize() + " != " + size;
         } else {
             final BytesRef term = new BytesRef();
-            try (
-                ValueStream.Writer writer = new ValueStream.Writer(
-                    chunkCodec,
-                    sizes.escapeChunks(),
-                    sizes.valuesPerBlock(),
-                    size,
-                    directory,
-                    context,
-                    data.getName(),
-                    outputs
-                )
-            ) {
-                for (int ordinal = 0; ordinal < size; ordinal++) {
-                    vocabulary.terms().get(vocabulary.sortedIds()[ordinal], term);
-                    writer.add(term);
-                }
-                terms = writer.finish();
+            final ValueStream.Writer writer = new ValueStream.Writer(chunkCodec, sizes.escapeChunks(), sizes.valuesPerBlock(), outputs);
+            for (int ordinal = 0; ordinal < size; ordinal++) {
+                vocabulary.terms().get(vocabulary.sortedIds()[ordinal], term);
+                writer.add(term);
             }
+            terms = writer.finish();
+
         }
         final long countsOffset = data.getFilePointer();
         for (int ordinal = 0; ordinal < size; ordinal++) {
@@ -327,29 +298,22 @@ public final class StringColumnWriter {
         int previousOrdinalSeen = -1;
 
         final ValueStream.Metadata dictionary;
-        try (
-            // Read by ordinal, so consecutive reads land anywhere in it. Compressing it would mean
-            // decompressing a chunk for nearly every value read, to save a few tens of kilobytes: the
-            // dictionary is bounded by the policy however large the column is.
-            // One term to a block, so the stream keeps an offset for each of them and a term is read where
-            // it lies. The offsets are a monotonic table, read off the mapped file.
-            ValueStream.Writer writer = new ValueStream.Writer(
-                ChunkCodec.IDENTITY,
-                DICTIONARY_CHUNKS,
-                TERMS_PER_BLOCK,
-                dictionarySize,
-                directory,
-                context,
-                data.getName(),
-                outputs
-            )
-        ) {
-            for (int ordinal = 0; ordinal < dictionarySize; ordinal++) {
-                vocabulary.terms().get(vocabulary.sortedIds()[ordinal], scratch);
-                writer.add(scratch);
-            }
-            dictionary = writer.finish();
+        // Read by ordinal, so consecutive reads land anywhere in it. Compressing it would mean decompressing a
+        // chunk for nearly every value read, to save a few tens of kilobytes: the dictionary is bounded by the
+        // policy however large the column is.
+        // One term to a block, so the stream keeps an offset for each of them and a term is read where it
+        // lies. The offsets are a monotonic table, read off the mapped file.
+        final ValueStream.Writer dictionaryWriter = new ValueStream.Writer(
+            ChunkCodec.IDENTITY,
+            DICTIONARY_CHUNKS,
+            TERMS_PER_BLOCK,
+            outputs
+        );
+        for (int ordinal = 0; ordinal < dictionarySize; ordinal++) {
+            vocabulary.terms().get(vocabulary.sortedIds()[ordinal], scratch);
+            dictionaryWriter.add(scratch);
         }
+        dictionary = dictionaryWriter.finish();
 
         String ordinalTempName = null;
         String escapeTempName = null;
@@ -361,110 +325,95 @@ public final class StringColumnWriter {
             final ValueStream.Metadata escapeStream;
             final MonotonicWriter.Table escapeRanks;
             final SlotAddressing addressing;
-            try (
-                MonotonicWriter ranks = new MonotonicWriter(
-                    directory,
-                    context,
-                    data.getName(),
-                    escapeRankEntries(numValues, escapeRankBlockSize)
-                );
-                // Nulls are named by a reserved ordinal below, so this layout keeps no null-slot table.
-                AddressingWriter slots = AddressingWriter.open(
-                    numDocsWithField,
-                    numValues,
-                    sizes.slotCountsBlockSize(),
-                    directory,
-                    context,
-                    data.getName()
-                )
-            ) {
-                // Opened one at a time, each named before the next is asked for: a temporary file that the
-                // one after it fails to open is still a file to delete, and only its name says which.
-                try (IndexOutput ordinalTemp = directory.createTempOutput(data.getName(), "columnar-ordinals", context)) {
-                    ordinalTempName = ordinalTemp.getName();
-                    try (IndexOutput escapeTemp = directory.createTempOutput(data.getName(), "columnar-escapes", context)) {
-                        escapeTempName = escapeTemp.getName();
-                        final StringColumnValues values = cursors.get();
-                        // As in the survey: a column in term order repeats each value, so the ordinal is almost
-                        // always the one before it. An escaped value still has its bytes staged individually.
-                        final BytesRefBuilder previous = new BytesRefBuilder();
-                        int previousOrdinal = Vocabulary.DROPPED;
-                        boolean hasPrevious = false;
-                        for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                            slots.startDocument(index);
-                            for (int i = 0, count = values.valueCount(); i < count; i++) {
-                                if (index % escapeRankBlockSize == 0) {
-                                    ranks.add(escapes);
-                                }
-                                values.nextValue();
-                                // A cursor that already knows the ordinal saves resolving the value's bytes
-                                // only to look them up again, which is most of what merging such a column costs.
-                                // It answers for terms alone, so a null still costs its bytes to recognise —
-                                // which for a null is no bytes at all.
-                                final int mapped = values.ordinal();
-                                if (mapped >= 0) {
-                                    // Carried over rather than resolved, but it still says where the value sits
-                                    // among the terms, so the order is read from it as from any other ordinal.
-                                    if (mapped < previousOrdinalSeen) {
-                                        sorted = false;
-                                    }
-                                    previousOrdinalSeen = mapped;
-                                    ordinalTemp.writeVInt(mapped);
-                                    index++;
-                                    continue;
-                                }
-                                final BytesRef value = values.value();
-                                // A null is named by the reserved ordinal below the terms. It never reaches
-                                // the dictionary or the escapes, so it cannot be confused with the empty term,
-                                // and a column whose only unnamed values were nulls still reports no escapes —
-                                // which is what a reader answering from the ordinals alone needs.
-                                if (value == null) {
-                                    // No place in term order, so a column holding one is not one to bisect.
-                                    sorted = false;
-                                    ordinalTemp.writeVInt(StringColumnMetadata.Dictionary.NULL_ORDINAL);
-                                    index++;
-                                    continue;
-                                }
-                                final int ordinal;
-                                if (hasPrevious && previous.get().bytesEquals(value)) {
-                                    ordinal = previousOrdinal;
-                                } else {
-                                    final int id = vocabulary.terms().find(value);
-                                    // A term the survey saw can still have been dropped from the dictionary,
-                                    // so the ordinal is shifted only once it is known to name one — DROPPED
-                                    // shifted would land on a reserved ordinal rather than staying a marker.
-                                    final int termOrdinal = id >= 0 ? vocabulary.ordinalOfId()[id] : Vocabulary.DROPPED;
-                                    ordinal = termOrdinal == Vocabulary.DROPPED
-                                        ? Vocabulary.DROPPED
-                                        : termOrdinal + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
-                                    previous.copyBytes(value);
-                                    previousOrdinal = ordinal;
-                                    hasPrevious = true;
-                                }
-                                if (ordinal == Vocabulary.DROPPED) {
-                                    sorted = false;
-                                    ordinalTemp.writeVInt(escapeOrdinal);
-                                    escapeTemp.writeVInt(value.length);
-                                    escapeTemp.writeBytes(value.bytes, value.offset, value.length);
-                                    escapes++;
-                                } else {
-                                    if (ordinal < previousOrdinalSeen) {
-                                        sorted = false;
-                                    }
-                                    previousOrdinalSeen = ordinal;
-                                    ordinalTemp.writeVInt(ordinal);
-                                }
-                                index++;
+            final MonotonicWriter ranks = new MonotonicWriter(outputs.navigation());
+            // Nulls are named by a reserved ordinal below, so this layout keeps no null-slot table.
+            final AddressingWriter slots = AddressingWriter.open(numDocsWithField, numValues, sizes.slotCountsBlockSize(), outputs);
+            // Opened one at a time, each named before the next is asked for: a temporary file that the
+            // one after it fails to open is still a file to delete, and only its name says which.
+            try (IndexOutput ordinalTemp = directory.createTempOutput(data.getName(), "columnar-ordinals", context)) {
+                ordinalTempName = ordinalTemp.getName();
+                try (IndexOutput escapeTemp = directory.createTempOutput(data.getName(), "columnar-escapes", context)) {
+                    escapeTempName = escapeTemp.getName();
+                    final StringColumnValues values = cursors.get();
+                    // As in the survey: a column in term order repeats each value, so the ordinal is almost
+                    // always the one before it. An escaped value still has its bytes staged individually.
+                    final BytesRefBuilder previous = new BytesRefBuilder();
+                    int previousOrdinal = Vocabulary.DROPPED;
+                    boolean hasPrevious = false;
+                    for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                        slots.startDocument(index);
+                        for (int i = 0, count = values.valueCount(); i < count; i++) {
+                            if (index % escapeRankBlockSize == 0) {
+                                ranks.add(escapes);
                             }
+                            values.nextValue();
+                            // A cursor that already knows the ordinal saves resolving the value's bytes
+                            // only to look them up again, which is most of what merging such a column costs.
+                            // It answers for terms alone, so a null still costs its bytes to recognise —
+                            // which for a null is no bytes at all.
+                            final int mapped = values.ordinal();
+                            if (mapped >= 0) {
+                                // Carried over rather than resolved, but it still says where the value sits
+                                // among the terms, so the order is read from it as from any other ordinal.
+                                if (mapped < previousOrdinalSeen) {
+                                    sorted = false;
+                                }
+                                previousOrdinalSeen = mapped;
+                                ordinalTemp.writeVInt(mapped);
+                                index++;
+                                continue;
+                            }
+                            final BytesRef value = values.value();
+                            // A null is named by the reserved ordinal below the terms. It never reaches
+                            // the dictionary or the escapes, so it cannot be confused with the empty term,
+                            // and a column whose only unnamed values were nulls still reports no escapes —
+                            // which is what a reader answering from the ordinals alone needs.
+                            if (value == null) {
+                                // No place in term order, so a column holding one is not one to bisect.
+                                sorted = false;
+                                ordinalTemp.writeVInt(StringColumnMetadata.Dictionary.NULL_ORDINAL);
+                                index++;
+                                continue;
+                            }
+                            final int ordinal;
+                            if (hasPrevious && previous.get().bytesEquals(value)) {
+                                ordinal = previousOrdinal;
+                            } else {
+                                final int id = vocabulary.terms().find(value);
+                                // A term the survey saw can still have been dropped from the dictionary,
+                                // so the ordinal is shifted only once it is known to name one — DROPPED
+                                // shifted would land on a reserved ordinal rather than staying a marker.
+                                final int termOrdinal = id >= 0 ? vocabulary.ordinalOfId()[id] : Vocabulary.DROPPED;
+                                ordinal = termOrdinal == Vocabulary.DROPPED
+                                    ? Vocabulary.DROPPED
+                                    : termOrdinal + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
+                                previous.copyBytes(value);
+                                previousOrdinal = ordinal;
+                                hasPrevious = true;
+                            }
+                            if (ordinal == Vocabulary.DROPPED) {
+                                sorted = false;
+                                ordinalTemp.writeVInt(escapeOrdinal);
+                                escapeTemp.writeVInt(value.length);
+                                escapeTemp.writeBytes(value.bytes, value.offset, value.length);
+                                escapes++;
+                            } else {
+                                if (ordinal < previousOrdinalSeen) {
+                                    sorted = false;
+                                }
+                                previousOrdinalSeen = ordinal;
+                                ordinalTemp.writeVInt(ordinal);
+                            }
+                            index++;
                         }
-                        // One past the end, so the escapes in the last block can be counted like any other.
-                        ranks.add(escapes);
                     }
+                    // One past the end, so the escapes in the last block can be counted like any other.
+                    ranks.add(escapes);
                 }
-                addressing = slots.finish(index, outputs);
-                escapeStream = replayEscapes(directory, context, escapeTempName, escapes, chunkCodec, sizes, outputs);
-                escapeRanks = escapes == 0 ? MonotonicWriter.Table.NONE : ranks.finish(outputs.navigation());
             }
+            addressing = slots.finish(index);
+            escapeStream = replayEscapes(directory, context, escapeTempName, escapes, chunkCodec, sizes, outputs);
+            escapeRanks = escapes == 0 ? MonotonicWriter.Table.NONE : ranks.finish();
 
             final String staged = ordinalTempName;
             // Compressing the ordinals only pays where they repeat, and it takes a larger block to reach
@@ -484,8 +433,6 @@ public final class StringColumnWriter {
                 BlockBytesCodec.forId(compressOrdinals ? BlockBytesCodec.ZSTD_ID : BlockBytesCodec.IDENTITY_ID),
                 // The ordinals build no skip index, so nothing is ever written to one.
                 null,
-                directory,
-                context,
                 outputs,
                 null
             );
@@ -529,19 +476,8 @@ public final class StringColumnWriter {
         if (count == 0) {
             return ValueStream.Metadata.empty();
         }
-        try (
-            IndexInput staged = directory.openInput(name, IOContext.READONCE);
-            ValueStream.Writer writer = new ValueStream.Writer(
-                chunkCodec,
-                sizes.escapeChunks(),
-                sizes.valuesPerBlock(),
-                count,
-                directory,
-                context,
-                data.getName(),
-                outputs
-            )
-        ) {
+        final ValueStream.Writer writer = new ValueStream.Writer(chunkCodec, sizes.escapeChunks(), sizes.valuesPerBlock(), outputs);
+        try (IndexInput staged = directory.openInput(name, IOContext.READONCE)) {
             final BytesRef value = new BytesRef();
             for (long i = 0; i < count; i++) {
                 final int length = staged.readVInt();

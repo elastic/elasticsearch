@@ -625,8 +625,6 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             pipeline,
             BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
             SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID),
-            directory,
-            context,
             outputs,
             skipIndex
         );

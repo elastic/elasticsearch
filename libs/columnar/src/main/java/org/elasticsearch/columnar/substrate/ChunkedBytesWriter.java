@@ -9,14 +9,9 @@
 
 package org.elasticsearch.columnar.substrate;
 
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.IOUtils;
 
-import java.io.Closeable;
 import java.io.IOException;
 
 /**
@@ -28,11 +23,10 @@ import java.io.IOException;
  * themselves, which is what {@link #uncompressedLength()} returns after each append; this class records
  * where each chunk starts in that stream and where it lands in the file.
  *
- * <p>Nothing on the heap grows with the column: one chunk is buffered, and the two chunk tables are staged
- * in a temporary file because {@link MonotonicWriter} needs its entry count up front and the number of
- * chunks is only known once the last one is written.
+ * <p>The chunks go to the data and the two tables to the navigation, each as it is produced. Nothing on the
+ * heap grows with the column: one chunk is buffered, and a table holds at most one block of its entries.
  */
-public final class ChunkedBytesWriter implements Closeable {
+public final class ChunkedBytesWriter {
 
     /** Where the chunks and their index landed, and what is needed to read them back. */
     public record Chunks(
@@ -49,13 +43,10 @@ public final class ChunkedBytesWriter implements Closeable {
     private final ChunkBounds bounds;
     private final IndexOutput data;
     private final long dataOffset;
-    private final Directory directory;
-    private final IOContext context;
-    private final String prefix;
 
-    /** Staged {@code (start, fileOffset)} pairs, one per chunk plus a past-the-end marker. */
-    private final IndexOutput chunkTemp;
-    private final String chunkTempName;
+    /** Where each chunk starts in the uncompressed stream and in the file, plus a past-the-end entry. */
+    private final MonotonicWriter starts;
+    private final MonotonicWriter fileOffsets;
 
     private byte[] pending;
     private int pendingLength = 0;
@@ -63,21 +54,16 @@ public final class ChunkedBytesWriter implements Closeable {
     private long uncompressedLength = 0;
     private int numChunks = 0;
     private boolean finished = false;
-    private boolean tempClosed = false;
 
-    public ChunkedBytesWriter(ChunkCodec codec, ChunkBounds bounds, Directory directory, IOContext context, String prefix, IndexOutput data)
-        throws IOException {
+    public ChunkedBytesWriter(ChunkCodec codec, ChunkBounds bounds, IndexOutput data, IndexOutput navigation) {
         this.codec = codec;
         this.compressor = codec.newCompressor();
         this.bounds = bounds;
-        this.directory = directory;
-        this.context = context;
-        this.prefix = prefix;
         this.data = data;
         this.dataOffset = data.getFilePointer();
         this.pending = new byte[Math.min(bounds.targetBytes(), 64 * 1024)];
-        this.chunkTemp = directory.createTempOutput(prefix, "columnar-chunk-index", context);
-        this.chunkTempName = chunkTemp.getName();
+        this.starts = new MonotonicWriter(navigation);
+        this.fileOffsets = new MonotonicWriter(navigation);
     }
 
     /** The number of bytes appended so far; the offset the next appended value will start at. */
@@ -120,40 +106,20 @@ public final class ChunkedBytesWriter implements Closeable {
         }
     }
 
-    /** Emits any pending chunk, writes the chunk index into {@code navigation}, and returns where everything is. */
-    public Chunks finish(IndexOutput navigation) throws IOException {
+    /** Emits any pending chunk and returns where the chunks and their index are. */
+    public Chunks finish() throws IOException {
         assert finished == false : "already finished";
         finished = true;
         if (pendingLength > 0) {
             flushChunk();
         }
-        if (numChunks > 0) {
-            // Past-the-end markers, so a chunk's extent is the gap to the next entry.
-            record(uncompressedLength, data.getFilePointer() - dataOffset);
-        }
-        chunkTemp.close();
-        tempClosed = true;
         if (numChunks == 0) {
             // Nothing was written, so there is no chunk for a table to locate.
             return new Chunks(codec.id(), 0, 0, dataOffset, MonotonicWriter.Table.NONE, MonotonicWriter.Table.NONE);
         }
-
-        final MonotonicWriter.Table startsTable;
-        final MonotonicWriter.Table offsetsTable;
-        try (
-            IndexInput staged = directory.openInput(chunkTempName, IOContext.READONCE);
-            MonotonicWriter startsOut = new MonotonicWriter(directory, context, prefix, numChunks + 1L);
-            MonotonicWriter offsetsOut = new MonotonicWriter(directory, context, prefix, numChunks + 1L)
-        ) {
-            // Both tables are built in one replay, so the staged pairs are read exactly once.
-            for (int i = 0; i <= numChunks; i++) {
-                startsOut.add(staged.readVLong());
-                offsetsOut.add(staged.readVLong());
-            }
-            startsTable = startsOut.finish(navigation);
-            offsetsTable = offsetsOut.finish(navigation);
-        }
-        return new Chunks(codec.id(), numChunks, uncompressedLength, dataOffset, startsTable, offsetsTable);
+        // Past-the-end markers, so a chunk's extent is the gap to the next entry.
+        record(uncompressedLength, data.getFilePointer() - dataOffset);
+        return new Chunks(codec.id(), numChunks, uncompressedLength, dataOffset, starts.finish(), fileOffsets.finish());
     }
 
     private void flushChunk() throws IOException {
@@ -166,18 +132,7 @@ public final class ChunkedBytesWriter implements Closeable {
     }
 
     private void record(long start, long fileOffset) throws IOException {
-        chunkTemp.writeVLong(start);
-        chunkTemp.writeVLong(fileOffset);
-    }
-
-    @Override
-    public void close() throws IOException {
-        try {
-            if (tempClosed == false) {
-                IOUtils.closeWhileHandlingException(chunkTemp);
-            }
-        } finally {
-            IOUtils.deleteFilesIgnoringExceptions(directory, chunkTempName);
-        }
+        starts.add(start);
+        fileOffsets.add(fileOffset);
     }
 }

@@ -298,44 +298,15 @@ public class ChunkedBytesTests extends ESTestCase {
         }
     }
 
-    /** The writer stages its chunk index in a temporary file, which must not outlive the write. */
-    public void testTemporaryFilesAreRemoved() throws IOException {
+    /** The chunks go to the data and their index to the navigation as they are written; nothing else is created. */
+    public void testWritesNothingButItsTwoFiles() throws IOException {
         final List<byte[]> values = new ArrayList<>();
         for (int i = 0; i < 5000; i++) {
             values.add(bytes("value-" + i));
         }
         try (Directory dir = newDirectory()) {
             writeStream(dir, ChunkCodec.ZSTD, 1024, values, new long[values.size() + 1]);
-            for (String file : dir.listAll()) {
-                assertFalse("a temporary file was left behind: " + file, file.contains("columnar-chunk-index"));
-                assertFalse("a temporary file was left behind: " + file, file.contains("columnar-monotonic"));
-            }
-        }
-    }
-
-    /** An aborted write must still clean up after itself. */
-    public void testTemporaryFilesAreRemovedWhenUnfinished() throws IOException {
-        try (Directory dir = newDirectory()) {
-            try (
-                IndexOutput out = dir.createOutput("chunks.bin", IOContext.DEFAULT);
-                IndexOutput nav = dir.createOutput("chunks.nav", IOContext.DEFAULT)
-            ) {
-                try (
-                    ChunkedBytesWriter writer = new ChunkedBytesWriter(
-                        ChunkCodec.ZSTD,
-                        ChunkBounds.ofBytes(1024),
-                        dir,
-                        IOContext.DEFAULT,
-                        "chunks",
-                        out
-                    )
-                ) {
-                    writer.append(bytes("written but never finished"), 0, 26);
-                }
-            }
-            for (String file : dir.listAll()) {
-                assertFalse("a temporary file was left behind: " + file, file.contains("columnar-chunk-index"));
-            }
+            assertArrayEquals(new String[] { "chunks.bin", "chunks.nav" }, dir.listAll());
         }
     }
 
@@ -424,18 +395,18 @@ public class ChunkedBytesTests extends ESTestCase {
             IndexOutput out = dir.createOutput("chunks.bin", IOContext.DEFAULT);
             IndexOutput nav = dir.createOutput("chunks.nav", IOContext.DEFAULT)
         ) {
-            try (ChunkedBytesWriter writer = new ChunkedBytesWriter(codec, bounds, dir, IOContext.DEFAULT, "chunks", out)) {
-                for (int i = 0; i < values.size(); i++) {
-                    if (i % perGroup == 0) {
-                        // A group is what this stream addresses, so a chunk may only end between two of them.
-                        writer.boundary(Math.min(perGroup, values.size() - i));
-                    }
-                    offsets[i] = writer.uncompressedLength();
-                    writer.append(values.get(i), 0, values.get(i).length);
+            final ChunkedBytesWriter writer = new ChunkedBytesWriter(codec, bounds, out, nav);
+            for (int i = 0; i < values.size(); i++) {
+                if (i % perGroup == 0) {
+                    // A group is what this stream addresses, so a chunk may only end between two of them.
+                    writer.boundary(Math.min(perGroup, values.size() - i));
                 }
-                offsets[values.size()] = writer.uncompressedLength();
-                return ChunkIndexMetadata.of(writer.finish(nav));
+                offsets[i] = writer.uncompressedLength();
+                writer.append(values.get(i), 0, values.get(i).length);
             }
+            offsets[values.size()] = writer.uncompressedLength();
+            return ChunkIndexMetadata.of(writer.finish());
+
         }
     }
 

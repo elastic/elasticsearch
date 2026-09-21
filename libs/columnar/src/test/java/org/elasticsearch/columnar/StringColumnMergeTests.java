@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
@@ -266,6 +267,44 @@ public class StringColumnMergeTests extends ESTestCase {
                     assertEquals(what + ": numValues", expectedValues, column.numValues());
                     assertEquals(what + ": numNullSlots", expectedNulls, column.numNullSlots());
                 }
+            }
+        }
+    }
+
+    /**
+     * A plain column is written without a temporary file, on flush and on merge alike: its values, slot counts,
+     * null slots and every table go straight into their files. Documents of several slots and nulls among them,
+     * so each of those is written.
+     */
+    public void testAPlainColumnWritesNoTemporaryFile() throws IOException {
+        final int numDocs = 300;
+        final String[][] values = new String[numDocs][];
+        for (int d = 0; d < numDocs; d++) {
+            values[d] = d % 5 == 0 ? new String[] { "distinct-" + d, null } : new String[] { "value-" + d + "-" + randomAlphaOfLength(8) };
+        }
+        final FieldType type = columnarBinaryFieldType();
+        try (Directory real = newDirectory()) {
+            final ColumnarTestUtils.TempOutputRecorder dir = new ColumnarTestUtils.TempOutputRecorder(real);
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
+                .setMergePolicy(new LogDocMergePolicy());
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                for (int d = 0; d < numDocs; d++) {
+                    final Document doc = new Document();
+                    doc.add(new StringField(ID, Integer.toString(d), Field.Store.NO));
+                    doc.add(new Field(FIELD, encode(values[d]), type));
+                    writer.addDocument(doc);
+                    if ((d + 1) % 100 == 0) {
+                        writer.commit();
+                    }
+                }
+                writer.forceMerge(1);
+            }
+            assertEquals("temporary files asked for", Set.of(), dir.columnarSuffixes);
+            try (DirectoryReader reader = DirectoryReader.open(real)) {
+                final StringColumnReader column = columnOf(reader.leaves().get(0).reader());
+                assertFalse("distinct values make a plain column", column.hasDictionary());
+                assertEquals("slots", numDocs + numDocs / 5, column.numValues());
+                assertEquals("nulls", numDocs / 5, column.numNullSlots());
             }
         }
     }

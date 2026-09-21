@@ -9,8 +9,6 @@
 
 package org.elasticsearch.columnar.string;
 
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.columnar.substrate.MonotonicWriter;
 
@@ -28,8 +26,8 @@ final class NullSlotWriter extends SlotTableWriter {
     private final long numNullSlots;
 
     /** @param numNullSlots how many of the column's slots are null */
-    static NullSlotWriter open(long numNullSlots, Directory directory, IOContext context, String name) throws IOException {
-        return new NullSlotWriter(numNullSlots > 0 ? new MonotonicWriter(directory, context, name, numNullSlots) : null, numNullSlots);
+    static NullSlotWriter open(long numNullSlots, IndexOutput navigation) {
+        return new NullSlotWriter(numNullSlots > 0 ? new MonotonicWriter(navigation) : null, numNullSlots);
     }
 
     private NullSlotWriter(MonotonicWriter nullSlots, long numNullSlots) {
@@ -43,14 +41,14 @@ final class NullSlotWriter extends SlotTableWriter {
     }
 
     /**
-     * Closes the table into {@code navigation}, or {@link MonotonicWriter.Table#NONE} when nothing was null.
+     * Finishes the table, or {@link MonotonicWriter.Table#NONE} when nothing was null.
      * Checked rather than asserted, for the same reason the addressing table checks its own totals: a
      * cursor that miscounts its nulls would otherwise write a table the reader trusts.
      */
-    MonotonicWriter.Table finish(IndexOutput navigation) throws IOException {
+    MonotonicWriter.Table finish() throws IOException {
         if (written() != numNullSlots) {
             throw new IllegalStateException("wrote " + written() + " null slots, counted " + numNullSlots);
         }
-        return finishTable(navigation);
+        return finishTable();
     }
 }

@@ -367,8 +367,6 @@ public class ColumnarNumericFastPathTests extends ESTestCase {
                 NumericPipeline.defaultPipeline(randomValidBlockSize()),
                 BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
                 withSkipper ? SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID) : null,
-                dir,
-                IOContext.DEFAULT,
                 out.outputs(),
                 skip
             );
@@ -544,8 +542,6 @@ public class ColumnarNumericFastPathTests extends ESTestCase {
                 NumericPipeline.defaultPipeline(randomValidBlockSize()),
                 BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
                 withSkipper ? SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID) : null,
-                dir,
-                IOContext.DEFAULT,
                 out.outputs(),
                 skip
             );

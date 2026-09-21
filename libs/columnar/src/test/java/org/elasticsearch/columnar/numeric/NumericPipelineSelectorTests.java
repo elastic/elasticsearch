@@ -181,8 +181,6 @@ public class NumericPipelineSelectorTests extends ESTestCase {
                     pipeline,
                     BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
                     SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID),
-                    dir,
-                    IOContext.DEFAULT,
                     out.outputs(),
                     skip
                 );

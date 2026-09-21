@@ -126,8 +126,8 @@ public class BlobCacheMetrics {
     private final DoubleHistogram evictionScanTime;
     private final LongHistogram evictionScannedEntries;
     private final DoubleHistogram lockAcquireTime;
-    private final DoubleHistogram readAgeHistogram;
-    private final DoubleHistogram missAgeHistogram;
+    private final DoubleHistogram readAgeHourHistogram;
+    private final DoubleHistogram missAgeHourHistogram;
 
     private final LongAdder missCount = new LongAdder();
     private final LongAdder readCount = new LongAdder();
@@ -299,8 +299,7 @@ public class BlobCacheMetrics {
             ),
             meterRegistry.registerDoubleHistogram(
                 BLOB_CACHE_MISS_AGE,
-                "The age of data that missed the cache (warming not included), in hours; "
-                    + "sentinel timestamps and bypasses are omitted",
+                "The age of data that missed the cache (warming not included), in hours; sentinel timestamps and bypasses are omitted",
                 "hours",
                 TimeRangeBucket.histogramHourBoundaries()
             ),
@@ -349,8 +348,8 @@ public class BlobCacheMetrics {
         DoubleHistogram evictionScanTime,
         LongHistogram evictionScannedEntries,
         DoubleHistogram lockAcquireTime,
-        DoubleHistogram readAgeHistogram,
-        DoubleHistogram missAgeHistogram,
+        DoubleHistogram readAgeHourHistogram,
+        DoubleHistogram missAgeHourHistogram,
         TimeProvider timeProvider
     ) {
         this.cacheMissCounter = cacheMissCounter;
@@ -368,8 +367,8 @@ public class BlobCacheMetrics {
         this.evictionScanTime = evictionScanTime;
         this.evictionScannedEntries = evictionScannedEntries;
         this.lockAcquireTime = lockAcquireTime;
-        this.readAgeHistogram = readAgeHistogram;
-        this.missAgeHistogram = missAgeHistogram;
+        this.readAgeHourHistogram = readAgeHourHistogram;
+        this.missAgeHourHistogram = missAgeHourHistogram;
         this.timeProvider = timeProvider;
     }
 
@@ -459,7 +458,7 @@ public class BlobCacheMetrics {
      */
     public void recordRead(long regionTimestampMillis) {
         // Region timestamps are epoch millis; relativeTimeInMillis() is not comparable to them.
-        recordAccess(readCount, readAgeHistogram, regionTimestampMillis, timeProvider.absoluteTimeInMillis());
+        recordAccess(readCount, readAgeHourHistogram, regionTimestampMillis, timeProvider.absoluteTimeInMillis());
     }
 
     /**
@@ -468,7 +467,7 @@ public class BlobCacheMetrics {
      * @param regionTimestampMillis see {@link #recordRead(long)}
      */
     public void recordMiss(long regionTimestampMillis) {
-        recordAccess(missCount, missAgeHistogram, regionTimestampMillis, timeProvider.absoluteTimeInMillis());
+        recordAccess(missCount, missAgeHourHistogram, regionTimestampMillis, timeProvider.absoluteTimeInMillis());
     }
 
     /**
@@ -483,10 +482,10 @@ public class BlobCacheMetrics {
         cacheBypassCounter.increment();
     }
 
-    private static void recordAccess(LongAdder count, DoubleHistogram ageHistogram, long regionTimestampMillis, long nowMillis) {
+    private static void recordAccess(LongAdder count, DoubleHistogram ageHourHistogram, long regionTimestampMillis, long nowMillis) {
         count.increment();
         if (regionTimestampMillis >= 0) {
-            ageHistogram.record(TimeRangeBucket.toHours(nowMillis - regionTimestampMillis));
+            ageHourHistogram.record(TimeRangeBucket.toHours(nowMillis - regionTimestampMillis));
         }
     }
 

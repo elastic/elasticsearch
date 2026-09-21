@@ -550,9 +550,11 @@ tasks.register("validateBuildGradleScripts", ValidateBuildGradleScriptsTask).con
   scriptFiles.from(fileTree(project.layout.settingsDirectory) {
     include "**/build.gradle"
     exclude "**/build/**"
+    // Fixture build scripts under test resources model external repositories rather than this repository's build logic.
+    exclude "**/src/**/resources/**"
     exclude ".gradle/**"
   })
-  baseline.set([
+  ignore.set([
     'cross-project-dereference': [
       'distribution/archives/integ-test-zip/build.gradle',
       'distribution/build.gradle',

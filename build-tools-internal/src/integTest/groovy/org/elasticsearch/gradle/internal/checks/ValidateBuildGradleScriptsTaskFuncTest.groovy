@@ -25,9 +25,10 @@ tasks.register('validateBuildGradleScripts', ValidateBuildGradleScriptsTask) {
   scriptFiles.from(fileTree(project.layout.settingsDirectory) {
     include '**/build.gradle'
     exclude '**/build/**'
+    exclude '**/src/**/resources/**'
     exclude '.gradle/**'
   })
-  baseline.set([:])
+  ignore.set([:])
 }
 """
     }
@@ -46,11 +47,11 @@ tasks.register('validateBuildGradleScripts', ValidateBuildGradleScriptsTask) {
         assertOutputContains(result.output, 'Problems report is available at')
     }
 
-    def "fails for stale baseline entries"() {
+    def "fails for stale ignore entries"() {
         given:
         buildFile << """
 tasks.named('validateBuildGradleScripts').configure {
-  baseline.set(['cross-project-dereference': ['subproject/build.gradle']])
+  ignore.set(['cross-project-dereference': ['subproject/build.gradle']])
 }
 """
         file('subproject/build.gradle').text = 'dependencies { implementation project(":server") }\n'
@@ -60,8 +61,21 @@ tasks.named('validateBuildGradleScripts').configure {
 
         then:
         result.task(':validateBuildGradleScripts').outcome == TaskOutcome.FAILED
-        assertOutputContains(result.output, 'stale-baseline-entry')
+        assertOutputContains(result.output, 'stale-ignore-entry')
         assertOutputContains(result.output, 'cross-project-dereference -> subproject/build.gradle')
+    }
+
+    def "ignores build.gradle files under test resources"() {
+        given:
+        file('src/test/resources/fixture/build.gradle').text = 'classpath += project(":server").sourceSets.main.runtimeClasspath\n'
+        file('subproject/build.gradle').text = 'dependencies { implementation project(":server") }\n'
+
+        when:
+        def result = gradleRunner('validateBuildGradleScripts').build()
+
+        then:
+        result.task(':validateBuildGradleScripts').outcome == TaskOutcome.SUCCESS
+        result.output.contains('cross-project-dereference') == false
     }
 
     def "is up to date when inputs are unchanged"() {

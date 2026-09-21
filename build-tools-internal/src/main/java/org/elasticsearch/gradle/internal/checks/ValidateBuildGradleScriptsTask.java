@@ -71,10 +71,10 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
     public abstract ConfigurableFileCollection getScriptFiles();
 
     /**
-     * Inline baseline entries configured by the root build, keyed by rule id.
+     * Inline ignore entries configured by the root build, keyed by rule id.
      */
     @Input
-    public abstract MapProperty<String, List<String>> getBaseline();
+    public abstract MapProperty<String, List<String>> getIgnore();
 
     @OutputFile
     public File getOutputMarker() {
@@ -84,20 +84,20 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
     @TaskAction
     public void validateScripts() throws IOException {
         List<ScriptRule> rules = buildRules();
-        Set<BaselineEntry> baselineEntries = parseBaselineEntries(getBaseline().getOrElse(java.util.Map.of()));
+        Set<IgnoreEntry> ignoredViolations = parseIgnoreEntries(getIgnore().getOrElse(java.util.Map.of()));
         List<File> scriptFiles = getScriptFiles().getFiles().stream().sorted().toList();
 
         List<Problem> problems = new ArrayList<>();
         List<String> violations = new ArrayList<>();
-        Set<BaselineEntry> matchedBaselineEntries = new LinkedHashSet<>();
+        Set<IgnoreEntry> matchedIgnoredViolations = new LinkedHashSet<>();
         for (File scriptFile : scriptFiles) {
             if (scriptFile.isFile() == false) {
                 continue;
             }
             String content = Files.readString(scriptFile.toPath(), StandardCharsets.UTF_8);
-            validateFile(scriptFile, content, rules, baselineEntries, matchedBaselineEntries, problems, violations);
+            validateFile(scriptFile, content, rules, ignoredViolations, matchedIgnoredViolations, problems, violations);
         }
-        validateBaselineEntries(baselineEntries, matchedBaselineEntries, problems, violations);
+        validateIgnoredViolations(ignoredViolations, matchedIgnoredViolations, problems, violations);
 
         if (problems.isEmpty() == false) {
             throw problemReporter.throwing(
@@ -151,8 +151,8 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
         File scriptFile,
         String content,
         List<ScriptRule> rules,
-        Set<BaselineEntry> baselineEntries,
-        Set<BaselineEntry> matchedBaselineEntries,
+        Set<IgnoreEntry> ignoredViolations,
+        Set<IgnoreEntry> matchedIgnoredViolations,
         List<Problem> problems,
         List<String> violations
     ) {
@@ -162,9 +162,9 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
             while (matcher.find()) {
                 int lineNumber = lineNumber(content, matcher.start());
                 String lineText = lineText(content, matcher.start()).trim();
-                BaselineEntry baselineEntry = new BaselineEntry(rule.id(), relativePath);
-                if (baselineEntries.contains(baselineEntry)) {
-                    matchedBaselineEntries.add(baselineEntry);
+                IgnoreEntry ignoreEntry = new IgnoreEntry(rule.id(), relativePath);
+                if (ignoredViolations.contains(ignoreEntry)) {
+                    matchedIgnoredViolations.add(ignoreEntry);
                     continue;
                 }
 
@@ -183,50 +183,50 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
         }
     }
 
-    private void validateBaselineEntries(
-        Set<BaselineEntry> baselineEntries,
-        Set<BaselineEntry> matchedBaselineEntries,
+    private void validateIgnoredViolations(
+        Set<IgnoreEntry> ignoredViolations,
+        Set<IgnoreEntry> matchedIgnoredViolations,
         List<Problem> problems,
         List<String> violations
     ) {
-        Set<BaselineEntry> staleEntries = new LinkedHashSet<>(baselineEntries);
-        staleEntries.removeAll(matchedBaselineEntries);
-        for (BaselineEntry staleEntry : staleEntries) {
-            String label = "[stale-baseline-entry] " + staleEntry.ruleId() + " -> " + staleEntry.relativePath();
+        Set<IgnoreEntry> staleEntries = new LinkedHashSet<>(ignoredViolations);
+        staleEntries.removeAll(matchedIgnoredViolations);
+        for (IgnoreEntry staleEntry : staleEntries) {
+            String label = "[stale-ignore-entry] " + staleEntry.ruleId() + " -> " + staleEntry.relativePath();
             violations.add("- " + label);
             problems.add(
                 problemReporter.create(
                     ProblemId.create(
-                        "stale-baseline-entry",
-                        "Stale build.gradle validation baseline entry",
+                        "stale-ignore-entry",
+                        "Stale build.gradle validation ignore entry",
                         ElasticsearchBuildProblems.BUILD_GRADLE_SCRIPTS
                     ),
                     spec -> spec.contextualLabel(label)
                         .details(
-                            "The validateBuildGradleScripts baseline entry no longer matches any violation. Baselines must shrink as scripts are cleaned up."
+                            "The validateBuildGradleScripts ignore entry no longer matches any violation. Ignore entries must shrink as scripts are cleaned up."
                         )
                         .fileLocation(rootBuildFile.getAbsolutePath())
-                        .solution(
-                            "Remove the stale baseline entry from the validateBuildGradleScripts task configuration in the root build.gradle file."
-                        )
+                        .solution("Remove the stale ignore entry from the validateBuildGradleScripts task configuration in the root build.gradle file.")
                 )
             );
         }
     }
 
-    private Set<BaselineEntry> parseBaselineEntries(java.util.Map<String, List<String>> rawEntries) {
-        Set<BaselineEntry> entries = new LinkedHashSet<>();
+    private Set<IgnoreEntry> parseIgnoreEntries(java.util.Map<String, List<String>> rawEntries) {
+        Set<IgnoreEntry> entries = new LinkedHashSet<>();
         rawEntries.forEach((ruleId, paths) -> {
             String trimmedRuleId = ruleId.trim();
             if (trimmedRuleId.isEmpty()) {
-                throw new GradleException("Baseline rule ids must not be blank");
+                throw new GradleException("Ignore rule ids must not be blank");
             }
             for (String path : paths) {
                 String trimmedPath = path.trim();
                 if (trimmedPath.isEmpty()) {
-                    throw new GradleException(String.format(Locale.ROOT, "Baseline path for rule [%s] must not be blank", trimmedRuleId));
+                    throw new GradleException(
+                        String.format(Locale.ROOT, "Ignore path for rule [%s] must not be blank", trimmedRuleId)
+                    );
                 }
-                entries.add(new BaselineEntry(trimmedRuleId, trimmedPath));
+                entries.add(new IgnoreEntry(trimmedRuleId, trimmedPath));
             }
         });
         return entries;
@@ -256,5 +256,5 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
 
     private record ScriptRule(String id, String title, Pattern pattern, String details, String solution) {}
 
-    private record BaselineEntry(String ruleId, String relativePath) {}
+    private record IgnoreEntry(String ruleId, String relativePath) {}
 }

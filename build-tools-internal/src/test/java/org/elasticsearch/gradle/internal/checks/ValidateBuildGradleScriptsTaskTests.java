@@ -73,7 +73,7 @@ public class ValidateBuildGradleScriptsTaskTests {
     }
 
     @Test
-    public void testBaselineSuppressesViolation() throws Exception {
+    public void testIgnoreSuppressesViolation() throws Exception {
         Project project = createProject();
         File scriptFile = writeFile(
             project,
@@ -81,7 +81,7 @@ public class ValidateBuildGradleScriptsTaskTests {
             List.of("tasks.named(\"forbiddenApisMain\").configure {", "  classpath += project(\":server\").sourceSets.main.runtimeClasspath", "}")
         );
         ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
-        task.getBaseline().set(java.util.Map.of("cross-project-dereference", List.of("distribution/tools/plugin-cli/bc/build.gradle")));
+        task.getIgnore().set(java.util.Map.of("cross-project-dereference", List.of("distribution/tools/plugin-cli/bc/build.gradle")));
 
         task.validateScripts();
 
@@ -89,48 +89,48 @@ public class ValidateBuildGradleScriptsTaskTests {
     }
 
     @Test
-    public void testFailsForStaleBaselineEntry() throws Exception {
+    public void testFailsForStaleIgnoreEntry() throws Exception {
         Project project = createProject();
         File scriptFile = writeFile(project, "subproject/build.gradle", List.of("dependencies {", "  implementation project(\":server\")", "}"));
         ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
-        task.getBaseline().set(java.util.Map.of("cross-project-dereference", List.of("subproject/build.gradle")));
+        task.getIgnore().set(java.util.Map.of("cross-project-dereference", List.of("subproject/build.gradle")));
 
         try {
             task.validateScripts();
             fail("GradleException was expected");
         } catch (GradleException e) {
-            assertTrue(e.getMessage().contains("stale-baseline-entry"));
+            assertTrue(e.getMessage().contains("stale-ignore-entry"));
             assertTrue(e.getMessage().contains("cross-project-dereference -> subproject/build.gradle"));
         }
     }
 
     @Test
-    public void testInvalidBaselineFormatFailsClearly() throws Exception {
+    public void testInvalidIgnoreFormatFailsClearly() throws Exception {
         Project project = createProject();
         File scriptFile = writeFile(project, "subproject/build.gradle", List.of("dependencies {", "  implementation project(\":server\")", "}"));
         ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
-        task.getBaseline().set(java.util.Map.of("", List.of("subproject/build.gradle")));
+        task.getIgnore().set(java.util.Map.of("", List.of("subproject/build.gradle")));
 
         try {
             task.validateScripts();
             fail("GradleException was expected");
         } catch (GradleException e) {
-            assertTrue(e.getMessage().contains("Baseline rule ids must not be blank"));
+            assertTrue(e.getMessage().contains("Ignore rule ids must not be blank"));
         }
     }
 
     @Test
-    public void testBlankBaselinePathFailsClearly() throws Exception {
+    public void testBlankIgnorePathFailsClearly() throws Exception {
         Project project = createProject();
         File scriptFile = writeFile(project, "subproject/build.gradle", List.of("dependencies {", "  implementation project(\":server\")", "}"));
         ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
-        task.getBaseline().set(java.util.Map.of("cross-project-dereference", List.of("  ")));
+        task.getIgnore().set(java.util.Map.of("cross-project-dereference", List.of("  ")));
 
         try {
             task.validateScripts();
             fail("GradleException was expected");
         } catch (GradleException e) {
-            assertTrue(e.getMessage().contains("Baseline path for rule [cross-project-dereference] must not be blank"));
+            assertTrue(e.getMessage().contains("Ignore path for rule [cross-project-dereference] must not be blank"));
         }
     }
 

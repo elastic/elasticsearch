@@ -294,7 +294,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * A declared mapping is the entire schema for every file, so the per-file schema map holds one value
      * repeated once per key. It is built once and shared: composing an equal {@code FileSchemaInfo} per
      * file — through a throwaway single-entry map merged into the result — made the cost of answering a
-     * schema-only query proportional to the file count, for a schema fully known before the listing ran.
+     * schema discovery proportional to the file count, for a schema fully known before the listing ran.
      * <p>
      * The assertion is identity rather than equality on purpose. Equal-but-distinct records would satisfy
      * an {@code equals} check while still allocating one schema, one identity mapping and one record per

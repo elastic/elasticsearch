@@ -1,5 +1,5 @@
 pr: 159825
-summary: Reduce schema-only query costs with a configurable partition sample size
+summary: Cut the I/O schema discovery performs on large datasets
 area: ES|QL
 type: enhancement
 issues: []

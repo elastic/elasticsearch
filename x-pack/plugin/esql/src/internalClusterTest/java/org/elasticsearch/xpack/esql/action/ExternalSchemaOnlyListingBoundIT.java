@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
  * written there would be served to the next query over the same glob, which would read a fraction of the data,
  * report success, and be believed.
  * <p>
- * Each test therefore runs the schema-only query first, on a dataset wide enough that the bound bites, and then
+ * Each test therefore discovers the schema first, on a dataset wide enough that the bound bites, and then
  * reads the same dataset in the same cluster and counts what comes back. Every row is the assertion. Ordering
  * matters and is the point: reversing it would let both queries pass while proving nothing.
  */
@@ -53,7 +53,7 @@ public class ExternalSchemaOnlyListingBoundIT extends AbstractExternalDataSource
         String dataset = registerLocalFileDataset("bound_ffw", glob, Map.of("format", "csv", "schema_resolution", "first_file_wins"));
 
         try (EsqlQueryResponse schemaOnly = run(syncEsqlQueryRequest("FROM " + dataset + " | LIMIT 0"), TIMEOUT)) {
-            assertThat("a schema-only query returns no rows", getValuesList(schemaOnly).size(), equalTo(0));
+            assertThat("no rows are read", getValuesList(schemaOnly).size(), equalTo(0));
             // The exact columns, not a lower bound: the risk a bound introduces is a DIFFERENT schema, and a
             // count that is merely large enough cannot see that. Inferred, so `id` is whatever the reader makes
             // of the CSV — not the `long` the declared case below asks for.
@@ -80,7 +80,7 @@ public class ExternalSchemaOnlyListingBoundIT extends AbstractExternalDataSource
     }
 
     /**
-     * A schema-only query twice over. The first leaves nothing cached under the dataset's key, so the second
+     * Schema discovery twice over. The first leaves nothing cached under the dataset's key, so the second
      * must not find a prefix there and must still answer the same schema.
      */
     public void testRepeatedSchemaOnlyQueryAnswersTheSameSchema() throws Exception {
@@ -107,7 +107,7 @@ public class ExternalSchemaOnlyListingBoundIT extends AbstractExternalDataSource
             List<List<Object>> values = getValuesList(response);
             assertThat(values.size(), equalTo(1));
             assertThat(
-                "a query that reads rows must see the whole dataset, whatever an earlier schema-only query listed",
+                "a query that reads rows must see the whole dataset, whatever earlier schema discovery listed",
                 ((Number) values.get(0).get(0)).longValue(),
                 equalTo((long) FILE_COUNT)
             );

@@ -132,7 +132,7 @@ public class ExternalSchemaOnlyListingCostIT extends AbstractExternalDataSourceI
                 long startNanos = System.nanoTime();
                 try (EsqlQueryResponse response = run(syncEsqlQueryRequest("FROM " + dataset + " | LIMIT 0"), TIMEOUT)) {
                     millisByCell.get(cell.label())[n] = (System.nanoTime() - startNanos) / 1_000_000L;
-                    assertThat("a schema-only query returns no rows", getValuesList(response).size(), equalTo(0));
+                    assertThat("no rows are read", getValuesList(response).size(), equalTo(0));
                     assertThat("the columns are still answered", response.columns().size(), greaterThanOrEqualTo(2));
                 }
             }

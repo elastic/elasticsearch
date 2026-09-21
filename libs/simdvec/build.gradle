@@ -128,5 +128,3 @@ nativeLibraryBuild {
 
   hostCommand { outputDir -> ['make', 'local-install', "DEST=${outputDir.asFile}"] }
 }
-
-// TODO remove me

@@ -8,18 +8,23 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.dsltranslate.QueryDslTranslator;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -30,16 +35,25 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.function.IntPredicate;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * The out-of-band request {@code filter} is applied to an external dataset by translating the Query DSL into ES|QL
@@ -85,6 +99,23 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         return "t" + (i % 4); // t0..t3
     }
 
+    // Sparse columns: a value on most rows, absent on the rest, so "has a value" selects part of the data.
+    private static boolean hasRating(int i) {
+        return i % 5 != 0;
+    }
+
+    private static int rating(int i) {
+        return (i * 7) % 100;
+    }
+
+    private static boolean hasNick(int i) {
+        return i % 3 != 0;
+    }
+
+    private static String nick(int i) {
+        return "n" + i;
+    }
+
     private static long bytes(int i) {
         return i * 1000L;
     }
@@ -118,18 +149,35 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
                     "ts",
                     "type=date",
                     "label",
+                    "type=keyword",
+                    "rating",
+                    "type=integer",
+                    "nick",
                     "type=keyword"
                 )
         );
         for (int i = 0; i < ROWS; i++) {
-            client().prepareIndex(INDEX)
-                .setSource("id", i, "status", status(i), "tags", tag(i), "bytes", bytes(i), "ts", ts(i), "label", label(i))
-                .get();
+            Map<String, Object> source = new HashMap<>();
+            source.put("id", i);
+            source.put("status", status(i));
+            source.put("tags", tag(i));
+            source.put("bytes", bytes(i));
+            source.put("ts", ts(i));
+            source.put("label", label(i));
+            if (hasRating(i)) {
+                source.put("rating", rating(i));
+            }
+            if (hasNick(i)) {
+                source.put("nick", nick(i));
+            }
+            client().prepareIndex(INDEX).setSource(source).get();
         }
         client().admin().indices().prepareRefresh(INDEX).get();
 
         // The dataset: identical rows as a strict declared-schema CSV, types matching the index mapping exactly.
-        StringBuilder csv = new StringBuilder("id:integer,status:integer,tags:keyword,bytes:long,ts:date,label:keyword\n");
+        StringBuilder csv = new StringBuilder(
+            "id:integer,status:integer,tags:keyword,bytes:long,ts:date,label:keyword,rating:integer,nick:keyword\n"
+        );
         for (int i = 0; i < ROWS; i++) {
             csv.append(i)
                 .append(',')
@@ -142,11 +190,21 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
                 .append(ts(i))
                 .append(',')
                 .append(label(i))
+                .append(',')
+                .append(hasRating(i) ? String.valueOf(rating(i)) : "")
+                .append(',')
+                .append(hasNick(i) ? nick(i) : "")
                 .append('\n');
         }
         Path csvFile = createTempDir().resolve("conformance.csv");
         Files.writeString(csvFile, csv.toString(), StandardCharsets.UTF_8);
-        dataset = registerStrictDataset("conf_ds", StoragePath.fileUri(csvFile), declaredColumns(), Map.of("format", "csv"));
+        dataset = registerStrictDataset(
+            "conf_ds",
+            StoragePath.fileUri(csvFile),
+            declaredColumns(),
+            // A blank cell is null, so a sparse column has genuinely missing values rather than empty strings.
+            Map.of("format", "csv", "null_value", "")
+        );
     }
 
     private static LinkedHashMap<String, DatasetFieldMapping> declaredColumns() {
@@ -157,6 +215,8 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         properties.put("bytes", new DatasetFieldMapping("long", null));
         properties.put("ts", new DatasetFieldMapping("date", null));
         properties.put("label", new DatasetFieldMapping("keyword", null));
+        properties.put("rating", new DatasetFieldMapping("integer", null));
+        properties.put("nick", new DatasetFieldMapping("keyword", null));
         return properties;
     }
 
@@ -361,21 +421,31 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
     }
 
     /**
-     * Fail-closed: a filter mixing a supported {@code term} with an unsupported {@code wildcard} in a required must arm
-     * fails the whole query with a 400 naming the construct — the supported clause does not rescue it.
+     * A filter mixing a supported {@code term} with an unsupported {@code wildcard} in a required must arm does not
+     * fail: the {@code term} is applied, the {@code wildcard} is dropped, and the dataset over-returns relative to the
+     * index rather than hiding a row. The wildcard matches only {@code t1}, so dropping it genuinely widens the result:
+     * the index applies both clauses and the dataset applies the {@code term} alone.
      */
-    public void testUnsupportedConstructFailsTheQuery() {
+    public void testUnsupportedConstructInAMustArmIsDropped() {
         QueryBuilder mixed = QueryBuilders.boolQuery()
             .must(QueryBuilders.termQuery("status", 300))
-            .must(QueryBuilders.wildcardQuery("tags", "t*"));
-        Exception e = expectThrows(Exception.class, () -> selectedIds(dataset, mixed));
-        Throwable cause = ExceptionsHelper.unwrapCause(e);
-        assertThat(cause.getMessage(), containsString("[wildcard]"));
-        assertThat("an unsupported construct is a 400, not a 500", ExceptionsHelper.status(cause), equalTo(RestStatus.BAD_REQUEST));
+            .must(QueryBuilders.wildcardQuery("tags", "*1"));
+        List<Object> onIndex = selectedIds(INDEX, mixed);
+        List<Object> onDataset = selectedIds(dataset, mixed);
+        assertThat("the index must select part of the data, or nothing here can be observed", onIndex.isEmpty(), equalTo(false));
+        assertThat("a dropped clause may only over-return", onDataset, hasItems(onIndex.toArray()));
+        assertThat("dropping the wildcard must widen the result", onDataset.size(), greaterThan(onIndex.size()));
+        // Against the index, which does not go through the translator: comparing with the dataset's own term-only answer
+        // would pass even if the term stopped filtering, because both sides would be wrong the same way.
+        assertEquals(
+            "the dataset applies exactly the surviving term clause",
+            selectedIds(INDEX, QueryBuilders.termQuery("status", 300)),
+            onDataset
+        );
     }
 
     /**
-     * Non-required should arm with an unsupported construct must NOT fail the query in fail-closed mode: the applied
+     * Non-required should arm with an unsupported construct leaves the applied filter semantically complete: the applied
      * filter is semantically complete (the must conjunct is the binding constraint; the should is optional).
      */
     public void testNonRequiredShouldUnsupportedDoesNotFailQuery() {
@@ -388,50 +458,105 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         assertThat("filter on must=300 must return rows", ids.isEmpty(), equalTo(false));
     }
 
-    // ---- REST layer tests: prove the URL param is parsed by RestEsqlQueryAction and flows through ----
+    // ---- A range with neither bound: the index answers it as exists, so the dataset must too ----
 
-    /**
-     * REST: without {@code allow_partial_dsl_filter}, an unsupported DSL construct fails the query with HTTP 400.
-     * This proves the default is fail-closed through the HTTP parsing path.
-     */
-    public void testRestParamDefaultFailsClosed() throws IOException {
-        Request request = new Request("POST", "/_query");
-        request.setJsonEntity(String.format(Locale.ROOT, """
-            {
-              "query": "FROM %s | KEEP id",
-              "filter": { "wildcard": { "tags": { "value": "t*" } } }
-            }
-            """, dataset));
-        ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("[wildcard]"));
+    private static List<Object> idsWhere(IntPredicate row) {
+        return IntStream.range(0, ROWS).filter(row).<Object>mapToObj(i -> i).toList();
     }
 
     /**
-     * REST: {@code allow_partial_dsl_filter=false} is explicit fail-closed — same as the default.
+     * Positive control for every case below: each sparse column really is sparse on both sides. If a blank CSV cell read
+     * as an empty string or zero instead of null, the dataset would report a value on every row and the parity cases
+     * would be comparing against the wrong thing without noticing.
      */
-    public void testRestParamFalseExplicit() throws IOException {
-        Request request = new Request("POST", "/_query");
-        request.addParameter("allow_partial_dsl_filter", "false");
-        request.setJsonEntity(String.format(Locale.ROOT, """
-            {
-              "query": "FROM %s | KEEP id",
-              "filter": { "wildcard": { "tags": { "value": "t*" } } }
-            }
-            """, dataset));
-        ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("[wildcard]"));
+    public void testSparseColumnsAreGenuinelySparseOnBothSides() {
+        List<Object> withRating = idsWhere(ExternalDatasetRequestFilterConformanceIT::hasRating);
+        List<Object> withNick = idsWhere(ExternalDatasetRequestFilterConformanceIT::hasNick);
+        assertThat("rating must be present on some rows but not all", withRating.size(), allOf(greaterThan(0), lessThan(ROWS)));
+        assertThat("nick must be present on some rows but not all", withNick.size(), allOf(greaterThan(0), lessThan(ROWS)));
+        assertEquals(withRating, selectedIds(INDEX, QueryBuilders.existsQuery("rating")));
+        assertEquals(withRating, selectedIds(dataset, QueryBuilders.existsQuery("rating")));
+        assertEquals(withNick, selectedIds(INDEX, QueryBuilders.existsQuery("nick")));
+        assertEquals(withNick, selectedIds(dataset, QueryBuilders.existsQuery("nick")));
     }
 
     /**
-     * REST: {@code allow_partial_dsl_filter=true} returns HTTP 200 with a {@code Warning} response header naming the
-     * dropped construct. This proves the URL param is parsed by {@link RestEsqlQueryAction} and flows through
-     * {@code EsqlSession} to {@code RequestFilterRewriter}.
+     * The case that returned fewer rows than the index: negating a bound-less range. The index selects the rows lacking
+     * the field; translating the range as a tautology selected none. Checked against the known answer as well as
+     * against the index, so the two cannot pass by being wrong the same way.
      */
-    public void testRestParamTrueAppliesPartially() throws IOException {
+    public void testMustNotRangeWithNoBoundsSelectsTheRowsLackingTheField() {
+        List<Object> lackingRating = idsWhere(i -> hasRating(i) == false);
+        QueryBuilder filter = QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("rating"));
+        assertEquals(lackingRating, selectedIds(INDEX, filter));
+        assertEquals(lackingRating, selectedIds(dataset, filter));
+
+        List<Object> lackingNick = idsWhere(i -> hasNick(i) == false);
+        QueryBuilder onKeyword = QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("nick"));
+        assertEquals(lackingNick, selectedIds(INDEX, onKeyword));
+        assertEquals(lackingNick, selectedIds(dataset, onKeyword));
+    }
+
+    /** Every column type, sparse, fully populated and missing, as a bare clause, under must_not and under filter. */
+    public void testRangeWithNoBoundsAgreesOnEveryColumn() {
+        for (String field : List.of("rating", "nick", "id", "status", "tags", "bytes", "ts", "label", "nope")) {
+            assertSelectsSameRows(QueryBuilders.rangeQuery(field));
+            assertSelectsSameRows(QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery(field)));
+            assertSelectsSameRows(QueryBuilders.boolQuery().filter(QueryBuilders.rangeQuery(field)));
+        }
+    }
+
+    /**
+     * Options that only shape bounds do not change what a bound-less range means: the index checks for missing bounds
+     * before it reads any of them. A time_zone in particular must not make the clause untranslatable — dropping it would
+     * widen a plain range from "has a value" to every row.
+     */
+    public void testRangeOptionsWithoutBoundsStillMeanExists() {
+        assertSelectsSameRows(QueryBuilders.rangeQuery("rating").timeZone("+01:00"));
+        assertSelectsSameRows(QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("rating").timeZone("+01:00")));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("rating").includeLower(false).includeUpper(false));
+        assertSelectsSameRows(QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("nick").includeLower(false)));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("ts").format("yyyy-MM-dd"));
+        assertSelectsSameRows(QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("ts").format("yyyy-MM-dd")));
+    }
+
+    /** Inside larger bools: beside a must, nested under must_not, as a required should arm, and against another sparse column. */
+    public void testRangeWithNoBoundsInsideLargerBools() {
+        assertSelectsSameRows(
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 300)).mustNot(QueryBuilders.rangeQuery("rating"))
+        );
+        assertSelectsSameRows(QueryBuilders.boolQuery().mustNot(QueryBuilders.boolQuery().must(QueryBuilders.rangeQuery("rating"))));
+        assertSelectsSameRows(
+            QueryBuilders.boolQuery().should(QueryBuilders.rangeQuery("rating")).should(QueryBuilders.termQuery("status", 200))
+        );
+        assertSelectsSameRows(QueryBuilders.boolQuery().must(QueryBuilders.rangeQuery("nick")).mustNot(QueryBuilders.rangeQuery("rating")));
+        assertSelectsSameRows(
+            QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("rating")).mustNot(QueryBuilders.rangeQuery("nick"))
+        );
+    }
+
+    /**
+     * A bound whose Java type is not a range type (a boolean), on a field neither source has. The translator types a
+     * one-bound literal from the Java value and a two-bound literal from the missing field, and skips the resolution
+     * check for a missing field, so this is where an unresolved leaf could reach the planner and fail the query.
+     */
+    public void testMissingFieldRangeWithNonRangeTypedBoundDoesNotFail() {
+        assertSelectsSameRows(QueryBuilders.rangeQuery("nope").gte(true));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("nope").lte(false));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("nope").gte(true).lte(false));
+        assertSelectsSameRows(QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("nope").gte(true)));
+        assertSelectsSameRows(QueryBuilders.termQuery("nope", true));
+    }
+
+    // ---- REST layer tests: the policy a request actually gets, through the HTTP parsing path ----
+
+    /**
+     * REST: an untranslatable construct in a top-level conjunct costs the caller that clause — HTTP 200, the rows the
+     * translatable remainder selects, and a {@code Warning} response header naming the construct that was dropped.
+     * There is no request parameter to set: this is the only policy a request can get.
+     */
+    public void testUntranslatableConstructIsDroppedWithAWarning() throws IOException {
         Request request = new Request("POST", "/_query");
-        request.addParameter("allow_partial_dsl_filter", "true");
         request.setJsonEntity(String.format(Locale.ROOT, """
             {
               "query": "FROM %s | KEEP id",
@@ -445,5 +570,71 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
             "expected a warning about the dropped [wildcard] construct; got: " + warnings,
             warnings.stream().anyMatch(w -> w.contains("[wildcard]"))
         );
+    }
+
+    /**
+     * Asking the translator directly whether it expressed a whole filter is how the sweep decides when to demand exact
+     * agreement with the index. That answer has to match the one the query gives, which is the drop warning.
+     */
+    public void testAskingTheTranslatorMatchesTheDropWarning() throws IOException {
+        // Every column the dataset declares, not a sample of them: a filter naming a column the map omits would bind
+        // to a null literal here and to a real field in the query, which is the divergence this test exists to deny.
+        Map<String, DataType> types = Map.ofEntries(
+            Map.entry("id", DataType.INTEGER),
+            Map.entry("status", DataType.INTEGER),
+            Map.entry("tags", DataType.KEYWORD),
+            Map.entry("bytes", DataType.LONG),
+            Map.entry("ts", DataType.DATETIME),
+            Map.entry("label", DataType.KEYWORD),
+            Map.entry("rating", DataType.INTEGER),
+            Map.entry("nick", DataType.KEYWORD)
+        );
+        List<QueryBuilder> filters = List.of(
+            QueryBuilders.termQuery("status", 200),
+            QueryBuilders.rangeQuery("bytes").gte(10).lte(100),
+            QueryBuilders.rangeQuery("tags").gte("a"),
+            QueryBuilders.existsQuery("tags"),
+            QueryBuilders.wildcardQuery("tags", "t*"),
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 200)).must(QueryBuilders.wildcardQuery("tags", "t*")),
+            QueryBuilders.prefixQuery("tags", "t"),
+            // The four columns the old four-entry map left out, so an omission diverges here rather than in the field.
+            QueryBuilders.rangeQuery("ts").gte("2020-01-01"),
+            QueryBuilders.termQuery("label", "Alpha"),
+            QueryBuilders.rangeQuery("rating").gte(2),
+            QueryBuilders.existsQuery("nick")
+        );
+        for (QueryBuilder filter : filters) {
+            Request request = new Request("POST", "/_query");
+            request.setJsonEntity("{\"query\": \"FROM " + dataset + " | KEEP id\", \"filter\": " + Strings.toString(filter) + "}");
+            Response response = getRestClient().performRequest(request);
+            boolean warned = response.getWarnings().stream().anyMatch(w -> w.contains("were skipped"));
+            Function<String, Expression> binder = name -> {
+                DataType type = types.get(name);
+                return type == null ? Literal.NULL : new ReferenceAttribute(Source.EMPTY, name, type);
+            };
+            boolean translatedInFull = new QueryDslTranslator(binder, types.keySet(), TEST_CFG).translate(filter).unsupported().isEmpty();
+            assertThat(Strings.toString(filter), translatedInFull, equalTo(warned == false));
+        }
+    }
+
+    /**
+     * REST: {@code allow_partial_dsl_filter} is withdrawn, so sending it is a request error rather than a way to
+     * select the strict policy. Pins the removal: reintroducing the parameter makes this test fail.
+     */
+    public void testWithdrawnPartialFilterParameterIsRejected() throws IOException {
+        // The parameter came out of both REST specifications, so pin the removal on both endpoints.
+        for (String endpoint : List.of("/_query", "/_query/async")) {
+            Request request = new Request("POST", endpoint);
+            request.addParameter("allow_partial_dsl_filter", "true");
+            request.setJsonEntity(String.format(Locale.ROOT, """
+                {
+                  "query": "FROM %s | KEEP id",
+                  "filter": { "term": { "status": 200 } }
+                }
+                """, dataset));
+            ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+            assertThat(endpoint, e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(endpoint, EntityUtils.toString(e.getResponse().getEntity()), containsString("allow_partial_dsl_filter"));
+        }
     }
 }

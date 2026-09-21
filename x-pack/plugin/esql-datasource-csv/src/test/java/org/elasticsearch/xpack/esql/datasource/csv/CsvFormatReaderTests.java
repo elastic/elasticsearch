@@ -377,6 +377,16 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals("name", schema.get(1).name());
     }
 
+    /** Same as {@link #testLeadingBomDoesNotMaskACommentLine}, for TSV \u2014 explicitly measured in the issue. */
+    public void testLeadingBomDoesNotMaskACommentLineTsv() throws Exception {
+        StorageObject object = createStorageObject("\uFEFF// exported by tool\nid\tname\n1\talpha\n");
+        CsvFormatReader reader = new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of("tsv"));
+        List<Attribute> schema = reader.metadata(object).schema();
+        assertEquals("the comment line must still be a comment behind a BOM", 2, schema.size());
+        assertEquals("id", schema.get(0).name());
+        assertEquals("name", schema.get(1).name());
+    }
+
     /** Same, for TSV \u2014 one reader serves both formats, so the BOM has to come off the tab dialect too. */
     public void testLeadingBomStrippedForTsvHeaderlessFirstRecord() throws Exception {
         StorageObject object = createStorageObject("\uFEFF1\talpha\n2\tbeta\n");

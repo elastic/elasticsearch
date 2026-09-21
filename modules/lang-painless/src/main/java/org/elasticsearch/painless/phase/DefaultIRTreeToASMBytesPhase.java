@@ -1805,9 +1805,9 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         List<String> captureNames = irDefInterfaceReferenceNode.getDecorationValue(IRDCaptureNames.class);
         boolean captureBox = irDefInterfaceReferenceNode.hasCondition(IRCCaptureBox.class);
 
-        // The functional interface is resolved at runtime, but its capture object is allocated all the same: one slot per
-        // captured value, counting the implicit script capture and the synthetic #scriptThis capture when injected. Charge it
-        // exactly as the typed path does; the pre-check has a net-zero stack effect.
+        // The functional interface is picked at runtime, but the capture object is allocated either way: one slot per captured
+        // value, plus one for the script instance when it is captured. Charge it the same way the typed path does. The check
+        // leaves nothing on the stack, so it can go first.
         int captureCount = (irDefInterfaceReferenceNode.hasCondition(IRCInstanceCapture.class) ? 1 : 0) + (captureNames == null
             ? 0
             : captureNames.size());

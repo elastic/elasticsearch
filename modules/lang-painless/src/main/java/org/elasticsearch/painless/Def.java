@@ -210,9 +210,9 @@ public final class Def {
     }
 
     /**
-     * Wraps {@code handle} (shape {@code (receiver, scriptThis, userArgs...)}) to charge {@code estimator}'s {@code @allocates}
-     * cost via {@link PainlessScript#$checkAllocBytes(long)} before the call. Applied before any lambda-argument filters are
-     * folded in, so the handle always has this plain shape here (see {@link #lookupMethod}).
+     * Wraps {@code handle}, whose shape is {@code (receiver, scriptThis, userArgs...)}, so it runs {@code estimator} and
+     * {@link PainlessScript#$checkAllocBytes(long)} before the real call. Callers apply this before any lambda-argument
+     * filters are added, so the handle always has that plain shape here (see {@link #lookupMethod}).
      */
     private static MethodHandle chargeAllocationBeforeCall(
         MethodHandle handle,
@@ -395,10 +395,10 @@ public final class Def {
             handle = MethodHandles.insertArguments(handle, injectStart, injections);
         }
 
-        // Same script-first → receiver-first swap as the simple case; drop the extra slot when not @script_aware. Charge here,
-        // before the lambda filters are folded in below: at this point the handle still has the plain (receiver, scriptThis,
-        // userArgs...) shape the estimator mirrors, and folding the filters into the charged handle afterwards means the
-        // estimator is handed the materialized functional-interface argument rather than the recipe placeholders.
+        // Same swap as the simple case: script-first becomes receiver-first, or the extra slot is dropped when the method is not
+        // @script_aware. Charge the allocation here, before the lambda filters are added below. At this point the handle still
+        // has the plain (receiver, scriptThis, userArgs...) shape the estimator expects. Because the filters wrap the charged
+        // handle, the estimator sees the real lambda object, not the recipe placeholder.
         if (scriptThisPushed) {
             if (methodTakesScriptThis) {
                 handle = swapFirstTwoArguments(handle);

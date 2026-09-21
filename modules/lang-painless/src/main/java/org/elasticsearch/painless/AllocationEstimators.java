@@ -136,43 +136,42 @@ public final class AllocationEstimators {
         return 32 + AllocSizes.mulSat(size, 40);
     }
 
-    // ---- java.util collections whose cost scales with an argument: sized and copying constructors, and the list-building
-    // ---- augmentations. Growth garbage from repeated add() is not modeled anywhere, so the final capacity is charged, never
-    // ---- the intermediate copies.
+    // ---- java.util collections whose size depends on an argument: sized constructors, copy constructors, and the
+    // ---- augmentations that build a list. Only the final backing array is charged, not the copies made while it grows.
 
-    /** {@code BitSet} object without its word array; {@link #bitSetShellBytes()} adds the default single word. */
+    /** A {@code BitSet} with no word array. {@link #bitSetShellBytes()} adds the default single word. */
     private static final long BIT_SET_OBJECT_BYTES = 32;
-    /** {@code ArrayDeque} object without its element array; {@link #arrayDequeShellBytes()} adds the default 16 slots. */
+    /** An {@code ArrayDeque} with no element array. {@link #arrayDequeShellBytes()} adds the default 16 slots. */
     private static final long ARRAY_DEQUE_OBJECT_BYTES = 32;
-    /** {@code Hashtable} object without its table; {@link #hashtableShellBytes()} adds the default 11 slots. */
+    /** A {@code Hashtable} with no table. {@link #hashtableShellBytes()} adds the default 11 slots. */
     private static final long HASHTABLE_OBJECT_BYTES = 40;
-    /** One {@code Hashtable.Entry}: header, hash, and the key, value and next references. */
+    /** One {@code Hashtable.Entry}: header, hash int, and three references (key, value, next). */
     private static final long HASHTABLE_ENTRY_BYTES = 40;
-    /** {@code IdentityHashMap} object without its table; {@link #identityHashMapShellBytes()} adds the default 64 slots. */
+    /** An {@code IdentityHashMap} with no table. {@link #identityHashMapShellBytes()} adds the default 64 slots. */
     private static final long IDENTITY_HASH_MAP_OBJECT_BYTES = 32;
-    /** A {@code List.subList} view: references to the root and parent lists plus offset, size and modCount. */
+    /** A {@code List.subList} view: two list references plus offset, size and modCount. */
     private static final long SUB_LIST_VIEW_BYTES = 40;
-    /** Default {@code ArrayList} capacity, the floor on what a list built by repeated {@code add} ends up holding. */
+    /** Default {@code ArrayList} capacity. A list built by repeated {@code add} never holds less than this. */
     private static final long ARRAY_LIST_DEFAULT_CAPACITY = 10;
 
     /**
-     * Cost of {@code new BitSet(nbits)}: the object plus a {@code long[]} holding {@code nbits} bits. A negative count, which
-     * the real constructor rejects, costs just the object.
+     * {@code new BitSet(nbits)}: the object plus a {@code long[]} big enough for {@code nbits} bits. A negative count is
+     * rejected by the real constructor, so it charges just the object.
      */
     public static long bitSetBytes(int nbits) {
         long words = nbits <= 0 ? 0 : ((long) nbits + 63) / 64;
         return AllocSizes.addSat(BIT_SET_OBJECT_BYTES, AllocSizes.arrayBytes(words, Long.BYTES));
     }
 
-    /** Cost of {@code new ArrayDeque(collection)}: the object plus an element array one slot larger than the source. */
+    /** {@code new ArrayDeque(collection)}: the object plus an element array with one more slot than the source has elements. */
     public static long arrayDequeCollectionBytes(Collection<?> collection) {
         long size = collection == null ? 0 : collection.size();
         return AllocSizes.addSat(ARRAY_DEQUE_OBJECT_BYTES, AllocSizes.arrayBytes(AllocSizes.addSat(size, 1), AllocSizes.REFERENCE_SIZE));
     }
 
     /**
-     * Cost of {@code new Hashtable(map)}: the object, a table of twice the source size (at least 11 slots), and one entry per
-     * mapping.
+     * {@code new Hashtable(map)}: the object, a table with twice as many slots as the source has entries (at least 11), and
+     * one entry object per source entry.
      */
     public static long hashtableCopyBytes(Map<?, ?> source) {
         long size = source == null ? 0 : source.size();
@@ -182,9 +181,9 @@ public final class AllocationEstimators {
     }
 
     /**
-     * Cost of {@code new IdentityHashMap(map)}: the object plus its open-addressed table. The JDK expects 1.1 times the source
-     * size plus one, rounds that to a power-of-two capacity between 1.5 and 3 times the expectation, and stores two references
-     * per slot. This charges the top of that range, so the rounding never under-counts.
+     * {@code new IdentityHashMap(map)}: the object plus its table. The JDK plans for 1.1 times the source size plus one,
+     * rounds that up to a power of two somewhere between 1.5 and 3 times the plan, and uses two references per slot. This
+     * charges the largest value that rounding can produce, so it never charges less than the real table.
      */
     public static long identityHashMapCopyBytes(Map<?, ?> source) {
         long size = source == null ? 0 : source.size();
@@ -195,28 +194,28 @@ public final class AllocationEstimators {
         );
     }
 
-    /** Cost of {@code List.subList(from, to)}: a fixed-size view object; the elements stay with the receiver. */
+    /** {@code List.subList(from, to)}: one small view object. The elements are not copied. */
     public static long subListBytes(List<?> receiver, int from, int to) {
         return SUB_LIST_VIEW_BYTES;
     }
 
     /**
-     * Cost of the {@code Collection.collect(Function)} augmentation: a new {@code ArrayList} with one result per source element.
-     * The results themselves are charged wherever the function allocates them. The leading script parameter mirrors the
-     * {@code @script_aware} augmentation's signature and is unused.
+     * The {@code Collection.collect(Function)} augmentation: a new {@code ArrayList} with one slot per source element. What
+     * the function returns is charged where the function allocates it, not here. The script parameter is only here to match
+     * the {@code @script_aware} signature.
      */
     public static long collectBytes(PainlessScript script, Collection<?> receiver, Function<?, ?> function) {
         return listBuiltByAddBytes(receiver == null ? 0 : receiver.size());
     }
 
-    /** Cost of the {@code Map.collect(BiFunction)} augmentation: a new {@code ArrayList} with one result per mapping. */
+    /** The {@code Map.collect(BiFunction)} augmentation: a new {@code ArrayList} with one slot per map entry. */
     public static long collectBytes(PainlessScript script, Map<?, ?> receiver, BiFunction<?, ?, ?> function) {
         return listBuiltByAddBytes(receiver == null ? 0 : receiver.size());
     }
 
     /**
-     * Cost of the {@code Collection.split(Predicate)} augmentation: a two-element outer list plus two lists that between them
-     * hold every source element. Either could end up with all of them, so both are charged at the source size.
+     * The {@code Collection.split(Predicate)} augmentation: an outer list of two, plus two inner lists that share the source
+     * elements between them. Either inner list could get all of them, so both are charged at the full source size.
      */
     public static long splitBytes(PainlessScript script, Collection<?> receiver, Predicate<?> predicate) {
         long size = receiver == null ? 0 : receiver.size();
@@ -224,23 +223,23 @@ public final class AllocationEstimators {
         return AllocSizes.addSat(outer, AllocSizes.mulSat(listBuiltByAddBytes(size), 2));
     }
 
-    /** An {@code ArrayList} filled by adding {@code count} elements: the shell plus a backing array of at least the default capacity. */
+    /** An {@code ArrayList} built by adding {@code count} elements: the object plus a backing array of at least the default capacity. */
     private static long listBuiltByAddBytes(long count) {
         long capacity = Math.max(ARRAY_LIST_DEFAULT_CAPACITY, count);
         return AllocSizes.addSat(ARRAY_LIST_SHELL_BYTES, AllocSizes.arrayBytes(capacity, AllocSizes.REFERENCE_SIZE));
     }
 
     /**
-     * Cost of the {@code Pattern.split(CharSequence)} augmentation, as a bound: every character could start a new piece, so
-     * {@code length + 1} strings holding {@code length} characters between them, plus the array that holds the pieces.
-     * {@code limitFactor} is the compiler-injected regex limit and does not affect the size. A {@code null} input, which the
-     * real call rejects, costs one empty piece.
+     * The {@code Pattern.split(CharSequence)} augmentation, as an upper bound: every character could start a new piece, so up
+     * to {@code length + 1} strings that together hold {@code length} characters, plus the array that holds them.
+     * {@code limitFactor} is the regex limit the compiler injects and does not change the size. A {@code null} input is
+     * rejected by the real call, so it charges one empty piece.
      */
     public static long patternSplitBytes(Pattern receiver, int limitFactor, CharSequence input) {
         return patternSplitBytes(receiver, limitFactor, input, 0);
     }
 
-    /** Cost of {@code Pattern.split(CharSequence, limit)}: as above, capped at {@code limit} pieces when it is positive. */
+    /** {@code Pattern.split(CharSequence, limit)}: same as above, but no more than {@code limit} pieces when limit is positive. */
     public static long patternSplitBytes(Pattern receiver, int limitFactor, CharSequence input, int limit) {
         long chars = input == null ? 0 : input.length();
         long pieces = limit > 0 ? Math.min(limit, chars + 1) : chars + 1;

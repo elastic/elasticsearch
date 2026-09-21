@@ -69,7 +69,7 @@ public class AllocationCollectionCopyTests extends AllocationTestCase {
     }
 
     public void testBitSetSizedScalesWithBits() {
-        // 200 bits fit in 4 words; 20,000 need 313. The charge follows the word array, not the object.
+        // 200 bits need 4 words; 20,000 need 313. The charge grows with the word array, not the object.
         assertThat(AllocationEstimators.bitSetBytes(20_000), greaterThan(AllocationEstimators.bitSetBytes(200)));
         assertEquals(AllocationEstimators.bitSetBytes(20_000), allocatedBytes("new BitSet(20000); return \"x\";"));
     }
@@ -79,7 +79,7 @@ public class AllocationCollectionCopyTests extends AllocationTestCase {
     }
 
     public void testArrayDequeCopyCharged() {
-        // inner new ArrayList() = 40; the deque copy sizes its array to the source plus one slot.
+        // The inner new ArrayList() costs 40. The deque copy makes an array one slot bigger than the source.
         long expected = 40L + AllocationEstimators.arrayDequeCollectionBytes(new ArrayList<>());
         assertEquals(expected, allocatedBytes("new ArrayDeque(new ArrayList()); return \"x\";"));
     }
@@ -100,8 +100,8 @@ public class AllocationCollectionCopyTests extends AllocationTestCase {
     }
 
     public void testIdentityHashMapCopyCoversTheTableTheJdkPicks() {
-        // The JDK expects 1.1 * (size + 1) mappings, rounds to a power-of-two capacity, and stores two references per slot.
-        // The estimate takes the top of the rounding range, so it must cover the real table at every size.
+        // The JDK plans for 1.1 * (size + 1) entries, rounds up to a power of two, and uses two references per slot.
+        // The estimate takes the largest value that rounding can give, so it must be at least the real table at every size.
         for (int size : new int[] { 0, 1, 2, 3, 5, 10, 21, 22, 43, 100, 1000, 12345 }) {
             int expectedMaxSize = (int) ((1 + size) * 1.1);
             int capacity = Math.max(4, Integer.highestOneBit(expectedMaxSize * 3));
@@ -128,28 +128,28 @@ public class AllocationCollectionCopyTests extends AllocationTestCase {
     }
 
     /**
-     * A lambda with no user captures still allocates a capture object, charged where the lambda is built, on the typed and
-     * the def path alike. Allocation tracking injects one synthetic {@code #scriptThis} capture so the body can reach the
-     * counter, hence one slot.
+     * A lambda with no user captures still allocates a capture object. It is charged where the lambda is built, on both the
+     * typed and the def path. Allocation tracking adds one hidden {@code #scriptThis} capture so the body can reach the
+     * counter, so the object has one slot.
      */
     private static final long LAMBDA_BYTES = AllocSizes.captureSize(1);
 
     public void testCollectCharged() {
-        // new ArrayList() = 40, the lambda's capture object, then the collect result sized to the two elements.
+        // new ArrayList() costs 40, then the lambda's capture object, then the collect result sized for two elements.
         long expected = 40L + LAMBDA_BYTES + AllocationEstimators.collectBytes(null, List.of("a", "b"), null);
         assertEquals(expected, allocatedBytes("List l = new ArrayList(); l.add(\"a\"); l.add(\"b\"); l.collect(x -> x); return \"x\";"));
     }
 
     public void testCollectChargedThroughDef() {
-        // First @allocates on a @script_aware augmentation reached through def with an inline lambda: the def lookup must charge
-        // on the lambda-argument path (previously a known gap) and line the script slot up with the estimator's. The def
-        // lambda's capture object is charged like a typed one.
+        // A @script_aware augmentation with @allocates, called through def with an inline lambda. The def lookup has to charge
+        // on its lambda-argument path, which used to be a known gap, and put the script slot where the estimator expects it.
+        // The def lambda's capture object is charged the same as a typed one.
         long expected = 40L + LAMBDA_BYTES + AllocationEstimators.collectBytes(null, List.of("a"), null);
         assertEquals(expected, allocatedBytes("def l = new ArrayList(); l.add(\"a\"); l.collect(x -> x); return \"x\";"));
     }
 
     public void testSplitChargedThroughDef() {
-        // A def lambda returns def, so its boolean result is boxed on the way out and that box is charged like any other.
+        // A def lambda returns def, so its boolean result gets boxed, and that box is charged like any other.
         long expected = 40L + LAMBDA_BYTES + AllocSizes.boxSize(boolean.class) + AllocationEstimators.splitBytes(null, List.of("a"), null);
         assertEquals(expected, allocatedBytes("def l = new ArrayList(); l.add(\"a\"); l.split(x -> true); return \"x\";"));
     }
@@ -169,7 +169,7 @@ public class AllocationCollectionCopyTests extends AllocationTestCase {
     }
 
     public void testCollectTripsLimit() {
-        // The list shell and the lambda fit under 100b; the collect result does not.
+        // The list object and the lambda together are under 100 bytes. The collect result is not.
         assertTripsLimit("List l = new ArrayList(); l.collect(x -> x); return \"x\";", "100b");
     }
 }

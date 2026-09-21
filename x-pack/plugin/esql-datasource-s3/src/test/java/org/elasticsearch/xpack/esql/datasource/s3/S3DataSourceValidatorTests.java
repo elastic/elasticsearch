@@ -580,12 +580,17 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertThat(e.getMessage(), containsString("first_file_wins"));
     }
 
-    public void testValidateDatasetFileSortByRejectedWhenSchemaResolutionOmitted() {
-        var e = expectThrows(
-            ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_sort_by", "name"))
-        );
-        assertThat(e.getMessage(), containsString("first_file_wins"));
+    public void testValidateDatasetOmittedSchemaResolutionMaterializesFirstFileWins() {
+        Map<String, Object> first = validator.validateDataset(Map.of(), "s3://b/p", Map.of());
+        Map<String, Object> second = validator.validateDataset(Map.of(), "s3://b/p", Map.of());
+        assertEquals("first_file_wins", first.get("schema_resolution"));
+        assertEquals(first, second);
+    }
+
+    public void testValidateDatasetFileSortByAcceptedWhenSchemaResolutionOmitted() {
+        Map<String, Object> result = validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_sort_by", "name"));
+        assertEquals("first_file_wins", result.get("schema_resolution"));
+        assertEquals("name", result.get("file_sort_by"));
     }
 
     public void testValidateDatasetFileSortByAcceptedWithFirstFileWins() {
@@ -623,7 +628,15 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasetMaxErrors() {
-        assertEquals("100", validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_errors", "100")).get("max_errors"));
+        // A bare budget without error_mode is refused — the mode is the user's decision.
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_errors", "100")));
+    }
+
+    public void testValidateDatasetMaxErrorsWithExplicitMode() {
+        assertEquals(
+            "100",
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_errors", "100", "error_mode", "skip_row")).get("max_errors")
+        );
     }
 
     public void testValidateDatasetMaxErrorsNonNumber() {
@@ -631,7 +644,16 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasetMaxErrorRatio() {
-        assertEquals("0.1", validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_error_ratio", "0.1")).get("max_error_ratio"));
+        // A bare budget without error_mode is refused — the mode is the user's decision.
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_error_ratio", "0.1")));
+    }
+
+    public void testValidateDatasetMaxErrorRatioWithExplicitMode() {
+        assertEquals(
+            "0.1",
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_error_ratio", "0.1", "error_mode", "null_field"))
+                .get("max_error_ratio")
+        );
     }
 
     public void testValidateDatasetMaxErrorRatioOutOfRange() {
@@ -1461,6 +1483,39 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         // to no format in this test resolver); after fix it is accepted because the last dot wins.
         var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/data.parquet?x=.csv", Map.of("delimiter", ";"));
         assertEquals(";", result.get("delimiter"));
+    }
+
+    /** Validator configured as the plugin does: additional dataset key + deprecation hook for region. */
+    private final FileDataSourceValidator pluginValidator = new FileDataSourceValidator(
+        "s3",
+        S3Configuration::fromMap,
+        Set.of("s3", "s3a", "s3n")
+    ).withAdditionalDatasetKeys(Set.of("region"))
+        .withDeprecatedDatasourceKey(
+            "region",
+            "[region] on a data source is deprecated and will be ignored; "
+                + "set [region] on the dataset instead, or omit it to have the bucket region detected automatically"
+        );
+
+    public void testValidateDatasetAcceptsRegion() {
+        // region is an additional dataset key registered by the S3 plugin; a dataset PUT with region
+        // must succeed without an "unknown field" error.
+        var result = pluginValidator.validateDataset(Map.of(), "s3://bucket/data.parquet", Map.of("region", "eu-west-1"));
+        assertEquals("eu-west-1", result.get("region"));
+    }
+
+    public void testValidateDatasourceRegionDeprecationWarningEmitted() {
+        // Placing region on a data source is valid (backward compat) but deprecated.
+        // The PUT must succeed, emit the expected deprecation warning, and store the value unchanged
+        // so GET still returns it (the storage provider ignores it; only the dataset-level value is used).
+        var stored = pluginValidator.validateDatasource(
+            Map.of("access_key", "AKIAIOSFODNN7EXAMPLE", "secret_key", "secret", "region", "us-east-1")
+        );
+        assertEquals("us-east-1", stored.get("region").nonSecretValue());
+        assertWarnings(
+            "[region] on a data source is deprecated and will be ignored; "
+                + "set [region] on the dataset instead, or omit it to have the bucket region detected automatically"
+        );
     }
 
     public void testUnsupportedSchemeListsTheSchemesInAStableOrder() {

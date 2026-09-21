@@ -35,6 +35,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -261,7 +262,6 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("row with more fields than the header", 400),
         entry("declared column of an undeclarable type", 400),
         entry("unknown key inside the mappings block", 400),
-        entry("_id.path points at a column that is not declared", 400),
         entry("two declared columns resolving to one physical column", 400),
         entry("date format declared on a non-date column", 400),
         entry("strict declaration with no columns", 400),
@@ -335,7 +335,6 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("row with more fields than the header", "external_client_exception"),
         entry("declared column of an undeclarable type", "illegal_argument_exception"),
         entry("unknown key inside the mappings block", "x_content_parse_exception"),
-        entry("_id.path points at a column that is not declared", "illegal_argument_exception"),
         entry("two declared columns resolving to one physical column", "illegal_argument_exception"),
         entry("date format declared on a non-date column", "illegal_argument_exception"),
         entry("strict declaration with no columns", "illegal_argument_exception"),
@@ -377,7 +376,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         // A working data source and dataset, so every negative case below differs from a known-good
         // baseline by exactly one thing.
         putDataSource("good_ds", staticCredentialSettings());
-        putDataset("good_ds_rows", "good_ds", s3(GOOD_CSV), null, null);
+        putDataset("good_ds_rows", "good_ds", s3(GOOD_CSV), Map.of("region", regionSupplier.get()), null);
         assertQuerySucceeds("FROM good_ds_rows | STATS c = COUNT(*)");
 
         sweepReportedCase();
@@ -774,18 +773,6 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         );
         crudProbe(
             "declared_mapping",
-            "_id.path points at a column that is not declared",
-            "name the missing column",
-            () -> putDataset(
-                "bad_idpath_ds",
-                "good_ds",
-                s3(GOOD_CSV),
-                null,
-                Map.of("dynamic", "false", "properties", Map.of("id", Map.of("type", "long")), "_id", Map.of("path", "nonexistent_column"))
-            )
-        );
-        crudProbe(
-            "declared_mapping",
             "two declared columns resolving to one physical column",
             "name both logical columns and the physical one they collide on",
             () -> putDataset(
@@ -821,7 +808,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
             "strict_mismatch_ds",
             "good_ds",
             s3(GOOD_CSV),
-            null,
+            Map.of("region", regionSupplier.get()),
             Map.of("dynamic", "false", "properties", Map.of("id", Map.of("type", "long"), "city", Map.of("type", "long")))
         );
         queryProbeExisting(
@@ -1034,7 +1021,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
             setup.run();
         }
         record(group, name, expectation, () -> {
-            putDataset(dataset, dataSource, resource, null, null);
+            putDataset(dataset, dataSource, resource, Map.of("region", regionSupplier.get()), null);
             runEsql("FROM " + dataset + " | LIMIT 5");
         });
     }
@@ -1049,7 +1036,9 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         Map<String, Object> settings
     ) throws IOException {
         record(group, name, expectation, () -> {
-            putDataset(dataset, dataSource, resource, settings, null);
+            Map<String, Object> withRegion = new HashMap<>(settings);
+            withRegion.put("region", regionSupplier.get());
+            putDataset(dataset, dataSource, resource, Map.copyOf(withRegion), null);
             runEsql("FROM " + dataset + " | LIMIT 5");
         });
     }

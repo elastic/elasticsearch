@@ -69,7 +69,7 @@ import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.KeyFilteredSortingArrayOrderBinaryDocValues;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -1202,13 +1202,13 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     public static final class BinaryKeyedFlattenedFieldData implements IndexFieldData<LeafFieldData> {
         private final String key;
         private final BytesBinaryIndexFieldData delegate;
-        private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
+        private final ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory;
         private final boolean usesArrayOrderBinaryDocValues;
 
         private BinaryKeyedFlattenedFieldData(
             String key,
             BytesBinaryIndexFieldData delegate,
-            ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+            ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory,
             boolean usesArrayOrderBinaryDocValues
         ) {
             this.delegate = delegate;
@@ -1287,7 +1287,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                     }
 
                     @Override
-                    public SortedBinaryDocValues getBytesValues() {
+                    public SortableBinaryDocValues getBytesValues() {
                         return dv;
                     }
                 };
@@ -1299,14 +1299,14 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         public static class Builder implements IndexFieldData.Builder {
             private final String fieldName;
             private final String key;
-            private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
+            private final ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory;
             private final IndexVersion indexVersion;
             private final boolean usesArrayOrderBinaryDocValues;
 
             Builder(
                 String fieldName,
                 String key,
-                ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+                ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory,
                 IndexVersion indexVersion,
                 boolean usesArrayOrderBinaryDocValues
             ) {

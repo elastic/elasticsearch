@@ -1542,8 +1542,8 @@ SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data
 | STATS count(*) BY message::INT
 ;
-warningRegex: Line 3:21: evaluation of \[message::INT\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[.*\]
+warning: Line 3:21: evaluation of \[message::INT\] failed, treating result as null. Only first 20 failures recorded.
+warning: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[.*\]
 
 count(*):long | message::INT:integer
 13            | null
@@ -4203,8 +4203,8 @@ FROM unmapped_multi_*, -unmapped_multi_mapped_mixed
 | KEEP id, unmapped.foo
 | SORT id
 ;
-warningRegex:evaluation of \[unmapped.foo\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[unmapped.foo\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 id:keyword | unmapped.foo:keyword
 1          | foo1

@@ -719,8 +719,8 @@ FROM employees
 | LIMIT 5
 ;
 
-warningRegex:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
+warning:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword
 10002          | Senior Team Lead
@@ -744,8 +744,8 @@ FROM employees
 | LIMIT 5
 ;
 
-warningRegex:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
+warning:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword
 10002          | Senior Team Lead
@@ -767,8 +767,8 @@ FROM employees
 | LIMIT 5
 ;
 
-warningRegex:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
+warning:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword
 10002          | Senior Team Lead
@@ -788,8 +788,8 @@ FROM employees
 | STATS cnt = COUNT(*)
 ;
 
-warningRegex:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
+warning:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
 
 cnt:long
 27     
@@ -833,8 +833,8 @@ FROM employees
 | LIMIT 5
 ;
 
-warningRegex:.*evaluation of \[\(emp_no, job_positions, is_rehired\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions, is_rehired.*\)\] failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:.*evaluation of \[\(emp_no, job_positions, is_rehired\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions, is_rehired.*\)\] failed.*
+warning:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword      | is_rehired:boolean
 10021          | Support Engineer           | true
@@ -859,8 +859,8 @@ FROM employees
 | LIMIT 5
 ;
 
-warningRegex:.*evaluation of \[\(emp_no, job_positions, is_rehired\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions, is_rehired.*\)\] failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:.*evaluation of \[\(emp_no, job_positions, is_rehired\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions, is_rehired.*\)\] failed.*
+warning:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword      | is_rehired:boolean
 10021          | Support Engineer           | true
@@ -881,8 +881,8 @@ FROM employees
 | LIMIT 5
 ;
 
-warningRegex:.*evaluation of \[\(emp_no, job_positions, is_rehired\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions, is_rehired.*\)\] failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:.*evaluation of \[\(emp_no, job_positions, is_rehired\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions, is_rehired.*\)\] failed.*
+warning:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword      | is_rehired:boolean
 10021          | Support Engineer           | true
@@ -934,8 +934,8 @@ FROM employees
 | LIMIT 10
 ;
 
-warningRegex:.*evaluation of \[\(emp_no, job_positions\) NOT IN \(FROM .*employees.*\|.*WHERE salary > 27000.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:.*evaluation of \[\(emp_no, job_positions\) NOT IN \(FROM .*employees.*\|.*WHERE salary > 27000.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
+warning:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword      | salary:integer
 10015          | Head Human Resources       | 25324
@@ -963,8 +963,8 @@ FROM employees
 | SORT emp_no, job_positions
 ;
 
-warningRegex:.*evaluation of \[\(emp_no, job_positions\) NOT IN \(FROM .*employees.*\|.*WHERE salary > 27000.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:.*evaluation of \[\(emp_no, job_positions\) NOT IN \(FROM .*employees.*\|.*WHERE salary > 27000.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
+warning:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword                                                                  | salary:integer
 10015          | [Head Human Resources, Junior Developer, Principal Support Engineer, Support Engineer] | 25324
@@ -985,8 +985,8 @@ FROM employees
 | STATS cnt = COUNT(*)
 ;
 
-warningRegex:.*evaluation of \[\(emp_no, job_positions\) NOT IN \(FROM .*employees.*\|.*WHERE salary > 27000.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:.*evaluation of \[\(emp_no, job_positions\) NOT IN \(FROM .*employees.*\|.*WHERE salary > 27000.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
+warning:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
 
 cnt:long
 4
@@ -1009,8 +1009,8 @@ FROM employees
 | LIMIT 2
 ;
 
-warningRegex:.*evaluation of .*failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:.*evaluation of .*failed.*
+warning:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword
 10001          | [Accountant, Senior Python Developer]
@@ -1034,8 +1034,8 @@ FROM employees
 | LIMIT 3
 ;
 
-warningRegex:.*evaluation of .*failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:.*evaluation of .*failed.*
+warning:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword
 10001          | [Accountant, Senior Python Developer]
@@ -1060,8 +1060,8 @@ FROM employees
 | LIMIT 3
 ;
 
-warningRegex:.*evaluation of .*failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:.*evaluation of .*failed.*
+warning:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword
 10002          | Senior Team Lead
@@ -1086,8 +1086,8 @@ FROM employees
 | LIMIT 3
 ;
 
-warningRegex:.*evaluation of .*failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:.*evaluation of .*failed.*
+warning:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword
 10002          | Senior Team Lead
@@ -1473,8 +1473,8 @@ FROM employees
 | LIMIT 3
 ;
 
-warningRegex:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
+warning:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword
 10002          | Senior Team Lead
@@ -1494,8 +1494,8 @@ FROM employees
 | LIMIT 3
 ;
 
-warningRegex:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
+warning:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword
 10001          | [Accountant, Senior Python Developer]

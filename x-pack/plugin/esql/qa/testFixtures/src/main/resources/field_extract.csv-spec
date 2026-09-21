@@ -56,8 +56,8 @@ FROM flattened_otel_logs
 | EVAL missing = field_extract(resource.attributes, "no.such.key")
 | KEEP missing
 ;
-warningRegex:Line 3:18: evaluation of \[field_extract\(resource\.attributes,.+\)\] failed, treating result as null\. Only first 20 failures recorded\.
-warningRegex:Line 3:18: java\.lang\.IllegalArgumentException: path \[no\.such\.key\] does not exist
+warning:Line 3:18: evaluation of \[field_extract\(resource\.attributes,.+\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warning:Line 3:18: java\.lang\.IllegalArgumentException: path \[no\.such\.key\] does not exist
 
 missing:keyword
 null
@@ -374,8 +374,8 @@ FROM flattened_otel_logs
                      field_extract(resource.attributes, "host.name"))
 | KEEP hn
 ;
-warningRegex:Line \d+:\d+: evaluation of \[field_extract\(resource\.attributes,.+\)\] failed, treating result as null\. Only first 20 failures recorded\.
-warningRegex:Line \d+:\d+: java\.lang\.IllegalArgumentException: path \[no\.such\] does not exist
+warning:Line \d+:\d+: evaluation of \[field_extract\(resource\.attributes,.+\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warning:Line \d+:\d+: java\.lang\.IllegalArgumentException: path \[no\.such\] does not exist
 
 hn:keyword
 infra-filebeat-6vjxr
@@ -478,8 +478,8 @@ FROM flattened_otel_logs
 | EVAL hn = field_extract(resource.attributes, "Host.Name")
 | KEEP hn
 ;
-warningRegex:Line \d+:\d+: evaluation of \[field_extract\(resource\.attributes,.+\)\] failed, treating result as null\. Only first 20 failures recorded\.
-warningRegex:Line \d+:\d+: java\.lang\.IllegalArgumentException: path \[Host\.Name\] does not exist
+warning:Line \d+:\d+: evaluation of \[field_extract\(resource\.attributes,.+\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warning:Line \d+:\d+: java\.lang\.IllegalArgumentException: path \[Host\.Name\] does not exist
 
 hn:keyword
 null
@@ -496,8 +496,8 @@ FROM flattened_otel_logs
 | EVAL hn = field_extract(resource.attributes, "host")
 | KEEP hn
 ;
-warningRegex:Line \d+:\d+: evaluation of \[field_extract\(resource\.attributes,.+\)\] failed, treating result as null\. Only first 20 failures recorded\.
-warningRegex:Line \d+:\d+: java\.lang\.IllegalArgumentException: path \[host\] does not exist
+warning:Line \d+:\d+: evaluation of \[field_extract\(resource\.attributes,.+\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warning:Line \d+:\d+: java\.lang\.IllegalArgumentException: path \[host\] does not exist
 
 hn:keyword
 null
@@ -798,8 +798,8 @@ FROM flattened_otel_logs
 | KEEP @timestamp
 | SORT @timestamp
 ;
-warningRegex:Line 2:9: evaluation of \[FIELD_EXTRACT\(CASE\(.+\),.+\)\] failed, treating result as null\. Only first 20 failures recorded\.
-warningRegex:Line 2:9: java\.lang\.IllegalArgumentException: path \[host\.name\] does not exist
+warning:Line 2:9: evaluation of \[FIELD_EXTRACT\(CASE\(.+\),.+\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warning:Line 2:9: java\.lang\.IllegalArgumentException: path \[host\.name\] does not exist
 
 @timestamp:date
 2020-01-01T00:02:48.461Z

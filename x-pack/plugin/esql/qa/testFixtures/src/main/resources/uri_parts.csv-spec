@@ -140,8 +140,8 @@ ROW uri = "not a valid uri"
 | URI_PARTS parts = uri
 | KEEP parts.scheme, parts.domain, parts.path
 ;
-warningregex: Line 2:3: java.lang.IllegalArgumentException: unable to parse URI \[.*\]
-warningregex: Line 2:3: evaluation of \[URI_PARTS.* parts = uri\] failed, treating result as null. Only first 20 failures recorded.
+warning: Line 2:3: java.lang.IllegalArgumentException: unable to parse URI \[.*\]
+warning: Line 2:3: evaluation of \[URI_PARTS.* parts = uri\] failed, treating result as null. Only first 20 failures recorded.
 
 parts.scheme:keyword | parts.domain:keyword | parts.path:keyword
 null                 | null                 | null
@@ -261,8 +261,8 @@ ROW uri = ["https://www.example.com:8080/path1", "http://www.example.com:80/path
 | URI_PARTS parts = uri
 | KEEP parts.domain, parts.port, parts.scheme
 ;
-warningregex: Line 2:3: evaluation of \[URI_PARTS.* parts = uri\] failed, treating result as null. Only first 20 failures recorded.
-warningregex: Line 2:3: java.lang.IllegalArgumentException: This command doesn't support multi-value input
+warning: Line 2:3: evaluation of \[URI_PARTS.* parts = uri\] failed, treating result as null. Only first 20 failures recorded.
+warning: Line 2:3: java.lang.IllegalArgumentException: This command doesn't support multi-value input
 
 parts.domain:keyword | parts.port:integer | parts.scheme:keyword
 null                 | null               | null
@@ -280,8 +280,8 @@ PROMQL index=k8s-downsampled step=1h oYJdEiiJ=(network.bytes_in{cluster!="qa",po
 | DROP _timeseries, oYJdEiiJ, step, zEyDkwmbYa
 | LIMIT 1
 ;
-warningregex: Line 3:3: evaluation of \[URI_PARTS parts = _timeseries\] failed, treating result as null. Only first 20 failures recorded.
-warningregex: Line 3:3: java.lang.IllegalArgumentException: unable to parse URI \[
+warning: Line 3:3: evaluation of \[URI_PARTS parts = _timeseries\] failed, treating result as null. Only first 20 failures recorded.
+warning: Line 3:3: java.lang.IllegalArgumentException: unable to parse URI \[
 
 parts.domain:keyword | parts.fragment:keyword | parts.path:keyword | parts.extension:keyword | parts.port:integer | parts.query:keyword | parts.scheme:keyword | parts.user_info:keyword | parts.username:keyword | parts.password:keyword
 null                 | null                   | null               | null                    | null               | null                | null                 | null                    | null                   | null

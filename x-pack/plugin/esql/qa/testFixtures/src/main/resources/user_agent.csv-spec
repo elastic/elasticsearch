@@ -132,8 +132,8 @@ ROW input = ["Mozilla/5.0 Chrome/33.0", "curl/7.68.0"]
 | USER_AGENT ua = input
 | KEEP ua.name
 ;
-warningregex: Line 2:3: java.lang.IllegalArgumentException: This command doesn't support multi-value input
-warningregex: Line 2:3: evaluation of \[USER_AGENT.* ua = input\] failed, treating result as null
+warning: Line 2:3: java.lang.IllegalArgumentException: This command doesn't support multi-value input
+warning: Line 2:3: evaluation of \[USER_AGENT.* ua = input\] failed, treating result as null
 
 ua.name:keyword
 null

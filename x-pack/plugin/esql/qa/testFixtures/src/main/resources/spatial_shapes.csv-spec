@@ -344,8 +344,8 @@ row wkt = ["BBOX(0.0, 12.0, 60.0, 30.0)", "BBOX(0.0, 12.0, 30.0, 60.0)"]
 | eval shape = to_geoshape(wkt)
 ;
 
-warningRegex:evaluation of \[to_geoshape\(wkt\)\] failed, treating result as null. Only first 20 failures recorded
-warningRegex:.*max y cannot be less than min y.*
+warning:evaluation of \[to_geoshape\(wkt\)\] failed, treating result as null. Only first 20 failures recorded
+warning:.*max y cannot be less than min y.*
 
 wkt:keyword                     |shape:geo_shape
 "BBOX(0.0, 12.0, 60.0, 30.0)"   |BBOX(0.0, 12.0, 60.0, 30.0)
@@ -361,8 +361,8 @@ required_capability: spatial_bbox_validation_fix
 row shape = to_geoshape("BBOX(0.0, 12.0, 30.0, 60.0)")
 ;
 
-warningRegex:evaluation of \[to_geoshape.*\] failed, treating result as null. Only first 20 failures recorded
-warningRegex:.*max y cannot be less than min y.*
+warning:evaluation of \[to_geoshape.*\] failed, treating result as null. Only first 20 failures recorded
+warning:.*max y cannot be less than min y.*
 
 shape:geo_shape
 null
@@ -673,8 +673,8 @@ row wkt = ["BBOX(0.0, 12.0, 60.0, 30.0)", "BBOX(12.0, 0.0, 60.0, 30.0)"]
 | eval shape = to_cartesianshape(wkt)
 ;
 
-warningRegex:evaluation of \[to_cartesianshape\(wkt\)\] failed, treating result as null. Only first 20 failures recorded
-warningRegex:.*max x cannot be less than min x.*
+warning:evaluation of \[to_cartesianshape\(wkt\)\] failed, treating result as null. Only first 20 failures recorded
+warning:.*max x cannot be less than min x.*
 
 wkt:keyword                   |shape:cartesian_shape
 "BBOX(0.0, 12.0, 60.0, 30.0)" |BBOX(0.0, 12.0, 60.0, 30.0)
@@ -690,8 +690,8 @@ required_capability: spatial_bbox_validation_fix
 row shape = to_cartesianshape("BBOX(12.0, 0.0, 60.0, 30.0)")
 ;
 
-warningRegex:evaluation of \[to_cartesianshape.*\] failed, treating result as null. Only first 20 failures recorded
-warningRegex:.*max x cannot be less than min x.*
+warning:evaluation of \[to_cartesianshape.*\] failed, treating result as null. Only first 20 failures recorded
+warning:.*max x cannot be less than min x.*
 
 shape:cartesian_shape
 null

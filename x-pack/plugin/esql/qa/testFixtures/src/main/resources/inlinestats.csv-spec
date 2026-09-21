@@ -3649,8 +3649,8 @@ FROM date_nanos, date_nanos_union_types
 | LIMIT 5
 ;
 
-warningRegex:evaluation of \[FROM .*date_nanos.*date_nanos_union_types.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: milliSeconds \[-1457696696640\] are before the epoch in 1970 and cannot be converted to nanoseconds
+warning:evaluation of \[FROM .*date_nanos.*date_nanos_union_types.*\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: milliSeconds \[-1457696696640\] are before the epoch in 1970 and cannot be converted to nanoseconds
 
         millis:date_nanos     |        nanos:date_nanos      |        num:long   |          max:date_nanos      |      min:date_nanos           
 2023-10-23T13:55:01.543123456Z|2023-10-23T13:55:01.543Z      |1698069301543123456|2023-10-23T13:55:01.543123456Z|2023-01-23T13:55:01.543Z
@@ -3669,8 +3669,8 @@ FROM date_nanos, date_nanos_union_types
 | LIMIT 5
 ;
 
-warningRegex:evaluation of \[FROM .*date_nanos.*date_nanos_union_types.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: milliSeconds \[-1457696696640\] are before the epoch in 1970 and cannot be converted to nanoseconds
+warning:evaluation of \[FROM .*date_nanos.*date_nanos_union_types.*\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: milliSeconds \[-1457696696640\] are before the epoch in 1970 and cannot be converted to nanoseconds
 
         millis:date_nanos     |        nanos:date_nanos      |        num:long   | c:integer
 2023-10-23T13:55:01.543123456Z|2023-10-23T13:55:01.543Z      |1698069301543123456|19             

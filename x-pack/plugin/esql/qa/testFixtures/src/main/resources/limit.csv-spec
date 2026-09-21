@@ -1002,8 +1002,8 @@ FROM employees
 | WHERE job_positions == "Senior Team Lead"
 | KEEP emp_no, first_name, salary, job_positions
 ;
-warningRegex:Line 5:9: evaluation of \[job_positions == \\\"Senior Team Lead\\\"\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 5:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 5:9: evaluation of \[job_positions == \\\"Senior Team Lead\\\"\] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | first_name:keyword | salary:integer | job_positions:keyword
 10002          | Bezalel            | 56371          | Senior Team Lead

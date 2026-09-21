@@ -87,8 +87,8 @@ ROW ip = ""
 | IP_LOCATION g = ip WITH { "properties": ["country_iso_code", "city_name"] }
 | KEEP g.*
 ;
-warningregex: Line 2:3: java.lang.IllegalArgumentException:.*
-warningregex: Line 2:3: evaluation of \[IP_LOCATION.*\] failed, treating result as null
+warning: Line 2:3: java.lang.IllegalArgumentException:.*
+warning: Line 2:3: evaluation of \[IP_LOCATION.*\] failed, treating result as null
 
 g.country_iso_code:keyword | g.city_name:keyword
 null                       | null
@@ -115,8 +115,8 @@ ROW input = ["2602:306:33d3:8000::3257:9652", "82.170.213.79"]
 | IP_LOCATION g = input WITH { "first_only": false, "properties": ["country_iso_code"] }
 | KEEP g.country_iso_code
 ;
-warningregex: Line 2:3: java.lang.IllegalArgumentException: This command doesn't support multi-value input
-warningregex: Line 2:3: evaluation of \[IP_LOCATION.*\] failed, treating result as null
+warning: Line 2:3: java.lang.IllegalArgumentException: This command doesn't support multi-value input
+warning: Line 2:3: evaluation of \[IP_LOCATION.*\] failed, treating result as null
 
 g.country_iso_code:keyword
 null

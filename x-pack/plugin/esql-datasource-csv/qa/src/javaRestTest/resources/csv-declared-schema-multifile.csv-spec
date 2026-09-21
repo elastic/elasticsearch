@@ -49,7 +49,7 @@ dataset: employees_declared_multifile_city: "{{employees_multifile_ubn}}" WITH {
 FROM employees_declared_multifile_city
 | SORT name
 | LIMIT 10;
-warningRegex:declared column \[city\] is not present in some source files and reads null there
+warning:declared column \[city\] is not present in some source files and reads null there
 
 name:keyword | city:keyword
 "alice"      | null

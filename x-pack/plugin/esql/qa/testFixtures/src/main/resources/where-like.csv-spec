@@ -1313,8 +1313,8 @@ FROM sample_data
 multiValueLike
 from employees | where job_positions like "Account*" | keep emp_no, job_positions;
 
-warningRegex:evaluation of \[job_positions like \\\"Account\*\\\"\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[job_positions like \\\"Account\*\\\"\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword 
 10025          | Accountant 
@@ -1324,8 +1324,8 @@ emp_no:integer | job_positions:keyword
 multiValueRLike
 from employees | where job_positions rlike "Account.*" | keep emp_no, job_positions;
 
-warningRegex:evaluation of \[job_positions rlike \\\"Account.*\\\"\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[job_positions rlike \\\"Account.*\\\"\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword 
 10025          | Accountant 

@@ -72,8 +72,8 @@ ROW str1 = "5.20128E11", str2 = "foo"
 | EVAL dbl = TO_DOUBLE("520128000000"), dbl1 = TO_DOUBLE(str1), dbl2 = TO_DOUBLE(str2)
 // end::to_double-str[]
 ;
-warningRegex:Line 2:72: evaluation of \[TO_DOUBLE\(str2\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 2:72: org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: Cannot parse number \[foo\]
+warning:Line 2:72: evaluation of \[TO_DOUBLE\(str2\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:72: org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: Cannot parse number \[foo\]
 
 // tag::to_double-str-result[]
 str1:keyword |str2:keyword |dbl:double |dbl1:double |dbl2:double
@@ -112,8 +112,8 @@ int:integer |dbl:double
 lessThanMultivalue
 
 from employees | where salary_change < 1 | keep emp_no, salary_change | sort emp_no | limit 5;
-warningRegex:evaluation of \[salary_change < 1\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[salary_change < 1\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
 emp_no:integer |salary_change:double
@@ -127,8 +127,8 @@ emp_no:integer |salary_change:double
 greaterThanMultivalue
 
 from employees | where salary_change > 1 | keep emp_no, salary_change | sort emp_no | limit 5;
-warningRegex:evaluation of \[salary_change > 1\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[salary_change > 1\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
 emp_no:integer |salary_change:double
@@ -177,8 +177,8 @@ emp_no:integer |salary_change:double
 notLessThanMultivalue
 
 from employees | where not(salary_change < 1) | keep emp_no, salary_change | sort emp_no | limit 5;
-warningRegex:evaluation of \[.*salary_change < 1.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[.*salary_change < 1.*\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
 emp_no:integer |salary_change:double
@@ -192,8 +192,8 @@ emp_no:integer |salary_change:double
 notGreaterThanMultivalue
 
 from employees | where not(salary_change > 1) | keep emp_no, salary_change | sort emp_no | limit 5;
-warningRegex:evaluation of \[.*salary_change > 1.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[.*salary_change > 1.*\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
 emp_no:integer |salary_change:double
@@ -207,8 +207,8 @@ emp_no:integer |salary_change:double
 notEqualToMultivalue
 
 from employees | where not(salary_change == 1.19) | keep emp_no, salary_change | sort emp_no | limit 5;
-warningRegex:evaluation of \[.*salary_change == 1.19.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[.*salary_change == 1.19.*\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
 emp_no:integer |salary_change:double

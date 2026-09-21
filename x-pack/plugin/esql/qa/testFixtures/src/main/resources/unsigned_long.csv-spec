@@ -48,8 +48,8 @@ from ul_logs | sort bytes_in desc nulls last, id | limit 12;
 filterPushDownGT
 
 from ul_logs | where bytes_in >= to_ul(74330435873664882) | sort bytes_in | eval div = bytes_in / to_ul(pow(10., 15)) | keep bytes_in, div, id | limit 12;
-warningRegex:evaluation of \[bytes_in >= to_ul\(74330435873664882\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[bytes_in >= to_ul\(74330435873664882\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
      bytes_in:ul   |      div:ul   |id:i
 74330435873664882  |74             |82
@@ -69,8 +69,8 @@ warningRegex:java.lang.IllegalArgumentException: single-value function encounter
 filterPushDownRange
 
 from ul_logs | where bytes_in >= to_ul(74330435873664882) | where bytes_in <= to_ul(316080452389500167)  | sort bytes_in | eval div = bytes_in / to_ul(pow(10., 15)) | keep bytes_in, div, id | limit 12;
-warningRegex:evaluation of \[bytes_in .* to_ul\(.*\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[bytes_in .* to_ul\(.*\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
      bytes_in:ul   |      div:ul   |id:i
 74330435873664882  |74             |82
@@ -83,8 +83,8 @@ filterPushDownIn
 
 // TODO: testing framework doesn't perform implicit conversion to UL of given values, needs explicit conversion
 from ul_logs | where bytes_in in (to_ul(74330435873664882), to_ul(154551962150890564), to_ul(195161570976258241)) | sort bytes_in | keep bytes_in, id;
-warningRegex:evaluation of \[bytes_in in \(to_ul\(74330435873664882\), to_ul\(154551962150890564\), to_ul\(195161570976258241\)\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[bytes_in in \(to_ul\(74330435873664882\), to_ul\(154551962150890564\), to_ul\(195161570976258241\)\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
      bytes_in:ul   |id:i
 74330435873664882  |82
@@ -95,8 +95,8 @@ warningRegex:java.lang.IllegalArgumentException: single-value function encounter
 filterOnFieldsEquality
 
 from ul_logs | where bytes_in == bytes_out;
-warningRegex:evaluation of \[bytes_in == bytes_out\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[bytes_in == bytes_out\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
        @timestamp:date  |      bytes_in:ul   |     bytes_out:ul   |      id:i     |    status:k
 2017-11-10T21:12:17.000Z|16002960716282089759|16002960716282089759|34             |OK
@@ -105,8 +105,8 @@ warningRegex:java.lang.IllegalArgumentException: single-value function encounter
 filterOnFieldsInequality
 
 from ul_logs | sort id | where bytes_in < bytes_out | eval b_in = bytes_in / to_ul(pow(10.,15)), b_out = bytes_out / to_ul(pow(10.,15)) | limit 5;
-warningRegex:evaluation of \[bytes_in < bytes_out\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[bytes_in < bytes_out\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
        @timestamp:date  |      bytes_in:ul   |     bytes_out:ul   |      id:i     |    status:k   |     b_in:ul   | b_out:ul
 2017-11-10T21:15:54.000Z|4348801185987554667 |12749081495402663265|1              |OK             |4348           |12749
@@ -135,8 +135,8 @@ from ul_logs | stats c = count(bytes_in) by bytes_in | sort c desc, bytes_in des
 case
 
 from ul_logs | where case(bytes_in == to_ul(154551962150890564), true, false);
-warningRegex:evaluation of \[bytes_in == to_ul\(154551962150890564\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[bytes_in == to_ul\(154551962150890564\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
        @timestamp:date  |    bytes_in:ul   |     bytes_out:ul  |      id:i     |    status:k
 2017-11-10T20:21:58.000Z|154551962150890564|9382204513185396493|63             |OK
@@ -146,8 +146,8 @@ toDegrees
 
 FROM ul_logs | WHERE bytes_in == bytes_out | EVAL deg = TO_DEGREES(bytes_in) | KEEP bytes_in, deg
 ;
-warningRegex:evaluation of \[bytes_in == bytes_out\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[bytes_in == bytes_out\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
          bytes_in:ul | deg:double
 16002960716282089759 | 9.169021087566165E20
@@ -157,8 +157,8 @@ toRadians
 
 FROM ul_logs | WHERE bytes_in == bytes_out | EVAL rad = TO_RADIANS(bytes_in) | KEEP bytes_in, rad
 ;
-warningRegex:evaluation of \[bytes_in == bytes_out\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[bytes_in == bytes_out\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
          bytes_in:ul | rad:double
 16002960716282089759 | 2.79304354566432608E17
@@ -187,8 +187,8 @@ keep s, bytes_in, bytes_out |
 sort bytes_out, s |
 limit 2;
 
-warningRegex:evaluation of \[signum\(bytes_in\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:evaluation of \[signum\(bytes_in\)\] failed, treating result as null. Only first 20 failures recorded.
+warning:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 s:double | bytes_in:ul | bytes_out:ul
 1.0      | 1957665857956635540          | 352442273299370793

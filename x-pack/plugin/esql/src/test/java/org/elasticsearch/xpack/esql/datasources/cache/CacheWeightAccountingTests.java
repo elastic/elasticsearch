@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -36,7 +37,7 @@ public class CacheWeightAccountingTests extends ESTestCase {
     // Schema cache: the per-column extremum stored in safeMetadata
     // ---------------------------------------------------------------------------------------------
 
-    private static SchemaCacheEntry entryWithMin(String path, String min) {
+    private static SchemaCacheEntry entryWithMin(String path, Object min) {
         Map<String, Object> meta = new LinkedHashMap<>();
         meta.put(ExternalStats.MTIME_MILLIS_KEY, 1000L);
         meta.put("_stats.row_count", 10L);
@@ -61,6 +62,17 @@ public class CacheWeightAccountingTests extends ESTestCase {
         SchemaCacheEntry large = entryWithMin("s3://b/f.csv", "x".repeat(1_000_000));
         assertThat(
             "an entry holding a one-megabyte column extremum must not weigh the same as one holding a single character",
+            large.estimatedBytes(),
+            greaterThan(small.estimatedBytes())
+        );
+    }
+
+    public void testSchemaEntryWeightIgnoresTheSizeOfAKeywordExtremumHarvestedFromText() {
+        // A text harvest stores a keyword extremum as a BytesRef; a columnar footer stores it as a String.
+        SchemaCacheEntry small = entryWithMin("s3://b/f.csv", new BytesRef("a"));
+        SchemaCacheEntry large = entryWithMin("s3://b/f.csv", new BytesRef("x".repeat(1_000_000)));
+        assertThat(
+            "an entry holding a one-megabyte keyword extremum must not weigh the same as one holding a single byte",
             large.estimatedBytes(),
             greaterThan(small.estimatedBytes())
         );

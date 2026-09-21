@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletionException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
@@ -1474,7 +1475,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     /** One longer again and the outpost id is malformed, so the ruleset throws and the name is refused too. */
     public void testValidateDatasetRefusesBucketNameTheSdkCannotRoute() {
         String bucket = "oop-01234567890123aaaaaaaaaaaaaaaaaaaaaaaaaaa--op-s3";
-        expectThrows(RuntimeException.class, () -> resolvedHostOf(bucket));
+        expectThrows(CompletionException.class, () -> resolvedHostOf(bucket));
 
         var e = expectThrows(
             ValidationException.class,

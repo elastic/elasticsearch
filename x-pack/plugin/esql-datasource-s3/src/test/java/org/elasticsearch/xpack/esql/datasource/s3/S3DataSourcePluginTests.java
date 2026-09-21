@@ -113,16 +113,7 @@ public class S3DataSourcePluginTests extends ESTestCase {
         }
     }
 
-    /**
-     * The operator allow-list, driven through the automaton the plugin actually builds rather than a
-     * hand-written predicate: {@code S3EndpointCheckTests} supplies its own {@code Predicate<String>}, so it
-     * cannot notice the glob compilation or the {@code host:port} spelling the plugin matches against.
-     *
-     * <p>Two of the entries name a port rather than a wildcard, and that is deliberate: a URL carrying no
-     * port has to acquire its scheme's default before {@code host:port} can match one of them, so these are
-     * the cases that hold the default-port inference. A wildcard entry would match whatever number the
-     * inference produced and prove nothing about it.
-     */
+    /** Drives the automaton the plugin builds; the port-bearing entries pin default-port inference. */
     public void testAllowlistedHostIsAcceptedOverPlainHttp() throws IOException {
         Settings settings = Settings.builder()
             .putList(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY, "127.0.0.1:9000", "localhost:80", "127.0.0.1:443")

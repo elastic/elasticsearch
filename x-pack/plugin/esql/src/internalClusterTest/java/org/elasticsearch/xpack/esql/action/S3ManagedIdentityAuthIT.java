@@ -243,8 +243,6 @@ public class S3ManagedIdentityAuthIT extends AbstractEsqlIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(ExternalSourceSettings.MANAGED_IDENTITY_ENABLED.getKey(), true)
-            // The fixtures below bind loopback and serve plain http, which the endpoint rule permits only
-            // when the node's own configuration names the host.
             .putList(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS.getKey(), "127.0.0.1:*", "[::1]:*", "localhost:*")
             .build();
     }

@@ -231,17 +231,15 @@ Accepted endpoint forms. The first three are accepted in every AWS partition; th
 A regional endpoint must name a region that the Elasticsearch version you are running knows about. A region added by AWS after that release is rejected until you upgrade, or until a node permits its host with the setting described below.
 
 :::{note}
-The global endpoint names no region. Setting any `endpoint` pins the host: cross-region redirection is off and a cross-region redirect is not followed, so `https://s3.amazonaws.com` reaches buckets in `us-east-1` and fails for buckets in other regions rather than being sent elsewhere. Omit `endpoint` instead: the region then comes from the dataset and every region is reachable.
+`https://s3.amazonaws.com` has no region. When you set `endpoint`, the SDK stops following cross-region redirects, so this global endpoint only reaches `us-east-1` buckets; other regions get an error. Omit `endpoint` to let the SDK resolve the correct regional endpoint from the dataset's `region` setting.
 :::
 
 Every other AWS endpoint family is rejected, including FIPS endpoints, dual-stack endpoints, transfer acceleration, access points, object lambda, Outposts, the account-level control plane, the legacy `s3-external-1` alias, and S3 Express. A bucket-qualified endpoint such as `https://mybucket.s3.us-east-1.amazonaws.com` is also rejected: name the regional endpoint and let the bucket come from the dataset. So are plain `http`, a value without a scheme, and a host the URL syntax does not allow, such as an underscore or a non-numeric port.
 
-FIPS and dual-stack endpoints are rejected because this data source has never been tested against them. Naming one does reach it — AWS serves both — so this is a decision about what is supported rather than a technical limit. To use one, permit its host with the node setting described below.
-
-A node can permit additional hosts with the `esql.external.allowed_endpoint_hosts` node setting, a list of `host:port` patterns in `elasticsearch.yml` that defaults to empty. It is a static setting: it cannot be updated through the cluster settings API, and a change takes effect when the node restarts. This is how a deployment that needs one of the rejected families reaches it. Because the setting is applied per node, managing data sources does not grant it. A host it names is also accepted over plain `http`.
+A node can permit additional hosts with the `esql.external.allowed_endpoint_hosts` node setting, a list of `host:port` patterns in `elasticsearch.yml` that defaults to empty. A host it names is also accepted over plain `http` for `endpoint`; `sts_endpoint` always requires `https`.
 
 :::{warning}
-A data source created before endpoint validation was added keeps working for queries, but updating it requires an `endpoint` that passes validation. Creating a data source replaces all of its settings, so a data source with an unsupported endpoint cannot have any settings changed, including credential rotation, until the endpoint is updated or the data source is recreated.
+A data source created before these endpoint restrictions were introduced keeps working for queries, but updating it requires an endpoint that passes the validation described above.
 :::
 ::::
 
@@ -258,7 +256,7 @@ The `region` setting on a data source is deprecated and has no effect. Set `regi
 | `role_arn` | Yes (federated identity) | The ARN of the IAM role {{es}} assumes via STS. Used with `auth: federated_identity`. |
 | `jwt_audience` | No | Overrides the JWT audience claim sent to STS. Defaults to `sts.amazonaws.com`. Used with `auth: federated_identity`. |
 | `role_session_name` | No | A label for the assumed-role session. Defaults to `elasticsearch-esql-datasource`. Used with `auth: federated_identity`. |
-| `sts_endpoint` | No | Optional explicit AWS STS endpoint override, for example `https://sts.us-east-1.amazonaws.com`. Used with `auth: federated_identity`. Subject to the same [S3 endpoint requirements](#s3-endpoint-requirements), against AWS STS endpoints rather than S3 ones. Hosts added through `esql.external.allowed_endpoint_hosts` receive the node's OIDC token, so only permit a host on a trusted network path. {applies_to}`stack: experimental 9.6+` |
+| `sts_endpoint` | No | STS endpoint override for `auth: federated_identity`, for example https://sts.us-east-1.amazonaws.com. Validated against the same [S3 endpoint requirements](#s3-endpoint-requirements) as `endpoint`, but for STS hosts, and always over `https`. Any host permitted via `esql.external.allowed_endpoint_hosts` receives the node's OIDC token, only add hosts on trusted network paths. {applies_to}`stack: experimental 9.6+` |
 | `sts_region` | No | The AWS region of the STS endpoint. Defaults to the dataset's `region` setting, or `us-east-1` if the dataset has no explicit region. Used with `auth: federated_identity`. |
 | `auth` | Yes | Authentication mode. Set it to `anonymous`, `static_credentials`, `managed_identity`, or `federated_identity`. |
 

@@ -171,8 +171,6 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
-        // Built once here rather than per validation: the setting is node-scope, so it cannot change
-        // underneath us. An empty list yields an automaton matching nothing, which is the default posture.
         List<String> allowed = ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS.get(settings);
         CharacterRunAutomaton allowedByOperator = new CharacterRunAutomaton(
             allowed.isEmpty()

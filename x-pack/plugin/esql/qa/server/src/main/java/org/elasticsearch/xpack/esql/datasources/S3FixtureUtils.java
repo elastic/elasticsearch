@@ -45,14 +45,7 @@ public final class S3FixtureUtils {
     /** Default S3 secret key for test fixtures */
     public static final String SECRET_KEY = "test-secret-key";
 
-    /**
-     * The node setting that lets a cluster reach its object-store fixture. Endpoints are confined to AWS hosts,
-     * and every fixture in the repository binds a loopback address, so a test cluster names loopback here the
-     * same way {@code reindex.remote.whitelist} is set for reindex's own suites.
-     *
-     * <p>Taken from the setting rather than respelled: a re-declared literal would survive a rename of
-     * the key as a green compile and an empty allowlist.
-     */
+    /** The allowlist setting a test cluster uses to reach its loopback fixture, taken from the setting itself. */
     public static final String ALLOWED_ENDPOINT_HOSTS_SETTING = ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY;
 
     /** Loopback on any port, which is every fixture this repository starts. */

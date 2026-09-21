@@ -975,9 +975,6 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
                 Map.of("access_key", "k", "secret_key", "s", "region", "us-east-1", "endpoint", "not a url")
             )
         );
-        // A well-formed https URL that the host rule refuses. The Java-level cases live in
-        // S3DataSourceValidatorTests; this one records what the REST layer returns for the same refusal,
-        // which is the surface a user actually sees.
         crudProbe(
             "data_source_crud",
             "put s3 data source with an endpoint that is not an AWS host",

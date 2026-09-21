@@ -424,25 +424,10 @@ public final class ExternalSourceSettings {
     );
 
     /**
-     * Allowlist of {@code host:port} patterns an external data source's endpoint may name, beside the AWS
-     * endpoints that are always permitted. Mirrors {@link #LOCAL_ALLOWED_PATHS} and {@code reindex.remote.whitelist}:
-     * the list is the enable, and the default — empty — permits nothing beyond AWS. An entry is a simple glob
-     * matched against the endpoint's host and port, so {@code 127.0.0.1:*} admits a fixture on any port.
-     * <p>
-     * The scheme is not matched, so an allowed entry may be reached over plain {@code http}. That is the point of
-     * the setting: the {@code https} requirement exists because a host rule rests on the certificate presented for
-     * a name, and an operator naming an exact host and port has made that judgement themselves.
-     * <p>
-     * The waiver covers {@code sts_endpoint} as well as {@code endpoint}, and that is the sharper half. The STS
-     * client authenticates with nothing but the node's own OIDC token, so a listed host named there receives that
-     * token — over plain {@code http} if the entry is reached that way. List a host for STS only where the network
-     * path to it is trusted on its own.
-     * <p>
-     * A pattern is matched against the host exactly as the URL spells it, where the AWS rule normalises first, so
-     * write the host as the SDK will send it: a differing case or a trailing root dot is not matched here.
-     * <p>
-     * This is a node-scope setting — only someone who can configure the node can widen what it reaches. Holding
-     * the privilege to manage data sources is not enough.
+     * {@code host:port} glob patterns an external data source's endpoint may name beyond the AWS endpoints, as
+     * {@code reindex.remote.whitelist} does for remote clusters. Empty by default. A listed host may be reached
+     * over plain {@code http} for {@code endpoint}; {@code sts_endpoint} always requires {@code https}, because
+     * that host receives the node's OIDC token.
      */
     public static final String ALLOWED_ENDPOINT_HOSTS_KEY = "esql.external.allowed_endpoint_hosts";
 
@@ -452,12 +437,7 @@ public final class ExternalSourceSettings {
         Setting.Property.NodeScope
     );
 
-    /**
-     * Refuses an entry that is not {@code host:port}: a bare hostname, a bare port, or a whole URL — the
-     * three natural things to paste. None of them matches anything, and the refusal the operator then sees
-     * talks about the endpoint rather than about the entry that failed to admit it. Since this setting is the
-     * only way past a security control, that silence is worth refusing at startup instead.
-     */
+    /** Refuses an entry that cannot match anything: a bare host, a bare port, or a whole URL. */
     private static void validateEndpointHostEntry(String entry) {
         if (entry.contains("://")) {
             throw new IllegalArgumentException(
@@ -468,9 +448,7 @@ public final class ExternalSourceSettings {
                     + "] is a URL. Entries are matched against host:port, so drop the scheme and any path."
             );
         }
-        // A bracketed IPv6 literal carries colons of its own, so the port separator is looked for after the
-        // closing bracket. It is the last colon rather than the first, so an entry that carries more than one
-        // is refused below for naming no port rather than read as though the first were the separator.
+        // The port separator is the last colon, after the closing bracket of an IPv6 literal.
         int afterHost = entry.startsWith("[") ? entry.indexOf(']') : 0;
         int portSeparator = afterHost < 0 ? -1 : entry.lastIndexOf(':');
         if (portSeparator < afterHost) {

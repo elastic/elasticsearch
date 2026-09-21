@@ -95,8 +95,7 @@ public class Clusters {
             // suppliers the last one applied wins.
             builder.setting(Federation.FEDERATION_ENABLED.getKey(), () -> "true")
                 .setting("esql.external.local_allowed_paths", csvDataPath::toString)
-                // Registered only while federation is, like the key above it: a node with the feature
-                // unregistered does not know it and refuses to start rather than ignoring it.
+                // Registered only while federation is; a node without the feature would refuse to start on it.
                 .setting(S3FixtureUtils.ALLOWED_ENDPOINT_HOSTS_SETTING, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS);
         }
         builder.apply(() -> configProvider);

@@ -30,9 +30,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -43,9 +40,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
@@ -116,7 +116,21 @@ public class ParquetFilterPushdownBenchmark {
      *
      * <p>{@code scalarRange} is the reference the time picker is measured against; {@code none} is the control.
      */
-    @Param({ "none", "scalarRange", "mvInRange", "timeAndTerm", "timeAndTerms", "timeAndNotTerm", "timeAndExists", "timeAndNumericRange", "timeAndGreater", "timeAndAtMost", "timeAndGreaterSelective", "timeAndAtMostSelective" })
+    @Param(
+        {
+            "none",
+            "scalarRange",
+            "mvInRange",
+            "timeAndTerm",
+            "timeAndTerms",
+            "timeAndNotTerm",
+            "timeAndExists",
+            "timeAndNumericRange",
+            "timeAndGreater",
+            "timeAndAtMost",
+            "timeAndGreaterSelective",
+            "timeAndAtMostSelective" }
+    )
     public String filterMode;
 
     @Param({ "1pct", "10pct" })
@@ -239,7 +253,11 @@ public class ParquetFilterPushdownBenchmark {
             // The same two forms against a bound that keeps ~1% instead of half. A row mask can only pay by the
             // decoding it avoids, so a leaf that discards half the rows cannot show what these forms are worth.
             case "timeAndGreaterSelective" -> new And(Source.EMPTY, timeWindow, new MvGreater(Source.EMPTY, bytesCol(), longLit(990L)));
-            case "timeAndAtMostSelective" -> new And(Source.EMPTY, timeWindow, new MvLess(Source.EMPTY, bytesCol(), longLit(9L), includeBound()));
+            case "timeAndAtMostSelective" -> new And(
+                Source.EMPTY,
+                timeWindow,
+                new MvLess(Source.EMPTY, bytesCol(), longLit(9L), includeBound())
+            );
             default -> throw new IllegalArgumentException("unknown filterMode: " + filterMode);
         };
         // The planner's own path, so the benchmark cannot push something the engine would not.
@@ -274,32 +292,32 @@ public class ParquetFilterPushdownBenchmark {
             for (String selectivity : Utils.possibleValues(ParquetFilterPushdownBenchmark.class, "selectivity")) {
                 for (String clustering : Utils.possibleValues(ParquetFilterPushdownBenchmark.class, "clustering")) {
                     for (String projection : Utils.possibleValues(ParquetFilterPushdownBenchmark.class, "projection")) {
-                      for (String timeType : Utils.possibleValues(ParquetFilterPushdownBenchmark.class, "timeType")) {
-                        ParquetFilterPushdownBenchmark bench = new ParquetFilterPushdownBenchmark();
-                        bench.rows = DatasourceBenchmarks.SELF_TEST_ROW_COUNT;
-                        bench.filterMode = filterMode;
-                        bench.selectivity = selectivity;
-                        bench.clustering = clustering;
-                        bench.projection = projection;
-                        bench.timeType = timeType;
-                        String cell = filterMode + "/" + selectivity + "/" + clustering + "/" + projection + "/" + timeType;
-                        try {
-                            bench.setup();
-                            int actual = bench.filteredScan(new ReadMetrics());
-                            int expected = expectedSurvivors(
-                                filterMode,
-                                "1pct".equals(selectivity) ? bench.rows / 100 : bench.rows / 10,
-                                bench.rows
-                            );
-                            if (actual != expected) {
-                                throw new AssertionError(
-                                    "ParquetFilterPushdownBenchmark[" + cell + "] kept " + actual + " rows, expected " + expected
+                        for (String timeType : Utils.possibleValues(ParquetFilterPushdownBenchmark.class, "timeType")) {
+                            ParquetFilterPushdownBenchmark bench = new ParquetFilterPushdownBenchmark();
+                            bench.rows = DatasourceBenchmarks.SELF_TEST_ROW_COUNT;
+                            bench.filterMode = filterMode;
+                            bench.selectivity = selectivity;
+                            bench.clustering = clustering;
+                            bench.projection = projection;
+                            bench.timeType = timeType;
+                            String cell = filterMode + "/" + selectivity + "/" + clustering + "/" + projection + "/" + timeType;
+                            try {
+                                bench.setup();
+                                int actual = bench.filteredScan(new ReadMetrics());
+                                int expected = expectedSurvivors(
+                                    filterMode,
+                                    "1pct".equals(selectivity) ? bench.rows / 100 : bench.rows / 10,
+                                    bench.rows
                                 );
+                                if (actual != expected) {
+                                    throw new AssertionError(
+                                        "ParquetFilterPushdownBenchmark[" + cell + "] kept " + actual + " rows, expected " + expected
+                                    );
+                                }
+                            } catch (IOException e) {
+                                throw new AssertionError("ParquetFilterPushdownBenchmark[" + cell + "] failed", e);
                             }
-                        } catch (IOException e) {
-                            throw new AssertionError("ParquetFilterPushdownBenchmark[" + cell + "] failed", e);
                         }
-                      }
                     }
                 }
             }
@@ -469,7 +487,9 @@ public class ParquetFilterPushdownBenchmark {
 
     private static byte[] fixture(boolean clustered, int rows, boolean nanos) throws IOException {
         StringBuilder schemaText = new StringBuilder(
-            "message bench { required int64 id; required int64 ts (TIMESTAMP(" + (nanos ? "MICROS" : "MILLIS") + ",true));"
+            "message bench { required int64 id; required int64 ts (TIMESTAMP("
+                + (nanos ? "MICROS" : "MILLIS")
+                + ",true));"
                 + " required binary svc (UTF8); optional binary opt (UTF8); required int64 bytes;"
         );
         for (int c = 0; c < PAYLOAD_COLUMNS; c++) {

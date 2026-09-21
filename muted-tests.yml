@@ -348,12 +348,6 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testClusterDetailsAfterCCSWithFailuresOnOneClusterOnly_AllowPartialResultsFalse_MinimizeRoundtripsFalse
   issue: https://github.com/elastic/elasticsearch/issues/155173
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecStatsIT
-  method: test {csv-spec:stats.sumWithOverflowGroupingRow}
-  issue: https://github.com/elastic/elasticsearch/issues/155155
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecStatsIT
-  method: test {csv-spec:stats.sumWithOverflowGroupingRow}
-  issue: https://github.com/elastic/elasticsearch/issues/155155
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:stats.sumWithOverflowGroupingRow}
   issue: https://github.com/elastic/elasticsearch/issues/155355

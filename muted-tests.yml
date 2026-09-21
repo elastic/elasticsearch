@@ -156,6 +156,9 @@ tests:
 - class: org.elasticsearch.common.blobstore.url.http.URLHttpClientTests
   method: testInvalidErrorMessageCharsetIsIgnored
   issue: https://github.com/elastic/elasticsearch/issues/159815
+- class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
+  method: testWaitForSnapshotFast
+  issue: https://github.com/elastic/elasticsearch/issues/159836
 
 # Examples:
 #

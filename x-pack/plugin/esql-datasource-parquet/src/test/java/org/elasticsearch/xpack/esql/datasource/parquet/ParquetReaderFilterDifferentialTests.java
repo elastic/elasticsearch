@@ -40,6 +40,7 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -248,8 +249,15 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     }
 
     public void testMvInRangeIsRangeBound() throws IOException {
-        // The Kibana time-pill shape, and also what equality on a date field becomes.
+        // What a time range filter becomes, and also what equality on a date field becomes.
         runDifferential(mvInRange(ID, DataType.LONG, 100L, 400L));
+    }
+
+    public void testMvInRangeWithExclusiveBoundsPushesInclusiveSuperset() throws IOException {
+        // The open interval (100, 400): both boundary values are false, but every pushed bound — the statistics
+        // predicate, the page index and the row-level mask — goes in inclusive regardless of the options. The
+        // superset must cost pruning, never rows. The mv_in_range analogue of the strict-truth cases below.
+        runDifferential(mvInRangeExclusive(ID, DataType.LONG, 100L, 400L));
     }
 
     public void testMvGreaterPushesInclusiveOverStrictTruth() throws IOException {
@@ -1008,9 +1016,10 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
             if (row.get(((ReferenceAttribute) mvInRange.field()).name()) == null) {
                 return Boolean.FALSE;
             }
-            // include_lower / include_upper default to true
-            Boolean lower = cmpOrdered(row, mvInRange.field(), mvInRange.lower(), 1, true);
-            Boolean upper = cmpOrdered(row, mvInRange.field(), mvInRange.upper(), -1, true);
+            // include_lower / include_upper default to true. Every pushed bound goes in inclusive whatever they say,
+            // so an exclusive option is where the pushed superset is strictly wider than the truth.
+            Boolean lower = cmpOrdered(row, mvInRange.field(), mvInRange.lower(), 1, boundOption(mvInRange.options(), "include_lower"));
+            Boolean upper = cmpOrdered(row, mvInRange.field(), mvInRange.upper(), -1, boundOption(mvInRange.options(), "include_upper"));
             return Boolean.TRUE.equals(lower) && Boolean.TRUE.equals(upper);
         }
         if (expr instanceof MvGreater mvGreater) {
@@ -1488,6 +1497,28 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
 
     private static Expression mvInRange(ReferenceAttribute a, DataType t, Object lower, Object upper) {
         return new MvInRange(Source.EMPTY, a, lit(lower, t), lit(upper, t));
+    }
+
+    /** {@code mv_in_range} over the open interval {@code (lower, upper)} — both bounds exclusive. */
+    private static Expression mvInRangeExclusive(ReferenceAttribute a, DataType t, Object lower, Object upper) {
+        Expression options = new MapExpression(
+            Source.EMPTY,
+            List.of(
+                Literal.keyword(Source.EMPTY, "include_lower"),
+                new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+                Literal.keyword(Source.EMPTY, "include_upper"),
+                new Literal(Source.EMPTY, false, DataType.BOOLEAN)
+            )
+        );
+        return new MvInRange(Source.EMPTY, a, lit(lower, t), lit(upper, t), options);
+    }
+
+    /** Reads an {@code include_lower} / {@code include_upper} option. Both default to true. */
+    private static boolean boundOption(Expression options, String key) {
+        if (options instanceof MapExpression map && map.keyFoldedMap().get(key) instanceof Literal literal) {
+            return (Boolean) literal.value();
+        }
+        return true;
     }
 
     private static Expression mvGreater(ReferenceAttribute a, Object v, DataType t) {

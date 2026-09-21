@@ -2556,6 +2556,157 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertEquals(sibling.toString(), mv.toString());
     }
 
+    // --- multivalue forms over temporal columns: the shape a time filter translates into ---
+    // The arms above all run over a bare INT64, which reaches buildLongPredicate. A time range reaches
+    // buildDatetimePredicate or buildDateNanosPredicate instead, and those rescale the bound to the column's
+    // unit. Asserting against the scalar sibling keeps the rescaling honest without restating its arithmetic.
+
+    public void testMvInRangeOverDatetimeBuildsTheRangePredicate() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("@timestamp")
+            .named("test");
+
+        long from = 1_700_000_000_000L;
+        long to = 1_700_000_600_000L;
+        FilterPredicate sibling = predicateFor(
+            schema,
+            new Range(
+                Source.EMPTY,
+                attr("@timestamp", DataType.DATETIME),
+                lit(from, DataType.DATETIME),
+                true,
+                lit(to, DataType.DATETIME),
+                true,
+                ZoneOffset.UTC
+            )
+        );
+        FilterPredicate mv = predicateFor(
+            schema,
+            new MvInRange(Source.EMPTY, attr("@timestamp", DataType.DATETIME), lit(from, DataType.DATETIME), lit(to, DataType.DATETIME))
+        );
+        assertNotNull("mv_in_range over a datetime column must build a predicate", mv);
+        assertEquals(sibling.toString(), mv.toString());
+    }
+
+    public void testMvInRangeOverDateNanosBuildsTheRangePredicate() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+            .named("@timestamp")
+            .named("test");
+
+        long from = 1_700_000_000_123_456_789L;
+        long to = 1_700_000_600_987_654_321L;
+        FilterPredicate sibling = predicateFor(
+            schema,
+            new Range(
+                Source.EMPTY,
+                attr("@timestamp", DataType.DATE_NANOS),
+                lit(from, DataType.DATE_NANOS),
+                true,
+                lit(to, DataType.DATE_NANOS),
+                true,
+                ZoneOffset.UTC
+            )
+        );
+        FilterPredicate mv = predicateFor(
+            schema,
+            new MvInRange(
+                Source.EMPTY,
+                attr("@timestamp", DataType.DATE_NANOS),
+                lit(from, DataType.DATE_NANOS),
+                lit(to, DataType.DATE_NANOS)
+            )
+        );
+        assertNotNull("mv_in_range over a date_nanos column must build a predicate", mv);
+        assertEquals(sibling.toString(), mv.toString());
+    }
+
+    public void testMvInRangeOverDateNanosOnMicrosColumnRoundsOutward() {
+        // Neither bound is a whole microsecond, so both rescale. The pushed range is RECHECK, so it must widen
+        // outward — the sibling range already does, and an mv_ arm that rounded inward would drop boundary rows.
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("@timestamp")
+            .named("test");
+
+        long from = 1_700_000_000_123_456_789L;
+        long to = 1_700_000_600_987_654_321L;
+        FilterPredicate sibling = predicateFor(
+            schema,
+            new Range(
+                Source.EMPTY,
+                attr("@timestamp", DataType.DATE_NANOS),
+                lit(from, DataType.DATE_NANOS),
+                true,
+                lit(to, DataType.DATE_NANOS),
+                true,
+                ZoneOffset.UTC
+            )
+        );
+        FilterPredicate mv = predicateFor(
+            schema,
+            new MvInRange(
+                Source.EMPTY,
+                attr("@timestamp", DataType.DATE_NANOS),
+                lit(from, DataType.DATE_NANOS),
+                lit(to, DataType.DATE_NANOS)
+            )
+        );
+        assertNotNull("mv_in_range over a rescaled date_nanos column must build a predicate", mv);
+        assertEquals(sibling.toString(), mv.toString());
+    }
+
+    public void testMvGreaterAndMvLessOverDateNanosOnMicrosColumnMatchTheirSiblings() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("@timestamp")
+            .named("test");
+
+        long bound = 1_700_000_000_123_456_789L; // not a whole microsecond: the rescale has to round
+        FilterPredicate gteSibling = predicateFor(
+            schema,
+            new GreaterThanOrEqual(Source.EMPTY, attr("@timestamp", DataType.DATE_NANOS), lit(bound, DataType.DATE_NANOS), null)
+        );
+        FilterPredicate greater = predicateFor(
+            schema,
+            new MvGreater(Source.EMPTY, attr("@timestamp", DataType.DATE_NANOS), lit(bound, DataType.DATE_NANOS))
+        );
+        assertNotNull("mv_greater over a date_nanos column must build a predicate", greater);
+        assertEquals(gteSibling.toString(), greater.toString());
+
+        FilterPredicate lteSibling = predicateFor(
+            schema,
+            new LessThanOrEqual(Source.EMPTY, attr("@timestamp", DataType.DATE_NANOS), lit(bound, DataType.DATE_NANOS), null)
+        );
+        FilterPredicate less = predicateFor(
+            schema,
+            new MvLess(Source.EMPTY, attr("@timestamp", DataType.DATE_NANOS), lit(bound, DataType.DATE_NANOS))
+        );
+        assertNotNull("mv_less over a date_nanos column must build a predicate", less);
+        assertEquals(lteSibling.toString(), less.toString());
+    }
+
+    public void testMvContainsOverDateNanosOnMicrosColumnDeclinesWhenNotDivisible() {
+        // Equality on a nanos literal that no microsecond equals exactly: the sibling declines rather than
+        // rounding, and the mv_ arm must make the same call — a rounded equality would match the wrong rows.
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("@timestamp")
+            .named("test");
+
+        long nanos = 1_700_000_000_123_456_789L;
+        assertNull(predicateFor(schema, eq("@timestamp", DataType.DATE_NANOS, nanos)));
+        assertNull(
+            predicateFor(schema, new MvContains(Source.EMPTY, attr("@timestamp", DataType.DATE_NANOS), lit(nanos, DataType.DATE_NANOS)))
+        );
+    }
+
     public void testNotOverMvContainsBuildsNoPredicate() {
         MessageType schema = Types.buildMessage().required(INT64).named("id").named("test");
         Expression negated = new Not(Source.EMPTY, new MvContains(Source.EMPTY, attr("id", DataType.LONG), lit(7L, DataType.LONG)));

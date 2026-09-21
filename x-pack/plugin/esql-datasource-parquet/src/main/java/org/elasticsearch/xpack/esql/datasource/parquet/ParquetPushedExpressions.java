@@ -354,9 +354,9 @@ final class ParquetPushedExpressions {
             return translateRange(ne.name(), ne.dataType(), range, schema, formats);
         }
         // ---- multivalue comparison functions -------------------------------------------------
-        // STATISTICS path only. Absent from evaluateExpression because the row evaluator keeps a position only when
-        // getValueCount(i) == 1 — right for `f == v`, wrong for mv_contains(f, v), which would lose matching
-        // multivalued rows; an unrecognised shape there returns null, so all rows survive. Still collected by
+        // The row evaluator keeps a position only when getValueCount(i) == 1, which is the any-value answer only for
+        // a column that cannot be multivalued. mv_in_range is wired into it under a block-level check; the rest are
+        // not, so they fall through there and every row reaches the retained FilterExec. All are collected by
         // collectColumnNames, which also drives the dictionary and bloom pre-warm.
         if (expr instanceof MvContains mvContains && mvContains.left() instanceof NamedExpression ne) {
             Object value = literalValueOf(mvContains.right());
@@ -1602,6 +1602,31 @@ final class ParquetPushedExpressions {
             // BytesRef ranges over OrdinalBytesRefBlock, the cache would need to be wired in
             // alongside the other dictionary-aware predicate evaluators.
             return evaluateRange(range, block, rowCount);
+        }
+        if (expr instanceof MvInRange mvInRange && mvInRange.field() instanceof NamedExpression ne) {
+            Block block = blocks.get(ne.name());
+            if (block == null) {
+                return null;
+            }
+            // mv_in_range(f, lo, hi) is true when SOME value of f lies in the interval. evaluateRange keeps a position
+            // only when the block holds exactly one value there, which is the any-value answer only for a column that
+            // cannot hold more than one. Ask the decoded block: if it may be multivalued, decline and let every row
+            // through to the retained FilterExec, which evaluates the real function.
+            //
+            // The restriction costs nothing in practice — a predicate is only pushed over a non-repeated primitive
+            // (resolveNestedPrimitive declines the rest), so on the pushed path the block is single-valued anyway.
+            // Nulls agree too: mv_in_range reads a null as the empty set and answers false, and evaluateRange drops a
+            // null position, so neither keeps the row.
+            //
+            // Both bounds go in inclusive whatever include_lower/include_upper say. An exclusive option would only
+            // ever remove a boundary row, so inclusive is a superset, and mv_ pushes as RECHECK — the retained
+            // FilterExec applies the real inclusivity. Reading the options here could only make the mask too small,
+            // and a row dropped in the reader has no safety net. Same reasoning as MvInRange.asQuery on the index path.
+            if (block.mayHaveMultivaluedFields()) {
+                return null;
+            }
+            Range asRange = new Range(mvInRange.source(), mvInRange.field(), mvInRange.lower(), true, mvInRange.upper(), true, null);
+            return evaluateRange(asRange, block, rowCount);
         }
         if (expr instanceof And and) {
             WordMask left = evaluateExpression(and.left(), blocks, rowCount, intermediateMask, dictCache);

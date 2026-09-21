@@ -1263,6 +1263,28 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
         assertFalse(support.pushFilters(List.of(filter)).hasPushedFilter());
     }
 
+    public void testMvFormsOnDateNanosColumnPushedAsRecheck() {
+        // A time filter over a nanosecond-resolution column is the other half of the time-picker shape; the
+        // datetime half is covered by testMvInRangePushedAsRecheck. Both types are in the supported set, so a
+        // decline here would mean a time filter silently stops pruning on one of them.
+        Attribute ts = attr("@timestamp", DataType.DATE_NANOS);
+        assertTrue(
+            support.pushFilters(List.of(new MvInRange(Source.EMPTY, ts, dateNanosLit(1_000L), dateNanosLit(2_000L)))).hasPushedFilter()
+        );
+        assertTrue(support.pushFilters(List.of(new MvContains(Source.EMPTY, ts, dateNanosLit(1_000L)))).hasPushedFilter());
+        assertTrue(support.pushFilters(List.of(new MvGreater(Source.EMPTY, ts, dateNanosLit(1_000L)))).hasPushedFilter());
+        assertTrue(support.pushFilters(List.of(new MvLess(Source.EMPTY, ts, dateNanosLit(2_000L)))).hasPushedFilter());
+    }
+
+    public void testMvInRangeWithMismatchedDateBoundNotPushed() {
+        // The bound types have to agree with the column, the same way the scalar Range does — a datetime bound
+        // on a date_nanos column is a thousand-fold error, not a rescale.
+        Attribute ts = attr("@timestamp", DataType.DATE_NANOS);
+        assertFalse(
+            support.pushFilters(List.of(new MvInRange(Source.EMPTY, ts, datetimeLit(1_000L), datetimeLit(2_000L)))).hasPushedFilter()
+        );
+    }
+
     public void testMvGreaterAndMvLessOnBooleanNotPushed() {
         // Same reason as the mv_in_range case: BooleanColumn has no ordered comparison to build.
         assertFalse(

@@ -176,6 +176,7 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
         assertThat(indicatorResult.details(), is(HealthIndicatorDetails.EMPTY));
     }
 
+    @SuppressWarnings("unchecked")
     public void testDetailsIncludesProjectsOrderedByUsedShards() throws IOException {
         ProjectId mostUsed = ProjectId.fromId("proja");
         ProjectId middleUsed = ProjectId.fromId("projb");
@@ -200,14 +201,15 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
             "projc",
             Map.of("current_used_shards", 5)
         );
-        Map<String, Object> index = indexDetails(indicatorResult);
+        Map<String, Object> details = xContentToMap(indicatorResult.details());
+        Map<String, Object> index = (Map<String, Object>) details.get("index");
         assertThat(index.get("max_shards_in_cluster"), is(maxShardsPerNode));
         assertThat(index.get("current_used_shards"), is(35));
-        assertThat(projectsDetails(index), is(expectedProjects));
-        Map<String, Object> search = searchDetails(indicatorResult);
+        assertThat(index.get("projects"), is(expectedProjects));
+        Map<String, Object> search = (Map<String, Object>) details.get("search");
         assertThat(search.get("max_shards_in_cluster"), is(maxShardsPerNode));
         assertThat(search.get("current_used_shards"), is(35));
-        assertThat(projectsDetails(search), is(expectedProjects));
+        assertThat(search.get("projects"), is(expectedProjects));
         assertThat(
             Strings.toString(indicatorResult.details()),
             containsString(
@@ -219,6 +221,7 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
 
     // If the `size` query parameter is less than the number of projects then we should only include
     // the top `size` projects
+    @SuppressWarnings("unchecked")
     public void testDetailsProjectsHonorsSize() throws IOException {
         ProjectId mostUsed = ProjectId.fromId("proja");
         ProjectId middleUsed = ProjectId.fromId("projb");
@@ -239,8 +242,9 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
             "projb",
             Map.of("current_used_shards", 10)
         );
-        assertThat(projectsDetails(indexDetails(indicatorResult)), is(expectedTopProjects));
-        assertThat(projectsDetails(searchDetails(indicatorResult)), is(expectedTopProjects));
+        Map<String, Object> details = xContentToMap(indicatorResult.details());
+        assertThat(((Map<String, Object>) details.get("index")).get("projects"), is(expectedTopProjects));
+        assertThat(((Map<String, Object>) details.get("search")).get("projects"), is(expectedTopProjects));
         String detailsJson = Strings.toString(indicatorResult.details());
         assertThat(
             detailsJson,
@@ -252,6 +256,7 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
     /**
      * {@code size=0} still reports aggregate shard counts but omits the {@code projects} field.
      */
+    @SuppressWarnings("unchecked")
     public void testSizeZeroOmitsProjects() throws IOException {
         int maxShardsPerNode = 44;
         var clusterService = createClusterService(
@@ -270,10 +275,13 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
         var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(true, 0, HealthInfo.EMPTY_HEALTH_INFO);
 
         assertEquals(YELLOW, indicatorResult.status());
-        assertThat(indexDetails(indicatorResult).get("current_used_shards"), is(35));
-        assertThat(searchDetails(indicatorResult).get("current_used_shards"), is(35));
-        assertThat(indexDetails(indicatorResult), not(hasKey("projects")));
-        assertThat(searchDetails(indicatorResult), not(hasKey("projects")));
+        Map<String, Object> details = xContentToMap(indicatorResult.details());
+        Map<String, Object> index = (Map<String, Object>) details.get("index");
+        Map<String, Object> search = (Map<String, Object>) details.get("search");
+        assertThat(index.get("current_used_shards"), is(35));
+        assertThat(search.get("current_used_shards"), is(35));
+        assertThat(index, not(hasKey("projects")));
+        assertThat(search, not(hasKey("projects")));
         assertThat(Strings.toString(indicatorResult.details()), not(containsString("\"projects\"")));
         assertThat(Strings.toString(indicatorResult.details()), not(containsString("proja")));
     }
@@ -387,21 +395,6 @@ public class ShardsCapacityHealthIndicatorServiceStatelessTests extends ESTestCa
         XContentParser parser = XContentType.JSON.xContent()
             .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
         return parser.map();
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> indexDetails(HealthIndicatorResult indicatorResult) throws IOException {
-        return (Map<String, Object>) xContentToMap(indicatorResult.details()).get("index");
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> searchDetails(HealthIndicatorResult indicatorResult) throws IOException {
-        return (Map<String, Object>) xContentToMap(indicatorResult.details()).get("search");
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> projectsDetails(Map<String, Object> index) {
-        return (Map<String, Object>) index.get("projects");
     }
 
     private Map<String, Object> expectedNodeTypeDetails(int maxShardsInCluster, int currentUsedShards, int shardsUsedPerProject) {

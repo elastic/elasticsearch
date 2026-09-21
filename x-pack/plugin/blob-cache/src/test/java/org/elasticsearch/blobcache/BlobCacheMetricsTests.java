@@ -195,7 +195,6 @@ public class BlobCacheMetricsTests extends ESTestCase {
         assertThat(measurements.getFirst().attributes().keySet(), contains(LOCK_ACQUIRE_SITE_ATTRIBUTE_KEY));
     }
 
-<<<<<<< HEAD
     public void testSentinelTimestampsSkipAgeHistogram() {
         metrics.recordRead(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP);
         metrics.recordMiss(SharedBlobCacheService.UNKNOWN_TIMESTAMP);

@@ -10,13 +10,13 @@
           "name" : "key",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The key of the first key/value pair."
+          "description" : "A key."
         },
         {
           "name" : "value",
           "type" : "boolean",
           "optional" : false,
-          "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
+          "description" : "A value."
         }
       ],
       "variadic" : true,
@@ -28,13 +28,13 @@
           "name" : "key",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The key of the first key/value pair."
+          "description" : "A key."
         },
         {
           "name" : "value",
           "type" : "date",
           "optional" : false,
-          "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
+          "description" : "A value."
         }
       ],
       "variadic" : true,
@@ -46,13 +46,13 @@
           "name" : "key",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The key of the first key/value pair."
+          "description" : "A key."
         },
         {
           "name" : "value",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
+          "description" : "A value."
         }
       ],
       "variadic" : true,
@@ -64,13 +64,13 @@
           "name" : "key",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The key of the first key/value pair."
+          "description" : "A key."
         },
         {
           "name" : "value",
           "type" : "double",
           "optional" : false,
-          "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
+          "description" : "A value."
         }
       ],
       "variadic" : true,
@@ -82,13 +82,13 @@
           "name" : "key",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The key of the first key/value pair."
+          "description" : "A key."
         },
         {
           "name" : "value",
           "type" : "integer",
           "optional" : false,
-          "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
+          "description" : "A value."
         }
       ],
       "variadic" : true,
@@ -100,13 +100,13 @@
           "name" : "key",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The key of the first key/value pair."
+          "description" : "A key."
         },
         {
           "name" : "value",
           "type" : "ip",
           "optional" : false,
-          "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
+          "description" : "A value."
         }
       ],
       "variadic" : true,
@@ -118,13 +118,13 @@
           "name" : "key",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The key of the first key/value pair."
+          "description" : "A key."
         },
         {
           "name" : "value",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
+          "description" : "A value."
         }
       ],
       "variadic" : true,
@@ -136,13 +136,13 @@
           "name" : "key",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The key of the first key/value pair."
+          "description" : "A key."
         },
         {
           "name" : "value",
           "type" : "long",
           "optional" : false,
-          "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
+          "description" : "A value."
         }
       ],
       "variadic" : true,
@@ -154,13 +154,13 @@
           "name" : "key",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The key of the first key/value pair."
+          "description" : "A key."
         },
         {
           "name" : "value",
           "type" : "text",
           "optional" : false,
-          "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
+          "description" : "A value."
         }
       ],
       "variadic" : true,
@@ -172,13 +172,13 @@
           "name" : "key",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The key of the first key/value pair."
+          "description" : "A key."
         },
         {
           "name" : "value",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
+          "description" : "A value."
         }
       ],
       "variadic" : true,
@@ -190,13 +190,13 @@
           "name" : "key",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The key of the first key/value pair."
+          "description" : "A key."
         },
         {
           "name" : "value",
           "type" : "version",
           "optional" : false,
-          "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
+          "description" : "A value."
         }
       ],
       "variadic" : true,
@@ -208,13 +208,13 @@
           "name" : "key",
           "type" : "text",
           "optional" : false,
-          "description" : "The key of the first key/value pair."
+          "description" : "A key."
         },
         {
           "name" : "value",
           "type" : "boolean",
           "optional" : false,
-          "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
+          "description" : "A value."
         }
       ],
       "variadic" : true,
@@ -226,13 +226,13 @@
           "name" : "key",
           "type" : "text",
           "optional" : false,
-          "description" : "The key of the first key/value pair."
+          "description" : "A key."
         },
         {
           "name" : "value",
           "type" : "date",
           "optional" : false,
-          "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
+          "description" : "A value."
         }
       ],
       "variadic" : true,
@@ -244,13 +244,13 @@
           "name" : "key",
           "type" : "text",
           "optional" : false,
-          "description" : "The key of the first key/value pair."
+          "description" : "A key."
         },
         {
           "name" : "value",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
+          "description" : "A value."
         }
       ],
       "variadic" : true,
@@ -262,13 +262,13 @@
           "name" : "key",
           "type" : "text",
           "optional" : false,
-          "description" : "The key of the first key/value pair."
+          "description" : "A key."
         },
         {
           "name" : "value",
           "type" : "double",
           "optional" : false,
-          "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
+          "description" : "A value."
         }
       ],
       "variadic" : true,
@@ -280,13 +280,13 @@
           "name" : "key",
           "type" : "text",
           "optional" : false,
-          "description" : "The key of the first key/value pair."
+          "description" : "A key."
         },
         {
           "name" : "value",
           "type" : "integer",
           "optional" : false,
-          "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
+          "description" : "A value."
         }
       ],
       "variadic" : true,
@@ -298,13 +298,13 @@
           "name" : "key",
           "type" : "text",
           "optional" : false,
-          "description" : "The key of the first key/value pair."
+          "description" : "A key."
         },
         {
           "name" : "value",
           "type" : "ip",
           "optional" : false,
-          "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
+          "description" : "A value."
         }
       ],
       "variadic" : true,
@@ -316,13 +316,13 @@
           "name" : "key",
           "type" : "text",
           "optional" : false,
-          "description" : "The key of the first key/value pair."
+          "description" : "A key."
         },
         {
           "name" : "value",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
+          "description" : "A value."
         }
       ],
       "variadic" : true,
@@ -334,13 +334,13 @@
           "name" : "key",
           "type" : "text",
           "optional" : false,
-          "description" : "The key of the first key/value pair."
+          "description" : "A key."
         },
         {
           "name" : "value",
           "type" : "long",
           "optional" : false,
-          "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
+          "description" : "A value."
         }
       ],
       "variadic" : true,
@@ -352,13 +352,13 @@
           "name" : "key",
           "type" : "text",
           "optional" : false,
-          "description" : "The key of the first key/value pair."
+          "description" : "A key."
         },
         {
           "name" : "value",
           "type" : "text",
           "optional" : false,
-          "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
+          "description" : "A value."
         }
       ],
       "variadic" : true,
@@ -370,13 +370,13 @@
           "name" : "key",
           "type" : "text",
           "optional" : false,
-          "description" : "The key of the first key/value pair."
+          "description" : "A key."
         },
         {
           "name" : "value",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
+          "description" : "A value."
         }
       ],
       "variadic" : true,
@@ -388,13 +388,13 @@
           "name" : "key",
           "type" : "text",
           "optional" : false,
-          "description" : "The key of the first key/value pair."
+          "description" : "A key."
         },
         {
           "name" : "value",
           "type" : "version",
           "optional" : false,
-          "description" : "The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs."
+          "description" : "A value."
         }
       ],
       "variadic" : true,

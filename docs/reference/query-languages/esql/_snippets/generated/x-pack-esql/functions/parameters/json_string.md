@@ -3,8 +3,8 @@
 ## Parameters
 
 `key`
-:   The key of the first key/value pair.
+:   A key.
 
 `value`
-:   The value of the first pair, followed by any further alternating keys and values. Provide arguments as alternating key/value pairs.
+:   A value.
 

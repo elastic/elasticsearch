@@ -114,12 +114,11 @@ public class JsonString extends EsqlScalarFunction {
     )
     public JsonString(
         Source source,
-        @Param(name = "key", type = { "keyword", "text" }, description = "The key of the first key/value pair.") Expression first,
+        @Param(name = "key", type = { "keyword", "text" }, description = "A key.") Expression first,
         @Param(
             name = "value",
             type = { "boolean", "integer", "long", "unsigned_long", "double", "keyword", "text", "ip", "version", "date", "date_nanos" },
-            description = "The value of the first pair, followed by any further alternating keys and values. "
-                + "Provide arguments as alternating key/value pairs."
+            description = "A value."
         ) List<Expression> rest
     ) {
         this(source, Stream.concat(Stream.of(first), rest.stream()).toList());

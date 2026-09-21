@@ -61,6 +61,27 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testResolveDotPrefixedView() {
+        assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS.isEnabled());
+
+        indexRandom(true, false, prepareIndex("view-index").setSource(Map.of("id", randomIdentifier(), "source", "view-index")));
+
+        try (var view = createView(".hidden-view", "FROM view-index")) {
+            try (var response = run(syncEsqlQueryRequest("FROM .hidden-view"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "view-index");
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM .hidden-*"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "view-index");
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM *-view"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "view-index");
+            }
+        }
+    }
+
     public void testViewWithIndexComponentSelectors() {
         assumeTrue("Requires index component selectors", EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled());
         assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS.isEnabled());

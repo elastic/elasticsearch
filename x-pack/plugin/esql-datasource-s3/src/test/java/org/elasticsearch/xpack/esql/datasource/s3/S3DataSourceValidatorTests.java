@@ -1462,11 +1462,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertNotNull(validator.validateDataset(Map.of(), "s3://my-access-po-o01ac--op-s3/data/f.parquet", Map.of()));
     }
 
-    /**
-     * A name long enough to carry an outpost id reaches {@code s3-outposts}, which the endpoint rule
-     * refuses by name and which a configured {@code endpoint} does not suppress. The fixture is resolved here
-     * rather than trusted to look right: a shorter name of the same shape reaches the ordinary regional host.
-     */
+    /** Long enough to carry an outpost id, so it reaches {@code s3-outposts}; resolved here rather than trusted. */
     public void testValidateDatasetRefusesBucketNameThatRoutesToOutposts() {
         String bucket = "oop-01234567890123aaaaaaaaaaaaaaaaaaaaaaaaa--op-s3";
         assertThat(resolvedHostOf(bucket), containsString(".s3-outposts.us-east-1.amazonaws.com"));
@@ -1492,11 +1488,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertThat(e.getMessage(), containsString("cannot route to any endpoint"));
     }
 
-    /**
-     * The bucket the check reads must be the bucket the read binds to. {@code StoragePath.of} strips a port
-     * and a {@code userInfo}, so a refusal that tests the raw authority is bypassed by appending {@code :443}
-     * — and the refusals below all tested it.
-     */
+    /** {@code StoragePath.of} strips a port, so a refusal reading the raw authority is bypassed by {@code :443}. */
     public void testValidateDatasetRefusesSteeredBucketsWithAPort() {
         for (String bucket : List.of(
             "mybucket--use1-az4--x-s3",

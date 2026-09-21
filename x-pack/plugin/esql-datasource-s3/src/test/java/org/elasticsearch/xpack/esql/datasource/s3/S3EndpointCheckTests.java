@@ -151,7 +151,6 @@ public class S3EndpointCheckTests extends ESTestCase {
             "s3.eu-west-1.amazonaws.com",
             "s3.cn-north-1.amazonaws.com.cn",
             "s3.us-gov-west-1.amazonaws.com",
-            // The historical spelling, which carries its region inside the service label.
             "s3-us-west-2.amazonaws.com",
             "S3.US-EAST-1.AMAZONAWS.COM",
             "s3.us-east-1.amazonaws.com."

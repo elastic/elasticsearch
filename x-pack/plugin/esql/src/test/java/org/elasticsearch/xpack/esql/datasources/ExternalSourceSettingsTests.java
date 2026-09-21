@@ -230,11 +230,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS));
     }
 
-    /**
-     * The allowlist is matched against {@code host:port}, so an entry naming no port matches nothing. Refusing
-     * it at startup is the difference between an operator seeing their mistake and seeing an endpoint refusal
-     * that says nothing about the entry meant to admit it.
-     */
+    /** An entry naming no port matches nothing, so it is refused at startup rather than silently ignored. */
     public void testAllowedEndpointHostsRequireAPort() {
         for (String entry : List.of("minio.corp.example.com", "127.0.0.1", "[::1]", "localhost:", "[::1")) {
             IllegalArgumentException e = expectThrows(

@@ -1122,7 +1122,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return VectorData.fromBytes(vector);
         }
 
-        VectorData parseEncodedVector(DocumentParserContext context, int dims, IntBooleanConsumer dimChecker, VectorSimilarity similarity)
+        VectorData parseEncodedVector(DocumentParserContext context, int dims, VectorSimilarity similarity)
             throws IOException {
             XContentString.UTF8Bytes utfBytes = context.parser().optimizedText().bytes();
             byte[] decoded;
@@ -1132,7 +1132,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 throw new ParsingException(context.parser().getTokenLocation(), e.getMessage());
             }
 
-            dimChecker.accept(elementType().dims(decoded.length), true);
             VectorData vectorData = VectorData.fromBytes(decoded);
             checkVectorMagnitude(similarity, errorElementsAppender(decoded), (float) computeSquaredMagnitude(vectorData));
             return vectorData;
@@ -1148,7 +1147,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             XContentParser.Token token = context.parser().currentToken();
             return switch (token) {
                 case START_ARRAY -> parseVectorArray(context, dims, dimChecker, similarity);
-                case VALUE_STRING -> parseEncodedVector(context, dims, dimChecker, similarity);
+                case VALUE_STRING -> parseEncodedVector(context, dims, similarity);
                 default -> throw new ParsingException(
                     context.parser().getTokenLocation(),
                     format("Unsupported type [%s] for provided value [%s]", token, context.parser().text())
@@ -1438,7 +1437,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             XContentParser.Token token = context.parser().currentToken();
             return switch (token) {
                 case START_ARRAY -> parseVectorArray(context, dimChecker, dims);
-                case VALUE_STRING -> parseBase64EncodedVector(context, dimChecker, dims);
+                case VALUE_STRING -> parseBase64EncodedVector(context, dims);
                 default -> throw new ParsingException(
                     context.parser().getTokenLocation(),
                     format("Unsupported type [%s] for provided value [%s]", token, context.parser().text())
@@ -1462,7 +1461,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return new VectorDataAndMagnitude(VectorData.fromFloats(vector), squaredMagnitude);
         }
 
-        VectorDataAndMagnitude parseBase64EncodedVector(DocumentParserContext context, IntBooleanConsumer dimChecker, int dims)
+        VectorDataAndMagnitude parseBase64EncodedVector(DocumentParserContext context, int dims)
             throws IOException {
             XContentString.UTF8Bytes utfBytes = context.parser().optimizedText().bytes();
             float[] decodedVector;
@@ -1472,7 +1471,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 throw new ParsingException(context.parser().getTokenLocation(), e.getMessage());
             }
 
-            dimChecker.accept(decodedVector.length, true);
             VectorData vectorData = VectorData.fromFloats(decodedVector);
             return new VectorDataAndMagnitude(vectorData, (float) computeSquaredMagnitude(vectorData));
         }

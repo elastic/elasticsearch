@@ -260,6 +260,25 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         runDifferential(mvInRangeExclusive(ID, DataType.LONG, 100L, 400L));
     }
 
+    public void testNotOverExclusiveMvInRangeKeepsBoundaryRows() throws IOException {
+        // Negation inverts which direction is safe. The row arm pushes both bounds inclusive, which is a superset
+        // on positive polarity; negated, a superset mask becomes a SUBSET of the true complement, so a row sitting
+        // on an excluded bound is dropped in the reader and the retained FilterExec never gets the chance to
+        // restore it.
+        runDifferential(new Not(Source.EMPTY, mvInRangeExclusive(ID, DataType.LONG, 100L, 400L)));
+    }
+
+    public void testNotOverAndContainingExclusiveMvInRangeKeepsBoundaryRows() throws IOException {
+        // The De Morgan branch of evaluateNot reaches the same arm.
+        runDifferential(new Not(Source.EMPTY, and(mvInRangeExclusive(ID, DataType.LONG, 100L, 400L), eq(STATUS, 200L, DataType.LONG))));
+    }
+
+    public void testNotOverOptionlessMvInRangeIsExact() throws IOException {
+        // The control that localises the defect: with no options both bounds are inclusive by definition, so the
+        // mask is exact rather than a superset and negating it is correct.
+        runDifferential(new Not(Source.EMPTY, mvInRange(ID, DataType.LONG, 100L, 400L)));
+    }
+
     public void testMvGreaterPushesInclusiveOverStrictTruth() throws IOException {
         // include_bound defaults to false, so truth is id > 100 while the pushed predicate is id >= 100. The
         // superset prunes one value less than it could; it must never prune one it should not.
@@ -546,6 +565,18 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         assertMvSurvivors(bytes, like(tags, "Sen*"), Set.of(0L));
         // NOT(tags LIKE "Sen*"): row1 MV → excluded by MV semantics in NOT; row3 "Manager" survives
         assertMvSurvivors(bytes, not(like(tags, "Sen*")), Set.of(3L));
+
+        // mv_in_range over the same list column: the row arm must DECLINE, so every row reaches the retained
+        // filter, which computes the real any-value answer (rows 0, 1 and 3 each hold a value in [2, 6]).
+        // This is what makes block.mayHaveMultivaluedFields() a gate rather than decoration: without it
+        // evaluateRange keeps only positions holding exactly one value and this returns row 1 alone, losing
+        // rows 0 and 3 inside the reader where nothing downstream can recover them. Contrast the scalar Range
+        // over the same bounds above, which legitimately yields row 1 only.
+        assertMvSurvivors(
+            bytes,
+            new MvInRange(Source.EMPTY, v, lit(2, DataType.INTEGER), lit(6, DataType.INTEGER)),
+            Set.of(0L, 1L, 2L, 3L)
+        );
     }
 
     /**

@@ -56,11 +56,12 @@ import java.util.concurrent.TimeUnit;
  * What row-group pruning is worth on a filtered Parquet scan, and whether reaching it through a multivalue
  * comparison function costs anything over the scalar comparison it is equivalent to.
  *
- * <p>A predicate is only ever pushed over a column that cannot hold more than one value per row — the builders
- * decline any repeated or group column — so {@code mv_in_range(ts, a, b)} and {@code ts >= a AND ts <= b} select
- * the same rows from the same data and skip the same row groups. The ceiling for the multivalue form is therefore
- * the scalar form, and the only thing that can separate them is the per-row cost of the retained filter, which
- * evaluates a different expression in each case.
+ * <p>The fixture's predicate column is a plain required primitive, so it holds exactly one value per row and
+ * {@code mv_in_range(ts, a, b)} selects the same rows as {@code ts >= a AND ts <= b} from the same data, skipping
+ * the same row groups. The ceiling for the multivalue form is therefore the scalar form, and the only thing that
+ * can separate them is the per-row cost of the retained filter, which evaluates a different expression in each
+ * case. A multivalued column would not measure this: the row-level arm declines there and the comparison stops
+ * being like for like.
  *
  * <p>Two mechanisms are in play and {@code clustering} separates them. Sorted, a selective range leaves most row
  * groups unreadable and they are skipped whole. Shuffled, every row group spans the whole range and none can be

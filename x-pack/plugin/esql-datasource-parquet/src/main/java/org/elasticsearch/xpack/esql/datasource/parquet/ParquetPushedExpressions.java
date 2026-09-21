@@ -1613,15 +1613,24 @@ final class ParquetPushedExpressions {
             // cannot hold more than one. Ask the decoded block: if it may be multivalued, decline and let every row
             // through to the retained FilterExec, which evaluates the real function.
             //
-            // The restriction costs nothing in practice — a predicate is only pushed over a non-repeated primitive
-            // (resolveNestedPrimitive declines the rest), so on the pushed path the block is single-valued anyway.
-            // Nulls agree too: mv_in_range reads a null as the empty set and answers false, and evaluateRange drops a
+            // That check is load-bearing, not belt-and-braces. resolveNestedPrimitive declines a repeated column only
+            // inside the statistics path; what gates this one is canPush, which tests the ES|QL DataType, and the
+            // reader maps a LIST column to its element type. So mv_in_range over a list column is pushed as RECHECK
+            // and arrives here with a genuinely multivalued block, which evaluateRange would silently drop every
+            // matching row of.
+            //
+            // Nulls agree: mv_in_range reads a null as the empty set and answers false, and evaluateRange drops a
             // null position, so neither keeps the row.
             //
-            // Both bounds go in inclusive whatever include_lower/include_upper say. An exclusive option would only
-            // ever remove a boundary row, so inclusive is a superset, and mv_ pushes as RECHECK — the retained
-            // FilterExec applies the real inclusivity. Reading the options here could only make the mask too small,
-            // and a row dropped in the reader has no safety net. Same reasoning as MvInRange.asQuery on the index path.
+            // Decline when the bounds carry options. With none, both are inclusive by definition and the mask below
+            // is exact. With them the mask could only be built as a superset, and a superset is safe on positive
+            // polarity but not under a negation: evaluateNot bitwise-negates whatever this returns, and the
+            // complement of a superset is a SUBSET of the true complement, so a row sitting on an excluded bound
+            // would be dropped here with no FilterExec left to restore it. The partition matcher declines the same
+            // way for the same reason (FileSplitProvider.onTheBound).
+            if (mvInRange.options() != null) {
+                return null;
+            }
             if (block.mayHaveMultivaluedFields()) {
                 return null;
             }

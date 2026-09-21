@@ -88,7 +88,7 @@ public class ExternalRequestFilterRowGroupPruningIT extends AbstractExternalData
     }
 
     public void testMustNotKeepsEveryRowGroup() throws Exception {
-        // Under a negation the multivalue forms are not pushed at all: the pruning bound is a superset, and a superset
+        // Under a negation the multivalue forms build no statistics predicate: the pruning bound is a superset, and a superset
         // under NOT is an under-match that no retained filter can undo, because the rows were never read. So the scan
         // must be total while the answer stays exact. Region is clustered, so a wrongly pushed NOT(region == "EU")
         // would skip the EU row groups and this would fail on the counters as well as on the rows.

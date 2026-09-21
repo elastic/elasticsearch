@@ -255,8 +255,9 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
             return PushdownPredicates.isRange(range, TYPE_SUPPORTED);
         }
         // The multivalue comparison functions are any-value existentials, so each carries the same statistics bound as
-        // its scalar sibling and pushes as RECHECK: canPush returns RECHECK for anything isFullyEvaluable rejects, and
-        // that is the LIKE family only. The exact predicate stays in the retained FilterExec.
+        // its scalar sibling and pushes as RECHECK. isFullyEvaluable accepts only the LIKE family, Not over it and And
+        // of those, so it rejects these and canPush answers RECHECK. The exact predicate stays in the retained
+        // FilterExec.
         if (expr instanceof MvContains mvContains) {
             return PushdownPredicates.isMvContains(mvContains, TYPE_SUPPORTED);
         }

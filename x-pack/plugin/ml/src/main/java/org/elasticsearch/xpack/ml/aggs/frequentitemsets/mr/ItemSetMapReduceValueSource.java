@@ -23,7 +23,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
@@ -283,13 +283,13 @@ public abstract class ItemSetMapReduceValueSource {
 
             @Override
             public ValueCollector getValueCollector(LeafReaderContext ctx) throws IOException {
-                final SortedBinaryDocValues values = source.bytesValues(ctx);
+                final SortableBinaryDocValues values = source.bytesValues(ctx);
                 final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
                 final Tuple<Field, List<Object>> empty = new Tuple<>(field, Collections.emptyList());
                 return singleton != null ? getValueCollector(singleton, empty) : getValueCollector(values, empty);
             }
 
-            private ValueCollector getValueCollector(SortedBinaryDocValues values, Tuple<Field, List<Object>> empty) {
+            private ValueCollector getValueCollector(SortableBinaryDocValues values, Tuple<Field, List<Object>> empty) {
                 return doc -> {
                     if (values.advanceExact(doc)) {
                         final int valuesCount = values.docValueCount();

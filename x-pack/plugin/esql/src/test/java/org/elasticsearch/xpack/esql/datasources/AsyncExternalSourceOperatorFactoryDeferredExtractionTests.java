@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrate
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -683,11 +684,11 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
 
     public void testNonIdentityMappingPreservesRowPositionWithoutDeferredExtraction() throws Exception {
         // Regression for the adaptSchema row-position slot derivation: the reader appends
-        // _rowPosition to its projection for plain _id composition too (no deferred extraction,
+        // _rowPosition to its projection for plain _file.record_ref composition too (no deferred extraction,
         // no paired extract exec), and the input slot is its position in the per-file projection.
         // Deriving it from the deferred flag dropped the channel on every schema-drifted file
         // (the adapter released the tail block; the downstream block-count check then failed for
-        // any heterogeneous glob + METADATA _id). The drift here: the file stores [b, a], the
+        // any heterogeneous glob + METADATA _file.record_ref). The drift here: the file stores [b, a], the
         // query wants [a, b] — a non-identity mapping with _rowPosition riding at the tail.
         ProjectionEchoReader reader = new ProjectionEchoReader(/* rows = */ 3);
 
@@ -1150,6 +1151,11 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
 
     /** Storage provider that fabricates {@link StorageObject}s for arbitrary paths. */
     private static final class StubStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
+
         @Override
         public StorageObject newObject(StoragePath path) {
             return new StubStorageObject(path);

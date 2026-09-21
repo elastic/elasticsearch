@@ -7,13 +7,18 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 
 import java.util.List;
 import java.util.Map;
@@ -103,32 +108,96 @@ public final class Fork extends MergePlan implements TelemetryAware {
             );
         });
 
-        Map<String, DataType> outputTypes = fork.output().stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));
+        Map<String, Attribute> mergedOutput = fork.output().stream().collect(Collectors.toMap(Attribute::name, attr -> attr));
 
         fork.children().forEach(subPlan -> {
             for (Attribute attr : subPlan.output()) {
-                var expected = outputTypes.get(attr.name());
+                var merged = mergedOutput.get(attr.name());
 
                 // If the FORK output has an UNSUPPORTED data type, we know there is no conflict.
                 // We only assign an UNSUPPORTED attribute in the FORK output when there exists no attribute with the
                 // same name and supported data type in any of the FORK branches.
-                if (expected == DataType.UNSUPPORTED) {
+                //
+                // Likewise, a branch that does not produce the column at all had it filled with nulls to line the branches up.
+                // Those rows carry no values, so there is nothing for a sibling's declarations to disagree with.
+                if (merged == null || merged.dataType() == DataType.UNSUPPORTED || producesOnlyNull(subPlan, attr)) {
                     continue;
                 }
 
-                var actual = attr.dataType();
-                if (actual != expected) {
+                var conflict = checkForMergeConflict(attr, merged);
+                if (conflict != null) {
                     failures.add(
                         Failure.fail(
                             attr,
-                            "Column [{}] has conflicting data types in FORK branches: [{}] and [{}]",
+                            "Column [{}] has conflicting {} in FORK branches: [{}] and [{}]",
                             attr.name(),
-                            actual,
-                            expected
+                            conflict.property(),
+                            conflict.branchValue(),
+                            conflict.mergedValue()
                         )
                     );
                 }
             }
         });
+    }
+
+    /**
+     * A property that two same-named attributes disagree on, and so cannot be merged into one output column.
+     *
+     * @param property plural name of the property, for a user-facing message
+     * @param branchValue the value on the attribute being merged in
+     * @param mergedValue the value the merged output carries
+     */
+    record MergeConflict(String property, String branchValue, String mergedValue) {}
+
+    /**
+     * Why {@code branch} cannot be merged into {@code merged}, or {@code null} when it can.
+     * <p>
+     * {@link Expressions#toReferenceAttributesPreservingIds} keeps one attribute per column name, so a branch
+     * disagreeing on any property that changes how the column's values are read would have its rows read as if it
+     * had declared the merged one. {@link #checkFork} reports the conflict; this decides what counts as one, so
+     * that adding a text-column property does not scatter the comparison through the check itself.
+     */
+    @Nullable
+    static MergeConflict checkForMergeConflict(Attribute branch, Attribute merged) {
+        if (branch.dataType() != merged.dataType()) {
+            return new MergeConflict("data types", String.valueOf(branch.dataType()), String.valueOf(merged.dataType()));
+        }
+        // Declaring nothing is declaring the standard analyzer, so it still disagrees with a sibling that names a
+        // different one: the merged column can carry only one, and the other branch's values would be analyzed with
+        // an analyzer they never declared. A column with no values to analyze - one branch alignment filled with
+        // nulls - is skipped by the caller rather than weakening the comparison here.
+        String branchAnalyzer = analyzerOrStandard(branch);
+        String mergedAnalyzer = analyzerOrStandard(merged);
+        if (branchAnalyzer.equals(mergedAnalyzer) == false) {
+            return new MergeConflict("values analyzers", branchAnalyzer, mergedAnalyzer);
+        }
+        return null;
+    }
+
+    private static String analyzerOrStandard(Attribute attr) {
+        String declared = AnalyzedTextExpression.valuesAnalyzerOf(attr);
+        return declared == null ? AnalyzedTextExpression.STANDARD_ANALYZER : declared;
+    }
+
+    /**
+     * Whether {@code attr}, a column of {@code branch}'s output, holds nothing but nulls. Branch alignment fills a
+     * column a branch lacks this way, so that every branch outputs the same names; a column written as an explicit
+     * {@code EVAL x = null} is indistinguishable and equally empty, so both are treated alike.
+     * <p>
+     * Matched on the attribute's id rather than its name: a branch may assign the name more than once, and only the
+     * assignment this attribute came from decides what the branch outputs. Matching by name would let an assignment
+     * a later one shadows answer for the column.
+     */
+    private static boolean producesOnlyNull(LogicalPlan branch, Attribute attr) {
+        Holder<Boolean> onlyNull = new Holder<>(false);
+        branch.forEachDown(Eval.class, eval -> {
+            for (Alias field : eval.fields()) {
+                if (field.id().equals(attr.id())) {
+                    onlyNull.set(Expressions.isGuaranteedNull(field.child()));
+                }
+            }
+        });
+        return onlyNull.get();
     }
 }

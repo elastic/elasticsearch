@@ -67,8 +67,8 @@ import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingArrayOrderBinaryDocValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
@@ -605,19 +605,19 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> docValuesFieldFetcher(IndexFieldData<?> ifd) {
             return context -> {
-                SortedBinaryDocValues indexedValuesDocValues = ifd.load(context).getBytesValues();
+                SortableBinaryDocValues indexedValuesDocValues = ifd.load(context).getBytesValues();
                 return docId -> getValuesFromDocValues(indexedValuesDocValues, docId);
             };
         }
 
         private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> binaryDocValuesFieldFetcher(String fieldName) {
             return context -> new CheckedIntFunction<>() {
-                SortedBinaryDocValues binaryDocValues;
+                SortableBinaryDocValues binaryDocValues;
 
                 @Override
                 public List<Object> apply(int docId) throws IOException {
                     if (binaryDocValues == null) {
-                        binaryDocValues = MultiValuedSortedBinaryDocValues.from(context.reader(), fieldName);
+                        binaryDocValues = MultiValuedSortableBinaryDocValues.from(context.reader(), fieldName);
                     }
                     return getValuesFromDocValues(binaryDocValues, docId);
                 }
@@ -634,7 +634,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             String fieldName
         ) {
             return context -> new CheckedIntFunction<>() {
-                SortedBinaryDocValues binaryDocValues;
+                SortableBinaryDocValues binaryDocValues;
 
                 @Override
                 public List<Object> apply(int docId) throws IOException {
@@ -646,7 +646,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             };
         }
 
-        private List<Object> getValuesFromDocValues(SortedBinaryDocValues docValues, int docId) throws IOException {
+        private List<Object> getValuesFromDocValues(SortableBinaryDocValues docValues, int docId) throws IOException {
             if (docValues.advanceExact(docId)) {
                 var values = new ArrayList<>(docValues.docValueCount());
                 for (int i = 0; i < docValues.docValueCount(); i++) {

@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -753,6 +754,22 @@ public class ExternalSourceResolver {
                 unavailable,
                 "{}",
                 unavailable.getMessage() != null ? unavailable.getMessage() : "Failed to resolve external source"
+            );
+        }
+        // Expired session tokens are a typed 400 so prefetch/listing fail-fast can instanceof them.
+        // Recover from a cache ExecutionException the same way as the 503 arm: without this, a glob
+        // listing expiry becomes a 500 on the cacheable rail.
+        ExternalCredentialsExpiredException expired = (ExternalCredentialsExpiredException) ExceptionsHelper.unwrap(
+            e,
+            ExternalCredentialsExpiredException.class
+        );
+        if (expired != null) {
+            recordDiscoveryFailure();
+            LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
+            return new ExternalCredentialsExpiredException(
+                expired,
+                "{}",
+                ExternalFailures.locate("Failed to resolve external source", path, expired.getMessage())
             );
         }
         // A permit-acquisition interrupt surfaces as an EsRejectedExecutionException (429). The factory loop wraps it

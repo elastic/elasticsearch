@@ -413,7 +413,7 @@ public class AnalyzerExternalTests extends ESTestCase {
         plan.forEachDown(Project.class, projects::add);
 
         // ALL_FILE_METADATA_CLAUSE requests every _file.* column EXCEPT _file.record_ref, which is a request-driven
-        // column that must be named explicitly (it drives _id and forces the reader's row-position channel), so
+        // column that must be named explicitly (it forces the reader's row-position channel), so
         // KEEP _file* matches NAMES minus record_ref.
         int expectedMetadataColumns = FileMetadataColumns.NAMES.size() - 1;
         boolean foundFileMetadataProject = false;
@@ -433,7 +433,9 @@ public class AnalyzerExternalTests extends ESTestCase {
     /**
      * Universal-rule binding: every standard metadata name in
      * {@link MetadataAttribute#ATTRIBUTES_MAP} resolves to an {@link ExternalMetadataAttribute} of
-     * the registered type when listed in {@code METADATA} on an external dataset.
+     * the registered type when listed in {@code METADATA} on an external dataset. {@code _id},
+     * {@code _version} and {@code _source} bind like the rest and answer SQL NULL at execution
+     * (pinned in {@code AbstractExternalMetadataMatrixIT#testAllStandardMetadataColumnsPinned}).
      */
     public void testStandardMetadataBindsOnExternalDataset() {
         assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
@@ -545,7 +547,9 @@ public class AnalyzerExternalTests extends ESTestCase {
         LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
             TEST_PARSER.parseQuery(query),
             datasetProject(resource),
-            TestIndexNameExpressionResolver.newInstance()
+            TestIndexNameExpressionResolver.newInstance(),
+            // These cases name their datasets exactly, which reaches them at the wildcards_match_datasets default.
+            false
         );
         return testAnalyzer.buildAnalyzer().analyze(rewritten);
     }

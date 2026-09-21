@@ -328,7 +328,6 @@ public class S3EndpointCheckTests extends ESTestCase {
             "vpce-0a1b.vpce-svc-0c2d.us-east-1.vpce.amazonaws.com",
             "vpce-svc-0c2d.s3.us-east-1.vpce.amazonaws.com",
             "vpce-0a1b.ec2.us-east-1.vpce.amazonaws.com",
-            // Each case below is the only one that pins its check; see S3EndpointCheck.isVpcInterfaceEndpoint.
             "evil.s3.us-east-1.vpce.amazonaws.com",
             "s3.s3.us-east-1.vpce.amazonaws.com",
             "a.b.vpce-0a1b.s3.us-east-1.vpce.amazonaws.com",

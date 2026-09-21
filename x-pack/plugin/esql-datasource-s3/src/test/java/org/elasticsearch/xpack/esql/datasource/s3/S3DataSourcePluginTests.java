@@ -113,6 +113,18 @@ public class S3DataSourcePluginTests extends ESTestCase {
         }
     }
 
+    /** Host names are case-insensitive, so neither the entry's case nor the URL's decides the match. */
+    public void testAllowlistIgnoresCase() throws IOException {
+        Settings settings = Settings.builder().putList(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY, "MinIO.Internal:9000").build();
+        try (S3DataSourcePlugin plugin = new S3DataSourcePlugin()) {
+            DataSourceValidator validator = plugin.datasourceValidators(settings).get("s3");
+            for (String endpoint : List.of("http://minio.internal:9000", "http://MINIO.INTERNAL:9000")) {
+                var accepted = validator.validateDatasource(Map.of("endpoint", endpoint, "auth", "anonymous"));
+                assertEquals(endpoint, accepted.get("endpoint").nonSecretValue());
+            }
+        }
+    }
+
     /** Drives the automaton the plugin builds; the port-bearing entries pin default-port inference. */
     public void testAllowlistedHostIsAcceptedOverPlainHttp() throws IOException {
         Settings settings = Settings.builder()

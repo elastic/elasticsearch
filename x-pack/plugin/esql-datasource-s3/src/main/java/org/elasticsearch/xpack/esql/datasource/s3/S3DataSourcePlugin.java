@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
 import java.io.IOException;
 import java.time.Clock;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -176,7 +177,7 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
             allowed.isEmpty()
                 ? Automata.makeEmpty()
                 : Operations.determinize(
-                    Regex.simpleMatchToAutomaton(allowed.toArray(String[]::new)),
+                    Regex.simpleMatchToAutomaton(allowed.stream().map(e -> e.toLowerCase(Locale.ROOT)).toArray(String[]::new)),
                     Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
                 )
         );

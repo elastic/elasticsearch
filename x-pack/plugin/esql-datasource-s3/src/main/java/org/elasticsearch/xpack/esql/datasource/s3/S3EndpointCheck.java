@@ -158,16 +158,16 @@ final class S3EndpointCheck {
         }
     }
 
-    /** The allowlist matches {@code host:port}; the AWS host rule above ignores the port. */
+    /** The allowlist matches a lower-cased {@code host:port}; the AWS host rule below ignores the port. */
     private static String hostAndPort(URI uri) {
         int port = uri.getPort();
         if (port == -1) {
             port = "http".equalsIgnoreCase(uri.getScheme()) ? 80 : 443;
         }
-        return uri.getHost() + ":" + port;
+        return uri.getHost().toLowerCase(Locale.ROOT) + ":" + port;
     }
 
-    /** Package-private so the spelling-attack tests can drive it directly. */
+    /** Package-private: {@link S3ResourceCheck} uses it too. */
     static boolean isPermittedHost(String host, String service) {
         if (host == null || host.isEmpty()) {
             return false;
@@ -182,8 +182,7 @@ final class S3EndpointCheck {
     /**
      * {@code [<prefix>.]vpce-<id>.<service>.<region>.vpce.<suffix>}. Only the id and, for S3, a single-label prefix
      * are read from the name; STS endpoints carry no prefix. {@code vpce-svc-} is refused because it names a
-     * customer-published service, which anyone can mint. {@code testRefusesVpcFormsOutsideTheExactShape} holds a
-     * host that only each check refuses.
+     * customer-published service, which anyone can mint.
      */
     private static boolean isVpcInterfaceEndpoint(String host, String service) {
         for (String tail : vpceTails(service)) {

@@ -23,9 +23,10 @@ import java.util.concurrent.CompletionException;
  * via {@link org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator#withResourceCheck}.
  *
  * <p>Refuses an empty location, an ARN, a multi-region access point, and any bucket name that routes off the
- * regional object endpoint on its own — which no {@code endpoint} setting can prevent. ARNs are checked on the
- * raw string because {@code StoragePath.of} throws on them; everything else checks {@link StoragePath#host()},
- * the bucket the read binds to, so a port or {@code userInfo} cannot make the check and the read disagree.
+ * regional object endpoint on its own. The check does not see the data source's {@code endpoint}, and an S3 on
+ * Outposts alias routes there even when one is set. ARNs are checked on the raw string because
+ * {@code StoragePath.of} throws on them; everything else checks {@link StoragePath#host()}, the bucket the read
+ * binds to, so a port or {@code userInfo} cannot make the check and the read disagree.
  */
 class S3ResourceCheck {
 
@@ -73,6 +74,10 @@ class S3ResourceCheck {
             errors.addValidationError("[resource] is not a location this data source can read but was [" + resource + "].");
             return;
         }
+        if (bucket.isEmpty()) {
+            errors.addValidationError(INCOMPLETE_LOCATION_PREFIX + resource + "].");
+            return;
+        }
         String bucketLower = bucket.toLowerCase(Locale.ROOT);
 
         if (bucketLower.endsWith(".mrap") || bucketLower.endsWith(".mrap.accesspoint.s3-global.amazonaws.com")) {
@@ -112,7 +117,7 @@ class S3ResourceCheck {
      * The host the SDK builds for this bucket name alone. Asking the resolver rather than listing spellings keeps
      * this current: its rules are positional, so a {@code --op-s3} name reaches {@code s3-outposts} only once it is
      * long enough to carry an outpost id. Path-style leaves an ordinary bucket's host bare; no endpoint is given,
-     * because one does not suppress this. Any region will do: a name that steers does so in all of them.
+     * because the data source's is not visible here. Any region will do: a name that steers does so in all of them.
      */
     private static String resolvedHost(String bucket) {
         return S3EndpointProvider.defaultProvider()

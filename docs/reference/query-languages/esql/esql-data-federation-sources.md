@@ -256,7 +256,7 @@ The `region` setting on a data source is deprecated and has no effect. Set `regi
 | `role_arn` | Yes (federated identity) | The ARN of the IAM role {{es}} assumes via STS. Used with `auth: federated_identity`. |
 | `jwt_audience` | No | Overrides the JWT audience claim sent to STS. Defaults to `sts.amazonaws.com`. Used with `auth: federated_identity`. |
 | `role_session_name` | No | A label for the assumed-role session. Defaults to `elasticsearch-esql-datasource`. Used with `auth: federated_identity`. |
-| `sts_endpoint` | No | STS endpoint override for `auth: federated_identity`, for example https://sts.us-east-1.amazonaws.com. Validated against the same [S3 endpoint requirements](#s3-endpoint-requirements) as `endpoint`, but for STS hosts, and always over `https`. Any host permitted via `esql.external.allowed_endpoint_hosts` receives the node's OIDC token, only add hosts on trusted network paths. {applies_to}`stack: experimental 9.6+` |
+| `sts_endpoint` | No | STS endpoint override for `auth: federated_identity`, for example https://sts.us-east-1.amazonaws.com. Validated against the same [S3 endpoint requirements](#s3-endpoint-requirements) as `endpoint`, but for STS hosts, and always over `https`. Any host permitted via `esql.external.allowed_endpoint_hosts` receives the node's OIDC token; only add hosts on trusted network paths. {applies_to}`stack: experimental 9.6+` |
 | `sts_region` | No | The AWS region of the STS endpoint. Defaults to the dataset's `region` setting, or `us-east-1` if the dataset has no explicit region. Used with `auth: federated_identity`. |
 | `auth` | Yes | Authentication mode. Set it to `anonymous`, `static_credentials`, `managed_identity`, or `federated_identity`. |
 

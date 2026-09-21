@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletionException;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -1306,8 +1307,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasetRejectsDirectoryBucket() {
-        // An S3 Express directory bucket moves the destination to an s3express-<az> host from the bucket
-        // name alone, so no endpoint setting can confine it. Refused here, beside the MRAP refusal.
+        // With no endpoint set, the name alone routes to an s3express host; refused beside the MRAP refusal.
         // Both spellings the SDK routes into S3 Express are refused; --xa-s3 does not end in --x-s3.
         for (String bucket : List.of("mybucket--use1-az4--x-s3", "mybucket--use1-az4--xa-s3")) {
             var e = expectThrows(
@@ -1335,6 +1335,14 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         validator.validateDataset(Map.of(), "s3://mybucket--use1-az4--xa-s3-suffix/data/f.parquet", Map.of());
         validator.validateDataset(Map.of(), "s3://mybucket--use1-az4--op-s3/data/f.parquet", Map.of());
         validator.validateDataset(Map.of(), "s3://my-x-s3/data/f.parquet", Map.of());
+    }
+
+    /** The bucket is what {@code StoragePath} leaves once a port or userInfo is stripped, and here that is nothing. */
+    public void testValidateDatasetRejectsEmptyBucketBehindAPortOrUserInfo() {
+        for (String resource : List.of("s3://:443/data/f.parquet", "s3://@/data/f.parquet", "s3://user@:443/data/f.parquet")) {
+            var e = expectThrows(ValidationException.class, resource, () -> validator.validateDataset(Map.of(), resource, Map.of()));
+            assertThat(resource, e.getMessage(), containsString("is not a complete object location"));
+        }
     }
 
     public void testValidateDatasetRejectsEmptyLocation() {
@@ -1456,7 +1464,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
 
     /**
      * A name long enough to carry an outpost id reaches {@code s3-outposts}, which the endpoint rule
-     * refuses by name and which no {@code endpoint} setting suppresses. The fixture is resolved here
+     * refuses by name and which a configured {@code endpoint} does not suppress. The fixture is resolved here
      * rather than trusted to look right: a shorter name of the same shape would make this test vacuous.
      */
     public void testValidateDatasetRefusesBucketNameThatRoutesToOutposts() {
@@ -1496,10 +1504,15 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             "oop-01234567890123aaaaaaaaaaaaaaaaaaaaaaaaa--op-s3",
             "my-ap.mrap"
         )) {
-            expectThrows(
+            var e = expectThrows(
                 ValidationException.class,
                 bucket,
                 () -> validator.validateDataset(Map.of(), "s3://" + bucket + ":443/data/f.parquet", Map.of())
+            );
+            assertThat(
+                bucket,
+                e.getMessage(),
+                anyOf(containsString("S3 Express"), containsString("routes to"), containsString("multi-region"))
             );
         }
     }

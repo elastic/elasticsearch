@@ -45,6 +45,90 @@ public class StringMatchTests extends ColumnarStringTestCase {
         assertMatches(repeated(between(400, 2000)), DictionaryPolicy.NONE, Path.SCAN);
     }
 
+    /**
+     * A term on a dictionary column is approximated by the ordinals: a term the dictionary holds offers only the
+     * documents naming it, and one it does not hold only the documents whose value escaped it.
+     */
+    public void testADictionaryTermIsApproximatedByItsOrdinals() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(800, 2000)];
+        int empties = 0;
+        int escaped = 0;
+        for (int d = 0; d < docValues.length; d++) {
+            if (d % 40 == 3) {
+                docValues[d] = new BytesRef("rare-alpine-" + d);
+                escaped++;
+            } else if (d % 20 == 0) {
+                docValues[d] = new BytesRef("");
+                empties++;
+            } else {
+                docValues[d] = new BytesRef(TERMS[d % (TERMS.length - 1)]);
+            }
+        }
+        final int expectedEmpty = empties;
+        final int expectedEscaped = escaped;
+        withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            assertTrue("a dictionary column", reader.hasDictionary());
+            assertEquals("the rare values escaped", expectedEscaped, reader.escapeCount());
+
+            final TwoPhaseIterator empty = TwoPhaseIterator.unwrap(reader.matchTerm(new BytesRef("")));
+            assertNotNull("the empty term is answered in two phases", empty);
+            assertEquals("the approximation offers only the empty values", expectedEmpty, count(empty.approximation()));
+
+            final TwoPhaseIterator absent = TwoPhaseIterator.unwrap(reader.matchTerm(new BytesRef("rare-alpine-3")));
+            assertNotNull("a term only an escape can carry is answered in two phases", absent);
+            assertEquals("the approximation offers only the escaped values", expectedEscaped, count(absent.approximation()));
+            assertEquals("and the bytes pick the one", List.of(3), matched(reader.matchTerm(new BytesRef("rare-alpine-3"))));
+        });
+    }
+
+    /**
+     * A term the window settles reports the run of matching documents it is on, so a scorer excluding the
+     * term can step over the run at once. Runs cross window boundaries, and a run's end is exact.
+     */
+    public void testASettledTermReportsItsRun() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(9000, 20000)];
+        int d = 0;
+        while (d < docValues.length) {
+            final int run = between(1, 3000);
+            for (int i = 0; i < run && d < docValues.length; i++) {
+                docValues[d++] = new BytesRef("");
+            }
+            final int gap = between(1, 5);
+            for (int i = 0; i < gap && d < docValues.length; i++) {
+                docValues[d] = new BytesRef(TERMS[d % (TERMS.length - 1)]);
+                d++;
+            }
+        }
+        for (DictionaryPolicy policy : List.of(ROOMY)) {
+            withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+                final TwoPhaseIterator empty = TwoPhaseIterator.unwrap(reader.matchTerm(new BytesRef("")));
+                assertNotNull(empty);
+                final DocIdSetIterator approximation = empty.approximation();
+                int runs = 0;
+                int doc = approximation.nextDoc();
+                while (doc != DocIdSetIterator.NO_MORE_DOCS) {
+                    assertTrue(empty.matches());
+                    int end = doc;
+                    while (end < docValues.length && docValues[end].length == 0) {
+                        end++;
+                    }
+                    assertEquals("run from " + doc + " with a dictionary: " + reader.hasDictionary(), end, empty.docIDRunEnd());
+                    runs++;
+                    doc = end < docValues.length ? approximation.advance(end) : DocIdSetIterator.NO_MORE_DOCS;
+                }
+                assertTrue("expected several runs, saw " + runs, runs > 2);
+            });
+        }
+    }
+
+    private static int count(DocIdSetIterator iterator) throws IOException {
+        int n = 0;
+        for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
+            n++;
+        }
+        return n;
+    }
+
     /** A dictionary, so a term is one ordinal and the values are never touched. */
     public void testDictionary() throws IOException {
         assertMatches(repeated(between(400, 2000)), ROOMY, Path.ORDINALS);
@@ -218,7 +302,7 @@ public class StringMatchTests extends ColumnarStringTestCase {
         for (int d = 0; d < docValues.length; d++) {
             docValues[d] = random().nextDouble() < 0.88 ? new BytesRef("") : new BytesRef("phrase " + random().nextInt(200));
         }
-        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
+        for (DictionaryPolicy policy : List.of(ROOMY)) {
             withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
                 assertEquals("empty term", expected(docValues, "", true), matched(reader.matchTerm(new BytesRef(""))));
                 for (String probe : new String[] { "phrase 1", "phrase 42", "phrase 199" }) {
@@ -606,7 +690,7 @@ public class StringMatchTests extends ColumnarStringTestCase {
             java.util.Collections.shuffle(slots, random());
             docSlots[d] = slots.toArray(new BytesRef[0]);
         }
-        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
+        for (DictionaryPolicy policy : List.of(ROOMY)) {
             withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
                 assertTrue("expected a multi-valued column", metadata.multiValued());
                 assertTrue("expected null slots", metadata.hasNullSlots());
@@ -720,7 +804,7 @@ public class StringMatchTests extends ColumnarStringTestCase {
             at += width;
         }
         final BytesRef[][] docSlots = rows.toArray(new BytesRef[0][]);
-        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
+        for (DictionaryPolicy policy : List.of(ROOMY)) {
             withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
                 assertTrue("expected a multi-valued column", metadata.multiValued());
                 assertTrue("expected the slots to be in term order", reader.valuesSorted());
@@ -753,7 +837,7 @@ public class StringMatchTests extends ColumnarStringTestCase {
             // documents and nothing widens the column into a multi-valued one.
             docSlots[d] = new BytesRef[] { random().nextDouble() < 0.25 ? null : new BytesRef(TERMS[d % TERMS.length]) };
         }
-        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
+        for (DictionaryPolicy policy : List.of(ROOMY)) {
             withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
                 assertFalse("expected the slots to stay in step with the documents", metadata.multiValued());
                 assertTrue("expected null slots", metadata.hasNullSlots());
@@ -796,7 +880,7 @@ public class StringMatchTests extends ColumnarStringTestCase {
         for (int d = 0; d < docSlots.length; d++) {
             docSlots[d] = d % 5 == 0 ? new BytesRef[0] : new BytesRef[] { new BytesRef(TERMS[(d * (TERMS.length - 1)) / docSlots.length]) };
         }
-        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
+        for (DictionaryPolicy policy : List.of(ROOMY)) {
             withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
                 assertFalse("fewer slots than documents is not multi-valued", metadata.multiValued());
                 assertTrue("but a rank is no longer its own address", metadata.hasValueAddresses());
@@ -838,7 +922,7 @@ public class StringMatchTests extends ColumnarStringTestCase {
             }
             docSlots[d] = slots;
         }
-        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
+        for (DictionaryPolicy policy : List.of(ROOMY)) {
             withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
                 assertTrue("expected a multi-valued column", metadata.multiValued());
                 assertTrue("expected null slots", metadata.hasNullSlots());

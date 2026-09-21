@@ -15,7 +15,9 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.columnar.numeric.NumericColumnReader;
 import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnIteratorReader;
@@ -352,7 +354,15 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      * values are looked at either way.
      */
     public DocIdSetIterator matchContains(BytesRef term) throws IOException {
-        return match(value -> ESVectorUtil.contains(value.bytes, value.offset, value.length, term.bytes, term.offset, term.length));
+        if (meta.numDocsWithField() == 0) {
+            return DocIdSetIterator.empty();
+        }
+        return containsMatches(term);
+    }
+
+    /** Documents holding a value with {@code term} inside it; by default every distinct value is tested. */
+    protected DocIdSetIterator containsMatches(BytesRef term) throws IOException {
+        return valueMatches(value -> ESVectorUtil.contains(value.bytes, value.offset, value.length, term.bytes, term.offset, term.length));
     }
 
     /**
@@ -473,6 +483,209 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
             prefix.offset,
             prefix.offset + prefix.length
         );
+    }
+
+    /** A number kept a block at a time for every slot, such as an ordinal or a stored length. */
+    protected interface SlotBlocks {
+        /** Slots a block, a power of two. */
+        int blockSize();
+
+        long numValues();
+
+        /** The numbers of block {@code index}; the buffer is reused and valid until the next call. */
+        long[] block(long index) throws IOException;
+
+        static SlotBlocks of(NumericColumnReader column) {
+            return new SlotBlocks() {
+                @Override
+                public int blockSize() {
+                    return column.blockSize();
+                }
+
+                @Override
+                public long numValues() {
+                    return column.numValues();
+                }
+
+                @Override
+                public long[] block(long index) throws IOException {
+                    return column.block(index);
+                }
+            };
+        }
+    }
+
+    /**
+     * The slots whose number lies in any of a few inclusive ranges, as bits, a block at a time. The block is compared
+     * against each range in one vectorized pass.
+     */
+    protected static class SlotWindow {
+        private final SlotBlocks blocks;
+        /** Inclusive {@code [min, max]} pairs. */
+        private final long[] ranges;
+        private final int shift;
+        private final int mask;
+        private final FixedBitSet bits;
+        private long loaded = -1;
+
+        protected SlotWindow(SlotBlocks blocks, long... ranges) {
+            assert ranges.length % 2 == 0 : "ranges come in pairs";
+            this.blocks = blocks;
+            this.ranges = ranges;
+            final int blockSize = blocks.blockSize();
+            this.shift = Integer.numberOfTrailingZeros(blockSize);
+            this.mask = blockSize - 1;
+            this.bits = new FixedBitSet(blockSize);
+        }
+
+        /** Corrects the bits of the loaded block for numbers the ranges alone misjudge; {@code bits[i]} is {@code block[i]}. */
+        protected void adjust(long[] block, int count, long[] bits) {}
+
+        final boolean holds(long slot) throws IOException {
+            load(slot >>> shift);
+            return bits.get((int) (slot & mask));
+        }
+
+        /** Sets the bits of every held slot in {@code [from, to)} into {@code dest} at {@code slot - offset}. */
+        final void into(long from, long to, FixedBitSet dest, int offset) throws IOException {
+            while (from < to) {
+                final long window = from >>> shift;
+                load(window);
+                final long windowStart = window << shift;
+                final long upTo = Math.min(to, windowStart + mask + 1);
+                FixedBitSet.orRange(bits, (int) (from - windowStart), dest, (int) (from - offset), (int) (upTo - from));
+                from = upTo;
+            }
+        }
+
+        private void load(long window) throws IOException {
+            if (window == loaded) {
+                return;
+            }
+            final long[] block = blocks.block(window);
+            final long[] words = bits.getBits();
+            Arrays.fill(words, 0L);
+            for (int r = 0; r < ranges.length; r += 2) {
+                ESVectorUtil.inRangeBitmask(block, ranges[r], ranges[r + 1], words);
+            }
+            final long first = window << shift;
+            final int count = (int) Math.min(mask + 1L, blocks.numValues() - first);
+            // The last block is short, and what its buffer holds past the end is left over from another.
+            if (count <= mask) {
+                bits.clear(count, mask + 1);
+            }
+            adjust(block, count, words);
+            loaded = window;
+        }
+    }
+
+    /** Documents, positioned with the current document's slots. */
+    protected abstract static class Slots extends DocIdSetIterator {
+        /** The current document's first slot. */
+        abstract long firstSlot() throws IOException;
+
+        /** How many slots the current document has. */
+        abstract long slotCount() throws IOException;
+    }
+
+    /** The documents holding a slot {@code window} holds. */
+    protected final Slots slotsHeld(SlotWindow window) throws IOException {
+        final ColumnIterator presence = iterator();
+        if (presence.isDense() && hasValueAddresses() == false) {
+            // A document is its own rank and its own slot, so the documents are the window's bits.
+            return new Slots() {
+                private int doc = -1;
+
+                @Override
+                long firstSlot() {
+                    return doc;
+                }
+
+                @Override
+                long slotCount() {
+                    return 1;
+                }
+
+                @Override
+                public int docID() {
+                    return doc;
+                }
+
+                @Override
+                public int nextDoc() throws IOException {
+                    return advance(doc + 1);
+                }
+
+                @Override
+                public int advance(int target) throws IOException {
+                    final long slot = window.next(target);
+                    return doc = slot < 0 ? NO_MORE_DOCS : (int) slot;
+                }
+
+                @Override
+                public int docIDRunEnd() throws IOException {
+                    return (int) window.runEnd(doc);
+                }
+
+                @Override
+                public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                    if (doc >= upTo) {
+                        return;
+                    }
+                    window.into(doc, Math.min(upTo, presence.cost()), bitSet, offset);
+                    advance(upTo);
+                }
+
+                @Override
+                public long cost() {
+                    return presence.cost();
+                }
+            };
+        }
+        return new Slots() {
+            private long first;
+            private long count;
+
+            @Override
+            long firstSlot() {
+                return first;
+            }
+
+            @Override
+            long slotCount() {
+                return count;
+            }
+
+            @Override
+            public int docID() {
+                return presence.docID();
+            }
+
+            @Override
+            public int nextDoc() throws IOException {
+                return advance(presence.docID() + 1);
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                for (int doc = presence.advance(target); doc != NO_MORE_DOCS; doc = presence.nextDoc()) {
+                    final int rank = presence.rank();
+                    first = firstValueAddress(rank);
+                    count = valueCount(rank);
+                    for (long i = 0; i < count; i++) {
+                        if (window.holds(first + i)) {
+                            return doc;
+                        }
+                    }
+                }
+                return NO_MORE_DOCS;
+            }
+
+            @Override
+            public long cost() {
+                return presence.cost();
+            }
+        };
     }
 
     /**

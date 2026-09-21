@@ -74,21 +74,27 @@ public class ResolutionDemandTests extends ESTestCase {
      */
     public void testTheTwoExtractorsCannotClaimTheSamePath() {
         UnresolvedExternalRelation relation = new UnresolvedExternalRelation(SRC, Literal.keyword(SRC, PATH), Map.of());
-        List<LogicalPlan> shapes = List.of(
-            // STATS COUNT(*) — the eager-stats shape.
-            new Aggregate(SRC, relation, List.of(), List.of()),
-            // FROM ds | LIMIT 0 — the schema-only shape.
-            new Limit(SRC, new Literal(SRC, 0, DataType.INTEGER), relation),
-            // STATS COUNT(*) | LIMIT 0 — the shape that looks like both and is neither.
-            new Limit(SRC, new Literal(SRC, 0, DataType.INTEGER), new Aggregate(SRC, relation, List.of(), List.of())),
-            // FROM ds | LIMIT 10 — neither.
-            new Limit(SRC, new Literal(SRC, 10, DataType.INTEGER), relation)
+        // Each shape names the set it belongs in. Asserting only "not both" would also hold if both extractors
+        // regressed to returning nothing, which is the failure this test exists to notice.
+        record Shape(String name, LogicalPlan plan, boolean expectStats, boolean expectNoRows) {}
+        List<Shape> shapes = List.of(
+            new Shape("STATS COUNT(*)", new Aggregate(SRC, relation, List.of(), List.of()), true, false),
+            new Shape("FROM ds | LIMIT 0", new Limit(SRC, new Literal(SRC, 0, DataType.INTEGER), relation), false, true),
+            new Shape(
+                "STATS COUNT(*) | LIMIT 0",
+                new Limit(SRC, new Literal(SRC, 0, DataType.INTEGER), new Aggregate(SRC, relation, List.of(), List.of())),
+                true,
+                false
+            ),
+            new Shape("FROM ds | LIMIT 10", new Limit(SRC, new Literal(SRC, 10, DataType.INTEGER), relation), false, false)
         );
 
-        for (LogicalPlan plan : shapes) {
-            Set<String> stats = ExternalStatsRequirementExtractor.pathsRequiringEagerStats(plan);
-            Set<String> noRows = SchemaOnlyPathExtractor.pathsReadingNoRows(plan);
-            assertFalse("no plan may put one path in both sets: " + plan, stats.contains(PATH) && noRows.contains(PATH));
+        for (Shape shape : shapes) {
+            Set<String> stats = ExternalStatsRequirementExtractor.pathsRequiringEagerStats(shape.plan());
+            Set<String> noRows = SchemaOnlyPathExtractor.pathsReadingNoRows(shape.plan());
+            assertEquals(shape.name() + ": eager stats", shape.expectStats(), stats.contains(PATH));
+            assertEquals(shape.name() + ": reads no rows", shape.expectNoRows(), noRows.contains(PATH));
+            assertFalse(shape.name() + ": no plan may put one path in both sets", stats.contains(PATH) && noRows.contains(PATH));
         }
     }
 
@@ -97,6 +103,13 @@ public class ResolutionDemandTests extends ESTestCase {
         UnresolvedExternalRelation relation = new UnresolvedExternalRelation(SRC, Literal.keyword(SRC, PATH), Map.of());
         LogicalPlan plan = new Limit(SRC, new Literal(SRC, 0, DataType.INTEGER), new Aggregate(SRC, relation, List.of(), List.of()));
 
+        // Asserted against the extractor directly as well: this shape is also in the eager-stats set, so of()
+        // answers EAGER_STATS — and therefore not schema-only — even if the schema-only extractor wrongly
+        // claimed the path, which would make the demand assertion alone unable to fail.
+        assertFalse(
+            "an aggregate below the zero limit consumes every row, so the relation is read",
+            SchemaOnlyPathExtractor.pathsReadingNoRows(plan).contains(PATH)
+        );
         ResolutionDemand demand = ResolutionDemand.of(
             PATH,
             ExternalStatsRequirementExtractor.pathsRequiringEagerStats(plan),

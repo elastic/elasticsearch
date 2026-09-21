@@ -24,7 +24,6 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * What a query that reads rows sees after a query that only asked for a schema.
@@ -55,7 +54,10 @@ public class ExternalSchemaOnlyListingBoundIT extends AbstractExternalDataSource
 
         try (EsqlQueryResponse schemaOnly = run(syncEsqlQueryRequest("FROM " + dataset + " | LIMIT 0"), TIMEOUT)) {
             assertThat("a schema-only query returns no rows", getValuesList(schemaOnly).size(), equalTo(0));
-            assertThat("the columns are still answered", schemaOnly.columns().size(), greaterThanOrEqualTo(2));
+            // The exact columns, not a lower bound: the risk a bound introduces is a DIFFERENT schema, and a
+            // count that is merely large enough cannot see that. Inferred, so `id` is whatever the reader makes
+            // of the CSV — not the `long` the declared case below asks for.
+            assertThat(columnsOf(schemaOnly), equalTo(List.of("id:integer", "v:keyword")));
         }
 
         assertEveryRowIsReadable(dataset);
@@ -71,6 +73,7 @@ public class ExternalSchemaOnlyListingBoundIT extends AbstractExternalDataSource
 
         try (EsqlQueryResponse schemaOnly = run(syncEsqlQueryRequest("FROM " + dataset + " | LIMIT 0"), TIMEOUT)) {
             assertThat(getValuesList(schemaOnly).size(), equalTo(0));
+            assertThat(columnsOf(schemaOnly), equalTo(List.of("id:long", "v:keyword")));
         }
 
         assertEveryRowIsReadable(dataset);
@@ -109,6 +112,10 @@ public class ExternalSchemaOnlyListingBoundIT extends AbstractExternalDataSource
                 equalTo((long) FILE_COUNT)
             );
         }
+    }
+
+    private static List<String> columnsOf(EsqlQueryResponse response) {
+        return response.columns().stream().map(c -> c.name() + ":" + c.type().esType()).toList();
     }
 
     private String writeDataset() throws IOException {

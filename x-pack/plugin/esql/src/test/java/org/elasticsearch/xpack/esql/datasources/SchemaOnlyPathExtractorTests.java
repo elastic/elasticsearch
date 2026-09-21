@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -79,6 +80,18 @@ public class SchemaOnlyPathExtractorTests extends ESTestCase {
         LogicalPlan plan = new Limit(SRC, intLiteral(0), aggregate);
 
         assertEquals("an aggregate below the zero limit still consumes rows", Set.of(), SchemaOnlyPathExtractor.pathsReadingNoRows(plan));
+    }
+
+    /**
+     * INLINESTATS wraps its aggregate as a child, so it consumes every row to compute the values it appends —
+     * the outer zero limit discards the appended rows, not the scan. The class clears the flag for it by name;
+     * without this case, removing that clause leaves every other test green.
+     */
+    public void testInlineStatsUnderLimitZeroStillReadsRows() {
+        Aggregate aggregate = new Aggregate(SRC, externalRelation(PATH), List.of(), List.<NamedExpression>of());
+        LogicalPlan plan = new Limit(SRC, intLiteral(0), new InlineStats(SRC, aggregate));
+
+        assertEquals("INLINESTATS below the zero limit still consumes rows", Set.of(), SchemaOnlyPathExtractor.pathsReadingNoRows(plan));
     }
 
     public void testInnerLimitZeroReadsNoRowsRegardlessOfOuterLimit() {

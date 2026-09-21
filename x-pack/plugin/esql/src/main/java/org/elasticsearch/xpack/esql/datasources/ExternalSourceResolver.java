@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
+import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
@@ -478,7 +479,7 @@ public class ExternalSourceResolver {
         this.maxDiscoveredFiles = capOrSettings(maxDiscoveredFiles, ExternalSourceSettings.MAX_DISCOVERED_FILES, settings);
         this.maxGlobExpansion = capOrSettings(maxGlobExpansion, ExternalSourceSettings.MAX_GLOB_EXPANSION, settings);
         this.maxListedObjects = capOrSettings(maxListedObjects, ExternalSourceSettings.MAX_LISTED_OBJECTS, settings);
-        this.schemaDiscoveryMaxKeys = () -> ExternalSourceSettings.SCHEMA_DISCOVERY_MAX_KEYS.get(settings);
+        this.schemaDiscoveryMaxKeys = capOrSettings(null, ExternalSourceSettings.SCHEMA_DISCOVERY_MAX_KEYS, settings);
         this.cacheService = cacheService;
         this.isCancelled = isCancelled;
         this.metrics = dataSourceModule == null ? ExternalSourceMetrics.NOOP : dataSourceModule.externalSourceMetrics();
@@ -502,7 +503,7 @@ public class ExternalSourceResolver {
      */
     private void recordDiscovery(FileList list, long startNanos, String scheme, FormatReader.SchemaResolution schemaResolution) {
         long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
-        metrics.recordDiscovery(durationMs, list.fileCount(), list.estimatedBytes(), scheme, schemaResolution);
+        metrics.recordDiscovery(durationMs, list.fileCount(), list.estimatedBytes(), scheme, schemaResolution, list.isTruncated());
     }
 
     /** Records one failed discovery/resolution attempt. Best-effort ({@link ExternalSourceMetrics#recordDiscoveryFailure} self-guards). */
@@ -1168,7 +1169,10 @@ public class ExternalSourceResolver {
                         statsListener
                     );
                 }
-            } else if (listing.fileCount() > 1) {
+                // isTruncated matters as much as the count here: a bounded listing whose first page held one
+                // matching file reports fileCount() == 1 for a dataset of ninety thousand, and the anchor's stats
+                // would then be presented as the dataset's.
+            } else if (listing.fileCount() > 1 || listing.isTruncated()) {
                 // Defer branch (requiresStats == false): skip the N footer reads. The anchor-only stats are not
                 // representative of the whole glob, so mark them partial — exactly the state the failed-aggregation
                 // path produces, which downstream already handles (SplitStats.resolveEffectiveStats returns null
@@ -1398,12 +1402,10 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Lists (and, when cacheable, caches) the inferred multi-file glob. FIRST_FILE_WINS, UNION_BY_NAME,
-     * and inferred STRICT share this so a cacheable provider hits {@link #cachedListing} regardless of
-     * merge strategy. Declared-schema resolution stays in {@link #resolveStrictMultiFile}.
-     */
-    /**
-     * Lists the glob and publishes the discovery telemetry for it.
+     * Lists (and, when cacheable, caches) the inferred multi-file glob, and publishes the discovery telemetry for
+     * it. FIRST_FILE_WINS, UNION_BY_NAME, and inferred STRICT share this so a cacheable provider hits
+     * {@link #cachedListing} regardless of merge strategy. Declared-schema resolution stays in
+     * {@link #resolveStrictMultiFile}, which repeats the bounded-is-never-cached rule below.
      *
      * <p>A listing that only has to answer a schema is bounded, and a bounded listing is a prefix of the dataset
      * rather than the dataset. That makes the shared cache the hazard: an entry is keyed by the path and its
@@ -1423,7 +1425,7 @@ public class ExternalSourceResolver {
         ResolutionDemand demand
     ) throws Exception {
         long discoveryStartNanos = System.nanoTime();
-        int listingBound = listingBoundFor(demand, schemaSpansEveryFile(schemaResolution));
+        int listingBound = listingBoundFor(demand, SchemaBreadth.of(schemaResolution), config, hints);
         FileList listing = cacheable && listingBound == Integer.MAX_VALUE
             ? cachedListing(path, storagePath, provider, hints, config)
             : expandAndCompact(path, provider, hints, config, storagePath, listingBound);
@@ -1443,21 +1445,38 @@ public class ExternalSourceResolver {
      * {@code union_by_name} and {@code strict} reconcile every file by contract, so a prefix would answer with a
      * narrower schema than the dataset has — a wrong answer, and the one the modes exist to prevent.
      */
-    private int listingBoundFor(ResolutionDemand demand, boolean schemaSpansEveryFile) {
-        return demand.schemaOnly() && schemaSpansEveryFile == false ? schemaDiscoveryMaxKeys.getAsInt() : Integer.MAX_VALUE;
-    }
-
     /**
-     * Whether this mode's schema is defined over the whole dataset rather than over one file. Only that makes a
-     * prefix the wrong answer: {@code union_by_name} and {@code strict} reconcile every file by contract, so a
-     * bounded enumeration would report a narrower schema than the dataset has, which is the thing those modes
-     * exist to prevent.
+     * How many keys this resolution may visit, or {@link Integer#MAX_VALUE} for the whole glob.
+     *
+     * <p>This is the single place the question is answered, and it is answered before the caller chooses whether
+     * to consult the listing cache, because the two decisions are the same decision: a bound revoked after the
+     * cache has been bypassed yields a full listing that is neither read from nor written to it, which is worse
+     * than not bounding at all.
+     *
+     * <p>Three conditions must all hold, and each of the last two is about the answer rather than the cost.
+     * The query must read no rows from this path, because split discovery takes its file set from the listing
+     * resolution produced. The mode's schema must not span every file. And nothing else may already be narrowing
+     * the listing: a bound keeps a prefix of what was listed, so it is a prefix of the same listing only when the
+     * listing is otherwise the whole glob in the provider's own order. A dataset-chosen file order and partition
+     * pruning each break that, and each would move the file {@code FIRST_FILE_WINS} and the declared-type check
+     * read — a different schema, not a slower query.
      */
-    private static boolean schemaSpansEveryFile(FormatReader.SchemaResolution schemaResolution) {
-        return switch (schemaResolution) {
-            case FIRST_FILE_WINS -> false;
-            case UNION_BY_NAME, STRICT -> true;
-        };
+    private int listingBoundFor(
+        ResolutionDemand demand,
+        SchemaBreadth schemaBreadth,
+        Map<String, Object> config,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints
+    ) {
+        if (demand.schemaOnly() == false || schemaBreadth.answerableFromAPrefix() == false) {
+            return Integer.MAX_VALUE;
+        }
+        if (FileOrderConfig.forListing(config).equals(FileOrderConfig.DEFAULT) == false) {
+            return Integer.MAX_VALUE;
+        }
+        if (GlobExpander.hasPartitionPruningHints(hints)) {
+            return Integer.MAX_VALUE;
+        }
+        return schemaDiscoveryMaxKeys.getAsInt();
     }
 
     /**
@@ -3679,10 +3698,11 @@ public class ExternalSourceResolver {
         // coercibility check reads, to count files, and to derive partition columns from the paths. None of that
         // grows with the dataset, so a schema-only query bounds it exactly as the inferred rail does. The
         // cache is bypassed for the same reason it is there: a prefix must never be served to a reading query.
-        // A declaration is the schema for every file, so it spans no files at all and schema_resolution is not
-        // consulted on this rail — the declared mapping is used whatever it says. Passing the mode here would
-        // leave a dataset that declared a mapping AND set union_by_name enumerating in full for no reason.
-        int listingBound = listingBoundFor(demand, false);
+        // schema_resolution is not consulted on this rail — a declared mapping is used whatever it says — so the
+        // breadth is the declaration's, not the mode's. The file order still is consulted, inside
+        // listingBoundFor: forListing answers NAME_ASC for every mode but first_file_wins, and under that order
+        // the anchor this rail reads is not the first key listed.
+        int listingBound = listingBoundFor(demand, SchemaBreadth.DECLARATION, config, hints);
         if (path.indexOf(',') >= 0) {
             listing = GlobExpander.expand(
                 path,

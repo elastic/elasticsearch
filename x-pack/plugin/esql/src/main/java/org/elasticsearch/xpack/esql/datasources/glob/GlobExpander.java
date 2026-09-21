@@ -152,9 +152,6 @@ public final class GlobExpander {
         if (expanded.isResolved() == false || expanded.fileCount() == 0) {
             return expanded;
         }
-        if (expanded.isTruncated()) {
-            return expanded;
-        }
         if (expanded instanceof GenericFileList raw) {
             String basePath = storagePath.patternPrefix().toString();
             return FileListCompactor.compact(basePath, raw);
@@ -207,11 +204,13 @@ public final class GlobExpander {
         PartitionConfig partitionConfig = PartitionConfig.fromConfig(config);
         ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
         FileOrderConfig fileOrder = FileOrderConfig.forListing(config);
-        // The ordering gate. A bound keeps the first keys the provider reports, so it composes with file_order
-        // only where that order IS listing order. Under NAME, MTIME, or any DESC the dataset's chosen anchor can
-        // sit anywhere in the glob, and truncating would hand FIRST_FILE_WINS a different file than the query
-        // asked for — a wrong schema, not a slower one. Those shapes drop the bound and list in full.
-        int effectiveBound = fileOrder.equals(FileOrderConfig.DEFAULT) ? listingBound : Integer.MAX_VALUE;
+        // A backstop for direct callers of this public entry point, not the decision. The resolver declines the
+        // bound for both of these before it gets here, because it must decide BEFORE choosing whether to bypass
+        // the listing cache — revoking a bound below that choice leaves a full listing that was never cached,
+        // which is worse than not bounding. Repeated here because a bound honoured under either condition picks
+        // a different anchor than the unbounded listing would, and this class is reachable without the resolver.
+        boolean prefixOfTheWholeGlob = fileOrder.equals(FileOrderConfig.DEFAULT) && hasPartitionPruningHints(hints) == false;
+        int effectiveBound = prefixOfTheWholeGlob ? listingBound : Integer.MAX_VALUE;
         // A comma list is several globs; a key budget has no single meaning across them, so it resolves unbounded.
         return isTopLevelCommaList(path)
             ? doExpandCommaSeparated(
@@ -311,10 +310,18 @@ public final class GlobExpander {
         if (failure == null && (narrowed.isResolved() == false || narrowed.fileCount() > 0)) {
             return narrowed;
         }
+        // Only the rewrite can throw spuriously: it may name a folder that does not exist, and the local
+        // filesystem throws there where object stores return empty. A bound cannot invent an IOException, so when
+        // the bound was the only narrowing the error is the storage's own — transient or not — and re-listing the
+        // whole glob would answer a schema request with the full enumeration the bound exists to avoid, and would
+        // bury the original error if it then succeeded. Surface it instead.
+        if (failure != null && rewritten == false) {
+            throw failure;
+        }
 
         final IOException narrowedFailure = failure;
         logger.debug(
-            () -> "Narrowed listing of [" + pattern + "] yielded no files; re-listing without the glob rewrite and without the key bound",
+            () -> "Narrowed listing of [" + pattern + "] yielded no files; re-listing without the narrowing that produced it",
             narrowedFailure
         );
         try {
@@ -671,7 +678,11 @@ public final class GlobExpander {
         if (matched.isEmpty()) {
             // FileList.EMPTY is a shared sentinel and cannot carry per-listing warnings. Litter-only
             // prefixes still need the exclusion text on a cacheable empty listing.
-            return listingWarnings.isEmpty() ? FileList.EMPTY : new GenericFileList(List.of(), pattern, null, listingWarnings);
+            // Carries `truncated` even when nothing matched: the shared EMPTY sentinel cannot hold it, so a
+            // bounded empty listing takes the GenericFileList branch whether or not there are warnings.
+            return listingWarnings.isEmpty() && truncated == false
+                ? FileList.EMPTY
+                : new GenericFileList(List.of(), pattern, null, listingWarnings, truncated);
         }
 
         fileOrder.apply(matched);
@@ -822,6 +833,20 @@ public final class GlobExpander {
      * The hints that may prune {@code key=value} folders during the listing walk: every non-{@code _file.*} filter
      * column. Also the exact hint set the cache key carries for a walk-eligible pattern — see {@link ListingIdentity}.
      */
+    /**
+     * Whether these hints select a subtree of the dataset rather than filtering files by their own metadata.
+     * <p>
+     * A listing bound keeps the first keys the provider reports, which is only a prefix of the same listing when
+     * nothing else narrows it. Partition pruning does narrow it — {@link PartitionPruningWalk} descends only the
+     * directories a hint admits — and the flat listing applies no partition pruning at all, since the hints it
+     * consults ({@link #fileMetadataHints}) are the complement of these. So a bounded listing and an unbounded one
+     * over the same hinted glob enumerate different files, not a prefix and its whole, and would disagree about
+     * which file is first. Callers that must preserve the anchor use this to decline the bound.
+     */
+    public static boolean hasPartitionPruningHints(@Nullable List<PartitionFilterHint> hints) {
+        return partitionPruningHints(hints).isEmpty() == false;
+    }
+
     static List<PartitionFilterHint> partitionPruningHints(@Nullable List<PartitionFilterHint> hints) {
         if (hints == null || hints.isEmpty()) {
             return List.of();

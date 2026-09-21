@@ -47,6 +47,13 @@ final class FileListCompactor {
         if (raw == null || raw.isResolved() == false || raw.fileCount() == 0) {
             return raw;
         }
+        // Neither compacted encoding carries the truncation flag, so compacting a bounded listing would report it
+        // as a complete one — and the check that keeps a bounded listing out of the shared cache reads exactly
+        // that flag. Refused here rather than at the caller so the flag cannot be dropped by a future caller.
+        // Nothing is lost: compaction shrinks large listings, and a bounded listing is at most one page.
+        if (raw.isTruncated()) {
+            return raw;
+        }
         String normalizedBase = normalizeBase(basePath);
         PartitionMetadata pm = raw.partitionMetadata();
         FileList groupedCandidate = pm != null && pm.isEmpty() == false ? tryDirectoryGrouped(normalizedBase, raw) : null;

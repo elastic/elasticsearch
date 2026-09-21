@@ -3593,6 +3593,28 @@ public class GlobExpanderTests extends ESTestCase {
         }
     }
 
+    /**
+     * A bound is only a prefix of the same listing when nothing else is narrowing it. Partition-pruning hints are
+     * such a narrowing: the unbounded listing descends only the directories the hint admits, while the flat
+     * listing a bound forces applies no partition pruning at all — the hints it consults are the complement of
+     * the pruning ones. Honouring a bound here would answer from the first keys of the WHOLE dataset while the
+     * unbounded query answers from the pruned subtree, and {@code FIRST_FILE_WINS} would read a different file
+     * and report a different schema for the same query with a different limit. So the bound is declined.
+     */
+    public void testBoundIsDeclinedWhenPartitionHintsPruneTheListing() throws IOException {
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025));
+
+        FileList unbounded = GlobExpander.expand("s3://bucket/data/**", hiveTree(), hints, HIVE_ON, MAX, MAX, MAX, Integer.MAX_VALUE);
+        // A bound of 1 would keep exactly the first key of the unpruned listing, which is under year=2024.
+        FileList bounded = GlobExpander.expand("s3://bucket/data/**", hiveTree(), hints, HIVE_ON, MAX, MAX, MAX, 1);
+
+        assertFalse("a pruned listing is not a prefix of the flat one, so the bound must be declined", bounded.isTruncated());
+        assertEquals("the hinted answer must not depend on whether a bound was offered", paths(unbounded), paths(bounded));
+        for (String path : paths(bounded)) {
+            assertTrue(path + " must be under year=2025", path.startsWith("s3://bucket/data/year=2025/"));
+        }
+    }
+
     /** Counts what the drain actually pulled, which is what separates a saved request from a filtered key. */
     private static class CountingStubProvider extends StubProvider {
         private int keysPulled;

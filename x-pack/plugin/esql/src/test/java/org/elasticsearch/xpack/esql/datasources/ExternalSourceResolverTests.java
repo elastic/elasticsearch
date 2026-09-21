@@ -2078,6 +2078,81 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
     }
 
+    /**
+     * The bound and the cache-bypass are one decision, so they must be taken together. A dataset whose file order
+     * is not listing order cannot be answered from a prefix, and deciding that only after bypassing the cache
+     * would produce a full listing that is neither read from nor written to it — slower than not bounding, and it
+     * leaves the cache cold for the query that follows. Here the second resolve must serve from the cache, which
+     * it can only do if the first wrote to it.
+     */
+    public void testNonDefaultFileOrderKeepsUsingTheListingCache() throws Exception {
+        List<StorageEntry> listing = new ArrayList<>();
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        Map<String, Long> rowCounts = new HashMap<>();
+        for (int i = 0; i < 1500; i++) {
+            String path = String.format(Locale.ROOT, "s3://bucket/data/part-%06d.parquet", i);
+            listing.add(entry(path, 100));
+            schemas.put(path, List.of(attr("x", DataType.INTEGER)));
+            rowCounts.put(path, 1L);
+        }
+        ThreeFileStats stats = new ThreeFileStats(schemas, rowCounts);
+        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+        config.put("file_sort_by", "name");
+        config.put("file_order", "desc");
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            CountingStorageProvider provider = new CountingStorageProvider(Map.of(PREFIX, listing), schemas);
+            ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, cacheService);
+
+            ExternalSourceResolution.ResolvedSource first = resolveSchemaOnly(resolver, config).resolvedSource(GLOB);
+            assertNotNull(first);
+            assertFalse("a dataset ordering the glob itself cannot be answered from a prefix", first.fileList().isTruncated());
+            assertEquals(1500, first.fileList().fileCount());
+            int listsAfterFirst = provider.listCallCount.get();
+
+            ExternalSourceResolution.ResolvedSource second = resolveSchemaOnly(resolver, config).resolvedSource(GLOB);
+            assertNotNull(second);
+            assertEquals(1500, second.fileList().fileCount());
+            assertEquals("the second resolve must be served from the listing cache", listsAfterFirst, provider.listCallCount.get());
+        }
+    }
+
+    /**
+     * The bound must come from {@link ExternalSourceSettings#SCHEMA_DISCOVERY_MAX_KEYS}, not from any integer that
+     * happens to share its default. Set it to a value no default could be mistaken for.
+     */
+    public void testBoundComesFromTheSchemaDiscoverySetting() throws Exception {
+        int configured = 37;
+        List<StorageEntry> listing = new ArrayList<>();
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        Map<String, Long> rowCounts = new HashMap<>();
+        for (int i = 0; i < 500; i++) {
+            String path = String.format(Locale.ROOT, "s3://bucket/data/part-%06d.parquet", i);
+            listing.add(entry(path, 100));
+            schemas.put(path, List.of(attr("x", DataType.INTEGER)));
+            rowCounts.put(path, 1L);
+        }
+        ThreeFileStats stats = new ThreeFileStats(schemas, rowCounts);
+        Settings settings = Settings.builder().put(ExternalSourceSettings.SCHEMA_DISCOVERY_MAX_KEYS.getKey(), configured).build();
+
+        StubStorageProvider provider = new StubStorageProvider(Map.of(PREFIX, listing), schemas);
+        ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, null, settings);
+
+        ExternalSourceResolution.ResolvedSource resolved = resolveSchemaOnly(
+            resolver,
+            configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS)
+        ).resolvedSource(GLOB);
+        assertNotNull(resolved);
+        assertEquals("the bound is whatever the setting says", configured, resolved.fileList().fileCount());
+        assertTrue(resolved.fileList().isTruncated());
+    }
+
+    private ExternalSourceResolution resolveSchemaOnly(ExternalSourceResolver resolver, Map<String, Object> config) {
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(GLOB), Map.of(GLOB, new HashMap<>(config)), null, null, Set.of(), Set.of(GLOB), future);
+        return future.actionGet();
+    }
+
     private ExternalSourceResolution resolveWithNoRowPaths(ExternalSourceResolver resolver, Set<String> pathsReadingNoRows) {
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
         resolver.resolve(
@@ -2116,6 +2191,16 @@ public class ExternalSourceResolverTests extends ESTestCase {
         AtomicInteger metadataReadCounter,
         ExternalSourceCacheService cacheService
     ) {
+        return buildStatsResolver(storageProvider, stats, metadataReadCounter, cacheService, Settings.EMPTY);
+    }
+
+    private ExternalSourceResolver buildStatsResolver(
+        StorageProvider storageProvider,
+        ThreeFileStats stats,
+        AtomicInteger metadataReadCounter,
+        ExternalSourceCacheService cacheService,
+        Settings settings
+    ) {
         StubFormatReaderWithStats formatReader = new StubFormatReaderWithStats(stats.schemas(), stats.rowCounts(), metadataReadCounter);
 
         DataSourcePlugin plugin = new DataSourcePlugin() {
@@ -2152,7 +2237,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             () -> false
         );
 
-        return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module, Settings.EMPTY, cacheService);
+        return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module, settings, cacheService);
     }
 
     // ===== dataset-level aggregate key gating =====

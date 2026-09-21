@@ -160,7 +160,8 @@ final class GenericFileList implements FileList {
             return false;
         }
         GenericFileList other = (GenericFileList) o;
-        return Objects.equals(files, other.files)
+        return truncated == other.truncated
+            && Objects.equals(files, other.files)
             && Objects.equals(originalPattern, other.originalPattern)
             && Objects.equals(partitionMetadata, other.partitionMetadata)
             && Objects.equals(listingWarnings, other.listingWarnings);
@@ -168,7 +169,7 @@ final class GenericFileList implements FileList {
 
     @Override
     public int hashCode() {
-        return Objects.hash(files, originalPattern, partitionMetadata, listingWarnings);
+        return Objects.hash(files, originalPattern, partitionMetadata, listingWarnings, truncated);
     }
 
     @Override

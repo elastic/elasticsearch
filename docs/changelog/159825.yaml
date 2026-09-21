@@ -1,0 +1,5 @@
+pr: 159825
+summary: Make schema discovery cost what a schema needs
+area: ES|QL
+type: enhancement
+issues: []

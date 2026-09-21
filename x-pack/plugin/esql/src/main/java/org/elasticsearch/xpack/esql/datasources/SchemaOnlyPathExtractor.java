@@ -94,13 +94,19 @@ public final class SchemaOnlyPathExtractor {
     }
 
     /**
-     * Whether a limit is the literal zero. Deliberately narrower than {@code SkipQueryOnLimitZero},
-     * which folds the expression: an unfoldable-at-parse-time zero is missed here and the query
-     * resolves as a reading one, which is slower and not wrong. Folding during pre-analysis would
-     * mean evaluating expressions before the plan is analysed.
+     * Whether a limit is the literal zero, tested exactly as {@code SkipQueryOnLimitZero} tests it — that rule
+     * compares against {@code Integer.valueOf(0)}, so a zero of any other numeric type is a limit it does NOT
+     * remove. Accepting one here would mark a path schema-only whose plan then survives to execution and reads
+     * its rows from a bounded listing. The rows are all discarded either way, so no answer changes; what breaks
+     * is the guarantee that a bounded listing never reaches split discovery, and that guarantee is worth more
+     * than the shapes this turns away.
+     *
+     * <p>Narrower than that rule in the other direction too: it folds the expression, and this cannot, because
+     * folding during pre-analysis would evaluate expressions before the plan is analysed. A zero that only folds
+     * later resolves as a reading query — slower, never wrong.
      */
     private static boolean isLiteralZero(Expression limit) {
-        return limit instanceof Literal literal && literal.value() instanceof Number number && number.longValue() == 0L;
+        return limit instanceof Literal literal && Integer.valueOf(0).equals(literal.value());
     }
 
     /**

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.dsltranslate;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Booleans;
@@ -100,6 +101,7 @@ public final class QueryDslTranslator {
     private final Set<String> fieldNames;
     private final Configuration configuration;
     private final long nowInMillis;
+    private final TransportVersion minimumVersion;
 
     /**
      * @param fieldBinder   resolves a DSL field name to the ES|QL expression standing for it on this source — the
@@ -109,12 +111,22 @@ public final class QueryDslTranslator {
      * @param configuration the query configuration — the source of {@code now} for date math (so {@code "now-15m"}
      *                      resolves to the same instant the index path would use for this request) and of the locale
      *                      used to case-fold a {@code case_insensitive} term.
+     * @param minimumVersion the minimum transport version across the nodes this plan targets. The rewrite as a whole
+     *                      is gated well below this class, but that gate is one constant and this translator's output
+     *                      set grows, so each function it synthesizes that postdates the gate is checked against its
+     *                      own pin here before it is built — see {@link #requireFunction}.
      */
-    public QueryDslTranslator(Function<String, Expression> fieldBinder, Set<String> fieldNames, Configuration configuration) {
+    public QueryDslTranslator(
+        Function<String, Expression> fieldBinder,
+        Set<String> fieldNames,
+        Configuration configuration,
+        TransportVersion minimumVersion
+    ) {
         this.fieldBinder = fieldBinder;
         this.fieldNames = fieldNames;
         this.configuration = configuration;
         this.nowInMillis = configuration.absoluteStartedTimeInMillis();
+        this.minimumVersion = minimumVersion;
     }
 
     /**
@@ -662,11 +674,13 @@ public final class QueryDslTranslator {
 
         // One bound → mv_greater / mv_less (any-value, two-valued).
         if (hasLower) {
+            requireFunction(MvGreater.MV_COMPARE_TRANSPORT_VERSION, "range[single lower bound on " + type.typeName() + "]");
             return checkedLeaf(
                 field,
                 new MvGreater(Source.EMPTY, field, literalFor(field, range.from()), includeBoundOptions(range.includeLower()))
             );
         }
+        requireFunction(MvLess.MV_COMPARE_TRANSPORT_VERSION, "range[single upper bound on " + type.typeName() + "]");
         return checkedLeaf(
             field,
             new MvLess(Source.EMPTY, field, literalFor(field, range.to()), includeBoundOptions(range.includeUpper()))
@@ -745,9 +759,11 @@ public final class QueryDslTranslator {
             return checkedLeaf(field, new MvInRange(Source.EMPTY, field, longLit(lo, type), longLit(hi, type)));
         }
         if (hasLower) {
+            requireFunction(MvGreater.MV_COMPARE_TRANSPORT_VERSION, "range[single lower bound on " + type.typeName() + "]");
             long lo = closedLowerBound(type, range.from(), formatter, range.includeLower());
             return checkedLeaf(field, new MvGreater(Source.EMPTY, field, longLit(lo, type), includeBoundOptions(true)));
         }
+        requireFunction(MvLess.MV_COMPARE_TRANSPORT_VERSION, "range[single upper bound on " + type.typeName() + "]");
         long hi = closedUpperBound(type, range.to(), formatter, range.includeUpper());
         return checkedLeaf(field, new MvLess(Source.EMPTY, field, longLit(hi, type), includeBoundOptions(true)));
     }
@@ -822,6 +838,23 @@ public final class QueryDslTranslator {
     }
 
     /**
+     * Refuses to synthesize a function the targeted nodes cannot deserialize. The rewrite's own gate promises only
+     * that the REWRITE exists on every node; it names one constant, chosen once, while the set of functions this
+     * translator emits grows whenever a translation is added — so the two drift apart silently, and an older node
+     * answers {@code Unknown NamedWriteable} for a plan it was sent. Each emitted function that postdates the
+     * rewrite's gate is therefore checked against its own pin here, and a clause needing one the cluster lacks is
+     * untranslatable like any other unsupported construct: the default policy fails the query naming it, partial mode
+     * drops the clause with a warning and still applies the rest.
+     * <p>
+     * {@code mv_in_range}, {@code mv_contains} and {@code mv_intersects} need no check: all three predate the
+     * rewrite's own gate, so any node that reaches this code at all already has them.
+     */
+    private void requireFunction(TransportVersion required, String construct) {
+        if (minimumVersion.supports(required) == false) {
+            throw new TranslationUnsupportedException(construct);
+        }
+    }
+
     /** Inclusive DSL bound → {@code include_bound: true}; exclusive omits options (default). */
     private static Expression includeBoundOptions(boolean includeBound) {
         if (includeBound == false) {

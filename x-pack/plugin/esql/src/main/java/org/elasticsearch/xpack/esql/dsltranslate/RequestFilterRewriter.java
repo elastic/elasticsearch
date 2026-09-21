@@ -89,7 +89,8 @@ public final class RequestFilterRewriter {
             analyzed,
             ExternalRelation.class::isInstance,
             requestFilter,
-            configuration
+            configuration,
+            minimumVersion
         );
         if (result.isComplete() == false) {
             if (dropUntranslatableWithWarning) {

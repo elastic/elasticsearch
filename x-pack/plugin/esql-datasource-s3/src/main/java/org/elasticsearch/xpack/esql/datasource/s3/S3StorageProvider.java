@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.datasource.nettycommons.PooledRecvByteBufAll
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -808,6 +809,10 @@ public class S3StorageProvider implements StorageProvider {
         } catch (NoSuchKeyException e) {
             return false;
         } catch (Exception e) {
+            ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "checking existence of [" + path + "]");
+            if (expired != null) {
+                throw expired;
+            }
             if (allowRegionRetry && shouldAttemptRegionRetry() && isAuthorizationHeaderMalformed(e)) {
                 String discoveredRegion = discoverRegionViaHeadBucket(client, bucket);
                 if (discoveredRegion != null) {
@@ -837,6 +842,10 @@ public class S3StorageProvider implements StorageProvider {
         } catch (NoSuchKeyException e) {
             return false;
         } catch (Exception e) {
+            ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "checking existence of [" + path + "]");
+            if (expired != null) {
+                throw expired;
+            }
             ExternalUnavailableException unavailable = mapResolveFailure(path, e);
             if (unavailable != null) {
                 throw unavailable;
@@ -1077,6 +1086,13 @@ public class S3StorageProvider implements StorageProvider {
                 continuationToken = response.nextContinuationToken();
                 hasMorePages = response.isTruncated();
             } catch (Exception e) {
+                ExternalCredentialsExpiredException expired = S3FailureDetail.expired(
+                    e,
+                    "listing objects in bucket [" + bucket + "] with prefix [" + prefix + "]"
+                );
+                if (expired != null) {
+                    throw expired;
+                }
                 if (retryClientFactory != null && isAuthorizationHeaderMalformed(e)) {
                     // Discover the correct region via HeadBucket and retry once.
                     Function<String, S3Client> factory = retryClientFactory;

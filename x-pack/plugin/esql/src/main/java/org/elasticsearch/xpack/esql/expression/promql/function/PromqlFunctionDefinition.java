@@ -43,6 +43,7 @@ public final class PromqlFunctionDefinition {
     private final String name;
     private final FunctionType functionType;
     private final PromqlFunctionArity arity;
+    private final boolean variadic;
     private final FunctionBuilder esqlBuilder;
     private final String description;
     private final String extendedDescription;
@@ -157,6 +158,7 @@ public final class PromqlFunctionDefinition {
         String name,
         FunctionType functionType,
         PromqlFunctionArity arity,
+        boolean variadic,
         FunctionBuilder esqlBuilder,
         String description,
         String extendedDescription,
@@ -178,7 +180,9 @@ public final class PromqlFunctionDefinition {
         if (classicHistogramHandler != null && functionType != FunctionType.HISTOGRAM) {
             throw new IllegalArgumentException("classicHistogramHandler may only be set for histogram functions");
         }
-        if (arity.max() != params.size()) {
+        // A variadic function repeats its trailing parameter, so its declared parameter list cannot enumerate the (unbounded)
+        // maximum argument count; the fixed-arity equality only applies to non-variadic functions.
+        if (variadic == false && arity.max() != params.size()) {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
@@ -195,6 +199,7 @@ public final class PromqlFunctionDefinition {
         this.name = name;
         this.functionType = functionType;
         this.arity = arity;
+        this.variadic = variadic;
         this.esqlBuilder = esqlBuilder;
         this.description = description;
         // Optional: extra description paragraph rendered only on the function's own page, not in the brief overview.
@@ -220,6 +225,16 @@ public final class PromqlFunctionDefinition {
 
     public PromqlFunctionArity arity() {
         return arity;
+    }
+
+    /**
+     * Whether the function repeats its trailing parameter an unbounded number of times (for example {@code label_join}'s
+     * source labels). A variadic function's declared {@link #params()} list carries a single representative entry for the
+     * repeating parameter rather than one entry per argument, so callers must not assume {@code params().size()} equals the
+     * actual argument count.
+     */
+    public boolean variadic() {
+        return variadic;
     }
 
     public FunctionBuilder esqlBuilder() {
@@ -442,6 +457,7 @@ public final class PromqlFunctionDefinition {
         private final List<String> examples = new ArrayList<>();
         private FunctionType functionType;
         private PromqlFunctionArity arity;
+        private boolean variadic;
         private FunctionBuilder builder;
         private String description;
         private String extendedDescription;
@@ -766,6 +782,36 @@ public final class PromqlFunctionDefinition {
         }
 
         /**
+         * Configures a label metadata-manipulation function ({@code label_replace}, {@code label_join}).
+         * <p>
+         * Unlike the other function families, these are not lowered through the generic {@link FunctionBuilder}: they resolve
+         * into a dedicated logical node and are translated directly (see {@code ResolvePromqlFunctions} and
+         * {@code TranslatePromqlToEsqlPlan}). This method therefore only records the metadata - arity, parameters, and whether
+         * the trailing source-label parameter repeats - and installs a builder that fails fast if the generic path is ever
+         * invoked for one of these functions.
+         *
+         * @param arity    accepted argument-count range ({@code label_replace} is fixed at 5; {@code label_join} is 3..N)
+         * @param variadic whether the trailing parameter repeats an unbounded number of times ({@code label_join} sources)
+         * @param params   parameter descriptors, with a single representative entry for the repeating parameter when variadic
+         */
+        public PromqlFunctionDefinition.Builder metadataManipulation(
+            PromqlFunctionArity arity,
+            boolean variadic,
+            List<PromqlParamInfo> params
+        ) {
+            this.functionType = FunctionType.METADATA_MANIPULATION;
+            this.arity = arity;
+            this.variadic = variadic;
+            this.params = params;
+            this.builder = (source, target, ctx, extraParams) -> {
+                throw new UnsupportedOperationException(
+                    "label metadata-manipulation functions are translated directly, not built via the generic function builder"
+                );
+            };
+            return this;
+        }
+
+        /**
          * Build the {@link PromqlFunctionDefinition} with the given primary name.
          */
         public PromqlFunctionDefinition name(String name) {
@@ -773,6 +819,7 @@ public final class PromqlFunctionDefinition {
                 name,
                 functionType,
                 arity,
+                variadic,
                 builder,
                 description,
                 extendedDescription,

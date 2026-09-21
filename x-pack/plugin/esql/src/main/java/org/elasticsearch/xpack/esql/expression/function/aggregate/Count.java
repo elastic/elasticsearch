@@ -55,7 +55,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 
-public class Count extends AggregateFunction
+public class Count extends UnaryAggregateFunction
     implements
         ToAggregator,
         SurrogateExpression,
@@ -115,11 +115,34 @@ public class Count extends AggregateFunction
                     + "returning the total number of values which were used to construct the digests.",
                 file = "tdigest",
                 tag = "countTDigestForDocs"
+            ),
+            @Example(
+                description = """
+                    To count only the histogram values that fall into a range, pass a `double_range` (for example from
+                    [`TO_RANGE`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_range.md)) as the
+                    second argument. Combine this with
+                    [`BUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions/bucket.md) on the same
+                    histogram field to create a histogram of the recorded values:""",
+                file = "exponential_histogram",
+                tag = "countBucketExpHistoForDocs",
+                explanation = """
+                    ::::{note}
+                    Histograms only record approximate value distributions, so the counts per bucket are estimates.
+                    ::::"""
+            ),
+            @Example(
+                description = "The same works for `tdigest` and casted `histogram` fields:",
+                file = "tdigest",
+                tag = "countBucketTDigestForDocs",
+                explanation = """
+                    A `tdigest` does not track which ranges between its centroids are empty, so `BUCKET` returns every bucket
+                    between the smallest and the largest centroid of a digest, and some of them may end up with a count of `0`."""
             ) }
     )
     public Count(
         Source source,
         @Param(
+            optional = true,
             name = "field",
             type = {
                 "aggregate_metric_double",
@@ -191,11 +214,6 @@ public class Count extends AggregateFunction
     @Override
     protected NodeInfo<Count> info() {
         return NodeInfo.create(this, Count::new, field(), filter(), window(), bucket());
-    }
-
-    @Override
-    public AggregateFunction withFilter(Expression filter) {
-        return new Count(source(), field(), filter, window(), bucket());
     }
 
     @Override
@@ -316,7 +334,7 @@ public class Count extends AggregateFunction
         return null;
     }
 
-    public static Expression AggregateMetricDoubleSurrogate(AggregateFunction af) {
+    public static Expression AggregateMetricDoubleSurrogate(UnaryAggregateFunction af) {
         var s = af.source();
         return new Sum(
             s,

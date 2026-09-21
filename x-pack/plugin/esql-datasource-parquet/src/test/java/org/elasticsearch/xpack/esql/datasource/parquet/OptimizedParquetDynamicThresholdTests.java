@@ -262,6 +262,29 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
         }
     }
 
+    public void testBufferedStringRowsSurviveNoFurtherCandidatesFlipBetweenHasNextAndNext() throws Exception {
+        // BYTES_REF counterpart of the numeric flip test above: the CI failure was
+        // ExternalParquetStringTopNSideChannelIT.testNullsFirstEarlyTermination. Do not use
+        // bytesRefThreshold() — it hides the channel, so markNoFurtherCandidates() cannot be called.
+        byte[] data = writeStringParquet(REQUIRED_STRING_SCHEMA, 64L * 1024 * 1024, 1024, 500, OptimizedParquetDynamicThresholdTests::key);
+        SharedMinCompetitive.KeyConfig keyConfig = new SharedMinCompetitive.KeyConfig(ElementType.BYTES_REF, TopNEncoder.UTF8, true, false);
+        SharedMinCompetitive channel = new SharedMinCompetitive.Supplier(blockFactory.breaker(), List.of(keyConfig)).get();
+        DynamicThreshold threshold = new DynamicThreshold("name", true, false, channel);
+        try (
+            threshold;
+            CloseableIterator<Page> iterator = reader(threshold).read(storageObject(data), FormatReadContext.of(List.of("name"), 128))
+        ) {
+            assertTrue("first hasNext() must materialize the row group", iterator.hasNext());
+            channel.markNoFurtherCandidates();
+            Page page = iterator.next();
+            try {
+                assertThat(page.getPositionCount(), greaterThan(0));
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+    }
+
     public void testNullsLastCanSkipNullAndDominatedRowGroups() throws Exception {
         byte[] data = writeLongParquet(OPTIONAL_LONG_SCHEMA, 1L, 2 * 1024 * 1024, 300, i -> i < 100 ? null : (long) i);
 

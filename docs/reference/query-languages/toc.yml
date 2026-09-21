@@ -309,6 +309,7 @@ toc:
                   - file: esql/functions-operators/string-functions/from_base64.md
                   - file: esql/functions-operators/string-functions/hash.md
                   - file: esql/functions-operators/string-functions/json_extract.md
+                  - file: esql/functions-operators/string-functions/json_string.md
                   - file: esql/functions-operators/string-functions/left.md
                   - file: esql/functions-operators/string-functions/length.md
                   - file: esql/functions-operators/string-functions/locate.md
@@ -429,6 +430,8 @@ toc:
               - file: esql/esql-data-federation-federated-identity.md
               - file: esql/esql-data-federation-static-credentials.md
           - file: esql/esql-data-federation-datasets.md
+            children:
+              - file: esql/esql-data-federation-patterns.md
           - file: esql/esql-data-federation-querying.md
           - file: esql/esql-data-federation-security.md
           - file: esql/esql-data-federation-cluster-settings.md
@@ -445,6 +448,7 @@ toc:
           - file: esql/esql-metadata-fields.md
           - file: esql/esql-null-values.md
           - file: esql/esql-multivalued-fields.md
+          - file: esql/esql-histogram-fields.md
           - file: esql/esql-unmapped-fields.md
       - file: esql/esql-examples.md
         children:

@@ -2,7 +2,7 @@
 navigation_title: "Query datasets"
 description: "Query external data with ES|QL Data Federation. Learn how the engine reduces storage reads, query external and indexed data together, and troubleshoot common issues."
 applies_to:
-  stack: experimental =9.5
+  stack: experimental 9.5+
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -57,9 +57,10 @@ The general query performance advice in [optimize {{esql}} query performance](es
 
 ### File discovery limits
 
-A dataset's resource path can use glob patterns to match many files. Two cluster settings bound file discovery:
+A dataset's resource path can use [glob patterns](esql-data-federation-patterns.md) to match many files. These cluster settings bound file discovery:
 
-- `esql.external.max_discovered_files` (default 10,000): the maximum number of files a single dataset can resolve to.
+- `esql.external.max_listed_objects` (default 1,000,000): the maximum number of objects visited while listing a glob, including keys that do not match the pattern and keys dropped by exclusion. Applied independently to each glob listing. A comma-separated resource of N globs therefore does N listings; a rewrite-empty fallback can list the same glob again. The kept-files cap (`esql.external.max_discovered_files`) is shared across that list. {applies_to}`stack: experimental 9.6+`
+- `esql.external.max_discovered_files` (default 10,000): the maximum number of files a single dataset keeps after listing filters (`_file.*`).
 - `esql.external.max_glob_expansion` (default 100): the maximum number of concrete paths a brace pattern (`{a,b,c}`) expands to. Past this cap, the engine falls back to listing the storage instead of failing.
 
 If your dataset exceeds these limits, narrow the resource path or adjust the settings. Refer to [cluster settings](esql-data-federation-cluster-settings.md) for details.
@@ -68,13 +69,28 @@ If your dataset exceeds these limits, narrow the resource path or adjust the set
 
 Datasets share the same namespace as indices, data streams, aliases, and [{{esql}} views](esql-views.md), so `FROM` resolves each name independently.
 
+{applies_to}`stack: experimental 9.6+` `_class` and `_name` are available from 9.6. On 9.5, use `METADATA _index`, which returns the dataset name for dataset rows in that version.
+
 ```esql
-FROM speedtest_data, network_incidents METADATA _index
-| KEEP _index, category, severity, avg_d_kbps, avg_lat_ms
+FROM speedtest_data, network_incidents METADATA _class, _name
+| KEEP _class, _name, category, severity, avg_d_kbps, avg_lat_ms
 | LIMIT 10
 ```
 
-When sources have different schemas, columns that do not exist in a given source return `null` for rows from that source. Use `METADATA _index` to see which source each row came from. The `_index` column returns the dataset name for dataset rows and the index name for index rows.
+When sources have different schemas, columns that do not exist in a given source return `null` for rows from that source. {applies_to}`stack: experimental 9.6+` Use `METADATA _name` to see which source each row came from: it returns the dataset name for dataset rows and the index name for index rows. `METADATA _class` returns what kind of source a row came from — `index` or `dataset` — so a query can tell the two apart without knowing the names in advance.
+
+{applies_to}`stack: experimental 9.6+` `_index` does not answer this question on a dataset. It names an index, and a dataset is not one, so it returns `null` for dataset rows. In earlier versions it returned the dataset name.
+
+{applies_to}`stack: experimental 9.6+` By default, a wildcard does not match datasets. `FROM speedtest_data` reads the dataset, while `FROM speedtest*` resolves to indices, data streams, aliases, and views only. Registering a dataset therefore does not change what an existing wildcard query reads.
+
+To let wildcards discover datasets, enable the `wildcards_match_datasets` query setting:
+
+```esql
+SET wildcards_match_datasets = true;
+FROM speedtest*
+```
+
+You can also send it in the `_query` request body as `"settings": {"wildcards_match_datasets": true}`, or change the cluster-wide default with [`esql.query.settings.wildcards_match_datasets`](esql-data-federation-cluster-settings.md#query-defaults). A value set in the query overrides the request body, which overrides the cluster default.
 
 ## Use metadata columns
 
@@ -82,14 +98,22 @@ When sources have different schemas, columns that do not exist in a given source
 
 | Column | Returned for a dataset |
 |---|---|
-| `_index` | The dataset name. |
-| `_id` | A stable per-row identifier. |
-| `_version` | The source file's modification time as a `long` in epoch milliseconds, or null when storage reports no modification time. |
-| `_source` | The row as a JSON object. |
+| `_class` {applies_to}`stack: experimental 9.6+` | `dataset` |
+| `_name` {applies_to}`stack: experimental 9.6+` | The dataset name. |
 | `_file.path`, `_file.name`, `_file.directory`, `_file.size`, `_file.modified` | The object each row was read from. |
-| `_score` | null |
 | `_ignored` | null |
 | `_index_mode`, `_tsid`, `_size` | null |
+| `_score` | null |
+| `_index` {applies_to}`stack: experimental 9.6+` | null |
+| `_id`, `_version`, `_source` {applies_to}`stack: experimental 9.6+` | null |
+
+`_index`, `_id`, `_version` and `_source` return `null` on a dataset. A dataset is not an index, and
+files carry no document identity, version, or stored source. In 9.5, these fields returned synthetic
+values (dataset name, row ID, file modification time, row-as-JSON) instead of null.
+
+{applies_to}`stack: experimental 9.6+` `_class` and `_name` answer the same two questions on every source. On an index they return `index` and
+the concrete index name; on a dataset, `dataset` and the dataset name. A `FROM` that names both kinds
+can separate the rows without knowing in advance which names resolve to which.
 
 For example, this query returns file-level metadata for each matching row:
 
@@ -120,7 +144,7 @@ The following search functions are available for datasets:
 :::{include} _snippets/data-federation/experimental-warning.md
 :::
 
-The operations below require structures that only exist in an {{es}} index, such as the inverted index, doc values, or time series metadata. Each fails with a clear error rather than wrong results.
+The limitations below include operations that require structures available only in an {{es}} index, such as the inverted index, doc values, or time series metadata, as well as unsupported data shapes. Unsupported operations fail with a clear error; representation limitations are described in the table.
 
 | Operation | Reason | Error |
 |---|---|---|
@@ -131,16 +155,17 @@ The operations below require structures that only exist in an {{es}} index, such
 | More than 8 sources resolved in one `FROM` | A `FROM` that includes datasets runs one execution branch per resolved source, up to a limit of 8 branches. Query fewer sources together. | |
 | A column with conflicting types across sources | When you query a dataset together with other sources and the same column has types that cannot be reconciled, the query fails rather than returning mixed types. | `Column [<name>] has conflicting data types in subqueries` |
 | Document-level security (DLS) and field-level security (FLS) | A dataset's `read` grant cannot carry document- or field-level security. Queries where DLS or FLS applies to a dataset are rejected during authorization. The same check covers [{{esql}} views](esql-views.md). | `Datasets with document or field level security restrictions are not supported. Remove DLS/FLS restrictions from the affected datasets in the role definition, or exclude them from the request.` |
-| [Cross-cluster search](/reference/query-languages/esql/esql-cross-clusters.md) | Datasets on a remote cluster cannot be queried. Only local datasets are supported. | `ES\|QL queries with remote datasets are not supported. Matched [...]` |
+| [Cross-cluster search](/reference/query-languages/esql/esql-cross-clusters.md) | Only local datasets can be queried. {applies_to}`stack: experimental 9.6` A dataset on a remote cluster is invisible: a wildcard that matches its name returns that cluster's indices beside it, and naming it directly resolves to nothing, so the remote's `skip_unavailable` setting decides whether the query fails or that cluster is skipped. In earlier versions, a query that matched a remote dataset failed. | {applies_to}`stack: experimental 9.6` `Unknown index [<cluster>:<dataset>]`, when `skip_unavailable` is `false`. In earlier versions, `ES\|QL queries with remote datasets are not supported. Matched [...]` |
 | Snapshot and restore | Data sources and datasets cannot be snapshotted or restored. | |
-| Parquet MAP and nested LIST | These complex types are not currently supported and return null. STRUCT is supported and flattened to dot-notation column names (for example, `address.city`). | |
+| Parquet MAP, nested LIST, and VARIANT | These complex types are not currently supported and return null. STRUCT is supported and flattened to dot-notation column names (for example, `address.city`). | |
+| `null` elements inside a Parquet LIST | An {{esql}} multivalued field cannot hold `null`, so a `null` element inside a list is omitted and the column returns fewer values than the file holds. A list of `[1, null, 2]` reads as `[1, 2]`, and a list whose elements are all `null` reads as `null`. The response includes a warning naming the affected columns. | |
 
 ## Troubleshooting
 
 If a query against a dataset returns unexpected results or errors, check the following common causes.
 
 Unexpected nulls in query results
-:   If you query a dataset and an index together with `FROM`, columns that do not exist in one source return null for rows from that source. Use `METADATA _index` to check which source each row came from. Separately, complex Parquet types MAP and nested LIST return null because they are not currently supported.
+:   If you query a dataset and an index together with `FROM`, columns that do not exist in one source return null for rows from that source. {applies_to}`stack: experimental 9.6+` Use `METADATA _name` to check which source each row came from; on 9.5, use `METADATA _index`. Separately, complex Parquet types MAP, nested LIST, and VARIANT return null because they are not currently supported.
 
 Slow queries
 :   Add [`KEEP`](/reference/query-languages/esql/commands/keep.md) to select only the columns you need, add a [`WHERE`](/reference/query-languages/esql/commands/where.md) filter, and add a [`LIMIT`](/reference/query-languages/esql/commands/limit.md). For Parquet datasets, these push down to the reader and can significantly reduce the amount of data read from storage. Check the number of files your dataset's resource path resolves to. Large file counts increase query planning time.

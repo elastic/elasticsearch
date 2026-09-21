@@ -33,6 +33,7 @@ import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FilterIterator;
+import org.apache.lucene.util.IOBooleanSupplier;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -40,7 +41,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
 import org.elasticsearch.index.mapper.FieldArrayContext;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
@@ -189,6 +190,17 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 }
             }
 
+            // _ignored_source must always pass through to the synthetic-source loader so FLS content-filtering runs inside
+            // FilteredIgnoredSourceDocValues. Blocking the binary doc values field entirely makes the loader see an empty
+            // doc values iterator, silently dropping every value stored only in _ignored_source (e.g. dynamically-mapped
+            // text fields in a logsdb index). The field is user-invisible regardless: getBinaryDocValues wraps it in
+            // FilteredIgnoredSourceDocValues, which applies the FLS automaton to each stored entry.
+            if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE
+                && IgnoredSourceFieldMapper.NAME.equals(name)) {
+                filteredInfos.add(fi);
+                continue;
+            }
+
             if (filter.run(name)) {
                 filteredInfos.add(fi);
             }
@@ -313,8 +325,12 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                     filtered.put(key, filteredValue);
                 }
             } else if (value instanceof Iterable<?> iterableValue) {
+                // Check emptiness before filtering: an empty original array carries no user data to deny.
+                // Dropping it would silently remove _ignored_source suppression tombstones written for
+                // copy_to destination fields, letting the doc-values loader leak copied values into _source.
+                boolean originallyEmpty = iterableValue.iterator().hasNext() == false;
                 List<Object> filteredValue = filter(iterableValue, includeAutomaton, state);
-                if (filteredValue.isEmpty() == false) {
+                if (filteredValue.isEmpty() == false || originallyEmpty) {
                     filtered.put(key, filteredValue);
                 }
             } else if (includeAutomaton.isAccept(state)) {
@@ -404,7 +420,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
      * <p>
      * These counts must be hidden from callers: {@link FilteredIgnoredSourceDocValues} re-encodes the surviving values in the
      * {@link MultiValuedBinaryDocValuesField.IntegratedCount} format, but
-     * {@link MultiValuedSortedBinaryDocValues#fromMultiValued(LeafReader, String, BinaryDocValues)} picks the decoding format based on
+     * {@link MultiValuedSortableBinaryDocValues#fromMultiValued(LeafReader, String, BinaryDocValues)} picks the decoding format based on
      * whether a {@code .counts} field is present. Leaving it visible makes the filtered payload be read as
      * {@link MultiValuedBinaryDocValuesField.SeparateCount} against unfiltered counts, which mis-decodes the values.
      */
@@ -431,16 +447,16 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     /**
      * Wraps {@link BinaryDocValues} for the {@code _ignored_source} field to apply field-level security filtering.
      * <p>
-     * Per-document values are decoded via {@link MultiValuedSortedBinaryDocValues}, filtered through the FLS field automaton, and the
-     * surviving values are stored as a list. Extending {@link MultiValuedSortedBinaryDocValues.DecodedBinaryDocValues} lets
-     * {@link MultiValuedSortedBinaryDocValues#fromMultiValued} read those values directly, avoiding the otherwise-necessary step of
+     * Per-document values are decoded via {@link MultiValuedSortableBinaryDocValues}, filtered through the FLS field automaton, and the
+     * surviving values are stored as a list. Extending {@link MultiValuedSortableBinaryDocValues.DecodedBinaryDocValues} lets
+     * {@link MultiValuedSortableBinaryDocValues#fromMultiValued} read those values directly, avoiding the otherwise-necessary step of
      * re-encoding them into a blob that the caller would immediately parse apart again. {@link #binaryValue()} encodes on demand as a
      * fallback for anything that reads this instance as a plain {@link BinaryDocValues}.
      */
-    private static final class FilteredIgnoredSourceDocValues extends MultiValuedSortedBinaryDocValues.DecodedBinaryDocValues {
+    private static final class FilteredIgnoredSourceDocValues extends MultiValuedSortableBinaryDocValues.DecodedBinaryDocValues {
 
         private final BinaryDocValues delegate;
-        private final MultiValuedSortedBinaryDocValues multiValues;
+        private final MultiValuedSortableBinaryDocValues multiValues;
         private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
         /** Held rather than built per entry: both capture {@link #filter}, so constructing them in the loop allocates on every value. */
         private final Function<Map<String, Object>, Map<String, Object>> mapFilter;
@@ -459,8 +475,8 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             this.ignoredSourceFormat = ignoredSourceFormat;
             this.mapFilter = v -> filter(v, filter, 0);
             this.nameFilter = filter::run;
-            // convert incoming binary doc values to reuse the code provided by MultiValuedSortedBinaryDocValues
-            this.multiValues = MultiValuedSortedBinaryDocValues.fromMultiValued(reader, IgnoredSourceFieldMapper.NAME, dv);
+            // convert incoming binary doc values to reuse the code provided by MultiValuedSortableBinaryDocValues
+            this.multiValues = MultiValuedSortableBinaryDocValues.fromMultiValued(reader, IgnoredSourceFieldMapper.NAME, dv);
         }
 
         @Override
@@ -806,6 +822,12 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         @Override
         public boolean seekExact(BytesRef term) throws IOException {
             return accept(term) && in.seekExact(term);
+        }
+
+        @Override
+        public IOBooleanSupplier prepareSeekExact(BytesRef term) throws IOException {
+            // TermStates uses this method before seekExact(term, state), so the field filter must be applied at both stages.
+            return accept(term) ? in.prepareSeekExact(term) : null;
         }
 
         @Override

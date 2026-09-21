@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -25,7 +26,7 @@ import java.util.function.BooleanSupplier;
  * @param querySchema the post-prune Query schema (data attributes only, metadata stripped) the
  *        query actually materializes. Empty means either all columns are needed or the projection
  *        is unknown. Split providers use {@link ExternalSchema#names()} for membership tests when pruning
- *        per-file mappings or skipping files with no column overlap.
+ *        per-file mappings.
  * @param unifiedSchema the pre-prune Unified schema, or {@code null} when not available. Together
  *        with {@code querySchema} and each file's schema this lets split providers narrow per-file
  *        {@link org.elasticsearch.xpack.esql.datasources.ColumnMapping}s on the coordinator.
@@ -33,6 +34,9 @@ import java.util.function.BooleanSupplier;
  *        Parquet footer reads) aborts promptly when the originating query is cancelled. Defaults to
  *        {@code () -> false} ("never cancelled") for callers and SPI impls that do not carry a
  *        {@code CancellableTask}.
+ * @param metadataColumnNames names bound to engine-generated metadata in the resolved output,
+ *        not data columns that happen to share a metadata name. This binding is relation-wide
+ *        and must not be reinterpreted based on each file's physical schema.
  */
 public record SplitDiscoveryContext(
     SourceMetadata metadata,
@@ -48,7 +52,8 @@ public record SplitDiscoveryContext(
     // The declared read-instructions (renames / declared-type columns / date formats). Lets split discovery make the
     // declared overlay a stats boundary — rekey physical->logical + poison retyped columns' footer stats. NONE when the
     // dataset carries no declared mapping (every current SplitProvider but FileSplitProvider ignores it).
-    DeclaredReadSpec declaredReadSpec
+    DeclaredReadSpec declaredReadSpec,
+    Set<String> metadataColumnNames
 ) {
     public SplitDiscoveryContext(
         SourceMetadata metadata,
@@ -104,6 +109,22 @@ public record SplitDiscoveryContext(
         List<Expression> filterHints,
         ExternalSchema querySchema
     ) {
+        this(metadata, fileList, schemaMap, config, partitionInfo, filterHints, querySchema, Set.of());
+    }
+
+    /**
+     * Carries resolved metadata bindings without requiring file-splitting or schema-reconciliation options.
+     */
+    public SplitDiscoveryContext(
+        SourceMetadata metadata,
+        FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        Map<String, Object> config,
+        PartitionMetadata partitionInfo,
+        List<Expression> filterHints,
+        ExternalSchema querySchema,
+        Set<String> metadataColumnNames
+    ) {
         this(
             metadata,
             fileList,
@@ -115,7 +136,40 @@ public record SplitDiscoveryContext(
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             () -> false,
-            DeclaredReadSpec.NONE
+            DeclaredReadSpec.NONE,
+            metadataColumnNames
+        );
+    }
+
+    /**
+     * Builds a context for a relation with no engine-generated metadata columns.
+     */
+    public SplitDiscoveryContext(
+        SourceMetadata metadata,
+        FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        Map<String, Object> config,
+        PartitionMetadata partitionInfo,
+        List<Expression> filterHints,
+        ExternalSchema querySchema,
+        @Nullable ExternalSchema unifiedSchema,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        DeclaredReadSpec declaredReadSpec
+    ) {
+        this(
+            metadata,
+            fileList,
+            schemaMap,
+            config,
+            partitionInfo,
+            filterHints,
+            querySchema,
+            unifiedSchema,
+            maxRecordBytes,
+            isCancelled,
+            declaredReadSpec,
+            Set.of()
         );
     }
 
@@ -132,5 +186,6 @@ public record SplitDiscoveryContext(
         }
         isCancelled = isCancelled != null ? isCancelled : () -> false;
         declaredReadSpec = declaredReadSpec != null ? declaredReadSpec : DeclaredReadSpec.NONE;
+        metadataColumnNames = Set.copyOf(metadataColumnNames);
     }
 }

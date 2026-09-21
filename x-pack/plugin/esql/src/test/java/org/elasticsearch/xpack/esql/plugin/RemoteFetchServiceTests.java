@@ -72,6 +72,10 @@ import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
@@ -663,6 +667,78 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
         assertTrue(searchContext.isClosed());
     }
 
+    public void testRetainSearchContextsRequiresAuthenticationWhenSecurityEnabled() {
+        SecurityContext securityContext = Mockito.mock(SecurityContext.class);
+        Mockito.when(securityContext.getAuthentication()).thenReturn(null);
+        Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
+        RemoteFetchService service = remoteFetchService(
+            new RetainedSearchContextsRegistry(),
+            new ArrayList<>(),
+            BidirectionalBatchExchangeServer::new,
+            securityContext,
+            settings
+        );
+        SearchContext searchContext = new TestSearchContext(Mockito.mock(SearchExecutionContext.class, Mockito.withSettings().stubOnly()));
+        AcquiredSearchContexts contexts = createContexts(searchContext);
+        AssertionError e = expectThrows(AssertionError.class, () -> service.retainSearchContexts("session-1", contexts));
+        assertEquals("cannot retain search contexts without an authentication", e.getMessage());
+        contexts.close();
+        assertTrue(searchContext.isClosed());
+    }
+
+    public void testRetainSearchContextsAllowsMissingAuthenticationWhenSecurityDisabled() {
+        SecurityContext securityContext = Mockito.mock(SecurityContext.class);
+        Mockito.when(securityContext.getAuthentication()).thenReturn(null);
+        Mockito.when(securityContext.canIAccessResourcesCreatedBy(Mockito.nullable(Authentication.class))).thenReturn(true);
+        Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
+        RemoteFetchService service = remoteFetchService(
+            new RetainedSearchContextsRegistry(),
+            new ArrayList<>(),
+            BidirectionalBatchExchangeServer::new,
+            securityContext,
+            settings
+        );
+        SearchContext searchContext = new TestSearchContext(Mockito.mock(SearchExecutionContext.class, Mockito.withSettings().stubOnly()));
+
+        try (RetainedSearchContextsRegistry.Handle ignored = service.retainSearchContexts("session-1", createContexts(searchContext))) {
+            try (RetainedSearchContextsRegistry.Handle lease = service.acquireRetainedContexts("session-1")) {
+                assertFalse(searchContext.isClosed());
+                assertNotNull(lease);
+            }
+        }
+
+        assertTrue(searchContext.isClosed());
+    }
+
+    public void testRetainedContextAccessChecksCreatingAuthentication() {
+        RetainedSearchContextsRegistry registry = new RetainedSearchContextsRegistry();
+        SecurityContext securityContext = Mockito.mock(SecurityContext.class);
+        Authentication creator = AuthenticationTestHelper.builder().realm().build(false);
+        Mockito.when(securityContext.getAuthentication()).thenReturn(creator);
+        RemoteFetchService service = remoteFetchService(
+            registry,
+            new ArrayList<>(),
+            BidirectionalBatchExchangeServer::new,
+            securityContext
+        );
+        SearchContext searchContext = new TestSearchContext(Mockito.mock(SearchExecutionContext.class, Mockito.withSettings().stubOnly()));
+
+        try (
+            RetainedSearchContextsRegistry.Handle registration = service.retainSearchContexts("session-1", createContexts(searchContext))
+        ) {
+            Mockito.when(securityContext.canIAccessResourcesCreatedBy(creator)).thenReturn(false);
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> service.acquireRetainedContexts("session-1"));
+            assertEquals("no retained search contexts for session [session-1]", e.getMessage());
+
+            Mockito.when(securityContext.canIAccessResourcesCreatedBy(creator)).thenReturn(true);
+            try (RetainedSearchContextsRegistry.Handle ignored = service.acquireRetainedContexts("session-1")) {
+                assertFalse(searchContext.isClosed());
+            }
+        }
+
+        assertTrue(searchContext.isClosed());
+    }
+
     public void testStartExchangeFetchServerReleasesLeaseWhenSetupFails() {
         RetainedSearchContextsRegistry registry = new RetainedSearchContextsRegistry();
         RuntimeException setupFailure = new RuntimeException("setup failed");
@@ -796,6 +872,28 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
         List<Runnable> scheduledCommands,
         RemoteFetchService.ExchangeServerFactory exchangeServerFactory
     ) {
+        SecurityContext securityContext = Mockito.mock(SecurityContext.class);
+        Mockito.when(securityContext.getAuthentication()).thenReturn(AuthenticationTestHelper.builder().realm().build(false));
+        Mockito.when(securityContext.canIAccessResourcesCreatedBy(Mockito.nullable(Authentication.class))).thenReturn(true);
+        return remoteFetchService(registry, scheduledCommands, exchangeServerFactory, securityContext);
+    }
+
+    private static RemoteFetchService remoteFetchService(
+        RetainedSearchContextsRegistry registry,
+        List<Runnable> scheduledCommands,
+        RemoteFetchService.ExchangeServerFactory exchangeServerFactory,
+        SecurityContext securityContext
+    ) {
+        return remoteFetchService(registry, scheduledCommands, exchangeServerFactory, securityContext, Settings.EMPTY);
+    }
+
+    private static RemoteFetchService remoteFetchService(
+        RetainedSearchContextsRegistry registry,
+        List<Runnable> scheduledCommands,
+        RemoteFetchService.ExchangeServerFactory exchangeServerFactory,
+        SecurityContext securityContext,
+        Settings settings
+    ) {
         TransportService transportService = Mockito.mock(TransportService.class);
         ThreadPool threadPool = Mockito.mock(ThreadPool.class);
         Mockito.when(threadPool.executor(Mockito.anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -807,7 +905,7 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
         Mockito.when(transportService.getThreadPool()).thenReturn(threadPool);
 
         ClusterService clusterService = Mockito.mock(ClusterService.class);
-        Mockito.when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        Mockito.when(clusterService.getSettings()).thenReturn(settings);
         Mockito.when(clusterService.getClusterName()).thenReturn(ClusterName.DEFAULT);
         DiscoveryNode coordinatorNode = DiscoveryNodeUtils.create("coordinator-node");
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -841,7 +939,8 @@ public class RemoteFetchServiceTests extends MapperServiceTestCase {
             BigArrays.NON_RECYCLING_INSTANCE,
             TestBlockFactory.getNonBreakingInstance(),
             registry,
-            exchangeServerFactory
+            exchangeServerFactory,
+            securityContext
         );
     }
 

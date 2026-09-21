@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.esql.qa.rest.generative;
 
+import com.carrotsearch.randomizedtesting.RandomizedContext;
+
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
@@ -189,6 +193,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // throwing IllegalArgumentException via PackedValuesBlockHash
         // see https://github.com/elastic/elasticsearch/issues/145694
         "Found a single entry with .* entries",
+        "All SPARKLINE functions in a single STATS command must share the same timestamp, buckets, from, and to value",
 
         // Awaiting fixes for query failure
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
@@ -200,7 +205,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
         // https://github.com/elastic/elasticsearch/issues/142537 for null arguments in clamp() function
         "'field' must not be null in clamp\\(\\)", // clamp/clamp_min/clamp_max reject NULL field from unmapped fields
-        "must be \\[boolean, date, ip, string or numeric except unsigned_long or counter types\\]", // type mismatch in top() arguments
         "Does not support yet aggregations over constants", // https://github.com/elastic/elasticsearch/issues/118292
         "Field \\[.*\\] of type \\[.*\\] does not support match.* queries",
 
@@ -487,11 +491,13 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             } catch (Exception e) {
                 // query failures are AssertionErrors, if we get here it's an unexpected exception in the query generation
                 if (e instanceof AllowedGeneratorFailureException == false && isAllowedError(e.getMessage()) == false) {
-                    StringBuilder message = new StringBuilder();
-                    message.append("Generative tests, error generating new command \n");
-                    message.append("Previous query: \n");
-                    message.append(exec.previousResult == null ? "<no previous query>" : exec.previousResult.query());
-                    fail(e, message.toString());
+                    String previousQuery = exec.previousResult == null ? null : exec.previousResult.query();
+                    // fail(e, report) would run the report through Strings.format, which reinterprets any '%' in the
+                    // generated query as a format specifier.
+                    throw new AssertionError(
+                        "Generative tests, error generating new command\n" + failureReport(previousQuery, e.getMessage()),
+                        e
+                    );
                 }
             }
         }
@@ -701,7 +707,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             if (isAllowedFailure(new FailureContext(outputValidation.errorMessage(), result.query(), previousCommands, currentSchema))) {
                 return;
             }
-            fail("query: " + result.query() + "\nerror: " + outputValidation.errorMessage());
+            fail(failureReport(result.query(), outputValidation.errorMessage()));
         }
     }
 
@@ -713,7 +719,46 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         if (isAllowedFailure(new FailureContext(query.exception().getMessage(), query.query(), previousCommands, currentSchema))) {
             return;
         }
-        fail("query: " + query.query() + "\nexception: " + query.exception().getMessage());
+        fail(failureReport(query.query(), query.exception().getMessage()));
+    }
+
+    /** The {@code Warnings: [...]} block {@link ResponseException} inserts before the response body. */
+    private static final Pattern RESPONSE_WARNINGS = Pattern.compile("\nWarnings: \\[.*?]\n", Pattern.DOTALL);
+
+    /**
+     * Composes the message for a failing generated query. These run to tens of kilobytes and are truncated before
+     * they reach a filed issue, so the error goes near the top and the response warnings go last. A subclass that
+     * overrides this to add context should append it to {@code super}'s report rather than prepend it, to keep the
+     * bulky part in the tail that truncation eats.
+     *
+     * @param query the query the failure relates to: the one that failed, or the last one that ran when the
+     *              generator could not produce the next command; {@code null} when none was generated at all
+     * @param error the error message, or {@code null} when the failure carries no message
+     */
+    protected String failureReport(@Nullable String query, @Nullable String error) {
+        String warnings = "";
+        if (error == null) {
+            error = "<no error message>";
+        } else {
+            Matcher matcher = RESPONSE_WARNINGS.matcher(error);
+            if (matcher.find()) {
+                warnings = matcher.group().strip();
+                error = matcher.replaceFirst("\n");
+            }
+        }
+
+        StringBuilder report = new StringBuilder("query: ").append(query == null ? "<no query generated>" : query);
+        report.append("\nfeatures: ").append(enabledFeatures());
+        report.append("\nreproduce with -Dtests.seed=")
+            .append(RandomizedContext.current().getRunnerSeedAsString())
+            .append(" on build ")
+            .append(Build.current().hash())
+            .append(" (a seed only reproduces on the build that generated it)");
+        report.append("\nerror: ").append(error);
+        if (warnings.isEmpty() == false) {
+            report.append("\n").append(warnings);
+        }
+        return report.toString();
     }
 
     /**

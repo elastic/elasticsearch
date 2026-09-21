@@ -87,4 +87,9 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
         DataSourceValidator v = new FileDataSourceValidator("azure", AzureConfiguration::fromMap, supportedSchemes());
         return Map.of(v.type(), v);
     }
+
+    @Override
+    public Set<String> datasourceSecretSettingNames() {
+        return AzureConfiguration.secretFieldNames();
+    }
 }

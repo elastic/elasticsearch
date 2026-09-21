@@ -522,7 +522,8 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             limit,
             scoring,
             () -> 0L,
-            LuceneSliceQueue.MIN_DOCS_PER_SLICE
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            QueryWarnings.EMIT
         );
         assertThat(factory.taskConcurrency(), equalTo(2));
 

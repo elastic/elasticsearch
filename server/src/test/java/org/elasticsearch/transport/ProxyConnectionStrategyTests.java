@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
@@ -39,10 +40,13 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.transport.LinkedProjectConfig.ProxyLinkedProjectConfig;
@@ -206,6 +210,8 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                 int numOfConnections = randomIntBetween(4, 8);
 
                 AtomicBoolean useAddress1 = new AtomicBoolean(true);
+                final AtomicInteger remainingDisconnects = new AtomicInteger();
+                final Queue<Tuple<DiscoveryNode, Exception>> queuedDisconnects = new ConcurrentLinkedQueue<>();
 
                 try (
                     RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(
@@ -218,7 +224,26 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                         alternatingResolver(address1, address2, useAddress1),
                         localService,
                         remoteConnectionManager
-                    )
+                    ) {
+                        @Override
+                        public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
+                            if (remainingDisconnects.get() <= 0) {
+                                super.onNodeDisconnected(node, closeException);
+                                return;
+                            }
+                            // New connects aren't attempted in the case of an ongoing connect. Since the strategy only tries to connect the
+                            // remaining connections (maxConnections - current connections), if the disconnects happen throughout the
+                            // attempts (max 3) the final result can be less than maxConnections. Instead, wait for all disconnects before
+                            // initiating the reconnect
+                            queuedDisconnects.add(new Tuple<>(node, closeException));
+                            if (remainingDisconnects.decrementAndGet() > 0) {
+                                return;
+                            }
+                            for (Tuple<DiscoveryNode, Exception> event : queuedDisconnects) {
+                                super.onNodeDisconnected(event.v1(), event.v2());
+                            }
+                        }
+                    }
                 ) {
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address2)));
@@ -236,6 +261,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                     assertEquals(numOfConnections, connectionManager.size());
                     assertTrue(strategy.assertNoRunningConnections());
                     useAddress1.set(false);
+                    remainingDisconnects.set(numOfConnections);
 
                     transport1.close();
 

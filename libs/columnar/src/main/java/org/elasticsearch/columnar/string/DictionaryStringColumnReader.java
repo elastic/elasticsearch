@@ -497,10 +497,12 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         // Where the page's values are, as addresses. One a document where the column holds one apiece, and otherwise
         // a document's run of them with its nulls left out, which are no value a page can carry.
         final int values;
+        final boolean oneApiece = pageOfOneApiece();
         if (pageable()) {
-            values = docCount;
-            growPageValues(docCount);
-            for (int i = 0; i < docCount; i++) {
+            // One value a document: a rank is its value's address, and a document without a value holds none.
+            values = oneApiece ? docCount : compactPresentRanks(docCount);
+            growPageValues(Math.max(values, 1));
+            for (int i = 0; i < values; i++) {
                 pageValueAddresses[i] = pageRanks[i];
             }
         } else {
@@ -508,6 +510,9 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
             growPageValues(Math.max(values, 1));
             int at = 0;
             for (int i = 0; i < docCount; i++) {
+                if (pageRanks[i] == ColumnIterator.NO_RANK) {
+                    continue;
+                }
                 final long first = firstValueAddress(pageRanks[i]);
                 final long held = valueCount(pageRanks[i]);
                 for (long slotOf = 0; slotOf < held; slotOf++) {
@@ -519,7 +524,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
             }
             assert at == values : "addressed " + at + " values, counted " + values;
         }
-        final int[] counts = pageable() ? null : pageValueCounts;
+        final int[] counts = oneApiece ? null : pageValueCounts;
 
         int escapedInPage = 0;
         final OrdinalBlockCursor cursor = new OrdinalBlockCursor();

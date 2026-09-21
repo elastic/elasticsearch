@@ -215,10 +215,15 @@ public final class PlainStringColumnReader extends StringColumnReader {
      */
     @Override
     protected boolean appendPage(int docCount, StringBlockSink sink) throws IOException {
-        if (pageable()) {
+        if (pageOfOneApiece()) {
             // One value a document and every one of them present: the page is the documents, with none of the
             // accounting below.
-            return appendSingleValuedPage(docCount, sink);
+            return appendSingleValuedPage(docCount, null, docCount, sink);
+        }
+        if (pageable()) {
+            // One value a document, some documents holding none: the present ones are read as above, and the counts
+            // say which documents they belong to.
+            return appendSingleValuedPage(compactPresentRanks(docCount), pageValueCounts, docCount, sink);
         }
         final int values = countPageValues(docCount);
         growPageValues(Math.max(values, 1));
@@ -228,6 +233,9 @@ public final class PlainStringColumnReader extends StringColumnReader {
         int at = 0;
         for (int i = 0; i < docCount; i++) {
             final int rank = pageRanks[i];
+            if (rank == ColumnIterator.NO_RANK) {
+                continue;
+            }
             final long first = firstValueAddress(rank);
             final long held = valueCount(rank);
             for (long s = 0; s < held; s++) {
@@ -257,9 +265,9 @@ public final class PlainStringColumnReader extends StringColumnReader {
     }
 
     /** A page of a column holding one value a document, which is the shape a run-encoded column pays off on. */
-    private boolean appendSingleValuedPage(int count, StringBlockSink sink) throws IOException {
+    private boolean appendSingleValuedPage(int count, int[] counts, int docCount, StringBlockSink sink) throws IOException {
         if (valuesWorthNaming == false) {
-            return appendSingleValuedPageAsValues(count, sink);
+            return appendSingleValuedPageAsValues(count, counts, docCount, sink);
         }
         growPageValues(count);
         pageBytesLength = 0;
@@ -291,10 +299,10 @@ public final class PlainStringColumnReader extends StringColumnReader {
             for (int i = 0; i < count; i++) {
                 pageValues[i] = pageDictionary[pageOrdinals[i]];
             }
-            sink.appendValues(pageValues, count, null, count);
+            sink.appendValues(pageValues, count, counts, docCount);
             return true;
         }
-        sink.appendOrdinals(pageOrdinals, count, null, count, pageDictionary, slots);
+        sink.appendOrdinals(pageOrdinals, count, counts, docCount, pageDictionary, slots);
         return true;
     }
 
@@ -306,7 +314,7 @@ public final class PlainStringColumnReader extends StringColumnReader {
      *
      * <p>Only the way the values are found changes. What the sink is given is what it would have been given.
      */
-    private boolean appendSingleValuedPageAsValues(int count, StringBlockSink sink) throws IOException {
+    private boolean appendSingleValuedPageAsValues(int count, int[] counts, int docCount, StringBlockSink sink) throws IOException {
         growPageValues(count);
         pageBytesLength = 0;
         int runs = 0;
@@ -330,7 +338,7 @@ public final class PlainStringColumnReader extends StringColumnReader {
         for (int i = 0; i < count; i++) {
             pageValues[i] = pageDictionary[pageOrdinals[i]];
         }
-        sink.appendValues(pageValues, count, null, count);
+        sink.appendValues(pageValues, count, counts, docCount);
         return true;
     }
 }

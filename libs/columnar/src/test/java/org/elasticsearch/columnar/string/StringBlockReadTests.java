@@ -382,10 +382,10 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
     }
 
     /**
-     * A column not every document has a value in, asked about documents that do not. A page has no way to
-     * say a document has no value, so the read has to decline rather than answer with someone else's.
+     * A column not every document has a value in, asked about documents that do not. A document with no value
+     * arrives holding none, so the page is served and no document is handed a neighbour's value.
      */
-    public void testSparsePageIsDeclined() throws IOException {
+    public void testSparsePageHoldsNothingForAnAbsentDocument() throws IOException {
         final String[] terms = { "alpha", "bravo", "charlie" };
         final BytesRef[] docValues = new BytesRef[between(500, 2000)];
         for (int d = 0; d < docValues.length; d++) {
@@ -398,23 +398,39 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
                     all[d] = d;
                 }
                 final int[] ordinals = new int[all.length];
-                assertFalse(
-                    "a page covering documents with no value cannot be served",
-                    reader.readBlock(all, 0, all.length, new StringBlockSink() {
-                        @Override
-                        public void appendOrdinals(
-                            int[] ords,
-                            int n,
-                            int[] valueCounts,
-                            int docCount,
-                            BytesRef[] dictionary,
-                            int dictionarySize
-                        ) {}
+                final List<String> perDoc = new ArrayList<>();
+                assertTrue("a page covering documents with no value is served", reader.readBlock(all, 0, all.length, new StringBlockSink() {
+                    @Override
+                    public void appendOrdinals(
+                        int[] ords,
+                        int n,
+                        int[] valueCounts,
+                        int docCount,
+                        BytesRef[] dictionary,
+                        int dictionarySize
+                    ) {
+                        int at = 0;
+                        for (int d = 0; d < docCount; d++) {
+                            final int held = valueCounts == null ? 1 : valueCounts[d];
+                            perDoc.add(held == 0 ? null : dictionary[ords[at]].utf8ToString());
+                            at += held;
+                        }
+                    }
 
-                        @Override
-                        public void appendValues(BytesRef[] values, int n, int[] valueCounts, int docCount) {}
-                    })
-                );
+                    @Override
+                    public void appendValues(BytesRef[] values, int n, int[] valueCounts, int docCount) {
+                        int at = 0;
+                        for (int d = 0; d < docCount; d++) {
+                            final int held = valueCounts == null ? 1 : valueCounts[d];
+                            perDoc.add(held == 0 ? null : values[at].utf8ToString());
+                            at += held;
+                        }
+                    }
+                }));
+                assertEquals("documents", docValues.length, perDoc.size());
+                for (int d = 0; d < docValues.length; d++) {
+                    assertEquals("document " + d, docValues[d] == null ? null : docValues[d].utf8ToString(), perDoc.get(d));
+                }
                 if (reader.hasDictionary()) {
                     assertFalse("ordinals cannot be served for documents with no value", reader.readOrdinals(all, 0, all.length, ordinals));
                 }
@@ -484,6 +500,120 @@ public class StringBlockReadTests extends ColumnarStringTestCase {
         ORDINALS,
         VALUES,
         ANY
+    }
+
+    /**
+     * Pages of a column holding every shape a document can take — no value at all, an empty array, only nulls,
+     * several values with nulls among them — across presence blocks with every document present, a few missing and
+     * few present. Every page, whatever documents it asks about and however long it is, hands each document exactly
+     * its non-null values in slot order, and a document with none arrives holding none.
+     */
+    public void testPagesOfSparseMultiValuedColumns() throws IOException {
+        assertPagesOfSparseColumn(false);
+    }
+
+    /**
+     * The same over a column holding one value a document, some documents holding none: the page keeps the
+     * single-valued read, and says which documents hold nothing.
+     */
+    public void testPagesOfSparseSingleValuedColumns() throws IOException {
+        assertPagesOfSparseColumn(true);
+    }
+
+    private void assertPagesOfSparseColumn(boolean singleValued) throws IOException {
+        final int blockDocs = 1 << 16;
+        final BytesRef[][] docSlots = new BytesRef[blockDocs * 2 + between(1000, 20000)][];
+        final String[] terms = { "", "alpha", "bravo", "charlie", "delta" };
+        String current = randomFrom(terms);
+        for (int d = 0; d < docSlots.length; d++) {
+            if (random().nextInt(16) == 0) {
+                current = random().nextInt(10) == 0 ? "rare-" + d : randomFrom(terms);
+            }
+            final boolean present = d < blockDocs || (d < 2 * blockDocs ? random().nextInt(50) != 0 : random().nextInt(20) == 0);
+            if (present == false) {
+                continue;
+            }
+            final int slots = singleValued || random().nextInt(4) != 0 ? 1 : between(0, 3);
+            docSlots[d] = new BytesRef[slots];
+            for (int i = 0; i < slots; i++) {
+                docSlots[d][i] = singleValued == false && random().nextInt(6) == 0
+                    ? null
+                    : new BytesRef(i == 0 ? current : randomFrom(terms));
+            }
+        }
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
+            withColumn(docSlots, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+                int from = 0;
+                while (from < docSlots.length) {
+                    // An ascending run of documents, some skipped and, now and then, one asked for twice.
+                    final List<Integer> asked = new ArrayList<>();
+                    final int pageLength = randomFrom(1, 7, 128, between(1, 4096));
+                    for (int d = from; d < docSlots.length && asked.size() < pageLength; d++) {
+                        if (random().nextInt(4) != 0) {
+                            asked.add(d);
+                            if (random().nextInt(50) == 0) {
+                                asked.add(d);
+                            }
+                        }
+                    }
+                    if (asked.isEmpty()) {
+                        break;
+                    }
+                    from = asked.get(asked.size() - 1) + 1 + between(0, 64);
+                    final int[] docs = asked.stream().mapToInt(Integer::intValue).toArray();
+                    final List<List<String>> perDoc = new ArrayList<>();
+                    assertTrue(reader.readBlock(docs, 0, docs.length, new StringBlockSink() {
+                        @Override
+                        public void appendOrdinals(
+                            int[] ords,
+                            int n,
+                            int[] valueCounts,
+                            int docCount,
+                            BytesRef[] dictionary,
+                            int dictionarySize
+                        ) {
+                            int at = 0;
+                            for (int d = 0; d < docCount; d++) {
+                                final int held = valueCounts == null ? 1 : valueCounts[d];
+                                final List<String> values = new ArrayList<>();
+                                for (int v = 0; v < held; v++) {
+                                    values.add(dictionary[ords[at++]].utf8ToString());
+                                }
+                                perDoc.add(values);
+                            }
+                            assertEquals("values", n, at);
+                        }
+
+                        @Override
+                        public void appendValues(BytesRef[] values, int n, int[] valueCounts, int docCount) {
+                            int at = 0;
+                            for (int d = 0; d < docCount; d++) {
+                                final int held = valueCounts == null ? 1 : valueCounts[d];
+                                final List<String> doc = new ArrayList<>();
+                                for (int v = 0; v < held; v++) {
+                                    doc.add(values[at++].utf8ToString());
+                                }
+                                perDoc.add(doc);
+                            }
+                            assertEquals("values", n, at);
+                        }
+                    }));
+                    assertEquals("documents in the page", docs.length, perDoc.size());
+                    for (int i = 0; i < docs.length; i++) {
+                        final List<String> expected = new ArrayList<>();
+                        if (docSlots[docs[i]] != null) {
+                            for (BytesRef slot : docSlots[docs[i]]) {
+                                if (slot != null) {
+                                    expected.add(slot.utf8ToString());
+                                }
+                            }
+                        }
+                        final String layout = reader.hasDictionary() ? "dictionary" : "plain";
+                        assertEquals(layout + " document " + docs[i], expected, perDoc.get(i));
+                    }
+                }
+            });
+        }
     }
 
     private void assertPages(BytesRef[] docValues, DictionaryPolicy policy, Shape shape) throws IOException {

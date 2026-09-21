@@ -63,6 +63,9 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     /** Held so a summary can be read on demand; a merge reads it, an ordinary search never does. */
     protected final ColumnInputs inputs;
 
+    /** Whether the page last resolved holds a document with no value; see {@link #ranksOfAll}. */
+    protected boolean pageHasAbsent;
+
     /** Carried across page reads, which arrive in document order; see {@link #ranksOfAll}. */
     private ColumnIterator pageIterator;
     private int pageIteratorThrough = -1;
@@ -150,6 +153,30 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         return meta.hasValueAddresses() == false && meta.hasNullSlots() == false;
     }
 
+    /** Whether every document of the page just resolved holds exactly one value. */
+    protected boolean pageOfOneApiece() {
+        return pageable() && pageHasAbsent == false;
+    }
+
+    /**
+     * For a column holding one value a document, moves the page's present ranks to its front and marks each document
+     * holding one or none in {@link #pageValueCounts}, so the page keeps the single-valued read and its documents
+     * without a value arrive holding none. Answers how many documents hold a value.
+     */
+    protected int compactPresentRanks(int docCount) {
+        int present = 0;
+        for (int i = 0; i < docCount; i++) {
+            final int rank = pageRanks[i];
+            if (rank == ColumnIterator.NO_RANK) {
+                pageValueCounts[i] = 0;
+            } else {
+                pageValueCounts[i] = 1;
+                pageRanks[present++] = rank;
+            }
+        }
+        return present;
+    }
+
     /**
      * How many values each document of the page holds, filling {@link #pageValueCounts} and answering the total. A
      * document's nulls are not among them: a null is not a value a page can carry, so it is dropped and a document
@@ -159,6 +186,11 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         int total = 0;
         for (int i = 0; i < docCount; i++) {
             final int rank = pageRanks[i];
+            if (rank == ColumnIterator.NO_RANK) {
+                // No value for this document, so it holds none.
+                pageValueCounts[i] = 0;
+                continue;
+            }
             final long first = firstValueAddress(rank);
             final long slots = valueCount(rank);
             int values = 0;
@@ -823,9 +855,9 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     }
 
     /**
-     * Resolves the requested documents to their ranks, answering false when any of them has no value. A page
-     * carries one entry a document and has no way to say a document has nothing, so a caller asking about
-     * documents a sparse column skips is told to read them itself rather than handed a neighbour's value.
+     * Resolves the requested documents to their ranks, {@link ColumnIterator#NO_RANK} for a document with no value,
+     * and records whether the page holds one in {@link #pageHasAbsent}. Answers false when any document has no
+     * value, for a caller that needs one a document.
      */
     protected boolean ranksOfAll(int[] docs, int offset, int count) throws IOException {
         if (count == 0) {
@@ -839,8 +871,10 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         }
         pageIteratorThrough = docs[offset + count - 1];
         pageIterator.ranks(docs, offset, count, pageRanks);
+        pageHasAbsent = false;
         for (int i = 0; i < count; i++) {
             if (pageRanks[i] == ColumnIterator.NO_RANK) {
+                pageHasAbsent = true;
                 return false;
             }
         }
@@ -897,9 +931,8 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
             return true;
         }
         growPageDocs(count);
-        if (ranksOfAll(docs, offset, count) == false) {
-            return false;
-        }
+        // A document with no value arrives holding none.
+        ranksOfAll(docs, offset, count);
         return appendPage(count, sink);
     }
 

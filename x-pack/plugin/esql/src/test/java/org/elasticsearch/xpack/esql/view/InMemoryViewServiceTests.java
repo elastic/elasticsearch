@@ -572,6 +572,15 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp2,emp3,view*")));
     }
 
+    public void testWildcardsMatchViewsFalseDoesNotExpandWildcard() {
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        // wildcard pattern — skipped; relation returned unchanged
+        assertThat(replaceViews(query("FROM view*"), false), matchesPlan(query("FROM view*")));
+        // exact name — still matched regardless of the setting
+        assertThat(replaceViews(query("FROM view1"), false), matchesPlan(query("FROM emp1")));
+    }
+
     public void testMixedViewAndIndexMergedUnresolvedRelation() {
         addView("view1", "FROM emp");
         addIndex("index1");
@@ -2776,6 +2785,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     private LogicalPlan replaceViews(LogicalPlan plan, ViewResolver resolver) {
         return COMPACTION.apply(replaceViewsWithoutCompaction(plan, resolver));
+    }
+
+    private LogicalPlan replaceViews(LogicalPlan plan, boolean wildcardsMatchViews) {
+        PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
+        viewResolver.replaceViews(plan, null, wildcardsMatchViews, this::parse, future);
+        return COMPACTION.apply(future.actionGet().plan());
     }
 
     /**

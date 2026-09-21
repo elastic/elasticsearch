@@ -1167,7 +1167,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
      */
     public void testEvictedRegionRecordsPeakFreq() throws IOException {
         RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry);
+        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry, NOOP_TIME_PROVIDER);
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(400)).getStringRep())

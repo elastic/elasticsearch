@@ -557,7 +557,7 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
      * {@link TimeRangeBucket#OlderThan14Days} is the overflow bucket above 14 days.
      */
     private static boolean isAgeInBucket(double ageHours, TimeRangeBucket bucket) {
-        List<Double> bounds = TimeRangeBucket.histogramBoundaries();
+        List<Double> bounds = TimeRangeBucket.histogramHourBoundaries();
         double upper = bounds.get(bucket.ordinal());
         double lower = bucket.ordinal() == 0 ? Double.NEGATIVE_INFINITY : bounds.get(bucket.ordinal() - 1);
         return ageHours > lower && ageHours <= upper;

@@ -40,7 +40,7 @@ public enum TimeRangeBucket {
 
     private static final TimeRangeBucket[] VALUES = values();
     private static final double MILLIS_PER_HOUR = TimeValue.timeValueHours(1).getMillis();
-    private static final List<Double> HISTOGRAM_BOUNDARIES = buildHistogramBoundaries();
+    private static final List<Double> HISTOGRAM_HOUR_BOUNDARIES = buildHistogramHourBoundaries();
 
     private final long millis;
     private final String label;
@@ -72,8 +72,8 @@ public enum TimeRangeBucket {
      * {@link #OlderThan14Days} is {@code Double.MAX_VALUE} so implementations without an implicit
      * overflow bucket still have a last bucket.
      */
-    public static List<Double> histogramBoundaries() {
-        return HISTOGRAM_BOUNDARIES;
+    public static List<Double> histogramHourBoundaries() {
+        return HISTOGRAM_HOUR_BOUNDARIES;
     }
 
     /**
@@ -88,7 +88,7 @@ public enum TimeRangeBucket {
         throw new AssertionError("unreachable: OlderThan14Days has threshold Long.MAX_VALUE");
     }
 
-    private static List<Double> buildHistogramBoundaries() {
+    private static List<Double> buildHistogramHourBoundaries() {
         return Arrays.stream(VALUES).map(b -> b == OlderThan14Days ? Double.MAX_VALUE : toHours(b.millis)).toList();
     }
 }

@@ -294,14 +294,13 @@ public class BlobCacheMetrics {
                 "The age of data served by a cache read (warming not included), in hours; "
                     + "sentinel timestamps and bypasses are omitted",
                 "hours",
-                TimeRangeBucket.histogramBoundaries()
+                TimeRangeBucket.histogramHourBoundaries()
             ),
             meterRegistry.registerDoubleHistogram(
                 BLOB_CACHE_MISS_AGE,
-                "The age of data that missed the cache (warming not included), in hours; "
-                    + "sentinel timestamps and bypasses are omitted",
+                "The age of data that missed the cache (warming not included), in hours; " + "sentinel timestamps and bypasses are omitted",
                 "hours",
-                TimeRangeBucket.histogramBoundaries()
+                TimeRangeBucket.histogramHourBoundaries()
             ),
             timeProvider
         );

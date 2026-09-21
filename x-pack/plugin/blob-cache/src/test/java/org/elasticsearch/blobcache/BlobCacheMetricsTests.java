@@ -245,7 +245,7 @@ public class BlobCacheMetricsTests extends ESTestCase {
     }
 
     public void testAgesOlderThan14DaysLandInLastHistogramBucket() {
-        List<Double> bounds = TimeRangeBucket.histogramBoundaries();
+        List<Double> bounds = TimeRangeBucket.histogramHourBoundaries();
         assertThat(bounds, hasItem(Double.MAX_VALUE));
         assertEquals(Double.MAX_VALUE, bounds.getLast(), 0.0);
         assertEquals(336.0, bounds.get(bounds.size() - 2), 0.0);

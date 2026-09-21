@@ -16,7 +16,7 @@ import java.util.List;
 public class TimeRangeBucketTests extends ESTestCase {
 
     public void testHistogramBoundariesAreHoursWithDoubleMaxOverflow() {
-        List<Double> bounds = TimeRangeBucket.histogramBoundaries();
+        List<Double> bounds = TimeRangeBucket.histogramHourBoundaries();
         assertEquals(TimeRangeBucket.values().length, bounds.size());
         assertEquals(0.25, bounds.get(0), 0.0);
         assertEquals(1.0, bounds.get(1), 0.0);

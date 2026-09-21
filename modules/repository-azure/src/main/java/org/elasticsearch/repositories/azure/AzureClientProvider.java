@@ -388,18 +388,19 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        ReactorScheduledExecutorService executorService = new ReactorScheduledExecutorService(threadPool, reactorExecutorName);
+        installSchedulersFactory(new ReactorScheduledExecutorService(threadPool, reactorExecutorName));
+    }
 
+    /**
+     * Makes every Reactor scheduler the Azure SDK asks for run on {@code executorService}.
+     */
+    // package-private for testing
+    static void installSchedulersFactory(ExecutorService executorService) {
         // The only way to configure the schedulers used by the SDK is to inject a new global factory. This is a bit ugly...
         // See https://github.com/Azure/azure-sdk-for-java/issues/17272 for a feature request to avoid this need.
         Schedulers.setFactory(new Schedulers.Factory() {
             @Override
             public Scheduler newParallel(int parallelism, ThreadFactory threadFactory) {
-                return Schedulers.fromExecutor(executorService);
-            }
-
-            @Override
-            public Scheduler newElastic(int ttlSeconds, ThreadFactory threadFactory) {
                 return Schedulers.fromExecutor(executorService);
             }
 

@@ -48,6 +48,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 /**
  * Module that collects all data source implementations from plugins.
@@ -67,6 +68,7 @@ public final class DataSourceModule implements Closeable {
     private final List<Closeable> managedCloseables;
     private final DataSourceCapabilities capabilities;
     private final ExternalSourceMetrics externalSourceMetrics;
+    private final DecompressionCodecRegistry codecRegistry;
 
     public DataSourceModule(
         List<DataSourcePlugin> dataSourcePlugins,
@@ -192,13 +194,13 @@ public final class DataSourceModule implements Closeable {
             effectiveLocalFileAccess
         );
 
-        DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
+        this.codecRegistry = new DecompressionCodecRegistry();
         for (DataSourcePlugin plugin : dataSourcePlugins) {
             for (DecompressionCodec codec : plugin.decompressionCodecs(settings, executor)) {
-                codecRegistry.register(codec);
+                this.codecRegistry.register(codec);
             }
         }
-        this.formatReaderRegistry = new FormatReaderRegistry(codecRegistry);
+        this.formatReaderRegistry = new FormatReaderRegistry(this.codecRegistry);
 
         Map<String, ExternalSourceFactory> sourceFactoryMap = new LinkedHashMap<>();
         Map<String, SourceOperatorFactoryProvider> operatorFactoryProviders = new HashMap<>();
@@ -386,6 +388,10 @@ public final class DataSourceModule implements Closeable {
         return externalSourceMetrics;
     }
 
+    public DecompressionCodecRegistry codecRegistry() {
+        return codecRegistry;
+    }
+
     /**
      * Convenience overload that backs BOTH registry roles with a single executor. This collapses the
      * page-consumer/coordination role and the read/parse role onto one pool, which is the exact wiring that
@@ -527,6 +533,13 @@ public final class DataSourceModule implements Closeable {
         }
 
         @Override
+        public void validateConfig(String location, Map<String, Object> config, Consumer<String> warningSink) {
+            // Forward the sink rather than inheriting the interface default, which would drop it and
+            // fall back to the two-argument form -- losing the resolver's buffered warning routing.
+            resolveDelegate().validateConfig(location, credentials.decryptInPlace(config), warningSink);
+        }
+
+        @Override
         public Connector open(Map<String, Object> config) {
             return resolveDelegate().open(credentials.decryptInPlace(config));
         }
@@ -660,6 +673,13 @@ public final class DataSourceModule implements Closeable {
         @Override
         public void validateConfig(String location, Map<String, Object> config) {
             resolveDelegate().validateConfig(location, credentials.decryptInPlace(config));
+        }
+
+        @Override
+        public void validateConfig(String location, Map<String, Object> config, Consumer<String> warningSink) {
+            // Forward the sink rather than inheriting the interface default, which would drop it and
+            // fall back to the two-argument form -- losing the resolver's buffered warning routing.
+            resolveDelegate().validateConfig(location, credentials.decryptInPlace(config), warningSink);
         }
 
         @Override

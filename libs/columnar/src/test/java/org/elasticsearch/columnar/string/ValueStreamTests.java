@@ -15,7 +15,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
-import org.elasticsearch.columnar.substrate.internal.ByteArrayInts;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -24,7 +23,7 @@ import java.util.List;
 
 /**
  * The byte sequence a string column stores its values in, on its own: whatever is written reads back, at
- * every block layout and every width a packed length takes.
+ * every block layout and every bit width a packed length takes.
  */
 public class ValueStreamTests extends ESTestCase {
 
@@ -35,19 +34,44 @@ public class ValueStreamTests extends ESTestCase {
         assertRoundTrip(values(between(200, 2000), 0, 20));
     }
 
-    /** One byte per length: long enough for a block to pack them, short enough to fit in a byte. */
-    public void testPackedLengthsOneByte() throws IOException {
+    /** Values of length 0 and 1, so the packed header is 1 bit per value. */
+    public void testPackedOneBit() throws IOException {
+        assertRoundTrip(values(between(200, 2000), 0, 1));
+    }
+
+    /** Values up to 255 bytes, so the packed header is at most 8 bits per value. */
+    public void testPackedEightBits() throws IOException {
         assertRoundTrip(values(between(200, 1500), 40, 255));
     }
 
-    /** Two bytes per length. */
-    public void testPackedLengthsTwoBytes() throws IOException {
-        assertRoundTrip(values(between(100, 600), 300, 5000));
+    /** Values up to 4095 bytes, so the packed header is at most 12 bits per value. */
+    public void testPackedTwelveBits() throws IOException {
+        assertRoundTrip(values(between(100, 600), 300, 4000));
     }
 
-    /** Four bytes per length, which needs a value past sixty-five thousand. */
-    public void testPackedLengthsFourBytes() throws IOException {
-        final List<BytesRef> values = new ArrayList<>(values(between(4, 20), 66_000, 66_500));
+    /** Values whose length needs 17 bits, past what two bytes could hold. */
+    public void testPackedSeventeenBits() throws IOException {
+        assertRoundTrip(values(between(4, 20), 66_000, 66_500));
+    }
+
+    /**
+     * Values all of one short length. The lengths pack to a single width whatever the mean is, so these
+     * blocks take the packed layout that a mean this short would otherwise have kept inline.
+     */
+    public void testUniformShortLengths() throws IOException {
+        final int length = between(1, 31);
+        assertRoundTrip(values(between(200, 2000), length, length));
+    }
+
+    /**
+     * One short length but for the occasional longer value, so whether a block is of a single length —
+     * and with it which layout the block takes — differs from one block to the next.
+     */
+    public void testMostlyUniformShortLengths() throws IOException {
+        final List<BytesRef> values = new ArrayList<>();
+        for (int i = 0, count = between(500, 3000); i < count; i++) {
+            values.add(new BytesRef(randomAlphaOfLength(rarely() ? between(40, 90) : 16)));
+        }
         assertRoundTrip(values);
     }
 
@@ -158,35 +182,13 @@ public class ValueStreamTests extends ESTestCase {
         }
     }
 
-    /**
-     * A block says which layout it took in its first byte, and a packed block says the width its lengths are
-     * written at in the same byte. The two share one space, so the widths a block can be packed at must stay
-     * clear of the values that name a layout, and nothing but arithmetic keeps them apart.
-     */
-    public void testPackedWidthsNeverCollideWithALayout() {
-        for (int max : new int[] { 0, 1, 0xFF, 0x100, 0xFFFF, 0x10000, 0xFFFFFF, 0x1000000, Integer.MAX_VALUE }) {
-            final int width = ByteArrayInts.widthFor(max);
-            assertNotEquals(
-                "a block of values up to " + max + " bytes packs its lengths at the width naming a run",
-                ValueStream.RUNS,
-                (byte) width
-            );
-            assertNotEquals(
-                "a block of values up to " + max + " bytes packs at the width naming an inline block",
-                ValueStream.INLINE,
-                (byte) width
-            );
-            assertTrue("width " + width + " is not a marker this stream writes", ValueStream.knownMarker((byte) width));
-        }
-    }
-
-    /** A marker no layout and no width takes is turned away rather than read as whichever shares its number. */
+    /** Every value a block's first byte may take; anything else is a corrupt index. */
     public void testUnknownLayoutMarkersAreNotAccepted() {
-        for (byte marker : new byte[] { ValueStream.INLINE, 1, 2, ValueStream.RUNS, 4 }) {
-            assertTrue("marker " + marker + " is one this stream writes", ValueStream.knownMarker(marker));
+        for (ValueStream.BlockLayout layout : ValueStream.BlockLayout.values()) {
+            assertSame("id " + layout.id + " round-trips to " + layout, layout, ValueStream.BlockLayout.fromId(layout.id));
         }
-        for (byte marker : new byte[] { 5, 6, 7, 42, -1, Byte.MIN_VALUE, Byte.MAX_VALUE }) {
-            assertFalse("marker " + marker + " names nothing this stream writes", ValueStream.knownMarker(marker));
+        for (byte marker : new byte[] { 3, 4, 5, 6, 42, -1, Byte.MIN_VALUE, Byte.MAX_VALUE }) {
+            assertNull("marker " + marker + " names no known layout", ValueStream.BlockLayout.fromId(marker));
         }
     }
 }

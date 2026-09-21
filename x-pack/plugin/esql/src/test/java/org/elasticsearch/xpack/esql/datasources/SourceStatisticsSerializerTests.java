@@ -634,6 +634,52 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         assertEquals("max marked unservable", Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMaxUnservableKey("c")));
     }
 
+    public void testNormalizeStatsToReconciledLongToDoubleWidensExtrema() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.columnMinKey("v"), 10L);
+        stats.put(SourceStatisticsSerializer.columnMaxKey("v"), 9007199254740993L);
+        Map<String, DataType> fileTypes = Map.of("v", DataType.LONG);
+        Map<String, DataType> reconciled = Map.of("v", DataType.DOUBLE);
+        Map<String, Object> out = SourceStatisticsSerializer.normalizeStatsToReconciled(stats, fileTypes, reconciled);
+        assertEquals(10.0, out.get(SourceStatisticsSerializer.columnMinKey("v")));
+        assertEquals(9007199254740992.0, out.get(SourceStatisticsSerializer.columnMaxKey("v")));
+    }
+
+    public void testNormalizeStatsToReconciledIntegerToDoubleWidensExtrema() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.columnMinKey("v"), 3);
+        stats.put(SourceStatisticsSerializer.columnMaxKey("v"), 9);
+        Map<String, DataType> fileTypes = Map.of("v", DataType.INTEGER);
+        Map<String, DataType> reconciled = Map.of("v", DataType.DOUBLE);
+        Map<String, Object> out = SourceStatisticsSerializer.normalizeStatsToReconciled(stats, fileTypes, reconciled);
+        assertEquals(3.0, out.get(SourceStatisticsSerializer.columnMinKey("v")));
+        assertEquals(9.0, out.get(SourceStatisticsSerializer.columnMaxKey("v")));
+    }
+
+    public void testNormalizeStatsToReconciledUnsignedLongDoesNotWidenToDouble() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.columnMinKey("v"), 3L);
+        Map<String, DataType> fileTypes = Map.of("v", DataType.UNSIGNED_LONG);
+        Map<String, DataType> reconciled = Map.of("v", DataType.DOUBLE);
+        Map<String, Object> out = SourceStatisticsSerializer.normalizeStatsToReconciled(stats, fileTypes, reconciled);
+        assertEquals(3L, out.get(SourceStatisticsSerializer.columnMinKey("v")));
+    }
+
+    public void testNormalizeThenMergeLongAndDoubleExtremaFolds() {
+        Map<String, Object> longStats = new HashMap<>();
+        longStats.put(SourceStatisticsSerializer.columnMinKey("v"), 9007199254740993L);
+        longStats.put(SourceStatisticsSerializer.columnMaxKey("v"), 9007199254740993L);
+        Map<String, Object> widened = SourceStatisticsSerializer.normalizeStatsToReconciled(
+            longStats,
+            Map.of("v", DataType.LONG),
+            Map.of("v", DataType.DOUBLE)
+        );
+        Object min = SplitStats.mergedMin(widened.get(SourceStatisticsSerializer.columnMinKey("v")), 1.5);
+        Object max = SplitStats.mergedMax(widened.get(SourceStatisticsSerializer.columnMaxKey("v")), 1.5);
+        assertEquals(1.5, min);
+        assertEquals(9007199254740992.0, max);
+    }
+
     public void testNormalizeStatsToReconciledNanosToMillisNarrowingMarksUnservable() {
         // Widening reconciliation never narrows DATE_NANOS to DATETIME, but if a file/reconciled pairing in that
         // direction ever reaches the normalizer, passing the epoch-nanos value through unchanged would serve it
@@ -714,6 +760,103 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
     public void testOverlayIdentityReturnsSameInstance() {
         Map<String, Object> stats = Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
         assertSame(stats, SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(stats, Map.of(), Set.of()));
+    }
+
+    public void testRewriteColumnAsAllNullCopiesAndStripsLeftoverUnservableMarkers() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        stats.put(SourceStatisticsSerializer.columnMinKey("x"), -10L);
+        stats.put(SourceStatisticsSerializer.columnMaxKey("x"), 20L);
+        stats.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
+        stats.put(SourceStatisticsSerializer.columnNullCountKey("x"), 0L);
+        stats.put(SourceStatisticsSerializer.columnMinUnservableKey("x"), Boolean.TRUE);
+        stats.put(SourceStatisticsSerializer.columnMaxUnservableKey("x"), Boolean.TRUE);
+        stats.put(SourceStatisticsSerializer.columnMinKey("id"), 1L);
+        Map<String, Object> frozen = Map.copyOf(stats);
+
+        Map<String, Object> out = SourceStatisticsSerializer.rewriteColumnsAsAllNull(frozen, List.of("x"));
+
+        assertNotSame(frozen, out);
+        assertEquals(2L, out.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        assertEquals(0L, out.get(SourceStatisticsSerializer.columnValueCountKey("x")));
+        assertEquals(2L, out.get(SourceStatisticsSerializer.columnNullCountKey("x")));
+        assertNull(out.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertNull(out.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertNull(out.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertNull(out.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
+        assertEquals(1L, out.get(SourceStatisticsSerializer.columnMinKey("id")));
+        assertEquals(-10L, frozen.get(SourceStatisticsSerializer.columnMinKey("x")));
+    }
+
+    public void testAlignHarvestWithFoldPoisonsAndDropsCountsWhenFoldDroppedTheColumn() {
+        Map<String, Object> harvest = new HashMap<>();
+        harvest.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        harvest.put(SourceStatisticsSerializer.columnMinKey("x"), -10L);
+        harvest.put(SourceStatisticsSerializer.columnMaxKey("x"), 200L);
+        harvest.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
+        harvest.put(SourceStatisticsSerializer.columnNullCountKey("x"), 0L);
+        harvest.put(SourceStatisticsSerializer.columnMinKey("id"), 1L);
+        Map<String, Object> frozenHarvest = Map.copyOf(harvest);
+
+        Map<String, Object> folded = new HashMap<>();
+        folded.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 4L);
+        folded.put(SourceStatisticsSerializer.columnMinUnservableKey("x"), Boolean.TRUE);
+        folded.put(SourceStatisticsSerializer.columnMaxUnservableKey("x"), Boolean.TRUE);
+
+        Map<String, Object> out = SourceStatisticsSerializer.alignHarvestWithFold(frozenHarvest, folded);
+
+        assertNotSame(frozenHarvest, out);
+        assertEquals(2L, out.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        assertNull(out.get(SourceStatisticsSerializer.columnValueCountKey("x")));
+        assertNull(out.get(SourceStatisticsSerializer.columnNullCountKey("x")));
+        assertNull(out.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertNull(out.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertEquals(Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertEquals(Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
+        assertEquals(1L, out.get(SourceStatisticsSerializer.columnMinKey("id")));
+        assertEquals(-10L, frozenHarvest.get(SourceStatisticsSerializer.columnMinKey("x")));
+    }
+
+    public void testAlignHarvestWithFoldPoisonsExtremaAndKeepsCountsWhenFoldKeptCounts() {
+        Map<String, Object> harvest = new HashMap<>();
+        harvest.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        harvest.put(SourceStatisticsSerializer.columnMinKey("x"), 1L);
+        harvest.put(SourceStatisticsSerializer.columnMaxKey("x"), 2L);
+        harvest.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
+        harvest.put(SourceStatisticsSerializer.columnNullCountKey("x"), 0L);
+
+        Map<String, Object> folded = new HashMap<>();
+        folded.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 4L);
+        folded.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
+        folded.put(SourceStatisticsSerializer.columnNullCountKey("x"), 2L);
+        folded.put(SourceStatisticsSerializer.columnMinUnservableKey("x"), Boolean.TRUE);
+        folded.put(SourceStatisticsSerializer.columnMaxUnservableKey("x"), Boolean.TRUE);
+
+        Map<String, Object> out = SourceStatisticsSerializer.alignHarvestWithFold(harvest, folded);
+
+        assertNull(out.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertEquals(Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertEquals(2L, out.get(SourceStatisticsSerializer.columnValueCountKey("x")));
+        assertEquals(0L, out.get(SourceStatisticsSerializer.columnNullCountKey("x")));
+    }
+
+    public void testAlignHarvestWithFoldIsIdentityWhenFoldServedTheColumn() {
+        Map<String, Object> harvest = new HashMap<>();
+        harvest.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        harvest.put(SourceStatisticsSerializer.columnMinKey("x"), -10L);
+        harvest.put(SourceStatisticsSerializer.columnMaxKey("x"), 20L);
+        harvest.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
+        harvest.put(SourceStatisticsSerializer.columnNullCountKey("x"), 0L);
+        Map<String, Object> frozen = Map.copyOf(harvest);
+
+        Map<String, Object> folded = new HashMap<>();
+        folded.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 4L);
+        folded.put(SourceStatisticsSerializer.columnMinKey("x"), 1L);
+        folded.put(SourceStatisticsSerializer.columnMaxKey("x"), 2L);
+        folded.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
+        folded.put(SourceStatisticsSerializer.columnNullCountKey("x"), 2L);
+
+        assertSame(frozen, SourceStatisticsSerializer.alignHarvestWithFold(frozen, folded));
     }
 
     public void testOverlayPinnedColumnsPoisonsExtremaAndDropsCountsKeepingRowCount() {

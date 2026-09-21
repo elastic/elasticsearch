@@ -40,13 +40,17 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
+import org.elasticsearch.columnar.ColumnarFieldType;
+import org.elasticsearch.columnar.ColumnarStringMatchQuery;
 import org.elasticsearch.columnar.ColumnarStringTermQuery;
+import org.elasticsearch.columnar.ScanBudget;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.DictionaryStringColumnReader;
+import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringBlockSink;
 import org.elasticsearch.columnar.string.StringColumnReader;
-import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.index.codec.Elasticsearch96Codec;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatFactory;
@@ -95,7 +99,7 @@ public enum StringFormat {
             case ES95_SORTED -> ES95TSDBDocValuesFormatFactory.create(false, false, false, null);
             default -> throw new AssertionError(this);
         };
-        final Codec codec = new Elasticsearch93Lucene104Codec() {
+        final Codec codec = new Elasticsearch96Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
                 return dv;
@@ -193,7 +197,7 @@ public enum StringFormat {
     private Document document(BytesRef value) {
         final Document doc = new Document();
         if (isColumnar()) {
-            doc.add(new Field(FIELD, value, columnarFieldType()));
+            doc.add(new Field(FIELD, payload(value), columnarFieldType()));
         } else if (this == ES819_BINARY) {
             doc.add(new BinaryDocValuesField(FIELD, value));
         } else {
@@ -202,10 +206,18 @@ public enum StringFormat {
         return doc;
     }
 
+    /**
+     * One value as the {@link StringBinaryPayload} the columnar string surface carries. It holds a document's
+     * slots rather than bare bytes, so even a single value is written that way — and read back that way, which
+     * is why {@code readPerDocument} below decodes rather than measuring the payload.
+     */
+    static BytesRef payload(BytesRef value) {
+        return BytesRef.deepCopyOf(new StringBinaryPayload.Builder().encode(List.of(value)));
+    }
+
     private static FieldType columnarFieldType() {
         final FieldType type = new FieldType();
         type.setDocValuesType(DocValuesType.BINARY);
-        type.putAttribute("columnar.type", "STRING");
         type.freeze();
         return type;
     }
@@ -234,11 +246,12 @@ public enum StringFormat {
             case ES95_SORTED -> ES95TSDBDocValuesFormatFactory.create(false, false, false, null);
             case COLUMNAR_PLAIN, COLUMNAR_DICTIONARY, COLUMNAR -> new ColumNARDocValuesFormat(
                 (fieldName, fieldType) -> org.elasticsearch.columnar.numeric.NumericPipeline::defaultPipeline,
+                field -> ColumnarFieldType.STRING,
                 ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
                 dictionaryPolicy()
             );
         };
-        return new Elasticsearch93Lucene104Codec() {
+        return new Elasticsearch96Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
                 return dv;
@@ -249,14 +262,14 @@ public enum StringFormat {
     private long writeColumnar(Directory directory, BytesRef[] values) throws IOException {
         final FieldType type = new FieldType();
         type.setDocValuesType(DocValuesType.BINARY);
-        type.putAttribute("columnar.type", "STRING");
         type.freeze();
         final DocValuesFormat dv = new ColumNARDocValuesFormat(
             (fieldName, fieldType) -> org.elasticsearch.columnar.numeric.NumericPipeline::defaultPipeline,
+            field -> ColumnarFieldType.STRING,
             ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
             dictionaryPolicy()
         );
-        final Codec codec = new Elasticsearch93Lucene104Codec() {
+        final Codec codec = new Elasticsearch96Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
                 return dv;
@@ -271,7 +284,7 @@ public enum StringFormat {
         try (IndexWriter writer = new IndexWriter(directory, iwc)) {
             for (BytesRef value : values) {
                 final Document doc = new Document();
-                doc.add(new Field(FIELD, value, type));
+                doc.add(new Field(FIELD, payload(value), type));
                 writer.addDocument(doc);
             }
             writer.forceMerge(1);
@@ -341,6 +354,9 @@ public enum StringFormat {
 
         /** The prefix as a query, the shape of {@code LIKE "x*"}. */
         long queryPrefix(BytesRef prefix) throws IOException;
+
+        /** Documents whose value falls in {@code [lower, upper]}, inclusive. */
+        long queryRange(BytesRef lower, BytesRef upper) throws IOException;
     }
 
     /**
@@ -385,7 +401,7 @@ public enum StringFormat {
 
         @Override
         public long queryTerm(BytesRef term) throws IOException {
-            return bulkCount(searcher, directoryReader.leaves().get(0), ColumnarStringTermQuery.term(FIELD, term));
+            return bulkCount(searcher, directoryReader.leaves().get(0), ColumnarStringTermQuery.term(FIELD, term, ScanBudget.UNLIMITED));
         }
 
         @Override
@@ -396,7 +412,27 @@ public enum StringFormat {
 
         @Override
         public long queryPrefix(BytesRef prefix) throws IOException {
-            return bulkCount(searcher, directoryReader.leaves().get(0), ColumnarStringTermQuery.prefix(FIELD, prefix));
+            return bulkCount(
+                searcher,
+                directoryReader.leaves().get(0),
+                ColumnarStringTermQuery.prefix(FIELD, prefix, ScanBudget.UNLIMITED)
+            );
+        }
+
+        @Override
+        public long queryRange(BytesRef lower, BytesRef upper) throws IOException {
+            final BytesRef low = BytesRef.deepCopyOf(lower);
+            final BytesRef high = BytesRef.deepCopyOf(upper);
+            final String identity = "range=[" + low + "," + high + "]";
+            final Query query = new ColumnarStringMatchQuery(FIELD, value -> {
+                final int cmpLow = value.compareTo(low);
+                if (cmpLow < 0) {
+                    return false;
+                }
+                final int cmpHigh = value.compareTo(high);
+                return cmpHigh <= 0;
+            }, identity, ScanBudget.UNLIMITED);
+            return bulkCount(searcher, directoryReader.leaves().get(0), query);
         }
 
         private static long count(DocIdSetIterator matches) throws IOException {
@@ -430,8 +466,16 @@ public enum StringFormat {
         public long readPerDocument() throws IOException {
             long checksum = 0;
             final BinaryDocValues values = leaf.getBinaryDocValues(FIELD);
+            // The surface hands back a document's slots as one payload, so the value is decoded out of it.
+            // Measuring the payload instead would count the framing the stock formats do not carry, and this
+            // is here to be compared against them.
+            final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                checksum += values.binaryValue().length;
+                final int slots = decoder.reset(values.binaryValue());
+                for (int slot = 0; slot < slots; slot++) {
+                    final BytesRef value = decoder.next();
+                    checksum += value == null ? 0 : value.length;
+                }
             }
             return checksum;
         }
@@ -644,6 +688,22 @@ public enum StringFormat {
         }
 
         @Override
+        public long queryRange(BytesRef lower, BytesRef upper) throws IOException {
+            if (format == ES819_BINARY) {
+                final BinaryDocValues values = leaf.getBinaryDocValues(FIELD);
+                long found = 0;
+                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                    final BytesRef value = values.binaryValue();
+                    if (value.compareTo(lower) >= 0 && value.compareTo(upper) <= 0) {
+                        found++;
+                    }
+                }
+                return found;
+            }
+            return bulkCount(searcher, reader.leaves().get(0), SortedDocValuesField.newSlowRangeQuery(FIELD, lower, upper, true, true));
+        }
+
+        @Override
         public long matchPrefix(BytesRef prefix) throws IOException {
             if (format == ES819_BINARY) {
                 final BinaryDocValues values = leaf.getBinaryDocValues(FIELD);
@@ -790,7 +850,7 @@ public enum StringFormat {
         long checksum;
 
         @Override
-        public void appendOrdinals(int[] ordinals, int count, BytesRef[] dictionary, int dictionarySize) {
+        public void appendOrdinals(int[] ordinals, int count, int[] valueCounts, int docCount, BytesRef[] dictionary, int dictionarySize) {
             // One hash a distinct value rather than one a document, which is the whole point of the page
             // coming back as ordinals.
             for (int i = 0; i < dictionarySize; i++) {
@@ -802,7 +862,7 @@ public enum StringFormat {
         }
 
         @Override
-        public void appendValues(BytesRef[] values, int count) {
+        public void appendValues(BytesRef[] values, int count, int[] valueCounts, int docCount) {
             for (int i = 0; i < count; i++) {
                 checksum += StringFormat.group(groups, values[i]);
             }
@@ -813,14 +873,14 @@ public enum StringFormat {
         long checksum;
 
         @Override
-        public void appendOrdinals(int[] ordinals, int count, BytesRef[] dictionary, int dictionarySize) {
+        public void appendOrdinals(int[] ordinals, int count, int[] valueCounts, int docCount, BytesRef[] dictionary, int dictionarySize) {
             for (int i = 0; i < count; i++) {
                 checksum += dictionary[ordinals[i]].length;
             }
         }
 
         @Override
-        public void appendValues(BytesRef[] values, int count) {
+        public void appendValues(BytesRef[] values, int count, int[] valueCounts, int docCount) {
             for (int i = 0; i < count; i++) {
                 checksum += values[i].length;
             }
@@ -834,7 +894,7 @@ public enum StringFormat {
         long checksum;
 
         @Override
-        public void appendOrdinals(int[] ordinals, int count, BytesRef[] dictionary, int dictionarySize) {
+        public void appendOrdinals(int[] ordinals, int count, int[] valueCounts, int docCount, BytesRef[] dictionary, int dictionarySize) {
             if (groupOf.length < dictionarySize) {
                 groupOf = new int[dictionarySize];
             }
@@ -847,7 +907,7 @@ public enum StringFormat {
         }
 
         @Override
-        public void appendValues(BytesRef[] values, int count) {
+        public void appendValues(BytesRef[] values, int count, int[] valueCounts, int docCount) {
             for (int i = 0; i < count; i++) {
                 checksum += group(groups, values[i]);
             }

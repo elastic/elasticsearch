@@ -398,6 +398,68 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    public void testTimestampSetOnceAcrossFetchOverloads() throws Exception {
+        final long cacheSize = size(500L);
+        final long regionSize = size(100L);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+
+        final var threadPool = new TestThreadPool("test");
+        final var bulkExecutor = new StoppableExecutorServiceWrapper(threadPool.generic());
+
+        final RangeMissingHandler writer = (
+            channel,
+            channelPos,
+            streamFactory,
+            relativePos,
+            length,
+            progressUpdater,
+            completionListener) -> completeWith(completionListener, () -> progressUpdater.accept(length));
+
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                threadPool,
+                threadPool.executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final long firstTimestamp = randomLongBetween(1, Long.MAX_VALUE - 2);
+            final long secondTimestamp = firstTimestamp + 1;
+
+            // first population path to create region 0 wins the stamp
+            final PlainActionFuture<Boolean> firstFuture = new PlainActionFuture<>();
+            cacheService.fetchRegion(cacheKey, 0, regionSize, writer, bulkExecutor, true, firstTimestamp, firstFuture);
+            assertThat(firstFuture.get(10, TimeUnit.SECONDS), is(true));
+
+            // a later population path through a different overload carries a different timestamp, but the stamp is set-once
+            final PlainActionFuture<Boolean> secondFuture = new PlainActionFuture<>();
+            cacheService.maybeFetchRange(
+                cacheKey,
+                0,
+                ByteRange.of(0, regionSize),
+                regionSize,
+                writer,
+                bulkExecutor,
+                secondTimestamp,
+                secondFuture
+            );
+            secondFuture.get(10, TimeUnit.SECONDS);
+
+            assertEquals(firstTimestamp, cacheService.get(cacheKey, regionSize, 0, UNKNOWN_TIMESTAMP).timestampMillis());
+        } finally {
+            TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+        }
+    }
+
     public void testGetCacheFileStampsTimestampOnRead() throws Exception {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")

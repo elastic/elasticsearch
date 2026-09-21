@@ -276,7 +276,29 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
         );
     }
 
-    /** Binds a capture sink, drains the reader to EOF, returns the single contribution for the path (or null). */
+    /**
+     * The identity says what this read did to the cells, so another read's statistics can be compared with it per
+     * column. NDJSON binds every column by object key and has no present-but-empty cell, so the binding is always
+     * by name and the blank key stays off.
+     */
+    public void testReadIdentityIsStampedOnEveryContribution() throws Exception {
+        StorageObject o = obj("{\"a\":1,\"b\":\"x\"}\n{\"a\":2,\"b\":\"y\"}\n");
+        List<Attribute> bound = List.of(
+            new ReferenceAttribute(Source.EMPTY, "a", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, "b", DataType.KEYWORD)
+        );
+        Map<String, Object> c = capture(o, FormatReadContext.builder().batchSize(10).readSchema(bound).build());
+        assertNotNull("a clean drain must publish a contribution to stamp", c);
+        assertEquals(List.of("a", "b"), c.get(ExternalStats.READ_COLUMN_NAMES_KEY));
+        assertEquals(List.of("long", "keyword"), c.get(ExternalStats.READ_COLUMN_TYPES_KEY));
+        assertEquals(ExternalStats.BINDING_BY_NAME, c.get(ExternalStats.READ_BINDING_KEY));
+        assertFalse(
+            "NDJSON has no present-but-empty cell, so the blank key is never written",
+            c.containsKey(ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY)
+        );
+        assertFalse("no column declared a date pattern, so the key stays off", c.containsKey(ExternalStats.READ_COLUMN_DATE_FORMATS_KEY));
+    }
+
     /**
      * The licence is measured here too: a {@code null_field} read that dropped no record produced the file's
      * physical record count. NDJSON has no row width, so unlike CSV there is no headered conjunct — a record is
@@ -314,6 +336,7 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
         );
     }
 
+    /** Binds a capture sink, drains the reader to EOF, returns the single contribution for the path (or null). */
     private Map<String, Object> capture(StorageObject o, FormatReadContext ctx) throws Exception {
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         try (

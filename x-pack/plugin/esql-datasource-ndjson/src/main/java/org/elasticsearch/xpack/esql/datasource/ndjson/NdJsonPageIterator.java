@@ -760,7 +760,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         if (readConfig.isEmpty() == false) {
             base.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
         }
-        // See CsvFormatReader: only FAIL_FAST makes a committed row count read-config-independent.
+        // See rowCountIsPhysical: the licence is measured from what this read dropped, not read off the mode.
         if (rowCountIsPhysical()) {
             base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
         }

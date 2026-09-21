@@ -33,11 +33,9 @@ public final class ColumnIteratorWriter {
      */
     public static ColumnIteratorMetadata write(DocIdSetIterator docsWithField, int numDocsWithField, int maxDoc, IndexOutput data)
         throws IOException {
-        if (numDocsWithField == 0) {
-            return ColumnIteratorMetadata.empty(maxDoc);
-        }
-        if (numDocsWithField == maxDoc) {
-            return ColumnIteratorMetadata.dense(maxDoc);
+        final ColumnIteratorMetadata shortCircuit = shortCircuit(numDocsWithField, maxDoc);
+        if (shortCircuit != null) {
+            return shortCircuit;
         }
         long offset = data.getFilePointer();
         short jumpTableEntryCount = IndexedDISI.writeBitSet(docsWithField, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
@@ -67,12 +65,21 @@ public final class ColumnIteratorWriter {
         int maxDoc,
         IndexOutput data
     ) throws IOException {
+        final ColumnIteratorMetadata shortCircuit = shortCircuit(numDocsWithField, maxDoc);
+        if (shortCircuit != null) {
+            return shortCircuit;
+        }
+        return write(docsWithField.get(), numDocsWithField, maxDoc, data);
+    }
+
+    /** Returns a metadata sentinel for empty and dense columns, or null when the column is sparse. */
+    private static ColumnIteratorMetadata shortCircuit(int numDocsWithField, int maxDoc) {
         if (numDocsWithField == 0) {
             return ColumnIteratorMetadata.empty(maxDoc);
         }
         if (numDocsWithField == maxDoc) {
             return ColumnIteratorMetadata.dense(maxDoc);
         }
-        return write(docsWithField.get(), numDocsWithField, maxDoc, data);
+        return null;
     }
 }

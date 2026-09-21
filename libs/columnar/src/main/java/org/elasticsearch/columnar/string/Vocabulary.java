@@ -116,7 +116,7 @@ public final class Vocabulary {
      * the cursor so the same walk can serve two purposes at once (e.g. writing a presence structure while
      * accumulating the vocabulary).
      */
-    public static final class Surveyor {
+    static final class Surveyor {
 
         private final DictionaryPolicy policy;
         private final BytesRefHash terms;
@@ -145,7 +145,7 @@ public final class Vocabulary {
          * Offers one slot's value. A null slot is ignored — it is named by an ordinal of its own and its
          * bytes are not bytes the column would otherwise store.
          */
-        public void accept(BytesRef value) {
+        void accept(BytesRef value) {
             if (value == null) {
                 // A null is named by an ordinal of its own, so it is not a term worth a dictionary entry
                 // and its bytes are not bytes the column would otherwise store. Counting it would credit
@@ -198,7 +198,7 @@ public final class Vocabulary {
          * Returns the terms worth a dictionary entry, or null when the column holds nothing worth naming.
          * Must be called exactly once, after all values have been {@link #accept accepted}.
          */
-        public Terms finish() {
+        Terms finish() {
             if (terms.size() == 0) {
                 return null;
             }
@@ -227,7 +227,7 @@ public final class Vocabulary {
     }
 
     /** Returns a fresh {@link Surveyor} governed by {@code policy}. */
-    public static Surveyor surveyor(DictionaryPolicy policy) {
+    static Surveyor surveyor(DictionaryPolicy policy) {
         return new Surveyor(policy);
     }
 

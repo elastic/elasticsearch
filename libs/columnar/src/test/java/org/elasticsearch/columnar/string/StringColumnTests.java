@@ -281,6 +281,81 @@ public class StringColumnTests extends ColumnarStringTestCase {
         }
     }
 
+    /**
+     * A sparse column with repeated values under a permissive dictionary policy takes the combined
+     * iterator-and-survey path and must produce a dictionary column that round-trips every value.
+     */
+    public void testSparseDictionaryColumn() throws IOException {
+        final String[] terms = { "nginx", "apache", "kafka", "elasticsearch" };
+        final int maxDoc = between(200, 2000);
+        final BytesRef[] docs = new BytesRef[maxDoc];
+        // Leave ~40% of documents without a value so the column is sparse.
+        for (int d = 0; d < maxDoc; d++) {
+            if (random().nextDouble() > 0.4) {
+                docs[d] = new BytesRef(randomFrom(terms));
+            }
+        }
+        withColumn(
+            docs,
+            randomValidBlockSize(),
+            randomChunkCodec(),
+            randomTargetChunkBytes(),
+            new DictionaryPolicy(512 * 1024, 0.5, 0.2),
+            (metadata, reader) -> {
+                dictionaryOf(metadata);
+                assertColumnValues(docs, reader);
+            }
+        );
+    }
+
+    /**
+     * A sparse multi-valued column with null slots under a dictionary policy exercises the combined pass
+     * across every slot shape: multi-value, nulls, and sparsity all at once.
+     */
+    public void testSparseMultiValuedWithNullsAndDictionary() throws IOException {
+        final String[] terms = { "alpha", "bravo", "charlie", "delta" };
+        final int maxDoc = between(200, 1000);
+        final BytesRef[][] docSlots = new BytesRef[maxDoc][];
+        for (int d = 0; d < maxDoc; d++) {
+            if (randomBoolean()) {
+                continue; // sparse
+            }
+            final BytesRef[] slots = new BytesRef[between(1, 5)];
+            for (int s = 0; s < slots.length; s++) {
+                slots[s] = randomBoolean() ? null : new BytesRef(randomFrom(terms));
+            }
+            docSlots[d] = slots;
+        }
+        withColumn(
+            docSlots,
+            randomValidBlockSize(),
+            randomChunkCodec(),
+            randomTargetChunkBytes(),
+            new DictionaryPolicy(512 * 1024, 0.0, 0.0),
+            (metadata, reader) -> {
+                // The column must round-trip regardless of whether the dictionary was accepted.
+                int seenDocs = 0;
+                final org.elasticsearch.columnar.substrate.ColumnIterator it = reader.iterator();
+                for (int doc = it.nextDoc(); doc != org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
+                    final BytesRef[] expected = docSlots[doc];
+                    final int rank = it.rank();
+                    assertEquals("slot count at doc " + doc, expected.length, reader.valueCount(rank));
+                    final long first = reader.firstValueAddress(rank);
+                    for (int slot = 0; slot < expected.length; slot++) {
+                        if (expected[slot] == null) {
+                            assertTrue("null slot at doc " + doc + " slot " + slot, reader.isNullSlot(first + slot));
+                        } else {
+                            assertFalse("value slot at doc " + doc + " slot " + slot, reader.isNullSlot(first + slot));
+                            assertEquals("value at doc " + doc + " slot " + slot, expected[slot], reader.valueAt(first + slot));
+                        }
+                    }
+                    seenDocs++;
+                }
+                assertEquals("docs with field", numDocsWithField(docSlots), seenDocs);
+            }
+        );
+    }
+
     public void testDictionaryRejectedWhenEscapeBytesExceedCoveredBytes() throws IOException {
         final BytesRef[] docs = new BytesRef[2000];
         final String[] frequent = { "alpha", "bravo", "char.", "delta", "echo." };

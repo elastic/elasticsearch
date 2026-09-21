@@ -165,6 +165,9 @@ tests:
 - class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
   method: testHistoryIsWrittenWithSuccess
   issue: https://github.com/elastic/elasticsearch/issues/159841
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=vector-tile/10_basic/exact bounds}
+  issue: https://github.com/elastic/elasticsearch/issues/159844
 
 # Examples:
 #

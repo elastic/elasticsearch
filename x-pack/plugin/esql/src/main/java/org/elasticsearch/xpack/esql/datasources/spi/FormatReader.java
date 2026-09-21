@@ -348,10 +348,9 @@ public interface FormatReader extends Closeable {
      * {@code null}, unless {@code null_value} names the blank. False reads such a cell as {@code null} on every column
      * type.
      * <p>
-     * A read instruction in its own right, separate from {@link #withNameBinding}: it decides what a cell HOLDS, not
-     * which physical field a column reads. They are set together today, but a statistic harvested under one blank rule
-     * describes different cells from one harvested under the other, so the two are named and carried separately rather
-     * than derived from a single notion of where the schema came from.
+     * A separate axis from {@link #withNameBinding}: that decides which physical field a column reads, this decides
+     * what an empty one holds. A statistic harvested under one blank rule describes different cells from one
+     * harvested under the other, so the two are carried separately.
      * <p>
      * Only the text readers need it: no other format has a present-but-empty cell distinct from an absent one.
      *

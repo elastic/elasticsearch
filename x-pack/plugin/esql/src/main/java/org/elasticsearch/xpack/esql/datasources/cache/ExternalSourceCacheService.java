@@ -820,27 +820,18 @@ public class ExternalSourceCacheService implements Closeable {
      * families would relabel this entry as a read it did not come from.
      */
     /**
-     * What a contribution whose read configuration differs from the entry's may still enrich it with.
-     * <p>
-     * A differing configuration used to mean "discard everything". It now means "look closer": the two reads may
-     * still have observed the same rows, and the same cells in some columns. What survives is decided per column,
-     * from what each side says it did, rather than from one hash over the whole schema that can only answer same or
-     * different.
-     * <p>
-     * Nothing crosses unless the contribution carries the row-count licence: a column statistic is a measurement over
-     * rows, so it is meaningless unless both sides counted the same rows. Given that, the row count crosses, and a
-     * column crosses only when the two reads must have seen the same cells in it:
+     * What a contribution read differently from the entry may still enrich it with. Nothing, unless its row count is
+     * licensed: a column statistic measures rows, so it means nothing unless both sides counted the same ones. Given
+     * that, the row count crosses, and a column crosses only when both reads must have seen the same cells in it:
      * <ol>
      *   <li>the entry holds a column of that name at the same type;</li>
-     *   <li>neither side parsed it with a declared date pattern, which decides which values parse at all;</li>
-     *   <li>it is the same physical field — either the contribution bound by name, or it bound by position into an
-     *       entry whose columns are the file's own, at the same index (a part whose header permutes the anchor's
-     *       columns fails this, and is refused);</li>
+     *   <li>neither side parsed it with a declared date pattern, which decides which values parse;</li>
+     *   <li>it is the same physical field — bound by name, or bound by position at the same index into an entry whose
+     *       columns are the file's own (a part whose header permutes the anchor's fails this);</li>
      *   <li>for a string column, both reads made the same thing of a blank cell.</li>
      * </ol>
-     * Every returned map carries the licence, which is true by construction because nothing crosses without it, and
-     * is load-bearing: an entry's fold licence is the AND over what it holds, so a crossed map lacking it would take
-     * the whole entry, and every dataset fold over it, off the warm path.
+     * Every returned map carries the licence: an entry's fold licence is the AND over what it holds, so a crossed map
+     * without it would take the entry, and every dataset fold over it, off the warm path.
      *
      * @return the map that may enrich the entry, or null when nothing may
      */
@@ -1312,9 +1303,8 @@ public class ExternalSourceCacheService implements Closeable {
         for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matchingEntries) {
             SchemaCacheKey key = match.getKey();
             SchemaCacheEntry existing = match.getValue();
-            // Same read configuration is the fast path: everything merges, exactly as before. A differing one no
-            // longer means discard — crossingStats decides per stripe what the two reads must have observed alike,
-            // and the entry keeps its OWN identity, so nothing here relabels it as the foreign read.
+            // Same read configuration is the fast path: everything merges. A differing one goes to crossingStats,
+            // which decides per stripe; either way the entry keeps its own identity.
             Object entryReadConfig = existing.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
             boolean sameRead = Objects.equals(entryReadConfig, delta.readConfig());
             Map<String, Object> enriched = new HashMap<>(existing.safeMetadata());
@@ -1345,9 +1335,8 @@ public class ExternalSourceCacheService implements Closeable {
                     if (crossed == null) {
                         continue;
                     }
-                    // Stored under the ENTRY's own identity: the stripes of an entry describe that entry's read, and
-                    // the fold below re-keys from them. Writing the foreign read's configuration here is what would
-                    // relabel the entry as a read it never made.
+                    // Stored under the ENTRY's own identity; writing the foreign read's here would relabel the
+                    // entry as a read it never made.
                     contribution = new HashMap<>(crossed);
                     contribution.put(ExternalStats.MTIME_MILLIS_KEY, delta.mtimeMillis());
                     contribution.put(ExternalStats.CONFIG_FINGERPRINT_KEY, delta.fingerprint());
@@ -1367,9 +1356,7 @@ public class ExternalSourceCacheService implements Closeable {
                 );
                 String stripeKey = ExternalStats.STRIPE_ENTRY_PREFIX + stripe.getKey();
                 if (sameRead == false) {
-                    // A crossed stripe adds to what the entry's own read measured; it never replaces it with a
-                    // subset. A key both carry must agree — they describe the same rows of the same file — and a
-                    // disagreement means the crossing rules admitted something they should not have.
+                    // A crossed stripe adds to what the entry measured; it never replaces it with a subset.
                     Map<String, Object> merged = mergeCrossedStripe(enriched.get(stripeKey), stripeStats, stripeKey, path);
                     if (merged == null) {
                         continue;

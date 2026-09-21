@@ -3670,11 +3670,9 @@ public class ExternalSourceResolver {
             extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingSchemaWarnings::add);
         }
 
-        // A declared schema is the same for every file, so every part is read the same way and the dataset's row
-        // count is one number the whole glob agrees on. That is what the dataset-level aggregate memoizes, and it is
-        // why this rail can warm COUNT(*) without any per-file statistics: there is nothing per-file to reconcile.
-        // The key carries the binding mode, so this count is never served to a positional read of the same glob,
-        // which bounds a row's width differently and so counts a different row set.
+        // A declared schema is the same for every file, so the dataset's row count is one number the whole glob
+        // agrees on — which is why this rail warms COUNT(*) with no per-file statistics to reconcile. The key
+        // carries the binding mode, so a positional read of the same glob never receives this count.
         // Gated on requiresStats for the same reason the inferred rail's aggregation is: a query shape that only
         // needs the schema pays nothing for a row count it will not read.
         if (requiresStats

@@ -50,12 +50,11 @@ sealed interface SourceStatsContribution {
     ) implements SourceStatsContribution {}
 
     /**
-     * What the producing read DID, spelled out, beside the {@code readConfig} hash of the same thing. A hash can only
-     * answer "same" or "different" for the whole schema at once; a per-column merge needs the parts, so the reader
-     * stamps them and {@link #classify} lifts them back out.
+     * What the producing read did, spelled out beside the {@code readConfig} hash of the same thing: a hash answers
+     * only "same" or "different" for the whole schema, and a per-column merge needs the parts.
      * <p>
-     * Absent (null) on a contribution from a producer that does not stamp it — a columnar reader, or an older node.
-     * Absence is not a licence to pair columns up: it means the read did not say what it did.
+     * Null from a producer that does not stamp it — a columnar reader, or an older node. Absence is not a licence to
+     * pair columns up: it means the read did not say what it did.
      *
      * @param columnNames  physical column names the read bound, in read-schema order
      * @param columnTypes  the type each was read at, positionally aligned with {@code columnNames}

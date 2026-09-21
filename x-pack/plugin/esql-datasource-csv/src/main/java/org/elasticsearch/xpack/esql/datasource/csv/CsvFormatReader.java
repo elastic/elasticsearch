@@ -6850,15 +6850,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         /**
-         * Whether this read's row count is the file's physical record count, and so means the same number for every
-         * way of reading the file — the one statistic that may cross into an entry minted by a different read.
-         * <p>
-         * Measured, not inferred from the error mode's name. Under {@code fail_fast} any structural mismatch aborts
-         * before publish, so a committed count is physical by construction. Under {@code null_field} it is physical
-         * exactly when nothing was dropped — which the reader knows, having counted. The read must also be headered:
-         * a headerless positional read bounds a row's width by its own schema, so a wider read of the same file keeps
-         * rows this one drops, and "dropped nothing" would then be true of two reads that disagree on the count.
-         * {@code skip_row} is never licensed: dropping rows is what it is for.
+         * Whether this read's row count is the file's physical record count — the one statistic that may cross into
+         * an entry minted by a different read. Measured, not inferred from the error mode's name: {@code fail_fast}
+         * aborts before publish, and {@code null_field} qualifies exactly when nothing was dropped. Headered too: a
+         * headerless positional read bounds a row by its own schema's width, so a wider read of the same file keeps
+         * rows this one drops and "dropped nothing" would hold of two reads that disagree. {@code skip_row} never.
          */
         private boolean rowCountIsPhysical() {
             return errorPolicy.isStrict() || (errorPolicy.mode() == ErrorPolicy.Mode.NULL_FIELD && rowsDropped == 0 && options.headerRow());
@@ -6882,9 +6878,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 projectionDependentDrop = true;
             }
             errorCount++;
-            // Every non-throwing path through here loses a row, structural or skip_row alike. The licence below is
-            // granted on this count, not on the error mode's name: a lenient read that dropped nothing produced the
-            // file's physical record count, and a strict-sounding one that dropped a row did not.
+            // Every non-throwing path here loses a row, structural or skip_row alike; rowCountIsPhysical() is
+            // granted on this count rather than on the error mode's name.
             rowsDropped++;
             skipWarnings.add("Row [" + totalRowCount + "] error: " + message);
             if (logErrors) {

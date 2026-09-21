@@ -1,5 +1,12 @@
 area: Search
+breaking:
+  area: Search
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false
+  title: Add `array` and `binary` fields API formats to `dense_vector` field
 issues: []
 pr: 159603
 summary: Add `array` and `binary` vector formats to `dense_vector` field
-type: enhancement
+type: "breaking, enhancement"

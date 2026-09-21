@@ -20,7 +20,6 @@ import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSet
 import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_EXPORT_VERIFY_SERVER_CERT;
 import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_TRACING_MAX_QUEUE_SIZE;
 import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class OtelSdkSettingsTests extends ESTestCase {

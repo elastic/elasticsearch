@@ -26,7 +26,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
@@ -160,12 +160,12 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
      * Reads individual ignored-source entries from binary doc values (IntegratedCount format).
      */
     private static final class DocValuesIgnoredSourceValueFetcher implements ValueFetcher {
-        private MultiValuedSortedBinaryDocValues docValues;
+        private MultiValuedSortableBinaryDocValues docValues;
 
         @Override
         public void setNextReader(LeafReaderContext context) {
             try {
-                docValues = MultiValuedSortedBinaryDocValues.fromMultiValued(context.reader(), NAME);
+                docValues = MultiValuedSortableBinaryDocValues.fromMultiValued(context.reader(), NAME);
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to load doc values for " + NAME, e);
             }
@@ -426,7 +426,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 SourceFilter filter,
                 Map<String, List<Object>> storedFields,
                 int docId,
-                MultiValuedSortedBinaryDocValues docValues
+                MultiValuedSortableBinaryDocValues docValues
             ) {
                 return Map.of();
             }
@@ -452,7 +452,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 SourceFilter filter,
                 Map<String, List<Object>> storedFields,
                 int docId,
-                MultiValuedSortedBinaryDocValues docValues
+                MultiValuedSortableBinaryDocValues docValues
             ) {
                 var ignoredStoredValues = storedFields.get(NAME);
                 if (ignoredStoredValues == null) {
@@ -491,7 +491,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 SourceFilter filter,
                 Map<String, List<Object>> storedFields,
                 int docId,
-                MultiValuedSortedBinaryDocValues docValues
+                MultiValuedSortableBinaryDocValues docValues
             ) {
                 var ignoredStoredValues = storedFields.get(NAME);
                 if (ignoredStoredValues == null) {
@@ -573,7 +573,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 SourceFilter filter,
                 Map<String, List<Object>> storedFields,
                 int docId,
-                MultiValuedSortedBinaryDocValues docValues
+                MultiValuedSortableBinaryDocValues docValues
             ) throws IOException {
                 if (docValues.advanceExact(docId) == false) {
                     return Map.of();
@@ -624,7 +624,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             SourceFilter filter,
             Map<String, List<Object>> storedFields,
             int docId,
-            MultiValuedSortedBinaryDocValues docValues
+            MultiValuedSortableBinaryDocValues docValues
         ) throws IOException;
 
         public abstract void writeIgnoredFields(Collection<NameValue> ignoredFieldValues, IndexVersion indexVersion, boolean hasNestedDocs);

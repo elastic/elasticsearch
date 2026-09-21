@@ -33,12 +33,13 @@ public class FromPartialAggregatorFunction implements AggregatorFunction {
     private final DriverContext driverContext;
     private final GroupingAggregatorFunction groupingAggregator;
     private final int inputChannel;
-    private boolean receivedInput = false;
 
     public FromPartialAggregatorFunction(DriverContext driverContext, GroupingAggregatorFunction groupingAggregator, int inputChannel) {
         this.driverContext = driverContext;
         this.groupingAggregator = groupingAggregator;
         this.inputChannel = inputChannel;
+        // Ungrouped STATS always evaluates group 0, which may never receive a partial.
+        groupingAggregator.selectedMayContainUnseenGroups(new SeenGroupIds.Empty());
     }
 
     @Override
@@ -52,16 +53,13 @@ public class FromPartialAggregatorFunction implements AggregatorFunction {
     @Override
     public void addIntermediateInput(Page page) {
         try (IntVector groupIds = driverContext.blockFactory().newConstantIntVector(0, page.getPositionCount())) {
-            if (page.getPositionCount() > 0) {
-                receivedInput = true;
-            }
             final CompositeBlock inputBlock = page.getBlock(inputChannel);
             groupingAggregator.addIntermediateInput(0, groupIds, inputBlock.asPage());
         }
     }
 
     private IntVector outputPositions() {
-        return driverContext.blockFactory().newConstantIntVector(0, receivedInput ? 1 : 0);
+        return driverContext.blockFactory().newConstantIntVector(0, 1);
     }
 
     @Override

@@ -410,7 +410,7 @@ public final class QueryDslTranslator {
             if (lenient && isPresent(field)) {
                 return Literal.FALSE;
             }
-            throw new TranslationUnsupportedException("match[integral value on " + type.typeName() + " \u2014 needs a newer node]");
+            throw new TranslationUnsupportedException("match[integral value on " + type.typeName() + "]");
         }
         BigDecimal min = type == DataType.INTEGER ? BigDecimal.valueOf(Integer.MIN_VALUE) : BigDecimal.valueOf(Long.MIN_VALUE);
         BigDecimal max = type == DataType.INTEGER ? BigDecimal.valueOf(Integer.MAX_VALUE) : BigDecimal.valueOf(Long.MAX_VALUE);
@@ -652,9 +652,7 @@ public final class QueryDslTranslator {
             // field would wrongly degrade (unfiltered) where the index path's unmapped-field range matches nothing.
             if (isPresent(field) && (range.includeLower() == false || range.includeUpper() == false)) {
                 if (isWholeNumbered(type) == false) {
-                    throw new TranslationUnsupportedException(
-                        "range[exclusive bound on " + type.typeName() + " \u2014 needs a newer node]"
-                    );
+                    throw new TranslationUnsupportedException("range[exclusive bound on " + type.typeName() + "]");
                 }
                 try {
                     if (range.includeLower() == false) {
@@ -734,7 +732,7 @@ public final class QueryDslTranslator {
         try {
             number = value instanceof Number n ? new BigDecimal(n.toString()) : new BigDecimal(String.valueOf(value).trim());
         } catch (NumberFormatException e) {
-            throw new TranslationUnsupportedException("range[bound on " + type.typeName() + " \u2014 needs a newer node]");
+            throw new TranslationUnsupportedException("range[bound on " + type.typeName() + "]");
         }
         boolean hasDecimal = number.stripTrailingZeros().scale() > 0;
         BigDecimal base = number.setScale(0, RoundingMode.DOWN); // truncate toward zero, as the index parse does
@@ -847,7 +845,7 @@ public final class QueryDslTranslator {
         } catch (RuntimeException e) {
             // An unparseable bound, a date-math expression we cannot resolve, or a numeric epoch out of the type's
             // representable range (e.g. a pre-1970 date_nanos) cannot be translated faithfully — degrade this clause.
-            throw new TranslationUnsupportedException("range[date bound on " + type.typeName() + " \u2014 needs a newer node]");
+            throw new TranslationUnsupportedException("range[date bound on " + type.typeName() + "]");
         }
     }
 
@@ -914,12 +912,10 @@ public final class QueryDslTranslator {
             // than answer a different question. (exists is analysis-independent and does not pass through here, so
             // IS NOT NULL over a text field stays valid.)
             if (type == DataType.TEXT) {
-                throw new TranslationUnsupportedException(
-                    leaf.nodeName() + "[on analyzed " + type.typeName() + " \u2014 needs a newer node]"
-                );
+                throw new TranslationUnsupportedException(leaf.nodeName() + "[on analyzed " + type.typeName() + "]");
             }
             if (leaf.resolved() == false) {
-                throw new TranslationUnsupportedException(leaf.nodeName() + "[on " + type.typeName() + " \u2014 needs a newer node]");
+                throw new TranslationUnsupportedException(leaf.nodeName() + "[on " + type.typeName() + "]");
             }
         }
         return leaf;
@@ -943,7 +939,7 @@ public final class QueryDslTranslator {
         try {
             number = value instanceof Number n ? new BigDecimal(n.toString()) : new BigDecimal(String.valueOf(value).trim());
         } catch (NumberFormatException e) {
-            throw new TranslationUnsupportedException("terms[integral value on " + type.typeName() + " \u2014 needs a newer node]");
+            throw new TranslationUnsupportedException("terms[integral value on " + type.typeName() + "]");
         }
         BigDecimal min = type == DataType.INTEGER ? BigDecimal.valueOf(Integer.MIN_VALUE) : BigDecimal.valueOf(Long.MIN_VALUE);
         BigDecimal max = type == DataType.INTEGER ? BigDecimal.valueOf(Integer.MAX_VALUE) : BigDecimal.valueOf(Long.MAX_VALUE);

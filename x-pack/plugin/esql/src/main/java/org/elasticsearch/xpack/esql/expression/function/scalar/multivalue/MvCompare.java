@@ -54,8 +54,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 /**
  * Shared base for {@link MvGreater} and {@link MvLess}: any-value one-sided comparison, two-valued
  * (null/empty → {@code false}), Lucene range pushdown.
- */
-/**
+ *
  * <h2>Transport versions</h2>
  * Each concrete subclass holds its own {@code TransportVersion}, and {@code QueryDslTranslator} consults it before
  * synthesizing one into a request-filter translation. {@link org.elasticsearch.xpack.esql.session.Versioned} says a

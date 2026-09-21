@@ -706,6 +706,31 @@ public class QueryDslTranslatorTests extends ESTestCase {
         QueryDslTranslator.TranslationResult below = translateResult(QueryBuilders.rangeQuery("absent").gt("m"), BELOW_MV_COMPARE);
         assertThat("nothing is degraded for a field the source does not have", below.unsupported(), empty());
         assertThat(below.applied().anyMatch(MvCompare.class::isInstance), equalTo(false));
+        // The VALUE matters, not just the absence of a function: FALSE is what the leaf folds to above the pin, and
+        // TRUE here would be the silent loosening this short circuit exists to avoid.
+        assertEquals(Literal.FALSE, below.applied());
+    }
+
+    /**
+     * A construct string that has nothing to do with node version must not say it does. The version suffix was once
+     * applied to every construct string in this file by an unanchored edit, and nothing here noticed, because no case
+     * asserted any of the untouched ones. This is that case.
+     */
+    public void testUnrelatedDegradationsDoNotBlameTheNodeVersion() {
+        for (var q : List.of(
+            QueryBuilders.rangeQuery("status").gte("not-a-number").lte(10),
+            QueryBuilders.rangeQuery("tags").gt("a").lt("z"),
+            QueryBuilders.termQuery("body", "anything")
+        )) {
+            QueryDslTranslator.TranslationResult result = translateResult(q);
+            for (QueryDslTranslator.UnsupportedClause clause : result.unsupported()) {
+                assertThat(
+                    q + " degrades for its own reason, not a version one",
+                    clause.construct(),
+                    not(containsString("needs a newer node"))
+                );
+            }
+        }
     }
 
     /** The gate is scoped to what postdates the pin: a two-bound range still translates below it, via mv_in_range. */

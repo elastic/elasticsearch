@@ -422,8 +422,18 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
     public void testTrailingBufferPaddingDoesNotChangeEvents() {
         for (String json : SimdJsonTestDocuments.exactBufferLengthDocuments()) {
             List<String> tight = walkAndRecord(json, 0).events;
-            List<String> padded = walkAndRecord(json, 64).events;
-            assertEquals("padding must not change events for: " + json, tight, padded);
+            for (int padding : new int[] { 1, 7, 15, 16, 17, 31, 32, 33, 63, 64, 65 }) {
+                assertEquals("padding must not change events for: " + json, tight, walkAndRecord(json, padding).events);
+            }
+        }
+    }
+
+    public void testNonZeroStartOffsetDoesNotChangeEvents() {
+        for (String json : SimdJsonTestDocuments.exactBufferLengthDocuments()) {
+            List<String> expected = walkJson(json);
+            for (int offset : new int[] { 1, 7, 15, 16, 17, 31, 32, 33, 63, 64, 65 }) {
+                assertEquals("offset=" + offset + " walk for: " + json, expected, walkAndRecordAtOffset(json, offset).events);
+            }
         }
     }
 
@@ -482,6 +492,28 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         SimdJsonParser parser = newParser(buffer.length);
         parser.stage1(buffer, len);
         parser.prepareDocumentWindow(0, len);
+
+        FrozenFieldNameTable parent = new FrozenFieldNameTable();
+        FrozenFieldNameTable.Child child = parent.makeChild();
+        SimdJsonDirectWalker walker = new SimdJsonDirectWalker(child);
+
+        RecordingHandler handler = new RecordingHandler();
+        walker.walkDocument(buffer, parser.bitIndexes(), handler);
+        return handler;
+    }
+
+    // Places the document at a non-zero start offset within a larger buffer, leaving the bytes
+    // before it zero-filled (as they would be for a preceding NDJSON document). No trailing
+    // padding is added: SimdJsonParser documents exact-length buffers as sufficient.
+    private RecordingHandler walkAndRecordAtOffset(String json, int offset) {
+        byte[] jsonBytes = json.getBytes(UTF_8);
+        int len = jsonBytes.length;
+        byte[] buffer = new byte[offset + len];
+        System.arraycopy(jsonBytes, 0, buffer, offset, len);
+
+        SimdJsonParser parser = newParser(buffer.length);
+        parser.stage1(buffer, offset, len);
+        parser.prepareDocumentWindow(offset, len);
 
         FrozenFieldNameTable parent = new FrozenFieldNameTable();
         FrozenFieldNameTable.Child child = parent.makeChild();

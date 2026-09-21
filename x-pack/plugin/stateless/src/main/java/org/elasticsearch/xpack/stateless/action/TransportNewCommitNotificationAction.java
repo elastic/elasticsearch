@@ -47,6 +47,16 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
     public static final String NAME = "internal:admin/stateless/search/new/commit";
     public static final ActionType<NewCommitNotificationResponse> TYPE = new ActionType<>(NAME);
 
+    /**
+     * Message of the {@link EngineException} thrown when a new-commit notification cannot obtain a live engine for the target search
+     * shard. This is not the "shard still recovering" case: {@link org.elasticsearch.index.shard.IndexShard#waitForEngineOrClosedShard}
+     * first blocks until the engine is created or the shard is closed, so by the time this is thrown the engine is absent because the
+     * shard has closed / is closing (its copy is going away) or is momentarily between engines during an engine reset. It is an
+     * expected, benign race with no data impact: a closed copy is replaced by a fresh one that reads the latest commit during
+     * recovery, and a live shard keeps receiving later notifications. The constant is shared so the indexing side can recognise it.
+     */
+    public static final String ENGINE_NOT_STARTED_MESSAGE = "Engine not started.";
+
     private final IndicesService indicesService;
     private final SearchShardSizeCollector searchShardSizeCollector;
 
@@ -105,7 +115,7 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
 
                 final Engine engineOrNull = shard.getEngineOrNull();
                 if (engineOrNull == null) {
-                    throw new EngineException(shard.shardId(), "Engine not started.");
+                    throw new EngineException(shard.shardId(), ENGINE_NOT_STARTED_MESSAGE);
                 }
 
                 if (engineOrNull instanceof SearchEngine searchEngine) {

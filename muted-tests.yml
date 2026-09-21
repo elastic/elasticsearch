@@ -159,6 +159,9 @@ tests:
 - class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
   method: testWaitForSnapshotFast
   issue: https://github.com/elastic/elasticsearch/issues/159836
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=security/authz/13_index_datemath/Test indexing documents with datemath, when permitted}
+  issue: https://github.com/elastic/elasticsearch/issues/159840
 
 # Examples:
 #

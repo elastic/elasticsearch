@@ -30,8 +30,9 @@ import java.util.Set;
 
 /**
  * Which relations a query asks for a schema and no rows. The set gates how much of a glob the
- * resolver must list, so a false positive reads too little — a wrong schema — while a false
- * negative only costs the listing we pay today. The cases below pin that asymmetry: every shape
+ * resolver must list, so a false positive bounds a listing that then reaches split discovery, and the query
+ * returns a fraction of its rows and reports success; a narrower set of partition columns is the lesser
+ * consequence. A false negative only costs the listing we pay today. The cases below pin that asymmetry: every shape
  * whose rows are actually consumed must stay out of the set, including when the same path is also
  * named by a branch that discards them.
  */

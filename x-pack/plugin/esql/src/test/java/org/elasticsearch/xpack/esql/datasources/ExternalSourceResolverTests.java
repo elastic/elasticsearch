@@ -289,7 +289,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertThat(future.actionGet().warnings(), empty());
     }
 
-    /** Resolves a one-file parquet glob under a declared mapping — the harness for the columnar declaration rejects. */
     /**
      * A declared mapping is the entire schema for every file, so the per-file schema map holds one value
      * repeated once per key. It is built once and shared: composing an equal {@code FileSchemaInfo} per
@@ -443,6 +442,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
     }
 
+    /** Resolves a one-file parquet glob under a declared mapping — the harness for the columnar declaration rejects. */
     private ExternalSourceResolution resolveWithDeclaredMapping(
         List<Attribute> fileSchema,
         Map<String, DatasetFieldMapping> properties,

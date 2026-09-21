@@ -157,11 +157,13 @@ public interface FileList {
      * list is a prefix of the files the pattern matches and {@link #fileCount()} is a floor, not a total.
      * <p>
      * Only a schema-only resolution ever asks for a bound, because the schema of a dataset does not depend on
-     * how many files carry it. Two invariants keep a truncated list away from everything else, and both are
-     * enforced where the list is produced rather than left to callers: it is never written to the shared
-     * listing cache, where an unbounded query would later read it and scan a fraction of the dataset, and it
-     * is never built for a query that reads rows. A reader reached by a truncated list returns silently wrong
-     * results, so treat both as correctness invariants, not optimisations.
+     * how many files carry it. Two invariants keep a truncated list away from everything else, and they are
+     * defended in different places. It is never written to the shared listing cache, where an unbounded query
+     * would later read it and scan a fraction of the dataset — that one defends itself, at the sites that
+     * produce and compact a list. And it is never built for a query that reads rows — that one is the
+     * resolver's alone, decided in {@code ExternalSourceResolver#listingBoundFor}, so a new call site asking for
+     * a bound must establish it for itself; nothing downstream will catch a mistake. A reader reached by a
+     * truncated list returns silently wrong results, so treat both as correctness invariants, not optimisations.
      */
     default boolean isTruncated() {
         return false;

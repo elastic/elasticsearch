@@ -48,6 +48,12 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * <p>
  * A measurement harness, not an assertion of current behaviour: it prints a table and asserts only that
  * every cell answers correctly, so it stays green while the numbers move.
+ * <p>
+ * These are local-filesystem numbers, and that bounds what they can show. The local provider's iterator walks
+ * the whole tree into a list before the first entry is handed out, so a bounded listing here performs the same
+ * walk as an unbounded one and the bound caps only what is kept. The listing saving is an object-store effect —
+ * a request never issued — and this harness cannot show it. What it does show is the per-file work that follows
+ * the listing.
  */
 public class ExternalSchemaOnlyListingCostIT extends AbstractExternalDataSourceIT {
 

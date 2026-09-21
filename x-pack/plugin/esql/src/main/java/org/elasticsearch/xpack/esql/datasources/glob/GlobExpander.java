@@ -133,9 +133,10 @@ public final class GlobExpander {
      * <p>
      * The bound truncates where {@code maxListedObjects} fails: reaching it is the expected outcome, not an error.
      * The result is a prefix of the matching files in listing order, flagged {@link FileList#isTruncated()}, and it
-     * is left uncompacted — compaction shrinks large listings and a bounded one is already small. Only a
-     * schema-only resolution may pass a bound; {@code Integer.MAX_VALUE} is the unbounded path every reading query
-     * takes, byte for byte as before.
+     * is left uncompacted, because neither compacted encoding carries the truncation flag — see
+     * {@link FileListCompactor#compact}, which refuses a truncated list for that reason. Only a schema-only
+     * resolution may pass a bound; {@code Integer.MAX_VALUE} is the unbounded path every reading query takes,
+     * byte for byte as before.
      */
     public static FileList expandAndCompact(
         String path,

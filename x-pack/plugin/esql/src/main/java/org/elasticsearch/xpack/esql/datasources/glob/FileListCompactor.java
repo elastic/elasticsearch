@@ -50,7 +50,10 @@ final class FileListCompactor {
         // Neither compacted encoding carries the truncation flag, so compacting a bounded listing would report it
         // as a complete one — and the check that keeps a bounded listing out of the shared cache reads exactly
         // that flag. Refused here rather than at the caller so the flag cannot be dropped by a future caller.
-        // Nothing is lost: compaction shrinks large listings, and a bounded listing is at most one page.
+        // What that costs is real but bounded: a listing bounded at the default is one page and not worth
+        // compacting, while one bounded at a raised partition_sample_size can be large and is then carried
+        // uncompacted through planning. Correctness first — an encoding that silently drops the flag would put a
+        // prefix in the cache. Teaching the encodings to carry it would remove the trade-off.
         if (raw.isTruncated()) {
             return raw;
         }

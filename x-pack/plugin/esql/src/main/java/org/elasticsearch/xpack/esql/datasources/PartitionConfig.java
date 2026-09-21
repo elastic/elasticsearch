@@ -46,7 +46,7 @@ public record PartitionConfig(Strategy strategy, @Nullable String pathTemplate) 
     public static final String CONFIG_PARTITIONING_HIVE = "hive_partitioning";
     public static final String CONFIG_PARTITION_SAMPLE_SIZE = "partition_sample_size";
 
-    /** Keys visited when a listing only has to answer a schema. One {@code ListObjectsV2} page. */
+    /** The value of {@link #CONFIG_PARTITION_SAMPLE_SIZE} when a dataset sets none: one {@code ListObjectsV2} page on S3. */
     public static final int DEFAULT_PARTITION_SAMPLE_SIZE = 1_000;
     private static final int PARTITION_SAMPLE_SIZE_MAX = 10_000_000;
 

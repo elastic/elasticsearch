@@ -559,7 +559,7 @@ public class ExternalSourceResolver {
         resolve(paths, pathConfigs, filterHints, null, null, null, listener);
     }
 
-    /** As below, with no query-shape information: every path resolves as a reading query. */
+    /** As below, with no schema-only information: no path may bound its listing. */
     public void resolve(
         List<String> paths,
         Map<String, Map<String, Object>> pathConfigs,
@@ -1447,8 +1447,9 @@ public class ExternalSourceResolver {
      * resolution produced. The mode's schema must not span every file. And nothing else may already be narrowing
      * the listing: a bound keeps a prefix of what was listed, so it is a prefix of the same listing only when the
      * listing is otherwise the whole glob in the provider's own order. A dataset-chosen file order and partition
-     * pruning each break that, and each would move the file {@code FIRST_FILE_WINS} and the declared-type check
-     * read — a different schema, not a slower query.
+     * pruning each break that, and each would move the file {@code FIRST_FILE_WINS} reads for its schema — a
+     * different schema, not a slower query. The declared rail reads no file when a bound applies, so what is at
+     * stake there is the partition columns it derives from the paths, not a declared-type check.
      */
     private int listingBoundFor(
         ResolutionDemand demand,
@@ -3683,14 +3684,16 @@ public class ExternalSourceResolver {
         // Strict multi-file still does the same glob listing as the inferred path — record it as discovery too, so
         // strict resolutions are not invisible in the discovery telemetry (mirrors resolveMultiFileSource).
         long discoveryStartNanos = System.nanoTime();
-        // A declaration is the whole schema for every file, so this listing exists only to find the anchor the
-        // coercibility check reads, to count files, and to derive partition columns from the paths. None of that
-        // grows with the dataset, so a schema-only query bounds it exactly as the inferred rail does. The
-        // cache is bypassed for the same reason it is there: a prefix must never be served to a reading query.
+        // A declaration is the whole schema for every file, so nothing this listing supplies can change the
+        // columns reported: it counts files and derives partition columns from the paths. Both of those do grow
+        // with the dataset, and both are handled rather than ignored — the count is marked partial below, and
+        // partition-column coverage is what partition_sample_size sets. The cache is bypassed for the reason it
+        // exists: a prefix must never be served to a reading query.
         // schema_resolution is not consulted on this rail — a declared mapping is used whatever it says — so the
         // breadth is the declaration's, not the mode's. The file order still is consulted, inside
-        // listingBoundFor: forListing answers NAME_ASC for every mode but first_file_wins, and under that order
-        // the anchor this rail reads is not the first key listed.
+        // listingBoundFor: forListing answers NAME_ASC for every mode but first_file_wins, so a declared mapping
+        // is bounded only under first_file_wins, which is the default. That check also guards the partition
+        // columns this rail derives, which a different order would draw from a different set of paths.
         int listingBound = listingBoundFor(demand, SchemaBreadth.DECLARATION, config, hints);
         if (path.indexOf(',') >= 0) {
             listing = GlobExpander.expand(
@@ -3790,12 +3793,6 @@ public class ExternalSourceResolver {
         return new ExternalSourceResolution.ResolvedSource(extMetadata, listing, schemaMap);
     }
 
-    /**
-     * Apply a non-strict declared mapping onto an already-resolved (inferred) source: retype/rename the declared
-     * columns in the user-facing schema (strict — every declared column must appear in the unified schema) and in
-     * each per-file schema (lenient — a column may be absent from one file under union-by-name), preserving the
-     * inferred stats/sourceMetadata and the per-file column mappings.
-     */
     /**
      * Formats whose readers emit blocks in the FILE's own types (self-typed / columnar) rather than parsing text into
      * whatever type the schema requests. For these, a declared retype only works when the reader can coerce the
@@ -3969,6 +3966,12 @@ public class ExternalSourceResolver {
         return type == DataType.INTEGER || type == DataType.LONG || type == DataType.UNSIGNED_LONG || type == DataType.DOUBLE;
     }
 
+    /**
+     * Apply a non-strict declared mapping onto an already-resolved (inferred) source: retype/rename the declared
+     * columns in the user-facing schema (strict — every declared column must appear in the unified schema) and in
+     * each per-file schema (lenient — a column may be absent from one file under union-by-name), preserving the
+     * inferred stats/sourceMetadata and the per-file column mappings.
+     */
     private ExternalSourceResolution.ResolvedSource applyNonStrictOverlay(
         ExternalSourceResolution.ResolvedSource resolved,
         DatasetMapping declaredMapping

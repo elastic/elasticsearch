@@ -223,12 +223,13 @@ public final class ValueStream {
          * <p><b>Runs</b> stores each distinct value once with how many values in a row hold it. It is taken
          * first and only where it is genuinely smaller, sized against what the stream would otherwise write.
          *
-         * <p><b>Inline</b> keeps each length in front of its own value. It suits short values because the
-         * length and the value then repeat as one pattern that a compressor matches whole — splitting them
-         * apart costs more than the packing saves.
+         * <p><b>Inline</b> keeps each length in front of its own value. It suits short values of differing
+         * lengths, because the length and the value then repeat as one pattern that a compressor matches
+         * whole — splitting them apart costs more than the packing saves.
          *
          * <p><b>Packed</b> bit-packs the lengths at their exact bit width ahead of the bytes, so a block
-         * whose values are long or dissimilar keeps them contiguous and hands a compressor an unbroken run.
+         * whose values are long, or all of one length, keeps them contiguous and hands a compressor an
+         * unbroken run.
          */
         private void flushBlock() throws IOException {
             chunks.boundary();
@@ -247,16 +248,19 @@ public final class ValueStream {
                 return;
             }
             // Which layout is smaller is decided after compression, so an uncompressed byte count cannot
-            // choose between them. What separates them is how long the values are: short ones repeat
-            // together with their length as a single pattern, and splitting the two apart costs more than
-            // the walk saves. The threshold is where the measured shapes turn over.
-            if (pendingLength < pendingCount * INLINE_MEAN_LENGTH) {
+            // choose between them. A block of a single length is packed whatever its mean: its lengths
+            // then cost a run a compressor takes out. Lengths that differ stay beside their values, up to
+            // the mean length where the measured shapes turn over.
+            int min = Integer.MAX_VALUE;
+            int max = 0;
+            for (int i = 0; i < pendingCount; i++) {
+                final int length = pending[i];
+                min = Math.min(min, length);
+                max = Math.max(max, length);
+            }
+            if (min != max && pendingLength < pendingCount * INLINE_MEAN_LENGTH) {
                 writeInline();
             } else {
-                int max = 0;
-                for (int i = 0; i < pendingCount; i++) {
-                    max = Math.max(max, pending[i]);
-                }
                 writePacked(ByteArrayInts.bitsRequired(max));
             }
             pendingCount = 0;

@@ -80,6 +80,10 @@ gradlePlugin {
       id = 'elasticsearch.internal-cluster-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin'
     }
+    internalResourceExhaustionTest {
+      id = 'elasticsearch.internal-resource-exhaustion-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.InternalResourceExhaustionTestPlugin'
+    }
     internalDistributionArchiveCheck {
       id = 'elasticsearch.internal-distribution-archive-check'
       implementationClass = 'org.elasticsearch.gradle.internal.InternalDistributionArchiveCheckPlugin'
@@ -160,9 +164,9 @@ gradlePlugin {
       id = 'elasticsearch.mrjar'
       implementationClass = 'org.elasticsearch.gradle.internal.MrjarPlugin'
     }
-    jmh {
-      id = 'elasticsearch.jmh'
-      implementationClass = 'org.elasticsearch.gradle.internal.JmhPlugin'
+    benchmark {
+      id = 'elasticsearch.benchmark'
+      implementationClass = 'org.elasticsearch.gradle.internal.BenchmarkPlugin'
     }
     foreignLibrary {
       id = 'elasticsearch.foreign-library'

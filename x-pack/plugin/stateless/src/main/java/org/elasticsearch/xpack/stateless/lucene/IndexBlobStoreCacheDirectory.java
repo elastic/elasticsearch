@@ -45,8 +45,10 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
     }
 
     // The indexing tier does not fully support or use data timestamps on cache regions yet.
-    // Always returning UNKNOWN_TIMESTAMP keeps age-histogram metrics (read.age, miss.age)
-    // search-node-only without leaking indexing-tier reads into those distributions.
+    // Force UNKNOWN_TIMESTAMP so indexing-tier cache files are not stamped with data ages:
+    // recordRead/recordMiss then skip the age histograms, keeping those distributions
+    // search-node-only. This also means indexing-tier regions currently carry no usable
+    // timestamp for other timestamp-aware cache behavior.
     @Override
     public long resolveRegionTimestampMillis(long rawMillis) {
         return SharedBlobCacheService.UNKNOWN_TIMESTAMP;

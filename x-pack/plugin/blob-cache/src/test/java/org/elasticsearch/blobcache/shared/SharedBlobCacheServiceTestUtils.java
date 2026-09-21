@@ -7,6 +7,7 @@
 
 package org.elasticsearch.blobcache.shared;
 
+import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.common.time.TimeProvider;
 
 import java.util.Map;
@@ -23,27 +24,7 @@ public final class SharedBlobCacheServiceTestUtils {
     private SharedBlobCacheServiceTestUtils() {}
 
     /** A no-op {@link TimeProvider} for tests that do not exercise time-based bucketing. */
-    public static final TimeProvider NOOP_TIME_PROVIDER = new TimeProvider() {
-        @Override
-        public long relativeTimeInMillis() {
-            return 0L;
-        }
-
-        @Override
-        public long relativeTimeInNanos() {
-            return 0L;
-        }
-
-        @Override
-        public long rawRelativeTimeInMillis() {
-            return 0L;
-        }
-
-        @Override
-        public long absoluteTimeInMillis() {
-            return 0L;
-        }
-    };
+    public static final TimeProvider NOOP_TIME_PROVIDER = BlobCacheMetrics.NOOP_TIME_PROVIDER;
 
     /**
      * A cache-region timestamp for tests that do not care about timestamp semantics: either

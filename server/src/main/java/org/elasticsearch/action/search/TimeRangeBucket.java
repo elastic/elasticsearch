@@ -21,8 +21,12 @@ import java.util.List;
  * (via {@link SearchRequestAttributesExtractor#introspectTimeRange})
  * and the blob-cache read/miss age histogram bucket boundaries.
  *
- * <p>Negative ages (future timestamps) fall into the {@link #FifteenMinutes} bucket.
- * {@link #OlderThan14Days} is the catch-all last bucket.
+ * <p>{@link #resolve} maps negative ages (future timestamps) to {@link #FifteenMinutes} and
+ * everything beyond 14 days to {@link #OlderThan14Days}. The same upper-inclusive bounds are
+ * passed to OpenTelemetry explicit-bucket histograms: values {@code <=} the first bound
+ * (including negatives) land in the first bucket, and {@link #OlderThan14Days} uses
+ * {@code Long.MAX_VALUE} so every larger finite age lands in the last explicit bucket rather
+ * than an implicit overflow bucket that some export paths drop.
  */
 public enum TimeRangeBucket {
     FifteenMinutes(TimeValue.timeValueMinutes(15).getMillis(), "15_minutes"),

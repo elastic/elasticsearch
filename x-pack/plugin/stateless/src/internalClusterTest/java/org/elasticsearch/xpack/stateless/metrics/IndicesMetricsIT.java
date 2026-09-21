@@ -46,6 +46,10 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class IndicesMetricsIT extends AbstractStatelessPluginIntegTestCase {
 
+    /**
+     * Registers a stand-in for {@code telemetry.export.interval}: the apm module that owns the real setting is not on
+     * this test's classpath, and its validator would reject the 0s used here to disable the metrics cache delay.
+     */
     public static class TestAPMInternalSettings extends Plugin {
         @Override
         public List<Setting<?>> getSettings() {

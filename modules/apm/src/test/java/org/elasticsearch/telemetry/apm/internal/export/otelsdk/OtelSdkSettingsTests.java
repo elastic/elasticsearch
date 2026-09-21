@@ -20,6 +20,7 @@ import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSet
 import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_EXPORT_VERIFY_SERVER_CERT;
 import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_TRACING_MAX_QUEUE_SIZE;
 import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class OtelSdkSettingsTests extends ESTestCase {
@@ -104,6 +105,24 @@ public class OtelSdkSettingsTests extends ESTestCase {
     public void testEndpointFallsBackToAgentServerUrl() {
         Settings settings = Settings.builder().put("telemetry.agent.server_url", "http://apm-server:8200").build();
         assertThat(TELEMETRY_EXPORT_ENDPOINT.get(settings), equalTo("http://apm-server:8200"));
+    }
+
+    public void testEndpointFallsBackToSingleValuedAgentServerUrls() {
+        Settings settings = Settings.builder().put("telemetry.agent.server_urls", "http://apm-server:8200").build();
+        assertThat(TELEMETRY_EXPORT_ENDPOINT.get(settings), equalTo("http://apm-server:8200"));
+    }
+
+    public void testEndpointPrefersAgentServerUrlOverServerUrls() {
+        Settings settings = Settings.builder()
+            .put("telemetry.agent.server_url", "http://singular:8200")
+            .put("telemetry.agent.server_urls", "http://plural:8200")
+            .build();
+        assertThat(TELEMETRY_EXPORT_ENDPOINT.get(settings), equalTo("http://singular:8200"));
+    }
+
+    public void testEndpointIgnoresMultiValuedAgentServerUrls() {
+        Settings settings = Settings.builder().putList("telemetry.agent.server_urls", "http://one:8200", "http://two:8200").build();
+        assertThat(TELEMETRY_EXPORT_ENDPOINT.get(settings), equalTo(""));
     }
 
     public void testVerifyServerCertFallsBackToAgentVerifyServerCert() {

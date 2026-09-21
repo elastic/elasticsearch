@@ -277,6 +277,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
                     node.setting("telemetry.export.endpoint", "http://127.0.0.1:" + mockServer.getGrpcPort());
                     // Sample everything so spans are actually emitted; the default is 0.001.
                     node.setting("telemetry.tracing.sample_rate", "1.0");
+                    node.setting("telemetry.tracing.max_depth", "10");
                 }
                 // in serverless metrics are enabled by default
                 // if metrics were not enabled explicitly for gradlew run we should disable them

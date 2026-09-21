@@ -12,6 +12,7 @@ package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 import io.opentelemetry.sdk.common.export.RetryPolicy;
 
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 
@@ -49,13 +50,22 @@ public final class OtelSdkSettings {
 
     /** URL ({@code http://host:port}, no path) where the SDK exports metrics and spans.
      * Required when the SDK metrics or trace path is active. Defaults to the legacy
-     * {@code telemetry.agent.server_url} when set. */
+     * {@code telemetry.agent.server_url}, or to {@code telemetry.agent.server_urls} when that holds a single URL. */
     public static final Setting<String> TELEMETRY_EXPORT_ENDPOINT = new Setting<>(
         "telemetry.export.endpoint",
-        settings -> settings.get("telemetry.agent.server_url", ""),
+        OtelSdkSettings::resolveServerUrls,
         Function.identity(),
         NodeScope
     );
+
+    private static String resolveServerUrls(Settings settings) {
+        String serverUrl = settings.get("telemetry.agent.server_url");
+        if (serverUrl != null) {
+            return serverUrl;
+        }
+        List<String> serverUrls = settings.getAsList("telemetry.agent.server_urls");
+        return serverUrls.size() == 1 ? serverUrls.get(0) : "";
+    }
 
     /** When {@code false}, TLS certificate verification is disabled for the OTLP exporters.
      * Defaults to the legacy {@code telemetry.agent.verify_server_cert} when set. */

@@ -80,7 +80,10 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
     private OpenTelemetrySdk createOpenTelemetrySdk() {
         String endpoint = OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.get(settings);
         if (endpoint == null || endpoint.isEmpty()) {
-            logger.warn("[telemetry.export.endpoint] is not configured; trace export is disabled");
+            logger.warn(
+                "[telemetry.export.endpoint] is not configured; trace export is disabled{}",
+                OtelSdkSettings.legacyEndpointHint(settings)
+            );
             return null;
         }
 

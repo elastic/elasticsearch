@@ -9,14 +9,22 @@
 
 package org.elasticsearch.test.apmintegration;
 
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.junit.ClassRule;
 import org.junit.rules.TestRule;
 
-import java.util.Collections;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -25,26 +33,82 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 /**
- * Runs the shared {@link AbstractTracesIT} test suite against the OTel SDK export path.
- *
- * Spans are exported via {@code SdkTracerProvider} + OTLP/gRPC. Child-span filtering is
- * enforced by ES code in {@code APMTracer} when
- * {@code telemetry.tracing.max_depth=0} (the default). Exception-stack suppression
- * is enforced by the same code when {@code telemetry.tracing.record_exception_stacks=false}
- * (the default); see {@code APMTracerTests} for coverage of that branch.
+ * Verifies trace/span export over the OTel SDK path:
+ * <ul>
+ *   <li>Root spans are exported with correct W3C traceparent propagation.</li>
+ *   <li>Only root (entry-point) spans are exported; child spans are dropped.</li>
+ * </ul>
+ * Spans are exported via {@code SdkTracerProvider} + OTLP/gRPC. Child-span filtering is enforced by ES code in
+ * {@code APMTracer} when {@code telemetry.tracing.max_depth=0} (the default). Exception-stack suppression is
+ * enforced by the same code when {@code telemetry.tracing.record_exception_stacks=false} (the default); see
+ * {@code APMTracerTests} for coverage of that branch.
  */
-public class OtelSdkTracesIT extends AbstractTracesIT {
+public class OtelSdkTracesIT extends AbstractTelemetryIT {
 
     private static final String EXPECTED_PROJECT_ID = "integ-test-project";
     private static final String EXPECTED_PROJECT_TYPE = "elasticsearch";
     private static final String EXPECTED_NODE_TIER = "index";
 
+    /**
+     * After the root-span latch fires, wait briefly before asserting the span count.
+     * This gives the export pipeline time to deliver any child spans that should not
+     * have been exported — if they are going to leak through, they should arrive within
+     * this window. Without this pause, the assertion could pass before a misbehaving
+     * exporter has had a chance to send them.
+     */
+    static final long CHILD_SPAN_GRACE_PERIOD_MS = 500;
+
+    /**
+     * Span attribute keys that must appear on the {@code GET /_nodes/stats} root span: the
+     * cross-path keys plus the OTel HTTP semantic convention attributes produced by
+     * {@code APMHttpServerInstrumentation}. Anything else is permitted by being absent here.
+     */
+    static final Set<String> REQUIRED_NODE_STATS_SPAN_KEYS = Set.of(
+        "otel.attributes.es.cluster.name",
+        "otel.attributes.es.node.name",
+        "otel.attributes.http.flavour",
+        "otel.attributes.http.method",
+        "otel.attributes.http.status_code",
+        "otel.attributes.http.url",
+        "otel.span_kind",
+        "otel.attributes.http.request.method",
+        "otel.attributes.http.response.status_code",
+        "otel.attributes.http.route",
+        "otel.attributes.network.protocol.version",
+        "otel.attributes.url.path"
+    );
+
+    /** Span attribute keys that must never appear. */
+    static final Set<String> FORBIDDEN_SPAN_KEYS = Set.of("otel.attributes.http.request.body", "otel.attributes.http.response.body");
+
+    /**
+     * Resource attribute keys emitted by {@code OtelSdkResource} on the {@code GET /_nodes/stats} resource.
+     * Attribute values are covered by {@code OtelSdkResourceTests}; this only verifies they reach OTLP export.
+     */
+    static final Set<String> REQUIRED_RESOURCE_KEYS = Set.of(
+        "service.name",
+        "service.version",
+        "service.instance.id",
+        "process.runtime.name",
+        "process.runtime.version",
+        "telemetry.distro.name",
+        "telemetry.distro.version",
+        "host.arch",
+        "os.type",
+        "process.pid",
+        "deployment.environment"
+    );
+
     public static RecordingApmServer recordingApmServer = new RecordingApmServer();
 
-    public static ElasticsearchCluster cluster = baseTracesClusterBuilder().setting(
-        "telemetry.export.endpoint",
-        () -> recordingApmServer.getGrpcEndpoint()
-    )
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.INTEG_TEST)
+        .module("test-apm-integration")
+        .module("apm")
+        .setting("telemetry.tracing.enabled", "true")
+        // metrics are disabled to reduce noise
+        .setting("telemetry.metrics.enabled", "false")
+        .setting("telemetry.export.endpoint", () -> recordingApmServer.getGrpcEndpoint())
         .setting("telemetry.tracing.sample_rate", "1.0")
         // Mirrors the three resource attributes ServerlessServerCli writes via the telemetry.resource.* affix.
         .setting("telemetry.resource.elasticsearch.project.id", EXPECTED_PROJECT_ID)
@@ -65,29 +129,92 @@ public class OtelSdkTracesIT extends AbstractTracesIT {
         return cluster.getHttpAddresses();
     }
 
-    /**
-     * Extends the base required keys with the OTel HTTP semantic convention attributes
-     * produced by {@code APMHttpServerInstrumentation} on the SDK export path.
-     */
-    @Override
-    protected Set<String> requiredNodeStatsSpanKeys() {
-        var keys = new HashSet<>(super.requiredNodeStatsSpanKeys());
-        keys.addAll(
-            Set.of(
-                "otel.attributes.http.request.method",
-                "otel.attributes.http.response.status_code",
-                "otel.attributes.http.route",
-                "otel.attributes.network.protocol.version",
-                "otel.attributes.url.path"
-            )
+    private ReceivedTelemetry.ReceivedSpan awaitRootSpan(String traceIdValue, String remoteParentSpanId, Map<String, String> extraHeaders)
+        throws Exception {
+        final String traceParentValue = "00-" + traceIdValue + "-" + remoteParentSpanId + "-01";
+        return apmServer().await(
+            ReceivedTelemetry.ReceivedSpan.class,
+            s -> "GET /_nodes/stats".equals(s.name()) && traceIdValue.equals(s.traceId()),
+            TELEMETRY_TIMEOUT,
+            () -> {
+                Request nodeStatsRequest = new Request("GET", "/_nodes/stats");
+                RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder()
+                    .addHeader(Task.TRACE_PARENT_HTTP_HEADER, traceParentValue);
+                extraHeaders.forEach(options::addHeader);
+                nodeStatsRequest.setOptions(options.build());
+                client().performRequest(nodeStatsRequest);
+                client().performRequest(new Request("GET", "/_flush_telemetry"));
+            }
         );
-        return Collections.unmodifiableSet(keys);
     }
 
-    @Override
-    protected void assertNodeStatsRootSpanAttributes(ReceivedTelemetry.ReceivedSpan span) {
-        super.assertNodeStatsRootSpanAttributes(span);
+    /**
+     * Sends a request with a W3C {@code traceparent} header and asserts that the
+     * corresponding root span is exported with the correct trace ID and remote parent span ID.
+     *
+     * This test also verifies that the span name matches the HTTP route pattern used by ES,
+     * and delegates attribute-level assertions to {@link #assertNodeStatsRootSpanAttributes}.
+     */
+    public void testRestRootSpanWithTraceParent() throws Exception {
+        final String traceIdValue = "0af7651916cd43dd8448eb211c80319c";
+        final String remoteParentSpanId = "b7ad6b7169203331";
+
+        ReceivedTelemetry.ReceivedSpan rootSpan = awaitRootSpan(traceIdValue, remoteParentSpanId, Map.of());
+        assertTrue("Root span should carry a parent span ID propagated from the traceparent header", rootSpan.parentSpanId().isPresent());
+        assertEquals(
+            "Root span parent span ID should match the remote parent from the traceparent header",
+            remoteParentSpanId,
+            rootSpan.parentSpanId().get()
+        );
+        assertNodeStatsRootSpanAttributes(rootSpan);
+        assertNodeStatsResourceAttributes();
+    }
+
+    public void testElasticTracestateTranslatesToRepresentativeCount() throws Exception {
+        final String traceIdValue = "0af7651916cd43dd8448eb211c80319d";
+        final String remoteParentSpanId = "b7ad6b7169203332";
+
+        ReceivedTelemetry.ReceivedSpan rootSpan = awaitRootSpan(traceIdValue, remoteParentSpanId, Map.of(Task.TRACE_STATE, "es=s:0.125"));
+        assertEquals(8.0, ((Number) rootSpan.attributes().get("representative_count")).doubleValue(), 0.0001);
+    }
+
+    public void testResourceCarriesAffix() throws Exception {
+        assertSdkResourceAttributes(EXPECTED_PROJECT_ID, EXPECTED_PROJECT_TYPE, EXPECTED_NODE_TIER);
+    }
+
+    /**
+     * Asserts that {@code span} carries the semantic metadata expected of a sampled
+     * {@code GET /_nodes/stats} HTTP server span.
+     *
+     * <p>Two layers of assertion:
+     * <ol>
+     *   <li><b>Value assertions</b> (below) cover the small set of keys where the value — not just
+     *       the key's presence — is semantically load-bearing (HTTP method, status code, URL,
+     *       span kind).</li>
+     *   <li><b>Key-set assertion</b> against {@link #REQUIRED_NODE_STATS_SPAN_KEYS} and
+     *       {@link #FORBIDDEN_SPAN_KEYS}: every required key present, no forbidden key present.</li>
+     * </ol>
+     * <p>Attribute keys are normalised to the {@code otel.attributes.*} namespace so that a downstream
+     * consumer sees identical keys from every exporter implementation.
+     */
+    private void assertNodeStatsRootSpanAttributes(ReceivedTelemetry.ReceivedSpan span) {
         Map<String, Object> attrs = span.attributes();
+        // Span kind must be SERVER — distinguishes inbound HTTP requests from outbound client calls.
+        assertThat("span kind", attrs.get("otel.span_kind"), is("SERVER"));
+        // HTTP semantics
+        assertThat("HTTP method", attrs.get("otel.attributes.http.method"), is("GET"));
+        assertThat("HTTP status code", attrs.get("otel.attributes.http.status_code"), instanceOf(Number.class));
+        assertThat(
+            "HTTP status code value",
+            ((Number) attrs.get("otel.attributes.http.status_code")).intValue(),
+            greaterThanOrEqualTo(200)
+        );
+        assertThat("HTTP URL", attrs.get("otel.attributes.http.url").toString(), is("/_nodes/stats"));
+        assertThat("HTTP flavour", attrs.get("otel.attributes.http.flavour").toString(), not(emptyOrNullString()));
+        // ES resource attributes
+        assertThat("ES node name", attrs.get("otel.attributes.es.node.name").toString(), not(emptyOrNullString()));
+        assertThat("ES cluster name", attrs.get("otel.attributes.es.cluster.name").toString(), not(emptyOrNullString()));
+        // OTel HTTP semantic conventions
         assertThat("OTel HTTP request method", attrs.get("otel.attributes.http.request.method"), is("GET"));
         assertThat("OTel HTTP route", attrs.get("otel.attributes.http.route").toString(), is("/_nodes/stats"));
         assertThat("OTel URL path", attrs.get("otel.attributes.url.path").toString(), is("/_nodes/stats"));
@@ -102,9 +229,73 @@ public class OtelSdkTracesIT extends AbstractTracesIT {
             attrs.get("otel.attributes.network.protocol.version").toString(),
             not(emptyOrNullString())
         );
+
+        assertContainsAll("nodes_stats span attributes", REQUIRED_NODE_STATS_SPAN_KEYS, attrs.keySet());
+        assertContainsNone("nodes_stats span attributes", FORBIDDEN_SPAN_KEYS, attrs.keySet());
     }
 
-    public void testResourceCarriesAffix() throws Exception {
-        assertSdkResourceAttributes(EXPECTED_PROJECT_ID, EXPECTED_PROJECT_TYPE, EXPECTED_NODE_TIER);
+    /**
+     * Asserts that the resource (telemetry source) that emitted the {@code GET /_nodes/stats} span
+     * carries every entry in {@link #REQUIRED_RESOURCE_KEYS}, produced via the Resource on each
+     * {@code ResourceSpans} batch.
+     *
+     * <p>Resource arrives on the first telemetry request; we only need a short wait
+     * in case it hasn't arrived yet.
+     */
+    private void assertNodeStatsResourceAttributes() throws Exception {
+        assertBusy(() -> assertNotNull("no resource event observed yet", apmServer().resource()), 5, TimeUnit.SECONDS);
+        ReceivedTelemetry.ReceivedResource resource = apmServer().resource();
+        assertContainsAll("nodes_stats resource attributes", REQUIRED_RESOURCE_KEYS, resource.attributes().keySet());
+    }
+
+    /** Fail with a sorted list of the required keys missing from {@code observed}. */
+    private static void assertContainsAll(String label, Set<String> required, Set<String> observed) {
+        Set<String> missing = new TreeSet<>(required);
+        missing.removeAll(observed);
+        assertTrue(label + " is missing required keys: " + missing, missing.isEmpty());
+    }
+
+    /** Fail with a sorted list of the forbidden keys present in {@code observed}. */
+    private static void assertContainsNone(String label, Set<String> forbidden, Set<String> observed) {
+        Set<String> present = new TreeSet<>(forbidden);
+        present.retainAll(observed);
+        assertTrue(label + " contains forbidden keys: " + present, present.isEmpty());
+    }
+
+    /**
+     * Verifies that only the root (entry-point) span is exported and no child spans leak through,
+     * which ES enforces through the default {@code telemetry.tracing.max_depth=0}.
+     */
+    public void testOnlyRootSpansExported() throws Exception {
+        final String traceIdValue = "1234567890abcdef1234567890abcdef";
+        final String traceParentValue = "00-" + traceIdValue + "-abcdef1234567890-01";
+
+        CountDownLatch rootSpanReceived = new CountDownLatch(1);
+        // CopyOnWriteArrayList is required: the consumer thread may add spans at any time, including during
+        // the grace period after the latch fires, while the main thread reads the count after the sleep.
+        List<ReceivedTelemetry.ReceivedSpan> receivedSpans = new CopyOnWriteArrayList<>();
+
+        Consumer<ReceivedTelemetry> messageConsumer = msg -> {
+            if (msg instanceof ReceivedTelemetry.ReceivedSpan s && traceIdValue.equals(s.traceId())) {
+                receivedSpans.add(s);
+                if ("GET /_nodes/stats".equals(s.name())) {
+                    rootSpanReceived.countDown();
+                }
+            }
+        };
+
+        apmServer().addMessageConsumer(messageConsumer);
+
+        Request nodeStatsRequest = new Request("GET", "/_nodes/stats");
+        nodeStatsRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.TRACE_PARENT_HTTP_HEADER, traceParentValue).build());
+        client().performRequest(nodeStatsRequest);
+        client().performRequest(new Request("GET", "/_flush_telemetry"));
+
+        assertTrue("Root span should be received within timeout", rootSpanReceived.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS));
+
+        Thread.sleep(CHILD_SPAN_GRACE_PERIOD_MS);
+        // CopyOnWriteArrayList.add() does a volatile write and size() does a volatile read, so child spans
+        // that arrive during the grace period above are guaranteed to be visible here.
+        assertEquals("Only the root span should be exported; received: " + receivedSpans, 1, receivedSpans.size());
     }
 }

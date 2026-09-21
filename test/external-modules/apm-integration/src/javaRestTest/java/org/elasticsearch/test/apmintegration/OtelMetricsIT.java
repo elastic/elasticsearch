@@ -41,8 +41,7 @@ public class OtelMetricsIT extends AbstractMetricsIT {
         .setting("telemetry.export.interval", "1000ms")
         .setting("telemetry.export.send_timeout", "600ms")
         .setting("telemetry.metrics.buffer.disk_size", "0b")
-        // Mirrors the three resource attributes ServerlessServerCli writes via the telemetry.resource.* affix,
-        // bridged here to the OTel resource via the telemetry.resource.* affix.
+        // Mirrors the three resource attributes ServerlessServerCli writes via the telemetry.resource.* affix.
         .setting("telemetry.resource.elasticsearch.project.id", EXPECTED_PROJECT_ID)
         .setting("telemetry.resource.elasticsearch.project.type", EXPECTED_PROJECT_TYPE)
         .setting("telemetry.resource.elasticsearch.node.tier", EXPECTED_NODE_TIER)

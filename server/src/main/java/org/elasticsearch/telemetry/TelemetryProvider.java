@@ -21,12 +21,14 @@ public interface TelemetryProvider {
      * Resolves the interval at which node and indices metrics are collected to use for {@code NodeMetrics} cached.
      * <p>
      * The interval tracks the OTel SDK export interval ({@code telemetry.export.interval}, falling back to the legacy
-     * {@code telemetry.agent.metrics_interval} with a 60s default) so metrics are refreshed in step with exports.
+     * {@code telemetry.agent.metrics_interval}) so metrics are refreshed in step with exports. Deployments that export
+     * less frequently, such as serverless, set {@code telemetry.export.interval} explicitly; the 10s default here only
+     * applies when neither setting is present.
      */
     static TimeValue getMetricsInterval(Settings settings) {
         return settings.getAsTime(
             "telemetry.export.interval",
-            settings.getAsTime("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(60))
+            settings.getAsTime("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(10))
         );
     }
 

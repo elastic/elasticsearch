@@ -237,11 +237,8 @@ class TlsHandshakeThrottleManager extends AbstractLifecycleComponent {
          * passes all the received messages on down the pipeline (if not throttled) or else delays that work until another TLS handshake
          * completes (if too many such handshakes are already in flight).
          * <p>
-         * Delivery to the next handler relies entirely on {@link io.netty.handler.codec.ByteToMessageDecoder#handlerRemoved}, which fires
-         * {@code ctx.fireChannelRead(cumulation)} exactly once when this handler is removed. This guarantees single delivery regardless of
-         * how many {@code channelRead} calls were needed to assemble the full {@code ClientHello} (e.g. when it arrives across two TCP
-         * segments). {@link io.netty.handler.codec.ByteToMessageDecoder#decode} never advances {@code cumulation.readerIndex()}, so
-         * {@code cumulation} is always fully readable when {@code handlerRemoved} fires.
+         * Delivery to the next handler relies on {@link io.netty.handler.codec.ByteToMessageDecoder#handlerRemoved}, which fires
+         * {@code ctx.fireChannelRead(cumulation)} exactly once when this handler is removed.
          */
         private class HandshakeThrottleHandler extends SslClientHelloHandler<Void> {
 

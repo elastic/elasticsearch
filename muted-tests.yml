@@ -89,9 +89,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:dense_vector_aggs.sumDenseVectorOverflow}
   issue: https://github.com/elastic/elasticsearch/issues/155118
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:change_point.values null column}
-  issue: https://github.com/elastic/elasticsearch/issues/154877
 - class: org.elasticsearch.packaging.test.KeystoreManagementTests
   method: test50CreateKeystoreManually
   issue: https://github.com/elastic/elasticsearch/issues/155335

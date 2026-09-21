@@ -512,6 +512,40 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(service.currentQueueSize(), equalTo(0));
     }
 
+    public void testRelocationProportionWithUnlimitedIncomingRecoveryLimit() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var clusterService = newClusterService(
+            Settings.builder()
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
+                .put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), 0.0)
+                .build()
+        );
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
+        final var started = new AtomicInteger();
+
+        service.enqueue(
+            ProjectId.DEFAULT,
+            new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED),
+            mockIndexShard(newRelocationRecoveryState(), UUIDs.randomBase64UUID(), stats),
+            newIndexMetadata(),
+            listener -> {
+                started.incrementAndGet();
+                listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+            }
+        );
+
+        taskQueue.runAllRunnableTasks();
+        assertThat(started.get(), equalTo(0));
+
+        clusterService.getClusterSettings()
+            .applySettings(
+                Settings.builder().put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), "100%").build()
+            );
+        taskQueue.runAllRunnableTasks();
+        assertThat(started.get(), equalTo(1));
+        assertThat(service.currentQueueSize(), equalTo(0));
+    }
+
     public void testRelocationRecoveriesMaxProportionRoundsUp() {
         final var taskQueue = new DeterministicTaskQueue();
         // ceil(3 * 0.5) = 2 relocation slots.

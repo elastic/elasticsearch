@@ -586,9 +586,6 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         /// Returns the effective max concurrent relocation recoveries, derived from [#maxConcurrentRecoveries] and
         /// [#relocationRecoveriesMaxProportion].
         int effectiveMaxConcurrentRelocationRecoveries() {
-            if (maxConcurrentRecoveries == Integer.MAX_VALUE) {
-                return Integer.MAX_VALUE;
-            }
             return (int) Math.ceil(maxConcurrentRecoveries * relocationRecoveriesMaxProportion);
         }
 

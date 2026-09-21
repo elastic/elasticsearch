@@ -484,13 +484,25 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return name.equals(fullFieldName) || super.isMappedField(name);
         }
 
+        @Override
+        public boolean isExtractableMappedField(String name) {
+            // Same bypass as isMappedField: this context loads fullFieldName itself (from _source or the keyed flattened
+            // loader), so the ConstantNull gate in blockLoader must not fire for it even where the local mapping cannot
+            // extract it (a nested subfield).
+            return name.equals(fullFieldName) || super.isExtractableMappedField(name);
+        }
+
         /**
          * Whether this context creates a keyword type for {@code name}: only for {@link #fullFieldName}, and only where
-         * {@code resolvedType} - what the real mapping resolves for it - is null. Callers pass that in so the mapping is walked once;
+         * {@code resolvedType} - what the real mapping resolves for it - is null or a nested subfield, which the coordinator
+         * plans as unmapped (#154011). Callers pass {@code resolvedType} in so the mapping is walked once;
          * {@link #fieldType} is unusable here because it returns the fabricated type.
          */
         private boolean createsKeywordType(String name, @Nullable MappedFieldType resolvedType) {
-            return resolvedType == null && name.equals(fullFieldName);
+            if (name.equals(fullFieldName) == false) {
+                return false;
+            }
+            return resolvedType == null || mappingLookup().nestedLookup().hasNestedParent(name);
         }
 
         // TODO: remove this override, createUnmappedFieldType and UNMAPPED_FIELD_TYPE once

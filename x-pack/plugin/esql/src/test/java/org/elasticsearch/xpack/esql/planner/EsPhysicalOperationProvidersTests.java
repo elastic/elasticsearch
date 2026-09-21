@@ -360,10 +360,11 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
     }
 
     /**
-     * {@code unmapped_fields=load} wraps the shard so {@code isMappedField} is true, but a nested
-     * subfield must still be nullified — the wrap must not reopen the #154011 type-skew path.
+     * Under {@code unmapped_fields=load} a nested subfield behaves like an unmapped field: the wrap loads it from
+     * {@code _source} as keyword instead of dispatching the nested mapper's native loader, which would reopen the
+     * #154011 type-skew path.
      */
-    public void testNestedSubfieldStaysNullUnderUnmappedFieldContext() throws IOException {
+    public void testNestedSubfieldLoadsFromSourceUnderUnmappedFieldContext() throws IOException {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
             createMapperService(
                 mapping(
@@ -395,7 +396,13 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             ByteSizeValue.ofKb(100),
             ByteSizeValue.ofKb(300)
         );
-        assertThat(blockLoader, equalTo(ConstantNull.INSTANCE));
+        // Never the native nested loader; see testUnmappedKeywordBlockLoaderRequestsOnlyItsOwnSourcePath for the
+        // OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE release-build split this mirrors.
+        if (EsqlCapabilities.Cap.OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE.isEnabled()) {
+            assertThat(blockLoader, instanceOf(UnmappedKeywordBlockLoader.class));
+        } else {
+            assertThat(blockLoader, not(instanceOf(ConstantNull.class)));
+        }
     }
 
     /**

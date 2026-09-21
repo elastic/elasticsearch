@@ -2789,10 +2789,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if (n == 3 && (probe[0] & 0xFF) == 0xEF && (probe[1] & 0xFF) == 0xBB && (probe[2] & 0xFF) == 0xBF) {
             return stream;
         }
-        PushbackInputStream pb = new PushbackInputStream(stream, n);
-        if (n > 0) {
-            pb.unread(probe, 0, n);
+        if (n == 0) {
+            // Empty stream; nothing to push back.
+            return stream;
         }
+        PushbackInputStream pb = new PushbackInputStream(stream, n);
+        pb.unread(probe, 0, n);
         return pb;
     }
 

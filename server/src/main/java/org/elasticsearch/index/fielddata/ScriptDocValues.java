@@ -50,6 +50,19 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         T getInternal(int index);
 
         int size();
+
+        /**
+         * Returns the byte length of the value at {@code index}, or {@code -1} when that length is not
+         * known ahead of the read. Suppliers that hold raw bytes can answer; suppliers that build the
+         * value on the fly cannot.
+         *
+         * <p>This exists for the Painless allocation estimators, which need to size a read before the
+         * read happens. It must not allocate and must not throw, so an out of range index returns
+         * {@code -1} as well. It is deliberately not on any Painless allowlist, so scripts cannot call it.
+         */
+        default int getInternalByteLength(int index) {
+            return -1;
+        }
     }
 
     protected final Supplier<T> supplier;
@@ -60,6 +73,14 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public Supplier<T> getSupplier() {
         return supplier;
+    }
+
+    /**
+     * Forwards to {@link Supplier#getInternalByteLength(int)}. Used by the Painless allocation
+     * estimators to size a read; not on any Painless allowlist.
+     */
+    public int getInternalByteLength(int index) {
+        return supplier.getInternalByteLength(index);
     }
 
     // Throw meaningful exceptions if someone tries to modify the ScriptDocValues.
@@ -465,6 +486,15 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public int size() {
             return count;
+        }
+
+        @Override
+        public int getInternalByteLength(int index) {
+            if (index < 0 || index >= count) {
+                return -1;
+            }
+
+            return values[index].length();
         }
     }
 

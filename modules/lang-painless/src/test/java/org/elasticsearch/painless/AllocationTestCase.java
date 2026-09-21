@@ -41,6 +41,16 @@ public abstract class AllocationTestCase extends ScriptTestCase {
     }
 
     /**
+     * Compiles {@code source} under {@code limit} with {@code params} bound to the script. Tests whose receiver cannot be
+     * written as a literal, such as a doc-values field, hand it in this way and reach it through {@code params}.
+     */
+    protected PainlessTestScript compile(String source, String limit, Map<String, Object> params) {
+        Settings settings = Settings.builder().put(LIMIT_KEY, limit).build();
+        PainlessScriptEngine engine = new PainlessScriptEngine(settings, scriptContexts(), () -> null, false);
+        return engine.compile("test", source, PainlessTestScript.CONTEXT, Map.of()).newInstance(params);
+    }
+
+    /**
      * Compiles {@code source} recording into {@code metrics}, with no limit: the counter runs and each execution is
      * recorded, but nothing can fail the script. Supplying an instance is what enables recording, so no test needs the
      * system property, which tests sharing a JVM must treat as immutable.
@@ -64,14 +74,29 @@ public abstract class AllocationTestCase extends ScriptTestCase {
         return ((PainlessScript) script).getAllocBytes();
     }
 
+    /** Runs {@code source} with {@code params} under a 1mb limit and returns the running allocation total afterwards. */
+    protected long allocatedBytes(String source, Map<String, Object> params) {
+        PainlessTestScript script = compile(source, "1mb", params);
+        script.execute();
+        return ((PainlessScript) script).getAllocBytes();
+    }
+
     /** Asserts that running {@code source} under a 1b limit trips the allocation limit. */
     protected void assertTripsLimit(String source) {
         assertTripsLimit(source, "1b");
     }
 
+    /** Asserts that running {@code source} with {@code params} under {@code limit} trips the allocation limit. */
+    protected void assertTripsLimit(String source, String limit, Map<String, Object> params) {
+        assertTripsLimit(compile(source, limit, params), source, limit);
+    }
+
     /** Asserts that running {@code source} under {@code limit} trips the allocation limit. */
     protected void assertTripsLimit(String source, String limit) {
-        PainlessTestScript script = compile(source, limit);
+        assertTripsLimit(compile(source, limit), source, limit);
+    }
+
+    private void assertTripsLimit(PainlessTestScript script, String source, String limit) {
         ScriptException e = expectThrows(ScriptException.class, script::execute);
         for (Throwable t = e; t != null; t = t.getCause()) {
             if (t.getMessage() != null && t.getMessage().contains("allocation limit exceeded")) {

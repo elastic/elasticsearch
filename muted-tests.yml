@@ -719,9 +719,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecDenseVectorIT
   method: test {csv-spec:dense_vector.limitByDenseVectorN2}
   issue: https://github.com/elastic/elasticsearch/issues/159460
-- class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
-  method: testErrorRecordingOnRollover
-  issue: https://github.com/elastic/elasticsearch/issues/159525
 - class: org.elasticsearch.index.shard.IndexShardIT
   method: testNodeWriteLoadsArePresent
   issue: https://github.com/elastic/elasticsearch/issues/159553

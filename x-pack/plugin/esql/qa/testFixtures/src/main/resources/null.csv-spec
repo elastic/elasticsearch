@@ -266,7 +266,6 @@ result:boolean
 null
 ;
 
-
 # null > integer evaluates to null
 rowNullGreaterThanInteger
 required_capability: fix_null_comparison_type_check
@@ -813,6 +812,49 @@ COUNT_DISTINCT(c):long|COUNT_DISTINCT(null):long|COUNT_DISTINCT(null - 1):long|a
 0                     |0                        |0                            |1
 0                     |0                        |0                            |2
 0                     |0                        |0                            |3
+;
+
+nullLiteralArgInMultiInputAggs
+required_capability: fix_aggs_multiple_input_fields
+
+FROM employees
+| STATS
+    w  = WEIGHTED_AVG(null, 2),
+    t1 = TOP(null, 3, "asc"),
+    t2 = TOP(salary, 3, "asc", null),
+    t3 = TOP(null, 3, "asc", null),
+    f1 = FIRST(null, emp_no),
+    f2 = FIRST(emp_no, null),
+    f3 = FIRST(null, null),
+    l1 = LAST(null, emp_no),
+    l2 = LAST(emp_no, null),
+    l3 = LAST(null, null)
+;
+
+w:double | t1:null | t2:null | t3:null | f1:null | f2:integer | f3:null | l1:null | l2:integer | l3:null
+null     | null    | null    | null    | null    | 10001      | null    | null    | 10001      | null
+;
+
+nullFieldArgInMultiInputAggs
+required_capability: fix_aggs_multiple_input_fields
+
+FROM employees
+| EVAL x = emp_no * null
+| STATS
+    w  = WEIGHTED_AVG(x, 2),
+    t1 = TOP(x, 3, "asc"),
+    t2 = TOP(salary, 3, "asc", x),
+    t3 = TOP(x, 3, "asc", x),
+    f1 = FIRST(x, emp_no),
+    f2 = FIRST(emp_no, x),
+    f3 = FIRST(x, x),
+    l1 = LAST(x, emp_no),
+    l2 = LAST(emp_no, x),
+    l3 = LAST(x, x)
+;
+
+w:double | t1:integer | t2:integer | t3:integer | f1:integer | f2:integer | f3:integer | l1:integer | l2:integer | l3:integer
+null     | null       | null       | null       | null       | 10001      | null       | null       | 10001      | null
 ;
 
 // Tests for fix: (a IS NOT NULL OR p) AND a IS NULL must not discard the surviving OR branch p.

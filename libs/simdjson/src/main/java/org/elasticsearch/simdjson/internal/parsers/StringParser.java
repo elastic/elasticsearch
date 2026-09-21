@@ -47,6 +47,14 @@ import static org.elasticsearch.simdjson.internal.parsers.CharacterUtils.hexToIn
  *       {@code VectorUtils}.</li>
  *   <li>Omits upstream {@code parseChar} and length-prefixed {@code parseString} overloads not
  *       needed by the ESCF walker.</li>
+ *   <li>Adds {@link #scanUnescapedLength}, a vectorized quote/backslash scan used by the walker
+ *       to size and copy escape-free string values without a full {@link #parseString} call;
+ *       not present upstream.</li>
+ *   <li>Finds the first quote-or-backslash per chunk with a single combined mask
+ *       ({@code eq(BACKSLASH).or(eq(QUOTE))}) instead of upstream's two independent masks
+ *       compared via {@code hasQuoteFirst}/{@code hasBackslash}; halves the number of
+ *       {@code VectorMask.toLong} conversions per chunk, which profiling showed as the
+ *       largest single cost once the scalar length/escape scan above was vectorized.</li>
  * </ul>
  */
 public final class StringParser {
@@ -64,46 +72,85 @@ public final class StringParser {
         return doParseString(buffer, idx, stringBuffer, 0);
     }
 
+    /**
+     * Vectorized scan for the common case where the JSON string value starting at {@code idx}
+     * (the opening quote) contains no backslash escape before its closing quote.
+     *
+     * <p>Returns the string's raw byte length (bytes strictly between the quotes) if no escape
+     * is found. Returns {@code -1} the moment a backslash is seen, before scanning any further —
+     * callers should fall back to {@link #parseString} in that case, which discovers the true
+     * content on its own and does not need a pre-computed length.
+     *
+     * <p>Reuses the same quote/backslash vector comparison {@link #doParseString} uses, but skips
+     * all copying, so the escape-free case — the overwhelming majority of string values in
+     * practice — costs a single vectorized pass.
+     */
+    public int scanUnescapedLength(byte[] buffer, int idx) {
+        int src = idx + 1;
+        int start = src;
+        int loopBound = buffer.length - BYTES_PROCESSED;
+        while (src <= loopBound) {
+            ByteVector srcVec = ByteVector.fromArray(BYTE_SPECIES, buffer, src);
+            long specialBits = srcVec.eq(BACKSLASH).or(srcVec.eq(QUOTE)).toLong();
+            if (specialBits != 0) {
+                int dist = Long.numberOfTrailingZeros(specialBits);
+                return buffer[src + dist] == QUOTE ? src + dist - start : -1;
+            }
+            src += BYTES_PROCESSED;
+        }
+        while (true) {
+            byte b = buffer[src];
+            if (b == QUOTE) {
+                return src - start;
+            }
+            if (b == BACKSLASH) {
+                return -1;
+            }
+            src++;
+        }
+    }
+
     private int doParseString(byte[] buffer, int idx, byte[] stringBuffer, int offset) {
         int src = idx + 1;
         int dst = offset;
         int loopBound = buffer.length - BYTES_PROCESSED;
         while (src <= loopBound) {
             ByteVector srcVec = ByteVector.fromArray(BYTE_SPECIES, buffer, src);
-            long backslashBits = srcVec.eq(BACKSLASH).toLong();
-            long quoteBits = srcVec.eq(QUOTE).toLong();
+            long specialBits = srcVec.eq(BACKSLASH).or(srcVec.eq(QUOTE)).toLong();
 
-            if (hasQuoteFirst(backslashBits, quoteBits)) {
-                int quoteDist = Long.numberOfTrailingZeros(quoteBits);
-                System.arraycopy(buffer, src, stringBuffer, dst, quoteDist);
-                return dst + quoteDist;
-            }
-            if (hasBackslash(backslashBits, quoteBits)) {
-                int backslashDist = Long.numberOfTrailingZeros(backslashBits);
-                System.arraycopy(buffer, src, stringBuffer, dst, backslashDist);
-                byte escapeChar = buffer[src + backslashDist + 1];
-                if (escapeChar == 'u') {
-                    src += backslashDist;
-                    dst += backslashDist;
-                    int codePoint = parseUnicodeCodePoint(buffer, src);
-                    src += 6;
-                    if (codePoint >= MIN_HIGH_SURROGATE && codePoint <= MAX_HIGH_SURROGATE) {
-                        codePoint = parseLowSurrogate(buffer, src, codePoint);
-                        src += 6;
-                    } else if (codePoint >= MIN_LOW_SURROGATE && codePoint <= MAX_LOW_SURROGATE) {
-                        throw new JsonParsingException("Invalid code point. The range U+DC00–U+DFFF is reserved for low surrogate.");
-                    }
-                    dst += storeCodePointInStringBuffer(codePoint, dst, stringBuffer);
-                } else {
-                    stringBuffer[dst + backslashDist] = escape(escapeChar);
-                    src += backslashDist + 2;
-                    dst += backslashDist + 1;
-                }
-            } else {
+            if (specialBits == 0) {
                 // Full vector chunk has no quote or escape — bulk-copy literal UTF-8 bytes.
                 srcVec.intoArray(stringBuffer, dst);
                 src += BYTES_PROCESSED;
                 dst += BYTES_PROCESSED;
+                continue;
+            }
+
+            int dist = Long.numberOfTrailingZeros(specialBits);
+            if (buffer[src + dist] == QUOTE) {
+                System.arraycopy(buffer, src, stringBuffer, dst, dist);
+                return dst + dist;
+            }
+
+            int backslashDist = dist;
+            System.arraycopy(buffer, src, stringBuffer, dst, backslashDist);
+            byte escapeChar = buffer[src + backslashDist + 1];
+            if (escapeChar == 'u') {
+                src += backslashDist;
+                dst += backslashDist;
+                int codePoint = parseUnicodeCodePoint(buffer, src);
+                src += 6;
+                if (codePoint >= MIN_HIGH_SURROGATE && codePoint <= MAX_HIGH_SURROGATE) {
+                    codePoint = parseLowSurrogate(buffer, src, codePoint);
+                    src += 6;
+                } else if (codePoint >= MIN_LOW_SURROGATE && codePoint <= MAX_LOW_SURROGATE) {
+                    throw new JsonParsingException("Invalid code point. The range U+DC00–U+DFFF is reserved for low surrogate.");
+                }
+                dst += storeCodePointInStringBuffer(codePoint, dst, stringBuffer);
+            } else {
+                stringBuffer[dst + backslashDist] = escape(escapeChar);
+                src += backslashDist + 2;
+                dst += backslashDist + 1;
             }
         }
         return doParseStringScalar(buffer, src, stringBuffer, dst);
@@ -192,14 +239,6 @@ public final class StringParser {
             return 4;
         }
         throw new IllegalStateException("Code point is greater than 0x110000.");
-    }
-
-    private boolean hasQuoteFirst(long backslashBits, long quoteBits) {
-        return ((backslashBits - 1) & quoteBits) != 0;
-    }
-
-    private boolean hasBackslash(long backslashBits, long quoteBits) {
-        return ((quoteBits - 1) & backslashBits) != 0;
     }
 
     private static VectorSpecies<Byte> bootstrapVectorSpecies() {

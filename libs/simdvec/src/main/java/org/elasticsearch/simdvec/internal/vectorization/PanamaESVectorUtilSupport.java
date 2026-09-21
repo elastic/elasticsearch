@@ -2430,31 +2430,91 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
-    public float[] matrixMultiply(float[] a, float[] b, int m, int k, int n) {
-        float[] c = new float[m * n];
-        multiplyAccumulate(a, k, 1, b, c, m, k, n);
-        return c;
+    public void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result) {
+        multiply(a, k, b, result, m, k, n);
     }
 
     /**
-     * Panama version of matrix multiply, but operating on 4x[vector width] tiles of C cells
-     * with a 1x[vector width] tile for the row tail and scalar column tails for overflow
+     * Panama version of matrix multiply, with 4x row unrolling
      */
-    private static void multiplyAccumulate(float[] a, int aRowStride, int aInnerStride, float[] b, float[] c, int cRows, int inner, int n) {
+    private static void multiply(float[] a, int aRowStride, float[] b, float[] c, int cRows, int inner, int n) {
         int i = 0;
+        // operate on 4 rows at a time
         for (; i + 4 <= cRows; i += 4) {
-            multiplyTile4(a, aRowStride, aInnerStride, b, c, i, inner, n);
+            multiplyTile4(a, aRowStride, b, c, i, inner, n);
         }
         // row tail
         for (; i < cRows; i++) {
-            multiplyTile1(a, aRowStride, aInnerStride, b, c, i, inner, n);
+            multiplyTile1(a, aRowStride, b, c, i, inner, n);
         }
     }
 
-    /**
-     * Fills four rows of C, one vector of columns at a time
-     */
-    private static void multiplyTile4(float[] a, int aRowStride, int aInnerStride, float[] b, float[] c, int i, int inner, int n) {
+    private static void multiplyTile4(float[] a, int aRowStride, float[] b, float[] c, int i, int inner, int n) {
+        /*
+         * AVX2, AVX512, NEON, and SVE all (generally) have 64-byte (512-bit) cache lines.
+         * Ideally, all data we read in a cache line should be processed at that point, and not re-read.
+         * This means that on 128-bit SIMD vectors, we need to unroll the columns 4x
+         * so that one 512-bit cache line is used for 4 128-bit SIMD vectors.
+         * On AVX2 and AVX512, we unroll 2x, as the SIMD widths are wider.
+         * It's ok to load two cache lines at once on AVX512 (where vector width == cache width)
+         */
+        int j = VECTOR_BITSIZE == 128
+            ? multiplyTile4x4(a, aRowStride, b, c, i, inner, n)
+            : multiplyTile4x2(a, aRowStride, b, c, i, inner, n);
+
+        // single-vector columns left over by the tile loop
+        // 4x rows a time
+        final int a0 = i * aRowStride;
+        final int a1 = a0 + aRowStride;
+        final int a2 = a0 + aRowStride * 2;
+        final int a3 = a0 + aRowStride * 3;
+        final int c0 = i * n;
+        final int c1 = c0 + n;
+        final int c2 = c0 + n * 2;
+        final int c3 = c0 + n * 3;
+        final int limit = FLOAT_SPECIES.loopBound(n);
+        for (; j < limit; j += FLOAT_SPECIES.length()) {
+            FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES);
+            for (int l = 0; l < inner; l++) {
+                FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, l * n + j);
+                acc0 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a0 + l]), bv, acc0);
+                acc1 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a1 + l]), bv, acc1);
+                acc2 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a2 + l]), bv, acc2);
+                acc3 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a3 + l]), bv, acc3);
+            }
+            acc0.intoArray(c, c0 + j);
+            acc1.intoArray(c, c1 + j);
+            acc2.intoArray(c, c2 + j);
+            acc3.intoArray(c, c3 + j);
+        }
+
+        // scalar column tail, groups of 4 rows
+        for (; j < n; j++) {
+            float s0 = 0;
+            float s1 = 0;
+            float s2 = 0;
+            float s3 = 0;
+            for (int l = 0; l < inner; l++) {
+                float bv = b[l * n + j];
+                s0 = fma(a[a0 + l], bv, s0);
+                s1 = fma(a[a1 + l], bv, s1);
+                s2 = fma(a[a2 + l], bv, s2);
+                s3 = fma(a[a3 + l], bv, s3);
+            }
+            c[c0 + j] = s0;
+            c[c1 + j] = s1;
+            c[c2 + j] = s2;
+            c[c3 + j] = s3;
+        }
+    }
+
+    private static int multiplyTile4x4(float[] a, int aRowStride, float[] b, float[] c, int i, int inner, int n) {
+        /*
+         * This uses 24 of the 32 vector registers on NEON and SVE
+         */
         final int a0 = i * aRowStride;
         final int a1 = a0 + aRowStride;
         final int a2 = a0 + aRowStride * 2;
@@ -2464,71 +2524,159 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         final int c2 = c0 + n * 2;
         final int c3 = c0 + n * 3;
 
-        final int jLimit = FLOAT_SPECIES.loopBound(n);
         int j = 0;
-        for (; j < jLimit; j += FLOAT_SPECIES.length()) {
-            FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES);
-            FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES);
-            FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES);
-            FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES);
+        int len = FLOAT_SPECIES.length();
+        int sectionLength = FLOAT_SPECIES.length() * 4;
+        int limit = limit(n, sectionLength);
+        for (; j < limit; j += sectionLength) {
+            FloatVector acc00 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc01 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc02 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc03 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc10 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc11 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc12 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc13 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc20 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc21 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc22 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc23 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc30 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc31 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc32 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc33 = FloatVector.zero(FLOAT_SPECIES);
             for (int l = 0; l < inner; l++) {
-                int aOffset = l * aInnerStride;
-                FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, l * n + j);
-                acc0 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a0 + aOffset]), bv, acc0);
-                acc1 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a1 + aOffset]), bv, acc1);
-                acc2 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a2 + aOffset]), bv, acc2);
-                acc3 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a3 + aOffset]), bv, acc3);
-            }
-            acc0.intoArray(c, c0 + j);
-            acc1.intoArray(c, c1 + j);
-            acc2.intoArray(c, c2 + j);
-            acc3.intoArray(c, c3 + j);
-        }
+                final int bBase = l * n + j;
+                FloatVector bv0 = FloatVector.fromArray(FLOAT_SPECIES, b, bBase);
+                FloatVector bv1 = FloatVector.fromArray(FLOAT_SPECIES, b, bBase + len);
+                FloatVector bv2 = FloatVector.fromArray(FLOAT_SPECIES, b, bBase + len * 2);
+                FloatVector bv3 = FloatVector.fromArray(FLOAT_SPECIES, b, bBase + len * 3);
 
-        // column tail, groups of 4 rows
-        if (j < n) {
-            for (int l = 0; l < inner; l++) {
-                int aOffset = l * aInnerStride;
-                int bBase = l * n;
-                float a0v = a[a0 + aOffset];
-                float a1v = a[a1 + aOffset];
-                float a2v = a[a2 + aOffset];
-                float a3v = a[a3 + aOffset];
-                for (int jj = j; jj < n; jj++) {
-                    float bv = b[bBase + jj];
-                    c[c0 + jj] = fma(a0v, bv, c[c0 + jj]);
-                    c[c1 + jj] = fma(a1v, bv, c[c1 + jj]);
-                    c[c2 + jj] = fma(a2v, bv, c[c2 + jj]);
-                    c[c3 + jj] = fma(a3v, bv, c[c3 + jj]);
-                }
+                FloatVector av0 = FloatVector.broadcast(FLOAT_SPECIES, a[a0 + l]);
+                acc00 = fma(av0, bv0, acc00);
+                acc01 = fma(av0, bv1, acc01);
+                acc02 = fma(av0, bv2, acc02);
+                acc03 = fma(av0, bv3, acc03);
+
+                FloatVector av1 = FloatVector.broadcast(FLOAT_SPECIES, a[a1 + l]);
+                acc10 = fma(av1, bv0, acc10);
+                acc11 = fma(av1, bv1, acc11);
+                acc12 = fma(av1, bv2, acc12);
+                acc13 = fma(av1, bv3, acc13);
+
+                FloatVector av2 = FloatVector.broadcast(FLOAT_SPECIES, a[a2 + l]);
+                acc20 = fma(av2, bv0, acc20);
+                acc21 = fma(av2, bv1, acc21);
+                acc22 = fma(av2, bv2, acc22);
+                acc23 = fma(av2, bv3, acc23);
+
+                FloatVector av3 = FloatVector.broadcast(FLOAT_SPECIES, a[a3 + l]);
+                acc30 = fma(av3, bv0, acc30);
+                acc31 = fma(av3, bv1, acc31);
+                acc32 = fma(av3, bv2, acc32);
+                acc33 = fma(av3, bv3, acc33);
             }
+            acc00.intoArray(c, c0 + j);
+            acc01.intoArray(c, c0 + j + len);
+            acc02.intoArray(c, c0 + j + len * 2);
+            acc03.intoArray(c, c0 + j + len * 3);
+            acc10.intoArray(c, c1 + j);
+            acc11.intoArray(c, c1 + j + len);
+            acc12.intoArray(c, c1 + j + len * 2);
+            acc13.intoArray(c, c1 + j + len * 3);
+            acc20.intoArray(c, c2 + j);
+            acc21.intoArray(c, c2 + j + len);
+            acc22.intoArray(c, c2 + j + len * 2);
+            acc23.intoArray(c, c2 + j + len * 3);
+            acc30.intoArray(c, c3 + j);
+            acc31.intoArray(c, c3 + j + len);
+            acc32.intoArray(c, c3 + j + len * 2);
+            acc33.intoArray(c, c3 + j + len * 3);
         }
+        return j;
     }
 
-    private static void multiplyTile1(float[] a, int aRowStride, int aInnerStride, float[] b, float[] c, int i, int inner, int n) {
-        final int aBase = i * aRowStride;
-        final int cBase = i * n;
+    private static int multiplyTile4x2(float[] a, int aRowStride, float[] b, float[] c, int i, int inner, int n) {
+        /*
+         * This uses 14 of the 16 vector registers on AVX2 (SVE and AVX512 have more)
+         */
+        final int a0 = i * aRowStride;
+        final int a1 = a0 + aRowStride;
+        final int a2 = a0 + aRowStride * 2;
+        final int a3 = a0 + aRowStride * 3;
+        final int c0 = i * n;
+        final int c1 = c0 + n;
+        final int c2 = c0 + n * 2;
+        final int c3 = c0 + n * 3;
 
-        final int jLimit = FLOAT_SPECIES.loopBound(n);
         int j = 0;
-        for (; j < jLimit; j += FLOAT_SPECIES.length()) {
+        int len = FLOAT_SPECIES.length();
+        int sectionLength = FLOAT_SPECIES.length() * 2;
+        int limit = limit(n, sectionLength);
+        for (; j < limit; j += sectionLength) {
+            FloatVector acc00 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc01 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc10 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc11 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc20 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc21 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc30 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc31 = FloatVector.zero(FLOAT_SPECIES);
+            for (int l = 0; l < inner; l++) {
+                final int bBase = l * n + j;
+                FloatVector bv0 = FloatVector.fromArray(FLOAT_SPECIES, b, bBase);
+                FloatVector bv1 = FloatVector.fromArray(FLOAT_SPECIES, b, bBase + len);
+
+                FloatVector av0 = FloatVector.broadcast(FLOAT_SPECIES, a[a0 + l]);
+                acc00 = fma(av0, bv0, acc00);
+                acc01 = fma(av0, bv1, acc01);
+
+                FloatVector av1 = FloatVector.broadcast(FLOAT_SPECIES, a[a1 + l]);
+                acc10 = fma(av1, bv0, acc10);
+                acc11 = fma(av1, bv1, acc11);
+
+                FloatVector av2 = FloatVector.broadcast(FLOAT_SPECIES, a[a2 + l]);
+                acc20 = fma(av2, bv0, acc20);
+                acc21 = fma(av2, bv1, acc21);
+
+                FloatVector av3 = FloatVector.broadcast(FLOAT_SPECIES, a[a3 + l]);
+                acc30 = fma(av3, bv0, acc30);
+                acc31 = fma(av3, bv1, acc31);
+            }
+            acc00.intoArray(c, c0 + j);
+            acc01.intoArray(c, c0 + j + len);
+            acc10.intoArray(c, c1 + j);
+            acc11.intoArray(c, c1 + j + len);
+            acc20.intoArray(c, c2 + j);
+            acc21.intoArray(c, c2 + j + len);
+            acc30.intoArray(c, c3 + j);
+            acc31.intoArray(c, c3 + j + len);
+        }
+        return j;
+    }
+
+    private static void multiplyTile1(float[] a, int aRowStride, float[] b, float[] c, int i, int inner, int n) {
+        final int a0 = i * aRowStride;
+        final int c0 = i * n;
+
+        final int limit = FLOAT_SPECIES.loopBound(n);
+        int j = 0;
+        for (; j < limit; j += FLOAT_SPECIES.length()) {
             FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
             for (int l = 0; l < inner; l++) {
                 FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, l * n + j);
-                acc = fma(FloatVector.broadcast(FLOAT_SPECIES, a[aBase + l * aInnerStride]), bv, acc);
+                acc = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a0 + l]), bv, acc);
             }
-            acc.intoArray(c, cBase + j);
+            acc.intoArray(c, c0 + j);
         }
 
         // column tail
-        if (j < n) {
+        for (; j < n; j++) {
+            float s = 0;
             for (int l = 0; l < inner; l++) {
-                int bBase = l * n;
-                float av = a[aBase + l * aInnerStride];
-                for (int jj = j; jj < n; jj++) {
-                    c[cBase + jj] = fma(av, b[bBase + jj], c[cBase + jj]);
-                }
+                s = fma(a[a0 + l], b[l * n + j], s);
             }
+            c[c0 + j] = s;
         }
     }
 

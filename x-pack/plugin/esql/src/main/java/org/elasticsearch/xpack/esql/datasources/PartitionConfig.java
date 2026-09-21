@@ -44,15 +44,54 @@ public record PartitionConfig(Strategy strategy, @Nullable String pathTemplate) 
     public static final String CONFIG_PARTITIONING_DETECTION = "partition_detection";
     public static final String CONFIG_PARTITIONING_PATH = "partition_path";
     public static final String CONFIG_PARTITIONING_HIVE = "hive_partitioning";
+    public static final String CONFIG_PARTITION_SAMPLE_SIZE = "partition_sample_size";
+
+    /** Keys visited when a listing only has to answer a schema. One {@code ListObjectsV2} page. */
+    public static final int DEFAULT_PARTITION_SAMPLE_SIZE = 1_000;
+    private static final int PARTITION_SAMPLE_SIZE_MAX = 10_000_000;
 
     /**
      * Keys accepted by the dataset CRUD path. {@code hive_partitioning} is kept here so existing PUT requests
      * and stored datasets are not rejected as unknown settings; it is a deprecated no-op and {@link #fromConfig}
      * does not read it.
      */
-    public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_PARTITIONING_DETECTION, CONFIG_PARTITIONING_PATH, CONFIG_PARTITIONING_HIVE);
+    public static final Set<String> CONFIG_KEYS = Set.of(
+        CONFIG_PARTITIONING_DETECTION,
+        CONFIG_PARTITIONING_PATH,
+        CONFIG_PARTITIONING_HIVE,
+        CONFIG_PARTITION_SAMPLE_SIZE
+    );
 
     public static final PartitionConfig DEFAULT = new PartitionConfig(Strategy.AUTO, null);
+
+    /**
+     * How many keys a listing visits when it only has to answer a schema, which is the number of paths partition
+     * columns are derived from. It sits beside {@code partition_detection} because partition columns are the only
+     * part of a schema it can change: the file a schema is otherwise read from is the first key listed, and a
+     * bounded listing keeps a prefix in listing order, so that file is the same one either way.
+     * <p>
+     * Named for sampling in the same sense {@code schema_sample_size} is — a deterministic prefix, the first N,
+     * not a random draw. A dataset whose outermost partition values are not all present within this many keys
+     * surfaces the columns it saw; raise it for such a layout.
+     */
+    public static int sampleSize(@Nullable Map<String, Object> config) {
+        Object value = config == null ? null : config.get(CONFIG_PARTITION_SAMPLE_SIZE);
+        if (value == null) {
+            return DEFAULT_PARTITION_SAMPLE_SIZE;
+        }
+        int parsed;
+        try {
+            parsed = Integer.parseInt(value.toString().trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("[" + CONFIG_PARTITION_SAMPLE_SIZE + "] must be a positive integer, got [" + value + "]");
+        }
+        if (parsed < 1 || parsed > PARTITION_SAMPLE_SIZE_MAX) {
+            throw new IllegalArgumentException(
+                "[" + CONFIG_PARTITION_SAMPLE_SIZE + "] must be between 1 and " + PARTITION_SAMPLE_SIZE_MAX + ", got [" + parsed + "]"
+            );
+        }
+        return parsed;
+    }
 
     public PartitionConfig {
         if (strategy == null) {
@@ -121,6 +160,8 @@ public record PartitionConfig(Strategy strategy, @Nullable String pathTemplate) 
         if (config == null || config.isEmpty()) {
             return;
         }
+
+        sampleSize(config);
 
         Object detectionValue = config.get(CONFIG_PARTITIONING_DETECTION);
         Strategy declared;

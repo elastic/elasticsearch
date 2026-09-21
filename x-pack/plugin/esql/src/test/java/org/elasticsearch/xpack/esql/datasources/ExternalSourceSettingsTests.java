@@ -221,11 +221,9 @@ public class ExternalSourceSettingsTests extends ESTestCase {
 
     public void testSettingsListNotEmpty() {
         assertFalse(ExternalSourceSettings.settings().isEmpty());
-        assertEquals(15, ExternalSourceSettings.settings().size());
+        assertEquals(14, ExternalSourceSettings.settings().size());
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_CONCURRENT_REQUESTS));
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_LISTED_OBJECTS));
-        // Registered, or the node rejects the setting the schema-discovery bound is read from.
-        assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.SCHEMA_DISCOVERY_MAX_KEYS));
     }
 
     public void testMaxConcurrentSegmentatorsDefaultDerivesBelowPoolSize() {

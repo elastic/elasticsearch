@@ -340,6 +340,65 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * A declared mapping is the whole schema, so reporting it needs no file. The one file the declared rail opens
+     * is the coercibility check, which exists because a columnar reader emits nulls rather than failing on a
+     * declared type it cannot coerce — a read-time failure. A query that discards every row never performs that
+     * cast, so the read is skipped and the rail costs no files at all.
+     * <p>
+     * Counted rather than inferred: the resolve succeeded before this change too, having quietly paid for a file.
+     */
+    public void testDeclaredSchemaOnlyResolveReadsNoFooter() throws Exception {
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("event_ts", new DatasetFieldMapping("long", null));
+        List<Attribute> fileSchema = List.of(attr("event_ts", DataType.LONG));
+
+        List<StorageEntry> files = new ArrayList<>();
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        Map<String, Long> rowCounts = new HashMap<>();
+        for (int i = 0; i < 4; i++) {
+            String file = "s3://bucket/data/file" + i + ".parquet";
+            files.add(entry(file, 100));
+            schemas.put(file, fileSchema);
+            rowCounts.put(file, 1L);
+        }
+        Map<String, List<StorageEntry>> listings = Map.of(StoragePath.of(DECLARED_GLOB).patternPrefix().toString(), files);
+        ThreeFileStats stats = new ThreeFileStats(schemas, rowCounts);
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+
+        // Two counters, because they catch different things: the format-reader counter sees a footer parse, the
+        // provider counter sees any object opened at all, a length or mtime probe included. "The file is not
+        // touched" is the second one being zero, and only the listing itself remaining.
+        AtomicInteger schemaOnlyReads = new AtomicInteger();
+        CountingStorageProvider schemaOnlyProvider = new CountingStorageProvider(listings, schemas);
+        ExternalSourceResolver schemaOnly = buildStatsResolver(schemaOnlyProvider, stats, schemaOnlyReads, null);
+        assertNotNull(resolveDeclared(schemaOnly, mapping, Set.of(DECLARED_GLOB)).resolvedSource(DECLARED_GLOB));
+        assertEquals("no footer is parsed when no rows are read", 0, schemaOnlyReads.get());
+        assertEquals("and no object is opened at all", 0, schemaOnlyProvider.schemaCallCount.get());
+        assertEquals("the listing itself still happens, once", 1, schemaOnlyProvider.listCallCount.get());
+
+        // The control, and the half that must not regress: a query that reads rows still opens the anchor, because
+        // that is where the silent-null cast this guards would happen.
+        AtomicInteger readingReads = new AtomicInteger();
+        ExternalSourceResolver reading = buildStatsResolver(new StubStorageProvider(listings, schemas), stats, readingReads, null);
+        assertNotNull(resolveDeclared(reading, mapping, Set.of()).resolvedSource(DECLARED_GLOB));
+        assertThat("a query that reads rows still validates the declaration", readingReads.get(), greaterThan(0));
+    }
+
+    private ExternalSourceResolution resolveDeclared(ExternalSourceResolver resolver, DatasetMapping mapping, Set<String> noRowPaths) {
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(
+            List.of(DECLARED_GLOB),
+            Map.of(DECLARED_GLOB, new HashMap<>()),
+            null,
+            Map.of(DECLARED_GLOB, mapping),
+            Set.of(),
+            noRowPaths,
+            future
+        );
+        return future.actionGet();
+    }
+
+    /**
      * A bounded listing's file count is the files seen within the bound, not the dataset's total, so it must be
      * marked partial. The declared rail is the one a declared mapping takes and the case a bound most often
      * applies to, and it builds its metadata separately from the inferred rail — so the marking has to exist on
@@ -2163,10 +2222,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * The bound must come from {@link ExternalSourceSettings#SCHEMA_DISCOVERY_MAX_KEYS}, not from any integer that
-     * happens to share its default. Set it to a value no default could be mistaken for.
+     * The bound must come from the dataset's {@code partition_sample_size}, not from any integer that happens to
+     * share its default. Set it to a value no default could be mistaken for.
      */
-    public void testBoundComesFromTheSchemaDiscoverySetting() throws Exception {
+    public void testBoundComesFromThePartitionSampleSizeSetting() throws Exception {
         int configured = 37;
         List<StorageEntry> listing = new ArrayList<>();
         Map<String, List<Attribute>> schemas = new HashMap<>();
@@ -2178,17 +2237,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
             rowCounts.put(path, 1L);
         }
         ThreeFileStats stats = new ThreeFileStats(schemas, rowCounts);
-        Settings settings = Settings.builder().put(ExternalSourceSettings.SCHEMA_DISCOVERY_MAX_KEYS.getKey(), configured).build();
+        Map<String, Object> config = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+        config.put(PartitionConfig.CONFIG_PARTITION_SAMPLE_SIZE, configured);
 
         StubStorageProvider provider = new StubStorageProvider(Map.of(PREFIX, listing), schemas);
-        ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, null, settings);
+        ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, null);
 
-        ExternalSourceResolution.ResolvedSource resolved = resolveSchemaOnly(
-            resolver,
-            configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS)
-        ).resolvedSource(GLOB);
+        ExternalSourceResolution.ResolvedSource resolved = resolveSchemaOnly(resolver, config).resolvedSource(GLOB);
         assertNotNull(resolved);
-        assertEquals("the bound is whatever the setting says", configured, resolved.fileList().fileCount());
+        assertEquals("the bound is whatever the dataset says", configured, resolved.fileList().fileCount());
         assertTrue(resolved.fileList().isTruncated());
     }
 

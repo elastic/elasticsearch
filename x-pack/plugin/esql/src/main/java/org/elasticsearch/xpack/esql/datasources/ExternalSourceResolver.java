@@ -186,7 +186,6 @@ public class ExternalSourceResolver {
     private final IntSupplier maxDiscoveredFiles;
     private final IntSupplier maxGlobExpansion;
     private final IntSupplier maxListedObjects;
-    private final IntSupplier schemaDiscoveryMaxKeys;
     private final ExternalSourceCacheService cacheService;
     /** Node telemetry sink, taken from the module ({@link ExternalSourceMetrics#NOOP} when no module is wired, e.g. tests). */
     private final ExternalSourceMetrics metrics;
@@ -479,7 +478,6 @@ public class ExternalSourceResolver {
         this.maxDiscoveredFiles = capOrSettings(maxDiscoveredFiles, ExternalSourceSettings.MAX_DISCOVERED_FILES, settings);
         this.maxGlobExpansion = capOrSettings(maxGlobExpansion, ExternalSourceSettings.MAX_GLOB_EXPANSION, settings);
         this.maxListedObjects = capOrSettings(maxListedObjects, ExternalSourceSettings.MAX_LISTED_OBJECTS, settings);
-        this.schemaDiscoveryMaxKeys = capOrSettings(null, ExternalSourceSettings.SCHEMA_DISCOVERY_MAX_KEYS, settings);
         this.cacheService = cacheService;
         this.isCancelled = isCancelled;
         this.metrics = dataSourceModule == null ? ExternalSourceMetrics.NOOP : dataSourceModule.externalSourceMetrics();
@@ -1467,7 +1465,7 @@ public class ExternalSourceResolver {
         if (GlobExpander.hasPartitionPruningHints(hints)) {
             return Integer.MAX_VALUE;
         }
-        return schemaDiscoveryMaxKeys.getAsInt();
+        return PartitionConfig.sampleSize(config);
     }
 
     /**
@@ -3733,7 +3731,23 @@ public class ExternalSourceResolver {
         // Then the columnar coercibility check, which reads the anchor footer — re-check cancellation first, as a wide
         // glob's listing above can be slow (mirrors resolveMultiFileSource's pre-footer re-check).
         throwIfCancelled();
-        rejectStrictColumnarUncoercibleTypes(sourceType, provider, listing.path(0), listing.lastModifiedMillis(0), config, declaredMapping);
+        // Not when nothing will be read. The check exists because a columnar reader meeting a declared type it
+        // cannot coerce emits nulls instead of failing, and it reads a file to catch that before the nulls appear.
+        // A query that discards every row never performs that cast, so the failure it warns about cannot occur in
+        // the query being asked — and the columns returned are the declared ones either way, since this check only
+        // throws and never alters the schema. Every query that reads rows still runs it, which is where the nulls
+        // would otherwise appear. The cost of not skipping is a file read on the one rail whose schema needs no
+        // file at all, which would leave a declared mapping no cheaper to report than an inferred one.
+        if (demand.schemaOnly() == false) {
+            rejectStrictColumnarUncoercibleTypes(
+                sourceType,
+                provider,
+                listing.path(0),
+                listing.lastModifiedMillis(0),
+                config,
+                declaredMapping
+            );
+        }
 
         ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(
             new SimpleSourceMetadata(logicalSchema, sourceType, path),

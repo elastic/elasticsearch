@@ -125,7 +125,7 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
          * ignore_above are restored to their original source order via the offsets sidecar.
          */
         AS_IS_OFFSETS,
-        /** Sort values and remove duplicates. Both SortedSetDocValues and SortedBinaryDocValues
+        /** Sort values and remove duplicates. Both SortedSetDocValues and SortableBinaryDocValues
          *  use SORTED_UNIQUE ordering for flattened fields. */
         SORTED_UNIQUE;
 

@@ -1,4 +1,4 @@
-area: "Compute Engine, ES|QL"
+area: ES|QL
 issues: []
 pr: 159928
 summary: Configure remote fetch workers

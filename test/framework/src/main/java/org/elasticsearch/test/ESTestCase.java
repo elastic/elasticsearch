@@ -714,6 +714,24 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    /**
+     * Reads and clears the deprecation warnings currently recorded on the thread context, returning the raw warning
+     * messages. Like {@link #assertWarnings}, this consumes the warnings so a subsequent {@link #ensureNoWarnings()}
+     * passes; it exists for tests that must combine ThreadContext warnings with warnings captured through another
+     * channel before asserting on the union.
+     */
+    protected final List<String> takeResponseWarnings() {
+        try {
+            return threadContext.getResponseHeaders()
+                .getOrDefault("Warning", List.of())
+                .stream()
+                .map(w -> HeaderWarning.extractWarningValueFromWarningHeader(w, true))
+                .toList();
+        } finally {
+            resetDeprecationLogger();
+        }
+    }
+
     protected List<String> filteredWarnings() {
         List<String> filtered = new ArrayList<>();
         filtered.add(

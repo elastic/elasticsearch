@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.evaluator.command;
 
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.test.TestBlockFactory;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -20,10 +22,22 @@ import static org.elasticsearch.web.RegisteredDomain.DOMAIN;
 import static org.elasticsearch.web.RegisteredDomain.REGISTERED_DOMAIN;
 import static org.elasticsearch.web.RegisteredDomain.SUBDOMAIN;
 import static org.elasticsearch.web.RegisteredDomain.eTLD;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class RegisteredDomainFunctionBridgeTests extends AbstractCompoundOutputEvaluatorTests {
 
-    private final Warnings WARNINGS = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new WarningSourceLocation() {
+    private final DriverContext warningsContext = new DriverContext(
+        BigArrays.NON_RECYCLING_INSTANCE,
+        TestBlockFactory.getNonBreakingInstance(),
+        null
+    );
+
+    private void assertCollectedWarnings(String... expected) {
+        warningsContext.finish();
+        assertThat(warningsContext.warnings(), containsInAnyOrder(expected));
+    }
+
+    private final Warnings WARNINGS = warningsContext.createWarnings(new WarningSourceLocation() {
         @Override
         public int lineNumber() {
             return 1;
@@ -72,7 +86,7 @@ public class RegisteredDomainFunctionBridgeTests extends AbstractCompoundOutputE
         List<String> input = List.of("www.example.co.uk", "elastic.co", "sub.example.com");
         List<Object[]> expected = Collections.nCopies(requestedFields.size(), new Object[] { null });
         evaluateAndCompare(input, requestedFields, expected, WARNINGS);
-        assertCriticalWarnings(
+        assertCollectedWarnings(
             "Line 1:2: evaluation of [invalid_input] failed, treating result as null. Only first 20 failures recorded.",
             "Line 1:2: java.lang.IllegalArgumentException: This command doesn't support multi-value input"
         );

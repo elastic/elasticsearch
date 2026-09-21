@@ -38,9 +38,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecSpatialShapesIT
   method: test {csv-spec:spatial_shapes.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/144672
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:spatial_shapes.convertFromStringParseError}
-  issue: https://github.com/elastic/elasticsearch/issues/145655
 - class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
   method: testScaleWhileShrinking
   issue: https://github.com/elastic/elasticsearch/issues/145669
@@ -183,12 +180,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContextTests
   method: testNullClusterUuidDoesNotNpe
   issue: https://github.com/elastic/elasticsearch/issues/150887
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecTopNIT
-  method: test {csv-spec:topN.topNLongRangeWildcardSort}
-  issue: https://github.com/elastic/elasticsearch/issues/150874
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecTopNIT
-  method: test {csv-spec:topN.topNLongRangeWildcardSort}
-  issue: https://github.com/elastic/elasticsearch/issues/150874
 - class: org.elasticsearch.xpack.stateless.cluster.coordination.TransportConsistentClusterStateReadIT
   method: testWaitsUntilTheNodeRejoinsTheClusterToReturnAValidClusterState
   issue: https://github.com/elastic/elasticsearch/issues/151402

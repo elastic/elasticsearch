@@ -109,7 +109,8 @@ class UpdateTransportVersionsCSVFuncTest extends AbstractTransportVersionFuncTes
         """)
         unreferableTransportVersion("initial_9.1.2", "8012003")
         transportVersionUpperBound("9.1", "initial_9.1.2", "8012003")
-        commitAll("finalize-9.1.1")
+        execute("git add .")
+        execute("git commit -m finalize-9.1.1")
 
         when:
         def result = runUpdateTask("--stack-version", "9.1.1").build()

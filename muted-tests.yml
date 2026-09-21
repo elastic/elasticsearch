@@ -675,12 +675,6 @@ tests:
 - class: org.elasticsearch.swisshash.BytesRefSwissHashPartitionTests
   method: testPartitionPaged
   issue: https://github.com/elastic/elasticsearch/issues/159303
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search/400_columnar_default_field/field-less query over a numeric and a keyword field in columnar mode}
-  issue: https://github.com/elastic/elasticsearch/issues/159306
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search/400_columnar_default_field/query_string is lenient about unparseable literals in columnar mode}
-  issue: https://github.com/elastic/elasticsearch/issues/159307
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecStringIT
   method: test {csv-spec:string.base64DecodeMixedMvExpandSort}
   issue: https://github.com/elastic/elasticsearch/issues/159359
@@ -846,3 +840,12 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/156789
 - class: org.elasticsearch.xpack.enrich.action.TransportGetEnrichPolicyActionTests
   issue: https://github.com/elastic/elasticsearch/issues/159896
+- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
+  method: testPreferredNodeIdsAreUsedDuringRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/159502
+- class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
+  method: testVirtualBatchedCompoundCommitUploadMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/159904
+- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusLogsdbFieldLevelSecurityChallengeRestIT
+  method: testEsqlSource
+  issue: https://github.com/elastic/elasticsearch/issues/159906

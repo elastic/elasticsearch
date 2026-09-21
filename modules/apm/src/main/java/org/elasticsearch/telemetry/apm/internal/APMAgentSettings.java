@@ -18,8 +18,8 @@ import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
 import java.util.List;
+import java.util.Set;
 
-import static org.elasticsearch.common.settings.Setting.Property.DeprecatedWarning;
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 import static org.elasticsearch.common.settings.Setting.Property.OperatorDynamic;
 
@@ -53,14 +53,153 @@ public class APMAgentSettings {
     private static final String TELEMETRY_SETTING_PREFIX = "telemetry.";
 
     /**
-     * Configuration of the removed Elastic APM Java agent. Accepted but ignored, so that a node carrying agent
-     * configuration keeps starting. Some keys are still read as defaults for their replacements in
-     * {@link OtelSdkSettings}.
+     * Allow-list of APM agent config keys users are permitted to configure.
+     * <p><b>WARNING</b>: Make sure to update the module entitlements if permitting additional agent keys
+     * </p>
+     * @see <a href="https://www.elastic.co/guide/en/apm/agent/java/current/configuration.html">APM Java Agent Configuration</a>
      */
+    public static final Set<String> PERMITTED_AGENT_KEYS = Set.of(
+        // Circuit-Breaker:
+        "circuit_breaker_enabled",
+        "stress_monitoring_interval",
+        "stress_monitor_gc_stress_threshold",
+        "stress_monitor_gc_relief_threshold",
+        "stress_monitor_cpu_duration_threshold",
+        "stress_monitor_system_cpu_stress_threshold",
+        "stress_monitor_system_cpu_relief_threshold",
+
+        // Core:
+        // forbid 'enabled', must remain enabled to dynamically enable tracing / metrics
+        // forbid 'recording', controlled by 'telemetry.metrics.enabled' / 'telemetry.tracing.enabled'
+        // forbid 'instrument', automatic instrumentation can cause issues
+        "service_name",
+        "service_node_name",
+        // forbid 'service_version', forced by APMJvmOptions
+        "hostname",
+        "environment",
+        "transaction_sample_rate",
+        "transaction_max_spans",
+        "long_field_max_length",
+        "sanitize_field_names",
+        "enable_instrumentations",
+        "disable_instrumentations",
+        // forbid 'enable_experimental_instrumentations', expected to be always enabled by APMJvmOptions
+        "unnest_exceptions",
+        "ignore_exceptions",
+        "capture_body",
+        "capture_headers",
+        "global_labels",
+        "instrument_ancient_bytecode",
+        "context_propagation_only",
+        "classes_excluded_from_instrumentation",
+        "trace_methods",
+        "trace_methods_duration_threshold",
+        // forbid 'central_config', may impact usage of config_file, disabled in APMJvmOptions
+        // forbid 'config_file', configured by APMJvmOptions
+        "breakdown_metrics",
+        "plugins_dir",
+        "use_elastic_traceparent_header",
+        "disable_outgoing_tracecontext_headers",
+        "span_min_duration",
+        "cloud_provider",
+        "enable_public_api_annotation_inheritance",
+        "transaction_name_groups",
+        "trace_continuation_strategy",
+        "baggage_to_attach",
+
+        // Datastore: irrelevant, not whitelisted
+
+        // HTTP:
+        "capture_body_content_types",
+        "transaction_ignore_urls",
+        "transaction_ignore_user_agents",
+        "use_path_as_transaction_name",
+        // forbid deprecated url_groups
+
+        // Huge Traces:
+        "span_compression_enabled",
+        "span_compression_exact_match_max_duration",
+        "span_compression_same_kind_max_duration",
+        "exit_span_min_duration",
+
+        // JAX-RS: irrelevant, not whitelisted
+
+        // JMX:
+        "capture_jmx_metrics",
+
+        // Logging:
+        "log_level", // allow overriding the default in APMJvmOptions
+        // forbid log_file, always set by APMJvmOptions
+        "log_ecs_reformatting",
+        "log_ecs_reformatting_additional_fields",
+        "log_ecs_formatter_allow_list",
+        // forbid log_ecs_reformatting_dir, always use logsDir provided in APMJvmOptions
+        "log_file_size",
+        // forbid log_format_sout, always use file logging
+        // forbid log_format_file, expected to be JSON in APMJvmOptions
+        "log_sending",
+
+        // Messaging: irrelevant, not whitelisted
+
+        // Metrics:
+        "dedot_custom_metrics",
+        "custom_metrics_histogram_boundaries",
+        "metric_set_limit",
+        "agent_reporter_health_metrics",
+        "agent_background_overhead_metrics",
+
+        // Profiling:
+        "profiling_inferred_spans_enabled",
+        "profiling_inferred_spans_logging_enabled",
+        "profiling_inferred_spans_sampling_interval",
+        "profiling_inferred_spans_min_duration",
+        "profiling_inferred_spans_included_classes",
+        "profiling_inferred_spans_excluded_classes",
+        "profiling_inferred_spans_lib_directory",
+
+        // Reporter:
+        // forbid secret_token: use telemetry.secret_token instead
+        // forbid api_key: use telemetry.api_key instead
+        "server_url",
+        "server_urls",
+        "disable_send",
+        "server_timeout",
+        "verify_server_cert",
+        "max_queue_size",
+        "include_process_args",
+        "api_request_time",
+        "api_request_size",
+        "metrics_interval",
+        "disable_metrics",
+
+        // Serverless:
+        "aws_lambda_handler",
+        "data_flush_timeout",
+
+        // Stacktraces:
+        "application_packages",
+        "stack_trace_limit",
+        "span_stack_trace_min_duration"
+    );
+
+    private static Setting<String> concreteAgentSetting(String namespace, String qualifiedKey, Setting.Property... properties) {
+        return new Setting<>(qualifiedKey, "", (value) -> {
+            if (qualifiedKey.equals("_na_") == false && PERMITTED_AGENT_KEYS.contains(namespace) == false) {
+                if (namespace.startsWith("global_labels.")) {
+                    // Invalid agent setting, leftover from flattening global labels in APMJVMOptions
+                    // https://github.com/elastic/elasticsearch/issues/120791
+                    return value;
+                }
+                throw new IllegalArgumentException("Configuration [" + qualifiedKey + "] is either prohibited or unknown.");
+            }
+            return value;
+        }, properties);
+    }
+
     public static final Setting.AffixSetting<String> APM_AGENT_SETTINGS = Setting.prefixKeySetting(
         TELEMETRY_SETTING_PREFIX + "agent.",
         null, // no fallback
-        (namespace, qualifiedKey) -> Setting.simpleString(qualifiedKey, NodeScope, OperatorDynamic, DeprecatedWarning)
+        (namespace, qualifiedKey) -> concreteAgentSetting(namespace, qualifiedKey, NodeScope, OperatorDynamic)
     );
 
     public static final Setting<List<String>> TELEMETRY_TRACING_NAMES_INCLUDE_SETTING = Setting.stringListSetting(

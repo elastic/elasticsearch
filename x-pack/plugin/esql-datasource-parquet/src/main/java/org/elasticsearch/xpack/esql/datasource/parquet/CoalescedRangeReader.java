@@ -214,22 +214,18 @@ final class CoalescedRangeReader {
                             }
                         } catch (Throwable t) {
                             Exception e = t instanceof Exception ex ? ex : new ElasticsearchException(t);
-                            if (firstFailure.compareAndSet(null, e) == false) {
-                                firstFailure.get().addSuppressed(e);
-                            }
+                            recordFailure(firstFailure, e, inflight);
                         } finally {
                             complete(remaining, firstFailure, buffers, results, listener);
                         }
                     });
                 } catch (Exception e) {
-                    if (firstFailure.compareAndSet(null, e) == false) {
-                        firstFailure.get().addSuppressed(e);
-                    }
+                    recordFailure(firstFailure, e, inflight);
                     complete(remaining, firstFailure, buffers, results, listener);
                 }
                 continue;
             }
-            inflight.add(storageObject.startReadBytesAsync(mr.offset, mr.length, factory, executor, new ActionListener<>() {
+            Releasable handle = storageObject.startReadBytesAsync(mr.offset, mr.length, factory, executor, new ActionListener<>() {
                 @Override
                 public void onResponse(DirectReadBuffer result) {
                     try {
@@ -248,9 +244,7 @@ final class CoalescedRangeReader {
                         // delivered: with the finally below already calling complete(), letting an Error
                         // through instead would deliver a spurious success with truncated slices.
                         Exception e = t instanceof Exception ex ? ex : new ElasticsearchException(t);
-                        if (firstFailure.compareAndSet(null, e) == false) {
-                            firstFailure.get().addSuppressed(e);
-                        }
+                        recordFailure(firstFailure, e, inflight);
                     } finally {
                         complete(remaining, firstFailure, buffers, results, listener);
                     }
@@ -260,13 +254,19 @@ final class CoalescedRangeReader {
                 public void onFailure(Exception e) {
                     // The backend has already released its buffer on the failure path; nothing
                     // to clean up for this merged range. Siblings that succeeded are released by
-                    // complete() below.
-                    if (firstFailure.compareAndSet(null, e) == false) {
-                        firstFailure.get().addSuppressed(e);
-                    }
+                    // complete() below. The first failure also closes remaining inflight handles so
+                    // sibling GETs do not keep Netty slots and storage permits until they finish.
+                    recordFailure(firstFailure, e, inflight);
                     complete(remaining, firstFailure, buffers, results, listener);
                 }
-            }));
+            });
+            inflight.add(handle);
+            if (firstFailure.get() != null) {
+                // This GET was started after a sibling already failed (typically a synchronous
+                // onFailure from an earlier startReadBytesAsync). Close its handle now: the CAS
+                // abort above ran before this handle was added to inflight.
+                closeQuietly(handle);
+            }
         }
         return () -> Releasables.close(inflight);
     }
@@ -388,6 +388,38 @@ final class CoalescedRangeReader {
             slice.position(relativeOffset);
             slice.limit(relativeOffset + (int) original.length());
             results.put(original, slice.slice());
+        }
+    }
+
+    // CAS winner closes remaining inflight GET handles; the batch cannot succeed after firstFailure.
+    private static void recordFailure(AtomicReference<Exception> firstFailure, Exception e, List<Releasable> inflight) {
+        if (firstFailure.compareAndSet(null, e)) {
+            try {
+                abortInflight(inflight);
+            } catch (RuntimeException abortFailure) {
+                e.addSuppressed(abortFailure);
+            }
+        } else {
+            Exception first = firstFailure.get();
+            if (first != null && first != e) {
+                first.addSuppressed(e);
+            }
+        }
+    }
+
+    private static void abortInflight(List<Releasable> inflight) {
+        final Releasable[] handles;
+        synchronized (inflight) {
+            handles = inflight.toArray(Releasable[]::new);
+        }
+        Releasables.close(handles);
+    }
+
+    private static void closeQuietly(Releasable handle) {
+        try {
+            handle.close();
+        } catch (RuntimeException ignored) {
+            // Same as abortInflight: cancel of a just-started handle must not hide firstFailure.
         }
     }
 

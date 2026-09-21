@@ -104,6 +104,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -789,7 +790,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             allowPartialSearchResults
         );
         rewriteContext.setParentTask(new TaskId(clusterService.localNode().getId(), task.getId()));
-        Rewriteable.rewriteAndFetch(original, rewriteContext, threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION), rewriteListener);
+        // fail as soon as the search is cancelled, without waiting for the async actions of the rewrite to complete
+        final SubscribableListener<SearchRequest> rewriteResult = new SubscribableListener<>();
+        task.addListener(() -> rewriteResult.onFailure(new TaskCancelledException(task.getReasonCancelled())));
+        rewriteResult.addListener(rewriteListener, threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION), null);
+        Rewriteable.rewriteAndFetch(original, rewriteContext, EsExecutors.DIRECT_EXECUTOR_SERVICE, rewriteResult);
     }
 
     /**

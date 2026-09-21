@@ -59,7 +59,8 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * Async actions registered during the coordinator rewrite of a search (fetching a query vector, running query-time
  * inference, looking up terms...) must be child tasks of the search task, so that cancelling the search, for instance
- * because its HTTP client disconnected, also cancels the work they started.
+ * because its HTTP client disconnected, also cancels the work they started. The cancelled search fails without waiting
+ * for that work to complete.
  */
 public class SearchRewriteAsyncActionCancellationIT extends ESIntegTestCase {
 
@@ -67,6 +68,7 @@ public class SearchRewriteAsyncActionCancellationIT extends ESIntegTestCase {
 
     private static volatile CountDownLatch blockingActionStarted;
     private static final AtomicBoolean blockingActionCancelled = new AtomicBoolean();
+    private static volatile boolean completeOnCancellation;
     private static final AtomicReference<ActionListener<ActionResponse.Empty>> blockedListener = new AtomicReference<>();
 
     @Override
@@ -79,6 +81,7 @@ public class SearchRewriteAsyncActionCancellationIT extends ESIntegTestCase {
         blockingActionStarted = new CountDownLatch(1);
         blockingActionCancelled.set(false);
         blockedListener.set(null);
+        completeOnCancellation = true;
     }
 
     @After
@@ -112,6 +115,25 @@ public class SearchRewriteAsyncActionCancellationIT extends ESIntegTestCase {
 
         Exception e = expectThrows(Exception.class, future::actionGet);
         assertThat(ExceptionsHelper.unwrap(e, TaskCancelledException.class), notNullValue());
+    }
+
+    public void testCancelledSearchDoesNotWaitForRewriteAsyncAction() throws Exception {
+        createIndex(INDEX);
+        indexDoc(INDEX, "1", "field", "value");
+        refresh(INDEX);
+        completeOnCancellation = false;
+
+        SearchRequest request = new SearchRequest(INDEX).source(new SearchSourceBuilder().retriever(new BlockingRetrieverBuilder()));
+        ActionFuture<SearchResponse> future = client().search(request);
+        safeAwait(blockingActionStarted);
+
+        List<TaskInfo> searchTasks = clusterAdmin().prepareListTasks().setActions(TransportSearchAction.TYPE.name()).get().getTasks();
+        assertThat(searchTasks, hasSize(1));
+        clusterAdmin().prepareCancelTasks().setTargetTaskId(searchTasks.get(0).taskId()).get();
+
+        Exception e = expectThrows(Exception.class, () -> future.actionGet(SAFE_AWAIT_TIMEOUT));
+        assertThat(ExceptionsHelper.unwrap(e, TaskCancelledException.class), notNullValue());
+        assertThat("the async action is still running", blockedListener.get(), notNullValue());
     }
 
     /**
@@ -173,7 +195,7 @@ public class SearchRewriteAsyncActionCancellationIT extends ESIntegTestCase {
     }
 
     /**
-     * A cancellable action that only completes once its task is cancelled.
+     * A cancellable action that only completes once its task is cancelled, or never when {@link #completeOnCancellation} is false.
      */
     public static class BlockingAction extends ActionType<ActionResponse.Empty> {
         static final String NAME = "internal:test/search/rewrite/blocking";
@@ -213,6 +235,9 @@ public class SearchRewriteAsyncActionCancellationIT extends ESIntegTestCase {
             CancellableTask cancellableTask = (CancellableTask) task;
             blockedListener.set(listener);
             cancellableTask.addListener(() -> {
+                if (completeOnCancellation == false) {
+                    return;
+                }
                 ActionListener<ActionResponse.Empty> blocked = blockedListener.getAndSet(null);
                 if (blocked != null) {
                     blockingActionCancelled.set(true);

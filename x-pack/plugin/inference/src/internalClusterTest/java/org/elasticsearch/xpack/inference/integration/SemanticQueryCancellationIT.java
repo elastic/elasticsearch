@@ -109,11 +109,10 @@ public class SemanticQueryCancellationIT extends ESIntegTestCase {
         assertThat(inferenceParent.get(), equalTo(inferenceTask.taskId()));
 
         clusterAdmin().prepareCancelTasks().setTargetTaskId(searchTask.taskId()).get();
-        assertBusy(() -> assertTrue(singleTask(InferenceAction.NAME).cancelled()));
 
-        heldInference.getAndSet(null).run();
         Exception e = expectThrows(Exception.class, () -> future.actionGet(SAFE_AWAIT_TIMEOUT));
         assertThat(ExceptionsHelper.unwrap(e, TaskCancelledException.class), notNullValue());
+        assertBusy(() -> assertTrue(singleTask(InferenceAction.NAME).cancelled()));
     }
 
     private static TaskInfo singleTask(String action) {

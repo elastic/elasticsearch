@@ -64,7 +64,7 @@ final class ModelLoaderUtils {
     public static String MODEL_FILE_EXTENSION = ".pt";
 
     // Number of times the remaining byte range is re-requested after a transient IOException
-    static final int MAX_RETRIES = 2;
+    static final int MAX_RETRIES = 3;
 
     private static ByteSizeValue VOCABULARY_SIZE_LIMIT = new ByteSizeValue(20, ByteSizeUnit.MB);
     private static final String VOCABULARY = "vocabulary";

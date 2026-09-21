@@ -1,11 +1,4 @@
 ---
-teardown:
-  - do:
-      indices.delete:
-        index: disk_readonly_index
-        ignore: 404
-
----
 "Green disk health on a healthy cluster":
   - requires:
       cluster_features: "gte_v8.7.0"

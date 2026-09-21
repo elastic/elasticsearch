@@ -17,12 +17,6 @@ tests:
 - class: org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityAggregatorTests
   method: testSimple
   issue: https://github.com/elastic/elasticsearch/issues/142408
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test {feature:METRICS}
-  issue: https://github.com/elastic/elasticsearch/issues/155496
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test {feature:METRICS}
-  issue: https://github.com/elastic/elasticsearch/issues/155496
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecUnmappedLoadIT
   method: test {csv-spec:unmapped-load.loadUnmappedFieldsMultiIndexForkWithMvExpand}
   issue: https://github.com/elastic/elasticsearch/issues/155505
@@ -799,3 +793,42 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.HeterogeneousRelationClassIT
   method: testWildcardMatchingBothAnswersPerLeaf
   issue: https://github.com/elastic/elasticsearch/issues/159801
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForkBucketIncludeEmptyBucketsIT
+  method: test {csv-spec:bucket_include_empty_buckets.Large number of buckets doesn't OOM - stats}
+  issue: https://github.com/elastic/elasticsearch/issues/158639
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForkBucketIncludeEmptyBucketsIT
+  method: test {csv-spec:bucket_include_empty_buckets.No empty buckets}
+  issue: https://github.com/elastic/elasticsearch/issues/159812
+- class: org.elasticsearch.compute.aggregation.BytesRefArrayStatePartitionTests
+  method: testPagedRoundTrip
+  issue: https://github.com/elastic/elasticsearch/issues/159813
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:prometheus-k8s-increase.increase_of_double_no_grouping_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/159814
+- class: org.elasticsearch.xpack.esql.parser.LookupJoinParserTests
+  method: testValidJoinPatternWithRemoteExpressionJoin
+  issue: https://github.com/elastic/elasticsearch/issues/159818
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test {feature:METRICS}
+  issue: https://github.com/elastic/elasticsearch/issues/159827
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test {feature:METRICS}
+  issue: https://github.com/elastic/elasticsearch/issues/159827
+- class: org.elasticsearch.xpack.security.transport.CrossClusterSigningConfigReloaderIntegTests
+  method: testAddSecureSettingsConfigRuntime
+  issue: https://github.com/elastic/elasticsearch/issues/159808
+- class: org.elasticsearch.xpack.security.transport.CrossClusterSigningConfigReloaderIntegTests
+  method: testInitialBadDependentFileAvailableAfterUpdate
+  issue: https://github.com/elastic/elasticsearch/issues/159809
+- class: org.elasticsearch.xpack.security.transport.CrossClusterSigningConfigReloaderIntegTests
+  method: testAddAndRemoveClusterConfigsRuntime
+  issue: https://github.com/elastic/elasticsearch/issues/159837
+- class: org.elasticsearch.xpack.security.transport.CrossClusterSigningConfigReloaderIntegTests
+  method: testDependentKeyConfigFilesUpdated
+  issue: https://github.com/elastic/elasticsearch/issues/159838
+- class: org.elasticsearch.xpack.stateless.engine.StatelessLiveVersionMapTests
+  method: testLiveVersionMapMemoryUsed
+  issue: https://github.com/elastic/elasticsearch/issues/159839
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification multiple indexes}
+  issue: https://github.com/elastic/elasticsearch/issues/159842

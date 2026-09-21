@@ -32,8 +32,8 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
-import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingArrayOrderBinaryDocValues;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 
@@ -218,9 +218,9 @@ abstract class BinaryDvConfirmedQuery extends Query {
                     public Scorer get(long leadCost) throws IOException {
                         // Checkpoint before opening the binary doc values reader for this surviving clause/segment pair.
                         ContextIndexSearcher.checkBinaryDvDecodeBreaker(breaker);
-                        final SortedBinaryDocValues values = arrayOrder
+                        final SortableBinaryDocValues values = arrayOrder
                             ? SortingArrayOrderBinaryDocValues.from(context.reader(), field)
-                            : MultiValuedSortedBinaryDocValues.fromMultiValued(context.reader(), field);
+                            : MultiValuedSortableBinaryDocValues.fromMultiValued(context.reader(), field);
                         final Scorer approxScorer = approxScorerSupplier.get(leadCost);
                         final DocIdSetIterator approxDisi = approxScorer.iterator();
                         final TwoPhaseIterator twoPhase = new TwoPhaseIterator(approxDisi) {
@@ -283,7 +283,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
     }
 
     interface BinaryDVMatcher {
-        boolean matchesBinaryDV(SortedBinaryDocValues values) throws IOException;
+        boolean matchesBinaryDV(SortableBinaryDocValues values) throws IOException;
     }
 
     private static class BinaryDvConfirmedAutomatonQuery extends BinaryDvConfirmedQuery {

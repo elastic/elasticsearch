@@ -22,9 +22,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -66,8 +68,23 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         }
         for (int i = 0; i < numSearches; i++) {
             try {
-                responses[i].get().decRef();
-            } catch (Exception t) {}
+                responses[i].get(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS).decRef();
+            } catch (ExecutionException e) {
+                // Losing a search to the saturated queue is the scenario under test
+            } catch (TimeoutException e) {
+                throw new AssertionError(
+                    "search ["
+                        + i
+                        + "] of ["
+                        + numSearches
+                        + "] with type ["
+                        + searchType
+                        + "] did not complete within ["
+                        + SAFE_AWAIT_TIMEOUT
+                        + "]; a shard response was likely never accounted for on the coordinator",
+                    e
+                );
+            }
         }
         assertBusyOpenContexts("test", 0L);
     }

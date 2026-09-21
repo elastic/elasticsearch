@@ -139,8 +139,16 @@ final class ReplaceConstantOrdinalEvaluator implements ExpressionEvaluator {
         }
     }
 
-    // Rows to sample before giving up on a mostly-distinct page.
-    static final int MIN_SAMPLE_BEFORE_DISABLING = 64;
+    // Rows to sample before giving up on a mostly-distinct page. A small sample systematically
+    // overestimates the page's true distinct ratio (each new row is less likely to be "new" the more
+    // rows you've already seen), so this needs to be large enough for the ratio to have converged
+    // close to its page-wide value before it's trusted.
+    static final int MIN_SAMPLE_BEFORE_DISABLING = 512;
+    // Give up only once the sampled distinct ratio reaches this fraction (numerator/denominator), not
+    // merely "more distinct than repeated". Moderately-repetitive data (e.g. ~50% distinct) still
+    // benefits from caching; only near-fully-unique data (>= 80% distinct here) doesn't.
+    static final int GIVEUP_DISTINCT_RATIO_NUM = 4;
+    static final int GIVEUP_DISTINCT_RATIO_DEN = 5;
 
     /**
      * Per-row fallback: used when the input isn't a dense, single-valued {@link OrdinalBytesRefBlock}
@@ -204,7 +212,8 @@ final class ReplaceConstantOrdinalEvaluator implements ExpressionEvaluator {
                             cache = new HashMap<>();
                         }
                         cache.put(BytesRef.deepCopyOf(cur), BytesRef.deepCopyOf(replaced));
-                        if (rowsSeen >= MIN_SAMPLE_BEFORE_DISABLING && cache.size() * 2 >= rowsSeen) {
+                        if (rowsSeen >= MIN_SAMPLE_BEFORE_DISABLING
+                            && cache.size() * GIVEUP_DISTINCT_RATIO_DEN >= rowsSeen * GIVEUP_DISTINCT_RATIO_NUM) {
                             cacheEnabled = false; // mostly distinct: give up for the rest of this page
                         }
                     }

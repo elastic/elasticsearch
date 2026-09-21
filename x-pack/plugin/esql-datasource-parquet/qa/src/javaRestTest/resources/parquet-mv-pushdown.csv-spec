@@ -204,3 +204,94 @@ emp_no:integer
 10012
 10016
 ;
+
+// A list-valued bound is not a scalar bound, and neither path may treat it as one. Over a keyword column the
+// bound used to be rendered as its list literal, "[zzz]", which sorts below every lowercase value, so the
+// predicate dropped rows that match. Over a numeric column the same bound reached the numeric builder and threw.
+// The values here are lowercase on purpose: "[" sorts below them, so a bound rendered that way removes them all.
+
+listValuedKeywordBoundKeepsEveryMatchingRow
+required_capability: dataset_in_from_command
+required_capability: external_source_nested_struct_projection
+required_capability: fn_mv_less
+dataset: mv_nested_kw: "{{nested_events}}"
+
+FROM mv_nested_kw
+| WHERE mv_less(event.action, ["zzz"])
+| KEEP id, event.action
+| SORT id ASC;
+
+id:integer | event.action:keyword
+1          | "login"
+2          | "logout"
+4          | "login"
+5          | "read"
+;
+
+scalarBoundKeepsEveryMatchingRow
+required_capability: dataset_in_from_command
+required_capability: external_source_nested_struct_projection
+required_capability: fn_mv_less
+dataset: mv_nested_kw_scalar: "{{nested_events}}"
+
+FROM mv_nested_kw_scalar
+| WHERE mv_less(event.action, "zzz")
+| KEEP id, event.action
+| SORT id ASC;
+
+id:integer | event.action:keyword
+1          | "login"
+2          | "logout"
+4          | "login"
+5          | "read"
+;
+
+listValuedNumericBoundBesideAScalarConjunct
+required_capability: external_command
+required_capability: fn_mv_in_range
+dataset: mv_list_bound_num: "{{employees}}"
+
+FROM mv_list_bound_num
+| WHERE mv_in_range(emp_no, [10001], 10005) AND salary > 57000
+| KEEP emp_no, salary
+| SORT emp_no ASC;
+
+emp_no:integer | salary:integer
+10001          | 57305
+10003          | 61805
+10005          | 63528
+;
+
+notOverAnExclusiveMvInRangeKeepsTheBoundaryRows
+required_capability: external_command
+required_capability: fn_mv_in_range
+dataset: mv_not_exclusive: "{{employees}}"
+
+FROM mv_not_exclusive
+| WHERE emp_no <= 10005 AND NOT mv_in_range(emp_no, 10002, 10004, {"include_lower": false, "include_upper": false})
+| KEEP emp_no
+| SORT emp_no ASC;
+
+emp_no:integer
+10001
+10002
+10004
+10005
+;
+
+notOverAnExclusiveScalarRangeKeepsTheBoundaryRows
+required_capability: external_command
+dataset: mv_not_exclusive_scalar: "{{employees}}"
+
+FROM mv_not_exclusive_scalar
+| WHERE emp_no <= 10005 AND NOT (emp_no > 10002 AND emp_no < 10004)
+| KEEP emp_no
+| SORT emp_no ASC;
+
+emp_no:integer
+10001
+10002
+10004
+10005
+;
+

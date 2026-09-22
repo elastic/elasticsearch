@@ -227,6 +227,9 @@ public class CollectionUtils {
         return deepCopyInternal(value, a.mask | b.mask);
     }
 
+    // note: in the future, three option or varargs methods can be added -- with only two possible options at present
+    // it's simple enough to just iterate the 0, 1, and 2 options. :shrug:
+
     @SuppressWarnings("unchecked")
     private static <T> T deepCopyInternal(T value, int options) {
         final boolean unmodifiable = (options & DeepCopyOption.UNMODIFIABLE.mask) != 0;

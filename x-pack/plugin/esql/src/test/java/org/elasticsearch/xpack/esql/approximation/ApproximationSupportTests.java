@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SumSerializati
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.UnaryAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTime;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
@@ -268,6 +269,7 @@ public class ApproximationSupportTests extends ESTestCase {
         NumericAggregate.class,
         TimeSeriesAggregateFunction.class,
         SpatialAggregateFunction.class,
+        UnaryAggregateFunction.class,
 
         // These aggs don't occur in a correct query.
         SumSerializationTests.OldSum.class,

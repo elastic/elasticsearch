@@ -9,7 +9,6 @@
 
 package org.elasticsearch.columnar.string;
 
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -102,37 +101,28 @@ public final class StringColumnWriter {
         final StringColumnOptions.Sizes sizes = options.sizes();
         final int valuesPerBlock = sizes.valuesPerBlock();
 
-        final int numDocsWithField;
-        final long numValues;
-        final long numNullSlots;
-        if (totals != null) {
-            numDocsWithField = totals.numDocsWithField();
-            numValues = totals.numValues();
-            numNullSlots = totals.numNullSlots();
-        } else {
-            // Totals not recorded: count in one pass, then the value pass starts from a fresh cursor.
-            int docs = 0;
-            long vals = 0;
-            long nulls = 0;
-            final StringColumnValues counter = cursors.get();
-            for (int doc = counter.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = counter.nextDoc()) {
-                docs++;
-                vals += counter.valueCount();
-                nulls += counter.nullCount();
+        // When either totals are unknown or a survey is needed, one census walk collects both.
+        final boolean needsSurvey = policy.enabled() && known == null;
+        StringColumnValues.Totals resolvedTotals = totals;
+        // When the policy is disabled, no survey was done and no vocabulary should be applied.
+        Vocabulary.Terms surveyed = policy.enabled() ? known : null;
+        if (StringCensus.needed(totals, known, policy)) {
+            final StringCensus census = new StringCensus(needsSurvey, policy);
+            census.walk(cursors.get());
+            if (resolvedTotals == null) {
+                resolvedTotals = census.totals();
             }
-            numDocsWithField = docs;
-            numValues = vals;
-            numNullSlots = nulls;
+            if (needsSurvey) {
+                surveyed = census.terms();
+            }
         }
+
+        final int numDocsWithField = resolvedTotals.numDocsWithField();
+        final long numValues = resolvedTotals.numValues();
+        final long numNullSlots = resolvedTotals.numNullSlots();
 
         if (numDocsWithField == 0) {
             return StringColumnMetadata.empty(ColumnIteratorMetadata.empty(maxDoc));
-        }
-
-        // Survey if needed. A merge that worked out the vocabulary from recorded summaries does not survey.
-        Vocabulary.Terms surveyed = null;
-        if (policy.enabled()) {
-            surveyed = known != null ? known : Vocabulary.survey(cursors.get(), policy);
         }
 
         // Dictionary path: presence folded into the value pass via DictionaryValuePass.

@@ -49,6 +49,7 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
     private final MappingHints defaultMappingHints;
     private final Map<Hash128, ResourceGroup> resourceGroups = new HashMap<>();
     private final Set<String> ignoredDataPointMessages = new HashSet<>();
+    private final Set<Integer> exemplarDocumentPositions = new HashSet<>();
 
     private int totalDataPoints = 0;
     private int ignoredDataPoints = 0;
@@ -153,6 +154,16 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
     /** Records an exemplar dropped without rejecting its parent data point. */
     public void recordDuplicateExemplar() {
         duplicateExemplars++;
+    }
+
+    /** Records the bulk-item position of an exemplar document for response accounting. */
+    public void recordExemplarDocument(int bulkItemPosition) {
+        exemplarDocumentPositions.add(bulkItemPosition);
+    }
+
+    @Override
+    public boolean isExemplarDocument(int bulkItemPosition) {
+        return exemplarDocumentPositions.contains(bulkItemPosition);
     }
 
     @Override

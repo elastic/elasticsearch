@@ -141,6 +141,10 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
             return "";
         }
 
+        default boolean isExemplarDocument(int bulkItemPosition) {
+            return false;
+        }
+
         /**
          * A simple implementation of ProcessingContext that only tracks the total number of items processed
          * and does not track any ignored items or error messages.
@@ -187,18 +191,23 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         // index -> status -> failure group
         Map<String, Map<RestStatus, FailureGroup>> failureGroups = new HashMap<>();
         int failureStoreRedirects = 0;
+        int exemplarFailureStoreRedirects = 0;
         // If the request is only partially accepted
         // (i.e. when the server accepts only parts of the data and rejects the rest),
         // the server MUST respond with HTTP 200 OK.
         // https://opentelemetry.io/docs/specs/otlp/#partial-success-1
         RestStatus status = RestStatus.OK;
         int failures = 0;
-        for (BulkItemResponse bulkItemResponse : bulkItemResponses.getItems()) {
+        int failedBulkItems = 0;
+        BulkItemResponse[] bulkItems = bulkItemResponses.getItems();
+        for (int i = 0; i < bulkItems.length; i++) {
+            BulkItemResponse bulkItemResponse = bulkItems[i];
             BulkItemResponse.Failure failure = bulkItemResponse.getFailure();
             if (failure != null) {
                 // we're counting each document as one item here
                 // which is an approximation since one document can represent multiple OTLP items
                 failures++;
+                failedBulkItems++;
                 if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
                     // If the server receives more requests than the client is allowed or the server is overloaded,
                     // the server SHOULD respond with HTTP 429 Too Many Requests or HTTP 503 Service Unavailable
@@ -210,11 +219,16 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
                     .computeIfAbsent(failure.getStatus(), k -> new FailureGroup(new AtomicInteger(0), failure.getMessage()));
                 failureGroup.failureCount().incrementAndGet();
             } else if (isFailureStoreRedirect(bulkItemResponse)) {
-                failures++;
-                failureStoreRedirects++;
+                failedBulkItems++;
+                if (context.isExemplarDocument(i)) {
+                    exemplarFailureStoreRedirects++;
+                } else {
+                    failures++;
+                    failureStoreRedirects++;
+                }
             }
         }
-        if (bulkItemResponses.getItems().length == failures) {
+        if (bulkItems.length == failedBulkItems) {
             // all items failed, so we report total items as failures
             failures = context.totalItems();
         }
@@ -237,6 +251,11 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         }
         if (failureStoreRedirects > 0) {
             failureMessageBuilder.append("Redirected ").append(failureStoreRedirects).append(" documents to the failure store.\n");
+        }
+        if (exemplarFailureStoreRedirects > 0) {
+            failureMessageBuilder.append("Redirected ")
+                .append(exemplarFailureStoreRedirects)
+                .append(" exemplar documents to the failure store.\n");
         }
         failureMessageBuilder.append(context.getIgnoredItemsMessage(10));
         failureMessageBuilder.append(context.getWarningMessage());

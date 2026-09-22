@@ -169,6 +169,28 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
         assertThat(parseErrorMessage(responseBytes), equalTo("1 exemplars were dropped due to duplicate timestamps"));
     }
 
+    public void testExemplarFailureStoreRedirectAndDuplicateWarnings() throws Exception {
+        assumeTrue("requires metric exemplar ingestion", OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
+        Exemplar exemplar = OtlpUtils.createLongExemplar(1_000_000L, 42L);
+        Metric metric = OtlpUtils.createGaugeMetric(
+            "test.metric",
+            "",
+            List.of(OtlpUtils.createDoubleDataPoint(2_000_000L, 0, List.of(), List.of(exemplar, exemplar)))
+        );
+
+        OTLPActionResponse response = executeRequest(
+            createMetricsRequest(metric),
+            new BulkResponse(new BulkItemResponse[] { successResponse(), failureStoreUsedResponse() }, 0)
+        );
+
+        byte[] responseBytes = response.getResponse().array();
+        assertThat(parseRejectedCount(responseBytes), equalTo(0L));
+        assertThat(
+            parseErrorMessage(responseBytes),
+            equalTo("Redirected 1 exemplar documents to the failure store.\n" + "1 exemplars were dropped due to duplicate timestamps")
+        );
+    }
+
     public void testSameTimestampExemplarsForDifferentMetricsAreNotDuplicates() throws Exception {
         assumeTrue("requires metric exemplar ingestion", OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
         Exemplar exemplar = OtlpUtils.createLongExemplar(1_000_000L, 42L);

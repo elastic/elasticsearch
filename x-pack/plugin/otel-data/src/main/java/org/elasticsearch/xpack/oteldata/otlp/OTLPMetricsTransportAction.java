@@ -206,7 +206,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         String dataStreamName = targetIndex.index();
         IndexVersion indexVersion = indexVersions.computeIfAbsent(dataStreamName, name -> resolveIndexVersion(projectMetadata, name));
         for (DataPoint dataPoint : dataPointGroup.dataPoints()) {
-            if (dataPoint.getExemplars().isEmpty() == false) {
+            if (dataPoint.getExemplars().isEmpty()) {
                 continue;
             }
             BytesRef tsid = dataPointGroup.buildExemplarTsid(dataPoint.getMetricName(), indexVersion);
@@ -234,6 +234,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
                     }
                     totalExpandedBytes.set(accountExpandedContent(totalExpandedBytes.get(), indexRequest));
                     bulkRequestBuilder.add(indexRequest);
+                    context.recordExemplarDocument(bulkRequestBuilder.numberOfActions() - 1);
                 }
             }
         }

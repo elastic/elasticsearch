@@ -316,9 +316,8 @@ static inline void call_i8_bulk(
         apply_indexed<batches>([&](auto I) {
             res[I] = acc_ops<TAcc>::reduce(acc[I]);
         });
-        // scalar tail, indexed from the loop-invariant block end: carrying the main loop's counter into it
-        // makes clang keep a second set of per-vector pointers alive in the main loop to feed the tail,
-        // ten extra instructions per 16-byte step for the sequential and sparse layouts
+        // indexed from the loop-invariant block end: reusing the main loop's counter makes clang keep a second
+        // set of per-vector pointers alive in the main loop to feed the tail
         for (int i = blk; i < dims; i++) {
             const int8_t bb = b[i];
             apply_indexed<batches>([&](auto I) {

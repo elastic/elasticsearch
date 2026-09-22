@@ -379,13 +379,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
     }
 
     /**
-     * Returns a new validator that runs {@code check} against the parsed configuration on a PUT, calling
-     * {@link ValidationException#addValidationError} for each problem. Shape mirrors
-     * {@link #withResourceCheck(BiConsumer)}.
-     *
-     * <p>This is the seam for per-type settings policy that the configuration object must keep accepting:
-     * a rule in {@code validateSettings} runs inside the constructor, so it would refuse a stored
-     * configuration on every read rather than only at registration.
+     * Runs {@code check} against the parsed configuration on a PUT. The same rule in {@code validateSettings}
+     * would run inside the constructor and so refuse a stored configuration on every read.
      */
     public FileDataSourceValidator withDatasourceCheck(BiConsumer<DataSourceConfiguration, ValidationException> check) {
         return new FileDataSourceValidator(

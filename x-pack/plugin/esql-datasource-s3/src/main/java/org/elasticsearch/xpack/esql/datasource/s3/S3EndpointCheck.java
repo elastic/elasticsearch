@@ -76,7 +76,11 @@ final class S3EndpointCheck {
                 continue;
             }
             String id = region.id().toLowerCase(Locale.ROOT);
-            String suffix = PartitionMetadata.of(region).dnsSuffix().toLowerCase(Locale.ROOT);
+            String suffix = PartitionMetadata.of(region).dnsSuffix();
+            if (Strings.hasText(suffix) == false) {
+                continue;
+            }
+            suffix = suffix.toLowerCase(Locale.ROOT);
             for (String label : S3_SERVICE_LABELS) {
                 s3Hosts.add(label + "." + id + "." + suffix);
             }
@@ -91,9 +95,11 @@ final class S3EndpointCheck {
         }
         // The global endpoints name no region but pin the host: with an endpoint set, cross-region redirects are
         // not followed, so one reaches us-east-1 buckets and fails for others rather than being sent on.
-        String globalSuffix = PartitionMetadata.of(Region.AWS_GLOBAL).dnsSuffix().toLowerCase(Locale.ROOT);
-        s3Hosts.add(S3_SERVICE + "." + globalSuffix);
-        stsHosts.add(STS_SERVICE + "." + globalSuffix);
+        String globalSuffix = PartitionMetadata.of(Region.AWS_GLOBAL).dnsSuffix();
+        if (Strings.hasText(globalSuffix)) {
+            s3Hosts.add(S3_SERVICE + "." + globalSuffix.toLowerCase(Locale.ROOT));
+            stsHosts.add(STS_SERVICE + "." + globalSuffix.toLowerCase(Locale.ROOT));
+        }
         S3_ENDPOINT_HOSTS = Set.copyOf(s3Hosts);
         STS_ENDPOINT_HOSTS = Set.copyOf(stsHosts);
         S3_VPCE_TAILS = Set.copyOf(s3Tails);
@@ -194,7 +200,7 @@ final class S3EndpointCheck {
             String id = head.substring(lastDot + 1);
             String prefix = lastDot < 0 ? "" : head.substring(0, lastDot);
             boolean prefixAllowed = lastDot < 0 || (S3_SERVICE.equals(service) && isSingleLabel(prefix));
-            if (id.startsWith("vpce-") && id.startsWith("vpce-svc-") == false && prefixAllowed) {
+            if (id.length() > "vpce-".length() && id.startsWith("vpce-") && id.startsWith("vpce-svc-") == false && prefixAllowed) {
                 return true;
             }
         }

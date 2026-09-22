@@ -184,6 +184,12 @@ public class S3EndpointCheckTests extends ESTestCase {
         assertTrue(S3EndpointCheck.isPermittedHost("vpce-0a1b2c3d.sts.us-east-1.vpce.amazonaws.com", STS_SERVICE));
     }
 
+    /** The id position must hold an id, not just the {@code vpce-} marker. */
+    public void testRefusesAnEmptyVpcEndpointId() {
+        assertAllRefused(S3_SERVICE, "vpce-.s3.us-east-1.vpce.amazonaws.com", "bucket.vpce-.s3.us-east-1.vpce.amazonaws.com");
+        assertAllRefused(STS_SERVICE, "vpce-.sts.us-east-1.vpce.amazonaws.com");
+    }
+
     public void testRefusesPrefixedStsVpcInterfaceEndpoints() {
         assertAllRefused(
             STS_SERVICE,

@@ -9,11 +9,9 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
-import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -24,7 +22,6 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeoutException;
 
 /**
  * Decorates a {@link StorageObject} with concurrency limiting. Each I/O operation
@@ -43,7 +40,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
 
     @Override
     public InputStream newStream() throws IOException {
-        acquirePermit();
+        limiter.acquireChecked();
         try {
             InputStream stream = delegate.newStream();
             return new PermitReleasingInputStream(stream, limiter);
@@ -55,7 +52,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
 
     @Override
     public InputStream newStream(long position, long length) throws IOException {
-        acquirePermit();
+        limiter.acquireChecked();
         try {
             InputStream stream = delegate.newStream(position, length);
             return new PermitReleasingInputStream(stream, limiter);
@@ -127,7 +124,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
 
     @Override
     public int readBytes(long position, ByteBuffer target) throws IOException {
-        acquirePermit();
+        limiter.acquireChecked();
         try {
             return delegate.readBytes(position, target);
         } finally {
@@ -155,7 +152,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
         ActionListener<DirectReadBuffer> listener
     ) {
         try {
-            acquirePermit();
+            limiter.acquireChecked();
         } catch (Exception e) {
             listener.onFailure(e);
             return () -> {};
@@ -201,7 +198,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
     @Override
     public void readBytesAsync(long position, ByteBuffer target, Executor executor, ActionListener<Integer> listener) {
         try {
-            acquirePermit();
+            limiter.acquireChecked();
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -245,28 +242,6 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
     @Override
     public StorageObjectMetrics metrics() {
         return delegate.metrics();
-    }
-
-    private void acquirePermit() {
-        try {
-            limiter.acquire();
-        } catch (TimeoutException e) {
-            // Permit pool exhausted: a node-local admission back-pressure condition, not a client error. Raise it as
-            // the retryable 503-class type the retry layer acts on (RetryableStorageObject -> RetryPolicy.execute
-            // catches ExternalUnavailableException and re-attempts). throttling=false: this is a local semaphore, not
-            // a remote-store 429/503, so it must not feed the per-bucket adaptive backoff or the throttle budget.
-            throw new ExternalUnavailableException(e, "Timed out acquiring cloud API concurrency permit: {}", e.getMessage());
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            // Interrupt is a shutdown/cancellation signal, not back-pressure: throw non-retryable so the
-            // retry layer does not loop on an interrupt flag that will fire again immediately. The interrupt
-            // is preserved as the cause so the origin survives in diagnostics (the type has no cause constructor).
-            EsRejectedExecutionException rejected = new EsRejectedExecutionException(
-                "Interrupted while acquiring cloud API concurrency permit"
-            );
-            rejected.initCause(e);
-            throw rejected;
-        }
     }
 
     /**

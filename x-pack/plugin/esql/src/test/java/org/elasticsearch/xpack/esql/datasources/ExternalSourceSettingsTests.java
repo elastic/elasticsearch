@@ -108,6 +108,85 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         assertEquals(16, ExternalSourceSettings.blobStoreConcurrency(16, ByteSizeValue.ofGb(4).getBytes(), requestLimitGb(4)));
     }
 
+    public void testBlobStoreConcurrencyInfoMemoryBindsUnset() {
+        long heapBytes = ByteSizeValue.ofMb(256).getBytes();
+        long request = requestLimit(256);
+        int configured = ExternalSourceSettings.defaultBlobStoreConcurrency(16, heapBytes, request);
+        ExternalSourceSettings.BlobStoreConcurrency info = ExternalSourceSettings.blobStoreConcurrencyInfo(configured, heapBytes, request);
+        assertEquals(6, info.permits());
+        assertFalse(info.settingCanRaiseLimit());
+        assertFalse(info.parseFloorBinds());
+    }
+
+    public void testBlobStoreConcurrencyInfoCpuClampBindsUnset() {
+        long heapBytes = ByteSizeValue.ofGb(4).getBytes();
+        long request = requestLimitGb(4);
+        int configured = ExternalSourceSettings.defaultBlobStoreConcurrency(1, heapBytes, request);
+        ExternalSourceSettings.BlobStoreConcurrency info = ExternalSourceSettings.blobStoreConcurrencyInfo(configured, heapBytes, request);
+        assertEquals(4, info.permits());
+        assertTrue(info.settingCanRaiseLimit());
+        assertFalse(info.parseFloorBinds());
+    }
+
+    public void testBlobStoreConcurrencyInfoFloorBindsUnset() {
+        long heapBytes = ByteSizeValue.ofMb(80).getBytes();
+        long request = requestLimit(80);
+        int configured = ExternalSourceSettings.defaultBlobStoreConcurrency(1, heapBytes, request);
+        ExternalSourceSettings.BlobStoreConcurrency info = ExternalSourceSettings.blobStoreConcurrencyInfo(configured, heapBytes, request);
+        assertEquals(4, info.permits());
+        assertFalse(info.settingCanRaiseLimit());
+        assertTrue(info.parseFloorBinds());
+    }
+
+    public void testBlobStoreConcurrencyInfoParseFloorDoesNotBindWhenRawSlotsEqualFloor() {
+        long heapBytes = ByteSizeValue.ofMb(160).getBytes();
+        long request = requestLimit(160);
+        int configured = ExternalSourceSettings.defaultBlobStoreConcurrency(16, heapBytes, request);
+        ExternalSourceSettings.BlobStoreConcurrency info = ExternalSourceSettings.blobStoreConcurrencyInfo(configured, heapBytes, request);
+        assertEquals(4, info.permits());
+        assertFalse(info.settingCanRaiseLimit());
+        assertFalse(info.parseFloorBinds());
+    }
+
+    public void testBlobStoreConcurrencyInfoExplicitMaxIsUnraisableWhenMemoryAllowsMore() {
+        long heapBytes = ByteSizeValue.ofGb(32).getBytes();
+        long request = heapBytes * 6 / 10;
+        ExternalSourceSettings.BlobStoreConcurrency info = ExternalSourceSettings.blobStoreConcurrencyInfo(500, heapBytes, request);
+        assertEquals(500, info.permits());
+        assertFalse(info.settingCanRaiseLimit());
+        assertFalse(info.parseFloorBinds());
+    }
+
+    public void testBlobStoreConcurrencyInfoRequestBreakerBinds() {
+        long heapBytes = ByteSizeValue.ofGb(4).getBytes();
+        long tightRequest = ByteSizeValue.ofMb(80).getBytes();
+        int configured = ExternalSourceSettings.defaultBlobStoreConcurrency(16, heapBytes, tightRequest);
+        ExternalSourceSettings.BlobStoreConcurrency info = ExternalSourceSettings.blobStoreConcurrencyInfo(
+            configured,
+            heapBytes,
+            tightRequest
+        );
+        assertEquals(4, info.permits());
+        assertFalse(info.settingCanRaiseLimit());
+        assertFalse(info.parseFloorBinds());
+    }
+
+    public void testBlobStoreConcurrencyInfoSettingsOverloadMatchesLiveTerms() {
+        Settings settings = Settings.EMPTY;
+        ExternalSourceSettings.BlobStoreConcurrency info = ExternalSourceSettings.blobStoreConcurrencyInfo(settings);
+        assertEquals(ExternalSourceSettings.blobStoreConcurrency(settings), info.permits());
+        long heapBytes = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
+        long request = HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes();
+        ExternalSourceSettings.BlobStoreConcurrency expected = ExternalSourceSettings.blobStoreConcurrencyInfo(
+            ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(settings),
+            heapBytes,
+            request
+        );
+        assertEquals(expected.permits(), info.permits());
+        assertEquals(expected.settingCanRaiseLimit(), info.settingCanRaiseLimit());
+        assertEquals(expected.parseFloorBinds(), info.parseFloorBinds());
+    }
+
     public void testDefaultBlobStoreConcurrencySettingsHonorsRequestLimit() {
         // Wiring: a tightened request breaker must reach the Settings overload. Do not set
         // node.processors above the host's allocatedProcessors (the setting rejects that).

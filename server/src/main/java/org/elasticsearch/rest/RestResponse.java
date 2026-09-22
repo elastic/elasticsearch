@@ -148,36 +148,7 @@ public final class RestResponse implements Releasable {
         this.status = status;
         ToXContent.Params params = channel.request();
         if (e != null) {
-            Supplier<?> messageSupplier = () -> {
-                final ExceptionsHelper.CauseChain causes = ExceptionsHelper.walkCauseChain(e);
-                final Throwable rootCause = causes.deepest();
-                final ESLogMessage message = new SuppressedErrorMessage(
-                    "path: {}, params: {}, status: {}",
-                    channel.request().rawPath(),
-                    channel.request().params(),
-                    status.getStatus()
-                ).field("elasticsearch.rest.handler", channel.handlerName())
-                    .field("url.path", channel.request().rawPath())
-                    .field("http.response.status_code", status.getStatus())
-                    .field("elasticsearch.error.root_cause.type", rootCause.getClass().getName())
-                    .field("elasticsearch.error.root_cause.message", rootCause.getMessage());
-                if (causes.indexScoped() != null) {
-                    message.field("elasticsearch.error.index", causes.indexScoped().getIndex().getName());
-                    if (causes.indexScoped().getShardId() != null) {
-                        message.field("elasticsearch.error.shard", causes.indexScoped().getShardId().getId());
-                    }
-                } else if (e instanceof SearchPhaseExecutionException searchFailure && searchFailure.shardFailures().length > 0) {
-                    // NOTE: a shard failure records where it happened on the ShardSearchFailure rather than on the exception it
-                    // wraps, so the cause chain carries no index. The first entry is used because getCause resolves to the first
-                    // shard failure as well
-                    final ShardSearchFailure shardFailure = searchFailure.shardFailures()[0];
-                    if (shardFailure.index() != null) {
-                        message.field("elasticsearch.error.index", shardFailure.index());
-                        message.field("elasticsearch.error.shard", shardFailure.shardId());
-                    }
-                }
-                return message;
-            };
+            Supplier<?> messageSupplier = () -> suppressedErrorMessage(channel, status, e);
             if (status.getStatus() < 500) {
                 SUPPRESSED_ERROR_LOGGER.debug(messageSupplier, e);
             } else {
@@ -302,6 +273,40 @@ public final class RestResponse implements Releasable {
     @Override
     public void close() {
         Releasables.closeExpectNoException(releasable);
+    }
+
+    private static ESLogMessage suppressedErrorMessage(RestChannel channel, RestStatus status, Exception e) {
+        final ExceptionsHelper.CauseChain causes = ExceptionsHelper.walkCauseChain(e);
+        final Throwable rootCause = causes.deepest();
+        final ESLogMessage message = new SuppressedErrorMessage(
+            "path: {}, params: {}, status: {}",
+            channel.request().rawPath(),
+            channel.request().params(),
+            status.getStatus()
+        ).field("elasticsearch.rest.handler", channel.handlerName())
+            .field("url.path", channel.request().rawPath())
+            .field("http.response.status_code", status.getStatus())
+            .field("elasticsearch.error.root_cause.type", rootCause.getClass().getName())
+            .field("elasticsearch.error.root_cause.message", rootCause.getMessage());
+        addFailureLocation(message, e, causes);
+        return message;
+    }
+
+    private static void addFailureLocation(ESLogMessage message, Exception e, ExceptionsHelper.CauseChain causes) {
+        if (causes.indexScoped() != null) {
+            message.field("elasticsearch.error.index", causes.indexScoped().getIndex().getName());
+            if (causes.indexScoped().getShardId() != null) {
+                message.field("elasticsearch.error.shard", causes.indexScoped().getShardId().getId());
+            }
+        } else if (e instanceof SearchPhaseExecutionException searchFailure && searchFailure.shardFailures().length > 0) {
+            // NOTE: a shard failure records where it happened on the ShardSearchFailure rather than on the exception it wraps, so
+            // the cause chain carries no index. The first entry is used because getCause resolves to the first shard failure too
+            final ShardSearchFailure shardFailure = searchFailure.shardFailures()[0];
+            if (shardFailure.index() != null) {
+                message.field("elasticsearch.error.index", shardFailure.index());
+                message.field("elasticsearch.error.shard", shardFailure.shardId());
+            }
+        }
     }
 
     /**

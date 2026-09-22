@@ -1051,8 +1051,19 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 10L,
                 after.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
             );
-            assertFalse("no binding is recorded on the entry", after.safeMetadata().containsKey(ExternalStats.READ_BINDING_KEY));
-            assertFalse("nor the column names it was read under", after.safeMetadata().containsKey(ExternalStats.READ_COLUMN_NAMES_KEY));
+            // Every stamped identity key, not a sample of them: the claim is that an entry records no read identity
+            // at all, so a key left unasserted is a key a future change could start writing unnoticed.
+            for (String identityKey : List.of(
+                ExternalStats.READ_BINDING_KEY,
+                ExternalStats.READ_COLUMN_NAMES_KEY,
+                ExternalStats.READ_COLUMN_TYPES_KEY,
+                ExternalStats.READ_COLUMN_DATE_FORMATS_KEY
+            )) {
+                assertFalse(
+                    "the entry records no read identity, yet holds [" + identityKey + "]",
+                    after.safeMetadata().containsKey(identityKey)
+                );
+            }
         }
     }
 

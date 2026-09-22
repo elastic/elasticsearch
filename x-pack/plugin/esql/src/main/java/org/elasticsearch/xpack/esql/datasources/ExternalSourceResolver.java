@@ -2660,11 +2660,6 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Each file's footer-inferred types, keyed by listing path. FIRST_FILE_WINS pins every
-     * {@link SchemaReconciliation.FileSchemaInfo#fileSchema} to the anchor, so stamp-time rewrite
-     * and unsigned encode need this snapshot to see the file's own type.
-     */
-    /**
      * Whether some file holds a column the anchor's schema has no slot for. Every file of an anchor-pinned glob
      * is read at the anchor's schema, bound by position, and a row wider than the schema it is read at is dropped
      * — so this read does not count all of that file's rows. Another read can: a by-name declared read of the same
@@ -2673,8 +2668,10 @@ public class ExternalSourceResolver {
      * they are not the same number, and the entry does not record which read measured which key, so this dataset's
      * aggregate cannot be folded from those entries and its queries re-scan.
      * <p>
-     * Pinned by {@code ExternalMultiFileWarmAggregateFoldIT#testALicensedCountDoesNotAnswerForAReadThatDropsWiderRows},
-     * which fails against this branch's starting commit only because the licence was narrower there.
+     * Pinned by {@code ExternalMultiFileWarmAggregateFoldIT#testALicensedCountDoesNotAnswerForAReadThatDropsWiderRows}.
+     * That test passes against this branch's starting commit: the licence was granted there on {@code fail_fast}
+     * alone, and a {@code fail_fast} read cannot drop a wider row, so the two counts could not differ. It guards a
+     * hazard this change introduces by widening the licence, rather than restoring older behaviour.
      */
     private static boolean someFileIsWiderThanTheAnchor(FileList listing, Map<StoragePath, Map<String, DataType>> inferredTypes) {
         Map<String, DataType> anchor = inferredTypes.get(listing.path(0));
@@ -2699,6 +2696,11 @@ public class ExternalSourceResolver {
         return fileColumns != null && fileColumns.isEmpty() == false && bindable.containsAll(fileColumns.keySet()) == false;
     }
 
+    /**
+     * Each file's footer-inferred types, keyed by listing path. FIRST_FILE_WINS pins every
+     * {@link SchemaReconciliation.FileSchemaInfo#fileSchema} to the anchor, so stamp-time rewrite
+     * and unsigned encode need this snapshot to see the file's own type.
+     */
     private static void collectInferredTypes(FileList listing, List<SourceMetadata> allMeta, Map<StoragePath, Map<String, DataType>> into) {
         int count = Math.min(listing.fileCount(), allMeta.size());
         for (int i = 0; i < count; i++) {

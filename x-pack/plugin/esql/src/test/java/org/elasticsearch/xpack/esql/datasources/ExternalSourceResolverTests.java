@@ -4740,11 +4740,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * reconcile rails and 2N+1 times on first-file-wins with eager statistics (the anchor peek, the stats
      * fan-out, and the per-path loop in {@code finishFirstFileWins}).
      * <p>
-     * Resolved under {@code ROWS} demand: {@code pathsRequiringStats} is EMPTY, not null, because
-     * {@code ResolutionDemand.of} reads null as eager on every path. That distinction decides what this test
-     * can pin. Under {@code EAGER_STATS} the per-file gather must run in every mode to fold statistics, which
-     * a dataset-level SCHEMA entry does not carry, so zero is unreachable there however well the cache works.
-     * Under {@code ROWS} the only per-file work left is the schema, and zero is the contract.
+     * Resolved under {@code SCHEMA_DISCOVERY} demand — the glob is named in {@code pathsReadingNoRows}, as
+     * {@code LIMIT 0} names it — because that is the only demand under which a cached SCHEMA is a pure win. The
+     * entry holds each file's schema and column mapping but not its statistics or native types, which it does not
+     * carry. Under {@code EAGER_STATS} the per-file gather must still run to fold statistics, so zero is
+     * unreachable. Under {@code ROWS} split planning reads each file's statistics and native types
+     * ({@code FileSplitProvider} passes both into every {@code ResolvedFile}), so serving an entry without them
+     * would withhold statistics and reopen footers. Under {@code SCHEMA_DISCOVERY} nothing reads them, and zero is
+     * the contract. Note that {@code pathsRequiringStats} must be EMPTY rather than null to reach it:
+     * {@code ResolutionDemand.of} reads null as eager on every path.
      */
     public void testWarmMultiFileResolveDoesNoPerFileSchemaLookups() throws Exception {
         Settings cacheSettings = Settings.builder()
@@ -4775,13 +4779,29 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
 
                 PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
-                resolver.resolve(List.of("s3://bucket/data/*.parquet"), pathConfigs, null, null, Set.of(), f1);
+                resolver.resolve(
+                    List.of("s3://bucket/data/*.parquet"),
+                    pathConfigs,
+                    null,
+                    null,
+                    Set.of(),
+                    Set.of("s3://bucket/data/*.parquet"),
+                    f1
+                );
                 ExternalSourceResolution cold = f1.actionGet();
                 assertNotNull("[" + strategy + "] first resolve must produce a source", cold.resolvedSource("s3://bucket/data/*.parquet"));
                 long lookupsAfterFirst = schemaCacheLookups(cacheService);
 
                 PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
-                resolver.resolve(List.of("s3://bucket/data/*.parquet"), pathConfigs, null, null, Set.of(), f2);
+                resolver.resolve(
+                    List.of("s3://bucket/data/*.parquet"),
+                    pathConfigs,
+                    null,
+                    null,
+                    Set.of(),
+                    Set.of("s3://bucket/data/*.parquet"),
+                    f2
+                );
                 ExternalSourceResolution warm = f2.actionGet();
                 assertNotNull("[" + strategy + "] second resolve must produce a source", warm.resolvedSource("s3://bucket/data/*.parquet"));
                 assertEquals(

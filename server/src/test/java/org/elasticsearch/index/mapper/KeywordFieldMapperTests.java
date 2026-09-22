@@ -44,6 +44,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -263,7 +264,18 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         IndexableField field = fields.get(0);
 
-        assertEquals(new BytesRef("1234"), field.binaryValue());
+        var mappedFieldType = (KeywordFieldMapper.KeywordFieldType) mapper.mappers().getFieldType("field");
+        if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()) {
+            assertEquals(BinaryDocValuesFormat.COLUMNAR_PAYLOAD, mappedFieldType.binaryFormat());
+            assertEquals(new BytesRef("\u0001\u00051234"), field.binaryValue());
+        } else {
+            assertEquals(BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL, mappedFieldType.binaryFormat());
+            assertEquals(new BytesRef("1234"), field.binaryValue());
+
+            IndexableField countField = doc.rootDoc().getField("field.counts");
+            assertEquals(1L, countField.numericValue());
+        }
+
         IndexableFieldType fieldType = field.fieldType();
         assertThat(fieldType.omitNorms(), equalTo(true));
         assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
@@ -291,7 +303,6 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testHighCardinalityFieldType() throws Exception {
-
         XContentBuilder mapping = fieldMapping(b -> b.field("type", "keyword").field("index", true));
         DocumentMapper mapper = createColumnarModeDocumentMapper(mapping);
 
@@ -299,7 +310,12 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.size());
 
-        assertEquals(new BytesRef("1234"), fields.get(0).binaryValue());
+        if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()) {
+            assertEquals(new BytesRef("\u0001\u00051234"), fields.get(0).binaryValue());
+        } else {
+            assertEquals(new BytesRef("1234"), fields.get(0).binaryValue());
+        }
+
         assertEquals(new BytesRef("1234"), fields.get(1).binaryValue());
 
         IndexableFieldType fieldType = fields.get(0).fieldType();
@@ -1120,11 +1136,14 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(10))));
 
-        assertFalse(
-            "primary keyword high-cardinality doc_values must be written in SeparateCount format (with .counts companion) for the "
-                + "current index version",
-            doc.rootDoc().getFields("field.counts").isEmpty()
-        );
+        var fieldType = (KeywordFieldMapper.KeywordFieldType) mapper.mappers().getFieldType("field");
+        if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()) {
+            assertEquals(BinaryDocValuesFormat.COLUMNAR_PAYLOAD, fieldType.binaryFormat());
+            assertTrue(doc.rootDoc().getFields("field.counts").isEmpty());
+        } else {
+            assertEquals(BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL, fieldType.binaryFormat());
+            assertFalse(doc.rootDoc().getFields("field.counts").isEmpty());
+        }
     }
 
     /**

@@ -111,7 +111,7 @@ public class StringColumnPassCountTests extends ColumnarStringTestCase {
             assumeTrue("policy kept the vocabulary", known != null);
             final var counter = new CountingSupplier<>(() -> cursor(docSlots));
             writeWith(dir, docSlots, counter, DICTIONARY_OPTIONS, known);
-            assertEquals("sparse dictionary, known vocab: 3 passes (presence + values + ordinals)", 3, counter.count());
+            assertEquals("sparse dictionary, known vocab: 2 passes (presence+values folded + ordinals)", 2, counter.count());
         }
     }
 
@@ -142,9 +142,7 @@ public class StringColumnPassCountTests extends ColumnarStringTestCase {
             assumeTrue("policy kept the vocabulary", known != null);
             final var counter = new CountingSupplier<>(() -> cursor(docSlots));
             writeWith(dir, docSlots, counter, DICTIONARY_OPTIONS, null);
-            // Temporary: combined presence+survey pass was deleted with SurveyingDocs.
-            // Commit 4 folds presence into the dict value pass, returning to 3; commit 6 reduces to 2.
-            assertEquals("sparse dictionary survey: 4 passes (survey + presence + values + ordinals)", 4, counter.count());
+            assertEquals("sparse dictionary survey: 3 passes (survey + presence+values folded + ordinals)", 3, counter.count());
         }
     }
 

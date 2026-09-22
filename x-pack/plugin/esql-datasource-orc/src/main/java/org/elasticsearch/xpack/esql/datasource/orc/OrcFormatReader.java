@@ -71,8 +71,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.InstrumentedFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
@@ -124,7 +124,7 @@ import java.util.function.IntConsumer;
  *   <li>Stripe-level split parallelism for multi-stripe files</li>
  * </ul>
  */
-public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatReader, DynamicThresholdAware, InstrumentedFormatReader {
+public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatReader, DynamicThresholdAware {
 
     private static final Logger LOGGER = LogManager.getLogger(OrcFormatReader.class);
 
@@ -169,10 +169,6 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     private final BlockFactory blockFactory;
     private final SearchArgument pushedFilter;
     private final OrcPushedExpressions pushedExpressions;
-    // Reader-level counters surfaced via {@link #statusSnapshot()}. Shared across all wither-derived
-    // copies: every {@code with*} method forwards this field so the base reader's snapshot observes
-    // everything any derived copy recorded. Only {@link #withFreshCounters()} mints a new struct.
-    private final OrcReaderCounters counters;
     private final DynamicThreshold dynamicThreshold;
     /** Declared per-column date parse patterns (physical name &rarr; pattern); see {@link #withDeclaredDateFormats}. */
     private final Map<String, String> declaredDateFormats;
@@ -215,6 +211,10 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         );
     }
 
+    /**
+     * The node-shared footer caches are always forwarded — never reallocated per copy — so copies
+     * do not multiply their heap footprint.
+     */
     private OrcFormatReader(
         BlockFactory blockFactory,
         SearchArgument pushedFilter,
@@ -225,39 +225,6 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         ParsedFooterCache<OrcTail> parsedFooters,
         FooterByteCache footerBytes
     ) {
-        this(
-            blockFactory,
-            pushedFilter,
-            pushedExpressions,
-            dynamicThreshold,
-            declaredDateFormats,
-            declaredTypeColumns,
-            parsedFooters,
-            footerBytes,
-            null
-        );
-    }
-
-    /**
-     * Primary copy constructor: preserves all fields and either shares ({@code sharedCounters != null})
-     * or mints ({@code sharedCounters == null}) a counter struct. Every {@code with*} wither passes
-     * {@code this.counters} here so the base reader's snapshot observes everything any fork recorded.
-     * Only {@link #withFreshCounters()} passes {@code null} to allocate a fresh struct.
-     * <p>
-     * The node-shared footer caches are always forwarded — never reallocated per copy — so the
-     * per-operator mint does not multiply their heap footprint.
-     */
-    private OrcFormatReader(
-        BlockFactory blockFactory,
-        SearchArgument pushedFilter,
-        OrcPushedExpressions pushedExpressions,
-        DynamicThreshold dynamicThreshold,
-        Map<String, String> declaredDateFormats,
-        Set<String> declaredTypeColumns,
-        ParsedFooterCache<OrcTail> parsedFooters,
-        FooterByteCache footerBytes,
-        @Nullable OrcReaderCounters sharedCounters
-    ) {
         this.blockFactory = blockFactory;
         this.pushedFilter = pushedFilter;
         this.pushedExpressions = pushedExpressions;
@@ -266,7 +233,6 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         this.declaredTypeColumns = declaredTypeColumns;
         this.parsedFooters = parsedFooters;
         this.footerBytes = footerBytes;
-        this.counters = sharedCounters != null ? sharedCounters : new OrcReaderCounters();
     }
 
     @Override
@@ -283,8 +249,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 declaredDateFormats,
                 declaredTypeColumns,
                 parsedFooters,
-                footerBytes,
-                counters
+                footerBytes
             );
         }
         if (pushedFilter instanceof SearchArgument sarg) {
@@ -296,8 +261,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 declaredDateFormats,
                 declaredTypeColumns,
                 parsedFooters,
-                footerBytes,
-                counters
+                footerBytes
             );
         }
         if (pushedFilter instanceof OrcPushedExpressions exprs) {
@@ -309,8 +273,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 declaredDateFormats,
                 declaredTypeColumns,
                 parsedFooters,
-                footerBytes,
-                counters
+                footerBytes
             );
         }
         return this;
@@ -326,8 +289,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             declaredDateFormats,
             declaredTypeColumns,
             parsedFooters,
-            footerBytes,
-            counters
+            footerBytes
         );
     }
 
@@ -350,8 +312,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             Map.copyOf(physicalNameToPattern),
             declaredTypeColumns,
             parsedFooters,
-            footerBytes,
-            counters
+            footerBytes
         );
     }
 
@@ -375,32 +336,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             declaredDateFormats,
             Set.copyOf(physicalDeclaredColumns),
             parsedFooters,
-            footerBytes,
-            counters
-        );
-    }
-
-    /**
-     * Returns a copy of this reader backed by a fresh {@link OrcReaderCounters} struct while
-     * sharing all node-scoped caches (footer caches). Called once per
-     * {@code AsyncExternalSourceOperatorFactory.get(DriverContext)} invocation so each parallel
-     * driver accumulates into its own counter, while the node-wide cache budget is unchanged.
-     * <p>
-     * This is the <em>only</em> place a new counter struct is allocated for a derived reader;
-     * every other {@code with*} wither forwards {@code this.counters}.
-     */
-    @Override
-    public OrcFormatReader withFreshCounters() {
-        return new OrcFormatReader(
-            blockFactory,
-            pushedFilter,
-            pushedExpressions,
-            dynamicThreshold,
-            declaredDateFormats,
-            declaredTypeColumns,
-            parsedFooters,
-            footerBytes,
-            null
+            footerBytes
         );
     }
 
@@ -445,7 +381,11 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
      * {@code ReaderImpl.extractFileTail(FileSystem, Path, long)} and the associated remote read.
      */
     private Reader openReaderCached(OrcStorageObjectAdapter fs, Path path) throws IOException {
-        OrcTail tail = loadTail(fs, path);
+        return openReaderCached(fs, path, null);
+    }
+
+    private Reader openReaderCached(OrcStorageObjectAdapter fs, Path path, @Nullable OrcReaderCounters counters) throws IOException {
+        OrcTail tail = loadTail(fs, path, counters);
         return OrcFile.createReader(path, orcReaderOptions(fs).orcTail(tail));
     }
 
@@ -455,7 +395,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
      * the tail) and immediately closes it after extracting the {@link OrcTail}; subsequent calls
      * reuse the cached tail.
      */
-    private OrcTail loadTail(OrcStorageObjectAdapter fs, Path path) throws IOException {
+    private OrcTail loadTail(OrcStorageObjectAdapter fs, Path path, @Nullable OrcReaderCounters counters) throws IOException {
         // The loader runs only on a cache miss, so the flag distinguishes hit from miss.
         boolean[] missed = { false };
         try {
@@ -479,7 +419,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     return ReaderImpl.extractFileTail(r.getSerializedFileFooter());
                 }
             });
-            counters.recordFooterCache(missed[0] == false);
+            if (counters != null) {
+                counters.recordFooterCache(missed[0] == false);
+            }
             return tail;
         } catch (ExecutionException e) {
             // rethrowStructural handles Error/IOException/CircuitBreakingException/
@@ -621,23 +563,26 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         List<String> projectedColumns = context.projectedColumns();
         int batchSize = context.batchSize();
         int rowLimit = context.rowLimit();
+        OrcReaderCounters counters = context.readCounters() instanceof OrcReaderCounters c ? c : null;
 
         OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object, footerBytes);
         Path path = new Path(object.path().toString());
         long footerStartNanos = System.nanoTime();
-        Reader reader = openReaderCached(fs, path);
+        Reader reader = openReaderCached(fs, path, counters);
         TypeDescription schema = reader.getSchema();
         List<Attribute> attributes = convertOrcSchemaToAttributes(schema);
 
         List<Attribute> projectedAttributes = resolveProjection(attributes, projectedColumns);
         boolean[] include = buildIncludeMask(schema, projectedColumns);
 
-        Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema);
+        Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema, counters);
         long stripeCount = reader.getStripes().size();
         int totalColumns = schema.getFieldNames().size();
-        counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), stripeCount);
-        counters.addStripesTotal(stripeCount);
-        counters.setColumnCounts(countProjected(include, totalColumns), totalColumns);
+        if (counters != null) {
+            counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), stripeCount);
+            counters.addStripesTotal(stripeCount);
+            counters.setColumnCounts(countProjected(include, totalColumns), totalColumns);
+        }
         RecordReader rows = reader.rows(readOptions);
 
         CloseableIterator<Page> iter = new OrcPageIterator(
@@ -748,6 +693,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         List<String> projectedColumns = context.projectedColumns();
         int batchSize = context.batchSize();
         List<Attribute> resolvedAttributes = context.resolvedAttributes();
+        OrcReaderCounters counters = context.readCounters() instanceof OrcReaderCounters c ? c : null;
 
         if (rangeEnd <= rangeStart) {
             throw new IllegalArgumentException("rangeEnd [" + rangeEnd + "] must be greater than rangeStart [" + rangeStart + "]");
@@ -765,7 +711,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         if (context.fileContext() instanceof OrcTail cached) {
             tail = cached;
         } else {
-            tail = loadTail(fs, path);
+            tail = loadTail(fs, path, counters);
             context.setFileContext(tail);
         }
         Reader reader = OrcFile.createReader(path, orcReaderOptions(fs).orcTail(tail));
@@ -778,14 +724,16 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         List<Attribute> projectedAttributes = resolveProjection(attributes, projectedColumns);
         boolean[] include = buildIncludeMask(schema, projectedColumns);
 
-        Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema);
+        Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema, counters);
         readOptions.range(rangeStart, rangeEnd - rangeStart);
         long stripesInRange = countStripesInRange(reader, rangeStart, rangeEnd);
         long stripesInFile = reader.getStripes().size();
         int totalColumns = schema.getFieldNames().size();
-        counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), stripesInFile);
-        counters.addStripesTotal(stripesInRange);
-        counters.setColumnCounts(countProjected(include, totalColumns), totalColumns);
+        if (counters != null) {
+            counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), stripesInFile);
+            counters.addStripesTotal(stripesInRange);
+            counters.setColumnCounts(countProjected(include, totalColumns), totalColumns);
+        }
         RecordReader rows = reader.rows(readOptions);
 
         return new OrcPageIterator(
@@ -917,7 +865,13 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         }
     }
 
-    private Reader.Options configureReadOptions(Reader reader, int batchSize, boolean[] include, TypeDescription schema) {
+    private Reader.Options configureReadOptions(
+        Reader reader,
+        int batchSize,
+        boolean[] include,
+        TypeDescription schema,
+        @Nullable OrcReaderCounters counters
+    ) {
         Reader.Options readOptions = reader.options().rowBatchSize(batchSize);
         if (include != null) {
             readOptions.include(include);
@@ -930,8 +884,10 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 nameSet.add(leaf.getColumnName());
             }
             readOptions.searchArgument(resolvedFilter, nameSet.toArray(new String[0]));
-            counters.markPredicatePushdownUsed();
-            counters.addPredicateColumns(nameSet);
+            if (counters != null) {
+                counters.markPredicatePushdownUsed();
+                counters.addPredicateColumns(nameSet);
+            }
         }
         return readOptions;
     }
@@ -1010,14 +966,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         return contextPolicy != null ? contextPolicy : defaultErrorPolicy();
     }
 
-    /**
-     * Returns an immutable typed snapshot of the ORC reader's counters for the operator-status
-     * envelope. Zero counters, false flag, empty predicate columns before any read() / readRange()
-     * has run.
-     */
     @Override
-    public OrcReaderStatus statusSnapshot() {
-        return counters.snapshot();
+    public FormatReadCounters newReadCounters() {
+        return new OrcReaderCounters();
     }
 
     @Override
@@ -1467,6 +1418,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
          */
         private long batchStartRow;
 
+        @Nullable
         private final OrcReaderCounters counters;
 
         OrcPageIterator(
@@ -1744,7 +1696,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     throw e;
                 }
             }
-            counters.addRowsEmitted(page.getPositionCount());
+            if (counters != null) {
+                counters.addRowsEmitted(page.getPositionCount());
+            }
             emitAbsentColumnWarningsOnce();
             return page;
         }

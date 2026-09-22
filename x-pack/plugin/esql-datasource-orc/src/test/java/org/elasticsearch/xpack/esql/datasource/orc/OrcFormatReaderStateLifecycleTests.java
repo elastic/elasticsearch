@@ -25,10 +25,8 @@ import java.util.Set;
 import java.util.TreeSet;
 
 /**
- * Lifecycle gate over {@link OrcFormatReader}'s mutable state. Invariant: every ordinary wither preserves the
- * parent's counter struct; {@link OrcFormatReader#withFreshCounters()} is the only method that mints a fresh one,
- * and the operator factory calls it once per {@code get(DriverContext)}. Isolation between operators is at
- * {@code withFreshCounters()}, not at the individual wither seam.
+ * Lifecycle gate over {@link OrcFormatReader}'s mutable state. Counters are now passed via
+ * {@code FormatReadContext} rather than carried as reader fields, so all ordinary withers are stateless copies.
  * <p>
  * The behavioural pins in {@link OrcReaderStatusTests} guard each known wither. This class guards the ENUMERATION:
  * a new wither or instance field added without deciding its lifecycle fails here rather than depending on someone
@@ -56,27 +54,19 @@ public class OrcFormatReaderStateLifecycleTests extends ESTestCase {
         "declaredTypeColumns"
     );
 
-    /** Internally mutable fields written during reads. Every wither must declare its behaviour for each of these. */
-    private static final Set<String> SHARED_MUTABLE_FIELDS = Set.of("counters");
+    /** Internally mutable fields written during reads. Counters are now passed via context, not stored as fields. */
+    private static final Set<String> SHARED_MUTABLE_FIELDS = Set.of();
 
     private enum WitherLifecycle {
         /**
-         * Mints a fresh counter struct. Only {@link OrcFormatReader#withFreshCounters()} should declare this; the
-         * operator factory calls it once per {@code get(DriverContext)} so each parallel driver owns isolated counters.
-         */
-        OPERATOR_MINT_FORKS,
-        /**
-         * Shares the parent's counter struct (passes {@code counters} through the copy constructor). ALL ordinary
-         * withers — per-query and per-file alike — must declare this. Isolation is not at the wither seam; it is at
-         * {@link OrcFormatReader#withFreshCounters()}.
+         * Copies the reader's configuration; all ordinary withers that produce a new instance declare this.
          */
         SHARES_COUNTERS,
-        /** SPI default that returns {@code this}: no copy, so no counter decision needed. */
+        /** SPI default that returns {@code this}: no copy, so no state decision needed. */
         IDENTITY_NO_COPY
     }
 
     private static final Map<String, WitherLifecycle> WITHER_LIFECYCLE = Map.ofEntries(
-        Map.entry("withFreshCounters", WitherLifecycle.OPERATOR_MINT_FORKS),
         Map.entry("withPushedFilter", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withDynamicThreshold", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withDeclaredDateFormats", WitherLifecycle.SHARES_COUNTERS),
@@ -137,10 +127,9 @@ public class OrcFormatReaderStateLifecycleTests extends ESTestCase {
         assertTrue(
             "wither(s) "
                 + undeclared
-                + " with no declared lifecycle: decide how it treats counters — OPERATOR_MINT_FORKS (only"
-                + " withFreshCounters()), SHARES_COUNTERS (all ordinary withers), or IDENTITY_NO_COPY (returns"
-                + " this) — add it to WITHER_LIFECYCLE and to sampleArgsFor(), and add a pin to the"
-                + " status-snapshot suite",
+                + " with no declared lifecycle: decide how it treats state — SHARES_COUNTERS (all ordinary withers)"
+                + " or IDENTITY_NO_COPY (returns this) — add it to WITHER_LIFECYCLE and to sampleArgsFor(), and"
+                + " add a pin to the status-snapshot suite",
             undeclared.isEmpty()
         );
         Set<String> stale = new TreeSet<>(WITHER_LIFECYCLE.keySet());
@@ -159,36 +148,10 @@ public class OrcFormatReaderStateLifecycleTests extends ESTestCase {
                     "wither ["
                         + m.getName()
                         + "] is declared IDENTITY_NO_COPY but returned a copy: it now has state, so decide its"
-                        + " lifecycle — reclassify it OPERATOR_MINT_FORKS or SHARES_COUNTERS",
+                        + " lifecycle — reclassify it SHARES_COUNTERS",
                     receiver,
                     product
                 );
-                case OPERATOR_MINT_FORKS -> {
-                    assertNotSame(
-                        "sample args for [" + m.getName() + "] hit a no-op shortcut; use args that force a copy",
-                        receiver,
-                        product
-                    );
-                    for (String field : SHARED_MUTABLE_FIELDS) {
-                        assertNotSame(
-                            "wither ["
-                                + m.getName()
-                                + "] is the operator mint so its copy must FORK ["
-                                + field
-                                + "]: sharing here gives the singleton the operator's counters",
-                            fieldOf(receiver, field),
-                            fieldOf(product, field)
-                        );
-                    }
-                    Object sibling = unwrap(m.invoke(receiver, sampleArgsFor(m.getName())));
-                    for (String field : SHARED_MUTABLE_FIELDS) {
-                        assertNotSame(
-                            "two mints from the same base share [" + field + "]: sibling operators would mix",
-                            fieldOf(sibling, field),
-                            fieldOf(product, field)
-                        );
-                    }
-                }
                 case SHARES_COUNTERS -> {
                     assertNotSame(
                         "sample args for [" + m.getName() + "] hit a no-op shortcut; use args that force a copy",
@@ -197,11 +160,7 @@ public class OrcFormatReaderStateLifecycleTests extends ESTestCase {
                     );
                     for (String field : SHARED_MUTABLE_FIELDS) {
                         assertSame(
-                            "wither ["
-                                + m.getName()
-                                + "] must share ["
-                                + field
-                                + "] with its parent: forking here would leave the operator's reads unreported",
+                            "wither [" + m.getName() + "] must share [" + field + "] with its parent",
                             fieldOf(receiver, field),
                             fieldOf(product, field)
                         );
@@ -242,7 +201,6 @@ public class OrcFormatReaderStateLifecycleTests extends ESTestCase {
 
     private static Object[] sampleArgsFor(String wither) {
         return switch (wither) {
-            case "withFreshCounters" -> new Object[0];
             // Non-null OrcPushedExpressions forces the copy branch (null with no existing filter returns this).
             case "withPushedFilter" -> new Object[] { new OrcPushedExpressions(List.of()) };
             // null is accepted by withDynamicThreshold and always produces a copy (no identity shortcut).

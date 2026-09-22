@@ -27,10 +27,8 @@ import java.util.Set;
 import java.util.TreeSet;
 
 /**
- * The lifecycle gate over {@link NdJsonFormatReader}'s mutable state. The invariant: every ordinary wither
- * preserves the parent's counter struct; {@link NdJsonFormatReader#withFreshCounters()} is the only method that
- * mints a fresh one, and the operator factory calls it once per {@code get(DriverContext)}. Isolation between
- * operators is at {@code withFreshCounters()}, not at the individual wither seam.
+ * The lifecycle gate over {@link NdJsonFormatReader}'s mutable state. Counters are now passed via
+ * {@code FormatReadContext} rather than carried as reader fields, so all ordinary withers are stateless copies.
  * <p>
  * The behavioural pins in {@link NdJsonFormatReaderStatusSnapshotTests} guard each KNOWN wither. This class guards
  * the ENUMERATION: a new wither, or a new instance field, added without deciding its lifecycle fails here rather
@@ -63,24 +61,16 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
     );
 
     /**
-     * Internally mutable fields written during reads. Every wither must declare (in {@link #WITHER_LIFECYCLE})
-     * whether its copy shares or forks EACH of these, and the declaration is executed below.
+     * Internally mutable fields written during reads. Counters are now passed via context, not stored as fields.
      */
-    private static final Set<String> SHARED_MUTABLE_FIELDS = Set.of("counters");
+    private static final Set<String> SHARED_MUTABLE_FIELDS = Set.of();
 
     /**
-     * What a wither's copy does with the shared-mutable state.
+     * What a wither's copy does with the reader's state.
      */
     private enum WitherLifecycle {
         /**
-         * Mints a fresh counter struct: only {@link NdJsonFormatReader#withFreshCounters()} should declare this.
-         * The operator factory calls it once per {@code get(DriverContext)} so each operator gets an isolated scope.
-         */
-        OPERATOR_MINT_FORKS,
-        /**
-         * Shares the parent's counter struct (i.e. passes {@code counters} through the copy constructor). ALL
-         * ordinary withers — per-query and per-file alike — must declare this. Isolation is not at the wither
-         * seam; it is at {@link NdJsonFormatReader#withFreshCounters()} (see OPERATOR_MINT_FORKS).
+         * Copies the reader's immutable configuration; all ordinary withers declare this.
          */
         SHARES_COUNTERS,
         /** SPI default that returns {@code this}: no copy, so no counter decision needed. */
@@ -88,8 +78,6 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
     }
 
     private static final Map<String, WitherLifecycle> WITHER_LIFECYCLE = Map.of(
-        "withFreshCounters",
-        WitherLifecycle.OPERATOR_MINT_FORKS,
         "withConfig",
         WitherLifecycle.SHARES_COUNTERS,
         "withConfigTrackingConsumedKeys",
@@ -162,10 +150,9 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
         assertTrue(
             "wither(s) "
                 + undeclared
-                + " with no declared lifecycle: decide how it treats counters — OPERATOR_MINT_FORKS (only"
-                + " withFreshCounters()), SHARES_COUNTERS (all ordinary withers), or IDENTITY_NO_COPY (returns"
-                + " this) — add it to WITHER_LIFECYCLE and to sampleArgsFor(), and add a pin to the"
-                + " status-snapshot suite",
+                + " with no declared lifecycle: decide how it treats state — SHARES_COUNTERS (all ordinary withers)"
+                + " or IDENTITY_NO_COPY (returns this) — add it to WITHER_LIFECYCLE and to sampleArgsFor(), and"
+                + " add a pin to the status-snapshot suite",
             undeclared.isEmpty()
         );
         Set<String> stale = new TreeSet<>(WITHER_LIFECYCLE.keySet());
@@ -190,37 +177,10 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
                     "wither ["
                         + m.getName()
                         + "] is declared IDENTITY_NO_COPY but returned a copy: it now has state, so decide its"
-                        + " lifecycle — reclassify it OPERATOR_MINT_FORKS or SHARES_COUNTERS",
+                        + " lifecycle — reclassify it SHARES_COUNTERS",
                     receiver,
                     product
                 );
-                case OPERATOR_MINT_FORKS -> {
-                    assertNotSame(
-                        "sample args for [" + m.getName() + "] hit a no-op shortcut; use args that force a copy",
-                        receiver,
-                        product
-                    );
-                    for (String field : SHARED_MUTABLE_FIELDS) {
-                        assertNotSame(
-                            "wither ["
-                                + m.getName()
-                                + "] is the operator mint so its copy must FORK ["
-                                + field
-                                + "]: sharing here gives the singleton the operator's counters",
-                            fieldOf(receiver, field),
-                            fieldOf(product, field)
-                        );
-                    }
-                    // Two mints on the same base must each produce an independent struct.
-                    Object sibling = unwrap(m.invoke(receiver, sampleArgsFor(m.getName())));
-                    for (String field : SHARED_MUTABLE_FIELDS) {
-                        assertNotSame(
-                            "two mints from the same base share [" + field + "]: sibling operators would mix",
-                            fieldOf(sibling, field),
-                            fieldOf(product, field)
-                        );
-                    }
-                }
                 case SHARES_COUNTERS -> {
                     assertNotSame(
                         "sample args for [" + m.getName() + "] hit a no-op shortcut; use args that force a copy",
@@ -229,11 +189,7 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
                     );
                     for (String field : SHARED_MUTABLE_FIELDS) {
                         assertSame(
-                            "wither ["
-                                + m.getName()
-                                + "] must share ["
-                                + field
-                                + "] with its parent: forking here would leave the operator's reads unreported",
+                            "wither [" + m.getName() + "] must share [" + field + "] with its parent",
                             fieldOf(receiver, field),
                             fieldOf(product, field)
                         );
@@ -284,7 +240,6 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
 
     private static Object[] sampleArgsFor(String wither) {
         return switch (wither) {
-            case "withFreshCounters" -> new Object[0];
             case "withConfig", "withConfigTrackingConsumedKeys" -> new Object[] { Map.of("schema_sample_size", 64) };
             case "withSchema" -> new Object[] { List.of(new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG)) };
             case "withDeclaredDateFormats" -> new Object[] { Map.of("b", "yyyy-MM-dd") };

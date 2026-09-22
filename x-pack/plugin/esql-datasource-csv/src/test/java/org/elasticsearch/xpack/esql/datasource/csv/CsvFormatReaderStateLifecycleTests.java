@@ -29,10 +29,8 @@ import java.util.TreeSet;
 
 /**
  * The lifecycle gate over {@link CsvFormatReader}'s mutable state — the CSV/TSV twin of
- * {@code NdJsonFormatReaderStateLifecycleTests}. Invariant: every ordinary wither preserves the parent's counter
- * struct; {@link CsvFormatReader#withFreshCounters()} is the only method that mints a fresh one, and the operator
- * factory calls it once per {@code get(DriverContext)}. Isolation between operators is at
- * {@code withFreshCounters()}, not at the individual wither seam. The behavioural pins in
+ * {@code NdJsonFormatReaderStateLifecycleTests}. Counters are now passed via {@code FormatReadContext} rather
+ * than carried as reader fields, so all ordinary withers are stateless copies. The behavioural pins in
  * {@link CsvFormatReaderStatusSnapshotTests} guard each known wither; this class guards the ENUMERATION, so a
  * new wither or field fails the build until its lifecycle is decided.
  */
@@ -65,18 +63,12 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
         "configWarnings"
     );
 
-    /** Internally mutable fields written during reads. */
-    private static final Set<String> SHARED_MUTABLE_FIELDS = Set.of("counters");
+    /** Internally mutable fields written during reads. Counters are now passed via context, not stored as fields. */
+    private static final Set<String> SHARED_MUTABLE_FIELDS = Set.of();
 
     private enum WitherLifecycle {
         /**
-         * Mints a fresh counter struct: only {@link CsvFormatReader#withFreshCounters()} should declare this.
-         * The operator factory calls it once per {@code get(DriverContext)} so each operator gets an isolated scope.
-         */
-        OPERATOR_MINT_FORKS,
-        /**
-         * Shares the parent's counter struct. ALL ordinary withers — per-query and per-file alike — must declare
-         * this. Isolation is not at the wither seam; it is at {@link CsvFormatReader#withFreshCounters()}.
+         * Copies the reader's immutable configuration; all ordinary withers declare this.
          */
         SHARES_COUNTERS,
         /** SPI default that returns {@code this}: no copy, so no counter decision needed. */
@@ -84,7 +76,6 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
     }
 
     private static final Map<String, WitherLifecycle> WITHER_LIFECYCLE = Map.ofEntries(
-        Map.entry("withFreshCounters", WitherLifecycle.OPERATOR_MINT_FORKS),
         Map.entry("withConfig", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withConfigTrackingConsumedKeys", WitherLifecycle.SHARES_COUNTERS),
         Map.entry("withOptions", WitherLifecycle.SHARES_COUNTERS),
@@ -146,10 +137,9 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
         assertTrue(
             "wither(s) "
                 + undeclared
-                + " with no declared lifecycle: decide how it treats counters — OPERATOR_MINT_FORKS (only"
-                + " withFreshCounters()), SHARES_COUNTERS (all ordinary withers), or IDENTITY_NO_COPY (returns"
-                + " this) — add it to WITHER_LIFECYCLE and to sampleArgsFor(), and add a pin to the"
-                + " status-snapshot suite",
+                + " with no declared lifecycle: decide how it treats state — SHARES_COUNTERS (all ordinary withers)"
+                + " or IDENTITY_NO_COPY (returns this) — add it to WITHER_LIFECYCLE and to sampleArgsFor(), and"
+                + " add a pin to the status-snapshot suite",
             undeclared.isEmpty()
         );
         Set<String> stale = new TreeSet<>(WITHER_LIFECYCLE.keySet());
@@ -168,39 +158,14 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
                     "wither ["
                         + m.getName()
                         + "] is declared IDENTITY_NO_COPY but returned a copy: it now has state, so decide its"
-                        + " lifecycle — reclassify it OPERATOR_MINT_FORKS or SHARES_COUNTERS",
+                        + " lifecycle — reclassify it SHARES_COUNTERS",
                     receiver,
                     product
                 );
-                case OPERATOR_MINT_FORKS -> {
-                    for (String field : SHARED_MUTABLE_FIELDS) {
-                        assertNotSame(
-                            "wither ["
-                                + m.getName()
-                                + "] is the operator mint so its copy must FORK ["
-                                + field
-                                + "]: sharing here gives the singleton the operator's counters",
-                            fieldOf(receiver, field),
-                            fieldOf(product, field)
-                        );
-                    }
-                    Object sibling = invokeForcingACopy(m, receiver, lifecycle);
-                    for (String field : SHARED_MUTABLE_FIELDS) {
-                        assertNotSame(
-                            "two mints from the same base share [" + field + "]: sibling operators would mix",
-                            fieldOf(sibling, field),
-                            fieldOf(product, field)
-                        );
-                    }
-                }
                 case SHARES_COUNTERS -> {
                     for (String field : SHARED_MUTABLE_FIELDS) {
                         assertSame(
-                            "wither ["
-                                + m.getName()
-                                + "] must share ["
-                                + field
-                                + "] with its parent: forking here would leave the operator's reads unreported",
+                            "wither [" + m.getName() + "] must share [" + field + "] with its parent",
                             fieldOf(receiver, field),
                             fieldOf(product, field)
                         );
@@ -274,7 +239,6 @@ public class CsvFormatReaderStateLifecycleTests extends ESTestCase {
 
     private static List<Object[]> sampleArgsFor(String wither) {
         return switch (wither) {
-            case "withFreshCounters" -> List.<Object[]>of(new Object[0]);
             case "withConfig", "withConfigTrackingConsumedKeys" -> List.<Object[]>of(new Object[] { Map.of("delimiter", "|") });
             case "withOptions" -> List.<Object[]>of(new Object[] { CsvFormatOptions.DEFAULT });
             case "withSchema" -> List.<Object[]>of(

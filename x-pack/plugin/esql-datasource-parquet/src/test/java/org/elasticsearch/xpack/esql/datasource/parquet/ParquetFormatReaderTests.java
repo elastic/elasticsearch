@@ -742,16 +742,24 @@ public class ParquetFormatReaderTests extends ESTestCase {
             FooterByteCache.Key key = FooterByteCache.Key.keyFor(asyncObject, asyncObject.length());
             ParquetMetadata seeded = reader.parsedFooterForTests(key);
             assertNotNull("async tail parse must seed the parsed-footer cache", seeded);
-            // Cache-sharing copy so footer_cache_misses starts at 0 while the caches carry over.
-            ParquetFormatReader phase2 = reader.withFreshCounters();
-            phase2.discoverSplitRanges(asyncObject);
-            assertSame("Phase-2 loadFooter must reuse the Phase-1 instance", seeded, phase2.parsedFooterForTests(key));
-            assertEquals(0, phase2.statusSnapshot().footerCacheMisses());
-            assertEquals("discoverSplitRanges must go through loadFooter", 1, phase2.statusSnapshot().footerCacheHits());
+            reader.discoverSplitRanges(asyncObject);
+            assertSame("Phase-2 loadFooter must reuse the Phase-1 instance", seeded, reader.parsedFooterForTests(key));
+            ParquetReaderCounters readRangeCounters = (ParquetReaderCounters) reader.newReadCounters();
             try (
-                CloseableIterator<Page> iterator = phase2.readRange(
+                CloseableIterator<Page> iterator = reader.readRange(
                     asyncObject,
-                    new RangeReadContext(List.of("id", "name", "age"), 10, 0, parquetData.length, List.of(), ErrorPolicy.STRICT)
+                    new RangeReadContext(
+                        List.of("id", "name", "age"),
+                        10,
+                        0,
+                        parquetData.length,
+                        List.of(),
+                        ErrorPolicy.STRICT,
+                        null,
+                        FormatReader.NO_LIMIT,
+                        null,
+                        readRangeCounters
+                    )
                 )
             ) {
                 assertTrue(iterator.hasNext());
@@ -762,8 +770,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 assertEquals("Alice", ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, scratch).utf8ToString());
                 assertEquals(30, ((IntBlock) page.getBlock(2)).getInt(0));
             }
-            assertEquals("readRange over the seeded footer is a cache hit", 0, phase2.statusSnapshot().footerCacheMisses());
-            assertEquals("readRange loadFooter is a second hit", 2, phase2.statusSnapshot().footerCacheHits());
+            assertEquals("readRange over the seeded footer is a cache hit", 1, readRangeCounters.snapshot().footerCacheHits());
         } finally {
             probePool.shutdownNow();
         }
@@ -1143,7 +1150,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject file = vpcGlob(parquetData, 1).get(0);
         ParquetFormatReader root = new ParquetFormatReader(blockFactory);
         root.discoverSplitRanges(file);
-        assertEquals(1, root.statusSnapshot().footerCacheMisses());
+        FooterByteCache.Key key = FooterByteCache.Key.keyFor(file, file.length());
+        ParquetMetadata rootSeeded = root.parsedFooterForTests(key);
+        assertNotNull("root discoverSplitRanges must seed the parsed-footer cache", rootSeeded);
 
         ParquetFormatReader derived = (ParquetFormatReader) root.withDeclaredTypeColumns(Set.of("i32_0"));
         assertSame(
@@ -1151,12 +1160,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             root.footerByteCacheForTests(),
             derived.footerByteCacheForTests()
         );
-        // Derived readers now share the root's counter struct, so the root's initial miss is visible here.
-        assertEquals("derived copy shares the root's counter struct", 1, derived.statusSnapshot().footerCacheMisses());
         derived.discoverSplitRanges(file);
-        // After the derived read, the miss count is unchanged (cache was hit), and a hit was recorded.
-        assertEquals("derived copy must hit the root's parsed-footer cache", 1, derived.statusSnapshot().footerCacheMisses());
-        assertEquals(1, derived.statusSnapshot().footerCacheHits());
+        assertSame("derived copy must hit the root's parsed-footer cache", rootSeeded, derived.parsedFooterForTests(key));
     }
 
     /** {@link ParquetFormatReader#cachedSplitRanges} is a hash-get after a parse, never a GET. */
@@ -1206,13 +1211,20 @@ public class ParquetFormatReaderTests extends ESTestCase {
             for (StorageObject file : files) {
                 metadataAsyncDirect(phase1, file);
             }
-            assertEquals("Phase-1 seed must not count as a loadFooter miss", 0, phase1.statusSnapshot().footerCacheMisses());
-            ParquetFormatReader phase2 = phase1.withFreshCounters();
+            // All Phase-1 seeds must be in the parsed-footer cache.
             for (StorageObject file : files) {
-                phase2.discoverSplitRanges(file);
+                FooterByteCache.Key key = FooterByteCache.Key.keyFor(file, file.length());
+                assertNotNull("Phase-1 metadataAsync must seed the parsed-footer cache for N=" + n, phase1.parsedFooterForTests(key));
             }
-            assertEquals("Phase-2 must hit the Phase-1 seed for N=" + n, 0, phase2.statusSnapshot().footerCacheMisses());
-            assertEquals("Phase-2 loadFooter must run for every file", n, phase2.statusSnapshot().footerCacheHits());
+            for (StorageObject file : files) {
+                ParquetMetadata before = phase1.parsedFooterForTests(FooterByteCache.Key.keyFor(file, file.length()));
+                phase1.discoverSplitRanges(file);
+                assertSame(
+                    "Phase-2 discoverSplitRanges must reuse the Phase-1 seed for N=" + n,
+                    before,
+                    phase1.parsedFooterForTests(FooterByteCache.Key.keyFor(file, file.length()))
+                );
+            }
         }
     }
 
@@ -1295,23 +1307,31 @@ public class ParquetFormatReaderTests extends ESTestCase {
         for (StorageObject file : files) {
             metadataAsyncDirect(phase1Last, file);
         }
-        ParquetFormatReader lastWindow = phase1Last.withFreshCounters();
+        // Newest window: after Phase-1, the last `window` seeds should still be in the cache.
         for (int i = n - window; i < n; i++) {
-            lastWindow.discoverSplitRanges(files.get(i));
+            StorageObject file = files.get(i);
+            FooterByteCache.Key key = FooterByteCache.Key.keyFor(file, file.length());
+            assertNotNull("newest seed must still be in cache", phase1Last.parsedFooterForTests(key));
         }
-        assertEquals("newest seeds must still be cached", 0, lastWindow.statusSnapshot().footerCacheMisses());
-        assertEquals(window, lastWindow.statusSnapshot().footerCacheHits());
+        // After discoverSplitRanges the same instance must still be there (cache hit).
+        for (int i = n - window; i < n; i++) {
+            StorageObject file = files.get(i);
+            FooterByteCache.Key key = FooterByteCache.Key.keyFor(file, file.length());
+            ParquetMetadata before = phase1Last.parsedFooterForTests(key);
+            phase1Last.discoverSplitRanges(file);
+            assertSame("newest seeds must still be cached after discoverSplitRanges", before, phase1Last.parsedFooterForTests(key));
+        }
 
         ParquetFormatReader phase1First = new ParquetFormatReader(settings, blockFactory);
         for (StorageObject file : files) {
             metadataAsyncDirect(phase1First, file);
         }
-        ParquetFormatReader firstWindow = phase1First.withFreshCounters();
+        // Oldest window: after Phase-1, the first `window` seeds should have been evicted.
         for (int i = 0; i < window; i++) {
-            firstWindow.discoverSplitRanges(files.get(i));
+            StorageObject file = files.get(i);
+            FooterByteCache.Key key = FooterByteCache.Key.keyFor(file, file.length());
+            assertNull("oldest Phase-1 seeds must have been evicted", phase1First.parsedFooterForTests(key));
         }
-        assertEquals("oldest Phase-1 seeds must have been evicted", window, firstWindow.statusSnapshot().footerCacheMisses());
-        assertEquals(0, firstWindow.statusSnapshot().footerCacheHits());
     }
 
     /**
@@ -2295,8 +2315,14 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        ParquetReaderCounters counters = (ParquetReaderCounters) reader.newReadCounters();
 
-        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 50)) {
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                storageObject,
+                FormatReadContext.builder().batchSize(50).readCounters(counters).build()
+            )
+        ) {
             int pages = 0;
             while (iterator.hasNext()) {
                 try (Page page = iterator.next()) {
@@ -2304,17 +2330,17 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 }
             }
             assertThat(pages, greaterThan(0));
-            assertThat(reader.statusSnapshot().rowsEmitted(), greaterThan(0L));
+            assertThat(counters.snapshot().rowsEmitted(), greaterThan(0L));
         }
     }
 
     /**
-     * Pins the operator-mint isolation half of elastic/esql-planning#1803: {@code factory.get()}
-     * calls {@link ParquetFormatReader#withFreshCounters()} once per operator, so two mints from the
-     * same registry base own independent counter structs. Sibling-parity with
-     * {@code CsvFormatReaderStatusSnapshotTests#testSiblingQueryReadersDoNotShareCounters}.
+     * Pins the operator-isolation half of elastic/esql-planning#1803: each operator obtains its own
+     * {@link ParquetReaderCounters} via {@link ParquetFormatReader#newReadCounters()}, so two operators
+     * reading from the same reader instance own independent counter structs. Sibling-parity with
+     * {@code CsvFormatReaderStatusSnapshotTests#testSiblingQueryReadersHaveIsolatedCounters}.
      */
-    public void testSiblingQueryReadersDoNotShareCounters() throws Exception {
+    public void testSiblingQueryReadersHaveIsolatedCounters() throws Exception {
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT32).named("count").named("test_schema");
 
         byte[] parquetData = createParquetFile(schema, factory -> {
@@ -2328,19 +2354,23 @@ public class ParquetFormatReaderTests extends ESTestCase {
         });
         StorageObject storageObject = createStorageObject(parquetData);
 
-        ParquetFormatReader base = new ParquetFormatReader(blockFactory);
-        ParquetFormatReader first = base.withFreshCounters();
-        ParquetFormatReader second = base.withFreshCounters();
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        ParquetReaderCounters firstCounters = (ParquetReaderCounters) reader.newReadCounters();
+        ParquetReaderCounters secondCounters = (ParquetReaderCounters) reader.newReadCounters();
 
-        try (CloseableIterator<Page> iterator = first.read(storageObject, null, 10)) {
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                storageObject,
+                FormatReadContext.builder().batchSize(10).readCounters(firstCounters).build()
+            )
+        ) {
             while (iterator.hasNext()) {
                 iterator.next().releaseBlocks();
             }
         }
 
-        assertTrue("the minted reader that read must report its own work", first.statusSnapshot().rowsEmitted() > 0);
-        assertEquals("a sibling minted reader must not see it", 0L, second.statusSnapshot().rowsEmitted());
-        assertEquals("nor may it reach the registry's shared reader", 0L, base.statusSnapshot().rowsEmitted());
+        assertTrue("the operator that read must report its own work", firstCounters.snapshot().rowsEmitted() > 0);
+        assertEquals("a sibling operator's counters must not see it", 0L, secondCounters.snapshot().rowsEmitted());
     }
 
     public void testReadFloatColumn() throws Exception {

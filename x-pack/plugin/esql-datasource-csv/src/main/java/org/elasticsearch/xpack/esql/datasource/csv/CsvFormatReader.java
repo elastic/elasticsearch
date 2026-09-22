@@ -68,8 +68,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.InstrumentedFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
@@ -259,7 +259,7 @@ import java.util.function.Consumer;
  * <p>Works with any {@link org.elasticsearch.xpack.esql.datasources.spi.StorageProvider}
  * (HTTP, S3, local filesystem).
  */
-public class CsvFormatReader implements SegmentableFormatReader, InstrumentedFormatReader {
+public class CsvFormatReader implements SegmentableFormatReader {
 
     /**
      * The schema-sampling default this reader applies when the setting is absent, surfaced from
@@ -463,9 +463,6 @@ public class CsvFormatReader implements SegmentableFormatReader, InstrumentedFor
     private final List<String> extensions;
     private final List<Attribute> resolvedSchema;
     private final int schemaSampleSize;
-    // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()};
-    // shared across the parallel {@link CsvBatchIterator} segments spawned by {@link #read}.
-    private final CsvReaderCounters counters;
     /**
      * Notices this reader can raise about its own {@code WITH} options (today one: {@code mode: escaped} with a
      * {@code quote} override, which switches the escaped decode off). They are known when the options are parsed, but
@@ -595,46 +592,6 @@ public class CsvFormatReader implements SegmentableFormatReader, InstrumentedFor
         boolean declaredProvenanceBinding,
         List<String> configWarnings
     ) {
-        this(
-            blockFactory,
-            options,
-            format,
-            extensions,
-            resolvedSchema,
-            schemaSampleSize,
-            effectivePolicy,
-            canonicalConfig,
-            readConfig,
-            directBlockEnabled,
-            declaredDateFormats,
-            declaredProvenanceBinding,
-            null,
-            configWarnings
-        );
-    }
-
-    /**
-     * Primary copy constructor: preserves all fields and either shares ({@code sharedCounters != null})
-     * or mints ({@code sharedCounters == null}) a counter struct. Every {@code with*} wither passes
-     * {@code this.counters} here so the base reader's snapshot observes everything any fork recorded.
-     * Only {@link #withFreshCounters()} passes {@code null} to allocate a fresh struct.
-     */
-    private CsvFormatReader(
-        BlockFactory blockFactory,
-        CsvFormatOptions options,
-        String format,
-        List<String> extensions,
-        List<Attribute> resolvedSchema,
-        int schemaSampleSize,
-        ErrorPolicy effectivePolicy,
-        String canonicalConfig,
-        String readConfig,
-        boolean directBlockEnabled,
-        Map<String, String> declaredDateFormats,
-        boolean declaredProvenanceBinding,
-        CsvReaderCounters sharedCounters,
-        List<String> configWarnings
-    ) {
         this.blockFactory = blockFactory;
         this.options = options;
         this.format = format;
@@ -647,7 +604,6 @@ public class CsvFormatReader implements SegmentableFormatReader, InstrumentedFor
         this.directBlockEnabled = directBlockEnabled;
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
         this.declaredProvenanceBinding = declaredProvenanceBinding;
-        this.counters = sharedCounters != null ? sharedCounters : new CsvReaderCounters(format);
         this.configWarnings = List.copyOf(configWarnings);
         this.sharedCsvMapper = createMapper(options);
     }
@@ -655,10 +611,6 @@ public class CsvFormatReader implements SegmentableFormatReader, InstrumentedFor
     /**
      * Returns a copy of this reader with the direct-to-block read path toggled. Threaded from the
      * {@code esql.external.csv.direct_block.enabled} node setting at reader-construction time.
-     * <p>
-     * Note: {@code CsvDataSourcePlugin} calls this on the registry's root reader before publishing
-     * it. The resulting reader inherits the root's (fresh) counters struct — harmless, since the
-     * root itself will never accumulate reads.
      */
     public CsvFormatReader withDirectBlockEnabled(boolean enabled) {
         if (enabled == directBlockEnabled) {
@@ -677,7 +629,6 @@ public class CsvFormatReader implements SegmentableFormatReader, InstrumentedFor
             enabled,
             declaredDateFormats,
             declaredProvenanceBinding,
-            counters,
             configWarnings
         );
     }
@@ -1049,7 +1000,6 @@ public class CsvFormatReader implements SegmentableFormatReader, InstrumentedFor
             directBlockEnabled,
             declaredDateFormats,
             declaredProvenanceBinding,
-            counters,
             configWarnings
         );
     }
@@ -1069,7 +1019,6 @@ public class CsvFormatReader implements SegmentableFormatReader, InstrumentedFor
             directBlockEnabled,
             declaredDateFormats,
             declaredProvenanceBinding,
-            counters,
             configWarnings
         );
     }
@@ -1092,7 +1041,6 @@ public class CsvFormatReader implements SegmentableFormatReader, InstrumentedFor
             directBlockEnabled,
             declaredDateFormats,
             binding,
-            counters,
             configWarnings
         );
     }
@@ -1241,7 +1189,6 @@ public class CsvFormatReader implements SegmentableFormatReader, InstrumentedFor
             directBlockEnabled,
             physicalNameToPattern,
             declaredProvenanceBinding,
-            counters,
             configWarnings
         );
     }
@@ -1251,9 +1198,6 @@ public class CsvFormatReader implements SegmentableFormatReader, InstrumentedFor
         if (newReadConfig == null || newReadConfig.equals(readConfig)) {
             return this;
         }
-        // Shares this reader's counters: every wither propagates the same struct so the base reader's
-        // statusSnapshot() observes reads from any derived copy. The mint (fresh struct) happens only
-        // once per operator in AsyncExternalSourceOperatorFactory.get(DriverContext).
         return new CsvFormatReader(
             blockFactory,
             options,
@@ -1267,35 +1211,6 @@ public class CsvFormatReader implements SegmentableFormatReader, InstrumentedFor
             directBlockEnabled,
             declaredDateFormats,
             declaredProvenanceBinding,
-            counters,
-            configWarnings
-        );
-    }
-
-    /**
-     * Returns a copy of this reader backed by a fresh {@link CsvReaderCounters} struct while
-     * preserving all other fields. Called once per {@code AsyncExternalSourceOperatorFactory.get(DriverContext)}
-     * invocation so each parallel driver accumulates into its own counter.
-     * <p>
-     * This is the <em>only</em> place a new counter struct is allocated for a derived reader;
-     * every other {@code with*} wither forwards {@code this.counters}.
-     */
-    @Override
-    public CsvFormatReader withFreshCounters() {
-        return new CsvFormatReader(
-            blockFactory,
-            options,
-            format,
-            extensions,
-            resolvedSchema,
-            schemaSampleSize,
-            effectivePolicy,
-            canonicalConfig,
-            readConfig,
-            directBlockEnabled,
-            declaredDateFormats,
-            declaredProvenanceBinding,
-            null,
             configWarnings
         );
     }
@@ -1330,7 +1245,6 @@ public class CsvFormatReader implements SegmentableFormatReader, InstrumentedFor
             result.directBlockEnabled,
             result.declaredDateFormats,
             result.declaredProvenanceBinding,
-            result.counters,
             parsedOptions.configWarnings()
         );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
@@ -2200,7 +2114,7 @@ public class CsvFormatReader implements SegmentableFormatReader, InstrumentedFor
             cacheable ? stream : null,
             pinnedMtimeMillis,
             chunkMode,
-            counters,
+            context.readCounters() instanceof CsvReaderCounters c ? c : null,
             useDirectBlockPlain,
             useDirectBlockQuoted,
             context.splitStartByte(),
@@ -2211,13 +2125,9 @@ public class CsvFormatReader implements SegmentableFormatReader, InstrumentedFor
         );
     }
 
-    /**
-     * Returns an immutable typed snapshot of the CSV reader's counters for the operator-status
-     * envelope. Zero-valued counters when no batches have run.
-     */
     @Override
-    public CsvReaderStatus statusSnapshot() {
-        return counters.snapshot();
+    public FormatReadCounters newReadCounters() {
+        return new CsvReaderCounters(format);
     }
 
     @Override
@@ -3547,7 +3457,7 @@ public class CsvFormatReader implements SegmentableFormatReader, InstrumentedFor
         /** True for parallel-parsing chunks — close-time publish carries the partial-chunk marker. */
         private final boolean chunkMode;
 
-        // Reader-level counters shared across this iterator and any sibling segments.
+        @Nullable
         private final CsvReaderCounters counters;
 
         /** True when the direct-to-block plain (unquoted) path is eligible (decided once in {@link #read}). */
@@ -3756,8 +3666,10 @@ public class CsvFormatReader implements SegmentableFormatReader, InstrumentedFor
             } finally {
                 long deltaTotal = totalRowCount - startTotal;
                 long deltaErrors = errorCount - startError;
-                counters.addRowsEmitted(deltaTotal - deltaErrors);
-                counters.addParseErrors(deltaErrors);
+                if (counters != null) {
+                    counters.addRowsEmitted(deltaTotal - deltaErrors);
+                    counters.addParseErrors(deltaErrors);
+                }
             }
         }
 
@@ -4091,7 +4003,9 @@ public class CsvFormatReader implements SegmentableFormatReader, InstrumentedFor
                     if (headerLine == null) {
                         return null;
                     }
-                    counters.markHeaderDetected();
+                    if (counters != null) {
+                        counters.markHeaderDetected();
+                    }
                     schema = parseSchema(headerLine);
                     if (schema == null) {
                         schema = inferSchemaFromBatchReader(headerLine);

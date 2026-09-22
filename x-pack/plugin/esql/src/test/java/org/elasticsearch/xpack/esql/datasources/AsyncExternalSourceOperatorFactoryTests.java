@@ -3202,7 +3202,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                ExternalReadCounters.NOOP
+                ExternalReadCounters.NOOP,
+                null
             )
         );
     }
@@ -3232,7 +3233,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                ExternalReadCounters.NOOP
+                ExternalReadCounters.NOOP,
+                null
             );
             assertNotNull(iterator);
             iterator.close();
@@ -3275,7 +3277,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                ExternalReadCounters.NOOP
+                ExternalReadCounters.NOOP,
+                null
             );
             assertNotNull(iterator);
             try {
@@ -3331,7 +3334,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                ExternalReadCounters.NOOP
+                ExternalReadCounters.NOOP,
+                null
             )
         );
         assertEquals("decompress failed", thrown.getMessage());
@@ -3413,7 +3417,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                ExternalReadCounters.NOOP
+                ExternalReadCounters.NOOP,
+                null
             )
         );
         assertEquals("simulated parallelRead construction failure", thrown.getMessage());
@@ -3445,7 +3450,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                ExternalReadCounters.NOOP
+                ExternalReadCounters.NOOP,
+                null
             );
             assertNotNull(iterator);
             iterator.close();
@@ -3498,7 +3504,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 null,
                 null,
                 null,
-                ExternalReadCounters.NOOP
+                ExternalReadCounters.NOOP,
+                null
             )
         );
         assertTrue(

@@ -263,6 +263,7 @@ public class NdJsonPageDecoder implements Closeable {
     private Consumer<String> absentColumnWarningSink;
     private final ErrorPolicy errorPolicy;
     private final SkipWarnings skipWarnings;
+    @Nullable
     private final NdJsonReaderCounters counters;
     private long totalRowCount;
     private long errorCount;
@@ -675,7 +676,6 @@ public class NdJsonPageDecoder implements Closeable {
             this.sourceDataLength = -1;
         }
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
-        Check.isTrue(counters != null, "counters must not be null");
         this.errorPolicy = errorPolicy;
         this.counters = counters;
         this.datetimeFormatter = datetimeFormatter != null ? datetimeFormatter : NdJsonSchemaInferrer.STRICT_DATE_OPTIONAL_TIME;
@@ -1109,8 +1109,10 @@ public class NdJsonPageDecoder implements Closeable {
             Releasables.close(blockBuilders);
             long deltaTotal = totalRowCount - startTotalRowCount;
             long deltaErrors = errorCount - startErrorCount;
-            counters.addRowsEmitted(deltaTotal - deltaErrors);
-            counters.addParseErrors(deltaErrors);
+            if (counters != null) {
+                counters.addRowsEmitted(deltaTotal - deltaErrors);
+                counters.addParseErrors(deltaErrors);
+            }
         }
     }
 

@@ -121,7 +121,8 @@ public record FormatReadContext(
     @Nullable Consumer<String> informationalWarningSink,
     @Nullable List<String> fileHeaderColumns,
     @Nullable CircuitBreaker breaker,
-    @Nullable SharedErrorBudget sharedErrorBudget
+    @Nullable SharedErrorBudget sharedErrorBudget,
+    @Nullable FormatReadCounters readCounters
 ) {
 
     public FormatReadContext {
@@ -169,7 +170,8 @@ public record FormatReadContext(
             informationalWarningSink,
             fileHeaderColumns,
             breaker,
-            sharedErrorBudget
+            sharedErrorBudget,
+            readCounters
         );
     }
 
@@ -195,7 +197,8 @@ public record FormatReadContext(
             informationalWarningSink,
             fileHeaderColumns,
             breaker,
-            sharedErrorBudget
+            sharedErrorBudget,
+            readCounters
         );
     }
 
@@ -221,7 +224,8 @@ public record FormatReadContext(
             informationalWarningSink,
             fileHeaderColumns,
             breaker,
-            sharedErrorBudget
+            sharedErrorBudget,
+            readCounters
         );
     }
 
@@ -256,6 +260,8 @@ public record FormatReadContext(
         private CircuitBreaker breaker = null;
         @Nullable
         private SharedErrorBudget sharedErrorBudget = null;
+        @Nullable
+        private FormatReadCounters readCounters = null;
 
         private Builder() {}
 
@@ -376,6 +382,11 @@ public record FormatReadContext(
             return this;
         }
 
+        public Builder readCounters(@Nullable FormatReadCounters readCounters) {
+            this.readCounters = readCounters;
+            return this;
+        }
+
         public FormatReadContext build() {
             if (batchSize <= 0) {
                 throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -398,7 +409,8 @@ public record FormatReadContext(
                 informationalWarningSink,
                 fileHeaderColumns,
                 breaker,
-                sharedErrorBudget
+                sharedErrorBudget,
+                readCounters
             );
         }
     }

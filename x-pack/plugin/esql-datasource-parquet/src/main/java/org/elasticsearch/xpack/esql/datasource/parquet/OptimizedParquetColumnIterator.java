@@ -404,6 +404,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private long twoPhaseRowGroupsAllFiltered;
 
     /** Reader-level counters shared with the owning {@link ParquetFormatReader}. */
+    @Nullable
     private final ParquetReaderCounters counters;
 
     OptimizedParquetColumnIterator(
@@ -428,7 +429,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         ParquetMetadata fullFooter,
         DynamicThreshold dynamicThreshold,
         ColumnDescriptor sortColumnDescriptor,
-        ParquetReaderCounters counters,
+        @Nullable ParquetReaderCounters counters,
         ErrorPolicy errorPolicy,
         @Nullable Consumer<String> warningSink,
         @Nullable SharedErrorBudget sharedErrorBudget
@@ -2725,7 +2726,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             // or close().
             rowsRemainingInGroup = 0;
         }
-        counters.addRowsEmitted(emitCount);
+        if (counters != null) {
+            counters.addRowsEmitted(emitCount);
+        }
         return new Page(blocks);
     }
 
@@ -2858,7 +2861,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     + "]"
             );
         }
-        counters.addRowsEmitted(producedRows);
+        if (counters != null) {
+            counters.addRowsEmitted(producedRows);
+        }
         return new Page(blocks);
     }
 
@@ -2950,7 +2955,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 }
             }
 
-            counters.addRowsEmitted(survivorCount);
+            if (counters != null) {
+                counters.addRowsEmitted(survivorCount);
+            }
             return new Page(blocks);
         } catch (CircuitBreakingException e) {
             ParquetReadFailures.closePreservingCause(e, blocks);

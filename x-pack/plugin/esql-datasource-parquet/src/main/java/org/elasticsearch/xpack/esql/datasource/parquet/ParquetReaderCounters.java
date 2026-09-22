@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -37,7 +39,7 @@ import java.util.concurrent.atomic.LongAdder;
  * pattern. {@link LongAdder} is preferred over {@code AtomicLong} because async read-path
  * callbacks can update counters from worker threads concurrently with the operator status snapshot.
  */
-public final class ParquetReaderCounters {
+public final class ParquetReaderCounters implements FormatReadCounters {
 
     // Footer
     private final LongAdder footerReadNanos = new LongAdder();
@@ -158,6 +160,7 @@ public final class ParquetReaderCounters {
      * a {@code Map<String, PerColumnStatus>} — {@link PerColumnStatus} is itself {@code Writeable},
      * so it crosses the operator-status wire directly with no flattening.
      */
+    @Override
     public ParquetReaderStatus snapshot() {
         // Sort predicate columns for deterministic snapshots; insertion order is meaningless because
         // ConcurrentHashMap.newKeySet() is not insertion-ordered.

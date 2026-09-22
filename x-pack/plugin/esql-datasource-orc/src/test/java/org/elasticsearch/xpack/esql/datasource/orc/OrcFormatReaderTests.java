@@ -128,7 +128,7 @@ public class OrcFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Verifies {@link OrcFormatReader#statusSnapshot()} reports populated counters after a real
+     * Verifies counters passed via {@link FormatReadContext#readCounters()} are populated after a real
      * read drains an ORC file. Sibling-parity with
      * {@code NdJsonFormatReaderStatusSnapshotTests} / {@code CsvFormatReaderStatusSnapshotTests};
      * lives here to reuse the Hadoop FileSystem test infrastructure rather than duplicate it.
@@ -150,31 +150,23 @@ public class OrcFormatReaderTests extends ESTestCase {
 
         StorageObject storageObject = createStorageObject(orcData);
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        OrcReaderCounters counters = (OrcReaderCounters) reader.newReadCounters();
+        FormatReadContext context = FormatReadContext.builder().batchSize(1024).readCounters(counters).build();
 
-        // Snapshot before drain: format identifier present, row count at zero.
-        var before = reader.statusSnapshot();
-        assertEquals("orc", before.format());
-        assertEquals(0L, before.rowsEmitted());
-
-        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, context)) {
             while (iterator.hasNext()) {
                 Page page = iterator.next();
                 page.releaseBlocks();
             }
         }
 
-        var after = reader.statusSnapshot();
-        assertEquals("orc", after.format());
-        assertEquals("3 data rows drained from the file", 3L, after.rowsEmitted());
+        assertEquals("3 data rows drained from the file", 3L, counters.snapshot().rowsEmitted());
     }
 
     /**
-     * Pins the operator-mint isolation half of elastic/esql-planning#1803: {@code factory.get()}
-     * calls {@link OrcFormatReader#withFreshCounters()} once per operator, so two mints from the
-     * same registry base own independent counter structs. Sibling-parity with
-     * {@code CsvFormatReaderStatusSnapshotTests#testSiblingQueryReadersDoNotShareCounters}.
+     * Verifies that two separate counter instances do not share state even when using the same reader.
      */
-    public void testSiblingQueryReadersDoNotShareCounters() throws Exception {
+    public void testSiblingQueryReadersHaveIsolatedCounters() throws Exception {
         TypeDescription schema = TypeDescription.createStruct()
             .addField("id", TypeDescription.createLong())
             .addField("name", TypeDescription.createString());
@@ -190,19 +182,19 @@ public class OrcFormatReaderTests extends ESTestCase {
         });
         StorageObject storageObject = createStorageObject(orcData);
 
-        OrcFormatReader base = new OrcFormatReader(blockFactory);
-        OrcFormatReader first = base.withFreshCounters();
-        OrcFormatReader second = base.withFreshCounters();
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        OrcReaderCounters firstCounters = (OrcReaderCounters) reader.newReadCounters();
+        OrcReaderCounters secondCounters = (OrcReaderCounters) reader.newReadCounters();
 
-        try (CloseableIterator<Page> iterator = first.read(storageObject, null, 1024)) {
+        FormatReadContext firstContext = FormatReadContext.builder().batchSize(1024).readCounters(firstCounters).build();
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, firstContext)) {
             while (iterator.hasNext()) {
                 iterator.next().releaseBlocks();
             }
         }
 
-        assertTrue("the minted reader that read must report its own work", first.statusSnapshot().rowsEmitted() > 0);
-        assertEquals("a sibling minted reader must not see it", 0L, second.statusSnapshot().rowsEmitted());
-        assertEquals("nor may it reach the registry's shared reader", 0L, base.statusSnapshot().rowsEmitted());
+        assertTrue("the reader that ran must report its own work", firstCounters.snapshot().rowsEmitted() > 0);
+        assertEquals("the sibling counters must not see it", 0L, secondCounters.snapshot().rowsEmitted());
     }
 
     public void testReadSchemaFromSimpleOrc() throws Exception {

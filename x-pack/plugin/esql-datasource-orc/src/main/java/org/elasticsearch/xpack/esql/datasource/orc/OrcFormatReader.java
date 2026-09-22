@@ -414,14 +414,15 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             counters.recordFooterCache(missed[0] == false);
             return tail;
         } catch (ExecutionException e) {
-            // rethrowStructural handles Error/IOException/CircuitBreakingException/
-            // ElasticsearchException; anything else (typically a plain RuntimeException from
-            // orc-core indicating a corrupt tail) is returned for format-specific wrapping.
-            // Unlike Parquet there is no orc-tagged exception factory; surface a structurally
-            // tagged IOException so log lines clearly attribute the failure to ORC tail parsing.
-            // The ORC library embeds the full storage URI in its RuntimeException messages, so
-            // wrap them here — only the object name (last path segment) must appear.
-            Throwable other = ParsedFooterCache.rethrowStructural(e);
+            // The ORC library embeds the full storage URI in both its IOException ("Malformed ORC
+            // file <uri>. ...") and RuntimeException messages, so we must wrap either kind before
+            // surfacing the error — only the object name (last path segment) must appear.
+            Throwable other;
+            try {
+                other = ParsedFooterCache.rethrowStructural(e);
+            } catch (IOException io) {
+                throw new IOException("Failed to parse ORC tail for [" + path.getName() + "]", io);
+            }
             throw new IOException("Failed to parse ORC tail for [" + path.getName() + "]", other);
         }
     }

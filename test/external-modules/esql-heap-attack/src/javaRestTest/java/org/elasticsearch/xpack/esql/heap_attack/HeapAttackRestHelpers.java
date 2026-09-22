@@ -33,6 +33,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -235,7 +236,12 @@ public abstract class HeapAttackRestHelpers extends ESRestTestCase {
         adminClient().performRequest(request);
     }
 
-    protected record StreamSummary(List<Map<String, Object>> columns, long rowCount, Map<String, Object> footer, boolean sawError) {}
+    protected record StreamSummary(
+        List<Map<String, Object>> columns,
+        long rowCount,
+        Map<String, Object> footer,
+        List<Map<String, Object>> errors
+    ) {}
 
     @SuppressWarnings("unchecked")
     protected StreamSummary streamQuery(String esqlQuery, int batchSize) throws IOException {
@@ -257,7 +263,7 @@ public abstract class HeapAttackRestHelpers extends ESRestTestCase {
         List<Map<String, Object>> columns = null;
         long rowCount = 0L;
         Map<String, Object> footer = null;
-        boolean sawError = false;
+        List<Map<String, Object>> errors = new ArrayList<>();
 
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8))) {
             String line;
@@ -267,8 +273,9 @@ public abstract class HeapAttackRestHelpers extends ESRestTestCase {
                 }
                 Map<String, Object> parsed = XContentHelper.convertToMap(XContentType.JSON.xContent(), line, false);
                 if (parsed.containsKey("error")) {
-                    sawError = true;
-                } else if (parsed.containsKey("columns")) {
+                    errors.add(parsed);
+                }
+                if (parsed.containsKey("columns")) {
                     columns = (List<Map<String, Object>>) parsed.get("columns");
                 } else if (parsed.containsKey("values")) {
                     rowCount += ((List<List<Object>>) parsed.get("values")).size();
@@ -277,7 +284,7 @@ public abstract class HeapAttackRestHelpers extends ESRestTestCase {
                 }
             }
         }
-        return new StreamSummary(columns, rowCount, footer, sawError);
+        return new StreamSummary(columns, rowCount, footer, errors);
     }
 
     protected static boolean isServerless() throws IOException {

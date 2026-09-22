@@ -101,7 +101,7 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
         if (original instanceof Map<?, ?> originalMap) {
             Map<Object, Object> clonedMap = new HashMap<>();
             for (Map.Entry<?, ?> e : originalMap.entrySet()) {
-                clonedMap.put(deepCopyParams(e.getKey()), deepCopyParams(e.getValue()));
+                clonedMap.put(e.getKey(), deepCopyParams(e.getValue()));
             }
             clone = (T) clonedMap;
         } else if (original instanceof List<?> originalList) {

@@ -19,8 +19,8 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiConsumer;
@@ -31,9 +31,9 @@ import java.util.function.Supplier;
  *
  * <p>The AWS SDK's {@code ContainerCredentialsProvider} resolves the endpoint URL from
  * {@code AWS_CONTAINER_CREDENTIALS_FULL_URI} / {@code AWS_CONTAINER_CREDENTIALS_RELATIVE_URI},
- * loads an auth token from the file pointed at by {@code AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE}
- * (or the JVM sysprop our plugin sets), and issues a GET against the endpoint with
- * {@code Authorization: <token>}. The response JSON shape is:
+ * loads an auth token from the file pointed at by {@code AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE},
+ * and issues a GET against the endpoint with {@code Authorization: <token>}. The response JSON shape
+ * is:
  *
  * <pre>{@code
  * { "AccessKeyId": "...", "SecretAccessKey": "...", "Token": "...", "Expiration": "..." }
@@ -43,13 +43,20 @@ import java.util.function.Supplier;
  * and emits a fresh access-key/session-token pair on every request, registering them via
  * {@code newCredentialsConsumer} (so the S3 fixture can authorize the resulting signed S3
  * requests). Mirrors the structure of {@code AwsStsHttpFixture} but for container credentials.
+ *
+ * <p>Credential lifetime defaults to fifteen minutes (matching the real EKS agent). Tests that need
+ * to force a refresh after an intervening ES|QL query pass a shorter {@link Duration} so the SDK's
+ * stale-time (expiry minus one minute) is already in the past when credentials are first issued.
  */
 @SuppressForbidden(reason = "test fixture uses HttpServer to emulate the EKS Pod Identity / ECS credentials endpoint")
 public final class PodIdentityCredentialsHttpFixture extends ExternalResource {
 
+    private static final Duration DEFAULT_CREDENTIAL_LIFETIME = Duration.ofMinutes(15);
+
     private final Supplier<String> expectedTokenSupplier;
     private final BiConsumer<String, String> newCredentialsConsumer;
     private final Supplier<String> secretKeySupplier;
+    private final Duration credentialLifetime;
 
     private HttpServer server;
 
@@ -58,14 +65,32 @@ public final class PodIdentityCredentialsHttpFixture extends ExternalResource {
         BiConsumer<String, String> newCredentialsConsumer,
         Supplier<String> secretKeySupplier
     ) {
+        this(expectedTokenSupplier, newCredentialsConsumer, secretKeySupplier, DEFAULT_CREDENTIAL_LIFETIME);
+    }
+
+    public PodIdentityCredentialsHttpFixture(
+        Supplier<String> expectedTokenSupplier,
+        BiConsumer<String, String> newCredentialsConsumer,
+        Supplier<String> secretKeySupplier,
+        Duration credentialLifetime
+    ) {
         this.expectedTokenSupplier = Objects.requireNonNull(expectedTokenSupplier);
         this.newCredentialsConsumer = Objects.requireNonNull(newCredentialsConsumer);
         this.secretKeySupplier = Objects.requireNonNull(secretKeySupplier);
+        this.credentialLifetime = Objects.requireNonNull(credentialLifetime);
+        if (credentialLifetime.isNegative() || credentialLifetime.isZero()) {
+            throw new IllegalArgumentException("credentialLifetime must be positive");
+        }
     }
 
     public String getCredentialsUri() {
         InetSocketAddress addr = server.getAddress();
         return "http://" + InetAddresses.toUriString(addr.getAddress()) + ":" + addr.getPort() + "/eks-pod-identity-credentials";
+    }
+
+    /** The lifetime each issued credential set is given; used by tests that wait past expiry. */
+    public Duration credentialLifetime() {
+        return credentialLifetime;
     }
 
     @Override
@@ -104,7 +129,7 @@ public final class PodIdentityCredentialsHttpFixture extends ExternalResource {
                 accessKeyId,
                 secretKeySupplier.get(),
                 sessionToken,
-                Instant.now().plus(15, ChronoUnit.MINUTES).toString()
+                Instant.now().plus(credentialLifetime).toString()
             );
             byte[] response = body.getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().add("Content-Type", "application/json");

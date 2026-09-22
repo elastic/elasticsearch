@@ -13,16 +13,27 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.ContainerCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
+import software.amazon.awssdk.core.SdkSystemSetting;
 
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration.AuthMode;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
 
 /**
  * Tests the mapping from a parsed {@link S3Configuration} to the AWS SDK credential: the mode resolution
@@ -98,7 +109,7 @@ public class S3CredentialsProviderTests extends ESTestCase {
     }
 
     /**
-     * Without an IRSA singleton wired through, the workload-identity chain is just
+     * Without an IRSA / Pod Identity singleton wired through, the workload-identity chain is just
      * ContainerCredentialsProvider followed by InstanceProfileCredentialsProvider — the v1
      * shape. Behavior on every non-EKS deployment.
      */
@@ -120,6 +131,115 @@ public class S3CredentialsProviderTests extends ESTestCase {
         assertThat(providers, hasSize(2));
         assertThat(providers.get(0), instanceOf(ContainerCredentialsProvider.class));
         assertThat(providers.get(1), instanceOf(InstanceProfileCredentialsProvider.class));
+    }
+
+    /**
+     * An active Pod Identity provider replaces the stock ContainerCredentialsProvider in the chain.
+     */
+    public void testManagedIdentityChainUsesEsqlContainerProviderWhenActive() throws IOException {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        Environment environment = TestEnvironment.newEnvironment(settings);
+        Path tokenFile = environment.configDir().resolve(EsqlContainerCredentialsProvider.POD_IDENTITY_TOKEN_FILE_LOCATION);
+        Files.createDirectories(tokenFile.getParent());
+        Files.writeString(tokenFile, "token");
+        try (EsqlContainerCredentialsProvider active = new EsqlContainerCredentialsProvider(environment, null, name -> {
+            if (name.equals(SdkSystemSetting.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.environmentVariable())) {
+                return "/var/run/secrets/token";
+            }
+            if (name.equals(SdkSystemSetting.AWS_CONTAINER_CREDENTIALS_FULL_URI.environmentVariable())) {
+                return "http://127.0.0.1/creds";
+            }
+            return null;
+        })) {
+            assertTrue(active.isActive());
+            List<AwsCredentialsProvider> providers = new S3StorageProvider(null, null, null, active).managedIdentityProviders();
+            assertThat(providers, hasSize(2));
+            assertThat(providers.get(0), instanceOf(ErrorLoggingCredentialsProvider.class));
+            assertThat(providers.get(1), instanceOf(InstanceProfileCredentialsProvider.class));
+            for (AwsCredentialsProvider provider : providers) {
+                assertFalse(provider instanceof ContainerCredentialsProvider);
+            }
+        }
+    }
+
+    /**
+     * A misconfigured Pod Identity provider (env set, entitled symlink missing) must fail loudly
+     * rather than fall through to the stock ContainerCredentialsProvider — but only when no earlier
+     * provider is already in the chain.
+     */
+    public void testManagedIdentityChainFailsWhenPodIdentityMisconfigured() {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        Environment environment = TestEnvironment.newEnvironment(settings);
+        EsqlContainerCredentialsProvider misconfigured = new EsqlContainerCredentialsProvider(environment, null, name -> {
+            if (name.equals(SdkSystemSetting.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.environmentVariable())) {
+                return "/var/run/secrets/token";
+            }
+            if (name.equals(SdkSystemSetting.AWS_CONTAINER_CREDENTIALS_FULL_URI.environmentVariable())) {
+                return "http://127.0.0.1/creds";
+            }
+            return null;
+        });
+        assertTrue(misconfigured.isMisconfigured());
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> new S3StorageProvider(null, null, null, misconfigured).managedIdentityProviders()
+        );
+        assertTrue(e.getMessage().contains(EsqlContainerCredentialsProvider.POD_IDENTITY_TOKEN_FILE_LOCATION));
+    }
+
+    /**
+     * Active IRSA + misconfigured Pod Identity must keep IRSA in the chain and skip stock CCP —
+     * a working IRSA source must not be aborted by a missing ES|QL Pod Identity symlink.
+     */
+    @SuppressForbidden(reason = "AWS SDK StsClient builder requires a region; pinning one for this test method")
+    public void testManagedIdentityChainKeepsIrsaWhenPodIdentityMisconfigured() throws IOException {
+        String previousAwsRegion = System.setProperty("aws.region", "us-east-1");
+        try {
+            Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+            Environment environment = TestEnvironment.newEnvironment(settings);
+            Path irsaToken = environment.configDir().resolve(CustomWebIdentityTokenCredentialsProvider.WEB_IDENTITY_TOKEN_FILE_LOCATION);
+            Files.createDirectories(irsaToken.getParent());
+            Files.writeString(irsaToken, "fake-irsa-token");
+
+            try (
+                CustomWebIdentityTokenCredentialsProvider irsa = new CustomWebIdentityTokenCredentialsProvider(
+                    environment,
+                    Clock.systemUTC(),
+                    mock(ResourceWatcherService.class),
+                    name -> switch (name) {
+                        case "AWS_WEB_IDENTITY_TOKEN_FILE" -> "/var/run/secrets/eks.amazonaws.com/serviceaccount/token";
+                        case "AWS_ROLE_ARN" -> "arn:aws:iam::123456789012:role/test";
+                        default -> null;
+                    }
+                )
+            ) {
+                assertTrue(irsa.isActive());
+                EsqlContainerCredentialsProvider misconfigured = new EsqlContainerCredentialsProvider(environment, null, name -> {
+                    if (name.equals(SdkSystemSetting.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.environmentVariable())) {
+                        return "/var/run/secrets/token";
+                    }
+                    if (name.equals(SdkSystemSetting.AWS_CONTAINER_CREDENTIALS_FULL_URI.environmentVariable())) {
+                        return "http://127.0.0.1/creds";
+                    }
+                    return null;
+                });
+                assertTrue(misconfigured.isMisconfigured());
+
+                List<AwsCredentialsProvider> providers = new S3StorageProvider(null, null, irsa, misconfigured).managedIdentityProviders();
+                assertThat(providers, hasSize(2));
+                assertThat(providers.get(0), instanceOf(ErrorLoggingCredentialsProvider.class));
+                assertThat(providers.get(1), instanceOf(InstanceProfileCredentialsProvider.class));
+                for (AwsCredentialsProvider provider : providers) {
+                    assertFalse(provider instanceof ContainerCredentialsProvider);
+                }
+            }
+        } finally {
+            if (previousAwsRegion == null) {
+                System.clearProperty("aws.region");
+            } else {
+                System.setProperty("aws.region", previousAwsRegion);
+            }
+        }
     }
 
     /**

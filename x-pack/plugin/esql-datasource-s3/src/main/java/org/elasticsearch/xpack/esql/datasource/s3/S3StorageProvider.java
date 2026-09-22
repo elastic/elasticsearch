@@ -139,22 +139,23 @@ public class S3StorageProvider implements StorageProvider {
     // Owned only on the federated (keyless) workload-identity path; null otherwise. Closed by close().
     private final StsAsyncClient stsAsyncClient;
     private final CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider;
+    private final EsqlContainerCredentialsProvider containerCredentialsProvider;
     /**
      * Managed-identity credentials providers that this instance creates in
-     * {@link #managedIdentityProviders()} and therefore owns: the {@link ContainerCredentialsProvider}
-     * and {@link InstanceProfileCredentialsProvider}, each of which opens a background credential-refresh
-     * resource. Closed by {@link #close()}. The IRSA provider is excluded — it is a node-level singleton
-     * owned by {@code S3DataSourcePlugin}.
+     * {@link #managedIdentityProviders()} and therefore owns: the stock {@link ContainerCredentialsProvider}
+     * (ECS path only) and {@link InstanceProfileCredentialsProvider}, each of which opens a background
+     * credential-refresh resource. Closed by {@link #close()}. The IRSA and Pod Identity providers are
+     * excluded — they are node-level singletons owned by {@code S3DataSourcePlugin}.
      */
     private final List<SdkAutoCloseable> ownedManagedIdentityProviders = new ArrayList<>();
 
     /**
-     * Test-friendly constructor: no IRSA web-identity provider available, async pool sized at the
+     * Test-friendly constructor: no IRSA / Pod Identity providers available, async pool sized at the
      * {@code esql.external.max_concurrent_requests} default. Equivalent to production behavior on a node where
-     * {@code AWS_WEB_IDENTITY_TOKEN_FILE} is unset.
+     * the EKS workload-identity environment variables are unset.
      */
     public S3StorageProvider(S3Configuration config) {
-        this(config, null, ExternalSourceSettings.blobStoreConcurrency(Settings.EMPTY));
+        this(config, null, null, ExternalSourceSettings.blobStoreConcurrency(Settings.EMPTY));
     }
 
     /**
@@ -166,13 +167,15 @@ public class S3StorageProvider implements StorageProvider {
     public S3StorageProvider(
         S3Configuration config,
         CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider,
+        EsqlContainerCredentialsProvider containerCredentialsProvider,
         int maxConnections
     ) {
         this.config = config;
         this.maxConnections = maxConnections;
         // Set first so that managedIdentityProviders() (called from buildManagedIdentityCredentialsProvider() on
-        // the MANAGED_IDENTITY path) can read it.
+        // the MANAGED_IDENTITY path) can read them.
         this.webIdentityTokenCredentialsProvider = webIdentityTokenCredentialsProvider;
+        this.containerCredentialsProvider = containerCredentialsProvider;
         StsAsyncClient sts = null;
         S3Client s3 = null;
         boolean success = false;
@@ -226,11 +229,9 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     /**
-     * Test-only constructor that accepts pre-built clients plus an IRSA provider.
+     * Test-only constructor that accepts pre-built clients plus workload-identity providers.
      * <p>
-     * Single 3-arg form on purpose: a 2-arg test constructor with two nullable reference args
-     * would be ambiguous against the 2-arg production constructor at {@code null, null} call
-     * sites. Tests without IRSA pass {@code null} for the third arg, or use the
+     * Tests without IRSA / Pod Identity pass {@code null} for those args, or use the
      * {@link #forTesting(S3Client, S3AsyncClient)} sugar.
      */
     S3StorageProvider(
@@ -238,10 +239,20 @@ public class S3StorageProvider implements StorageProvider {
         S3AsyncClient s3AsyncClient,
         CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider
     ) {
+        this(s3Client, s3AsyncClient, webIdentityTokenCredentialsProvider, null);
+    }
+
+    S3StorageProvider(
+        S3Client s3Client,
+        S3AsyncClient s3AsyncClient,
+        CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider,
+        EsqlContainerCredentialsProvider containerCredentialsProvider
+    ) {
         this.config = null;
         this.credentials = null;
         this.stsAsyncClient = null;
         this.webIdentityTokenCredentialsProvider = webIdentityTokenCredentialsProvider;
+        this.containerCredentialsProvider = containerCredentialsProvider;
         this.s3Client = s3Client;
         this.s3AsyncClient = s3AsyncClient;
         this.maxConnections = ExternalSourceSettings.blobStoreConcurrency(Settings.EMPTY);
@@ -563,9 +574,15 @@ public class S3StorageProvider implements StorageProvider {
      *       singleton exists and {@link CustomWebIdentityTokenCredentialsProvider#isActive()}.
      *       Wrapped in {@link ErrorLoggingCredentialsProvider} so STS unreachability surfaces in
      *       logs before the chain falls through.</li>
-     *   <li>{@link ContainerCredentialsProvider} — covers ECS task roles and EKS Pod Identity
-     *       (the latter requires the JVM sysprop {@code aws.containerAuthorizationTokenFile} to
-     *       be redirected at the entitled symlink, done in {@code S3DataSourcePlugin}).</li>
+     *   <li>EKS Pod Identity via {@link EsqlContainerCredentialsProvider} when that singleton is
+     *       active; otherwise the stock {@link ContainerCredentialsProvider} for ECS task roles.
+     *       When the Pod Identity env vars are set but the entitled symlink is missing or
+     *       unreadable: if no earlier provider is already in the chain, fails loudly naming the
+     *       file rather than falling through to the stock provider; if IRSA is already present,
+     *       skips the container link and continues to instance profile. Unlike IRSA (missing
+     *       symlink → inactive / soft skip), Pod Identity treats a present env + missing symlink
+     *       as a hard misconfiguration for the container link — matching the Azure AKS pattern —
+     *       so we never open the entitlement-blocked Kubernetes token path.</li>
      *   <li>{@link InstanceProfileCredentialsProvider} — EC2 metadata fallback.</li>
      * </ol>
      * Env-var and system-property providers are excluded — they are a dev/CI convention and open
@@ -599,14 +616,30 @@ public class S3StorageProvider implements StorageProvider {
             // Node-level singleton owned by S3DataSourcePlugin; do NOT close it from this instance.
             providers.add(new ErrorLoggingCredentialsProvider(webIdentityTokenCredentialsProvider, LOGGER));
         }
-        // Created per S3StorageProvider, so this instance owns them and must close them in close(). Track each in
-        // ownedManagedIdentityProviders the instant it is created, before the next create() runs — if the second
-        // create() throws, the first is still tracked for cleanup by the constructor's finally block.
-        ContainerCredentialsProvider containerCredentialsProvider = ContainerCredentialsProvider.create();
-        ownedManagedIdentityProviders.add(containerCredentialsProvider);
+        if (containerCredentialsProvider != null && containerCredentialsProvider.isActive()) {
+            // Node-level singleton owned by S3DataSourcePlugin; do NOT close it from this instance.
+            providers.add(new ErrorLoggingCredentialsProvider(containerCredentialsProvider, LOGGER));
+        } else if (containerCredentialsProvider != null && containerCredentialsProvider.isMisconfigured()) {
+            // Pod Identity env is present but the entitled symlink is missing/unreadable.
+            // Do not fall through to ContainerCredentialsProvider.create() (entitlement-blocked
+            // K8s path). If IRSA is already in the chain, skip the container link and continue —
+            // a working IRSA source must not be aborted by a broken Pod Identity symlink.
+            if (providers.isEmpty()) {
+                throw new IllegalStateException(containerCredentialsProvider.misconfigurationMessage());
+            }
+            LOGGER.warn(
+                "Skipping EKS Pod Identity for S3 data sources: {}; continuing with earlier managed-identity providers",
+                containerCredentialsProvider.misconfigurationMessage()
+            );
+        } else {
+            // ECS task-role (and any other container-credentials shape that does not use a token
+            // file). Created per S3StorageProvider, so this instance owns it.
+            ContainerCredentialsProvider stockContainerCredentialsProvider = ContainerCredentialsProvider.create();
+            ownedManagedIdentityProviders.add(stockContainerCredentialsProvider);
+            providers.add(stockContainerCredentialsProvider);
+        }
         InstanceProfileCredentialsProvider instanceProfileCredentialsProvider = InstanceProfileCredentialsProvider.create();
         ownedManagedIdentityProviders.add(instanceProfileCredentialsProvider);
-        providers.add(containerCredentialsProvider);
         providers.add(instanceProfileCredentialsProvider);
         return providers;
     }

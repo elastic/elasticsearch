@@ -15,8 +15,10 @@ import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -67,13 +69,35 @@ public class UnresolvedMetadata extends UnaryPlan implements Unresolvable {
     }
 
     /**
-     * Never resolved, like every other {@link Unresolvable} plan node. Parents must not resolve against this node's
-     * output: the Analyzer may still add the requested {@code METADATA} columns below it, and e.g. a {@code KEEP}
-     * resolved too early would report them as unknown.
+     * Resolved only when there is nothing left for the Analyzer to do below this node: the child is resolved and already
+     * produces every requested {@code METADATA} field. In that state the wrapper is transparent, so parents resolve
+     * through it in the same pass, exactly as if it were not there; the Analyzer then strips it.
+     * <p>
+     * While a requested field is still absent (or the child is not final yet), the node stays unresolved so that parents
+     * wait: a {@code KEEP} resolved too early would report the not-yet-injected column as unknown. A surviving instance
+     * is still reported by the Verifier in either state, because it is {@link Unresolvable}.
      */
     @Override
     public boolean expressionsResolved() {
-        return false;
+        if (child().resolved() == false) {
+            return false;
+        }
+        Set<String> present = null;
+        for (NamedExpression field : metadataFields) {
+            if (field.resolved() == false) {
+                return false;
+            }
+            if (present == null) {
+                present = new HashSet<>();
+                for (Attribute attribute : child().output()) {
+                    present.add(attribute.name());
+                }
+            }
+            if (present.contains(field.name()) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

@@ -312,10 +312,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             ),
             new Batch<>(
                 "Resolution",
-                // Must run in a fixpoint batch: it inspects the child's output, which is only trustworthy once
-                // ResolveRefs has resolved the child (e.g. expanded wildcard projections such as KEEP *).
-                new InjectOuterMetadataForSubqueries(),
                 new ResolveRefs(),
+                // Must run in a fixpoint batch, right after ResolveRefs: it inspects the child's output, which is only
+                // trustworthy once ResolveRefs has resolved the child (e.g. expanded wildcard projections such as KEEP *),
+                // and it must strip the wrapper before the union-type rules below inspect the UnionAll's parent.
+                new InjectOuterMetadataForSubqueries(),
                 new ImplicitCasting(),
                 new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
                 new ResolveUnionTypesInUnionAll(),
@@ -1157,11 +1158,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * <p>
      * The wrapper is only consumed once its child is fully resolved: deciding whether a field is "absent" requires the
      * child's final output, and before {@code ResolveRefs} has run a child ending in e.g. {@code KEEP *} still reports
-     * an unresolved star in its output. Until then the wrapper is left in place and, being {@link Unresolvable}, keeps
-     * its parents from resolving against an output that may still gain columns. If it is never consumed the
-     * {@link Verifier} reports it instead of the plan reaching the physical planner.
+     * an unresolved star in its output. Until then the wrapper is left in place. While a requested field is missing it
+     * is unresolved and keeps its parents from resolving against an output that will still gain columns; once nothing
+     * is left to inject it is transparent (see {@link UnresolvedMetadata#expressionsResolved()}) and is stripped here,
+     * which is why this rule does not skip resolved nodes. If it is never consumed the {@link Verifier} reports it,
+     * being {@link Unresolvable}, instead of the plan reaching the physical planner.
      */
     private static class InjectOuterMetadataForSubqueries extends ParameterizedAnalyzerRule<UnresolvedMetadata, AnalyzerContext> {
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
 
         @Override
         protected LogicalPlan rule(UnresolvedMetadata unresolvedMetadata, AnalyzerContext context) {
@@ -1172,16 +1180,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return child;
             }
 
-            // The child's output is not final yet (e.g. wildcard projections still unexpanded); try again on the next pass.
-            if (child.resolved() == false) {
-                return unresolvedMetadata;
-            }
-
             List<NamedExpression> metadataFields = ResolveTable.resolveMetadata(unresolvedMetadata.metadataFields(), context);
             // If anything remains unresolved, skip injection so the Verifier can throw an error.
             if (metadataFields.stream().anyMatch(f -> f.resolved() == false)) {
                 return unresolvedMetadata;
             }
+
+            // The child's output is not final yet (e.g. wildcard projections still unexpanded); try again on the next pass.
+            // Keep the resolved fields so the wrapper can tell whether it is transparent in the meantime.
+            if (child.resolved() == false) {
+                return metadataFields.equals(unresolvedMetadata.metadataFields())
+                    ? unresolvedMetadata
+                    : new UnresolvedMetadata(unresolvedMetadata.source(), child, metadataFields);
+            }
+
             if (metadataFields.isEmpty()) {
                 // Nothing to inject; just strip the wrapper.
                 return child;

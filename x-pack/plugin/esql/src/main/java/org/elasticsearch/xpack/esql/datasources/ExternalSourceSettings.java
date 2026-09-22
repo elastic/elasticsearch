@@ -466,6 +466,62 @@ public final class ExternalSourceSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * {@code host:port} glob patterns an external data source's endpoint may name beyond the AWS endpoints, as
+     * {@code reindex.remote.whitelist} does for remote clusters. Empty by default. A listed host may be reached
+     * over plain {@code http} for {@code endpoint}; {@code sts_endpoint} always requires {@code https}, because
+     * that host receives the node's OIDC token.
+     */
+    public static final String ALLOWED_ENDPOINT_HOSTS_KEY = "esql.external.allowed_endpoint_hosts";
+
+    public static final Setting<List<String>> ALLOWED_ENDPOINT_HOSTS = Setting.stringListSetting(
+        ALLOWED_ENDPOINT_HOSTS_KEY,
+        (Setting.Validator<List<String>>) entries -> entries.forEach(ExternalSourceSettings::validateEndpointHostEntry),
+        Setting.Property.NodeScope
+    );
+
+    /** Refuses an entry that cannot match anything: a bare host, a bare port, or a whole URL. */
+    private static void validateEndpointHostEntry(String entry) {
+        if (entry.contains("://")) {
+            throw new IllegalArgumentException(
+                "["
+                    + ALLOWED_ENDPOINT_HOSTS_KEY
+                    + "] entry ["
+                    + entry
+                    + "] is a URL. Entries are matched against host:port, so drop the scheme and any path."
+            );
+        }
+        // The port separator is the last colon, after the closing bracket of an IPv6 literal.
+        int afterHost = entry.startsWith("[") ? entry.indexOf(']') : 0;
+        int portSeparator = afterHost < 0 ? -1 : entry.lastIndexOf(':');
+        if (portSeparator < afterHost) {
+            portSeparator = -1;
+        }
+        if (portSeparator < 0 || portSeparator == entry.length() - 1) {
+            throw new IllegalArgumentException(
+                "["
+                    + ALLOWED_ENDPOINT_HOSTS_KEY
+                    + "] entry ["
+                    + entry
+                    + "] names no port. Entries are matched against host:port, so write for example ["
+                    + (entry.isEmpty() ? "minio.internal" : entry)
+                    + ":443]."
+            );
+        }
+        if (portSeparator == 0) {
+            throw new IllegalArgumentException(
+                "["
+                    + ALLOWED_ENDPOINT_HOSTS_KEY
+                    + "] entry ["
+                    + entry
+                    + "] names no host. Entries are matched against host:port, so write for example "
+                    + "[minio.internal"
+                    + entry
+                    + "]; an entry without a host matches nothing."
+            );
+        }
+    }
+
     public static List<Setting<?>> settings() {
         return List.of(
             MAX_CONCURRENT_REQUESTS,
@@ -481,7 +537,8 @@ public final class ExternalSourceSettings {
             FEDERATED_IDENTITY_ENABLED,
             FEDERATED_IDENTITY_ENABLED_OLD,
             LOCAL_ALLOWED_PATHS,
-            LOCAL_ALLOWED_PATHS_OLD
+            LOCAL_ALLOWED_PATHS_OLD,
+            ALLOWED_ENDPOINT_HOSTS
         );
     }
 }

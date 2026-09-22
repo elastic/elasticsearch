@@ -57,11 +57,6 @@ public class Configuration implements Writeable {
     /**
      * The caller is authorized to see the storage locations of the datasets named in the query
      * ({@code indices:admin/esql/dataset/get}). When true, plan renderers use the identity location
-     * mapper and error messages include storage paths. When false (the default for older peers),
-     * location strings are redacted in plan output.
-     */
-    private static final TransportVersion ESQL_DATASET_LOCATION_VISIBLE = TransportVersion.fromName("esql_dataset_location_visible");
-
     /**
      * Reserved transport version id from the GROK watchdog work (#152170), which was reverted before release.
      * Intentionally unused: the id is boxed in between released version markers, so it cannot be removed without
@@ -236,9 +231,6 @@ public class Configuration implements Writeable {
         } else {
             this.explainOnly = false;
         }
-        if (in.getTransportVersion().supports(ESQL_DATASET_LOCATION_VISIBLE)) {
-            in.readBoolean(); // consumed for wire compatibility; location visibility is no longer a per-caller flag
-        }
         if (readLegacySettings) {
             // project_routing is intentionally not synthesized here — data nodes never had it on the wire.
             this.resolvedSettings = synthesizeResolvedFromLegacy(zi, legacyApproximation);
@@ -296,9 +288,6 @@ public class Configuration implements Writeable {
         }
         if (out.getTransportVersion().supports(ESQL_EXPLAIN_ONLY)) {
             out.writeBoolean(explainOnly);
-        }
-        if (out.getTransportVersion().supports(ESQL_DATASET_LOCATION_VISIBLE)) {
-            out.writeBoolean(false); // location visibility is no longer a per-caller flag; always write false for wire compat
         }
         if (writeLegacySettings == false) {
             resolvedSettings.writeTo(out);

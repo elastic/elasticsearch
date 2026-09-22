@@ -875,6 +875,23 @@ public class CollectionUtilsTests extends ESTestCase {
         assertEquals(List.of("z", "a"), new ArrayList<>(copiedInner.keySet()));
     }
 
+    public void testDeepCopyOrderedNestedSet() {
+        // ORDERED should propagate into sets nested inside maps
+        Set<Object> innerSet = new LinkedHashSet<>();
+        innerSet.add("charlie");
+        innerSet.add("alpha");
+        innerSet.add("bravo");
+        Map<String, Object> outer = new LinkedHashMap<>();
+        outer.put("set", innerSet);
+
+        Map<String, Object> copy = deepCopy(outer, ORDERED);
+
+        @SuppressWarnings("unchecked")
+        Set<Object> copiedSet = (Set<Object>) copy.get("set");
+        assertNotSame(innerSet, copiedSet);
+        assertEquals(List.of("charlie", "alpha", "bravo"), new ArrayList<>(copiedSet));
+    }
+
     public void testDeepCopyUnmodifiableAndOrdered() {
         Map<String, Object> original = new LinkedHashMap<>();
         original.put("b", 2);
@@ -883,6 +900,17 @@ public class CollectionUtilsTests extends ESTestCase {
         Map<String, Object> copy = deepCopy(original, UNMODIFIABLE, ORDERED);
         assertEquals(List.of("b", "a"), new ArrayList<>(copy.keySet()));
         expectThrows(UnsupportedOperationException.class, () -> copy.put("c", 3));
+    }
+
+    public void testDeepCopyUnmodifiableAndOrderedSet() {
+        Set<Object> original = new LinkedHashSet<>();
+        original.add("charlie");
+        original.add("alpha");
+        original.add("bravo");
+
+        Set<Object> copy = deepCopy(original, ORDERED, UNMODIFIABLE);
+        assertEquals(List.of("charlie", "alpha", "bravo"), new ArrayList<>(copy));
+        expectThrows(UnsupportedOperationException.class, () -> copy.add("delta"));
     }
 
     public void testDeepCopyUnmodifiableWithByteArrayThrows() {

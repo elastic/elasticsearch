@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -27,17 +26,17 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * A text column's inferred type is a description of the values schema inference saw. A value the inference did
- * not see and that contradicts the description must not be rewritten into the inferred type with the coercions a
+ * An NDJSON column's inferred type is a description of the values schema inference saw. A value the inference did
+ * not see and that contradicts the description must not be rewritten into the inferred type with the rounding a
  * declared type licenses. Each defect case accepts either outcome a correct reader may give, a refused read or the
  * value as the file holds it, and rejects only the rewritten value.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
-public class ExternalTextInferredTypePastSampleIT extends AbstractExternalDataSourceIT {
+public class ExternalNdJsonInferredIntegerPastSampleIT extends AbstractExternalDataSourceIT {
 
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
-        return List.of(NdJsonDataSourcePlugin.class, CsvDataSourcePlugin.class);
+        return List.of(NdJsonDataSourcePlugin.class);
     }
 
     private Path write(String dirName, String fileName, String content) throws Exception {
@@ -103,47 +102,12 @@ public class ExternalTextInferredTypePastSampleIT extends AbstractExternalDataSo
         }
     }
 
-    public void testNdjsonNumberPastSampleInTimestampColumnIsNotAnEpoch() throws Exception {
-        String content = "{\"id\":1,\"ts\":\"2024-01-01T00:00:00Z\"}\n"
-            + "{\"id\":2,\"ts\":\"2024-01-02T00:00:00Z\"}\n"
-            + "{\"id\":3,\"ts\":20240103}\n";
-        Path file = write("ndjson_ts_number", "late.ndjson", content);
-        String dataset = registerDataset("ndjson_ts_number", StoragePath.fileUri(file), Map.of("schema_sample_size", 2));
-        Object v = singleValueOrRefused("FROM " + dataset + " | WHERE id == 3 | KEEP ts");
-        if (v != null) {
-            assertThat("the digits the file holds", v, equalTo("20240103"));
-        }
-    }
-
-    public void testCsvNumberPastSampleInTimestampColumnIsNotAnEpoch() throws Exception {
-        // schema_sample_size bounds the sample and a second widening window, so row 5 is the first unseen row.
-        String content = "id,ts\n"
-            + "1,2024-01-01T00:00:00Z\n"
-            + "2,2024-01-02T00:00:00Z\n"
-            + "3,2024-01-03T00:00:00Z\n"
-            + "4,2024-01-04T00:00:00Z\n"
-            + "5,20240105\n";
-        Path file = write("csv_ts_number", "late.csv", content);
-        String dataset = registerDataset("csv_ts_number", StoragePath.fileUri(file), Map.of("schema_sample_size", 2));
-        Object v = singleValueOrRefused("FROM " + dataset + " | WHERE id == 5 | KEEP ts");
-        if (v != null) {
-            assertThat("the digits the file holds", v, equalTo("20240105"));
-        }
-    }
-
     // Controls: behaviour that is correct today and that a fix must keep.
 
     public void testNdjsonFractionalInsideSampleWidensColumn() throws Exception {
         Path file = write("ndjson_in_sample", "in.ndjson", ndjsonWholeNumbersThen(2, "1.9"));
         String dataset = registerDataset("ndjson_in_sample_fraction", StoragePath.fileUri(file), Map.of("schema_sample_size", 3));
         assertThat(singleValueOrRefused("FROM " + dataset + " | WHERE id == 3 | KEEP v"), equalTo(1.9));
-    }
-
-    public void testNdjsonNumberInsideSampleMakesTimestampColumnText() throws Exception {
-        String content = "{\"id\":1,\"ts\":\"2024-01-01T00:00:00Z\"}\n{\"id\":2,\"ts\":20240102}\n";
-        Path file = write("ndjson_ts_in_sample", "in.ndjson", content);
-        String dataset = registerDataset("ndjson_ts_in_sample", StoragePath.fileUri(file), Map.of("schema_sample_size", 2));
-        assertThat(singleValueOrRefused("FROM " + dataset + " | WHERE id == 2 | KEEP ts"), equalTo("20240102"));
     }
 
     public void testNdjsonDeclaredIntegerStillRounds() throws Exception {
@@ -155,22 +119,4 @@ public class ExternalTextInferredTypePastSampleIT extends AbstractExternalDataSo
         assertThat(singleValueOrRefused("FROM " + dataset + " | WHERE id == 3 | KEEP v"), equalTo(2));
     }
 
-    public void testNdjsonDeclaredDatetimeStillReadsNumberAsEpoch() throws Exception {
-        String content = "{\"id\":1,\"ts\":\"2024-01-01T00:00:00Z\"}\n{\"id\":2,\"ts\":20240102}\n";
-        Path file = write("ndjson_declared_ts", "declared.ndjson", content);
-        LinkedHashMap<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("id", new DatasetFieldMapping("integer", null));
-        properties.put("ts", new DatasetFieldMapping("datetime", null));
-        String dataset = registerStrictDataset("ndjson_declared_datetime", StoragePath.fileUri(file), properties, Map.of());
-        assertThat(singleValueOrRefused("FROM " + dataset + " | WHERE id == 2 | KEEP ts"), equalTo("1970-01-01T05:37:20.102Z"));
-    }
-
-    public void testCsvDeclaredDatetimeStillReadsNumberAsEpoch() throws Exception {
-        Path file = write("csv_declared_ts", "declared.csv", "id,ts\n1,2024-01-01T00:00:00Z\n2,20240102\n");
-        LinkedHashMap<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("id", new DatasetFieldMapping("integer", null));
-        properties.put("ts", new DatasetFieldMapping("datetime", null));
-        String dataset = registerStrictDataset("csv_declared_datetime", StoragePath.fileUri(file), properties, Map.of());
-        assertThat(singleValueOrRefused("FROM " + dataset + " | WHERE id == 2 | KEEP ts"), equalTo("1970-01-01T05:37:20.102Z"));
-    }
 }

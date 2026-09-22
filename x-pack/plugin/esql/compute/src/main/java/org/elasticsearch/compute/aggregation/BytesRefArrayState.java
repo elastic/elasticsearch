@@ -538,11 +538,12 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
     boolean[] partitionSeen(GroupingAggregatorFunction.PartitionedState source, int partition) {
         if (source instanceof FlatBytesRefPartitionedState flat) {
             if (flat.seen == null) return null;
-            // An empty partition never had ensureSeenCapacity called, so its slot may still be null.
+            assert flat.seen[partition] != null || flat.partitionCounts[partition] == 0;
             return flat.seen[partition] != null ? flat.seen[partition] : EMPTY_SEEN;
         }
         final PagedBytesRefPartitionedState paged = (PagedBytesRefPartitionedState) source;
         if (paged.seen == null) return null;
+        assert paged.seen[partition] != null || paged.partitionArrays[partition].size() == 0;
         return paged.seen[partition] != null ? paged.seen[partition] : EMPTY_SEEN;
     }
 

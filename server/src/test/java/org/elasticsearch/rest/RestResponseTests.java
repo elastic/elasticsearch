@@ -511,15 +511,19 @@ public class RestResponseTests extends ESTestCase {
     }
 
     public void testSuppressedLoggingRecordsRootCause() throws IOException {
-        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+        final RestChannel channel = new DetailedExceptionRestChannel(
+            new FakeRestRequest.Builder(xContentRegistry()).withPath("/my-index/_search").build()
+        );
 
         new RestResponse(channel, new ElasticsearchException("outer", new IllegalStateException("inner")));
 
         final Map<String, ?> fields = lastLoggedFields();
         assertEquals(IllegalStateException.class.getName(), fields.get("elasticsearch.error.root_cause.type"));
         assertEquals("inner", fields.get("elasticsearch.error.root_cause.message"));
-        assertEquals("", fields.get("url.path"));
+        assertEquals("/my-index/_search", fields.get("url.path"));
         assertEquals(500, fields.get("http.response.status_code"));
+        assertFalse(fields.containsKey("elasticsearch.error.index"));
+        assertFalse(fields.containsKey("elasticsearch.error.shard"));
     }
 
     public void testSuppressedLoggingOmitsAbsentRootCauseMessage() throws IOException {
@@ -551,16 +555,6 @@ public class RestResponseTests extends ESTestCase {
         assertEquals("engine is closed", fields.get("elasticsearch.error.root_cause.message"));
         assertEquals("my-index", fields.get("elasticsearch.error.index"));
         assertEquals(3, fields.get("elasticsearch.error.shard"));
-    }
-
-    public void testSuppressedLoggingOmitsIndexAndShardWhenNotAttributable() throws IOException {
-        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
-
-        new RestResponse(channel, new ElasticsearchException("outer", new IllegalStateException("inner")));
-
-        final Map<String, ?> fields = lastLoggedFields();
-        assertFalse(fields.containsKey("elasticsearch.error.index"));
-        assertFalse(fields.containsKey("elasticsearch.error.shard"));
     }
 
     public void testSuppressedLoggingRecordsRootCauseBehindAllShardsFailed() throws IOException {

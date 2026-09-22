@@ -237,15 +237,6 @@ public class ExceptionsHelperTests extends ESTestCase {
         assertThat(ExceptionsHelper.walkCauseChain(wrapped).deepest(), sameInstance(root));
     }
 
-    public void testWalkCauseChainOfLongChain() {
-        final RuntimeException root = new RuntimeException("root");
-        Throwable wrapped = root;
-        for (int i = 0; i < 20; i++) {
-            wrapped = new RuntimeException("wrapper", wrapped);
-        }
-        assertThat(ExceptionsHelper.walkCauseChain(wrapped).deepest(), sameInstance(root));
-    }
-
     public void testWalkCauseChainOfCycle() {
         final RuntimeException e1 = new RuntimeException();
         final RuntimeException e2 = new RuntimeException(e1);

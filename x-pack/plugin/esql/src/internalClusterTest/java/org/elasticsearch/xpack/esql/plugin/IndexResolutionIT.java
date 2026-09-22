@@ -276,6 +276,10 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
             assertOk(response);
             assertResultConcreteIndices(response, ".non-hidden-index-1");
         }
+        try (var response = run(syncEsqlQueryRequest("FROM * METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, ".non-hidden-index-1", "regular-index-1");
+        }
     }
 
     public void testUnavailableIndex() {

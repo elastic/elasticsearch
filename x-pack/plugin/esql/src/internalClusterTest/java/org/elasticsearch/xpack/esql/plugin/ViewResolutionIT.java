@@ -70,6 +70,10 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
                 assertOk(response);
                 assertResultConcreteIndices(response, "regular-index-1");
             }
+            try (var response = run(syncEsqlQueryRequest("FROM *"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "regular-index-1", "regular-index-1");// matched index and view
+            }
         }
     }
 

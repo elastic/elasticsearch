@@ -2048,7 +2048,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     errorPolicy,
                     bufferedInformationalWarningSink(state.buffer),
                     rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining,
-                    splitBudget
+                    splitBudget,
+                    state.formatCounters
                 );
                 if (fileContext != null) {
                     rangeCtx.setFileContext(fileContext);

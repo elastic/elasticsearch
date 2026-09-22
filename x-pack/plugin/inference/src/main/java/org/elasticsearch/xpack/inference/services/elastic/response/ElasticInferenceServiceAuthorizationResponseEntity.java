@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.elastic.response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -194,33 +193,9 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
             AUTHORIZED_ENDPOINT_PARSER.declareBoolean(optionalConstructorArg(), new ParseField(DENIED_BY_REGION_POLICY));
             AUTHORIZED_ENDPOINT_PARSER.declareObject(
                 optionalConstructorArg(),
-                (p, c) -> parseCapabilitiesLeniently(p),
+                (p, c) -> EndpointMetadata.Capabilities.parse(p),
                 new ParseField(CAPABILITIES)
             );
-        }
-
-        /**
-         * The whole capabilities object is buffered with {@code p.map()} before it is handed to
-         * {@link EndpointMetadata.Capabilities#parse}. {@code p.map()} always consumes through the matching END_OBJECT, so a wrong-typed
-         * field inside the block only discards the block: the outer parser stays correctly positioned and the remaining endpoint fields
-         * (and endpoints) parse normally. Applying the capabilities parser to {@code p} directly would throw mid-object and leave the
-         * outer parser misaligned.
-         */
-        @Nullable
-        private static EndpointMetadata.Capabilities parseCapabilitiesLeniently(XContentParser parser) throws IOException {
-            var capabilitiesMap = parser.map();
-            try (var mapParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, capabilitiesMap)) {
-                return EndpointMetadata.Capabilities.parse(mapParser);
-            } catch (Exception e) {
-                logger.info(
-                    Strings.format(
-                        "Failed to parse the [%s] field from the Elastic Inference Service authorization response; ignoring it",
-                        CAPABILITIES
-                    ),
-                    e
-                );
-                return null;
-            }
         }
     }
 

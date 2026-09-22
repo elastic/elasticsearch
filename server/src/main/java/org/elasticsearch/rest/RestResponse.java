@@ -322,8 +322,15 @@ public final class RestResponse implements Releasable {
         @Override
         public String getFormattedMessage() {
             // NOTE: MapMessage renders every field here, which would change the console log line for every REST error; the JSON
-            // layouts ask for the JSON format instead and are unaffected by this override
+            // layouts ask for the JSON format through formatTo(String[], StringBuilder) instead and are unaffected
             return ParameterizedMessage.format(getMessagePattern(), getArguments());
+        }
+
+        @Override
+        public void formatTo(StringBuilder buffer) {
+            // NOTE: PatternLayout renders %m through this overload rather than getFormattedMessage, so both have to be restricted
+            // to the message for the plain text appenders to stay unchanged
+            buffer.append(getFormattedMessage());
         }
     }
 }

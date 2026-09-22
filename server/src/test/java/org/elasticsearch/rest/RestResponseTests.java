@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.message.MapMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -617,6 +618,17 @@ public class RestResponseTests extends ESTestCase {
         // NOTE: the cause chain carries no index here, so both are read from the first ShardSearchFailure
         assertEquals("my-index", fields.get("elasticsearch.error.index"));
         assertEquals(0, fields.get("elasticsearch.error.shard"));
+    }
+
+    public void testSuppressedLoggingKeepsPlainTextMessage() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(
+            new FakeRestRequest.Builder(xContentRegistry()).withPath("/my-index/_search").build()
+        );
+
+        new RestResponse(channel, new ElasticsearchException("outer", new IllegalStateException("inner")));
+
+        final PatternLayout layout = PatternLayout.newBuilder().withPattern("%m").withAlwaysWriteExceptions(false).build();
+        assertEquals("path: /my-index/_search, params: {}, status: 500", layout.toSerializable(appender.getLastEventAndReset()));
     }
 
     private Map<String, ?> lastLoggedFields() {

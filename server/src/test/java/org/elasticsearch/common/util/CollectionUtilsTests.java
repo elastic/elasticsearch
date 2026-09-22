@@ -909,7 +909,7 @@ public class CollectionUtilsTests extends ESTestCase {
         original.add("alpha");
         original.add("bravo");
 
-        Set<Object> copy = deepCopy(original, ORDERED, UNMODIFIABLE);
+        Set<Object> copy = deepCopy(original, UNMODIFIABLE, ORDERED);
         assertEquals(List.of("charlie", "alpha", "bravo"), new ArrayList<>(copy));
         expectThrows(UnsupportedOperationException.class, () -> copy.add("delta"));
     }

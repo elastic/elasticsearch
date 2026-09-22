@@ -1101,13 +1101,18 @@ public class ExternalSourceResolver {
             ActionListener<ExternalSourceMetadata> cachingAnchorListener = schemaKey == null
                 ? anchorListener
                 : ActionListener.wrap(anchorMetadata -> {
-                    cacheService.putDatasetSchema(
-                        schemaKey,
-                        new DatasetSchema.FromAnchor(
-                            datasetEntryOf(anchorMetadata, noticesSince(pendingSchemaWarnings, anchorNoticesBefore)),
-                            noticesSince(pendingMetadataWarnings, anchorReaderNoticesBefore)
-                        )
-                    );
+                    try {
+                        cacheService.putDatasetSchema(
+                            schemaKey,
+                            new DatasetSchema.FromAnchor(
+                                datasetEntryOf(anchorMetadata, noticesSince(pendingSchemaWarnings, anchorNoticesBefore)),
+                                noticesSince(pendingMetadataWarnings, anchorReaderNoticesBefore)
+                            )
+                        );
+                    } catch (Exception e) {
+                        // As above: building the entry must not fail a resolve that has already succeeded.
+                        LOGGER.debug(() -> "could not cache the schema of [" + anchorPath + "]", e);
+                    }
                     anchorListener.onResponse(anchorMetadata);
                 }, listener::onFailure);
 
@@ -2005,7 +2010,16 @@ public class ExternalSourceResolver {
         return DatasetSchemaKeys.of(SchemaBreadth.of(schemaResolution), listing, format, storageConfig(config));
     }
 
-    /** The notices {@code buffer} has gained since {@code before}. */
+    /**
+     * The notices {@code buffer} has gained since {@code before}.
+     * <p>
+     * The buffer deduplicates by exact text, so a notice another path of the SAME query already emitted is not
+     * counted again here and does not reach the entry. One query resolving two datasets that say the identical thing
+     * therefore records it against the first only, and a later query served the second's entry does not repeat it.
+     * Capturing it exactly would mean per-path notices reaching the caller some other way than this shared buffer:
+     * on a per-file cache hit they are added to it straight from the cached entry, and the metadata handed back
+     * carries none, so there is no per-path source to read instead.
+     */
     private static List<String> noticesSince(NoticeBuffer buffer, List<String> before) {
         List<String> added = new ArrayList<>(buffer.snapshot());
         added.removeAll(before);
@@ -2285,15 +2299,21 @@ public class ExternalSourceResolver {
 
                 Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = result.perFileInfo();
                 if (schemaKey != null) {
-                    DatasetSchema datasetSchema = datasetSchemaOf(
-                        extMetadata,
-                        fileList,
-                        schemaMap,
-                        noticesSince(pendingSchemaWarnings, noticesBefore),
-                        noticesSince(pendingMetadataWarnings, readerNoticesBefore)
-                    );
-                    if (datasetSchema != null) {
-                        cacheService.putDatasetSchema(schemaKey, datasetSchema);
+                    // Building the entry is as optional as storing it: this runs inside the resolve's own error
+                    // handling, so a throw here would fail a resolve that has already succeeded.
+                    try {
+                        DatasetSchema datasetSchema = datasetSchemaOf(
+                            extMetadata,
+                            fileList,
+                            schemaMap,
+                            noticesSince(pendingSchemaWarnings, noticesBefore),
+                            noticesSince(pendingMetadataWarnings, readerNoticesBefore)
+                        );
+                        if (datasetSchema != null) {
+                            cacheService.putDatasetSchema(schemaKey, datasetSchema);
+                        }
+                    } catch (Exception e) {
+                        LOGGER.debug(() -> "could not cache the schema of [" + fileList.originalPattern() + "]", e);
                     }
                 }
                 listener.onResponse(new ExternalSourceResolution.ResolvedSource(extMetadata, fileList, schemaMap));

@@ -194,6 +194,16 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /** A dataset that never warms because its schema will not fit is countable, not invisible. */
+    public void testARefusedSchemaIsCounted() {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            assertEquals(0L, ((Number) service.usageStats().get("dataset_schema.refused")).longValue());
+            service.putDatasetSchema(datasetKey("oversize"), resolution(1_000, 20));
+            assertNull(service.getDatasetSchema(datasetKey("oversize")));
+            assertEquals(1L, ((Number) service.usageStats().get("dataset_schema.refused")).longValue());
+        }
+    }
+
     public void testDisablingTheCacheClearsDatasetResolutions() {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             DatasetSchemaKey key = datasetKey("cleared");

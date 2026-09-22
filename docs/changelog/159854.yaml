@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 159854
+summary: "ES|QL|DS: per-file statistics cross a read mismatch per column, not all or nothing"
+type: enhancement

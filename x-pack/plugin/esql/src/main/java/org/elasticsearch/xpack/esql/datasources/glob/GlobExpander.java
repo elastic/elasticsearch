@@ -26,8 +26,10 @@ import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector.TemplateSegment;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.utils.BoundedParallelGather;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -38,6 +40,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
@@ -51,6 +55,19 @@ public final class GlobExpander {
     private static final Logger logger = LogManager.getLogger(GlobExpander.class);
 
     private GlobExpander() {}
+
+    /** Prefixes to drain in parallel, plus any files found at intermediate levels during descent. */
+    private record PrefixSet(List<StoragePath> prefixes, List<StorageEntry> topFiles) {}
+
+    /** Per-prefix drain output: kept entries, the stashed anchor for all-rejected _file.* runs, and exclusion telemetry. */
+    private record DrainResult(
+        List<StorageEntry> matched,
+        @Nullable StorageEntry fileHintAnchor,
+        int excludedCount,
+        int globKeptCount,
+        @Nullable String excludedExample,
+        @Nullable String excludedExampleEntry
+    ) {}
 
     /** Creates a file list from raw entries. Primarily for tests. */
     public static FileList fileListOf(List<StorageEntry> entries, String pattern) {
@@ -160,6 +177,42 @@ public final class GlobExpander {
         return expanded;
     }
 
+    /** Like {@link #expandAndCompact(String, StorageProvider, List, Map, StoragePath, int, int, int, int)} but fans out listing. */
+    public static FileList expandAndCompact(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        StoragePath storagePath,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        int listingBound,
+        int concurrency,
+        @Nullable Executor executor
+    ) throws IOException {
+        FileList expanded = expand(
+            path,
+            provider,
+            hints,
+            config,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            listingBound,
+            concurrency,
+            executor
+        );
+        if (expanded.isResolved() == false || expanded.fileCount() == 0) {
+            return expanded;
+        }
+        if (expanded instanceof GenericFileList raw) {
+            String basePath = storagePath.patternPrefix().toString();
+            return FileListCompactor.compact(basePath, raw);
+        }
+        return expanded;
+    }
+
     /**
      * Expands a whole path — glob or comma-separated list — applying the filter hints. Each glob (a lone pattern, or
      * every segment of a comma list) is expanded through {@link #expandGlobWithRewriteFallback}, which recovers the
@@ -236,7 +289,55 @@ public final class GlobExpander {
                 maxListedObjects,
                 nameFilter,
                 fileOrder,
-                effectiveBound
+                effectiveBound,
+                1,
+                null
+            );
+    }
+
+    /** Like {@link #expand(String, StorageProvider, List, Map, int, int, int, int)} but fans out listing to {@code concurrency} threads. */
+    public static FileList expand(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion,
+        int maxListedObjects,
+        int listingBound,
+        int concurrency,
+        @Nullable Executor executor
+    ) throws IOException {
+        PartitionConfig partitionConfig = PartitionConfig.fromConfig(config);
+        ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
+        FileOrderConfig fileOrder = FileOrderConfig.forListing(config);
+        boolean prefixOfTheWholeGlob = fileOrder.equals(FileOrderConfig.DEFAULT) && (hints == null || hints.isEmpty());
+        int effectiveBound = prefixOfTheWholeGlob ? listingBound : Integer.MAX_VALUE;
+        return isTopLevelCommaList(path)
+            ? doExpandCommaSeparated(
+                path,
+                provider,
+                hints,
+                partitionConfig,
+                maxDiscoveredFiles,
+                maxGlobExpansion,
+                maxListedObjects,
+                nameFilter,
+                fileOrder
+            )
+            : expandGlobWithRewriteFallback(
+                path,
+                provider,
+                hints,
+                partitionConfig,
+                maxDiscoveredFiles,
+                maxGlobExpansion,
+                maxListedObjects,
+                nameFilter,
+                fileOrder,
+                effectiveBound,
+                concurrency,
+                executor
             );
     }
 
@@ -270,7 +371,9 @@ public final class GlobExpander {
         int maxListedObjects,
         ExclusionConfig.NameFilter nameFilter,
         FileOrderConfig fileOrder,
-        int listingBound
+        int listingBound,
+        int concurrency,
+        @Nullable Executor executor
     ) throws IOException {
         boolean rewritten = effectivePattern(pattern, hints, partitionConfig).equals(pattern) == false;
         boolean bounded = listingBound != Integer.MAX_VALUE;
@@ -285,7 +388,9 @@ public final class GlobExpander {
                 maxListedObjects,
                 nameFilter,
                 fileOrder,
-                Integer.MAX_VALUE
+                Integer.MAX_VALUE,
+                concurrency,
+                executor
             );
         }
 
@@ -304,7 +409,9 @@ public final class GlobExpander {
                 maxListedObjects,
                 nameFilter,
                 fileOrder,
-                listingBound
+                listingBound,
+                concurrency,
+                executor
             );
         } catch (IOException e) {
             failure = e;
@@ -336,7 +443,9 @@ public final class GlobExpander {
                 maxListedObjects,
                 nameFilter,
                 fileOrder,
-                Integer.MAX_VALUE
+                Integer.MAX_VALUE,
+                concurrency,
+                executor
             );
         } catch (IOException retryFailure) {
             if (failure != null) {
@@ -424,7 +533,9 @@ public final class GlobExpander {
             Integer.MAX_VALUE,
             nameFilter,
             fileOrder,
-            Integer.MAX_VALUE
+            Integer.MAX_VALUE,
+            1,
+            null
         );
     }
 
@@ -460,7 +571,9 @@ public final class GlobExpander {
             maxListedObjects,
             nameFilter,
             fileOrder,
-            Integer.MAX_VALUE
+            Integer.MAX_VALUE,
+            1,
+            null
         );
     }
 
@@ -474,7 +587,9 @@ public final class GlobExpander {
         int maxListedObjects,
         ExclusionConfig.NameFilter nameFilter,
         FileOrderConfig fileOrder,
-        int listingBound
+        int listingBound,
+        int concurrency,
+        @Nullable Executor executor
     ) throws IOException {
         Check.notNull(pattern, "pattern cannot be null");
         Check.notNull(provider, "provider cannot be null");
@@ -598,6 +713,35 @@ public final class GlobExpander {
             }
         }
 
+        // Parallel prefix fan-out: descend one level to get branch prefixes, drain each concurrently.
+        // Only when unbounded (a bound is a page budget for a single serial chain) and concurrency is available.
+        if (concurrency > 1 && executor != null && listingBound == Integer.MAX_VALUE) {
+            PrefixSet prefixSet = null;
+            try {
+                prefixSet = deriveListingPrefixes(provider, prefix, PartitionPruningWalk.MAX_DIRECTORY_LISTINGS);
+            } catch (IOException e) {
+                logger.debug(() -> "Prefix fan-out for [" + pattern + "] could not derive prefixes; falling back to flat listing", e);
+            }
+            if (prefixSet != null && prefixSet.prefixes().size() > 1) {
+                return fanOutDrain(
+                    pattern,
+                    prefix.toString(),
+                    provider,
+                    matcher,
+                    nameFilter,
+                    prefixSet,
+                    fileHints,
+                    maxDiscoveredFiles,
+                    maxListedObjects,
+                    recursive,
+                    partitionConfig,
+                    fileOrder,
+                    concurrency,
+                    executor
+                );
+            }
+        }
+
         List<StorageEntry> matched = new ArrayList<>();
         StorageEntry fileHintAnchor = null;
         String prefixStr = prefix.toString();
@@ -691,6 +835,244 @@ public final class GlobExpander {
         PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig, listingWarnings::add);
 
         return new GenericFileList(matched, pattern, partitionMetadata, listingWarnings, truncated);
+    }
+
+    /**
+     * Descends from {@code root} via {@link StorageProvider#listChildren} until the first level that has more than
+     * one child directory, returning those directories as the set of prefixes to drain in parallel. Files at each
+     * intermediate level are collected into {@link PrefixSet#topFiles()} so callers can include them in results.
+     * Returns a single-element list containing {@code root} when the provider returns null (directory-listing
+     * unsupported or the directory is too wide) or the budget is exhausted.
+     */
+    private static PrefixSet deriveListingPrefixes(StorageProvider provider, StoragePath root, int budget) throws IOException {
+        List<StorageEntry> topFiles = new ArrayList<>();
+        StoragePath current = root;
+        int remaining = budget;
+        while (remaining > 0) {
+            remaining--;
+            StorageChildren children = provider.listChildren(current, PartitionPruningWalk.MAX_LISTED_CHILDREN);
+            if (children == null) {
+                return new PrefixSet(List.of(root), List.of());
+            }
+            topFiles.addAll(children.files());
+            List<StoragePath> dirs = children.directories();
+            if (dirs.isEmpty()) {
+                return new PrefixSet(List.of(root), List.of());
+            }
+            if (dirs.size() > 1) {
+                return new PrefixSet(dirs, topFiles);
+            }
+            // Exactly one child directory — descend into it (single-child tunnel).
+            current = dirs.get(0);
+        }
+        return new PrefixSet(List.of(root), List.of());
+    }
+
+    /**
+     * Drains a single prefix through a {@link StorageIterator}, applying per-entry rules. Uses shared
+     * {@link AtomicInteger} counters so cap checks are accurate across concurrent callers.
+     */
+    private static DrainResult drainOnePrefix(
+        StoragePath drainPrefix,
+        String rootPrefixStr,
+        StorageProvider provider,
+        GlobMatcher matcher,
+        ExclusionConfig.NameFilter nameFilter,
+        List<PartitionFilterHint> fileHints,
+        int maxDiscoveredFiles,
+        int maxListedObjects,
+        boolean recursive,
+        AtomicInteger sharedListedCount,
+        AtomicInteger sharedKeptCount
+    ) throws IOException {
+        List<StorageEntry> localMatched = new ArrayList<>();
+        StorageEntry fileHintAnchor = null;
+        int excludedCount = 0;
+        int globKeptCount = 0;
+        String excludedExample = null;
+        String excludedExampleEntry = null;
+
+        try (StorageIterator iterator = provider.listObjects(drainPrefix, recursive)) {
+            while (iterator.hasNext()) {
+                StorageEntry entry = iterator.next();
+                checkListedObjectsLimit(sharedListedCount.incrementAndGet(), maxListedObjects);
+                String entryPath = entry.path().toString();
+                String relativePath = entryPath.startsWith(rootPrefixStr)
+                    ? entryPath.substring(rootPrefixStr.length())
+                    : entry.path().objectName();
+                if (relativePath.isEmpty() || relativePath.endsWith("/")) {
+                    continue;
+                }
+                if (matcher.matches(relativePath)) {
+                    String excludedBy = nameFilter.excludedBy(relativePath);
+                    if (excludedBy == null) {
+                        globKeptCount++;
+                        if (fileHints.isEmpty() || matchesAllFileHints(entry, fileHints)) {
+                            localMatched.add(entry);
+                            checkDiscoveredFilesLimit(sharedKeptCount.incrementAndGet(), maxDiscoveredFiles);
+                        } else {
+                            fileHintAnchor = fileHintAnchor != null ? fileHintAnchor : entry;
+                        }
+                    } else {
+                        excludedCount++;
+                        if (excludedExample == null) {
+                            excludedExample = relativePath;
+                            excludedExampleEntry = excludedBy;
+                        }
+                    }
+                }
+            }
+        }
+        return new DrainResult(localMatched, fileHintAnchor, excludedCount, globKeptCount, excludedExample, excludedExampleEntry);
+    }
+
+    /**
+     * Processes a pre-materialized list of entries through the same per-entry rules as
+     * {@link #drainOnePrefix}, for files found during the prefix-descent phase.
+     */
+    private static DrainResult drainEntries(
+        List<StorageEntry> entries,
+        String rootPrefixStr,
+        GlobMatcher matcher,
+        ExclusionConfig.NameFilter nameFilter,
+        List<PartitionFilterHint> fileHints,
+        int maxDiscoveredFiles,
+        AtomicInteger sharedKeptCount
+    ) {
+        List<StorageEntry> localMatched = new ArrayList<>();
+        StorageEntry fileHintAnchor = null;
+        int excludedCount = 0;
+        int globKeptCount = 0;
+        String excludedExample = null;
+        String excludedExampleEntry = null;
+
+        for (StorageEntry entry : entries) {
+            String entryPath = entry.path().toString();
+            String relativePath = entryPath.startsWith(rootPrefixStr)
+                ? entryPath.substring(rootPrefixStr.length())
+                : entry.path().objectName();
+            if (relativePath.isEmpty() || relativePath.endsWith("/")) {
+                continue;
+            }
+            if (matcher.matches(relativePath)) {
+                String excludedBy = nameFilter.excludedBy(relativePath);
+                if (excludedBy == null) {
+                    globKeptCount++;
+                    if (fileHints.isEmpty() || matchesAllFileHints(entry, fileHints)) {
+                        localMatched.add(entry);
+                        checkDiscoveredFilesLimit(sharedKeptCount.incrementAndGet(), maxDiscoveredFiles);
+                    } else {
+                        fileHintAnchor = fileHintAnchor != null ? fileHintAnchor : entry;
+                    }
+                } else {
+                    excludedCount++;
+                    if (excludedExample == null) {
+                        excludedExample = relativePath;
+                        excludedExampleEntry = excludedBy;
+                    }
+                }
+            }
+        }
+        return new DrainResult(localMatched, fileHintAnchor, excludedCount, globKeptCount, excludedExample, excludedExampleEntry);
+    }
+
+    /**
+     * Fan-out listing: drains each prefix in {@code prefixSet.prefixes()} concurrently and concatenates results in
+     * prefix order. Files at intermediate levels (collected during descent) are prepended. Caps are checked via
+     * shared atomics so a concurrent set of workers cannot each accumulate up to the cap before any check fires.
+     */
+    private static FileList fanOutDrain(
+        String pattern,
+        String rootPrefixStr,
+        StorageProvider provider,
+        GlobMatcher matcher,
+        ExclusionConfig.NameFilter nameFilter,
+        PrefixSet prefixSet,
+        List<PartitionFilterHint> fileHints,
+        int maxDiscoveredFiles,
+        int maxListedObjects,
+        boolean recursive,
+        PartitionConfig partitionConfig,
+        FileOrderConfig fileOrder,
+        int concurrency,
+        Executor executor
+    ) throws IOException {
+        AtomicInteger sharedListedCount = new AtomicInteger();
+        AtomicInteger sharedKeptCount = new AtomicInteger();
+
+        DrainResult topResult = drainEntries(
+            prefixSet.topFiles(),
+            rootPrefixStr,
+            matcher,
+            nameFilter,
+            fileHints,
+            maxDiscoveredFiles,
+            sharedKeptCount
+        );
+
+        List<DrainResult> drainResults;
+        try {
+            drainResults = BoundedParallelGather.gather(
+                prefixSet.prefixes(),
+                p -> drainOnePrefix(
+                    p,
+                    rootPrefixStr,
+                    provider,
+                    matcher,
+                    nameFilter,
+                    fileHints,
+                    maxDiscoveredFiles,
+                    maxListedObjects,
+                    recursive,
+                    sharedListedCount,
+                    sharedKeptCount
+                ),
+                concurrency,
+                executor
+            );
+        } catch (RuntimeException | IOException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IOException("listing fan-out failed", e);
+        }
+
+        // Merge: topFiles first (listing order before the first branch), then each prefix drain in order.
+        List<StorageEntry> matched = new ArrayList<>(topResult.matched());
+        StorageEntry fileHintAnchor = topResult.fileHintAnchor();
+        int excludedCount = topResult.excludedCount();
+        int globKeptCount = topResult.globKeptCount();
+        String excludedExample = topResult.excludedExample();
+        String excludedExampleEntry = topResult.excludedExampleEntry();
+
+        for (DrainResult dr : drainResults) {
+            matched.addAll(dr.matched());
+            if (fileHintAnchor == null) {
+                fileHintAnchor = dr.fileHintAnchor();
+            }
+            excludedCount += dr.excludedCount();
+            globKeptCount += dr.globKeptCount();
+            if (excludedExample == null) {
+                excludedExample = dr.excludedExample();
+                excludedExampleEntry = dr.excludedExampleEntry();
+            }
+        }
+
+        List<String> listingWarnings = new ArrayList<>();
+        if (excludedCount > 0) {
+            listingWarnings.add(exclusionWarning(excludedCount, globKeptCount, rootPrefixStr, excludedExample, excludedExampleEntry));
+        }
+
+        if (matched.isEmpty() && fileHintAnchor != null && maxDiscoveredFiles > 0) {
+            matched.add(fileHintAnchor);
+        }
+
+        if (matched.isEmpty()) {
+            return listingWarnings.isEmpty() ? FileList.EMPTY : new GenericFileList(List.of(), pattern, null, listingWarnings, false);
+        }
+
+        fileOrder.apply(matched);
+        PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig, listingWarnings::add);
+        return new GenericFileList(matched, pattern, partitionMetadata, listingWarnings, false);
     }
 
     /**
@@ -984,7 +1366,9 @@ public final class GlobExpander {
                     FileOrderConfig.DEFAULT,
                     // A key budget has no single meaning across the segments of a comma list, so each
                     // segment lists in full; expand() never hands this path a bound.
-                    Integer.MAX_VALUE
+                    Integer.MAX_VALUE,
+                    1,
+                    null
                 );
                 listingWarnings.addAll(expanded.listingWarnings());
                 if (expanded instanceof GenericFileList g && expanded.fileCount() > 0) {

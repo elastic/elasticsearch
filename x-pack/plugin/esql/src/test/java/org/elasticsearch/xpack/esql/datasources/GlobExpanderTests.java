@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
@@ -22,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -31,8 +34,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
 public class GlobExpanderTests extends ESTestCase {
@@ -3289,6 +3297,254 @@ public class GlobExpanderTests extends ESTestCase {
         assertFalse("year=2024 must not be enumerated", provider.enumeratedFiles.stream().anyMatch(p -> p.contains("year=2024")));
     }
 
+    // -- Parallel prefix fan-out (esql-planning#2051) --
+
+    /**
+     * A wide Hive-shaped tree with a file directly under the root and one directly under each year= folder,
+     * so the fan-out must handle files at intermediate levels as well as deep files.
+     */
+    private static List<StorageEntry> wideHiveTree(int years, int months, int filesPerMonth) {
+        List<StorageEntry> entries = new ArrayList<>();
+        entries.add(entry("s3://bucket/data/top.parquet", 50));
+        for (int y = 0; y < years; y++) {
+            String yearDir = "year=" + (2020 + y);
+            entries.add(entry("s3://bucket/data/" + yearDir + "/mid.parquet", 50));
+            for (int m = 1; m <= months; m++) {
+                String monthDir = String.format(Locale.ROOT, "month=%02d", m);
+                for (int f = 0; f < filesPerMonth; f++) {
+                    entries.add(entry(String.format(Locale.ROOT, "s3://bucket/data/%s/%s/f%04d.parquet", yearDir, monthDir, f), 100));
+                }
+            }
+        }
+        return entries;
+    }
+
+    /**
+     * The fan-out path and the serial flat-drain path must return the same file at every index.
+     * One provider has {@code childrenUnsupported=true} so it falls back to the serial drain;
+     * the other supports children and fans out. Both are called with concurrency=4.
+     */
+    public void testPrefixFanOutReturnsTheFlatListingEntryForEntry() throws Exception {
+        List<StorageEntry> tree = wideHiveTree(12, 12, 8);
+        TreeStubProvider serial = new TreeStubProvider(tree);
+        serial.childrenUnsupported = true;
+
+        TreeStubProvider fanOut = new TreeStubProvider(tree);
+
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/**/*.parquet";
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        try {
+            FileList serialResult = GlobExpander.expand(
+                pattern,
+                serial,
+                null,
+                HIVE_ON,
+                Integer.MAX_VALUE,
+                Integer.MAX_VALUE,
+                Integer.MAX_VALUE,
+                Integer.MAX_VALUE,
+                4,
+                threadPool.generic()
+            );
+            FileList fanOutResult = GlobExpander.expand(
+                pattern,
+                fanOut,
+                null,
+                HIVE_ON,
+                Integer.MAX_VALUE,
+                Integer.MAX_VALUE,
+                Integer.MAX_VALUE,
+                Integer.MAX_VALUE,
+                4,
+                threadPool.generic()
+            );
+
+            assertEquals("file counts must match", serialResult.fileCount(), fanOutResult.fileCount());
+            for (int i = 0; i < serialResult.fileCount(); i++) {
+                assertEquals("path at index " + i, serialResult.path(i), fanOutResult.path(i));
+                assertEquals("size at index " + i, serialResult.size(i), fanOutResult.size(i));
+                assertEquals("lastModifiedMillis at index " + i, serialResult.lastModifiedMillis(i), fanOutResult.lastModifiedMillis(i));
+            }
+            assertThat("fan-out must drain more than one prefix", fanOut.listedPrefixes.size(), greaterThan(1));
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    /**
+     * The discriminating test: if drains are serial the second one never starts while the first is blocking,
+     * so the latch never reaches zero. An implementation that derives prefixes but drains them sequentially
+     * fails the same way.
+     */
+    public void testPrefixDrainsOverlap() throws Exception {
+        CountDownLatch bothOpen = new CountDownLatch(2);
+        AtomicInteger inFlight = new AtomicInteger();
+        AtomicInteger peak = new AtomicInteger();
+        TreeStubProvider blocking = new TreeStubProvider(wideHiveTree(12, 12, 8)) {
+            @Override
+            public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+                peak.accumulateAndGet(inFlight.incrementAndGet(), Math::max);
+                bothOpen.countDown();
+                try {
+                    assertTrue("a second listing never started", bothOpen.await(10, TimeUnit.SECONDS));
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                } finally {
+                    inFlight.decrementAndGet();
+                }
+                // Return empty iterator — we only care that two drains ran concurrently.
+                return new StorageIterator() {
+                    @Override
+                    public boolean hasNext() {
+                        return false;
+                    }
+
+                    @Override
+                    public StorageEntry next() {
+                        throw new NoSuchElementException();
+                    }
+
+                    @Override
+                    public void close() {}
+                };
+            }
+        };
+
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/**/*.parquet";
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        try {
+            GlobExpander.expand(
+                pattern,
+                blocking,
+                null,
+                HIVE_ON,
+                Integer.MAX_VALUE,
+                Integer.MAX_VALUE,
+                Integer.MAX_VALUE,
+                Integer.MAX_VALUE,
+                4,
+                threadPool.generic()
+            );
+        } finally {
+            terminate(threadPool);
+        }
+        assertThat(peak.get(), greaterThan(1));
+    }
+
+    /**
+     * The {@code max_listed_objects} cap must be checked across the fan-out as a whole: a per-worker cap
+     * allows width W to collectively visit W times the limit before any check fires.
+     */
+    public void testListedObjectsCapAbortsAcrossConcurrentPrefixes() throws Exception {
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/**/*.parquet";
+        AtomicInteger totalPulled = new AtomicInteger();
+        TreeStubProvider counting = new TreeStubProvider(wideHiveTree(12, 12, 8)) {
+            @Override
+            public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+                StorageIterator delegate = super.listObjects(prefix, recursive);
+                return new StorageIterator() {
+                    @Override
+                    public boolean hasNext() {
+                        return delegate.hasNext();
+                    }
+
+                    @Override
+                    public StorageEntry next() {
+                        totalPulled.incrementAndGet();
+                        return delegate.next();
+                    }
+
+                    @Override
+                    public void close() throws IOException {
+                        delegate.close();
+                    }
+                };
+            }
+        };
+
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        try {
+            var e = expectThrows(
+                IllegalArgumentException.class,
+                () -> GlobExpander.expand(
+                    pattern,
+                    counting,
+                    null,
+                    HIVE_ON,
+                    Integer.MAX_VALUE,
+                    Integer.MAX_VALUE,
+                    100,
+                    Integer.MAX_VALUE,
+                    4,
+                    threadPool.generic()
+                )
+            );
+            assertThat(e.getMessage(), containsString("esql.external.max_listed_objects"));
+            assertThat("cap must fire across workers, not per-worker", totalPulled.get(), lessThan(300));
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    /**
+     * The {@code max_discovered_files} cap must be checked across the fan-out as a whole: a per-worker cap
+     * allows width W to collectively keep W times the limit before any check fires.
+     */
+    public void testDiscoveredFilesCapAbortsAcrossConcurrentPrefixes() throws Exception {
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/**/*.parquet";
+        AtomicInteger totalPulled = new AtomicInteger();
+        TreeStubProvider counting = new TreeStubProvider(wideHiveTree(12, 12, 8)) {
+            @Override
+            public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+                StorageIterator delegate = super.listObjects(prefix, recursive);
+                return new StorageIterator() {
+                    @Override
+                    public boolean hasNext() {
+                        return delegate.hasNext();
+                    }
+
+                    @Override
+                    public StorageEntry next() {
+                        totalPulled.incrementAndGet();
+                        return delegate.next();
+                    }
+
+                    @Override
+                    public void close() throws IOException {
+                        delegate.close();
+                    }
+                };
+            }
+        };
+
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        try {
+            var e = expectThrows(
+                IllegalArgumentException.class,
+                () -> GlobExpander.expand(
+                    pattern,
+                    counting,
+                    null,
+                    HIVE_ON,
+                    10,
+                    Integer.MAX_VALUE,
+                    Integer.MAX_VALUE,
+                    Integer.MAX_VALUE,
+                    4,
+                    threadPool.generic()
+                )
+            );
+            assertThat(e.getMessage(), containsString("esql.external.max_discovered_files"));
+            assertThat("cap must fire across workers, not per-worker", totalPulled.get(), lessThan(40));
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
     /**
      * Lists a fixed tree of files hierarchically, tracking every prefix listed and every file enumerated — the
      * walk's whole point is what is NOT in {@code enumeratedFiles}. {@code listObjects} behaves like S3's:
@@ -3296,9 +3552,9 @@ public class GlobExpanderTests extends ESTestCase {
      */
     private static class TreeStubProvider implements StorageProvider {
         private final List<StorageEntry> allEntries;
-        final List<String> listedPrefixes = new ArrayList<>();
-        final List<String> childListedPrefixes = new ArrayList<>();
-        final List<String> enumeratedFiles = new ArrayList<>();
+        final List<String> listedPrefixes = Collections.synchronizedList(new ArrayList<>());
+        final List<String> childListedPrefixes = Collections.synchronizedList(new ArrayList<>());
+        final List<String> enumeratedFiles = Collections.synchronizedList(new ArrayList<>());
         boolean childrenUnsupported = false;
 
         TreeStubProvider(List<StorageEntry> allEntries) {

@@ -174,6 +174,27 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         assertFoldsTo(frags, total);
     }
 
+    /**
+     * BOM regression: a leading UTF-8 BOM (EF BB BF) must NOT disable stripe capture. Before the fix the
+     * BOM bytes were consumed before {@link org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream},
+     * so {@code byteCounter.getBytesRead()} returned N-3 while {@code recordReader.bytesRead()} returned N;
+     * the tripwire saw N != N-3 and set {@code stripeCaptureDisabled = true}, causing every warm COUNT(*) to
+     * re-read the file.
+     *
+     * <p>This asserts stripe fragments ARE emitted and form a complete cover of ALL N file bytes (BOM + data)
+     * — verifying that both the tripwire invariant and the byte-range geometry are correct.
+     */
+    public void testLeadingBomDoesNotDisableStripeCapture() throws Exception {
+        byte[] bom = new byte[] { (byte) 0xEF, (byte) 0xBB, (byte) 0xBF };
+        int total = 8;
+        byte[] data = asciiCsv(0, total);
+        byte[] full = concat(bom, data);
+        long stripe = 7;
+
+        List<Frag> frags = captureStripes(full, 0, true, true, 1000, stripe);
+        assertDenseFileFinalCover(frags, total, full.length);
+    }
+
     // ---- Stripe-boundary page geometry (mirrors NdJsonStripeStatsCaptureTests) ----------------------
 
     /** A parsed view of one emitted stripe fragment. */

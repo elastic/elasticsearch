@@ -135,7 +135,7 @@ public class ReindexSliceEnabledIT extends ESIntegTestCase {
         client().index(new IndexRequest(source).id("2").source("value", "b")).get();
         indicesAdmin().prepareRefresh(source).get();
 
-        // A destination [slice] routes every reindexed document to that slice.
+        // A destination [_slice] routes every reindexed document to that slice.
         ReindexRequest request = new ReindexRequest().setSourceIndices(source).setDestIndex(destination);
         request.getDestination().routing("tenant-a").setRoutingFromSlice(true);
         BulkByPaginatedSearchResponse response = client().execute(ReindexAction.INSTANCE, request).actionGet();

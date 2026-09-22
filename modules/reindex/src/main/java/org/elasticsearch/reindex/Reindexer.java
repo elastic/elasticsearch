@@ -369,7 +369,7 @@ public class Reindexer {
         String[] indices = searchRequest.indices();
 
         // The routing and preference parameters can be set for a PIT request. However, scroll currently does not use these,
-        // so for parity we assert here in case that changes. A source [slice] is the exception: it sets routing to scope the read to a
+        // so for parity we assert here in case that changes. A source [_slice] is the exception: it sets routing to scope the read to a
         // slice and is forwarded to the PIT so the point-in-time is opened over the correct shards.
         assert searchRequest.routing() == null || searchRequest.isRoutingFromSlice()
             : "Routing is set in the search request, but is not being used when opening the PIT.";
@@ -1229,7 +1229,7 @@ public class Reindexer {
         @Override
         protected void copyRouting(RequestWrapper<?> request, String routing) {
             final IndexRequest dest = mainRequest.getDestination();
-            // A destination [slice] routes every reindexed document to the given slice value.
+            // A destination [_slice] routes every reindexed document to the given slice value.
             if (dest.isRoutingFromSlice()) {
                 super.copyRouting(request, dest.routing());
                 request.setRoutingFromSlice(true);
@@ -1243,6 +1243,11 @@ public class Reindexer {
                     super.copyRouting(request, routing);
                     request.setRoutingFromSlice(true);
                 } else {
+                    // Dropping the slice value means documents that were kept distinct by their slice in the source (a slice-enabled
+                    // index prevents id collisions across slices) may now collide on _id in the non-slice-enabled destination and
+                    // overwrite each other. This is expected: reindexing several source slices into a single unsliced index cannot
+                    // preserve that separation, and it differs from the [routing: discard] case below where collisions only happen
+                    // when the colliding ids route to the same shard.
                     super.copyRouting(request, null);
                     request.setRoutingFromSlice(false);
                 }

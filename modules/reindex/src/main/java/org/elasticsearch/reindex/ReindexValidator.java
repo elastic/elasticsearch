@@ -206,7 +206,7 @@ public class ReindexValidator {
 
         if (sourceRequiresRouting) {
             throw new IllegalArgumentException(
-                "reindex from an index that requires [routing] is not supported when a [slice] is involved; slice-enabled indices and "
+                "reindex from an index that requires [routing] is not supported when a [_slice] is involved; slice-enabled indices and "
                     + "indices with required [routing] must not be mixed"
             );
         }
@@ -217,7 +217,7 @@ public class ReindexValidator {
                 throw new IllegalArgumentException(
                     "reindex into destination ["
                         + destinationIndex
-                        + "] that requires [routing] is not supported when a [slice] is involved; slice-enabled indices and indices with "
+                        + "] that requires [routing] is not supported when a [_slice] is involved; slice-enabled indices and indices with "
                         + "required [routing] must not be mixed"
                 );
             }

@@ -849,6 +849,38 @@ public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTes
         }
     }
 
+    public void testSourceSliceRejectedWhenNotAString() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        // A source [_slice] must be a plain string; a non-string value (here a number) is rejected rather than silently ignored.
+        BytesReference request;
+        try (XContentBuilder b = JsonXContent.contentBuilder()) {
+            b.startObject();
+            {
+                b.startObject("source");
+                {
+                    b.field("index", "source");
+                    b.field(SliceIndexing.FIELD_NAME, 42);
+                }
+                b.endObject();
+                b.startObject("dest");
+                {
+                    b.field("index", "dest");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            request = BytesReference.bytes(b);
+        }
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
+            Exception e = expectThrows(Exception.class, () -> ReindexRequest.fromXContent(p, Predicates.always()));
+            Throwable root = e;
+            while (root.getCause() != null) {
+                root = root.getCause();
+            }
+            assertThat(root.getMessage(), equalTo("[" + SliceIndexing.FIELD_NAME + "] must be a string value"));
+        }
+    }
+
     public void testDestSliceAndRoutingAreMutuallyExclusive() throws IOException {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         BytesReference request;

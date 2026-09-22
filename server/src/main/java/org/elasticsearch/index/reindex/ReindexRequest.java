@@ -165,7 +165,7 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
             assert destination.isRoutingFromSlice() == false : "routing is null but isRoutingFromSlice is true";
             return true;
         }
-        // A destination [slice] is a plain slice value that every reindexed document is routed to.
+        // A destination [_slice] is a plain slice value that every reindexed document is routed to.
         if (destination.isRoutingFromSlice()) {
             assert SliceIndexing.SLICE_FEATURE_FLAG.isEnabled();
             try {
@@ -425,6 +425,10 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
                     SliceIndexing.validateUserSliceValue(sliceValue);
                 }
                 request.getSearchRequest().searchSlice(sliceValue);
+            } else if (sourceSlice != null) {
+                // A source [_slice] must be a plain string slice value; reject any other shape (object, number, array, ...) explicitly
+                // rather than silently forwarding it to the search source parser.
+                throw new IllegalArgumentException("[" + SliceIndexing.FIELD_NAME + "] must be a string value");
             }
             request.setRemoteInfo(buildRemoteInfo(source));
             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());

@@ -508,7 +508,10 @@ public class AzureStorageProviderTests extends ESTestCase {
     public void testTestConnectionFederatedIdentityWithoutAccountIsUntestable() {
         // federated_identity without account or endpoint: constructor now defers (same as managed_identity),
         // and the pre-check in testConnection() short-circuits before any client call.
-        AzureConfiguration config = AzureConfiguration.fromFields(null, null, null, null, null, "federated_identity");
+        // tenant_id + client_id are required by AzureConfiguration validation when auth=federated_identity.
+        AzureConfiguration config = AzureConfiguration.fromMap(
+            Map.of("auth", "federated_identity", "tenant_id", "test-tenant", "client_id", "test-client")
+        );
         AzureStorageProvider provider = new AzureStorageProvider(config, null, null);
         TestConnectionNotSupportedException ex = expectThrows(
             TestConnectionNotSupportedException.class,

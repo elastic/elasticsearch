@@ -904,17 +904,17 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof DataSourceRequestInfo dsi
                     && EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME.equals(action)) {
                         securityChangeLogEntryBuilder(requestId).withDeleteDataSource(dsi.dataSourceNames()).build();
-                } else if (msg instanceof IndicesRequest ir && EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME.equals(action)) {
-                    securityChangeLogEntryBuilder(requestId).withDeleteDataset(ir.indices()).build();
-                } else {
-                    throw new IllegalStateException(
-                        "Unknown message class type ["
-                            + msg.getClass().getSimpleName()
-                            + "] for the \"security change\" action ["
-                            + action
-                            + "]"
-                    );
-                }
+                    } else if (msg instanceof IndicesRequest ir && EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME.equals(action)) {
+                        securityChangeLogEntryBuilder(requestId).withDeleteDataset(ir.indices()).build();
+                    } else {
+                        throw new IllegalStateException(
+                            "Unknown message class type ["
+                                + msg.getClass().getSimpleName()
+                                + "] for the \"security change\" action ["
+                                + action
+                                + "]"
+                        );
+                    }
             } catch (IOException e) {
                 throw new ElasticsearchSecurityException("Unexpected error while serializing event data", e);
             }

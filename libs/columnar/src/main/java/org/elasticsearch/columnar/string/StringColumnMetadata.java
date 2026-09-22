@@ -197,7 +197,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
     /**
      * A column that names its values with ordinals into {@link #dictionary()}. A value the dictionary does
      * not hold escapes into {@link #escapes()}, found by counting the escapes before it, which
-     * {@link #escapeRanks()} makes bounded work by recording how many came before every block of values.
+     * {@link #escapeRanks()} makes bounded work by recording how many came before every
+     * {@link #escapeRankBlockSize()} values.
      *
      * <p>Two ordinals are reserved. {@link #NULL_ORDINAL} names a null, so the {@link #dictionarySize()} terms
      * take the ordinals from {@link #FIRST_TERM_ORDINAL} up, and {@link #escapeOrdinal()} — the first ordinal
@@ -221,6 +222,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         NumericColumnMetadata ordinals,
         ValueStream.Metadata escapes,
         MonotonicWriter.Table escapeRanks,
+        int escapeRankBlockSize,
         int dictionarySize,
         boolean valuesSorted,
         Summary summary
@@ -260,6 +262,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                 ordinals,
                 escapes,
                 escapeRanks,
+                escapeRankBlockSize,
                 dictionarySize,
                 valuesSorted,
                 summary
@@ -273,6 +276,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             ordinals.writeTo(out);
             escapes.writeTo(out);
             if (escapes.numValues() > 0) {
+                out.writeVInt(escapeRankBlockSize);
                 writeTable(out, escapeRanks);
             }
         }
@@ -321,6 +325,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         NumericColumnMetadata ordinals,
         ValueStream.Metadata escapes,
         MonotonicWriter.Table escapeRanks,
+        int escapeRankBlockSize,
         int dictionarySize,
         boolean valuesSorted
     ) {
@@ -335,6 +340,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             ordinals,
             escapes,
             escapeRanks,
+            escapeRankBlockSize,
             dictionarySize,
             valuesSorted,
             null
@@ -420,7 +426,8 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                 final ValueStream.Metadata dictionary = ValueStream.Metadata.readFrom(in);
                 final NumericColumnMetadata ordinals = NumericColumnMetadata.readFrom(in, maxDoc, formatVersion);
                 final ValueStream.Metadata escapes = ValueStream.Metadata.readFrom(in);
-                MonotonicWriter.Table escapeRanks = escapes.numValues() > 0 ? readTable(in) : MonotonicWriter.Table.NONE;
+                final int escapeRankBlockSize = escapes.numValues() > 0 ? in.readVInt() : 0;
+                final MonotonicWriter.Table escapeRanks = escapes.numValues() > 0 ? readTable(in) : MonotonicWriter.Table.NONE;
                 yield dictionary(
                     iterator,
                     numDocsWithField,
@@ -432,6 +439,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                     ordinals,
                     escapes,
                     escapeRanks,
+                    escapeRankBlockSize,
                     dictionarySize,
                     valuesSorted
                 );

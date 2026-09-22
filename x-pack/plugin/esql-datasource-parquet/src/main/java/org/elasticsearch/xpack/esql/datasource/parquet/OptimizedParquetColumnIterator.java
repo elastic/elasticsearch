@@ -27,6 +27,7 @@ import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SharedErrorBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -646,7 +648,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                             nextBlock.getRowCount(),
                             breaker,
                             formatReader.ioWatermark(),
-                            admitHold
+                            admitHold,
+                            formatReader.footerBytes()
                         );
                     } else {
                         future = ColumnChunkPrefetcher.prefetchAsync(
@@ -655,7 +658,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                             phaseColumns,
                             breaker,
                             formatReader.ioWatermark(),
-                            admitHold
+                            admitHold,
+                            formatReader.footerBytes()
                         );
                     }
                     future.whenComplete((ignored, error) -> admitHold.drop());
@@ -893,9 +897,21 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 }
                 yield DeclaredTypeCoercions.rawStatToDecoded(sortDecodeRelation, raw);
             }
-            case INT -> sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32
-                ? (long) ((Number) value).intValue()
-                : null;
+            case INT -> {
+                if (sortColumnPrimitiveType.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT32) {
+                    yield null;
+                }
+                // Decline when the annotation rescales: the raw stat lives in a different unit than the decoded bound.
+                // Mirrors the same gate in the LONG arm; rawDecodeRelation returns nothing for INT32, so no mapping
+                // is ever resolvable and declining is the only correct answer.
+                if (sortColumnAnnotationScales) {
+                    yield null;
+                }
+                int raw = ((Number) value).intValue();
+                // UINT_32 footer statistics are ordered unsigned, so sign-extension would produce a negative long for
+                // values above Integer.MAX_VALUE. Widen unsigned to match normalizeStatValue's treatment.
+                yield ParquetColumnDecoding.isUnsignedInt32(sortColumnPrimitiveType) ? Integer.toUnsignedLong(raw) : (long) raw;
+            }
             case DOUBLE -> {
                 if (sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.DOUBLE
                     || sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FLOAT) {
@@ -935,9 +951,17 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 }
                 yield DeclaredTypeCoercions.rawStatToDecoded(sortDecodeRelation, raw);
             }
-            case INT -> sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32
-                ? (long) ordered.getInt()
-                : null;
+            case INT -> {
+                // Same rescale-decline and unsigned-widening gates as rawValueFromStats.
+                if (sortColumnPrimitiveType.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT32) {
+                    yield null;
+                }
+                if (sortColumnAnnotationScales) {
+                    yield null;
+                }
+                int raw = ordered.getInt();
+                yield ParquetColumnDecoding.isUnsignedInt32(sortColumnPrimitiveType) ? Integer.toUnsignedLong(raw) : (long) raw;
+            }
             case DOUBLE -> switch (sortColumnPrimitiveType.getPrimitiveTypeName()) {
                 case FLOAT -> {
                     float f = ordered.getFloat();
@@ -1378,7 +1402,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                         block,
                         predicateColumnPaths,
                         breaker,
-                        formatReader.ioWatermark()
+                        formatReader.ioWatermark(),
+                        formatReader.footerBytes()
                     );
                     currentChunksReleasable = fetched.release();
                     chunks = fetched.chunks();
@@ -1439,7 +1464,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                         rowGroupOrdinal,
                         block.getRowCount(),
                         breaker,
-                        formatReader.ioWatermark()
+                        formatReader.ioWatermark(),
+                        formatReader.footerBytes()
                     );
                     currentChunksReleasable = fetched.release();
                     chunks = fetched.chunks();
@@ -1940,7 +1966,15 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = null;
         try {
             future = rowRanges == null
-                ? ColumnChunkPrefetcher.prefetchAsync(storageObject, block, projectionOnlyColumnPaths, breaker, formatReader.ioWatermark())
+                ? ColumnChunkPrefetcher.prefetchAsync(
+                    storageObject,
+                    block,
+                    projectionOnlyColumnPaths,
+                    breaker,
+                    formatReader.ioWatermark(),
+                    null,
+                    formatReader.footerBytes()
+                )
                 : ColumnChunkPrefetcher.prefetchAsync(
                     storageObject,
                     block,
@@ -1950,7 +1984,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     rowGroupOrdinal,
                     block.getRowCount(),
                     breaker,
-                    formatReader.ioWatermark()
+                    formatReader.ioWatermark(),
+                    null,
+                    formatReader.footerBytes()
                 );
             return StorageRetryCancellation.getWithCancellationChecks(future);
         } catch (TaskCancelledException cancelled) {
@@ -1972,6 +2008,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             // Classify before retrying so a CompletionException-wrapped Error cannot be hidden by
             // a successful synchronous retry.
             RuntimeException asyncFailure = ParquetReadFailures.wrap(joinFailure, failureContext);
+            if (isCredentialsExpired(asyncFailure)) {
+                abortPrefetchOnExpiredCredentials(asyncFailure, null, failureContext);
+            }
             prefetchFailed();
             logger.debug(() -> Strings.format("%s; retrying with synchronous I/O", failureContext), asyncFailure);
             try {
@@ -1984,7 +2023,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                         block,
                         projectionOnlyColumnPaths,
                         breaker,
-                        formatReader.ioWatermark()
+                        formatReader.ioWatermark(),
+                        formatReader.footerBytes()
                     )
                     : ColumnChunkPrefetcher.fetchSync(
                         storageObjectForFallback(),
@@ -1995,7 +2035,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                         rowGroupOrdinal,
                         block.getRowCount(),
                         breaker,
-                        formatReader.ioWatermark()
+                        formatReader.ioWatermark(),
+                        formatReader.footerBytes()
                     );
             } catch (Throwable retryFailure) {
                 if (retryFailure != asyncFailure) {
@@ -2203,12 +2244,24 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             ColumnChunkPrefetcher.PrefetchedChunks result;
             try {
                 result = StorageRetryCancellation.getWithCancellationChecks(head.future());
-            } catch (CompletionException | CancellationException e) {
+            } catch (Exception e) {
+                // getWithCancellationChecks rethrows RuntimeException (including expiry) bare;
+                // checked I/O arrives as CompletionException. Cancellation becomes TaskCancelledException.
+                if (e instanceof TaskCancelledException cancelled) {
+                    throw cancelled;
+                }
                 String failureContext = "Prefetch failed for row group [" + expectedOrdinal + "] in [" + fileLocation + "]";
-                RuntimeException asyncFailure = ParquetReadFailures.wrap(e, failureContext);
-                logger.debug(() -> Strings.format("%s; falling back to synchronous I/O", failureContext), asyncFailure);
-                prefetchFailed();
-                return selection;
+                if (isCredentialsExpired(e)) {
+                    RuntimeException asyncFailure = ParquetReadFailures.wrap(e, failureContext);
+                    abortPrefetchOnExpiredCredentials(asyncFailure, selection, failureContext);
+                }
+                if (isTransientPrefetchFailure(e)) {
+                    RuntimeException asyncFailure = ParquetReadFailures.wrap(e, failureContext);
+                    logger.debug(() -> Strings.format("%s; falling back to synchronous I/O", failureContext), asyncFailure);
+                    prefetchFailed();
+                    return selection;
+                }
+                throw e instanceof RuntimeException re ? re : new CompletionException(e);
             }
             prefetchSucceeded(wasReady);
             NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> data = result.chunks();
@@ -2227,6 +2280,41 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             }
             throw t;
         }
+    }
+
+    static boolean isCredentialsExpired(Throwable t) {
+        return ExceptionsHelper.unwrap(t, ExternalCredentialsExpiredException.class) != null;
+    }
+
+    // CompletionException-wrapped I/O can fall back; a bare/wrapped expiry cannot.
+    static boolean isTransientPrefetchFailure(Exception e) {
+        return (e instanceof CompletionException || e instanceof CancellationException) && isCredentialsExpired(e) == false;
+    }
+
+    private void abortPrefetchOnExpiredCredentials(
+        RuntimeException asyncFailure,
+        @Nullable PendingPrefetchSelection selection,
+        String failureContext
+    ) {
+        logger.debug(
+            () -> Strings.format("%s; session credentials expired, not falling back to synchronous I/O", failureContext),
+            asyncFailure
+        );
+        if (selection != null) {
+            selection.close();
+        }
+        abortExpiredPrefetches(asyncFailure, detachPendingPrefetches());
+    }
+
+    static void abortExpiredPrefetches(RuntimeException asyncFailure, ArrayDeque<PendingPrefetch> remaining) {
+        try {
+            cancelPendingPrefetches(remaining);
+        } catch (RuntimeException | AssertionError cleanupFailure) {
+            if (cleanupFailure != asyncFailure) {
+                asyncFailure.addSuppressed(cleanupFailure);
+            }
+        }
+        throw asyncFailure;
     }
 
     private void prefetchFailed() {

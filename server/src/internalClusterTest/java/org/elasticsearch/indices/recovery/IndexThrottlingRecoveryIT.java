@@ -293,7 +293,9 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
 
         // Target node only has 1 slot for concurrent recovery
         String targetNode = internalCluster().startDataOnlyNode(
-            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
+            Settings.builder()
+                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+                .build()
         );
 
         assertAcked(
@@ -340,7 +342,9 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
         });
 
         final var targetNode = internalCluster().startDataOnlyNode(
-            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
+            Settings.builder()
+                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+                .build()
         );
 
         // First recovery will occupy the only recovery slot
@@ -362,7 +366,9 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
 
     public void testNextPendingRecoveryDispatchedOnActiveEmptyStoreRecoveryCompletion() {
         final var node = internalCluster().startNode(
-            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
+            Settings.builder()
+                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+                .build()
         );
         final var indexOne = randomIndexName();
         final var indexTwo = randomIndexName();
@@ -425,7 +431,9 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
         ensureGreen(indexNames.toArray(String[]::new));
 
         final var targetNode = internalCluster().startDataOnlyNode(
-            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), limit).build()
+            Settings.builder()
+                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), limit)
+                .build()
         );
 
         final var releaseRecoveries = new CountDownLatch(1);
@@ -479,7 +487,7 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
 
         final var targetNode = internalCluster().startDataOnlyNode(
             Settings.builder()
-                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), firstLimit)
+                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), firstLimit)
                 .build()
         );
         final var releaseRecoveries = new CountDownLatch(1);
@@ -510,7 +518,7 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
             clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .setPersistentSettings(
                     Settings.builder()
-                        .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), secondLimit)
+                        .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), secondLimit)
                         .build()
                 )
         );
@@ -527,7 +535,9 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
 
     public void testRecoveryApisReportsBothActiveAndQueuedRecoveries() throws Exception {
         final var node = internalCluster().startNode(
-            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
+            Settings.builder()
+                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+                .build()
         );
         final var indexOne = randomIndexName();
         final var indexTwo = randomIndexName();

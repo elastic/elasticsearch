@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -53,6 +54,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.GlobalCheckpointListeners;
@@ -61,8 +63,10 @@ import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.threadpool.Scheduler;
@@ -70,6 +74,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
+import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
@@ -880,14 +885,36 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             public void onResponse(BccUploadResult uploadResult) {
                 maybeLogSlowBccUpload(virtualBcc, uploadResult);
                 final BatchedCompoundCommit uploadedBcc = uploadResult.batchedCompoundCommit();
+                final long ccGeneration = uploadedBcc.lastCompoundCommit().generation();
+                // NB: getSplitTargets() returns a live view of the shard's copy targets, which
+                // markSplitEnding() mutates concurrently. Capture whether there are any targets ONCE and
+                // drive every ownership decision below from that snapshot: re-reading the view could
+                // observe "non-empty" when scheduling the copy and "empty" afterwards, in which case both
+                // the copy task and this thread would run afterCopies()/cleanup() for the same upload.
+                // That double cleanup() double-closes virtualBcc and double-decRefs blobReference. (#156324)
+                final Set<ShardId> splitTargets = commitState.getSplitTargets();
+                final boolean hasSplitTargets = splitTargets.isEmpty() == false;
+
+                // Capture the translog release file before enqueuing the copy below: when there are split
+                // targets the copy task takes ownership of virtualBcc (and closes it in cleanup()), so
+                // virtualBcc must not be read again on this thread once the task has been submitted.
+                final long translogReleaseEndFile = virtualBcc.getLastPendingCompoundCommit()
+                    .getCommitReference()
+                    .getTranslogReleaseEndFile();
+
+                // Enqueue the split-target copy before markBccUploaded fires the local-upload listeners that
+                // release the next upload. Copies run through a single-slot FIFO runner, so submitting copy N
+                // before generation N+1's upload can begin keeps copy submission — and therefore the
+                // fully-uploaded generation notifications gated on it — in generation order. The copy still
+                // runs concurrently with the next upload. (ES-12456, #154606)
+                final boolean copyTaskOwnsCleanup = hasSplitTargets
+                    && scheduleSplitTargetCopies(commitState, blobReference, uploadedBcc, ccGeneration, splitTargets);
+
                 try {
                     // Use the largest translog release file from all CCs to release translog files for cleaning.
                     // markBccUploaded fires the local-upload generation listeners, allowing the next upload to
                     // start immediately without waiting for copies to split targets to complete.
-                    commitState.markBccUploaded(
-                        uploadedBcc,
-                        virtualBcc.getLastPendingCompoundCommit().getCommitReference().getTranslogReleaseEndFile()
-                    );
+                    commitState.markBccUploaded(uploadedBcc, translogReleaseEndFile);
                 } catch (Exception e) {
                     // TODO: we should assert false here once we fix ES-8336
                     logger.warn(
@@ -898,33 +925,44 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         ),
                         e
                     );
-                    cleanup();
+                    // If a copy task was enqueued above it owns virtualBcc/blobReference and will clean up.
+                    if (copyTaskOwnsCleanup == false) {
+                        cleanup();
+                    }
                     return;
                 }
-                // Copies to split targets and search-node notification are dispatched after markBccUploaded
-                // so that the next upload can start concurrently. Both are still gated on copy completion
-                // from the outside world's perspective: the fully-uploaded generation listeners (used for
-                // flush) and sendNewUploadedCommitNotification fire only after copies finish.
-                // We use the upload thread pool rather than the copy pool to avoid depleting it, since this
-                // is conceptually upload work spread across multiple locations. (ES-12456)
-                final long ccGeneration = uploadedBcc.lastCompoundCommit().generation();
-                final Set<ShardId> splitTargets = commitState.getSplitTargets();
-                if (splitTargets.isEmpty()) {
+                if (hasSplitTargets == false) {
+                    // No copy was ever dispatched, so this thread completes the upload.
                     afterCopies(commitState, blobReference, uploadedBcc, ccGeneration);
-                } else {
-                    // Acquire a permit so that objectStoreService.doClose() waits for in-flight copies before
-                    // closing the blob store, mirroring the implicit drain the old synchronous copy code provided.
-                    final Releasable copyPermit;
-                    try {
-                        copyPermit = objectStoreService.acquireCopyPermit();
-                    } catch (Exception e) {
-                        // Service is already shutting down; treat the same as a closed shard.
-                        cleanup();
-                        return;
-                    }
-                    // Serialise copies via a per-shard single-slot runner so that
-                    // fireUploadedGenerationListeners is always called in generation order.
-                    // (ES-12456)
+                } else if (copyTaskOwnsCleanup == false) {
+                    // Copy scheduling failed (e.g. the service is shutting down); nothing else will clean up.
+                    cleanup();
+                }
+            }
+
+            private boolean scheduleSplitTargetCopies(
+                ShardCommitState commitState,
+                ShardCommitState.BlobReference blobReference,
+                BatchedCompoundCommit uploadedBcc,
+                long ccGeneration,
+                Set<ShardId> splitTargets
+            ) {
+                // Acquire a permit so that objectStoreService.doClose() waits for in-flight copies before
+                // closing the blob store, mirroring the implicit drain the old synchronous copy code provided.
+                final Releasable copyPermit;
+                try {
+                    copyPermit = objectStoreService.acquireCopyPermit();
+                } catch (Exception e) {
+                    // Service is already shutting down; treat the same as a closed shard.
+                    return false;
+                }
+
+                try {
+                    // Serialise copies via a per-shard single-slot runner. This task is submitted before the
+                    // listeners that start the next upload are fired, so copy submissions — and the
+                    // fully-uploaded notifications gated on them — remain in generation order.
+                    // We use the upload thread pool rather than the copy pool to avoid depleting it, since this
+                    // is conceptually upload work spread across multiple locations. (ES-12456, #154606)
                     commitState.splitTargetCopyExecutor.execute(() -> {
                         try {
                             for (ShardId targetShardId : splitTargets) {
@@ -967,6 +1005,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                             copyPermit.close();
                         }
                     });
+                    return true;
+                } catch (Exception e) {
+                    copyPermit.close();
+                    return false;
                 }
             }
 
@@ -2548,6 +2590,19 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     ),
                     e
                 );
+            } else if (isExpectedNotificationDeliveryFailure(cause)) {
+                logger.debug(
+                    () -> format(
+                        "%s failed to notify search shards after "
+                            + verb
+                            + " commit of gen [%s] (BCC [%s]) "
+                            + "because a search shard was not available (closed, relocating or removed)",
+                        shardId,
+                        generation,
+                        bccGeneration
+                    ),
+                    e
+                );
             } else {
                 logger.warn(
                     () -> format(
@@ -2559,6 +2614,30 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     e
                 );
             }
+        }
+
+        /**
+         * A new-commit notification only informs search shards that a fresher commit is available; failing to deliver it is expected
+         * and harmless whenever the target search shard was not in a state to receive it: its copy is closed / closing or relocating,
+         * the index was closed or removed, or the node/connection is going away. Note the notification already waits for the shard's
+         * engine to start, so a shard that is merely still recovering does not fail here. In all these cases there is no data impact -
+         * a fresh copy reads the latest commit during recovery and a live shard keeps receiving later notifications - and the indexing
+         * node cannot meaningfully wait any longer, so we log these races at DEBUG rather than WARN. Only genuinely unexpected failures
+         * remain at WARN.
+         */
+        private static boolean isExpectedNotificationDeliveryFailure(Throwable cause) {
+            // ShardNotFound / IndexNotFound / IllegalIndexShardState / NoShardAvailable / UnavailableShards / AlreadyClosed.
+            if (TransportActions.isShardNotAvailableException(cause)) {
+                return true;
+            }
+            if (cause instanceof IndexClosedException || cause instanceof NodeClosedException) {
+                return true;
+            }
+            // No live engine for the search shard: the copy has closed/is closing, or is momentarily between engines during a reset
+            // (the notification path already waits out an ongoing recovery). See
+            // TransportNewCommitNotificationAction#ENGINE_NOT_STARTED_MESSAGE.
+            return cause instanceof EngineException
+                && TransportNewCommitNotificationAction.ENGINE_NOT_STARTED_MESSAGE.equals(cause.getMessage());
         }
 
         /**
@@ -2857,6 +2936,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             assert failed || present : "target shard " + targetShardId + " not currently splitting from " + shardId;
         }
 
+        /**
+         * Returns a <em>live</em> unmodifiable view of the shard's split copy targets, which
+         * {@link #markSplitEnding} mutates concurrently. Callers must not re-read this view to make more than
+         * one control-flow decision about the same upload: two reads can disagree, which previously caused an
+         * upload to be completed twice. Capture what you need from it once instead.
+         */
         private Set<ShardId> getSplitTargets() {
             return Collections.unmodifiableSet(copyTargets);
         }

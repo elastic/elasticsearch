@@ -157,14 +157,20 @@ final class ChangesIntGroupingAggregatorFunction extends AbstractRateGroupingFun
             if (groups.isNull(p) || values.isNull(valuePosition) || timestamps.isNull(valuePosition)) {
                 continue;
             }
-            assert values.getValueCount(valuePosition) == 1 : "expected single-valued block " + values;
-            assert timestamps.getValueCount(valuePosition) == 1 : "expected single-valued block " + timestamps;
-            int value = values.getInt(values.getFirstValueIndex(valuePosition));
-            long timestamp = timestamps.getLong(timestamps.getFirstValueIndex(valuePosition));
+            int valueStart = values.getFirstValueIndex(valuePosition);
+            int valueEnd = valueStart + values.getValueCount(valuePosition);
+            int timestampStart = timestamps.getFirstValueIndex(valuePosition);
+            int timestampEnd = timestampStart + timestamps.getValueCount(valuePosition);
             int groupStart = groups.getFirstValueIndex(p);
             int groupEnd = groupStart + groups.getValueCount(p);
             for (int g = groupStart; g < groupEnd; g++) {
-                getOrInitializeState(groups.getInt(g)).append(timestamp, value);
+                ReducedState state = getOrInitializeState(groups.getInt(g));
+                for (int t = timestampStart; t < timestampEnd; t++) {
+                    long timestamp = timestamps.getLong(t);
+                    for (int v = valueStart; v < valueEnd; v++) {
+                        state.append(timestamp, values.getInt(v));
+                    }
+                }
             }
         }
     }
@@ -175,12 +181,17 @@ final class ChangesIntGroupingAggregatorFunction extends AbstractRateGroupingFun
             if (values.isNull(valuePosition) || timestamps.isNull(valuePosition)) {
                 continue;
             }
-            assert values.getValueCount(valuePosition) == 1 : "expected single-valued block " + values;
-            assert timestamps.getValueCount(valuePosition) == 1 : "expected single-valued block " + timestamps;
-            getOrInitializeState(groups.getInt(p)).append(
-                timestamps.getLong(timestamps.getFirstValueIndex(valuePosition)),
-                values.getInt(values.getFirstValueIndex(valuePosition))
-            );
+            ReducedState state = getOrInitializeState(groups.getInt(p));
+            int valueStart = values.getFirstValueIndex(valuePosition);
+            int valueEnd = valueStart + values.getValueCount(valuePosition);
+            int timestampStart = timestamps.getFirstValueIndex(valuePosition);
+            int timestampEnd = timestampStart + timestamps.getValueCount(valuePosition);
+            for (int t = timestampStart; t < timestampEnd; t++) {
+                long timestamp = timestamps.getLong(t);
+                for (int v = valueStart; v < valueEnd; v++) {
+                    state.append(timestamp, values.getInt(v));
+                }
+            }
         }
     }
 
@@ -357,21 +368,21 @@ final class ChangesIntGroupingAggregatorFunction extends AbstractRateGroupingFun
                     point = points.next(point);
                 }
                 new IntroSorter() {
-                    private long pivotTimestamp;
+                    private int pivotPoint;
 
                     @Override
                     protected void setPivot(int i) {
-                        pivotTimestamp = points.timestamp(sorted[i]);
+                        pivotPoint = sorted[i];
                     }
 
                     @Override
                     protected int comparePivot(int j) {
-                        return Long.compare(points.timestamp(sorted[j]), pivotTimestamp);
+                        return comparePoints(pivotPoint, sorted[j]);
                     }
 
                     @Override
                     protected int compare(int i, int j) {
-                        return Long.compare(points.timestamp(sorted[j]), points.timestamp(sorted[i]));
+                        return comparePoints(sorted[i], sorted[j]);
                     }
 
                     @Override
@@ -383,7 +394,7 @@ final class ChangesIntGroupingAggregatorFunction extends AbstractRateGroupingFun
                 }.sort(0, count);
                 long changes = 0;
                 for (int i = 1; i < count; i++) {
-                    if (points.value(sorted[i]) != points.value(sorted[i - 1])) {
+                    if (valuesEqual(points.value(sorted[i]), points.value(sorted[i - 1])) == false) {
                         changes++;
                     }
                 }
@@ -391,6 +402,19 @@ final class ChangesIntGroupingAggregatorFunction extends AbstractRateGroupingFun
             } finally {
                 driverContext.breaker().addWithoutBreaking(-bytes);
             }
+        }
+
+        private int comparePoints(int leftPoint, int rightPoint) {
+            int timestampOrder = Long.compare(points.timestamp(rightPoint), points.timestamp(leftPoint));
+            if (timestampOrder != 0) {
+                return timestampOrder;
+            }
+            // Multiple values can share a timestamp. Order them by value so the result does not depend on page or merge order.
+            return Long.compare(points.value(leftPoint), points.value(rightPoint));
+        }
+
+        private boolean valuesEqual(int left, int right) {
+            return left == right;
         }
     }
 

@@ -21,7 +21,6 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -33,33 +32,11 @@ import static org.hamcrest.Matchers.nullValue;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
 
-    private static final List<Map.Entry<String, String>> VIEW_DEFINITIONS = List.of(
-        Map.entry("view_languages_nested_c_it", "FROM languages METADATA _index | EVAL viewC_index = _index"),
-        Map.entry("view_languages_nested_b_it", "FROM view_languages_nested_c_it METADATA _index | EVAL viewB_index = _index"),
-        Map.entry("view_languages_nested_a_it", "FROM view_languages_nested_b_it METADATA _index | EVAL viewA_index = _index"),
-        Map.entry("view_languages_pure_c_it", "FROM languages"),
-        Map.entry("view_languages_pure_b_it", "FROM view_languages_pure_c_it METADATA _index"),
-        Map.entry("view_languages_pure_a_it", "FROM view_languages_pure_b_it"),
-        Map.entry("view_languages_all_metadata_it", "FROM languages METADATA _index, _id, _version, _score, _ignored, _index_mode"),
-        Map.entry("view_languages_it", "FROM languages"),
-        Map.entry("view_languages_pattern_it", "FROM languages METADATA _in*"),
-        Map.entry("view_languages_subquery_meta_it", "FROM (FROM languages) METADATA _index"),
-        Map.entry("view_logs_b_it", "FROM view_it_logs_b"),
-        Map.entry("view_logs_exclusion_it", "FROM view_it_logs*, -view_it_logs_archive"),
-        Map.entry("view_multi_source_metadata_it", "FROM view_it_logs_a, view_it_logs_b METADATA _index")
-    );
-
     private final List<String> createdViews = new ArrayList<>();
 
-    @Before
-    public void createViews() {
-        if (Cap.OUTER_METADATA_NULL_INJECTION.isEnabled() == false || Cap.VIEWS_WITH_NO_BRANCHING.isEnabled() == false) {
-            return;
-        }
-        for (var def : VIEW_DEFINITIONS) {
-            assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest(def.getKey(), def.getValue())));
-            createdViews.add(def.getKey());
-        }
+    private void createView(String name, String query) {
+        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest(name, query)));
+        createdViews.add(name);
     }
 
     @After
@@ -109,6 +86,9 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
     public void testNestedViewMetadataPassesThroughAllLevels() {
         assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
         assumeTrue("requires VIEWS_WITH_NO_BRANCHING", Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
+        createView("view_languages_nested_c_it", "FROM languages METADATA _index | EVAL viewC_index = _index");
+        createView("view_languages_nested_b_it", "FROM view_languages_nested_c_it METADATA _index | EVAL viewB_index = _index");
+        createView("view_languages_nested_a_it", "FROM view_languages_nested_b_it METADATA _index | EVAL viewA_index = _index");
 
         try (
             var response = run(
@@ -141,6 +121,9 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
     public void testNestedViewMetadataPassesThroughAllLevelsPureFROM() {
         assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
         assumeTrue("requires VIEWS_WITH_NO_BRANCHING", Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
+        createView("view_languages_pure_c_it", "FROM languages");
+        createView("view_languages_pure_b_it", "FROM view_languages_pure_c_it METADATA _index");
+        createView("view_languages_pure_a_it", "FROM view_languages_pure_b_it");
 
         try (
             var response = run("FROM view_languages_pure_a_it" + " | SORT language_code" + " | KEEP language_code, language_name, _index")
@@ -160,6 +143,9 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
     public void testNestedViewOuterMetadataNullWhenNotDeclaredInChain() {
         assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
         assumeTrue("requires VIEWS_WITH_NO_BRANCHING", Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
+        createView("view_languages_nested_c_it", "FROM languages METADATA _index | EVAL viewC_index = _index");
+        createView("view_languages_nested_b_it", "FROM view_languages_nested_c_it METADATA _index | EVAL viewB_index = _index");
+        createView("view_languages_nested_a_it", "FROM view_languages_nested_b_it METADATA _index | EVAL viewA_index = _index");
 
         try (
             var response = run(
@@ -179,6 +165,7 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
     public void testViewAllMetadataInBodyPassesThrough() {
         assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
         assumeTrue("requires VIEWS_WITH_NO_BRANCHING", Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
+        createView("view_languages_all_metadata_it", "FROM languages METADATA _index, _id, _version, _score, _ignored, _index_mode");
 
         try (
             var response = run(
@@ -204,6 +191,7 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
     public void testViewMetadataWildcardPatternExpandsToNullColumns() {
         assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
         assumeTrue("requires VIEWS_WITH_NO_BRANCHING", Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
+        createView("view_languages_it", "FROM languages");
 
         try (
             var response = run(
@@ -226,6 +214,7 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
     public void testMetadataPatternInsideViewBodyExpandsAndCarriesValues() {
         assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
         assumeTrue("requires VIEWS_WITH_NO_BRANCHING", Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
+        createView("view_languages_pattern_it", "FROM languages METADATA _in*");
 
         try (
             var response = run(
@@ -249,6 +238,7 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
     public void testViewBodySubqueryMetadataSurvivesViewResolution() {
         assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
         assumeTrue("requires VIEWS_WITH_NO_BRANCHING", Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
+        createView("view_languages_subquery_meta_it", "FROM (FROM languages) METADATA _index");
 
         try (
             var response = run(
@@ -267,6 +257,7 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
     public void testViewMetadataUnknownFieldRaisesVerificationException() {
         assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
         assumeTrue("requires VIEWS_WITH_NO_BRANCHING", Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
+        createView("view_languages_it", "FROM languages");
 
         VerificationException ex = expectThrows(VerificationException.class, () -> run("FROM view_languages_it METADATA _fake").close());
         // Same two problems a plain `FROM index METADATA _fake` reports: the unconsumed metadata request and the bad pattern.
@@ -279,6 +270,7 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
     public void testViewWithIndexPatternExclusionOmitsExcludedIndex() {
         assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
         assumeTrue("requires VIEWS_WITH_NO_BRANCHING", Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
+        createView("view_logs_exclusion_it", "FROM view_it_logs*, -view_it_logs_archive");
 
         try (var response = run("FROM view_logs_exclusion_it METADATA _index | KEEP tag, _index | SORT tag")) {
             var rows = getValuesList(response);
@@ -293,6 +285,7 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
     public void testViewExclusionScopeDoesNotBleedToSiblingSource() {
         assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
         assumeTrue("requires VIEWS_WITH_BRANCHING", Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        createView("view_logs_exclusion_it", "FROM view_it_logs*, -view_it_logs_archive");
 
         try (var response = run("FROM view_logs_exclusion_it, view_it_logs_archive METADATA _index | KEEP tag, _index | SORT tag")) {
             var rows = getValuesList(response);
@@ -310,6 +303,7 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
     public void testMixedViewAndIndexWithMetadataPatternExpandsPerBranch() {
         assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
         assumeTrue("requires VIEWS_WITH_BRANCHING", Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        createView("view_logs_exclusion_it", "FROM view_it_logs*, -view_it_logs_archive");
 
         try (var response = run("FROM view_logs_exclusion_it, view_it_logs_archive METADATA _inde* | KEEP tag, _index | SORT tag")) {
             var rows = getValuesList(response);
@@ -326,6 +320,7 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
     public void testMixedViewAndIndexOrderNotImportant() {
         assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
         assumeTrue("requires VIEWS_WITH_BRANCHING", Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        createView("view_logs_b_it", "FROM view_it_logs_b");
 
         String projection = " | KEEP tag, _index | SORT tag";
         List<List<Object>> viewFirst;
@@ -346,6 +341,7 @@ public class ViewMetadataIT extends AbstractEsqlIntegTestCase {
     public void testMultiSourceViewBodyMetadataPassesThrough() {
         assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
         assumeTrue("requires VIEWS_WITH_BRANCHING", Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        createView("view_multi_source_metadata_it", "FROM view_it_logs_a, view_it_logs_b METADATA _index");
 
         try (var response = run("FROM view_multi_source_metadata_it METADATA _index | KEEP tag, _index | SORT tag")) {
             var rows = getValuesList(response);

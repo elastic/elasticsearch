@@ -342,6 +342,28 @@ public class RestControllerTests extends ESTestCase {
         assertTrue(channel.getSendResponseCalled());
     }
 
+    public void testDispatchExposesHandlerNameToChannel() {
+        final AtomicReference<String> observed = new AtomicReference<>();
+        restController.registerHandler(new Route(GET, "/handler_name"), new RestHandler() {
+            @Override
+            public String getName() {
+                return "test_handler_action";
+            }
+
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
+                observed.set(channel.handlerName());
+                channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            }
+        });
+        final RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/handler_name").build();
+        final AssertingChannel channel = new AssertingChannel(fakeRequest, randomBoolean(), RestStatus.OK);
+
+        restController.dispatchRequest(fakeRequest, channel, threadContext);
+
+        assertThat(observed.get(), equalTo("test_handler_action"));
+    }
+
     public void testRegisterAsDeprecatedHandler() {
         RestController controller = mock(RestController.class);
 

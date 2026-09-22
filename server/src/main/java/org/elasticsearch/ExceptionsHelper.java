@@ -112,6 +112,42 @@ public final class ExceptionsHelper {
         return result;
     }
 
+    /**
+     * The result of walking a cause chain: the throwable that ended it, and the deepest throwable on it that is scoped to an
+     * index. These are usually different, because the failure that ended the chain is typically a plain exception carrying no
+     * index while the shard it happened on is recorded further up.
+     *
+     * @param deepest      the last throwable on the chain, or the throwable itself when it has no cause
+     * @param indexScoped  the deepest throwable on the chain carrying an index, or {@code null} if the failure is not
+     *                     attributable to one
+     */
+    public record CauseChain(Throwable deepest, @Nullable ElasticsearchException indexScoped) {}
+
+    /**
+     * Walks the cause chain of the given throwable once and summarises it. Unlike {@link #unwrapCause} this does not stop at
+     * the first throwable that is not an {@link ElasticsearchWrapperException}, and unlike
+     * {@link ElasticsearchException#guessRootCauses} it reports the original throwable rather than an
+     * {@link ElasticsearchException} standing in for it. Suppressed throwables are not visited, so the walk is bounded by the
+     * depth of the chain.
+     */
+    public static CauseChain walkCauseChain(Throwable t) {
+        // NOTE: a cause chain can be cyclic, since initCause accepts any throwable other than the one it is called on
+        final Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        Throwable current = t;
+        ElasticsearchException indexScoped = null;
+        seen.add(current);
+        while (true) {
+            if (current instanceof ElasticsearchException elasticsearchException && elasticsearchException.getIndex() != null) {
+                indexScoped = elasticsearchException;
+            }
+            final Throwable cause = current.getCause();
+            if (cause == null || seen.add(cause) == false) {
+                return new CauseChain(current, indexScoped);
+            }
+            current = cause;
+        }
+    }
+
     public static String stackTrace(Throwable e) {
         StringWriter stackTraceStringWriter = new StringWriter();
         PrintWriter printWriter = new PrintWriter(stackTraceStringWriter);

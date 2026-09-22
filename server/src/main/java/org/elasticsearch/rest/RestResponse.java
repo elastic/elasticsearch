@@ -11,6 +11,7 @@ package org.elasticsearch.rest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -29,7 +31,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -65,6 +66,10 @@ public final class RestResponse implements Releasable {
     /// their stack traces were suppressed or not. We should probably just call them "REST errors".
     ///
     private static final Logger SUPPRESSED_ERROR_LOGGER = LogManager.getLogger("rest.suppressed");
+
+    /// Recorded in place of a field whose value the exception did not carry, so that the field is present and a document is
+    /// never silently dropped from an aggregation over it.
+    private static final String NO_VALUE = "<missing>";
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(AbstractRestChannel.class);
 
@@ -145,13 +150,27 @@ public final class RestResponse implements Releasable {
         this.status = status;
         ToXContent.Params params = channel.request();
         if (e != null) {
-            Supplier<?> messageSupplier = () -> String.format(
-                Locale.ROOT,
-                "path: %s, params: %s, status: %d",
-                channel.request().rawPath(),
-                channel.request().params(),
-                status.getStatus()
-            );
+            Supplier<?> messageSupplier = () -> {
+                final ExceptionsHelper.CauseChain causes = ExceptionsHelper.walkCauseChain(e);
+                final Throwable rootCause = causes.deepest();
+                final ESLogMessage message = new SuppressedErrorMessage(
+                    "path: {}, params: {}, status: {}",
+                    channel.request().rawPath(),
+                    channel.request().params(),
+                    status.getStatus()
+                ).field("elasticsearch.rest.handler", channel.handlerName())
+                    .field("url.path", channel.request().rawPath())
+                    .field("http.response.status_code", status.getStatus())
+                    .field("elasticsearch.error.root_cause.type", rootCause.getClass().getName())
+                    .field("elasticsearch.error.root_cause.message", Objects.requireNonNullElse(rootCause.getMessage(), NO_VALUE));
+                if (causes.indexScoped() != null) {
+                    message.field("elasticsearch.error.index", causes.indexScoped().getIndex().getName());
+                    if (causes.indexScoped().getShardId() != null) {
+                        message.field("elasticsearch.error.shard", causes.indexScoped().getShardId().getId());
+                    }
+                }
+                return message;
+            };
             if (status.getStatus() < 500) {
                 SUPPRESSED_ERROR_LOGGER.debug(messageSupplier, e);
             } else {
@@ -276,5 +295,23 @@ public final class RestResponse implements Releasable {
     @Override
     public void close() {
         Releasables.closeExpectNoException(releasable);
+    }
+
+    /**
+     * Carries the {@code rest.suppressed} fields as a map so that the JSON layouts write them as top level fields, while still
+     * rendering as the plain message for appenders that write {@code %m}.
+     */
+    private static final class SuppressedErrorMessage extends ESLogMessage {
+
+        SuppressedErrorMessage(String messagePattern, Object... args) {
+            super(messagePattern, args);
+        }
+
+        @Override
+        public String getFormattedMessage() {
+            // NOTE: MapMessage renders every field here, which would change the console log line for every REST error; the JSON
+            // layouts ask for the JSON format instead and are unaffected by this override
+            return ParameterizedMessage.format(getMessagePattern(), getArguments());
+        }
     }
 }

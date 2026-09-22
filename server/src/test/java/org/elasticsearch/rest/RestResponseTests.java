@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.apache.logging.log4j.message.MapMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -55,6 +57,7 @@ import static org.elasticsearch.rest.RestController.ERROR_TRACE_DEFAULT;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -505,6 +508,104 @@ public class RestResponseTests extends ESTestCase {
             "401",
             "unauthorized"
         );
+    }
+
+    public void testSuppressedLoggingRecordsRootCause() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+
+        new RestResponse(channel, new ElasticsearchException("outer", new IllegalStateException("inner")));
+
+        final Map<String, ?> fields = lastLoggedFields();
+        assertEquals(IllegalStateException.class.getName(), fields.get("elasticsearch.error.root_cause.type"));
+        assertEquals("inner", fields.get("elasticsearch.error.root_cause.message"));
+        assertEquals("", fields.get("url.path"));
+        assertEquals(500, fields.get("http.response.status_code"));
+    }
+
+    public void testSuppressedLoggingRecordsMissingRootCauseMessage() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+
+        new RestResponse(channel, new ElasticsearchException("outer", new IllegalStateException()));
+
+        assertEquals("<missing>", lastLoggedFields().get("elasticsearch.error.root_cause.message"));
+    }
+
+    public void testSuppressedLoggingRecordsIndexAndShard() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+
+        new RestResponse(channel, new ElasticsearchException("outer", new ShardNotFoundException(new ShardId("my-index", "uuid", 3))));
+
+        final Map<String, ?> fields = lastLoggedFields();
+        assertEquals("my-index", fields.get("elasticsearch.error.index"));
+        assertEquals(3, fields.get("elasticsearch.error.shard"));
+    }
+
+    public void testSuppressedLoggingRecordsIndexWhenRootCauseIsNotScoped() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+        final ShardId shardId = new ShardId("my-index", "uuid", 3);
+
+        new RestResponse(channel, new ShardNotFoundException(shardId, "no such shard", new IllegalStateException("engine is closed")));
+
+        final Map<String, ?> fields = lastLoggedFields();
+        assertEquals(IllegalStateException.class.getName(), fields.get("elasticsearch.error.root_cause.type"));
+        assertEquals("engine is closed", fields.get("elasticsearch.error.root_cause.message"));
+        assertEquals("my-index", fields.get("elasticsearch.error.index"));
+        assertEquals(3, fields.get("elasticsearch.error.shard"));
+    }
+
+    public void testSuppressedLoggingOmitsIndexAndShardWhenNotAttributable() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+
+        new RestResponse(channel, new ElasticsearchException("outer", new IllegalStateException("inner")));
+
+        final Map<String, ?> fields = lastLoggedFields();
+        assertFalse(fields.containsKey("elasticsearch.error.index"));
+        assertFalse(fields.containsKey("elasticsearch.error.shard"));
+    }
+
+    public void testSuppressedLoggingRecordsRootCauseBehindAllShardsFailed() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+        final ShardId shardId = new ShardId("my-index", "uuid", 3);
+        final ShardSearchFailure shardFailure = new ShardSearchFailure(
+            new ShardNotFoundException(shardId),
+            new SearchShardTarget("node", shardId, null)
+        );
+
+        new RestResponse(
+            channel,
+            new SearchPhaseExecutionException("query", "all shards failed", new ShardSearchFailure[] { shardFailure })
+        );
+
+        final Map<String, ?> fields = lastLoggedFields();
+        assertEquals(ShardNotFoundException.class.getName(), fields.get("elasticsearch.error.root_cause.type"));
+        assertEquals("my-index", fields.get("elasticsearch.error.index"));
+    }
+
+    public void testSuppressedLoggingRecordsHandlerName() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest()) {
+            @Override
+            public String handlerName() {
+                return "search_action";
+            }
+        };
+
+        new RestResponse(channel, new ElasticsearchException("simulated"));
+
+        assertEquals("search_action", lastLoggedFields().get("elasticsearch.rest.handler"));
+    }
+
+    public void testSuppressedLoggingOmitsUnknownHandlerName() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+
+        new RestResponse(channel, new ElasticsearchException("simulated"));
+
+        assertFalse(lastLoggedFields().containsKey("elasticsearch.rest.handler"));
+    }
+
+    private Map<String, ?> lastLoggedFields() {
+        final LogEvent logEvent = appender.getLastEventAndReset();
+        assertThat(logEvent.getMessage(), instanceOf(MapMessage.class));
+        return ((MapMessage<?, ?>) logEvent.getMessage()).getData();
     }
 
     private void assertLogging(

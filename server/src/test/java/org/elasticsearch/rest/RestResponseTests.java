@@ -19,6 +19,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.message.MapMessage;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -56,6 +57,7 @@ import org.junit.BeforeClass;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -82,6 +84,11 @@ public class RestResponseTests extends ESTestCase {
     public static void init() throws IllegalAccessException {
         appender = new MockAppender("testAppender");
         appender.start();
+        try {
+            LogConfigurator.setNodeName("test-node");
+        } catch (SetOnce.AlreadySetException e) {
+            // NOTE: the node name is a process wide SetOnce, so another suite running in this JVM may have set it already
+        }
         Configurator.setLevel(restSuppressedLogger, Level.DEBUG);
         Loggers.addAppender(restSuppressedLogger, appender);
     }
@@ -822,7 +829,6 @@ public class RestResponseTests extends ESTestCase {
     }
 
     public void testSuppressedLoggingSerialisesToLegacyJson() throws IOException {
-        LogConfigurator.setNodeName("test-node");
         final RestChannel channel = new DetailedExceptionRestChannel(
             new FakeRestRequest.Builder(xContentRegistry()).withPath("/my-index/_search").build()
         );
@@ -831,6 +837,27 @@ public class RestResponseTests extends ESTestCase {
 
         final ESJsonLayout layout = ESJsonLayout.newBuilder().setType("server").build();
         // NOTE: a duplicate message key surfaces as a parse failure rather than a wrong value
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), layout.toSerializable(appender.getLastEventAndReset()))) {
+            final Map<String, Object> fields = parser.map();
+            assertEquals("path: /my-index/_search, params: {}, status: 500", fields.get("message"));
+            assertEquals(IllegalStateException.class.getName(), fields.get("elasticsearch.error.root_cause.type"));
+        }
+    }
+
+    public void testSuppressedLoggingSerialisesToLegacyJsonWithOverriddenMessage() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(
+            new FakeRestRequest.Builder(xContentRegistry()).withPath("/my-index/_search").build()
+        );
+
+        new RestResponse(channel, new ElasticsearchException("outer", new IllegalStateException("inner")));
+
+        // NOTE: this configuration tells the layout not to write its own message and to take it from the map instead
+        final ESJsonLayout layout = ESJsonLayout.createLayout(
+            "server",
+            StandardCharsets.UTF_8,
+            new String[] { "message" },
+            LoggerContext.getContext(false).getConfiguration()
+        );
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), layout.toSerializable(appender.getLastEventAndReset()))) {
             final Map<String, Object> fields = parser.map();
             assertEquals("path: /my-index/_search, params: {}, status: 500", fields.get("message"));

@@ -12,9 +12,6 @@ package org.elasticsearch.rest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Chars;
-import org.apache.logging.log4j.util.IndexedReadOnlyStringMap;
-import org.apache.logging.log4j.util.StringBuilders;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -371,33 +368,6 @@ public final class RestResponse implements Releasable {
             // NOTE: MapMessage renders every field here, which would change the console log line for every REST error; the JSON
             // layouts ask for the JSON format through formatTo(String[], StringBuilder) instead and are unaffected
             return ParameterizedMessage.format(getMessagePattern(), getArguments());
-        }
-
-        @Override
-        protected void addJsonNoBrackets(StringBuilder sb) {
-            // NOTE: ESJsonLayout writes its own message field before appending %CustomMapFields, so emitting the map entry here
-            // too would produce a document with two message keys
-            final IndexedReadOnlyStringMap data = getIndexedReadOnlyStringMap();
-            boolean first = true;
-            for (int i = 0; i < data.size(); i++) {
-                if ("message".equals(data.getKeyAt(i))) {
-                    continue;
-                }
-                if (first == false) {
-                    sb.append(", ");
-                }
-                first = false;
-                sb.append(Chars.DQUOTE);
-                int start = sb.length();
-                sb.append(data.getKeyAt(i));
-                StringBuilders.escapeJson(sb, start);
-                sb.append(Chars.DQUOTE).append(':').append(Chars.DQUOTE);
-                start = sb.length();
-                final Object value = data.getValueAt(i);
-                sb.append(value);
-                StringBuilders.escapeJson(sb, start);
-                sb.append(Chars.DQUOTE);
-            }
         }
 
         @Override

@@ -48,6 +48,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -537,7 +538,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
                     mock(IndexShardCacheWarmer.class),
                     HollowShardsMetrics.NOOP,
-                    client
+                    client,
+                    ByteSizeValue.ofBytes(Long.MAX_VALUE)
                 );
                 final var primaryRelocationTargetService = new StatelessPrimaryRelocationTargetService(
                     clusterService(),

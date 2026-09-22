@@ -94,7 +94,6 @@ public final class StripeStatsHarvester {
         return Math.floorDiv(recordStartOffset, stripeSize);
     }
 
-    /** Whether any stripe has been touched (drives the close-time emit-vs-skip decision). */
     /**
      * Records that a row starting at {@code fileOffset} was lost, against the stripe that row belongs to. A read
      * that loses a row counted fewer rows than the file holds THERE, and nowhere else: the stripe the row starts
@@ -114,6 +113,7 @@ public final class StripeStatsHarvester {
         unattributedDrop = true;
     }
 
+    /** Whether any stripe has been touched (drives the close-time emit-vs-skip decision). */
     public boolean isEmpty() {
         return stripeAccums.isEmpty();
     }
@@ -207,12 +207,13 @@ public final class StripeStatsHarvester {
      * @param chunkBytes        bytes this chunk consumed (decompressed coordinate); {@code <= 0} ⇒ safe miss
      * @param pinnedMtimeMillis mtime pinned at iterator open
      * @param fingerprint       config fingerprint over the full file schema
+     * @param readConfig        fingerprint of the resolved read configuration this chunk was read under
+     * @param rowCountPolicyPermitsLicence whether this read's error policy can license a row count at all; the
+     *                                     per-stripe half — whether THIS stripe lost a row — is applied here
      * @param schema            full file schema (drives the per-column serialization)
      * @param physicalDateFormats declared date patterns by physical column name, for the read identity
      * @param binding           {@link ExternalStats#BINDING_BY_NAME} or {@link ExternalStats#BINDING_BY_POSITION}
      * @param blankStringCellIsEmptyString whether a blank string cell held the empty string on this read
-     * @param rowCountPolicyPermitsLicence whether this read's error policy can license a row count at all; the
-     *                                     per-stripe half — whether THIS stripe lost a row — is applied here
      */
     public void emit(
         String sourceLocation,

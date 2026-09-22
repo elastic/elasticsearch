@@ -1159,8 +1159,8 @@ public class ExternalSourceCacheService implements Closeable {
         if (complete.isEmpty()) {
             return null;
         }
-        // The licence is a property of the producing policy, so it holds for the delta only if EVERY fragment
-        // carried it — one unlicensed fragment means part of this cover came from a policy that can drop rows.
+        // The licence holds for the delta only if every fragment carried it: one unlicensed fragment means part
+        // of this cover was measured where a row was lost.
         boolean licensed = fragments.isEmpty() == false
             && fragments.stream().allMatch(SourceStatsContribution.StripeFragment::rowCountReadConfigIndependent);
         return new StripeDelta(complete, lastOrdinal, mtime, fingerprint, readConfig, licensed, readIdentity, stripeSize);

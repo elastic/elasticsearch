@@ -1079,6 +1079,59 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      * replaced by the other read's.
      */
     /**
+     * A string column crosses into an entry that recorded holding blanks as the empty string when the crossing
+     * read holds them the same way. The strict rail records it on its seed, which is what makes the conjunct a
+     * comparison rather than a refusal of every declared read's string columns.
+     */
+    public void testStringColumnCrossesIntoAnEntryThatRecordedTheSameBlankRule() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/blank-agree.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "color", DataType.KEYWORD, Nullability.TRUE, null, false)
+            );
+            service.getOrComputeSchema(
+                key,
+                k -> SchemaCacheEntry.from(
+                    schema,
+                    "csv",
+                    path,
+                    Map.of(
+                        ExternalStats.CONFIG_FINGERPRINT_KEY,
+                        "fp",
+                        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+                        "config-own",
+                        ExternalStats.COLUMNS_IN_FILE_ORDER_KEY,
+                        Boolean.TRUE,
+                        // What the strict seed records about its own read.
+                        ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY,
+                        Boolean.TRUE
+                    ),
+                    Map.of()
+                )
+            );
+
+            Map<String, Object> foreign = wholeFileStats(mtime, "fp", 10L);
+            foreign.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-foreign");
+            foreign.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            foreign.put(ExternalStats.READ_COLUMN_NAMES_KEY, List.of("color"));
+            foreign.put(ExternalStats.READ_COLUMN_TYPES_KEY, List.of("keyword"));
+            foreign.put(ExternalStats.READ_BINDING_KEY, ExternalStats.BINDING_BY_NAME);
+            foreign.put(ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY, Boolean.TRUE);
+            foreign.put(SourceStatisticsSerializer.columnMinKey("color"), "amber");
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(foreign)));
+
+            SchemaCacheEntry after = service.getOrComputeSchema(key, k -> { throw new AssertionError("cached"); });
+            assertEquals(
+                "both reads hold a blank cell as the empty string, so the column crosses",
+                "amber",
+                after.safeMetadata().get(SourceStatisticsSerializer.columnMinKey("color"))
+            );
+        }
+    }
+
+    /**
      * An entry never records a read identity, not even its own read's: the stamped keys travel on the wire
      * contribution and {@code toFlatMap} drops them, so nothing writes them into an entry. The blank-cell conjunct in
      * {@code crossingStats} therefore compares a crossing read's blank rule against the default, which is what

@@ -3561,6 +3561,33 @@ public class ExternalSourceResolver {
      * read-configuration component now does. Two limits remain on this rail regardless: the columnar exclusion
      * above, and {@link #rowCountOnlyStats}, which strips per-column stats so MIN/MAX never warms here at all.
      */
+    /**
+     * The metadata a strict per-file seed carries. The read configuration comes from the declaration this entry
+     * was minted for: without it the seed would carry none while every harvest carries one, the first contribution
+     * would match nothing, and the strict warm rail would die silently — the failure the reverted stopgap hit.
+     * <p>
+     * The blank-cell rule is recorded beside it because a crossing compares against it
+     * ({@code ExternalSourceCacheService#blankPolicyOf}). A declared read holds a blank string cell as {@code ""},
+     * and an entry that did not say so was read as holding the default, {@code null} — so every string column of
+     * one declaration was refused into another declaration's entry although both read blanks the same way.
+     */
+    private static Map<String, Object> strictSeedMetadata(
+        long mtimeMillis,
+        Map<String, Object> config,
+        List<Attribute> logicalSchema,
+        @Nullable DatasetMapping declaredMapping
+    ) {
+        DeclaredReadSpec spec = declaredReadSpecOf(declaredMapping);
+        Map<String, Object> seed = new HashMap<>(4);
+        seed.put(ExternalStats.MTIME_MILLIS_KEY, mtimeMillis);
+        seed.put(ExternalStats.CONFIG_FINGERPRINT_KEY, SchemaCacheKey.buildFormatConfig(storageConfig(config)));
+        seed.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, ReadConfigFingerprint.of(logicalSchema, spec));
+        if (spec.blankStringCellIsEmptyString()) {
+            seed.put(ExternalStats.READ_BLANK_STRING_CELL_IS_EMPTY_STRING_KEY, Boolean.TRUE);
+        }
+        return Map.copyOf(seed);
+    }
+
     private ExternalSourceMetadata strictSingleFileMetadata(
         String path,
         StoragePath storagePath,
@@ -3587,17 +3614,7 @@ public class ExternalSourceResolver {
                     logicalSchema,
                     sourceType,
                     path,
-                    Map.of(
-                        ExternalStats.MTIME_MILLIS_KEY,
-                        mtimeMillis,
-                        ExternalStats.CONFIG_FINGERPRINT_KEY,
-                        SchemaCacheKey.buildFormatConfig(storageConfig(config)),
-                        // Seed the read configuration too, from the declaration this entry was minted for. Without it the seed
-                        // would carry no read configuration while every harvest carries one, so the first contribution would match
-                        // nothing and the strict warm rail would die silently — the failure the reverted stopgap hit.
-                        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
-                        ReadConfigFingerprint.of(logicalSchema, declaredReadSpecOf(declaredMapping))
-                    ),
+                    strictSeedMetadata(mtimeMillis, config, logicalSchema, declaredMapping),
                     Map.of()
                 )
             );
@@ -4096,7 +4113,7 @@ public class ExternalSourceResolver {
         // Serve gate: the cached statistics were harvested under whatever configuration produced them, and the
         // declaration may have changed the configuration of the read we are about to do — a retype or a per-column
         // date pattern changes which rows survive under a lenient policy, so those numbers are not ours to serve.
-        // Only the physical record count crosses, and only where the producer licensed it (FAIL_FAST).
+        // Only the physical record count crosses, and only where the producer licensed it.
         //
         // The expectation is the PER-FILE overlaid physical schema, which is what the entry's stamp hashed and what
         // the harvest will hash. Hashing the coordinator-facing unified schema instead matched nothing on any hive

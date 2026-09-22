@@ -59,8 +59,9 @@ public final class ExternalStats {
      * <p>
      * The producer measures it rather than reading it off the mode's name: {@code fail_fast} aborts before publish,
      * so a committed count is physical; {@code null_field} qualifies only where the read dropped nothing, and for CSV
-     * only where it was headered, because a headerless positional read bounds a row by its own schema's width;
-     * {@code skip_row} never qualifies. Absent means no licence, and the count is then scoped to its read like every
+     * only where it was headered — a second refusal rather than the load-bearing one, as
+     * {@code CsvFormatReader.CsvBatchIterator#rowCountIsPhysical} explains; {@code skip_row} never
+     * qualifies. Absent means no licence, and the count is then scoped to its read like every
      * other statistic.
      */
     public static final String ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY = "_stats.row_count_read_config_independent";

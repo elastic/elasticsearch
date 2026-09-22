@@ -6874,9 +6874,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
         /**
          * Whether this read's row count is the file's physical record count — the one statistic that may cross into
          * an entry minted by a different read. Measured, not inferred from the error mode's name: {@code fail_fast}
-         * aborts before publish, and {@code null_field} qualifies exactly when nothing was dropped. Headered too: a
-         * headerless positional read bounds a row by its own schema's width, so a wider read of the same file keeps
-         * rows this one drops and "dropped nothing" would hold of two reads that disagree. {@code skip_row} never.
+         * aborts before publish, and {@code null_field} qualifies exactly when nothing was dropped.
+         * {@code skip_row} never.
+         * <p>
+         * The headered conjunct below is belt and braces, not the thing that makes this safe: a read that lost a
+         * wider row counts it ({@code onRowErrorImpl} increments for every width drop), so the measurement already
+         * refuses it, and the width bound it gestures at is a property of POSITIONAL binding rather than of a
+         * missing header ({@code initProjection} takes the bound from the pinned schema whenever the read binds by
+         * position). What it costs is a headerless read's licence over a file it read cleanly; what it buys is a
+         * second refusal where a header is absent. The asymmetry it does not address is the consuming read's —
+         * {@code ExternalSourceResolver#someFileIsWiderThanTheAnchor} is where that is refused.
          */
         private boolean rowCountIsPhysical() {
             return rowCountPolicyPermitsLicence() && rowsDropped == 0;
@@ -6884,7 +6891,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         /**
          * The half of {@link #rowCountIsPhysical()} that is a property of the read rather than of what it lost:
-         * the error mode, and for CSV a headered read. The per-stripe half — which stripe lost a row — belongs to
+         * the error mode, and for CSV a headered read (see there for what that conjunct does and does not buy).
+         * The per-stripe half — which stripe lost a row — belongs to
          * {@code StripeStatsHarvester}, which knows the grid; a whole-file count needs "lost nothing anywhere",
          * which is what {@link #rowCountIsPhysical()} adds.
          */

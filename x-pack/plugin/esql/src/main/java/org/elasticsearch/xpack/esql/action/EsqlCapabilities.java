@@ -4062,6 +4062,14 @@ public class EsqlCapabilities {
          */
         FIX_AGGS_MULTIPLE_INPUT_FIELDS,
 
+        /**
+         * Fix for {@code DocumentParser#parseArrayDynamic}: with {@code subobjects:false} and {@code dynamic:false},
+         * arrays of objects now correctly walk mapped dotted fields (e.g. {@code "objarr.k"}), consistent
+         * with the plain-object path. Previously the array was silently skipped and the values dropped.
+         * Fixed in <a href="https://github.com/elastic/elasticsearch/issues/160012">#160012</a>.
+         */
+        FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

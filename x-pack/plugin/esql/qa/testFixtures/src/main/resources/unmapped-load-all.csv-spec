@@ -3507,11 +3507,13 @@ id:keyword | a.b:keyword | _source:_source
 9          | null        | "{""id"":""9""}"
 ;
 
-// this test shows that unmapped_source_mapped index which has "subobjects": false and has objarr.k and objarr.j declared as keyword (a field with dot in its name directly in the mapping)
-// will not accept values that come via JSON as objects, for example "objarr":[{"k":"p"},{"k":"q"}]. If this JSON would have been "objarr.k":["p","q"] then LOAD_ALL would have loaded it.
+// With the parseArrayDynamic fix, unmapped_source_mapped (subobjects:false + dynamic:false with objarr.k, objarr.j,
+// nest.inner.leaf mapped as literal dotted fields) now indexes values that arrive via JSON object arrays, consistent
+// with the plain-object path. The results for unmapped_source_mapped now match unmapped_source_stored.
 storedobjectsFalse_For_unmapped_source_mapped_Highlight
 required_capability: optional_fields_load_all_v2
 required_capability: optional_fields_fix_unmapped_object_value
+required_capability: fix_parsing_subobjects_false_dynamic_false
 skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 request_stored: skip
 
@@ -3522,11 +3524,11 @@ FROM unmapped_source_stored, unmapped_source_mapped METADATA _index, _source
 | SORT id::long, _index
 ;
 
-   _index:keyword     | id:keyword    |    a:keyword  |  a.b:keyword  | deep.l1.l2.l3:keyword | arr:keyword | objarr:keyword   | objarr.j:keyword   | objarr.k:keyword |nest.inner.leaf:keyword  | _source:_source                       
-unmapped_source_mapped|6              |null           |null           |null                   |null         |null              |null                |null              |null                     |"{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"                        
+   _index:keyword     | id:keyword    |    a:keyword  |  a.b:keyword  | deep.l1.l2.l3:keyword | arr:keyword | objarr:keyword   | objarr.j:keyword   | objarr.k:keyword |nest.inner.leaf:keyword  | _source:_source
+unmapped_source_mapped|6              |null           |null           |null                   |null         |null              |null                |[p, q]            |null                     |"{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"
 unmapped_source_stored|6              |null           |null           |null                   |null         |null              |null                |[p, q]            |null                     |"{""id"":""6"",""objarr"":[{""k"":""p""},{""k"":""q""}]}"
-unmapped_source_mapped|7              |null           |null           |null                   |null         |null              |null                |null              |null                     |"{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"                        
-unmapped_source_stored|7              |null           |null           |null                   |null         |null              |s                   |r                 |null                     |"{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"                        
-unmapped_source_mapped|8              |null           |null           |null                   |null         |null              |null                |null              |null                     |"{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"
+unmapped_source_mapped|7              |null           |null           |null                   |null         |null              |s                   |r                 |null                     |"{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"
+unmapped_source_stored|7              |null           |null           |null                   |null         |null              |s                   |r                 |null                     |"{""id"":""7"",""objarr"":[{""k"":""r""},{""j"":""s""}]}"
+unmapped_source_mapped|8              |null           |null           |null                   |null         |null              |null                |null              |[t, u]                   |"{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"
 unmapped_source_stored|8              |null           |null           |null                   |null         |null              |null                |null              |[t, u]                   |"{""id"":""8"",""nest"":[{""inner"":[{""leaf"":""t""}]},{""inner"":[{""leaf"":""u""}]}]}"
 ;

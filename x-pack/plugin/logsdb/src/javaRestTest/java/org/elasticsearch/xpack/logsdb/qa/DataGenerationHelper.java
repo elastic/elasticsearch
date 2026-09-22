@@ -58,10 +58,8 @@ public class DataGenerationHelper {
 
     public DataGenerationHelper(Consumer<DataGeneratorSpecification.Builder> builderConfigurator, boolean useMultiFields) {
         // Randomly exercise the subobjects:false + dynamic:false + array-of-objects combination.
-        // This combination previously caused a bug in DocumentParser#parseArrayDynamic: the
-        // dynamic:false branch skipped the entire array without checking hasMappedFieldsWithPrefix,
-        // so values for mapped dotted fields (e.g. objarr.k) were silently dropped when the
-        // document used an array of objects instead of a plain object.
+        // With this combination, mapped dotted fields (e.g. "objarr.k") must be indexed from
+        // array-of-objects form ("objarr":[{"k":"v"}]) in the same way as plain objects.
         final boolean forceSubobjectsFalseArrays = ESTestCase.randomBoolean();
 
         this.keepArraySource = ESTestCase.randomBoolean();

@@ -11,6 +11,7 @@ package org.elasticsearch.common.util;
 
 import org.elasticsearch.common.Strings;
 
+import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.file.Path;
@@ -251,7 +252,7 @@ public class CollectionUtils {
     // note: in the future, four option or varargs methods can be added -- with only three possible options at present
     // it's simple enough to just iterate them. :shrug:
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "SuspiciousSystemArraycopy" })
     private static <T> T deepCopyInternal(T value, int options) {
         final boolean unmodifiable = (options & DeepCopyOption.UNMODIFIABLE.mask) != 0;
         final boolean ordered = (options & DeepCopyOption.ORDERED.mask) != 0;
@@ -282,16 +283,22 @@ public class CollectionUtils {
                 copy.add(deepCopyInternal(item, options));
             }
             return (T) (unmodifiable ? Collections.unmodifiableSet(copy) : copy);
-        } else if (value instanceof byte[] bytes) {
-            return (T) Arrays.copyOf(bytes, bytes.length);
-        } else if (value instanceof double[][] doubles) {
-            double[][] result = new double[doubles.length][];
-            for (int i = 0; i < doubles.length; i++) {
-                result[i] = Arrays.copyOf(doubles[i], doubles[i].length);
+        } else if (value.getClass().isArray()) {
+            Class<?> componentType = value.getClass().getComponentType();
+            int length = Array.getLength(value);
+            Object copy = Array.newInstance(componentType, length);
+            if (componentType.isPrimitive()) {
+                // primitives are immutable, so we can just blast through them
+                System.arraycopy(value, 0, copy, 0, length); //
+            } else {
+                // non-primitives have to go through a recursive call
+                Object[] source = (Object[]) value;
+                Object[] target = (Object[]) copy;
+                for (int i = 0; i < length; i++) {
+                    target[i] = deepCopyInternal(source[i], options);
+                }
             }
-            return (T) result;
-        } else if (value instanceof double[] doubles) {
-            return (T) Arrays.copyOf(doubles, doubles.length);
+            return (T) copy;
         } else if (value instanceof Float
             || value instanceof Byte
             || value instanceof Short

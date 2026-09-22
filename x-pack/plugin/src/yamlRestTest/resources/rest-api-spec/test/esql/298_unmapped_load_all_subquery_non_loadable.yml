@@ -1,7 +1,7 @@
 ---
 setup:
   - requires:
-      test_runner_features: [ capabilities, allowed_warnings, warnings, contains ]
+      test_runner_features: [ capabilities, allowed_warnings, allowed_warnings_regex, warnings, warnings_regex, contains ]
       capabilities:
         - method: POST
           path: /_query
@@ -45,6 +45,34 @@ setup:
           - { "index": { "_index": "idx2" } }
           - { "tx": 81, "txt": "unmapped", "vec": [ 4.0, 5.0, 6.0 ] }
 
+  - do:
+      indices.create:
+        index: idx_long
+        body:
+          mappings:
+            properties:
+              n:
+                type: long
+
+  - do:
+      indices.create:
+        index: idx_src
+        body:
+          mappings:
+            dynamic: false
+            properties: {}
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "idx_long" } }
+          - { "n": 7 }
+          - { "index": { "_index": "idx_src" } }
+          - { "n": "42" }
+          - { "index": { "_index": "idx_src" } }
+          - { "n": "not-a-long" }
+
 ---
 "LOAD_ALL subquery warns and nulls when unmapped sibling has an aggregate_metric_double _source value":
   - do:
@@ -74,3 +102,22 @@ setup:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM (FROM idx1), (FROM idx2 | KEEP txt), (FROM idx2) | KEEP txt | SORT txt NULLS LAST | LIMIT 10'
   - match: { values: [ [ "mapped" ], [ null ], [ null ] ] }
+
+---
+"LOAD_ALL subquery implicit cast to long nulls a keyword source value that is not a long":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      warnings_regex:
+        - "Line 1:39: evaluation of \\[FROM idx_long\\] failed, treating result as null. Only first 20 failures recorded."
+        - "Line 1:39: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \\[not-a-long\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM (FROM idx_long), (FROM idx_src) | KEEP n | SORT n NULLS LAST | LIMIT 10'
+
+  - match: { columns.0.name: n }
+  - match: { columns.0.type: long }
+  - length: { values: 3 }
+  - match: { values.0: [ 7 ] }
+  - match: { values.1: [ 42 ] }
+  - match: { values.2: [ null ] }

@@ -1,5 +1,5 @@
 area: Engine
 issues: []
 pr: 159905
-summary: Pin every BCC referenced by generational files in `mergeMetadata`
+summary: Pin every BCC referenced by generational files in Stateless `mergeMetadata`
 type: bug

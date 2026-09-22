@@ -81,8 +81,10 @@ public final class StringColumnWriter {
      * @param numValues                 total number of slots across all documents, null slots included
      * @param numNullSlots              how many of those slots are null; the null-slot table is written only when
      *                                  this is positive
-     * @param cursors                   supplies fresh forward cursors over the documents that have a slot; called
-     *                                  once for the iterator and once for the values
+     * @param cursors                   supplies fresh forward cursors over the documents that have a slot; for
+     *                                  a sparse column needing a survey, this is called once for the combined
+     *                                  iterator-and-survey pass; for all other columns it is called once per
+     *                                  remaining pass (values, and on the dictionary path the ordinals)
      * @param options                   how the column is written: its dictionary policy, its chunk codec and
      *                                  the units its streams are sized in
      * @param known                     a vocabulary already worked out for these values, or null to survey them
@@ -106,15 +108,31 @@ public final class StringColumnWriter {
         final ChunkCodec chunkCodec = options.chunkCodec();
         final StringColumnOptions.Sizes sizes = options.sizes();
         final int valuesPerBlock = sizes.valuesPerBlock();
-        ColumnIteratorMetadata iterator = ColumnIteratorWriter.write(cursors.get(), numDocsWithField, maxDoc, data);
         if (numDocsWithField == 0) {
-            return StringColumnMetadata.empty(iterator);
+            return StringColumnMetadata.empty(ColumnIteratorWriter.write(cursors, 0, maxDoc, data));
         }
 
+        // For a sparse column that needs a survey, the presence pass and the survey walk the same documents,
+        // so they can share a single cursor. SurveyingDocs wraps the cursor and feeds values to the surveyor
+        // on every nextDoc() call; IndexedDISI.writeBitSet drives the walk via the default intoBitSet, which
+        // loops on nextDoc(), so every document is seen exactly once.
+        final boolean combinedPass = policy.enabled() && known == null && numDocsWithField < maxDoc;
+
+        final ColumnIteratorMetadata iterator;
         Vocabulary.Terms surveyed = null;
+        if (combinedPass) {
+            final SurveyingDocs docs = new SurveyingDocs(cursors.get(), Vocabulary.surveyor(policy), numDocsWithField);
+            iterator = ColumnIteratorWriter.write(docs, numDocsWithField, maxDoc, data);
+            surveyed = docs.finish();
+        } else {
+            iterator = ColumnIteratorWriter.write(cursors, numDocsWithField, maxDoc, data);
+            if (policy.enabled()) {
+                // A merge that worked out the vocabulary from what its inputs recorded does not survey again.
+                surveyed = known != null ? known : Vocabulary.survey(cursors.get(), policy);
+            }
+        }
+
         if (policy.enabled()) {
-            // A merge that worked out the vocabulary from what its inputs recorded does not survey again.
-            surveyed = known != null ? known : Vocabulary.survey(cursors.get(), policy);
             // Coverage is a lower bound, so a column admitted here covers at least as much as it claims.
             if (surveyed != null && policy.worthKeeping(surveyed.coverage(), surveyed.dictionaryBytes(), surveyed.columnBytes())) {
                 return withSummary(
@@ -575,7 +593,7 @@ public final class StringColumnWriter {
             return false;
         }
         final long[] sample = new long[trialValues];
-        try (IndexInput in = directory.openInput(staged, context)) {
+        try (IndexInput in = directory.openInput(staged, IOContext.READONCE)) {
             for (int i = 0; i < trialValues; i++) {
                 sample[i] = in.readVInt();
             }

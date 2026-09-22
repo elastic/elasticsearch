@@ -321,67 +321,65 @@ public class ReplaceStaticTests extends ESTestCase {
 
     public void testCaptureUntilDelimiterIdiomDetectsMotivatingPattern() {
         // ClickBench's `REPLACE(Referer, "^https?://(?:www\.)?([^/]+)/.*$", "$1")` -- extract URL host.
-        var idiom = Replace.extractCaptureUntilDelimiterIdiom(Pattern.compile("^https?://(?:www\\.)?([^/]+)/.*$"), new BytesRef("$1"));
+        var idiom = ReplaceCaptureUntilDelimiter.extract(Pattern.compile("^https?://(?:www\\.)?([^/]+)/.*$"), new BytesRef("$1"));
         assertNotNull(idiom);
         assertThat(idiom.delimiter(), equalTo((byte) '/'));
     }
 
     public void testCaptureUntilDelimiterIdiomAcceptsBareTrailingWildcard() {
         // No `$` anchor: `.*` always succeeds trivially, so no per-row DOTALL/newline safety net is needed.
-        assertNotNull(Replace.extractCaptureUntilDelimiterIdiom(Pattern.compile("^([^/]+)/.*"), new BytesRef("$1")));
+        assertNotNull(ReplaceCaptureUntilDelimiter.extract(Pattern.compile("^([^/]+)/.*"), new BytesRef("$1")));
     }
 
     public void testCaptureUntilDelimiterIdiomAcceptsLiteralAroundGroup() {
-        assertNotNull(Replace.extractCaptureUntilDelimiterIdiom(Pattern.compile("^([^,]+),.*$"), new BytesRef("name=$1!")));
+        assertNotNull(ReplaceCaptureUntilDelimiter.extract(Pattern.compile("^([^,]+),.*$"), new BytesRef("name=$1!")));
     }
 
     public void testCaptureUntilDelimiterIdiomBailsWithoutAnchor() {
-        assertNull(Replace.extractCaptureUntilDelimiterIdiom(Pattern.compile("([^/]+)/.*$"), new BytesRef("$1")));
+        assertNull(ReplaceCaptureUntilDelimiter.extract(Pattern.compile("([^/]+)/.*$"), new BytesRef("$1")));
     }
 
     public void testCaptureUntilDelimiterIdiomBailsOnMultipleGroups() {
         // `$1` would be ambiguous / not necessarily "the" extracted segment once other groups exist.
-        assertNull(Replace.extractCaptureUntilDelimiterIdiom(Pattern.compile("^(a)([^/]+)/.*$"), new BytesRef("$2")));
+        assertNull(ReplaceCaptureUntilDelimiter.extract(Pattern.compile("^(a)([^/]+)/.*$"), new BytesRef("$2")));
     }
 
     public void testCaptureUntilDelimiterIdiomBailsOnDisqualifyingFlags() {
-        assertNull(
-            Replace.extractCaptureUntilDelimiterIdiom(Pattern.compile("^([^/]+)/.*$", Pattern.CASE_INSENSITIVE), new BytesRef("$1"))
-        );
-        assertNull(Replace.extractCaptureUntilDelimiterIdiom(Pattern.compile("^([^/]+)/.*$", Pattern.MULTILINE), new BytesRef("$1")));
+        assertNull(ReplaceCaptureUntilDelimiter.extract(Pattern.compile("^([^/]+)/.*$", Pattern.CASE_INSENSITIVE), new BytesRef("$1")));
+        assertNull(ReplaceCaptureUntilDelimiter.extract(Pattern.compile("^([^/]+)/.*$", Pattern.MULTILINE), new BytesRef("$1")));
     }
 
     public void testCaptureUntilDelimiterIdiomBailsOnNonAsciiDelimiter() {
         // The byte scan only supports a single-UTF-8-byte delimiter.
-        assertNull(Replace.extractCaptureUntilDelimiterIdiom(Pattern.compile("^([^\u00e9]+)\u00e9.*$"), new BytesRef("$1")));
+        assertNull(ReplaceCaptureUntilDelimiter.extract(Pattern.compile("^([^\u00e9]+)\u00e9.*$"), new BytesRef("$1")));
     }
 
     public void testCaptureUntilDelimiterIdiomBailsOnDelimiterMismatch() {
         // `[^/]+` followed by a DIFFERENT literal (",") -- the unique-split-point guarantee doesn't hold.
-        assertNull(Replace.extractCaptureUntilDelimiterIdiom(Pattern.compile("^([^/]+),.*$"), new BytesRef("$1")));
+        assertNull(ReplaceCaptureUntilDelimiter.extract(Pattern.compile("^([^/]+),.*$"), new BytesRef("$1")));
     }
 
     public void testCaptureUntilDelimiterIdiomBailsOnAmbiguousReplacement() {
         Pattern p = Pattern.compile("^([^/]+)/.*$");
-        assertNull(Replace.extractCaptureUntilDelimiterIdiom(p, new BytesRef("$10"))); // could be group 10
-        assertNull(Replace.extractCaptureUntilDelimiterIdiom(p, new BytesRef("$1$1"))); // more than one ref
-        assertNull(Replace.extractCaptureUntilDelimiterIdiom(p, new BytesRef("\\$1"))); // backslash escape
-        assertNull(Replace.extractCaptureUntilDelimiterIdiom(p, new BytesRef("no group ref")));
+        assertNull(ReplaceCaptureUntilDelimiter.extract(p, new BytesRef("$10"))); // could be group 10
+        assertNull(ReplaceCaptureUntilDelimiter.extract(p, new BytesRef("$1$1"))); // more than one ref
+        assertNull(ReplaceCaptureUntilDelimiter.extract(p, new BytesRef("\\$1"))); // backslash escape
+        assertNull(ReplaceCaptureUntilDelimiter.extract(p, new BytesRef("no group ref")));
     }
 
     public void testCaptureUntilDelimiterIdiomBailsOnUnsupportedPrefixQuantifiers() {
-        assertNull(Replace.extractCaptureUntilDelimiterIdiom(Pattern.compile("^a*([^/]+)/.*$"), new BytesRef("$1")));
-        assertNull(Replace.extractCaptureUntilDelimiterIdiom(Pattern.compile("^a+([^/]+)/.*$"), new BytesRef("$1")));
-        assertNull(Replace.extractCaptureUntilDelimiterIdiom(Pattern.compile("^a{1,2}([^/]+)/.*$"), new BytesRef("$1")));
+        assertNull(ReplaceCaptureUntilDelimiter.extract(Pattern.compile("^a*([^/]+)/.*$"), new BytesRef("$1")));
+        assertNull(ReplaceCaptureUntilDelimiter.extract(Pattern.compile("^a+([^/]+)/.*$"), new BytesRef("$1")));
+        assertNull(ReplaceCaptureUntilDelimiter.extract(Pattern.compile("^a{1,2}([^/]+)/.*$"), new BytesRef("$1")));
     }
 
     public void testCaptureUntilDelimiterIdiomBailsOnTrailingContent() {
-        assertNull(Replace.extractCaptureUntilDelimiterIdiom(Pattern.compile("^([^/]+)/.*x$"), new BytesRef("$1")));
+        assertNull(ReplaceCaptureUntilDelimiter.extract(Pattern.compile("^([^/]+)/.*x$"), new BytesRef("$1")));
     }
 
     public void testCaptureUntilDelimiterIdiomBailsOnTooManyOptionalSegments() {
         // 5 independent optional segments exceeds MAX_OPTIONAL_PREFIX_PARTS (4).
-        assertNull(Replace.extractCaptureUntilDelimiterIdiom(Pattern.compile("^a?b?c?d?e?([^/]+)/.*$"), new BytesRef("$1")));
+        assertNull(ReplaceCaptureUntilDelimiter.extract(Pattern.compile("^a?b?c?d?e?([^/]+)/.*$"), new BytesRef("$1")));
     }
 
     // --- CaptureUntilDelimiterIdiom: end-to-end (evaluator selection + byte-scan correctness) ---

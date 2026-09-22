@@ -20,7 +20,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link ExpressionEvaluator} implementation for {@link Replace}.
+ * {@link ExpressionEvaluator} implementation for {@link ReplaceCaptureUntilDelimiter}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class ReplaceCaptureUntilDelimiterEvaluator implements ExpressionEvaluator {
@@ -30,14 +30,14 @@ public final class ReplaceCaptureUntilDelimiterEvaluator implements ExpressionEv
 
   private final ExpressionEvaluator str;
 
-  private final Replace.CaptureUntilDelimiterIdiom idiom;
+  private final ReplaceCaptureUntilDelimiter.Idiom idiom;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public ReplaceCaptureUntilDelimiterEvaluator(Source source, ExpressionEvaluator str,
-      Replace.CaptureUntilDelimiterIdiom idiom, DriverContext driverContext) {
+      ReplaceCaptureUntilDelimiter.Idiom idiom, DriverContext driverContext) {
     this.source = source;
     this.str = str;
     this.idiom = idiom;
@@ -80,7 +80,7 @@ public final class ReplaceCaptureUntilDelimiterEvaluator implements ExpressionEv
         }
         BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
         try {
-          result.appendBytesRef(Replace.processCaptureUntilDelimiter(str, this.idiom));
+          result.appendBytesRef(ReplaceCaptureUntilDelimiter.process(str, this.idiom));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -96,7 +96,7 @@ public final class ReplaceCaptureUntilDelimiterEvaluator implements ExpressionEv
       position: for (int p = 0; p < positionCount; p++) {
         BytesRef str = strVector.getBytesRef(p, strScratch);
         try {
-          result.appendBytesRef(Replace.processCaptureUntilDelimiter(str, this.idiom));
+          result.appendBytesRef(ReplaceCaptureUntilDelimiter.process(str, this.idiom));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -128,10 +128,10 @@ public final class ReplaceCaptureUntilDelimiterEvaluator implements ExpressionEv
 
     private final ExpressionEvaluator.Factory str;
 
-    private final Replace.CaptureUntilDelimiterIdiom idiom;
+    private final ReplaceCaptureUntilDelimiter.Idiom idiom;
 
     public Factory(Source source, ExpressionEvaluator.Factory str,
-        Replace.CaptureUntilDelimiterIdiom idiom) {
+        ReplaceCaptureUntilDelimiter.Idiom idiom) {
       this.source = source;
       this.str = str;
       this.idiom = idiom;

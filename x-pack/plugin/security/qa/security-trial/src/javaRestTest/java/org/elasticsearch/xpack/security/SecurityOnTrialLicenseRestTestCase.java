@@ -135,11 +135,23 @@ public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase 
     }
 
     protected void deleteUser(String username) throws IOException {
-        getSecurityClient().deleteUser(username);
+        try {
+            getSecurityClient().deleteUser(username);
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                throw e;
+            }
+        }
     }
 
     protected void deleteRole(String name) throws IOException {
-        getSecurityClient().deleteRole(name);
+        try {
+            getSecurityClient().deleteRole(name);
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                throw e;
+            }
+        }
     }
 
     protected void invalidateApiKeysForUser(String username) throws IOException {

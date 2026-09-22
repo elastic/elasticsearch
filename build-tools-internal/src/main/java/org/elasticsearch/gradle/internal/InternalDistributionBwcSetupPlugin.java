@@ -452,7 +452,8 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             return false;
         }
         for (File hashDir : hashDirs) {
-            if (new File(hashDir, distributionDirName + ".zip.ok").isFile() && new File(hashDir, extractedGradleDirName + "/bin/gradle").isFile()) {
+            if (new File(hashDir, distributionDirName + ".zip.ok").isFile()
+                && new File(hashDir, extractedGradleDirName + "/bin/gradle").isFile()) {
                 return true;
             }
         }
@@ -461,8 +462,10 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
     private static void withExclusiveFileLock(File lockFile, CheckedRunnable action) {
         lockFile.getParentFile().mkdirs();
-        try (FileChannel channel = FileChannel.open(lockFile.toPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
-            FileLock ignored = channel.lock()) {
+        try (
+            FileChannel channel = FileChannel.open(lockFile.toPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+            FileLock ignored = channel.lock()
+        ) {
             action.run();
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to seed Gradle wrapper cache under " + lockFile.getParent(), e);

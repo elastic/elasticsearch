@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -38,7 +39,7 @@ import java.util.RandomAccess;
 import java.util.Set;
 import java.util.UUID;
 
-import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.ORDERED_MAPS;
+import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.ORDERED;
 import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.UNMODIFIABLE;
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopyNoNullElements;
@@ -602,8 +603,8 @@ public class CollectionUtilsTests extends ESTestCase {
     public void testDeepCopyNull() {
         assertNull(deepCopy(null));
         assertNull(deepCopy(null, UNMODIFIABLE));
-        assertNull(deepCopy(null, ORDERED_MAPS));
-        assertNull(deepCopy(null, UNMODIFIABLE, ORDERED_MAPS));
+        assertNull(deepCopy(null, ORDERED));
+        assertNull(deepCopy(null, UNMODIFIABLE, ORDERED));
     }
 
     public void testDeepCopyImmutableScalarsReturnSameReference() {
@@ -648,8 +649,8 @@ public class CollectionUtilsTests extends ESTestCase {
         // options do not affect pass-through of immutable scalars
         String str = randomAlphaOfLength(5);
         assertSame(str, deepCopy(str, UNMODIFIABLE));
-        assertSame(str, deepCopy(str, ORDERED_MAPS));
-        assertSame(str, deepCopy(str, UNMODIFIABLE, ORDERED_MAPS));
+        assertSame(str, deepCopy(str, ORDERED));
+        assertSame(str, deepCopy(str, UNMODIFIABLE, ORDERED));
     }
 
     public void testDeepCopyDateClonesReference() {
@@ -836,18 +837,29 @@ public class CollectionUtilsTests extends ESTestCase {
         assertTrue(original.containsKey("k2"));
     }
 
-    public void testDeepCopyOrderedMapsPreservesInsertionOrder() {
+    public void testDeepCopyOrderedPreservesMapInsertionOrder() {
         Map<String, Object> original = new LinkedHashMap<>();
         original.put("charlie", 3);
         original.put("alpha", 1);
         original.put("bravo", 2);
 
-        Map<String, Object> copy = deepCopy(original, ORDERED_MAPS);
+        Map<String, Object> copy = deepCopy(original, ORDERED);
         assertNotSame(original, copy);
         assertEquals(List.of("charlie", "alpha", "bravo"), new ArrayList<>(copy.keySet()));
     }
 
-    public void testDeepCopyOrderedMapsNested() {
+    public void testDeepCopyOrderedPreservesSetInsertionOrder() {
+        Set<Object> original = new LinkedHashSet<>();
+        original.add("charlie");
+        original.add("alpha");
+        original.add("bravo");
+
+        Set<Object> copy = deepCopy(original, ORDERED);
+        assertNotSame(original, copy);
+        assertEquals(List.of("charlie", "alpha", "bravo"), new ArrayList<>(copy));
+    }
+
+    public void testDeepCopyOrderedNested() {
         Map<String, Object> inner = new LinkedHashMap<>();
         inner.put("z", 1);
         inner.put("a", 2);
@@ -855,7 +867,7 @@ public class CollectionUtilsTests extends ESTestCase {
         outer.put("inner", inner);
         outer.put("other", "val");
 
-        Map<String, Object> copy = deepCopy(outer, ORDERED_MAPS);
+        Map<String, Object> copy = deepCopy(outer, ORDERED);
         assertEquals(List.of("inner", "other"), new ArrayList<>(copy.keySet()));
 
         @SuppressWarnings("unchecked")
@@ -863,12 +875,12 @@ public class CollectionUtilsTests extends ESTestCase {
         assertEquals(List.of("z", "a"), new ArrayList<>(copiedInner.keySet()));
     }
 
-    public void testDeepCopyUnmodifiableAndOrderedMaps() {
+    public void testDeepCopyUnmodifiableAndOrdered() {
         Map<String, Object> original = new LinkedHashMap<>();
         original.put("b", 2);
         original.put("a", 1);
 
-        Map<String, Object> copy = deepCopy(original, UNMODIFIABLE, ORDERED_MAPS);
+        Map<String, Object> copy = deepCopy(original, UNMODIFIABLE, ORDERED);
         assertEquals(List.of("b", "a"), new ArrayList<>(copy.keySet()));
         expectThrows(UnsupportedOperationException.class, () -> copy.put("c", 3));
     }

@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -191,9 +192,10 @@ public class CollectionUtils {
          */
         UNMODIFIABLE(1),
         /**
-         * Use insertion-order-preserving maps ({@link LinkedHashMap}) when copying {@link Map} instances.
+         * Use insertion-order-preserving collections ({@link LinkedHashMap}, {@link java.util.LinkedHashSet}) when
+         * copying {@link Map} and {@link Set} instances.
          */
-        ORDERED_MAPS(2);
+        ORDERED(2);
 
         private final int mask;
 
@@ -227,11 +229,9 @@ public class CollectionUtils {
     @SuppressWarnings("unchecked")
     private static <T> T deepCopyInternal(T value, int options) {
         final boolean unmodifiable = (options & DeepCopyOption.UNMODIFIABLE.mask) != 0;
-        final boolean orderedMaps = (options & DeepCopyOption.ORDERED_MAPS.mask) != 0;
+        final boolean ordered = (options & DeepCopyOption.ORDERED.mask) != 0;
         if (value instanceof Map<?, ?> mapValue) {
-            Map<Object, Object> copy = orderedMaps
-                ? LinkedHashMap.newLinkedHashMap(mapValue.size())
-                : HashMap.newHashMap(mapValue.size());
+            Map<Object, Object> copy = ordered ? LinkedHashMap.newLinkedHashMap(mapValue.size()) : HashMap.newHashMap(mapValue.size());
             for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
                 copy.put(entry.getKey(), deepCopyInternal(entry.getValue(), options));
             }
@@ -243,7 +243,7 @@ public class CollectionUtils {
             }
             return (T) (unmodifiable ? Collections.unmodifiableList(copy) : copy);
         } else if (value instanceof Set<?> setValue) {
-            Set<Object> copy = HashSet.newHashSet(setValue.size());
+            Set<Object> copy = ordered ? LinkedHashSet.newLinkedHashSet(setValue.size()) : HashSet.newHashSet(setValue.size());
             for (Object item : setValue) {
                 copy.add(deepCopyInternal(item, options));
             }

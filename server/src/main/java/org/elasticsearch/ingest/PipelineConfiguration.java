@@ -32,7 +32,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.ORDERED_MAPS;
+import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.ORDERED;
 import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.UNMODIFIABLE;
 
 /**
@@ -87,7 +87,7 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
 
     public PipelineConfiguration(String id, Map<String, Object> config) {
         this.id = Objects.requireNonNull(id);
-        this.config = CollectionUtils.deepCopy(config, ORDERED_MAPS, UNMODIFIABLE);
+        this.config = CollectionUtils.deepCopy(config, ORDERED, UNMODIFIABLE);
     }
 
     /**
@@ -122,7 +122,7 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
         if (unmodifiable) {
             return config; // already unmodifiable
         } else {
-            return CollectionUtils.deepCopy(config, ORDERED_MAPS);
+            return CollectionUtils.deepCopy(config, ORDERED);
         }
     }
 

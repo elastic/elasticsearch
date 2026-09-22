@@ -76,6 +76,16 @@ excludeList.add(
   'search.highlight/70_number_of_fragments/lowering index.highlight.max_number_of_fragments should reject the default number of fragments'
 )
 
+// Setup indexes dense_vector docs. Mixed-version recovery can crash
+// TranslogWriter when reconstructed source does not match the original
+// encoding (hex/binary vs array, indexed vs non-indexed). See
+// https://github.com/elastic/elasticsearch/issues/159560
+excludeList.add('search.vectors/170_knn_search_hex_encoded_byte_vectors/*')
+excludeList.add('search.vectors/200_dense_vector_docvalue_fields/*')
+excludeList.add('search.vectors/205_dense_vector_docvalue_fields_format/*')
+excludeList.add('search.vectors/241_source_columnar_stored_vectors/*')
+excludeList.add('search.vectors/242_source_dense_vectors_not_indexed/*')
+
 buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   if (bwcVersion != VersionProperties.getElasticsearchVersion()) {
     /* This project runs the core REST tests against a 4 node cluster where two of

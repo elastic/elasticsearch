@@ -116,14 +116,12 @@ id:long | langs:long
 10003   | 4
 ;
 
-// A blank cell on a DECLARED keyword column stays the empty string. This is the whole of what the declaration
-// buys here, and it is discriminating: the undeclared read of these same bytes nulls those 10 cells instead
-// (csv-nullability.csv-spec, filterInferredBlankKeywordIsNull). Declaring a column a string states that its
-// domain includes "", so a blank in it is a value; with no declaration there is nothing to say that, and a
-// blank must not become one merely because the column's OTHER rows happened to sample as strings.
+// A blank cell on a DECLARED keyword column reads as the empty string -- the same as an inferred read of the
+// same bytes (csv-basic.csv-spec, aggregateByGenderScalar). Inferred and declared reads now agree: a blank
+// string cell is "" unless null_value: "" opts it out.
 strictDeclaredKeywordKeepsBlankAsEmptyString
 required_capability: dataset_in_from_command
-required_capability: external_csv_blank_cell_null_unless_declared
+required_capability: external_csv_blank_cell_empty_string_unless_null_token
 dataset: employees_declared_gender: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "gender": {"type": "keyword", "path": "gender"}}}}
 
 FROM employees_declared_gender

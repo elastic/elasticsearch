@@ -44,7 +44,7 @@ import java.util.stream.IntStream;
  * which always receives the intermediate input. Since an intermediate aggregate output can
  * consist of multiple blocks, we wrap these output blocks in a single composite block.
  * The {@link FromPartial} then unwraps this input block into multiple primitive blocks and
- * passes them to the delegating GroupingAggregatorFunction.
+ * passes them to the delegating aggregator.
  * <p>
  * Both of these commands yield the same result, except the second plan executes aggregates twice:
  * <pre>

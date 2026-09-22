@@ -2216,6 +2216,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return ib == ' ' || ib == '\t' || ib == '\f';
     }
 
+    /**
+     * CSV and TSV bind a pinned schema by position, so {@code CsvBatchIterator#initProjection} sets
+     * {@code rowWidthLimit} from the schema and a row carrying more fields than that is dropped. See the
+     * interface javadoc for what the row-count licence does with this.
+     */
+    @Override
+    public boolean boundsRowWidthByReadSchema() {
+        return true;
+    }
+
     @Override
     public String formatName() {
         return format;

@@ -1317,6 +1317,8 @@ public class ExternalSourceResolver {
             StoragePath anchorPath = listing.path(0);
             Map<String, DataType> anchorNativeTypes = attributesToTypeMap(physicalSchema);
             Set<String> anchorColumnNames = anchorNativeTypes.keySet();
+            // Asked once for the dataset: it is a property of the format, not of any one file.
+            boolean widthBoundRead = readBoundsRowWidth(listing, config);
             for (int i = 0; i < listing.fileCount(); i++) {
                 // The dataset-level aggregate on extMetadata is a fold and cannot be assigned to an
                 // individual file. Each file's own harvest lives on its schema-cache entry (and, for a
@@ -1338,7 +1340,7 @@ public class ExternalSourceResolver {
                 // entry these reads share. Both numbers are right and they are not the same number, so this read
                 // serves none of that file's statistics and its aggregates re-scan.
                 SourceStatistics fileStats = fileStatisticsForFirstFileWins(listing, extMetadata, cached);
-                if (fileStats != null && holdsColumnsNotIn(anchorColumnNames, inferred)) {
+                if (fileStats != null && widthBoundRead && holdsColumnsNotIn(anchorColumnNames, inferred)) {
                     fileStats = null;
                 }
                 perFileInfo.put(path, new SchemaReconciliation.FileSchemaInfo(fileSchema, mapping, fileStats, inferred));
@@ -2714,7 +2716,7 @@ public class ExternalSourceResolver {
         gatherPerFile(listing, config, false, ActionListener.wrap(allMeta -> {
             collectReadConfigs(listing, allMeta, readConfigsOut);
             collectInferredTypes(listing, allMeta, inferredTypesOut);
-            if (someFileIsWiderThanTheAnchor(listing, inferredTypesOut)) {
+            if (readBoundsRowWidth(listing, config) && someFileIsWiderThanTheAnchor(listing, inferredTypesOut)) {
                 listener.onResponse(null);
                 return;
             }
@@ -2762,6 +2764,33 @@ public class ExternalSourceResolver {
             for (int i = 0; i < listing.fileCount(); i++) {
                 into.put(listing.path(i).toString(), anchorStr);
             }
+        }
+    }
+
+    /**
+     * Whether this dataset's reader bounds a row's width by the schema it is read at, which is what makes a part
+     * wider than the anchor a part this read does not count in full. Only such a format needs the refusal in
+     * {@link #someFileIsWiderThanTheAnchor}: a format that binds by name reads the same records whatever extra
+     * columns a part carries, so its anchor-pinned count is already the physical count and refusing the fold
+     * would take the dataset off the warm path for nothing.
+     * <p>
+     * A format we cannot identify answers {@code true}, which keeps the refusal. That is the slow direction, not
+     * the wrong one: a refused fold re-scans and still answers correctly.
+     */
+    private boolean readBoundsRowWidth(FileList listing, Map<String, Object> config) {
+        if (listing.fileCount() == 0) {
+            return true;
+        }
+        try {
+            String sourceType = FormatNameResolver.datasetFormat(
+                config,
+                listing.path(0).toString(),
+                dataSourceModule.formatReaderRegistry()
+            );
+            FormatReader reader = sourceType == null ? null : dataSourceModule.formatReaderRegistry().findByName(sourceType);
+            return reader == null || reader.boundsRowWidthByReadSchema();
+        } catch (RuntimeException e) {
+            return true;
         }
     }
 
@@ -2837,7 +2866,7 @@ public class ExternalSourceResolver {
         gatherPerFile(listing, config, true, ActionListener.wrap(allMeta -> {
             collectReadConfigs(listing, allMeta, readConfigsOut);
             collectInferredTypes(listing, allMeta, inferredTypesOut);
-            if (someFileIsWiderThanTheAnchor(listing, inferredTypesOut)) {
+            if (readBoundsRowWidth(listing, config) && someFileIsWiderThanTheAnchor(listing, inferredTypesOut)) {
                 listener.onResponse(null);
                 return;
             }

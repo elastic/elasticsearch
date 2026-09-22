@@ -1420,7 +1420,12 @@ public class ExternalSourceCacheService implements Closeable {
                     // in its whole-file keys, which the per-stripe merge above never sees.
                     wholeFile.forEach(enriched::putIfAbsent);
                 }
-                if (completedFold == null) {
+                // Only a fold of the entry's OWN read may stand in for this query's delta. foldCommittedStripes
+                // labels its result with the ENTRY's read configuration, so returning a crossed entry's fold hands
+                // the dataset promise a count labelled with a read the promise did not make — which
+                // sumIfFullyCovered then refuses, while the non-null return has already suppressed the
+                // delta's own fold at the caller. The dataset would re-scan on every query, for ever.
+                if (completedFold == null && sameRead) {
                     completedFold = wholeFile;
                 }
             }

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -2868,6 +2869,92 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 "another read's licensed count must not be memoized under a strict dataset's key",
                 service.getDatasetAggregate(nameBoundKey)
             );
+        }
+    }
+
+    /**
+     * The other half of the strict promise: a dataset's OWN licensed scan must fulfil it even when per-file
+     * entries from a different read already exist for those files — the ordinary case, since any earlier query
+     * over the same glob leaves them behind.
+     * <p>
+     * Those entries are stamped with the other read's configuration, so this scan's stripes cross into them
+     * rather than merging. A crossed fold is labelled with the ENTRY's configuration, not this delta's, so
+     * returning it as the completed whole file both hands the promise a count under a read it did not make and
+     * suppresses the fold of the delta's own stripes at the caller. The promise is then never fulfilled and the
+     * dataset re-scans on every query. Parameterised on whether the foreign entries exist, so the assertion is
+     * about their presence rather than the fixture.
+     */
+    public void testADatasetsOwnScanFulfilsItsPromiseEvenWhereForeignEntriesExist() throws Exception {
+        for (boolean foreignEntriesExist : new boolean[] { false, true }) {
+            try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+                String pathA = "s3://bucket/own/a.csv";
+                String pathB = "s3://bucket/own/b.csv";
+                long mtime = 1000L;
+                String msg = "[foreignEntriesExist=" + foreignEntriesExist + "] ";
+
+                if (foreignEntriesExist) {
+                    // An earlier inferred query over the same files, leaving entries stamped with ITS read.
+                    for (String path : List.of(pathA, pathB)) {
+                        SchemaCacheKey fileKey = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+                        service.getOrComputeSchema(
+                            fileKey,
+                            k -> SchemaCacheEntry.from(
+                                List.of(new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.TRUE, null, false)),
+                                "csv",
+                                path,
+                                Map.of(
+                                    ExternalStats.CONFIG_FINGERPRINT_KEY,
+                                    "fp",
+                                    ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+                                    "config-inferred",
+                                    ExternalStats.COLUMNS_IN_FILE_ORDER_KEY,
+                                    Boolean.TRUE
+                                ),
+                                Map.of()
+                            )
+                        );
+                    }
+                }
+
+                SchemaCacheKey nameBoundKey = SchemaCacheKey.forDatasetAggregate(
+                    "s3://bucket/own/*.csv",
+                    new FileSetFingerprint(333, 444),
+                    "csv",
+                    Map.of("format", "csv"),
+                    true
+                );
+                service.registerPendingDatasetAggregate(
+                    nameBoundKey,
+                    Map.of(pathA, mtime, pathB, mtime),
+                    2,
+                    "fp",
+                    Map.of(pathA, "config-declared", pathB, "config-declared"),
+                    "csv",
+                    "s3://bucket/own/*.csv"
+                );
+
+                // The strict dataset's own full scan: one complete, licensed, EOF-bearing stripe per file,
+                // stamped with the configuration the promise expects.
+                Map<String, List<Map<String, Object>>> contributions = new HashMap<>();
+                for (String path : List.of(pathA, pathB)) {
+                    Map<String, Object> fragment = stripeFragment(mtime, "fp", 10L, 100L, 0, 0, 100, true, true, true);
+                    fragment.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-declared");
+                    fragment.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+                    fragment.put(ExternalStats.READ_COLUMN_NAMES_KEY, List.of("id"));
+                    fragment.put(ExternalStats.READ_COLUMN_TYPES_KEY, List.of("long"));
+                    fragment.put(ExternalStats.READ_BINDING_KEY, ExternalStats.BINDING_BY_NAME);
+                    contributions.put(path, List.of(fragment));
+                }
+                service.reconcileSourceStatsFromContributions(contributions);
+
+                Map<String, Object> memo = service.getDatasetAggregate(nameBoundKey);
+                assertNotNull(msg + "the dataset's own licensed scan must fulfil its own promise", memo);
+                assertEquals(
+                    msg + "and the memoized count is the sum of its own files",
+                    20L,
+                    memo.get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+                );
+            }
         }
     }
 

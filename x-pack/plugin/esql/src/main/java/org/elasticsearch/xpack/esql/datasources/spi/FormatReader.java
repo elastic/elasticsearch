@@ -417,6 +417,27 @@ public interface FormatReader extends Closeable {
     }
 
     /**
+     * Whether reading a file at a pinned schema bounds a row's width by that schema, so a record holding more
+     * fields than the schema has slots is dropped rather than read.
+     * <p>
+     * This is a property of how the format binds, not of the file. A row format read by position has no way to
+     * name a field beyond its schema, so it bounds the width and drops what exceeds it — CSV and TSV override to
+     * {@code true}. A format that binds each value to a name it finds in the data has no width to exceed: NDJSON
+     * binds by object key, and the columnar formats bind by footer name, so a file carrying an extra column is
+     * simply read without it. Those keep the default.
+     * <p>
+     * The row-count licence consumer asks this. A licensed count is the file's physical record count, which
+     * only answers for a read that counted every record. Where this is {@code true}, a part wider than the
+     * schema it is read at is a part this read did not count in full, and its statistics must not be folded
+     * into this dataset's aggregate ({@code ExternalSourceResolver#someFileIsWiderThanTheAnchor}). Where it is
+     * {@code false} no row is lost to width, the anchor-pinned count is the physical count, and refusing the
+     * fold would take a dataset off the warm path for nothing.
+     */
+    default boolean boundsRowWidthByReadSchema() {
+        return false;
+    }
+
+    /**
      * Whether this format supports being wrapped in a whole-file, stream-only decompressor
      * (e.g. {@code .parquet.zst} or {@code .orc.gz}). Sequential formats (CSV, NDJSON) return
      * the default {@code true}. Tail/footer-based formats (Parquet, ORC) must override to

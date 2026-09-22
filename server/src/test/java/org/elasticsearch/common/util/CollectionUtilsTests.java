@@ -914,29 +914,40 @@ public class CollectionUtilsTests extends ESTestCase {
         expectThrows(UnsupportedOperationException.class, () -> copy.add("delta"));
     }
 
-    public void testDeepCopyUnmodifiableWithByteArrayThrows() {
+    public void testDeepCopyUnmodifiableWithByteArrayCopies() {
+        // Arrays are always copied as mutable; UNMODIFIABLE only applies to Map/List/Set.
         byte[] arr = new byte[] { 1, 2, 3 };
-        var e = expectThrows(IllegalArgumentException.class, () -> deepCopy(arr, UNMODIFIABLE));
-        assertThat(e.getMessage(), equalTo("cannot make array type [class [B] unmodifiable"));
+        byte[] copy = deepCopy(arr, UNMODIFIABLE);
+        assertNotSame(arr, copy);
+        assertArrayEquals(new byte[] { 1, 2, 3 }, copy);
+        copy[0] = 99;
+        assertThat(arr[0], equalTo((byte) 1));
     }
 
-    public void testDeepCopyUnmodifiableWithDoubleArrayThrows() {
+    public void testDeepCopyUnmodifiableWithDoubleArrayCopies() {
         double[] arr = new double[] { 1.0, 2.0 };
-        var e = expectThrows(IllegalArgumentException.class, () -> deepCopy(arr, UNMODIFIABLE));
-        assertThat(e.getMessage(), equalTo("cannot make array type [class [D] unmodifiable"));
+        double[] copy = deepCopy(arr, UNMODIFIABLE);
+        assertNotSame(arr, copy);
+        assertArrayEquals(new double[] { 1.0, 2.0 }, copy, 0.0);
     }
 
-    public void testDeepCopyUnmodifiableWithDouble2DArrayThrows() {
+    public void testDeepCopyUnmodifiableWithDouble2DArrayCopies() {
         double[][] arr = new double[][] { { 1.0 }, { 2.0 } };
-        var e = expectThrows(IllegalArgumentException.class, () -> deepCopy(arr, UNMODIFIABLE));
-        assertThat(e.getMessage(), equalTo("cannot make array type [class [[D] unmodifiable"));
+        double[][] copy = deepCopy(arr, UNMODIFIABLE);
+        assertNotSame(arr, copy);
+        assertArrayEquals(new double[] { 1.0 }, copy[0], 0.0);
+        assertArrayEquals(new double[] { 2.0 }, copy[1], 0.0);
     }
 
-    public void testDeepCopyUnmodifiableWithNestedByteArrayThrows() {
-        // byte[] nested inside a map with UNMODIFIABLE should propagate the exception
+    public void testDeepCopyUnmodifiableWithNestedByteArrayCopies() {
+        // byte[] nested inside a map with UNMODIFIABLE: the map is unmodifiable but the array is a mutable copy
         Map<String, Object> map = new HashMap<>();
         map.put("arr", new byte[] { 1, 2 });
-        expectThrows(IllegalArgumentException.class, () -> deepCopy(map, UNMODIFIABLE));
+        Map<String, Object> copy = deepCopy(map, UNMODIFIABLE);
+        expectThrows(UnsupportedOperationException.class, () -> copy.put("x", "y"));
+        byte[] arrCopy = (byte[]) copy.get("arr");
+        assertArrayEquals(new byte[] { 1, 2 }, arrCopy);
+        arrCopy[0] = 99; // still mutable
     }
 
     public void testDeepCopyDuplicateOptionsAreHarmless() {
@@ -964,14 +975,6 @@ public class CollectionUtilsTests extends ESTestCase {
         // value is passed through by reference without throwing.
         var e = expectThrows(AssertionError.class, () -> deepCopy(new Object(), LAX));
         assertThat(e.getMessage(), equalTo("unexpected value type [class java.lang.Object]"));
-    }
-
-    public void testDeepCopyLaxUnmodifiableByteArrayCopiesInsteadOfThrowing() {
-        // LAX suppresses the UNMODIFIABLE constraint for array types; the result is a mutable copy.
-        byte[] arr = new byte[] { 1, 2, 3 };
-        byte[] copy = deepCopy(arr, UNMODIFIABLE, LAX);
-        assertNotSame(arr, copy);
-        assertArrayEquals(new byte[] { 1, 2, 3 }, copy);
     }
 
     public void testDeepCopy() {

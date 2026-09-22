@@ -189,6 +189,12 @@ public class CollectionUtils {
         /**
          * Wrap copied {@link Map}, {@link List}, and {@link Set} instances in their
          * {@link Collections#unmodifiableMap unmodifiable} counterparts.
+         * <p>
+         * Array types ({@code byte[]}, {@code double[]}, {@code double[][]}) are always copied as mutable
+         * arrays — there is no unmodifiable wrapper for them. This means a structure copied with
+         * {@code UNMODIFIABLE} may still contain mutable leaf arrays. Callers that hand out the result
+         * (e.g. from a cache) must perform a fresh deep copy on each access to prevent those arrays
+         * from being mutated across callers.
          */
         UNMODIFIABLE(1),
         /**
@@ -197,20 +203,12 @@ public class CollectionUtils {
          */
         ORDERED(2),
         /**
-         * Relax strict type checking for unrecognized value types and array unmodifiability constraints.
-         * <p>
-         * By default, {@link #deepCopy} throws {@link IllegalArgumentException} if it encounters a value
-         * whose type it does not recognize, and throws if {@link #UNMODIFIABLE} is combined with an array
-         * type ({@code byte[]}, {@code double[]}, {@code double[][]}) that cannot be made unmodifiable.
-         * <p>
-         * With {@code LAX}:
-         * <ul>
-         *   <li>Unrecognized types trigger a development-time assertion (visible in tests, which run with
-         *       {@code -ea}) but are passed through by reference at runtime, so callers on user-facing
-         *       data paths are not broken by an unexpected type.</li>
-         *   <li>Array types combined with {@link #UNMODIFIABLE} are silently copied rather than throwing.
-         *       The caller accepts that the resulting array is still mutable.</li>
-         * </ul>
+         * Soften the response to unrecognized value types. By default, {@link #deepCopy} throws
+         * {@link IllegalArgumentException} when it encounters a type it does not know how to copy.
+         * With {@code LAX}, an unrecognized type instead triggers a development-time assertion
+         * (fired as {@link AssertionError} in tests, which run with {@code -ea}) and the value is
+         * passed through by reference at runtime. Use this when the caller is on a user-facing data
+         * path and an unexpected type should not blow up the request.
          */
         LAX(4);
 
@@ -285,24 +283,14 @@ public class CollectionUtils {
             }
             return (T) (unmodifiable ? Collections.unmodifiableSet(copy) : copy);
         } else if (value instanceof byte[] bytes) {
-            // arrays cannot be made unmodifiable; LAX callers accept a mutable copy rather than a failure
-            if (unmodifiable && !lax) {
-                throw new IllegalArgumentException("cannot make array type [" + value.getClass() + "] unmodifiable");
-            }
             return (T) Arrays.copyOf(bytes, bytes.length);
         } else if (value instanceof double[][] doubles) {
-            if (unmodifiable && !lax) {
-                throw new IllegalArgumentException("cannot make array type [" + value.getClass() + "] unmodifiable");
-            }
             double[][] result = new double[doubles.length][];
             for (int i = 0; i < doubles.length; i++) {
                 result[i] = Arrays.copyOf(doubles[i], doubles[i].length);
             }
             return (T) result;
         } else if (value instanceof double[] doubles) {
-            if (unmodifiable && !lax) {
-                throw new IllegalArgumentException("cannot make array type [" + value.getClass() + "] unmodifiable");
-            }
             return (T) Arrays.copyOf(doubles, doubles.length);
         } else if (value instanceof Float
             || value instanceof Byte

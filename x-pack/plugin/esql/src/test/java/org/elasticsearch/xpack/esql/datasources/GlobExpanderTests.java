@@ -801,6 +801,92 @@ public class GlobExpanderTests extends ESTestCase {
         assertTrue(paths.contains("s3://bucket/data/category=ns%3Aclick/b.parquet"));
     }
 
+    /**
+     * DuckDB ({@code COPY ... PARTITION_BY}) and pyarrow ({@code write_dataset}, hive flavor) percent-encode a space, a
+     * {@code +} and every non-ASCII byte in a partition folder name, where Hive and Spark leave them literal. The
+     * detector decodes all three back to the value, so {@code city IN ("New York", "Paris", "São Paulo")} must list
+     * every folder whose decoded value is in the list. {@code Paris} is spelled the same either way, so the rewritten
+     * listing is never empty and the empty-listing fallback cannot recover the others.
+     */
+    public void testInListMatchesUriEncodedFolders() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/data/",
+                List.of(
+                    entry("s3://bucket/data/city=New%20York/a.parquet", 100),
+                    entry("s3://bucket/data/city=Paris/b.parquet", 200),
+                    entry("s3://bucket/data/city=S%C3%A3o%20Paulo/c.parquet", 300),
+                    entry("s3://bucket/data/city=a%2Bb/d.parquet", 400)
+                )
+            )
+        );
+
+        var hints = List.of(hint("city", PartitionFilterHintExtractor.Operator.IN, "New York", "Paris", "S\u00e3o Paulo", "a+b"));
+        FileList result = GlobExpander.expand("s3://bucket/data/city=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
+
+        assertEquals(
+            "every folder whose decoded value is in the IN list must be listed",
+            List.of(
+                "s3://bucket/data/city=New%20York/a.parquet",
+                "s3://bucket/data/city=Paris/b.parquet",
+                "s3://bucket/data/city=S%C3%A3o%20Paulo/c.parquet",
+                "s3://bucket/data/city=a%2Bb/d.parquet"
+            ),
+            paths(result).stream().sorted().toList()
+        );
+    }
+
+    /**
+     * Control for {@link #testInListMatchesUriEncodedFolders}: the same folders and the same {@code IN} hint under a
+     * {@code **} glob, which the listing walk prunes by decoded, typed value. All four folders survive, so the
+     * encoded spellings are values the listing layer itself treats as matching the filter.
+     */
+    public void testGlobstarInListKeepsUriEncodedFolders() throws IOException {
+        TreeStubProvider provider = new TreeStubProvider(
+            List.of(
+                entry("s3://bucket/data/city=New%20York/a.parquet", 100),
+                entry("s3://bucket/data/city=Paris/b.parquet", 200),
+                entry("s3://bucket/data/city=S%C3%A3o%20Paulo/c.parquet", 300),
+                entry("s3://bucket/data/city=a%2Bb/d.parquet", 400),
+                entry("s3://bucket/data/city=Berlin/e.parquet", 500)
+            )
+        );
+
+        var hints = List.of(hint("city", PartitionFilterHintExtractor.Operator.IN, "New York", "Paris", "S\u00e3o Paulo", "a+b"));
+        FileList result = GlobExpander.expand("s3://bucket/data/**", provider, hints, HIVE_ON, MAX, MAX);
+
+        assertEquals(
+            List.of(
+                "s3://bucket/data/city=New%20York/a.parquet",
+                "s3://bucket/data/city=Paris/b.parquet",
+                "s3://bucket/data/city=S%C3%A3o%20Paulo/c.parquet",
+                "s3://bucket/data/city=a%2Bb/d.parquet"
+            ),
+            paths(result).stream().sorted().toList()
+        );
+    }
+
+    /**
+     * Padding wider than two digits: {@code hour IN (7, 10)} over {@code hour=007} and {@code hour=10}. The detector
+     * types both folders as integers 7 and 10, so both match; {@code hour=10} keeps the rewritten listing non-empty.
+     */
+    public void testInListMatchesWidePaddedFolder() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/data/",
+                List.of(entry("s3://bucket/data/hour=007/a.parquet", 100), entry("s3://bucket/data/hour=10/b.parquet", 200))
+            )
+        );
+
+        var hints = List.of(hint("hour", PartitionFilterHintExtractor.Operator.IN, 7, 10));
+        FileList result = GlobExpander.expand("s3://bucket/data/hour=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
+
+        assertEquals(
+            List.of("s3://bucket/data/hour=007/a.parquet", "s3://bucket/data/hour=10/b.parquet"),
+            paths(result).stream().sorted().toList()
+        );
+    }
+
     public void testRewriteGlobWithRangeHintNoRewrite() {
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2020));
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/year=*/*.parquet", hints);

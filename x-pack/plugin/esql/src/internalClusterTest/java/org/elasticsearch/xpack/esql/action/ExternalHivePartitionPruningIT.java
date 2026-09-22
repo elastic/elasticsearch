@@ -467,6 +467,40 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
         );
     }
 
+    /**
+     * DuckDB ({@code COPY ... PARTITION_BY}) and pyarrow ({@code write_dataset}) spell {@code city="New York"} as the
+     * folder {@code city=New%20York}; the detector decodes it back. An {@code IN} over a keyed glob must return the
+     * rows of every folder whose decoded value is in the list — here ids 1 (New York) and 2 (Paris).
+     */
+    public void testKeyedGlobInListReadsUriEncodedFolder() throws Exception {
+        String dataset = registerCityTree("csv_city_keyed", "/city=*/**/*.csv");
+        assertThat(cityIds(dataset, "WHERE city IN (\"New York\", \"Paris\")"), equalTo(List.of(1L, 2L)));
+    }
+
+    /** Control: the same tree and filter under a {@code **} glob, where the listing walk compares decoded values. */
+    public void testGlobstarInListReadsUriEncodedFolder() throws Exception {
+        String dataset = registerCityTree("csv_city_globstar", "/**/*.csv");
+        assertThat(cityIds(dataset, "WHERE city IN (\"New York\", \"Paris\")"), equalTo(List.of(1L, 2L)));
+    }
+
+    private List<Long> cityIds(String dataset, String filterClause) {
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | " + filterClause + " | KEEP id | SORT id ASC"))) {
+            return getValuesList(response).stream().map(row -> ((Number) row.get(0)).longValue()).toList();
+        }
+    }
+
+    /** {@code city=New%20York/f.csv} (id 1), {@code city=Paris/f.csv} (id 2), {@code city=Berlin/f.csv} (id 3). */
+    private String registerCityTree(String name, String globSuffix) throws IOException {
+        Path root = createTempDir().resolve(name);
+        String[] folders = { "city=New%20York", "city=Paris", "city=Berlin" };
+        for (int i = 0; i < folders.length; i++) {
+            Path dir = root.resolve(folders[i]);
+            Files.createDirectories(dir);
+            Files.writeString(dir.resolve("f.csv"), "id\n" + (i + 1) + "\n", StandardCharsets.UTF_8);
+        }
+        return registerDataset(name, StoragePath.fileUri(root) + globSuffix, Map.of("partition_detection", "hive"));
+    }
+
     // -- End-to-end: pruning must be visible to a user, in the rendered profile JSON --
 
     /**

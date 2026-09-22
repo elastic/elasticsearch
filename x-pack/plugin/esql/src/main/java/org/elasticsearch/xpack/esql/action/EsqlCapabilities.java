@@ -4026,10 +4026,19 @@ public class EsqlCapabilities {
          * happens to hold. The empty string is produced only for a {@code keyword}/{@code text} column of a
          * strictly declared schema ({@code mappings} with {@code dynamic: false}), and setting {@code null_value}
          * to the empty string forces {@code null} there too. Supersedes {@link #EXTERNAL_CSV_EMPTY_STRING_NOT_NULL}.
-         * Gates the csv-spec tests that assert this, since it changes results for an ordinary inferred read:
-         * a pre-change node still answers {@code ""} for a blank cell in a column that sampled as a string.
+         * Superseded by {@link #EXTERNAL_CSV_BLANK_CELL_EMPTY_STRING_UNLESS_NULL_TOKEN}, which removes the
+         * inferred-vs-declared distinction: a blank string cell reads {@code ""} regardless of schema provenance.
+         * No longer referenced by any spec.
          */
-        EXTERNAL_CSV_BLANK_CELL_NULL_UNLESS_DECLARED,
+        EXTERNAL_CSV_BLANK_CELL_NULL_UNLESS_DECLARED(false),
+
+        /**
+         * A blank cell in an external CSV/TSV datasource reads as {@code ""} on a {@code keyword}/{@code text}
+         * column and as {@code null} on every other type, identically for inferred and declared reads.
+         * The only way to get {@code null} for a blank string cell is to set {@code null_value: ""}.
+         * Supersedes {@link #EXTERNAL_CSV_BLANK_CELL_NULL_UNLESS_DECLARED}.
+         */
+        EXTERNAL_CSV_BLANK_CELL_EMPTY_STRING_UNLESS_NULL_TOKEN,
 
         /**
          * Materialize more aggregate inputs into a synthetic pre-agg eval.

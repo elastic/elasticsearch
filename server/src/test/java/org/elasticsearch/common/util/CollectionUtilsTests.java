@@ -795,6 +795,18 @@ public class CollectionUtilsTests extends ESTestCase {
         assertArrayEquals(original, copy);
     }
 
+    public void testDeepCopyMapKeyIsDeepCopied() {
+        Date originalKey = new Date(1000L); // a mutable non-primitive map key
+        Map<Object, Object> original = new HashMap<>();
+        original.put(originalKey, "value");
+
+        Map<Object, Object> copy = deepCopy(original);
+
+        Date copiedKey = (Date) copy.keySet().iterator().next();
+        assertEquals(originalKey, copiedKey);
+        assertNotSame(originalKey, copiedKey); // it was copied!
+    }
+
     public void testDeepCopyNestedMapInList() {
         Map<String, Object> inner = new HashMap<>(Map.of("key", "value"));
         List<Object> list = new ArrayList<>(List.of(inner));

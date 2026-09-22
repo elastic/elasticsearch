@@ -268,7 +268,7 @@ public class CollectionUtils {
         } else if (value instanceof Map<?, ?> mapValue) {
             Map<Object, Object> copy = ordered ? LinkedHashMap.newLinkedHashMap(mapValue.size()) : HashMap.newHashMap(mapValue.size());
             for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
-                copy.put(entry.getKey(), deepCopyInternal(entry.getValue(), options));
+                copy.put(deepCopyInternal(entry.getKey(), options), deepCopyInternal(entry.getValue(), options));
             }
             return (T) (unmodifiable ? Collections.unmodifiableMap(copy) : copy);
         } else if (value instanceof List<?> listValue) {

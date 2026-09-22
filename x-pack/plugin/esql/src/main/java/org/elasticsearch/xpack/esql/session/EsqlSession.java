@@ -122,7 +122,6 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
@@ -1575,18 +1574,6 @@ public class EsqlSession {
         QueryBuilder requestFilter,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
-        analyzedPlan(parsed, unmappedResolution, configuration, executionInfo, requestFilter, null, logicalPlanListener);
-    }
-
-    private void analyzedPlan(
-        LogicalPlan parsed,
-        UnmappedResolution unmappedResolution,
-        Configuration configuration,
-        EsqlExecutionInfo executionInfo,
-        QueryBuilder requestFilter,
-        @Nullable Holder<Set<String>> datasetNamesHolder,
-        ActionListener<Versioned<LogicalPlan>> logicalPlanListener
-    ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         executionInfo.queryProfile().setUnmappedResolution(unmappedResolution);
 
@@ -1602,15 +1589,6 @@ public class EsqlSession {
             QuerySettings.WILDCARDS_MATCH_DATASETS.get(configuration.resolvedSettings()),
             logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
                 datasetResolutionProfile.stop();
-                if (datasetNamesHolder != null) {
-                    datasetNamesHolder.set(
-                        rewritten.collect(UnresolvedExternalRelation.class)
-                            .stream()
-                            .map(UnresolvedExternalRelation::datasetName)
-                            .filter(n -> n != null)
-                            .collect(toSet())
-                    );
-                }
                 analyzedPlanAfterDatasetResolution(rewritten, unmappedResolution, configuration, executionInfo, requestFilter, delegate);
             })
         );

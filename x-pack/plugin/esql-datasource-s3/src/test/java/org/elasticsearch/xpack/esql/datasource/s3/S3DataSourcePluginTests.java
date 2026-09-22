@@ -9,13 +9,16 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 
 import software.amazon.awssdk.core.SdkSystemSetting;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
 import org.junit.Before;
@@ -23,9 +26,11 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static software.amazon.awssdk.core.SdkSystemSetting.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE;
 import static software.amazon.awssdk.core.SdkSystemSetting.AWS_WEB_IDENTITY_TOKEN_FILE;
@@ -93,6 +98,83 @@ public class S3DataSourcePluginTests extends ESTestCase {
             for (String scheme : plugin.supportedSchemes()) {
                 assertSame(Type.fromTypeId(typeId), Type.fromScheme(scheme));
             }
+        }
+    }
+
+    public void testRegisteredValidatorConstrainsTheEndpoint() throws IOException {
+        // S3DataSourceValidatorTests builds its own validator, so it cannot notice the plugin dropping the
+        // endpoint constraint from the one it actually registers. This asserts on the registered instance.
+        try (S3DataSourcePlugin plugin = new S3DataSourcePlugin()) {
+            DataSourceValidator validator = plugin.datasourceValidators(Settings.EMPTY).get("s3");
+            var e = expectThrows(
+                ValidationException.class,
+                () -> validator.validateDatasource(Map.of("endpoint", "https://minio.example.com:9000", "auth", "anonymous"))
+            );
+            assertThat(e.getMessage(), containsString("not a supported AWS S3 endpoint"));
+            var accepted = validator.validateDatasource(Map.of("endpoint", "https://s3.us-east-1.amazonaws.com", "auth", "anonymous"));
+            assertEquals("https://s3.us-east-1.amazonaws.com", accepted.get("endpoint").nonSecretValue());
+        }
+    }
+
+    /** Host names are case-insensitive, so neither the entry's case nor the URL's decides the match. */
+    public void testAllowlistIgnoresCase() throws IOException {
+        Settings settings = Settings.builder().putList(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY, "MinIO.Internal:9000").build();
+        try (S3DataSourcePlugin plugin = new S3DataSourcePlugin()) {
+            DataSourceValidator validator = plugin.datasourceValidators(settings).get("s3");
+            for (String endpoint : List.of("http://minio.internal:9000", "http://MINIO.INTERNAL:9000")) {
+                var accepted = validator.validateDatasource(Map.of("endpoint", endpoint, "auth", "anonymous"));
+                assertEquals(endpoint, accepted.get("endpoint").nonSecretValue());
+            }
+        }
+    }
+
+    /** Drives the automaton the plugin builds; the port-bearing entries pin default-port inference. */
+    public void testAllowlistedHostIsAcceptedOverPlainHttp() throws IOException {
+        Settings settings = Settings.builder()
+            .putList(ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY, "127.0.0.1:9000", "localhost:80", "127.0.0.1:443")
+            .build();
+        try (S3DataSourcePlugin plugin = new S3DataSourcePlugin()) {
+            DataSourceValidator validator = plugin.datasourceValidators(settings).get("s3");
+            for (String endpoint : List.of(
+                "http://127.0.0.1:9000", // the named port, matched as written
+                "http://localhost",      // only matches localhost:80 if http's default port is inferred
+                "https://127.0.0.1"      // and this one only if https infers 443
+            )) {
+                var accepted = validator.validateDatasource(Map.of("endpoint", endpoint, "auth", "anonymous"));
+                assertEquals(endpoint, accepted.get("endpoint").nonSecretValue());
+            }
+            // The list is the enable: a host it does not name gets no waiver, on either the port or the name.
+            for (String endpoint : List.of("http://127.0.0.1:9001", "http://127.0.0.2:9000")) {
+                var e = expectThrows(
+                    ValidationException.class,
+                    () -> validator.validateDatasource(Map.of("endpoint", endpoint, "auth", "anonymous"))
+                );
+                assertThat(e.getMessage(), containsString("must use https"));
+            }
+            // An https host the list does not name falls through to the AWS host rule, not to a waiver.
+            var e = expectThrows(
+                ValidationException.class,
+                () -> validator.validateDatasource(Map.of("endpoint", "https://127.0.0.1:8443", "auth", "anonymous"))
+            );
+            assertThat(e.getMessage(), containsString("not a supported AWS S3 endpoint"));
+        }
+    }
+
+    /** The production default is an empty list, which must waive neither of the two rules it can waive. */
+    public void testEmptyAllowlistWaivesNothing() throws IOException {
+        try (S3DataSourcePlugin plugin = new S3DataSourcePlugin()) {
+            DataSourceValidator validator = plugin.datasourceValidators(Settings.EMPTY).get("s3");
+            var overHttp = expectThrows(
+                ValidationException.class,
+                () -> validator.validateDatasource(Map.of("endpoint", "http://127.0.0.1:9000", "auth", "anonymous"))
+            );
+            assertThat(overHttp.getMessage(), containsString("must use https"));
+            // The same host over https clears the scheme rule and must still be refused by the host rule.
+            var overHttps = expectThrows(
+                ValidationException.class,
+                () -> validator.validateDatasource(Map.of("endpoint", "https://127.0.0.1:9000", "auth", "anonymous"))
+            );
+            assertThat(overHttps.getMessage(), containsString("not a supported AWS S3 endpoint"));
         }
     }
 

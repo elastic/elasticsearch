@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -23,6 +27,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -153,6 +159,15 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
+        List<String> allowed = ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS.get(settings);
+        CharacterRunAutomaton allowedByOperator = new CharacterRunAutomaton(
+            allowed.isEmpty()
+                ? Automata.makeEmpty()
+                : Operations.determinize(
+                    Regex.simpleMatchToAutomaton(allowed.stream().map(e -> e.toLowerCase(Locale.ROOT)).toArray(String[]::new)),
+                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+                )
+        );
         DataSourceValidator v = new FileDataSourceValidator("s3", S3Configuration::fromMap, supportedSchemes()).withAdditionalDatasetKeys(
             Set.of("region")
         )
@@ -162,7 +177,10 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
                     + "set [region] on the dataset instead, or [sts_region] for the STS endpoint region on a federated source, "
                     + "or omit it to have the bucket region detected automatically"
             )
-            .withResourceCheck(S3ResourceCheck::validate);
+            .withResourceCheck(S3ResourceCheck::validate)
+            // The cast holds because this same builder is given S3Configuration::fromMap as its config
+            // factory above, and the validator passes that factory's own product to the check.
+            .withDatasourceCheck((config, errors) -> S3EndpointCheck.validate((S3Configuration) config, allowedByOperator::run, errors));
         return Map.of(v.type(), v);
     }
 

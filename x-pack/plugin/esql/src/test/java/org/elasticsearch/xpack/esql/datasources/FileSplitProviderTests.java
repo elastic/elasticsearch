@@ -5098,6 +5098,11 @@ public class FileSplitProviderTests extends ESTestCase {
             }
 
             @Override
+            public Set<String> schemaAffectingKeys() {
+                return Set.of();
+            }
+
+            @Override
             public List<SplitRange> discoverSplitRanges(StorageObject object) throws IOException {
                 return List.of(new SplitRange(0, object.length()));
             }

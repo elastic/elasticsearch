@@ -168,9 +168,9 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             );
         }
         if (cause instanceof BlobStorageException precondition && precondition.getStatusCode() == 412) {
-            return new ExternalObjectChangedException("External data object was modified during read", cause);
+            return new ExternalObjectChangedException("External data object [" + path.objectName() + "] was modified during read", cause);
         }
-        return new IOException(context + " external data", cause);
+        return new IOException(context + " [" + path.objectName() + "]", cause);
     }
 
     /**
@@ -219,7 +219,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             fetchMetadata();
         }
         if (cachedExists != null && cachedExists == false) {
-            throw new IOException("External data object not found");
+            throw new IOException("External data object not found: [" + path.objectName() + "]");
         }
         return cachedLength;
     }
@@ -269,7 +269,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         String current = pinnedEtag.get();
         if (etag == null || etag.isBlank() || etag.regionMatches(true, 0, "W/", 0, 2)) {
             if (current != null) {
-                throw new ExternalObjectChangedException("External data object was modified during read");
+                throw new ExternalObjectChangedException("External data object [" + path.objectName() + "] was modified during read");
             }
             return;
         }
@@ -280,7 +280,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             current = pinnedEtag.get();
         }
         if (current.equals(etag) == false) {
-            throw new ExternalObjectChangedException("External data object was modified during read");
+            throw new ExternalObjectChangedException("External data object [" + path.objectName() + "] was modified during read");
         }
     }
 
@@ -338,7 +338,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             } else if (e instanceof BlobStorageException bse && bse.getStatusCode() == 403) {
                 fetchMetadataViaRangeGet();
             } else {
-                throw new IOException("Failed to get external object metadata", e);
+                throw new IOException("Failed to get metadata for [" + path.objectName() + "]", e);
             }
         }
     }
@@ -362,7 +362,9 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             observeEtag(headers.getETag());
             Long total = ContentRangeParser.parseTotalLength(headers.getContentRange());
             if (total == null) {
-                throw new IOException("Failed to determine external object size: Content-Range header missing from range GET response");
+                throw new IOException(
+                    "Failed to determine size for [" + path.objectName() + "]: Content-Range header missing from range GET response"
+                );
             }
             cachedLength = total;
             cachedLastModified = headers.getLastModified() != null ? headers.getLastModified().toInstant() : null;
@@ -376,7 +378,10 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
                 // path reports; keep the typing rather than flattening it to a client-class 400.
                 throw throwReadFailure("Failed to get metadata for", e);
             } else {
-                throw new IOException("Failed to get external object metadata (properties denied, range GET also failed)", e);
+                throw new IOException(
+                    "Failed to get metadata for [" + path.objectName() + "] (properties denied, range GET also failed)",
+                    e
+                );
             }
         }
     }

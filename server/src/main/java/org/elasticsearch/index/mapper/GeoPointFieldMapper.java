@@ -477,21 +477,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 );
             }
             if (latPresent == false) {
-                if (validity == null) {
-                    validity = new FixedBitSet(docCount);
-                    for (int r = 0; r < row; r++) {
-                        validity.set(r);
-                    }
-                }
+                validity = initValidity(validity, docCount, row);
                 continue;
             }
             if (latCol.isNull(row) || lonCol.isNull(row)) {
-                if (validity == null) {
-                    validity = new FixedBitSet(docCount);
-                    for (int r = 0; r < row; r++) {
-                        validity.set(r);
-                    }
-                }
+                validity = initValidity(validity, docCount, row);
                 continue;
             }
             double lat = readCoordinate(latCol, row);
@@ -551,6 +541,16 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 "geo_point at own path [" + fullPath() + "] uses an unsupported value form for columnar batch indexing"
             );
         }
+    }
+
+    private static FixedBitSet initValidity(FixedBitSet validity, int docCount, int row) {
+        if (validity == null) {
+            validity = new FixedBitSet(docCount);
+            for (int r = 0; r < row; r++) {
+                validity.set(r);
+            }
+        }
+        return validity;
     }
 
     private static boolean isNumericCoordinateKind(byte kind) {

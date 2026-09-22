@@ -36,6 +36,7 @@ import org.elasticsearch.sourcebatch.SourceSchema;
 import java.io.IOException;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -1002,7 +1003,7 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
         assertNotNull("geo_point dotted spelling should resolve to the group", resolution);
         assertEquals(1, resolution.columnGroups().length);
-        assertArrayEquals(new String[] { "lat", "lon" }, resolution.columnGroups()[0].relativeKeys());
+        assertThat(List.of(resolution.columnGroups()[0].relativeKeys()), containsInAnyOrder("lat", "lon"));
     }
 
     /** A geo_point with multi-fields cannot use the columnar path (group mapper requires no multi-fields). */

@@ -39,6 +39,8 @@ import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
+import org.elasticsearch.index.query.GeoDistanceQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -2877,9 +2879,7 @@ public class BatchBulkIT extends ESIntegTestCase {
 
         // geo_bounding_box over Europe: London and Paris, but not Tokyo or unknown.
         assertResponse(
-            prepareSearch(index).setQuery(
-                new org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder("loc").setCorners(55.0, 10.0, 45.0, -5.0)
-            ).setSize(10),
+            prepareSearch(index).setQuery(new GeoBoundingBoxQueryBuilder("loc").setCorners(55.0, -5.0, 45.0, 10.0)).setSize(10),
             searchResponse -> {
                 assertNoFailures(searchResponse);
                 final long hits = searchResponse.getHits().getTotalHits().value();
@@ -2889,9 +2889,7 @@ public class BatchBulkIT extends ESIntegTestCase {
 
         // geo_distance: points within 200 km of Paris — only Paris itself.
         assertResponse(
-            prepareSearch(index).setQuery(
-                new org.elasticsearch.index.query.GeoDistanceQueryBuilder("loc").point(48.8566, 2.3522).distance("200km")
-            ).setSize(10),
+            prepareSearch(index).setQuery(new GeoDistanceQueryBuilder("loc").point(48.8566, 2.3522).distance("200km")).setSize(10),
             searchResponse -> {
                 assertNoFailures(searchResponse);
                 assertThat("expected only Paris within 200 km", searchResponse.getHits().getTotalHits().value(), equalTo(1L));

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 159928
+summary: Configure remote fetch workers
+type: enhancement

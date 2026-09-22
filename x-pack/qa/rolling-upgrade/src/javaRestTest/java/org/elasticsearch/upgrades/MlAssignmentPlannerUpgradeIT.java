@@ -7,6 +7,8 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -17,7 +19,9 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,7 +36,7 @@ import static org.elasticsearch.client.WarningsHandler.PERMISSIVE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
+public class MlAssignmentPlannerUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
 
     private static final boolean IS_SINGLE_PROCESSOR_TEST = Booleans.parseBoolean(
         System.getProperty("tests.configure_test_clusters_with_one_processor", "false")
@@ -69,43 +73,52 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
     }
 
+    @ClassRule
+    public static ElasticsearchCluster cluster = buildCluster();
+
+    public MlAssignmentPlannerUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
+    }
+
     public void testMlAssignmentPlannerUpgrade() throws Exception {
         assumeFalse("This test deploys multiple models which cannot be accommodated on a single processor", IS_SINGLE_PROCESSOR_TEST);
 
         logger.info("Starting testMlAssignmentPlannerUpgrade, model size {}", RAW_MODEL_SIZE);
 
-        switch (CLUSTER_TYPE) {
-            case OLD -> {
-                // setup deployments using old and new memory format
-                setupDeployments();
+        if (isOldCluster()) {
+            // setup deployments using old and new memory format
+            setupDeployments();
 
-                waitForDeploymentStarted("old_memory_format");
-                waitForDeploymentStarted("new_memory_format");
+            waitForDeploymentStarted("old_memory_format");
+            waitForDeploymentStarted("new_memory_format");
 
-                // assert correct memory format is used
-                assertOldMemoryFormat("old_memory_format");
-                assertNewMemoryFormat("new_memory_format");
-            }
-            case MIXED -> {
-                ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
-                waitForDeploymentStarted("old_memory_format");
-                waitForDeploymentStarted("new_memory_format");
+            // assert correct memory format is used
+            assertOldMemoryFormat("old_memory_format");
+            assertNewMemoryFormat("new_memory_format");
+        }
+        if (isMixedCluster()) {
+            ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
+            waitForDeploymentStarted("old_memory_format");
+            waitForDeploymentStarted("new_memory_format");
 
-                // assert correct memory format is used
-                assertOldMemoryFormat("old_memory_format");
-                assertNewMemoryFormat("new_memory_format");
-            }
-            case UPGRADED -> {
-                ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
-                waitForDeploymentStarted("old_memory_format");
-                waitForDeploymentStarted("new_memory_format");
+            // assert correct memory format is used
+            assertOldMemoryFormat("old_memory_format");
+            assertNewMemoryFormat("new_memory_format");
+        }
+        if (isUpgradedCluster()) {
+            ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
+            waitForDeploymentStarted("old_memory_format");
+            waitForDeploymentStarted("new_memory_format");
 
-                // assert correct memory format is used
-                assertOldMemoryFormat("old_memory_format");
-                assertNewMemoryFormat("new_memory_format");
+            assertOldMemoryFormat("old_memory_format");
+            assertNewMemoryFormat("new_memory_format");
 
-                cleanupDeployments();
-            }
+            cleanupDeployments();
         }
     }
 
@@ -136,7 +149,11 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
         Long expectedMemoryUsage = ByteSizeValue.ofMb(240).getBytes() + RAW_MODEL_SIZE * 2;
         Integer actualMemoryUsage = (Integer) XContentMapValues.extractValue("model_size_stats.required_native_memory_bytes", stat);
         assertThat(
-            Strings.format("Memory usage mismatch for the model %s in cluster state %s", modelId, CLUSTER_TYPE.toString()),
+            Strings.format(
+                "Memory usage mismatch for the model %s in cluster state %s",
+                modelId,
+                isOldCluster() ? "old" : isMixedCluster() ? "mixed" : "upgraded"
+            ),
             actualMemoryUsage,
             equalTo(expectedMemoryUsage.intValue())
         );
@@ -274,7 +291,7 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
         String inferenceThreadParamName = "threads_per_allocation";
         String modelThreadParamName = "number_of_allocations";
         String compatibleHeader = null;
-        if (CLUSTER_TYPE.equals(ClusterType.OLD) || CLUSTER_TYPE.equals(ClusterType.MIXED)) {
+        if (isOldCluster() || isMixedCluster()) {
             compatibleHeader = compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_8);
             inferenceThreadParamName = "inference_threads";
             modelThreadParamName = "model_threads";

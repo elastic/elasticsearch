@@ -177,6 +177,9 @@ tests:
 - class: org.elasticsearch.gradle.internal.SymbolicLinkPreservingTarFuncTest
   method: build BZip2 tar with preserverTimestamp true
   issue: https://github.com/elastic/elasticsearch/issues/159874
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
+  method: testOneRemoteClusterPartial
+  issue: https://github.com/elastic/elasticsearch/issues/159938
 
 # Examples:
 #

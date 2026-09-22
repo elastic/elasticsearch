@@ -63,9 +63,9 @@ public class StatsInvalidationScopeTests extends ESTestCase {
         ExternalStats.CONFIG_FINGERPRINT_KEY,
         // Which read produced the entry, not a measurement over its rows — so a row drop does not invalidate it.
         ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
-        // The same identity spelled out: which columns the read bound, at what types and patterns, how it bound them
-        // and what it made of a blank string cell. The per-column merge reads these instead of the hash above, which
-        // can only answer "same" or "different" for the whole schema at once.
+        // The same identity spelled out: which columns the read bound, at what types and patterns, and how it bound
+        // them. The per-column merge reads these instead of the hash above, which can only answer "same" or
+        // "different" for the whole schema at once.
         ExternalStats.READ_COLUMN_NAMES_KEY,
         ExternalStats.READ_COLUMN_TYPES_KEY,
         ExternalStats.READ_COLUMN_DATE_FORMATS_KEY,

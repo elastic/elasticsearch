@@ -797,7 +797,10 @@ public class ExternalSourceCacheService implements Closeable {
      * that, the row count crosses, and a column crosses only when both reads must have seen the same cells in it:
      * <ol>
      *   <li>the entry holds a column of that name at the same type;</li>
-     *   <li>neither side parsed it with a declared date pattern, which decides which values parse;</li>
+     *   <li>the contributing read parsed it with no declared date pattern, which decides which values parse. The
+     *       entry's side is not checked, because an entry does not record one: the rails that read with declared
+     *       patterns serve no per-column statistics from a shared entry ({@code ExternalSourceResolver#rowCountOnlyStats}
+     *       on the strict single-file rail, and no per-file entry at all on the strict multi-file one);</li>
      *   <li>it is the same physical field — bound by name, or bound by position at the same index into an entry whose
      *       columns are the file's own (a part whose header permutes the anchor's fails this).</li>
      * </ol>

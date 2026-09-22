@@ -281,15 +281,6 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
     }
 
     /**
-     * A ragged corpus: the anchor part has three columns and the later part four. Under {@code first_file_wins} the
-     * inferred dataset reads every part at the anchor's three, and the CSV reader drops a row wider than the schema
-     * it was read at — so that dataset's own COUNT(*) does not include the wider part's rows. A declared dataset over
-     * the same files reads all four columns, drops nothing, and its count is licensed as the file's physical one.
-     * <p>
-     * The question this pins is whether that licensed count can then answer for the narrower read, which would make
-     * a warm COUNT(*) disagree with the cold one over the same dataset. Warm must equal cold, whichever ran first.
-     */
-    /**
      * A ragged corpus read two ways that SHARE a cache namespace. Both datasets carry the same format settings —
      * `schema_resolution` and `file_sort_by` are part of the cache key, so anything else gives them separate
      * entries and tests nothing — and differ only in their mapping: one infers, and reads every part at the

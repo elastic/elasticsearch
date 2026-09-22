@@ -737,11 +737,6 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     /**
-     * Two columns, {@code id LONG} and {@code color KEYWORD}, in the file's own order. A licensed delta from a read
-     * that saw {@code id} the same way and {@code color} differently may enrich the entry with {@code id} and the
-     * row count, and with nothing of {@code color} — and the entry must still describe its OWN read afterwards.
-     */
-    /**
      * The stripe-rail twin of the survivor-count refusal: an entry holding a stripe from a read that dropped rows
      * describes a different row set from the crossing read's, so nothing may cross into it. Without this,
      * {@code mergeCrossedStripe}'s assertion — the crossing rules make a disagreement impossible — is not true.
@@ -852,6 +847,11 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * Two columns, {@code id LONG} and {@code color KEYWORD}, in the file's own order. A licensed delta from a read
+     * that saw {@code id} the same way and {@code color} differently may enrich the entry with {@code id} and the
+     * row count, and with nothing of {@code color} — and the entry must still describe its OWN read afterwards.
+     */
     public void testLicensedForeignStripeDeltaMergesIdenticallyReadColumnsOnly() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/a.csv";
@@ -913,11 +913,6 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     /**
-     * B2: a positional read binds the i-th column to the i-th physical field, so its statistics may only be paired
-     * with an entry column at the SAME index. A part whose header permutes the anchor's columns would otherwise
-     * have one column's statistics written under another column's name.
-     */
-    /**
      * A declared date pattern decides which of a column's values parse at all, so the same column read with and
      * without one holds different values — its null count, value count and extrema describe different cells, even
      * where the name and type agree. A numeric column beside it, read the same way on both sides, still crosses.
@@ -970,6 +965,11 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * B2: a positional read binds the i-th column to the i-th physical field, so its statistics may only be paired
+     * with an entry column at the SAME index. A part whose header permutes the anchor's columns would otherwise
+     * have one column's statistics written under another column's name.
+     */
     public void testPositionalCrossingRequiresSamePositionAndName() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/b.csv";
@@ -1009,21 +1009,17 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(foreign)));
 
             Map<String, Object> stripe = stripeAt(service.getOrComputeSchema(key, k -> { throw new AssertionError("cached"); }), 0);
-            if (stripe != null) {
-                assertNull(
-                    "a positional read holding [n] at index 0 describes the entry's [id]; it must not cross as [n]",
-                    stripe.get(SourceStatisticsSerializer.columnMinKey("n"))
-                );
-                assertNull("and the same for [id] at index 1", stripe.get(SourceStatisticsSerializer.columnMinKey("id")));
-            }
+            // The licensed row count crosses whatever the columns do, so the stripe must be there: guarding the
+            // assertions on it would let a regression that stops committing crossed stripes pass unnoticed.
+            assertNotNull("the licensed row count crosses, so the entry holds a stripe", stripe);
+            assertNull(
+                "a positional read holding [n] at index 0 describes the entry's [id]; it must not cross as [n]",
+                stripe.get(SourceStatisticsSerializer.columnMinKey("n"))
+            );
+            assertNull("and the same for [id] at index 1", stripe.get(SourceStatisticsSerializer.columnMinKey("id")));
         }
     }
 
-    /**
-     * An entry that already measured its own read, enriched by a licensed whole-file contribution from a different
-     * one. The row count crosses; the entry's own measurement of a column it already measured is kept rather than
-     * replaced by the other read's.
-     */
     /**
      * An entry never records a read identity, not even its own read's: the stamped keys travel on the wire
      * contribution and {@code toFlatMap} drops them, so nothing writes them into an entry. An entry is therefore never
@@ -1111,6 +1107,11 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * An entry that already measured its own read, enriched by a licensed whole-file contribution from a different
+     * one. The row count crosses; the entry's own measurement of a column it already measured is kept rather than
+     * replaced by the other read's.
+     */
     public void testWholeFileCrossingKeepsTheEntrysOwnColumnMeasurements() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/probe.csv";
@@ -1136,10 +1137,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             foreign.put(ExternalStats.READ_COLUMN_TYPES_KEY, List.of("long"));
             foreign.put(ExternalStats.READ_BINDING_KEY, ExternalStats.BINDING_BY_POSITION);
             foreign.put(SourceStatisticsSerializer.columnMaxKey("id"), 999L);
+            // A key the entry holds nothing for, so the assertions below can tell "the entry kept its own" from
+            // "nothing crossed at all".
+            foreign.put(SourceStatisticsSerializer.columnMinKey("id"), 1L);
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(foreign)));
 
             SchemaCacheEntry after = service.getOrComputeSchema(key, k -> { throw new AssertionError("cached"); });
-            // First: the contribution must actually have reached the entry, or the assertion below says nothing.
             assertEquals(
                 "the entry's own row count is kept rather than replaced by another read's",
                 999L,
@@ -1149,6 +1152,13 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 "nor is its own measurement of a column it already measured",
                 998L,
                 after.safeMetadata().get(SourceStatisticsSerializer.columnMaxKey("id"))
+            );
+            // And the contribution did reach the entry: a column the entry had not measured landed. Without this
+            // the test would pass just as well if crossing were refused outright, which is a different bug.
+            assertEquals(
+                "a column the entry never measured is filled by the crossing",
+                1L,
+                after.safeMetadata().get(SourceStatisticsSerializer.columnMinKey("id"))
             );
         }
     }

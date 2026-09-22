@@ -314,9 +314,11 @@ public class CsvStatsCaptureTests extends ESTestCase {
     }
 
     /**
-     * Headerless is never licensed under {@code null_field}, even having dropped nothing: a positional read bounds a
-     * row's width by its own schema, so a wider read of the same file keeps rows this one drops and the two counts
-     * disagree. Dropping the {@code headerRow()} conjunct fails this.
+     * Headerless is never licensed under {@code null_field}, even having dropped nothing. The conjunct is belt and
+     * braces rather than the load-bearing rule — a read that lost a wider row counts it, so the measurement refuses
+     * that read anyway, and the width bound belongs to positional binding rather than to a missing header (see
+     * {@code CsvFormatReader.CsvBatchIterator#rowCountIsPhysical}). This pins the conjunct while it stands:
+     * dropping {@code headerRow()} fails it.
      */
     public void testHeaderlessNullFieldIsNeverLicensed() throws Exception {
         ErrorPolicy nullField = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 10, 1.0, false);

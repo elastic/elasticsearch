@@ -1274,6 +1274,7 @@ public class ExternalSourceResolver {
                 : SchemaReconciliation.computeMapping(dataOnlySchema, physicalSchema);
             StoragePath anchorPath = listing.path(0);
             Map<String, DataType> anchorNativeTypes = attributesToTypeMap(physicalSchema);
+            Set<String> anchorColumnNames = anchorNativeTypes.keySet();
             for (int i = 0; i < listing.fileCount(); i++) {
                 // The dataset-level aggregate on extMetadata is a fold and cannot be assigned to an
                 // individual file. Each file's own harvest lives on its schema-cache entry (and, for a
@@ -1295,7 +1296,7 @@ public class ExternalSourceResolver {
                 // entry these reads share. Both numbers are right and they are not the same number, so this read
                 // serves none of that file's statistics and its aggregates re-scan.
                 SourceStatistics fileStats = fileStatisticsForFirstFileWins(listing, extMetadata, cached);
-                if (fileStats != null && anchorBindsEveryColumnOf(fileSchema.attributes(), inferred)) {
+                if (fileStats != null && holdsColumnsNotIn(anchorColumnNames, inferred)) {
                     fileStats = null;
                 }
                 perFileInfo.put(path, new SchemaReconciliation.FileSchemaInfo(fileSchema, mapping, fileStats, inferred));
@@ -1314,22 +1315,6 @@ public class ExternalSourceResolver {
      * that harvest is the file's own, not a cross-file fold.
      */
     @Nullable
-    /**
-     * True when the file's own inferred columns include one the read schema has no slot for. {@code inferred} is
-     * this file's own column set where the resolve captured it; without it there is nothing to compare and the
-     * answer is false — the read-schema-blind cache's existing behaviour, unchanged.
-     */
-    private static boolean anchorBindsEveryColumnOf(List<Attribute> readSchema, @Nullable Map<String, DataType> inferred) {
-        if (inferred == null || inferred.isEmpty()) {
-            return false;
-        }
-        Set<String> bindable = new HashSet<>(readSchema.size());
-        for (Attribute attribute : readSchema) {
-            bindable.add(attribute.name());
-        }
-        return bindable.containsAll(inferred.keySet()) == false;
-    }
-
     private static SourceStatistics fileStatisticsForFirstFileWins(
         FileList listing,
         ExternalSourceMetadata extMetadata,
@@ -2697,13 +2682,21 @@ public class ExternalSourceResolver {
             return false; // the anchor's own columns are unknown, so there is nothing to compare against
         }
         for (int i = 1; i < listing.fileCount(); i++) {
-            Map<String, DataType> fileTypes = inferredTypes.get(listing.path(i));
-            if (fileTypes != null && anchor.keySet().containsAll(fileTypes.keySet()) == false) {
+            if (holdsColumnsNotIn(anchor.keySet(), inferredTypes.get(listing.path(i)))) {
                 LOGGER.debug("multi-file stats aggregate refused: [{}] holds columns the anchor cannot bind", listing.path(i));
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * True when {@code fileColumns} holds a column {@code bindable} does not, which is what makes a file wider than
+     * the schema it is read at. Null or empty file columns answer false: the resolve did not capture that file's own
+     * column set, so there is nothing to compare and the read-schema-blind cache behaves as it did before.
+     */
+    private static boolean holdsColumnsNotIn(Set<String> bindable, @Nullable Map<String, DataType> fileColumns) {
+        return fileColumns != null && fileColumns.isEmpty() == false && bindable.containsAll(fileColumns.keySet()) == false;
     }
 
     private static void collectInferredTypes(FileList listing, List<SourceMetadata> allMeta, Map<StoragePath, Map<String, DataType>> into) {

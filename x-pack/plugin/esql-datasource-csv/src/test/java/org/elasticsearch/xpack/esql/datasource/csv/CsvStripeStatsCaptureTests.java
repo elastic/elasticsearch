@@ -337,9 +337,9 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
     }
 
     /**
-     * Every contribution names what the read DID — the columns it bound in read order, the type each was read at, how
-     * and how it bound them. A per-column merge needs these; the read-configuration
-     * hash beside them can only say "same" or "different" for the whole schema at once.
+     * Every contribution names what the read DID — the columns it bound in read order, the type each was read at,
+     * and how it bound them. A per-column merge needs these; the read-configuration hash beside them can only say
+     * "same" or "different" for the whole schema at once.
      */
     public void testReadIdentityIsStampedOnEveryContribution() throws Exception {
         byte[] bytes = "n\n1\n2\n3\n".getBytes(StandardCharsets.UTF_8);

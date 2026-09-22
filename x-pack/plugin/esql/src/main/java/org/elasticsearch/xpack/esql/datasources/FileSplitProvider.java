@@ -1578,8 +1578,6 @@ public class FileSplitProvider implements SplitProvider {
             }
             FormatReader configuredReader = resolveConfiguredReader(task.filePath(), task.config());
             if (configuredReader != null && task.declaredReadSpec().bindsByName()) {
-                // Binding only: the split side asks this reader where a record may start, and the blank-cell rule
-                // decides a cell's value, never a boundary. FileSourceFactory applies both to the reading side.
                 configuredReader = configuredReader.withNameBinding(true);
             }
             if (requiresSequentialWholeFileRead(configuredReader)) {

@@ -204,6 +204,9 @@ tests:
 - class: org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperatorTests
   method: testMultivaluedGroupColumnProducesWarning
   issue: https://github.com/elastic/elasticsearch/issues/152929
+- class: org.elasticsearch.xpack.logsdb.qa.BulkStoredSourceChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/160023
 
 # Examples:
 #

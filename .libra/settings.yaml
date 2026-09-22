@@ -3,6 +3,8 @@ enabled: true
 review_drafts: false
 required_labels:
   - Team:Core/Infra
+skip_labels:
+  - backport
 paths:
   exclude:
     - "**/generated/**"

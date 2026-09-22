@@ -430,6 +430,7 @@ rows:long | n:long
 parquetUbnLikeOnPresentColumnWithRecheckConjunct
 required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
+required_capability: external_parquet_like_missing_column_rejects_rows
 dataset: employees_multifile_ubn_like_recheck_union: "{{employees_multifile_ubn_like_recheck}}" WITH {"schema_resolution": "union_by_name"}
 
 FROM employees_multifile_ubn_like_recheck_union

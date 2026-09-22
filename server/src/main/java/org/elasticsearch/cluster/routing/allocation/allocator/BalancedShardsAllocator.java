@@ -1064,11 +1064,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 if (moveDecision.isDecisionTaken() && moveDecision.cannotRemainAndCanMove()) {
                     // Defer moving of not-preferred until we've moved the NOs
                     if (moveDecision.getCanRemainDecision().type() == Type.NOT_PREFERRED) {
-                        bestNonPreferredShardMovementsTracker.putBestMoveDecision(
-                            shardRouting,
-                            moveDecision,
-                            moveDecisionWithDeciderName.canRemainDeciderName()
-                        );
+                        bestNonPreferredShardMovementsTracker.putBestMoveDecision(shardRouting, moveDecisionWithDeciderName);
                     } else if (moveDecision.getAllocationDecision() == AllocationDecision.YES
                         || canAllocateDecisions == CanAllocateDecisions.YES_OR_NOT_PREFERRED) {
                             executeMove(shardRouting, index, moveDecision, MoveType.CANNOT_REMAIN);
@@ -1124,11 +1120,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             boolean shardMoved
         ) {
             if (notPreferredLogger.isDebugEnabled() == false && shardMoved == false) {
-                return new MoveDecisionWithDeciderName(
-                    storedShardMovement.moveDecision(),
-                    storedShardMovement.canRemainDeciderName(),
-                    null
-                );
+                return storedShardMovement.moveDecisionWithDeciderName();
             }
 
             final var oldDebugMode = allocation.getDebugMode();
@@ -1401,11 +1393,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          */
         private class BestShardMovementsTracker {
 
-            public record StoredShardMovement(
-                ShardRouting shardRouting,
-                MoveDecision moveDecision,
-                @Nullable String canRemainDeciderName
-            ) {}
+            public record StoredShardMovement(ShardRouting shardRouting, MoveDecisionWithDeciderName moveDecisionWithDeciderName) {}
 
             // LinkedHashMap so we iterate in insertion order
             private final Map<String, StoredShardMovement> bestShardMovementsByNode = new LinkedHashMap<>();
@@ -1431,10 +1419,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 return comparison < 0;
             }
 
-            public void putBestMoveDecision(ShardRouting shardRouting, MoveDecision moveDecision, @Nullable String canRemainDeciderName) {
+            public void putBestMoveDecision(ShardRouting shardRouting, MoveDecisionWithDeciderName moveDecisionWithDeciderName) {
                 bestShardMovementsByNode.put(
                     shardRouting.currentNodeId(),
-                    new StoredShardMovement(shardRouting, moveDecision, canRemainDeciderName)
+                    new StoredShardMovement(shardRouting, moveDecisionWithDeciderName)
                 );
             }
 

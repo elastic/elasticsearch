@@ -51,11 +51,15 @@ public class ES93HnswBinaryQuantizedBFloat16VectorsFormatTests extends BaseQuant
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth, int numMergeWorkers, ExecutorService service) {
+        return createFormat(maxConn, beamWidth, numMergeWorkers, service, random().nextBoolean());
+    }
+
+    protected KnnVectorsFormat createFormat(int maxConn, int beamWidth, int numMergeWorkers, ExecutorService service, boolean useDirectIO) {
         return new ES93HnswBinaryQuantizedVectorsFormat(
             maxConn,
             beamWidth,
             DenseVectorFieldMapper.ElementType.BFLOAT16,
-            random().nextBoolean(),
+            useDirectIO,
             numMergeWorkers,
             service
         );
@@ -86,15 +90,7 @@ public class ES93HnswBinaryQuantizedBFloat16VectorsFormatTests extends BaseQuant
         String memSegScorer = expected.replaceAll("\\{}", "ESDefaultFlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())");
         String nativeScorer = expected.replaceAll("\\{}", "PanamaFlatVectorScorer()");
 
-        // useDirectIO is part of the toString, so this format takes a fixed flag rather than createFormat's random one
-        KnnVectorsFormat format = new ES93HnswBinaryQuantizedVectorsFormat(
-            10,
-            20,
-            DenseVectorFieldMapper.ElementType.BFLOAT16,
-            false,
-            1,
-            null
-        );
+        KnnVectorsFormat format = createFormat(10, 20, 1, null, false);
         assertThat(format, hasToString(oneOf(defaultScorer, memSegScorer, nativeScorer)));
     }
 

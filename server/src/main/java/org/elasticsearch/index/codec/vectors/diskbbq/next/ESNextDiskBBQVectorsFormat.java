@@ -64,8 +64,8 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
 
     public static final int VERSION_START = 1;
     public static final int VERSION_DIRECT_IO = VERSION_START;
-    public static final int VERSION_ON_DISK_MERGE = 2;
-    public static final int VERSION_CURRENT = VERSION_ON_DISK_MERGE;
+    public static final int VERSION_ON_DISK_MERGE = VERSION_START;
+    public static final int VERSION_CURRENT = VERSION_START;
     public static final float DYNAMIC_VISIT_RATIO = 0.0f;
 
     private static final DirectIOCapableFlatVectorsFormat float32VectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(

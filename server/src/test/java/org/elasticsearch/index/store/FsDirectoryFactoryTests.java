@@ -35,6 +35,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -58,6 +59,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 import java.util.zip.CRC32;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.not;
 
 public class FsDirectoryFactoryTests extends ESTestCase {
 
@@ -257,16 +262,21 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             // these assertions only mean something where the raw vector file itself does go direct
             if (direct) {
                 try (IndexOutput meta = dir.createOutput("_0.vemf", directIOMergeContext())) {
-                    assertFalse("only raw vector files take the merge delegate", meta.toString().contains("DirectIOIndexOutput"));
+                    assertThat(
+                        "only raw vector files take the merge delegate",
+                        meta,
+                        hasToString(not(containsString("DirectIOIndexOutput")))
+                    );
                     meta.writeInt(7);
                 }
                 try (IndexOutput ctrl = dir.createOutput("_0_ctrl.vec", directIOMergeContext())) {
                     ctrl.writeInt(7);
                 }
                 try (IndexInput meta = dir.openInput("_0.vemf", directIOMergeContext())) {
-                    assertFalse(
+                    assertThat(
                         "only raw vector files take the merge delegate on open too",
-                        meta.toString().contains("DirectIOIndexInput")
+                        meta,
+                        hasToString(not(containsString("DirectIOIndexInput")))
                     );
                     assertEquals(7, meta.readInt());
                 }
@@ -280,10 +290,10 @@ public class FsDirectoryFactoryTests extends ESTestCase {
                 }
             }
             try (IndexOutput plain = dir.createOutput("_0_plain.vec", IOContext.merge(new MergeInfo(10, 1024, false, -1)))) {
-                assertFalse(plain.toString().contains("DirectIOIndexOutput"));
+                assertThat(plain, hasToString(not(containsString("DirectIOIndexOutput"))));
             }
             try (IndexOutput plain = dir.createOutput("_0_flush.vec", IOContext.DEFAULT.withHints(DirectIOHint.INSTANCE))) {
-                assertFalse(plain.toString().contains("DirectIOIndexOutput"));
+                assertThat(plain, hasToString(not(containsString("DirectIOIndexOutput"))));
             }
 
             // deliberately not a multiple of any block or buffer size, to exercise the unaligned
@@ -292,11 +302,12 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             random().nextBytes(data);
 
             long checksum;
+            Matcher<String> directOutput = containsString("DirectIOIndexOutput");
             try (IndexOutput out = dir.createOutput("_0_direct.vec", directIOMergeContext())) {
-                assertEquals(
+                assertThat(
                     "a merge-hinted create must take the same path as every other on this directory",
-                    direct,
-                    out.toString().contains("DirectIOIndexOutput")
+                    out,
+                    hasToString(direct ? directOutput : not(directOutput))
                 );
                 out.writeBytes(data, data.length);
                 assertEquals(data.length, out.getFilePointer());
@@ -383,7 +394,11 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             )
         ) {
             try (IndexOutput out = dir.createOutput("_0.vec", directIOMergeContext())) {
-                assertFalse("the probe failed, so this must be the buffered path", out.toString().contains("DirectIOIndexOutput"));
+                assertThat(
+                    "the probe failed, so this must be the buffered path",
+                    out,
+                    hasToString(not(containsString("DirectIOIndexOutput")))
+                );
                 out.writeInt(3);
             }
             assertEquals("the probe is the one direct attempt", 1, directAttempts.size());

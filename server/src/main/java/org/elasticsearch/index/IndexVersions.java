@@ -279,8 +279,6 @@ public class IndexVersions {
     // ids only the current codec can read off nodes that cannot read them (see IndexVersionAllocationDecider).
     public static final IndexVersion ELASTICSEARCH_STORED_FIELDS_FORMAT = def(9_114_0_00, Version.LUCENE_10_5_1);
     public static final IndexVersion MALFORMED_VALUES_IN_ON_FAILURE_COLUMN = def(9_115_0_00, Version.LUCENE_10_5_1);
-    // Deliberately unreferenced: defining it raises IndexVersion.current(), which keeps segments that record on_disk_merge in
-    // their vector format meta off nodes that cannot read that byte (see IndexVersionAllocationDecider).
     public static final IndexVersion DENSE_VECTOR_ON_DISK_MERGE = def(9_116_0_00, Version.LUCENE_10_5_1);
 
     /*

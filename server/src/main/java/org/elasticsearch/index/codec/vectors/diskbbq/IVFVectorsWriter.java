@@ -647,6 +647,8 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         }
         if (shouldWriteOnDiskMerge) {
             ivfMeta.writeByte(onDiskMerge ? (byte) 1 : 0);
+        } else {
+            assert onDiskMerge == false : "onDiskMerge is true but shouldWriteOnDiskMerge is false";
         }
         ivfMeta.writeInt(field.getVectorEncoding().ordinal());
         ivfMeta.writeInt(distFuncToOrd(field.getVectorSimilarityFunction()));

@@ -52,8 +52,6 @@ fi
 
 export GCP_PREEMPTION_EXIT_CODE=47
 
-source .buildkite/scripts/setup_node.sh
-
 vault_with_retry() {
   local attempt delays=(1 5 10)
   for attempt in 0 1 2 3; do
@@ -68,6 +66,44 @@ vault_with_retry() {
   echo "Vault command failed after 4 attempts" >&2
   return 1
 }
+
+# Most jobs still provision their own Node.js toolchain via setup_node.sh.
+# The agentic workflow instead uses the Node.js and archimedes distribution
+# baked into the elasticsearch-* agent images.
+if [[ "${USE_ARCHIMEDES:-}" == "true" ]]; then
+  # Fail closed before any vault access if another pipeline tries to opt into
+  # the agentic workflow runtime.
+  if [[ "${BUILDKITE_PIPELINE_SLUG:-}" != "elasticsearch-agentic-workflow" ]]; then
+    echo "USE_ARCHIMEDES=true is only permitted on the elasticsearch-agentic-workflow pipeline" \
+         "(got '${BUILDKITE_PIPELINE_SLUG:-<unset>}'); refusing to read agentic-workflow secrets" >&2
+    exit 1
+  fi
+
+  export NVM_DIR="${HOME}/.nvm"
+  if [[ ! -s "${NVM_DIR}/nvm.sh" ]]; then
+    echo "expected baked nvm at ${NVM_DIR}/nvm.sh; the elasticsearch agent image is missing the preinstalled Node.js runtime" >&2
+    exit 1
+  fi
+
+  # shellcheck source=/dev/null
+  . "${NVM_DIR}/nvm.sh"
+  if ! nvm use default >/dev/null; then
+    echo "failed to activate the baked default Node.js via nvm; the elasticsearch agent image may be stale" >&2
+    exit 1
+  fi
+
+  export PATH="${HOME}/.local/bin:${PATH}"
+  if ! command -v node >/dev/null 2>&1; then
+    echo "expected baked Node.js on PATH after 'nvm use default', but 'node' was not found" >&2
+    exit 1
+  fi
+  if ! command -v archimedes >/dev/null 2>&1; then
+    echo "expected baked archimedes on PATH at ${HOME}/.local/bin/archimedes, but it was not found" >&2
+    exit 1
+  fi
+else
+  source .buildkite/scripts/setup_node.sh
+fi
 
 GRADLE_BUILD_CACHE_USERNAME=$(vault_with_retry read -field=username secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)
 export GRADLE_BUILD_CACHE_USERNAME
@@ -86,70 +122,9 @@ export BUILDKITE_API_TOKEN
 
 export GH_TOKEN="${VAULT_GITHUB_TOKEN:-}"
 
-# ── archimedes ────────────────────────────────────────────────────────────────
-# Bootstraps the self-contained archimedes CLI (https://github.com/elastic/rene-bk-experiments)
-# so the elasticsearch-agentic-workflow pipeline can run agent sessions on this agent.
-#
-# Completely inert unless USE_ARCHIMEDES=true is set on the step. The required
-# secrets live in Vault at secret/ci/elastic-elasticsearch/agentic-workflows.
 if [[ "${USE_ARCHIMEDES:-}" == "true" ]]; then
-  # Fail-closed pipeline gate: only the agentic-workflow pipeline may read the
-  # agentic-workflows secrets. Any other pipeline setting USE_ARCHIMEDES=true
-  # fails before the first Vault access.
-  # https://github.com/elastic/elasticsearch/issues/159040
-  if [[ "${BUILDKITE_PIPELINE_SLUG:-}" != "elasticsearch-agentic-workflow" ]]; then
-    echo "USE_ARCHIMEDES=true is only permitted on the elasticsearch-agentic-workflow pipeline" \
-         "(got '${BUILDKITE_PIPELINE_SLUG:-<unset>}'); refusing to read agentic-workflow secrets" >&2
-    exit 1
-  fi
-
-  # LiteLLM API key — the bundled models.json resolves it automatically.
-  OPENROUTER_API_KEY=$(vault_with_retry read -field=openrouter_token secret/ci/elastic-elasticsearch/agentic-workflows)
-  export OPENROUTER_API_KEY
-
-  # Cursor API key — the fallback when litellm is not available.
-  CURSOR_ACCESS_TOKEN=$(vault_with_retry read -field=cursor_token secret/ci/elastic-elasticsearch/agentic-workflows)
-  export CURSOR_ACCESS_TOKEN
-
-  # Read-only Buildkite token for the agent's bk_* tools. The bundled
-  # buildkite-jobs extension reads BUILDKITE_API_TOKEN, so alias it here
-  # (scoped to this step's environment).
-  BUILDKITE_RO_API_TOKEN=$(vault_with_retry read -field=buildkite_ro_token secret/ci/elastic-elasticsearch/agentic-workflows)
-  export BUILDKITE_RO_API_TOKEN
-  export BUILDKITE_API_TOKEN="${BUILDKITE_RO_API_TOKEN}"
-
-  # Develocity API key for build-scan reads during analysis.
-  DEVELOCITY_API_KEY=$(vault_with_retry read -field=develocity_api_token secret/ci/elastic-elasticsearch/agentic-workflows)
-  export DEVELOCITY_API_KEY
-
-  # ES delivery stats for resolving test history AND publishing results
-  ES_DELIVERY_STATS_URL=$(vault_with_retry read -field=es_delivery_stats_url secret/ci/elastic-elasticsearch/agentic-workflows)
-  export ES_DELIVERY_STATS_URL
-
-  ES_DELIVERY_STATS_API_KEY=$(vault_with_retry read -field=es_delivery_stats_api_key secret/ci/elastic-elasticsearch/agentic-workflows)
-  export ES_DELIVERY_STATS_API_KEY
-  export PATH="${HOME}/.local/bin:${PATH}"
-
-  # gh_admin_token is SAML-authorized for the elastic org. gh reads GH_TOKEN, so
-  # export it before bootstrapping: the installer uses gh to fetch the release,
-  # and archimedes uses gh at runtime for issue comment/edit.
-  GH_ADMIN_TOKEN=$(vault_with_retry read -field=gh_admin_token secret/ci/elastic-elasticsearch/agentic-workflows)
-  export GH_TOKEN="${GH_ADMIN_TOKEN}"
-  unset GH_ADMIN_TOKEN
-
-  # Bootstrap archimedes via the dedicated, auditable helper. The helper pins
-  # the approved source repo, an immutable release identifier, and the sha256
-  # of the installer script; build-provided overrides (ARCHIMEDES_REF etc.)
-  # are rejected. Upgrades are PR-reviewed changes to the helper's constants.
-  # https://github.com/elastic/elasticsearch/issues/159040
-  .buildkite/scripts/archimedes-bootstrap.sh
-
-  # No external nono CLI bootstrap needed: archimedes sandboxes itself in-process
-  # via the bundled nono-ts SDK. The `archimedes ci` entry point applies the
-  # sandbox automatically, replacing the old `nono run` supervised wrapper that
-  # failed under Landlock with exit 127 when re-resolving the script interpreter.
+  source .buildkite/scripts/archimedes-env.sh
 fi
-# ── end archimedes ────────────────────────────────────────────────────────────
 
 if [[ "${USE_LUCENE_SNAPSHOT_CREDS:-}" == "true" ]]; then
   data=$(.buildkite/scripts/get-legacy-secret.sh aws-elastic/creds/lucene-snapshots)

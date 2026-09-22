@@ -4,9 +4,11 @@
 # elasticsearch-agentic-workflow
 #
 # On-demand agentic CI workflows powered by the self-contained archimedes CLI
-# (https://github.com/elastic/rene-bk-experiments). archimedes runs directly on
-# the agent — no remote pipeline trigger and no agent config in this repo. The
-# pre-command hook bootstraps archimedes and injects secrets when USE_ARCHIMEDES=true.
+# (https://github.com/elastic/elasticsearch-infra, archimedes/). archimedes runs
+# directly on the agent — no remote pipeline trigger and no agent config in this
+# repo. The elasticsearch-* agent image preinstalls both Node.js and archimedes;
+# the pre-command hook activates that baked runtime and injects secrets when
+# USE_ARCHIMEDES=true.
 #
 # Supported workflows:
 #   test-analysis           — analyse a test-failure issue        (needs ISSUE_URL)
@@ -22,11 +24,12 @@
 #            "WORKFLOW":"test-analysis",
 #            "ISSUE_URL":"https://github.com/elastic/elasticsearch/issues/150989"}}'
 #
-# archimedes is pinned to an approved release in
-# .buildkite/scripts/archimedes-bootstrap.sh; build-provided overrides such as
-# ARCHIMEDES_REF are rejected on this pipeline. To test unreleased archimedes
-# changes, use a non-production pipeline without production credentials.
-# See https://github.com/elastic/elasticsearch/issues/159040.
+# archimedes now comes from the preinstalled agent image distribution added in
+# elastic/ci-agent-images@2f818101b1310722e0e76b03536dadf02663a7a1. This
+# production pipeline intentionally does no runtime bootstrap of Node.js or
+# archimedes, so unreleased archimedes testing must happen on a separate
+# non-production pipeline without production credentials. See
+# https://github.com/elastic/elasticsearch/issues/159040.
 
 # Surface trigger vars at pipeline level so env() in step `if` conditions can
 # see them on API-triggered builds.
@@ -62,5 +65,6 @@ steps:
     # sandbox, dispatch to the analyze/fix-pr/create workflow, and the start/finish
     # progress annotations. It reads WORKFLOW/ISSUE_URL/PR_URL from the step env
     # (set above), so no YAML interpolation is needed. This is all a consuming
-    # repo (e.g. elasticsearch-serverless) needs beyond bootstrapping archimedes.
+    # repo (e.g. elasticsearch-serverless) needs beyond activating the baked
+    # archimedes runtime.
     command: archimedes ci

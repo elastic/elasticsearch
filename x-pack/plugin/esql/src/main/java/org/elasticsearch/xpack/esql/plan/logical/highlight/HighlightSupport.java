@@ -68,8 +68,7 @@ public final class HighlightSupport {
 
     /** The leaf's {@code analyzer} option, or {@code null} if absent, not foldable, or unsupported on that leaf type. */
     private static String analyzerNameOf(Expression fullTextLeaf) {
-        // MATCH, MATCH_PHRASE, and QSTR have an analyzer option. KQL does not. Other leaves (KNN) return null
-        // and verifyQueryStructure reports the error.
+        // KQL has no analyzer option. Other unsupported leaves return null and fail in verifyQueryStructure.
         Expression options = switch (fullTextLeaf) {
             case SingleFieldFullTextFunction single -> single.options();
             case QueryString queryString -> queryString.options();
@@ -96,11 +95,7 @@ public final class HighlightSupport {
         return null;
     }
 
-    /**
-     * Analyzer names the runtime context must resolve for this query. Leaf {@code analyzer} and {@code quote_analyzer}
-     * options are both included: the query builder keeps them so the name has to resolve. Names on leaves outside
-     * ON are included so the option is validated before the field lookup.
-     */
+    /** Leaf {@code analyzer} and {@code quote_analyzer} names, including leaves outside ON. */
     public static Set<String> analyzerNamesOf(Expression query) {
         Set<String> names = new LinkedHashSet<>();
         query.forEachDown(

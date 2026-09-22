@@ -5057,11 +5057,8 @@ public class VerifierTests extends AnalyzerTestCase {
             analyzer().addIndex("books_english", "mapping-books_english.json").stripErrorPrefix(true)
         );
         booksEnglish.query("FROM books_english | WHERE MATCH(title, \"ring\") | HIGHLIGHT ON title");
-        // Query analyzer whitespace and values analyzer english mirror WHERE MATCH exactly.
         booksEnglish.query("FROM books_english | WHERE MATCH(title, \"ring\", {\"analyzer\": \"whitespace\"}) | HIGHLIGHT ON title");
-        // title uses english, publisher uses standard; each field gets its own values analyzer.
         booksEnglish.query("FROM books_english | HIGHLIGHT \"ring\" ON title, publisher");
-        // The test analyzer has no analysis registry, so english is unresolvable and title falls back to standard.
         assertWarnings(englishFallbackWarning("title"));
     }
 
@@ -5164,9 +5161,7 @@ public class VerifierTests extends AnalyzerTestCase {
         supportsHighlight(fullText()).query(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title WITH { \"analyzer\": \"standard\" }"
         );
-        // Query analyzer diverges from values analyzer (mirrors WHERE MATCH; WITH sets only the values side).
         supportsHighlight(fullText()).query("FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title");
-        // Each leaf's analyzer shapes only its own query terms, so different leaves may use different analyzers.
         supportsHighlight(fullText()).query(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"simple\"}) OR"
                 + " MATCH(body, \"bar\", {\"analyzer\": \"whitespace\"}) ON title, body"
@@ -5234,10 +5229,6 @@ public class VerifierTests extends AnalyzerTestCase {
             );
     }
 
-    /**
-     * WITH sets the values analyzer; a borrowed leaf's {@code analyzer} option remains the query analyzer. The two
-     * do not need to match, just like {@code WHERE MATCH} vs. an index's mapping analyzer.
-     */
     public void testHighlightWithAnalyzerDivergesFromBorrowedLeaf() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         supportsHighlightImplicit(fullText()).query(
@@ -5250,11 +5241,7 @@ public class VerifierTests extends AnalyzerTestCase {
         );
     }
 
-    /**
-     * An unresolvable analyzer on an implicit WHERE query reports the "derived its query" message,
-     * not the raw registry failure. A resolvable WITH does not clear it: the leaf option is query-side,
-     * so the name is still resolved from the query.
-     */
+    /** A resolvable WITH does not clear an unresolvable analyzer on the borrowed query. */
     public void testHighlightDerivedAnalyzerNotFoundGetsTargetedMessage() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         for (String query : List.of(
@@ -5277,10 +5264,7 @@ public class VerifierTests extends AnalyzerTestCase {
         }
     }
 
-    /**
-     * An unresolvable WITH analyzer reports the raw registry failure, even when the implicit WHERE query
-     * names the same missing analyzer.
-     */
+    /** An unresolvable WITH analyzer reports the registry failure, even when the borrowed query names it too. */
     public void testHighlightWithAnalyzerFailureReportsRawRegistryError() {
         assumeHighlightImplicitQueryAndFieldsEnabled();
         for (String borrowed : List.of("whitespace", "my_custom_analyzer")) {
@@ -5308,12 +5292,7 @@ public class VerifierTests extends AnalyzerTestCase {
         );
     }
 
-    /**
-     * A mapping analyzer name that reaches the coordinator but does not resolve there, which in production means a
-     * plugin analyzer this node never loaded. An {@code index.analysis} name cannot reach this path: field-caps
-     * withholds it and HIGHLIGHT reports the index-local fallback instead, covered by
-     * {@code HighlightAnalyzersTests#testIndexLocalAnalyzerFallsBackAndWarns}.
-     */
+    /** A mapping name this node cannot build falls back. Index-local names never reach this path. */
     public void testHighlightMappingAnalyzerUnknownOnNodeFallsBack() {
         supportsHighlight(analyzer().addIndex("test", "mapping-text-custom-analyzer.json").stripErrorPrefix(true)).query(
             "FROM test | HIGHLIGHT \"fox\" ON title"

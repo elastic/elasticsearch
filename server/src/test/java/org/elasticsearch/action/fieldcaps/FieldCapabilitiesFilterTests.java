@@ -345,9 +345,8 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
     }
 
     public void testIndexLocalAnalyzerNameIsDropped() throws IOException {
-        // "english" is redefined under index.analysis, so it is index-local: a coordinator resolving the
-        // name would build a different node-level "english". Field-caps must not advertise the name, while a
-        // field on the built-in default analyzer keeps its name.
+        // "english" is redefined under index.analysis, so field-caps must not advertise that name.
+        // A field on the built-in default analyzer still keeps its name.
         Settings settings = Settings.builder()
             .put("index.analysis.analyzer.english.type", "custom")
             .put("index.analysis.analyzer.english.tokenizer", "standard")
@@ -373,7 +372,6 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         );
 
         assertNull(response.get("local").indexAnalyzer());
-        // Withholding the name is not the same as having none: the marker is what lets HIGHLIGHT explain its fallback.
         assertTrue(response.get("local").indexLocalAnalyzer());
         assertEquals("default", response.get("plain").indexAnalyzer());
         assertFalse(response.get("plain").indexLocalAnalyzer());
@@ -381,8 +379,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
 
     @Override
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
-        // Register "english" so a field mapped analyzer:english resolves in this harness; the colliding
-        // index.analysis definition that makes it index-local lives in the index settings instead.
+        // The harness resolves "english"; the index settings above are what make that name index-local.
         return IndexAnalyzers.of(
             Map.of(
                 "default",

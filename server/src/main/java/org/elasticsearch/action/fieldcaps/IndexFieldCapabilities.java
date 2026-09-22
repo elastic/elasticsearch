@@ -29,15 +29,11 @@ import java.util.Map;
  * @param isAggregatable Whether this field can be aggregated on.
  * @param isInference    Whether this field is an inference field.
  * @param meta           Metadata about the field.
- * @param indexAnalyzer  The name of the analyzer the field is indexed with, for text-family fields.
- *                       {@code null} for other field types and for responses from nodes that predate this field.
- *                       ES|QL HIGHLIGHT re-analyzes values on the coordinator, so it reads this name from field-caps.
- * @param indexAnalyzerPositionIncrementGap Mapping {@code position_increment_gap} when {@code indexAnalyzer} is set;
- *                       default otherwise so it does not affect equality.
- * @param indexLocalAnalyzer {@code true} when this is a text-family field whose analyzer name was withheld because it is
- *                       bound under {@code index.analysis}. Distinguishes "analyzed with something the coordinator
- *                       cannot rebuild" from "no name to report", so HIGHLIGHT can say which. Never {@code true}
- *                       when {@code indexAnalyzer} is set.
+ * @param indexAnalyzer  index analyzer name for a text field, or {@code null} when unknown or from an older node
+ * @param indexAnalyzerPositionIncrementGap mapping {@code position_increment_gap} when {@code indexAnalyzer} is set;
+ *                       the default otherwise, so a missing name does not affect equality
+ * @param indexLocalAnalyzer {@code true} when a text field's analyzer name was withheld because it is defined under
+ *                       {@code index.analysis}. Never set together with {@code indexAnalyzer}.
  */
 
 public record IndexFieldCapabilities(

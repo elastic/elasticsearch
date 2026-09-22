@@ -95,8 +95,7 @@ public class HighlightAnalyzersTests extends ESTestCase {
         assertThat(warnings, hasItem(containsString("indices disagree on the analyzer")));
     }
 
-    // The mapping analyzer is bound under index.analysis, so the shard withheld its name. Standard is the only
-    // thing HIGHLIGHT can use, but it has to say so rather than differ from what matched in silence.
+    // The shard withheld an index.analysis name, so resolve falls back to standard and warns.
     public void testIndexLocalAnalyzerFallsBackAndWarns() {
         List<String> warnings = new ArrayList<>();
         Map<String, NamedAnalyzer> resolved = HighlightAnalyzers.resolve(

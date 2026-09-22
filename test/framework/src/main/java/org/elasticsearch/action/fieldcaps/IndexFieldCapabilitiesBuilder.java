@@ -87,7 +87,7 @@ public class IndexFieldCapabilitiesBuilder {
         return this;
     }
 
-    /** Mirrors a shard that withheld an {@code index.analysis} analyzer name. Only meaningful without an analyzer name. */
+    /** Withheld {@code index.analysis} name. Only meaningful when {@code indexAnalyzer} is null. */
     public IndexFieldCapabilitiesBuilder indexLocalAnalyzer(boolean indexLocalAnalyzer) {
         this.indexLocalAnalyzer = indexLocalAnalyzer;
         return this;

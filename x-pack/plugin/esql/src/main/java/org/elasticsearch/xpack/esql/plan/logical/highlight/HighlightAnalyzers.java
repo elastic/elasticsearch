@@ -63,12 +63,8 @@ public final class HighlightAnalyzers {
     }
 
     private static NamedAnalyzer analyzerOf(NamedExpression field, @Nullable AnalysisRegistry analysisRegistry, Consumer<String> warnings) {
-        // Known limitation: only a FieldAttribute still knows its mapping analyzer. RENAME and EVAL mint a
-        // ReferenceAttribute, which carries a declared TO_TEXT analyzer but not a mapping one, so a renamed mapped
-        // field drops to standard (highlight.csv-spec: highlightMappingAnalyzerRenamedFieldFallsBackToStandard and
-        // highlightMappingAnalyzerLostByRenameUnderImplicitQuery). Forwarding it through Alias#toAttribute would need
-        // the gap and the fail-open-on-unknown behaviour to ride along, since an unknown TO_TEXT analyzer is an error
-        // while an unknown mapping analyzer is a warning, and both would arrive as the same string.
+        // Only a FieldAttribute still carries the mapping analyzer. RENAME and EVAL produce a ReferenceAttribute,
+        // which keeps a TO_TEXT analyzer but not a mapping one, so a renamed mapped field falls back to standard.
         if (field instanceof FieldAttribute fa && fa.field() instanceof TextEsField text) {
             return mappingAnalyzer(field.name(), text, analysisRegistry, warnings);
         }
@@ -76,10 +72,6 @@ public final class HighlightAnalyzers {
         return PlannerUtils.resolveAnalyzer(Objects.requireNonNullElse(declared, DEFAULT_ANALYZER_NAME), analysisRegistry);
     }
 
-    /**
-     * The mapping analyzer with its {@code position_increment_gap}, or {@code standard} plus a warning when this node
-     * cannot rebuild it, because the highlight may then differ from what matched.
-     */
     private static NamedAnalyzer mappingAnalyzer(
         String fieldName,
         TextEsField text,
@@ -98,7 +90,6 @@ public final class HighlightAnalyzers {
                 return resolved.getPositionIncrementGap(resolved.name()) == gap ? resolved : new NamedAnalyzer(resolved, gap);
             } catch (InvalidArgumentException e) {
                 // index.analysis names arrive as INDEX_LOCAL, so this is a plugin analyzer this node did not load.
-                // Fail open: the name came from the mapping, and a hard error would punish the user for the mapping.
                 fallbackReason = "analyzer [" + text.analyzerName() + "] is not registered on this node";
             }
         }

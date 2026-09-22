@@ -360,16 +360,12 @@ public class Highlight extends UnaryPlan
         verifyQuery(commandAnalyzerName, failures, analysisRegistry, warnings);
     }
 
-    /** The user-set {@code WITH {"analyzer": ...}} name, or {@code null} when absent. */
     private String analyzerOptionName() {
         Expression value = options == null ? null : foldableOption(ANALYZER);
         return value == null ? null : HighlightOptions.analyzerName(ANALYZER, value, FoldContext.small());
     }
 
-    /**
-     * Error for an unresolvable leaf {@code analyzer} or {@code quote_analyzer} on an implicit WHERE query. The option
-     * is always query-side, so {@code WITH} cannot stand in for it: only writing the query without it clears this.
-     */
+    /** WITH cannot clear this: the leaf option is query-side. */
     private static String borrowedUnresolvedAnalyzerMessage(String name) {
         return "HIGHLIGHT derived its query from a preceding WHERE, but that query refers to analyzer ["
             + name
@@ -397,11 +393,7 @@ public class Highlight extends UnaryPlan
         }
     }
 
-    /**
-     * Resolves each analyzer name written in WITH or the query, WITH first. Mapping names are not checked here.
-     * {@link HighlightAnalyzers#resolve} substitutes {@code standard} for an unresolvable mapping name.
-     * Returns {@code true} if a failure was recorded, and skips query verification in that case.
-     */
+    /** Returns {@code true} when a WITH or query analyzer name failed to resolve. Mapping names are not checked here. */
     private boolean verifyAnalyzerNames(String commandAnalyzerName, Failures failures, AnalysisRegistry analysisRegistry) {
         Set<String> names = new LinkedHashSet<>();
         if (commandAnalyzerName != null) {

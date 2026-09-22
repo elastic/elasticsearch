@@ -139,7 +139,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
                 meta,
                 indexAnalyzer,
                 randomIntBetween(0, 1000),
-                // A withheld index.analysis name only ever accompanies a missing name.
+                // index-local only when the name is absent
                 indexAnalyzer == null && randomBoolean()
             );
             fieldCaps.put(field, fieldCap);

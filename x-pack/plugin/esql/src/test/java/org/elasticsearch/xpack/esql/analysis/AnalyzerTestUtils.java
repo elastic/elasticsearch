@@ -172,11 +172,7 @@ public final class AnalyzerTestUtils {
         );
     }
 
-    /**
-     * The header warning HIGHLIGHT emits when the mapping analyzer for {@code field} was named but cannot be built on
-     * this node, so the field falls back to {@code standard}. Kept in one place so tests that trip the fallback stay
-     * in sync with {@code HighlightAnalyzers}.
-     */
+    /** Header warning from {@code HighlightAnalyzers} when a named mapping analyzer cannot be built on this node. */
     public static String mappingAnalyzerFallbackWarning(String field, String analyzerName) {
         return "HIGHLIGHT on ["
             + field

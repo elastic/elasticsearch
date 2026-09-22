@@ -585,10 +585,8 @@ public class IndexResolver {
     }
 
     /**
-     * Keeps the index analyzer only when every index reports the same name and {@code position_increment_gap}.
-     * Otherwise HIGHLIGHT falls back to {@code standard} for this field and warns with the recorded reason: any
-     * reported name means the indices disagree (a withheld {@code index.analysis} name counts as disagreeing),
-     * while only withheld names mean none of them can be rebuilt by name.
+     * Keeps the index analyzer when every index agrees on the name and gap. A mix, or only withheld
+     * {@code index.analysis} names, is recorded on {@link TextEsField.UnknownAnalyzer}.
      */
     private static TextEsField textField(
         String name,

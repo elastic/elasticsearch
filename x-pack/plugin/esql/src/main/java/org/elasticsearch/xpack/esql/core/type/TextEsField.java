@@ -29,23 +29,19 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
  */
 public class TextEsField extends EsField {
 
-    // Same transport version as IndexFieldCapabilities#indexAnalyzer. The name is only non-null
-    // on a node that also reports that field. Public for tests.
+    /** Same transport version as {@code IndexFieldCapabilities#indexAnalyzer}. */
     public static final TransportVersion FIELD_CAPS_INDEX_ANALYZER = TransportVersion.fromName("field_caps_index_analyzer");
 
     /** {@link TextFieldMapper.Defaults#POSITION_INCREMENT_GAP}, used when {@link #analyzerName} is {@code null}. */
     public static final int DEFAULT_POSITION_INCREMENT_GAP = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
 
-    /**
-     * Why {@link #analyzerName} is absent, so HIGHLIGHT can explain the {@code standard} it falls back to instead of
-     * differing from what matched in silence. Only meaningful when the name is {@code null}.
-     */
+    /** Why {@link #analyzerName} is absent. Only meaningful when the name is {@code null}. */
     public enum UnknownAnalyzer {
-        /** Nothing was withheld: either the name is known, or the field has no analyzer to name. */
+        /** The name is known, or the field has no analyzer to name. */
         NONE,
-        /** The indices behind the pattern reported different names or {@code position_increment_gap}s. */
+        /** Indices disagree on the name or {@code position_increment_gap}. */
         CONFLICT,
-        /** No index reports a name and at least one withheld an {@code index.analysis} name, which no node can rebuild. */
+        /** Every reported name was withheld because it is defined under {@code index.analysis}. */
         INDEX_LOCAL
     }
 
@@ -63,13 +59,6 @@ public class TextEsField extends EsField {
         this(name, properties, hasDocValues, isAlias, timeSeriesFieldType, null, DEFAULT_POSITION_INCREMENT_GAP, UnknownAnalyzer.NONE);
     }
 
-    /**
-     * @param analyzerName index analyzer from field-caps, or {@code null} if unknown, disagreeing, or from an older node
-     * @param positionIncrementGap mapping gap; pinned to {@link #DEFAULT_POSITION_INCREMENT_GAP} when {@code analyzerName}
-     *                     is {@code null}
-     * @param unknownAnalyzer why the name is absent. {@code analyzerName} is {@code null} for anything but
-     *                     {@link UnknownAnalyzer#NONE}; it preserves what HIGHLIGHT needs to warn about.
-     */
     public TextEsField(
         String name,
         Map<String, EsField> properties,
@@ -81,7 +70,7 @@ public class TextEsField extends EsField {
         UnknownAnalyzer unknownAnalyzer
     ) {
         super(name, TEXT, properties, hasDocValues, isAlias, timeSeriesFieldType);
-        assert analyzerName == null || unknownAnalyzer == UnknownAnalyzer.NONE : "a known analyzer name has nothing unknown about it";
+        assert analyzerName == null || unknownAnalyzer == UnknownAnalyzer.NONE;
         this.analyzerName = analyzerName;
         this.positionIncrementGap = analyzerName == null ? DEFAULT_POSITION_INCREMENT_GAP : positionIncrementGap;
         this.unknownAnalyzer = unknownAnalyzer;
@@ -123,28 +112,20 @@ public class TextEsField extends EsField {
         writeTimeSeriesFieldType(out);
         if (out.getTransportVersion().supports(FIELD_CAPS_INDEX_ANALYZER)) {
             out.writeOptionalString(analyzerName);
-            // StreamInput ctor reads this before it can skip on a null name.
+            // Written even when the name is null; the reader always consumes this vint.
             out.writeVInt(positionIncrementGap);
             out.writeEnum(unknownAnalyzer);
         }
     }
 
-    /**
-     * Analyzer the field is indexed with, or {@code null} when unknown.
-     */
     public String analyzerName() {
         return analyzerName;
     }
 
-    /** Mapping {@code position_increment_gap}, or {@link #DEFAULT_POSITION_INCREMENT_GAP} when {@link #analyzerName()} is null. */
     public int positionIncrementGap() {
         return positionIncrementGap;
     }
 
-    /**
-     * Why {@link #analyzerName()} is absent, for the HIGHLIGHT warning. The name that was withheld is not carried;
-     * HIGHLIGHT only needs to know that one was, and why.
-     */
     public UnknownAnalyzer unknownAnalyzer() {
         return unknownAnalyzer;
     }

@@ -209,6 +209,8 @@ class FieldCapabilitiesFetcher {
                 && (fieldPredicate.test(ft.name()) || context.isMetadataField(ft.name()))
                 && (filter == null || filter.test(ft))) {
                 NamedAnalyzer analyzer = textIndexAnalyzer(mappingLookup, ft);
+                // A name bound under index.analysis is index-local, even when it collides with a built-in such as
+                // english: the coordinator resolves analyzers by name and would build a different one.
                 boolean indexLocalAnalyzer = analyzer != null && configuredAnalyzerNames.contains(analyzer.name());
                 NamedAnalyzer reported = indexLocalAnalyzer ? null : analyzer;
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
@@ -268,24 +270,13 @@ class FieldCapabilitiesFetcher {
         return responseMap;
     }
 
-    /**
-     * Index-time analyzer of a text field, or {@code null} for anything that is not text. ES|QL HIGHLIGHT
-     * re-analyzes field values on the coordinator, so it cannot look this up from a shard.
-     *
-     * <p>The caller withholds a name bound under {@code index.analysis} as index-local, even when it collides with a
-     * built-in name such as {@code english}: the coordinator only resolves node-level analyzers by name, so it would
-     * build a different analyzer than this index. HIGHLIGHT then falls back to {@code standard} and can tell the
-     * user why rather than differing from what matched in silence.
-     */
+    /** Index analyzer of a text field, or {@code null} otherwise. */
     @Nullable
     private static NamedAnalyzer textIndexAnalyzer(MappingLookup mappingLookup, MappedFieldType ft) {
         return TextFieldMapper.CONTENT_TYPE.equals(ft.familyTypeName()) ? mappingLookup.indexAnalyzer(ft.name(), unused -> null) : null;
     }
 
-    /**
-     * Analyzer names bound under {@code index.analysis.analyzer} for this index, sorted for a deterministic
-     * dedup signature. Empty when the index defines no custom analyzers, which is the common case.
-     */
+    /** Names under {@code index.analysis.analyzer}, sorted so the dedup hash is stable. */
     private static Set<String> configuredAnalyzerNames(SearchExecutionContext context) {
         return new TreeSet<>(context.getIndexSettings().getSettings().getGroups(AnalysisRegistry.INDEX_ANALYSIS_ANALYZER).keySet());
     }

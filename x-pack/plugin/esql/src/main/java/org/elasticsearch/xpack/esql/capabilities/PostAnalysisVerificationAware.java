@@ -57,11 +57,7 @@ public interface PostAnalysisVerificationAware {
         postAnalysisVerification(failures);
     }
 
-    /**
-     * Overload that additionally exposes a {@code warnings} sink, backed by
-     * {@link org.elasticsearch.xpack.esql.analysis.AnalyzerContext#deferredHeaderWarnings()}: warnings emitted here
-     * only reach the client if verification succeeds. By default this delegates to the registry-only overload.
-     */
+    /** Ignores {@code warnings} and delegates to {@link #postAnalysisVerification(AnalysisRegistry, Failures)}. */
     default void postAnalysisVerification(AnalysisRegistry analysisRegistry, Consumer<String> warnings, Failures failures) {
         postAnalysisVerification(analysisRegistry, failures);
     }

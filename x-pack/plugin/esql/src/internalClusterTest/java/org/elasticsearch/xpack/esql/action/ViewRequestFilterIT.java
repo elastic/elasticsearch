@@ -119,7 +119,7 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         assertAcked(
             client().execute(
                 PutViewAction.INSTANCE,
-                new PutViewAction.Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, new View(name, query))
+                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(name, query))
             ).actionGet(30, TimeUnit.SECONDS)
         );
     }

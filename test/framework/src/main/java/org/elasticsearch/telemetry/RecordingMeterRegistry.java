@@ -205,7 +205,11 @@ public class RecordingMeterRegistry implements MeterRegistry {
         return (DoubleCounter) recorder.getInstrument(InstrumentType.DOUBLE_COUNTER, name);
     }
 
-    public LongAsyncGauge getLongGauge(String name) {
+    public LongGauge getLongGauge(String name) {
+        return (LongGauge) recorder.getInstrument(InstrumentType.LONG_GAUGE, name);
+    }
+
+    public LongAsyncGauge getLongAsyncGauge(String name) {
         return (LongAsyncGauge) recorder.getInstrument(InstrumentType.LONG_ASYNC_GAUGE, name);
     }
 

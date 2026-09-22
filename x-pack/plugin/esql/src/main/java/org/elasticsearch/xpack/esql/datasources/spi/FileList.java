@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.FileFingerprint;
 import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 
@@ -183,6 +184,20 @@ public interface FileList {
     @Nullable
     default FileSetFingerprint fileSetFingerprint() {
         return null;
+    }
+
+    /**
+     * The identity of file {@code i}: its path, modification time and size, hashed exactly as
+     * {@link #fileSetFingerprint()} hashes each member of the set, so folding every file's fingerprint reproduces
+     * the set's.
+     * <p>
+     * Computed from {@link #path}, {@link #lastModifiedMillis} and {@link #size} rather than stored, so every
+     * implementation answers it — the compacted forms included. That is the point: the listings a resolve holds are
+     * usually compacted, and a per-file identity only the uncompacted form could produce would be absent exactly
+     * where it is needed.
+     */
+    default FileFingerprint fileFingerprint(int i) {
+        return FileFingerprint.of(path(i).toString(), lastModifiedMillis(i), size(i));
     }
 
     /**

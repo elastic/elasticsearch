@@ -127,6 +127,7 @@ public class SharedBlobCacheWarmingService {
             NORMAL,
             HIGH
         }
+
         final Priority priority;
 
         Type(boolean skipsWarmingForRegion0Locations, Priority priority) {

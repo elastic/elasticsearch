@@ -4712,6 +4712,70 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * A dataset whose file set has not changed must not have its schema resolved again: the second resolve
+     * must answer from one dataset-level entry, doing no per-file work at all. Today every resolve rebuilds
+     * the result from per-file entries, so the per-file schema store is consulted once per file on the
+     * reconcile rails and 2N+1 times on first-file-wins with eager statistics (the anchor peek, the stats
+     * fan-out, and the per-path loop in {@code finishFirstFileWins}).
+     */
+    public void testWarmMultiFileResolveDoesNoPerFileSchemaLookups() throws Exception {
+        Settings cacheSettings = Settings.builder()
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
+            .build();
+
+        Map<FormatReader.SchemaResolution, Long> warmLookupsByStrategy = new LinkedHashMap<>();
+
+        for (FormatReader.SchemaResolution strategy : FormatReader.SchemaResolution.values()) {
+            List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
+            Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+            schemasByPath.put("s3://bucket/data/a.parquet", schema);
+            schemasByPath.put("s3://bucket/data/b.parquet", schema);
+            schemasByPath.put("s3://bucket/data/c.parquet", schema);
+
+            List<StorageEntry> listing = List.of(
+                entry("s3://bucket/data/a.parquet", 100),
+                entry("s3://bucket/data/b.parquet", 200),
+                entry("s3://bucket/data/c.parquet", 300)
+            );
+
+            CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemasByPath);
+            Map<String, Map<String, Object>> pathConfigs = Map.of("s3://bucket/data/*.parquet", new HashMap<>(configFor(strategy)));
+
+            try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheSettings)) {
+                ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
+
+                PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
+                resolver.resolve(List.of("s3://bucket/data/*.parquet"), pathConfigs, f1);
+                assertNotNull("[" + strategy + "] first resolve must produce a source", f1.actionGet().resolvedSource("s3://bucket/data/*.parquet"));
+                long schemaHitsAfterFirst = ((Number) cacheService.usageStats().get("schema_cache.hits")).longValue();
+
+                PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
+                resolver.resolve(List.of("s3://bucket/data/*.parquet"), pathConfigs, f2);
+                assertNotNull("[" + strategy + "] second resolve must produce a source", f2.actionGet().resolvedSource("s3://bucket/data/*.parquet"));
+                long schemaHitsAfterSecond = ((Number) cacheService.usageStats().get("schema_cache.hits")).longValue();
+
+                warmLookupsByStrategy.put(strategy, schemaHitsAfterSecond - schemaHitsAfterFirst);
+            }
+        }
+
+        assertEquals(
+            "a warm resolve of an unchanged 3-file set must consult the per-file schema store 0 times per strategy, observed "
+                + warmLookupsByStrategy,
+            Map.of(
+                FormatReader.SchemaResolution.FIRST_FILE_WINS,
+                0L,
+                FormatReader.SchemaResolution.STRICT,
+                0L,
+                FormatReader.SchemaResolution.UNION_BY_NAME,
+                0L
+            ),
+            warmLookupsByStrategy
+        );
+    }
+
+    /**
      * Default first-file-wins is {@code list}+{@code asc}; union-by-name is {@code name}+{@code asc}.
      * Those are different listings, so they must not share a cache entry. Pinning {@code file_sort_by: name}
      * on FFW recovers the shared entry — same order as UBN.

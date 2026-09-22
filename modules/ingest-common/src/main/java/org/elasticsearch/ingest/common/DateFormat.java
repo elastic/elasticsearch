@@ -40,7 +40,7 @@ enum DateFormat {
             return (date) -> {
                 TemporalAccessor accessor = ISO_8601.tryParse(date);
                 if (accessor == null) {
-                    throwStacklessDateTimeException(date, ISO_8601);
+                    throw new StacklessDateTimeException(date, ISO_8601);
                 }
                 // even though locale could be set to en-us, Locale.ROOT (following iso8601 calendar data rules) should be used
                 return DateFormatters.from(accessor, Locale.ROOT, timezone).withZoneSameInstant(timezone);
@@ -96,7 +96,7 @@ enum DateFormat {
             return date -> {
                 TemporalAccessor accessor = formatter.tryParse(date);
                 if (accessor == null) {
-                    throwStacklessDateTimeException(date, formatter);
+                    throw new StacklessDateTimeException(date, formatter);
                 }
 
                 // if there is no year nor year-of-era, we fall back to the current one and
@@ -146,13 +146,16 @@ enum DateFormat {
         };
     }
 
-    private static void throwStacklessDateTimeException(String input, DateFormatter formatter) {
-        throw new DateTimeException("failed to parse date field [" + input + "] with format [" + formatter.pattern() + "]") {
-            @Override
-            public synchronized Throwable fillInStackTrace() {
-                // do not populate the stacktrace
-                return this;
-            }
-        };
+    private static final class StacklessDateTimeException extends DateTimeException {
+
+        StacklessDateTimeException(String input, DateFormatter formatter) {
+            super("failed to parse date field [" + input + "] with format [" + formatter.pattern() + "]");
+        }
+
+        @Override
+        public synchronized Throwable fillInStackTrace() {
+            // do not populate the stacktrace
+            return this;
+        }
     }
 }

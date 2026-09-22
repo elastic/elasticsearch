@@ -1046,7 +1046,7 @@ public class ExternalSourceResolver {
                 FormatNameResolver.rejectConflictingListedFormats(listing, datasetFormat, dataSourceModule.formatReaderRegistry());
             }
             if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
-                resolveMultiFileWithReconciliation(listing, fileConfig, schemaResolution, cacheable, datasetFormat, listener);
+                resolveMultiFileWithReconciliation(listing, fileConfig, schemaResolution, cacheable, datasetFormat, demand, listener);
                 return;
             }
 
@@ -1867,6 +1867,108 @@ public class ExternalSourceResolver {
     }
 
     /**
+     * A finished reconcile, as it will be cached: the dataset's schema, each distinct per-file read schema once, and
+     * for every file which of those it reads at, how its columns map and what its own types are. No statistics — this
+     * holds a schema, and statistics are built on the first read and kept per file.
+     * <p>
+     * The per-file schemas are shared rather than repeated: on a corpus that reconciles cleanly every file reads at
+     * the same one, so the entry is a schema and a few bytes per file rather than a schema per file.
+     */
+    private static DatasetResolution datasetSchemaOf(
+        ExternalSourceMetadata metadata,
+        FileList listing,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        List<String> warnings
+    ) {
+        List<SchemaCacheEntry> fileSchemas = new ArrayList<>();
+        Map<String, Integer> indexBySignature = new HashMap<>();
+        Map<FileFingerprint, DatasetResolution.FromEveryFile.FileShape> files = Maps.newHashMapWithExpectedSize(listing.fileCount());
+        for (int i = 0; i < listing.fileCount(); i++) {
+            StoragePath path = listing.path(i);
+            SchemaReconciliation.FileSchemaInfo info = schemaMap.get(path);
+            if (info == null) {
+                // A file the reconcile said nothing about cannot be served from the entry later, so nothing is cached.
+                return null;
+            }
+            List<Attribute> fileSchema = info.fileSchema().attributes();
+            String signature = signatureOf(fileSchema);
+            Integer index = indexBySignature.get(signature);
+            if (index == null) {
+                index = fileSchemas.size();
+                indexBySignature.put(signature, index);
+                fileSchemas.add(SchemaCacheEntry.from(fileSchema, metadata.sourceType(), path.toString(), Map.of(), Map.of()));
+            }
+            files.put(
+                listing.fileFingerprint(i),
+                new DatasetResolution.FromEveryFile.FileShape(index, info.mapping(), info.inferredTypes())
+            );
+        }
+        SchemaCacheEntry dataset = SchemaCacheEntry.from(
+            metadata.schema(),
+            metadata.sourceType(),
+            metadata.location(),
+            withoutStatistics(metadata.sourceMetadata()),
+            metadata.config(),
+            List.copyOf(warnings)
+        );
+        return new DatasetResolution.FromEveryFile(dataset, fileSchemas, files);
+    }
+
+    /** Names, types and nullabilities — what makes two files read at the same schema, without their attributes' ids. */
+    private static String signatureOf(List<Attribute> schema) {
+        StringBuilder signature = new StringBuilder();
+        for (Attribute attribute : schema) {
+            signature.append(attribute.name())
+                .append(':')
+                .append(attribute.dataType().typeName())
+                .append(':')
+                .append(attribute.nullable())
+                .append(',');
+        }
+        return signature.toString();
+    }
+
+    /**
+     * The resolved source for {@code listing} from its cached schema, or {@code null} to resolve it the long way —
+     * on a miss, or when the entry does not cover every file the listing now holds, which the key should already have
+     * ruled out and which is cheaper to re-check than to trust.
+     */
+    @Nullable
+    private ExternalSourceResolution.ResolvedSource servedFromDatasetSchema(
+        DatasetSchemaKey schemaKey,
+        FileList listing,
+        Map<String, Object> config
+    ) {
+        // One lookup: a second would count a second hit for the same serve.
+        if (cacheService.getDatasetResolution(schemaKey) instanceof DatasetResolution.FromEveryFile entry) {
+            Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Maps.newHashMapWithExpectedSize(listing.fileCount());
+            for (int i = 0; i < listing.fileCount(); i++) {
+                DatasetResolution.FromEveryFile.FileShape shape = entry.files().get(listing.fileFingerprint(i));
+                if (shape == null) {
+                    return null;
+                }
+                schemaMap.put(
+                    listing.path(i),
+                    new SchemaReconciliation.FileSchemaInfo(
+                        new ExternalSchema(entry.fileSchemas().get(shape.fileSchema()).toAttributes()),
+                        shape.mapping(),
+                        null,
+                        shape.inferredTypes()
+                    )
+                );
+            }
+            // The reconcile that produced this emitted its warnings once; a served resolve must say the same things.
+            entry.dataset().warnings().forEach(pendingSchemaWarnings::add);
+            return new ExternalSourceResolution.ResolvedSource(
+                buildMetadataFromCache(entry.dataset(), entry.dataset().toAttributes(), config),
+                listing,
+                Collections.unmodifiableMap(schemaMap)
+            );
+        }
+        return null;
+    }
+
+    /**
      * Both {@link SourceStatisticsSerializer#STATS_ROW_COUNT} and {@link SourceStatisticsSerializer#STATS_COL_PREFIX}
      * begin with this, so it names every statistic an entry can carry.
      */
@@ -1903,13 +2005,18 @@ public class ExternalSourceResolver {
      * and kept per file, where they stay fresh — a copy frozen here could only be staler than the one beside it.
      */
     private static SchemaCacheEntry schemaOnly(SchemaCacheEntry entry) {
-        Map<String, Object> withoutStatistics = new HashMap<>();
-        for (Map.Entry<String, Object> metadata : entry.safeMetadata().entrySet()) {
-            if (metadata.getKey().startsWith(STATS_KEY_PREFIX) == false) {
-                withoutStatistics.put(metadata.getKey(), metadata.getValue());
+        return entry.withSafeMetadata(withoutStatistics(entry.safeMetadata()));
+    }
+
+    /** {@code metadata} without any statistic. */
+    private static Map<String, Object> withoutStatistics(Map<String, Object> metadata) {
+        Map<String, Object> kept = new HashMap<>();
+        for (Map.Entry<String, Object> entry : metadata.entrySet()) {
+            if (entry.getKey().startsWith(STATS_KEY_PREFIX) == false) {
+                kept.put(entry.getKey(), entry.getValue());
             }
         }
-        return entry.withSafeMetadata(withoutStatistics);
+        return kept;
     }
 
     /**
@@ -2033,8 +2140,29 @@ public class ExternalSourceResolver {
         FormatReader.SchemaResolution schemaResolution,
         boolean cacheable,
         @Nullable String datasetFormat,
+        ResolutionDemand demand,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) {
+        // Every file decides this schema, so the key pins every file: a hit means this exact set, read under these
+        // settings, was reconciled before. Consulted only where the schema is the only thing the resolve is for —
+        // a query that reads rows or folds statistics reads every file for THOSE anyway, and this caches neither.
+        DatasetSchemaKey schemaKey = cacheable && cacheService != null
+            ? datasetSchemaKey(fileList, config, datasetFormat, schemaResolution)
+            : null;
+        if (demand.isSchemaDiscovery() && schemaKey != null) {
+            ExternalSourceResolution.ResolvedSource served = servedFromDatasetSchema(schemaKey, fileList, config);
+            if (served != null) {
+                listener.onResponse(served);
+                return;
+            }
+        }
+        // Reconcile warnings reach the caller through pendingSchemaWarnings, which a served resolve never runs, so
+        // they are captured here and replayed from the entry.
+        List<String> schemaWarnings = new ArrayList<>();
+        Consumer<String> warningSink = warning -> {
+            schemaWarnings.add(warning);
+            pendingSchemaWarnings.add(warning);
+        };
         long startNanos = System.nanoTime();
         DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(fileList, config, cacheable);
         readAllFileMetadata(fileList, config, cacheable, ActionListener.wrap(allMetadata -> {
@@ -2047,7 +2175,7 @@ public class ExternalSourceResolver {
                 if (schemaResolution == FormatReader.SchemaResolution.STRICT) {
                     result = SchemaReconciliation.reconcileStrict(firstFile, allMetadata);
                 } else {
-                    result = SchemaReconciliation.reconcileUnionByName(allMetadata, pendingSchemaWarnings::add);
+                    result = SchemaReconciliation.reconcileUnionByName(allMetadata, warningSink);
                 }
 
                 // Shadow physical columns that collide with Hive partition keys: the partition (path-derived)
@@ -2063,7 +2191,7 @@ public class ExternalSourceResolver {
                 // does not warn again (the no-double-warning invariant, asserted at that call). Do not reorder.
                 PartitionMetadata partitionMetadata = fileList.partitionMetadata();
                 Set<String> partitionNames = partitionMetadata != null ? partitionMetadata.partitionColumns().keySet() : Set.of();
-                result = shadowPartitionCollisions(result, partitionNames, pendingSchemaWarnings::add);
+                result = shadowPartitionCollisions(result, partitionNames, warningSink);
 
                 List<Attribute> unifiedSchema = result.unifiedSchema().attributes();
                 SourceMetadata firstMeta = allMetadata.get(firstFile);
@@ -2126,13 +2254,19 @@ public class ExternalSourceResolver {
                     assert metaForAssert.schema().stream().noneMatch(a -> partitionNames.contains(a.name()))
                         : "shadowPartitionCollisions must run before enrichSchemaWithPartitionColumns: a physical "
                             + "column still collides with a partition key, which would warn twice";
-                    extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingSchemaWarnings::add);
+                    extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, warningSink);
                 }
 
                 // _file.* columns are request-driven now; no auto-attach to the schema. See
                 // ResolveExternalRelations / the EXTERNAL shim.
 
                 Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = result.perFileInfo();
+                if (schemaKey != null) {
+                    DatasetResolution datasetSchema = datasetSchemaOf(extMetadata, fileList, schemaMap, schemaWarnings);
+                    if (datasetSchema != null) {
+                        cacheService.putDatasetResolution(schemaKey, datasetSchema);
+                    }
+                }
                 listener.onResponse(new ExternalSourceResolution.ResolvedSource(extMetadata, fileList, schemaMap));
             } catch (Exception e) {
                 listener.onFailure(e);

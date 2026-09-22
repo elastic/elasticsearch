@@ -315,6 +315,52 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         }
     }
 
+    // Both parsers require at least one digit after '.' and after 'e'/'E', and phrase the
+    // rejection identically enough that the message can be compared directly (unlike
+    // testTrailingGarbageOrMissingDigitsRejectedByBothParsers below).
+    public void testEmptyFractionOrExponentRejectedByBothParsers() {
+        record Case(String json, String reason) {}
+        List<Case> cases = List.of(
+            new Case("{\"n\":1.}", "Decimal point not followed by a digit"),
+            new Case("{\"n\":1.e5}", "Decimal point not followed by a digit"),
+            new Case("{\"a\":[1.]}", "Decimal point not followed by a digit"),
+            new Case("{\"n\":1e}", "Exponent indicator not followed by a digit"),
+            new Case("{\"n\":1e+}", "Exponent indicator not followed by a digit"),
+            new Case("{\"n\":1e-}", "Exponent indicator not followed by a digit"),
+            new Case("{\"a\":[1e]}", "Exponent indicator not followed by a digit")
+        );
+        for (Case c : cases) {
+            XContentParseException jacksonEx = expectThrows(XContentParseException.class, () -> walkWithJackson(c.json()));
+            JsonParsingException simdEx = expectThrows(JsonParsingException.class, () -> walkJson(c.json()));
+            assertTrue("Jackson message: " + jacksonEx.getMessage(), jacksonEx.getMessage().contains(c.reason()));
+            assertTrue("simdjson message: " + simdEx.getMessage(), simdEx.getMessage().contains(c.reason()));
+        }
+    }
+
+    // Both parsers reject a number with no integer-part digits, and any trailing content after
+    // a number that isn't itself a structural character or whitespace - but with unrelated
+    // message wording (e.g. Jackson reports these relative to what it expected next, like a
+    // comma), so only rejection-by-both is checked here, not the message text.
+    public void testTrailingGarbageOrMissingDigitsRejectedByBothParsers() {
+        List<String> invalidDocuments = List.of(
+            "{\"n\":-}",
+            "{\"n\":-.5}",
+            "{\"n\":-e5}",
+            "{\"a\":[-]}",
+            "{\"n\":1.2.3}",
+            "{\"n\":1e5e6}",
+            "{\"n\":1-2}",
+            "{\"n\":12-3}",
+            "{\"n\":1foo}",
+            "{\"a\":[1.2.3]}",
+            "{\"a\":[1foo]}"
+        );
+        for (String json : invalidDocuments) {
+            expectThrows(XContentParseException.class, () -> walkWithJackson(json));
+            expectThrows(JsonParsingException.class, () -> walkJson(json));
+        }
+    }
+
     // Both parsers prefix leading-zero messages with a "[line:column]" location (see
     // SimdJsonDirectWalker#computeLineAndColumn).
     public void testLineNumberMatchesBothParsers() {

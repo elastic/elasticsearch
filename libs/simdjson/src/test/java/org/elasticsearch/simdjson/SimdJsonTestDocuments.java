@@ -90,8 +90,9 @@ public final class SimdJsonTestDocuments {
                 {"n":1.5}""", """
                 {"n":1e2}""", """
                 {"n":12.5}""", """
+                {"n":1.5e-5}""", """
                 {"a":[0,9,10,99,100,1234567890,-5,-99]}""", """
-                {"a":[1.5,12.5]}""",
+                {"a":[1.5,12.5,2e5]}""",
                 // Integer digit-count boundary at 19 (long vs. BigInteger fallback): exactly 19
                 // digits fitting a signed long (both sign boundaries), 19 digits overflowing it
                 // (both sign boundaries), and 20+ digits (always BigInteger), and the same

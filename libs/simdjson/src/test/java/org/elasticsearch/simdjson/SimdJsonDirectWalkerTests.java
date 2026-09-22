@@ -285,10 +285,11 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
     }
 
     public void testSmallDigitDoubleArrayElements() {
-        List<String> events = walkJson("{\"a\":[1.5,12.5]}");
-        assertEquals(4, events.size());
+        List<String> events = walkJson("{\"a\":[1.5,12.5,2e5]}");
+        assertEquals(5, events.size());
         assertTrue(events.get(1).startsWith("arrayElemDouble(1.5,"));
         assertTrue(events.get(2).startsWith("arrayElemDouble(12.5,"));
+        assertTrue(events.get(3).startsWith("arrayElemDouble(200000.0,"));
     }
 
     // ---- Digit-count boundary at 19 (handleLargeNumber: long vs. BigInteger fallback) ----
@@ -444,17 +445,92 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         assertLeadingZeroLocation("{\"a\":\"\u00e9\",\"n\":00}", 1, 15);
     }
 
+    // ---- Other malformed-number shapes are rejected, not silently mis-parsed ----
+
+    // Verifies json is rejected with a message containing expectedReason, not some other error .
+    private void assertInvalidNumberRejected(String json, String expectedReason) {
+        for (int padding : new int[] { 0, 32, 64, 128 }) {
+            JsonParsingException e = expectThrows(JsonParsingException.class, () -> walkAndRecord(json, padding));
+            assertTrue("padding=" + padding + " message: " + e.getMessage(), e.getMessage().contains(expectedReason));
+        }
+    }
+
+    // RFC 8259 requires at least one digit after the decimal point ("frac = '.' 1*DIGIT").
+    public void testDecimalPointNotFollowedByDigitRejected() {
+        assertInvalidNumberRejected("{\"n\":1.}", "Decimal point not followed by a digit");
+        assertInvalidNumberRejected("{\"n\":1.,\"m\":2}", "Decimal point not followed by a digit");
+        assertInvalidNumberRejected("{\"n\":1,\"m\":2.}", "Decimal point not followed by a digit");
+        // The fraction is checked before the exponent is even considered.
+        assertInvalidNumberRejected("{\"n\":1.e5}", "Decimal point not followed by a digit");
+        assertInvalidNumberRejected("{\"a\":[1.]}", "Decimal point not followed by a digit");
+        assertInvalidNumberRejected("{\"a\":[1.0, 2.]}", "Decimal point not followed by a digit");
+    }
+
+    // RFC 8259 requires at least one digit after 'e'/'E' (and its optional sign):
+    // "exp = ('e' / 'E') ['-' / '+'] 1*DIGIT".
+    public void testExponentIndicatorNotFollowedByDigitRejected() {
+        assertInvalidNumberRejected("{\"n\":1e}", "Exponent indicator not followed by a digit");
+        assertInvalidNumberRejected("{\"n\":1e+}", "Exponent indicator not followed by a digit");
+        assertInvalidNumberRejected("{\"n\":1e-}", "Exponent indicator not followed by a digit");
+        assertInvalidNumberRejected("{\"n\":1E}", "Exponent indicator not followed by a digit");
+        assertInvalidNumberRejected("{\"n\":1E+}", "Exponent indicator not followed by a digit");
+        assertInvalidNumberRejected("{\"n\":1E-}", "Exponent indicator not followed by a digit");
+        assertInvalidNumberRejected("{\"a\":[1e]}", "Exponent indicator not followed by a digit");
+        assertInvalidNumberRejected("{\"a\":[1e1, 1e]}", "Exponent indicator not followed by a digit");
+    }
+
+    // A number must be immediately followed by a structural character or whitespace; anything
+    // else (e.g. a second '.', a stray '-', or trailing letters) is rejected rather than being
+    // silently dropped when scanning ahead for the next comma/brace/bracket.
+    public void testTrailingGarbageAfterNumberRejected() {
+        assertInvalidNumberRejected("{\"n\":1.2.3}", "Unexpected character after number");
+        assertInvalidNumberRejected("{\"n\":1.2.3,\"m\":4}", "Unexpected character after number");
+        assertInvalidNumberRejected("{\"n\":1e5e6}", "Unexpected character after number");
+        assertInvalidNumberRejected("{\"n\":1-2}", "Unexpected character after number");
+        assertInvalidNumberRejected("{\"n\":12-3}", "Unexpected character after number");
+        assertInvalidNumberRejected("{\"n\":1foo}", "Unexpected character after number");
+        assertInvalidNumberRejected("{\"a\":[1.2.3]}", "Unexpected character after number");
+        assertInvalidNumberRejected("{\"a\":[1foo]}", "Unexpected character after number");
+        assertInvalidNumberRejected("{\"a\":[12-3]}", "Unexpected character after number");
+        // The terminator is checked before the digitCount>=19 BigInteger dispatch too.
+        assertInvalidNumberRejected("{\"n\":123456789012345678901foo}", "Unexpected character after number");
+        assertInvalidNumberRejected("{\"a\":[123456789012345678901foo]}", "Unexpected character after number");
+    }
+
+    // checkTerminator's accept branch: whitespace (not just a structural char) immediately after
+    // a number is fine, for every RFC 8259 whitespace byte, both after an object field value and
+    // an array element.
+    public void testWhitespaceAfterNumberAccepted() {
+        for (String ws : new String[] { " ", "\t", "\n", "\r" }) {
+            assertEquals(List.of("long(n=1,fitsInt=true)"), walkJson("{\"n\":1" + ws + "}"));
+            assertEquals(List.of("startArray(a)", "arrayElemLong(1,fitsInt=true)", "endArray()"), walkJson("{\"a\":[1" + ws + "]}"));
+        }
+    }
+
+    // RFC 8259 requires at least one digit in the integer part ("int = '0' / [1-9] *DIGIT");
+    // it's never empty, even when '-' is immediately followed by '.' or 'e'/'E'.
+    public void testNoIntegerDigitsRejected() {
+        assertInvalidNumberRejected("{\"n\":-}", "No digits found");
+        assertInvalidNumberRejected("{\"n\":-.5}", "No digits found");
+        assertInvalidNumberRejected("{\"n\":-e5}", "No digits found");
+        assertInvalidNumberRejected("{\"a\":[-]}", "No digits found");
+        assertInvalidNumberRejected("{\"a\":[-,1]}", "No digits found");
+        assertInvalidNumberRejected("{\"a\":[-e5]}", "No digits found");
+    }
+
     public void testNegativeDouble() {
         List<String> events = walkJson("{\"n\":-3.14}");
         assertEquals(1, events.size());
         assertTrue(events.get(0).startsWith("double(n=-3.14,"));
     }
 
-    // Exponent form produces double event (not long).
+    // Exponent form produces double event (not long), with either sign.
     public void testScientificNotation() {
         List<String> events = walkJson("{\"n\":1.5e10}");
         assertEquals(1, events.size());
         assertTrue(events.get(0).startsWith("double(n=1.5E10,"));
+
+        assertTrue(walkJson("{\"n\":1.5e-5}").get(0).startsWith("double(n=1.5E-5,"));
     }
 
     // Root must be an object; top-level arrays are rejected.

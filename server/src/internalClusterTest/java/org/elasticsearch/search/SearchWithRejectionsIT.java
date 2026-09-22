@@ -9,24 +9,28 @@
 
 package org.elasticsearch.search;
 
+import org.apache.logging.log4j.Level;
+
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -59,32 +63,39 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         refresh();
 
         int numSearches = 10;
-        @SuppressWarnings({ "rawtypes", "unchecked" })
-        Future<SearchResponse>[] responses = new Future[numSearches];
         SearchType searchType = randomFrom(SearchType.DEFAULT, SearchType.QUERY_THEN_FETCH, SearchType.DFS_QUERY_THEN_FETCH);
         logger.info("search type is {}", searchType);
+
+        final CountDownLatch completed = new CountDownLatch(numSearches);
+        final Set<Integer> outstanding = ConcurrentCollections.newConcurrentSet();
         for (int i = 0; i < numSearches; i++) {
-            responses[i] = prepareSearch().setQuery(matchAllQuery()).setSearchType(searchType).execute();
+            final int id = i;
+            outstanding.add(id);
+            prepareSearch().setQuery(matchAllQuery()).setSearchType(searchType).execute(
+                ActionListener.runAfter(
+                    ActionListener.wrap(r -> {}, e -> {}),
+                    () -> { outstanding.remove(id); completed.countDown(); }
+                )
+            );
         }
-        for (int i = 0; i < numSearches; i++) {
+        if (completed.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS) == false) {
+            logger.info("outstanding searches: {}", outstanding);
             try {
-                responses[i].get(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS).decRef();
-            } catch (ExecutionException e) {
-                // Losing a search to the saturated queue is the scenario under test
-            } catch (TimeoutException e) {
-                throw new AssertionError(
-                    "search ["
-                        + i
-                        + "] of ["
-                        + numSearches
-                        + "] with type ["
-                        + searchType
-                        + "] did not complete within ["
-                        + SAFE_AWAIT_TIMEOUT
-                        + "]; a shard response was likely never accounted for on the coordinator",
-                    e
+                logger.info(
+                    "in-flight tasks: {}",
+                    clusterAdmin().prepareListTasks().setDetailed(true).get(SAFE_AWAIT_TIMEOUT)
                 );
+            } catch (Exception e) {
+                logger.warn("could not list tasks", e);
             }
+            HotThreads.logLocalHotThreads(logger, Level.INFO, "search did not complete", ReferenceDocs.LOGGING);
+            fail(Strings.format(
+                "%d of [%d] searches with type [%s] did not complete within [%s]",
+                outstanding.size(),
+                numSearches,
+                searchType,
+                SAFE_AWAIT_TIMEOUT
+            ));
         }
         assertBusyOpenContexts("test", 0L);
     }

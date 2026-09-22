@@ -167,4 +167,65 @@ public final class NumericColumnWriter {
             }
         }
     }
+
+    /**
+     * Encodes a flat run of {@code numValues} values — no documents, no presence structure, no
+     * value-address table, no skip index. Use for sequences addressed by value index rather than
+     * by document: a dictionary column's ordinals, one per slot, reached by value address.
+     *
+     * @param numDocsWithField documents in the owning column; recorded in the metadata for byte-identical
+     *                         output with the columns this replaces
+     * @param numValues        total number of values
+     * @param source           supplies each value in order
+     * @param pipeline         encoding pipeline
+     * @param blockBytesCodec  terminal byte codec applied to each block
+     * @param directory        directory for temporary table files
+     * @param context          IO context for temporary table files
+     * @param data             data output (value blocks and tables are appended)
+     */
+    public static NumericColumnMetadata writeFlat(
+        int numDocsWithField,
+        long numValues,
+        LongSource source,
+        NumericPipeline pipeline,
+        BlockBytesCodec blockBytesCodec,
+        Directory directory,
+        IOContext context,
+        IndexOutput data
+    ) throws IOException {
+        try (
+            LongBlocks.Writer blocks = LongBlocks.Writer.into(
+                pipeline,
+                blockBytesCodec,
+                numValues,
+                directory,
+                context,
+                data.getName(),
+                data
+            )
+        ) {
+            for (long i = 0; i < numValues; i++) {
+                blocks.add(source.next());
+            }
+            final LongBlocks.Metadata written = blocks.finish(data);
+            final MonotonicWriter.Table addresses = MonotonicWriter.Table.NONE;
+            return new NumericColumnMetadata(
+                ColumnIteratorMetadata.dense(numDocsWithField),
+                numDocsWithField,
+                numValues,
+                written.blockSize(),
+                written.blockBytesCodecId(),
+                written.terminalId(),
+                written.transformIds(),
+                written.valuesOffset(),
+                written.blockOffsets().dataOffset(),
+                written.blockOffsets().dataLength(),
+                written.blockOffsets().meta(),
+                addresses.dataOffset(),
+                addresses.dataLength(),
+                addresses.meta(),
+                null
+            );
+        }
+    }
 }

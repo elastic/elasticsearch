@@ -21,7 +21,6 @@ import org.apache.lucene.util.IOSupplier;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.numeric.NumericBlockEncoder;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
-import org.elasticsearch.columnar.numeric.NumericColumnValues;
 import org.elasticsearch.columnar.numeric.NumericColumnWriter;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
@@ -32,8 +31,6 @@ import org.elasticsearch.columnar.substrate.ColumnIteratorWriter;
 import org.elasticsearch.columnar.substrate.MonotonicWriter;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Writes a string column — single- or multi-valued. Slots are written in the order the
@@ -349,7 +346,6 @@ public final class StringColumnWriter {
 
         String ordinalTempName = null;
         String escapeTempName = null;
-        final List<IndexInput> replays = new ArrayList<>();
         try (
             ColumnIteratorWriter<StringColumnValues> presence = ColumnIteratorWriter.open(
                 cursors,
@@ -412,29 +408,27 @@ public final class StringColumnWriter {
                 escapeRanks = escapes == 0 ? MonotonicWriter.Table.NONE : ranks.finish(data);
             }
 
-            final String staged = ordinalTempName;
             // Compressing the ordinals only pays where they repeat, and it takes a larger block to reach
             // that repetition at all. A sample says which of the two shapes this column's ordinals take.
-            final boolean compressOrdinals = compressionPaysForOrdinals(directory, context, staged, numValues, sizes);
+            final boolean compressOrdinals = compressionPaysForOrdinals(directory, context, ordinalTempName, numValues, sizes);
             final int ordinalBlockSize = compressOrdinals ? sizes.compressedOrdinalBlockSize() : sizes.packedOrdinalBlockSize();
             // One ordinal a slot, reached by value address: nothing asks the ordinals which document a slot
-            // belongs to, and the string column already tables that, so they table nothing themselves.
-            final NumericColumnMetadata ordinals = NumericColumnWriter.write(numDocsWithField, numDocsWithField, numValues, false, () -> {
-                final IndexInput in = directory.openInput(staged, IOContext.READONCE);
-                replays.add(in);
-                return stagedOrdinals(cursors.get(), in);
-            },
-                compressOrdinals
-                    ? NumericPipeline.compressedOrdinalPipeline(ordinalBlockSize)
-                    : NumericPipeline.runsAndOutliersPipeline(ordinalBlockSize),
-                BlockBytesCodec.forId(compressOrdinals ? BlockBytesCodec.ZSTD_ID : BlockBytesCodec.IDENTITY_ID),
-                // The ordinals build no skip index, so nothing is ever written to one.
-                null,
-                directory,
-                context,
-                data,
-                null
-            );
+            // belongs to, so they are read flat without rebuilding the source cursor.
+            final NumericColumnMetadata ordinals;
+            try (IndexInput in = directory.openInput(ordinalTempName, IOContext.READONCE)) {
+                ordinals = NumericColumnWriter.writeFlat(
+                    numDocsWithField,
+                    numValues,
+                    in::readVInt,
+                    compressOrdinals
+                        ? NumericPipeline.compressedOrdinalPipeline(ordinalBlockSize)
+                        : NumericPipeline.runsAndOutliersPipeline(ordinalBlockSize),
+                    BlockBytesCodec.forId(compressOrdinals ? BlockBytesCodec.ZSTD_ID : BlockBytesCodec.IDENTITY_ID),
+                    directory,
+                    context,
+                    data
+                );
+            }
             // Presence bytes follow the value data; ColumnIteratorMetadata records the absolute offset.
             final ColumnIteratorMetadata iterator = presence.install(data);
             return StringColumnMetadata.dictionary(
@@ -453,7 +447,6 @@ public final class StringColumnWriter {
                 sorted
             );
         } finally {
-            IOUtils.close(replays);
             IOUtils.deleteFilesIgnoringExceptions(directory, ordinalTempName, escapeTempName);
         }
     }
@@ -565,41 +558,6 @@ public final class StringColumnWriter {
             }, out);
         }
         return out.size();
-    }
-
-    /** The staged ordinals, over the documents {@code source} walks, so they can be written as a numeric column. */
-    private static NumericColumnValues stagedOrdinals(StringColumnValues source, IndexInput staged) {
-        return new NumericColumnValues() {
-            @Override
-            public int valueCount() {
-                return source.valueCount();
-            }
-
-            @Override
-            public long nextValue() throws IOException {
-                return staged.readVInt();
-            }
-
-            @Override
-            public int docID() {
-                return source.docID();
-            }
-
-            @Override
-            public int nextDoc() throws IOException {
-                return source.nextDoc();
-            }
-
-            @Override
-            public int advance(int target) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public long cost() {
-                return source.cost();
-            }
-        };
     }
 
 }

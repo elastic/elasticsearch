@@ -96,7 +96,7 @@ public class StringColumnPassCountTests extends ColumnarStringTestCase {
             assumeTrue("policy kept the vocabulary", known != null);
             final var counter = new CountingSupplier<>(() -> cursor(docSlots));
             writeWith(dir, docSlots, counter, DICTIONARY_OPTIONS, known);
-            assertEquals("dense dictionary, known vocab: 2 passes (values + ordinals)", 2, counter.count());
+            assertEquals("dense dictionary, known vocab: 1 pass (values + flat ordinals)", 1, counter.count());
         }
     }
 
@@ -111,7 +111,7 @@ public class StringColumnPassCountTests extends ColumnarStringTestCase {
             assumeTrue("policy kept the vocabulary", known != null);
             final var counter = new CountingSupplier<>(() -> cursor(docSlots));
             writeWith(dir, docSlots, counter, DICTIONARY_OPTIONS, known);
-            assertEquals("sparse dictionary, known vocab: 2 passes (presence+values folded + ordinals)", 2, counter.count());
+            assertEquals("sparse dictionary, known vocab: 1 pass (presence+values folded + flat ordinals)", 1, counter.count());
         }
     }
 
@@ -127,7 +127,7 @@ public class StringColumnPassCountTests extends ColumnarStringTestCase {
             // Pass null to force the survey to happen inside the writer.
             final var counter = new CountingSupplier<>(() -> cursor(docSlots));
             writeWith(dir, docSlots, counter, DICTIONARY_OPTIONS, null);
-            assertEquals("dense dictionary survey: 3 passes (survey + values + ordinals)", 3, counter.count());
+            assertEquals("dense dictionary survey: 2 passes (survey + values + flat ordinals)", 2, counter.count());
         }
     }
 
@@ -142,7 +142,7 @@ public class StringColumnPassCountTests extends ColumnarStringTestCase {
             assumeTrue("policy kept the vocabulary", known != null);
             final var counter = new CountingSupplier<>(() -> cursor(docSlots));
             writeWith(dir, docSlots, counter, DICTIONARY_OPTIONS, null);
-            assertEquals("sparse dictionary survey: 3 passes (survey + presence+values folded + ordinals)", 3, counter.count());
+            assertEquals("sparse dictionary survey: 2 passes (survey + presence+values folded + flat ordinals)", 2, counter.count());
         }
     }
 

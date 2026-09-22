@@ -4758,12 +4758,18 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
                 PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
                 resolver.resolve(List.of("s3://bucket/data/*.parquet"), pathConfigs, f1);
-                assertNotNull("[" + strategy + "] first resolve must produce a source", f1.actionGet().resolvedSource("s3://bucket/data/*.parquet"));
+                assertNotNull(
+                    "[" + strategy + "] first resolve must produce a source",
+                    f1.actionGet().resolvedSource("s3://bucket/data/*.parquet")
+                );
                 long lookupsAfterFirst = schemaCacheLookups(cacheService);
 
                 PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
                 resolver.resolve(List.of("s3://bucket/data/*.parquet"), pathConfigs, f2);
-                assertNotNull("[" + strategy + "] second resolve must produce a source", f2.actionGet().resolvedSource("s3://bucket/data/*.parquet"));
+                assertNotNull(
+                    "[" + strategy + "] second resolve must produce a source",
+                    f2.actionGet().resolvedSource("s3://bucket/data/*.parquet")
+                );
                 long lookupsAfterSecond = schemaCacheLookups(cacheService);
 
                 warmLookupsByStrategy.put(strategy, lookupsAfterSecond - lookupsAfterFirst);
@@ -4784,6 +4790,144 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ),
             warmLookupsByStrategy
         );
+    }
+
+    /**
+     * Under {@code first_file_wins} the resolved schema is the ANCHOR's, and the anchor is the head of the
+     * sorted listing. Appending a file that sorts after the anchor therefore cannot change the resolved
+     * schema — not even when the appended file's own schema differs, which is what this corpus does.
+     * <p>
+     * The consequence for caching: a dataset-level entry keyed on the whole file set, a commutative fold
+     * over every file's path, mtime and size, is discarded by that append and a still-correct result is
+     * rebuilt from nothing. On an append-only dataset — parts landing under a partitioned prefix, the
+     * ordinary case — the entry would never be hit. This pins the premise, so that keying this mode on the
+     * anchor's identity rests on what the resolver does rather than on an argument about it.
+     */
+    public void testFirstFileWinsSchemaIsUnchangedByAnAppendAfterTheAnchor() throws Exception {
+        List<Attribute> anchorSchema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
+        List<Attribute> appendedSchema = List.of(
+            attr("id", DataType.INTEGER),
+            attr("name", DataType.KEYWORD),
+            attr("extra", DataType.KEYWORD)
+        );
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/a.parquet", anchorSchema);
+        schemasByPath.put("s3://bucket/data/b.parquet", anchorSchema);
+        schemasByPath.put("s3://bucket/data/c.parquet", anchorSchema);
+        schemasByPath.put("s3://bucket/data/z.parquet", appendedSchema);
+
+        String glob = "s3://bucket/data/*.parquet";
+        Map<String, Object> config = Map.of("schema_resolution", "first_file_wins", "file_sort_by", "name");
+        Map<String, Map<String, Object>> pathConfigs = Map.of(glob, new HashMap<>(config));
+
+        List<StorageEntry> before = List.of(
+            entry("s3://bucket/data/a.parquet", 100),
+            entry("s3://bucket/data/b.parquet", 200),
+            entry("s3://bucket/data/c.parquet", 300)
+        );
+        List<StorageEntry> after = List.of(
+            entry("s3://bucket/data/a.parquet", 100),
+            entry("s3://bucket/data/b.parquet", 200),
+            entry("s3://bucket/data/c.parquet", 300),
+            entry("s3://bucket/data/z.parquet", 400)
+        );
+
+        List<Attribute> schemaBefore = resolveSchemaOverListing(glob, pathConfigs, before, schemasByPath);
+        List<Attribute> schemaAfter = resolveSchemaOverListing(glob, pathConfigs, after, schemasByPath);
+
+        assertEquals(
+            "appending a file after the anchor must not change the first-file-wins schema",
+            describe(schemaBefore),
+            describe(schemaAfter)
+        );
+        assertEquals("the anchor's schema is what both resolves produced", describe(anchorSchema), describe(schemaAfter));
+    }
+
+    /**
+     * One resolve of {@code glob} over {@code listing}, against its own cache service so the
+     * 30-second listing cache cannot serve the earlier listing to the later resolve and hide the append.
+     */
+    private List<Attribute> resolveSchemaOverListing(
+        String glob,
+        Map<String, Map<String, Object>> pathConfigs,
+        List<StorageEntry> listing,
+        Map<String, List<Attribute>> schemasByPath
+    ) throws Exception {
+        Settings cacheSettings = Settings.builder()
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .build();
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemasByPath);
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheSettings)) {
+            ExternalSourceResolver resolver = createResolverWithCache(provider, schemasByPath, cacheService);
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(glob), pathConfigs, future);
+            ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(glob);
+            assertNotNull("resolve over " + listing.size() + " files must produce a source", resolved);
+            assertEquals("the resolve must have seen the whole listing", listing.size(), resolved.fileList().fileCount());
+            return resolved.metadata().schema();
+        }
+    }
+
+    /**
+     * The positive control for {@link #testFirstFileWinsSchemaIsUnchangedByAnAppendAfterTheAnchor}: the SAME corpus
+     * and the SAME append under {@code union_by_name} DOES change the resolved schema, which gains the appended
+     * file's extra column. Without this, the first-file-wins test could pass because the fixture cannot observe an
+     * appended file at all, and would keep passing if the resolver stopped reading the listing entirely.
+     * <p>
+     * Together the two pin the design: the identity that decides whether a cached schema is still valid belongs to
+     * the discovery mode. Under {@code first_file_wins} it is the anchor, and an append cannot invalidate it; under
+     * {@code union_by_name} it is the whole file set, and an append can.
+     */
+    public void testUnionByNameSchemaDoesChangeWhenAnAppendAddsAColumn() throws Exception {
+        List<Attribute> anchorSchema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
+        List<Attribute> appendedSchema = List.of(
+            attr("id", DataType.INTEGER),
+            attr("name", DataType.KEYWORD),
+            attr("extra", DataType.KEYWORD)
+        );
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/a.parquet", anchorSchema);
+        schemasByPath.put("s3://bucket/data/b.parquet", anchorSchema);
+        schemasByPath.put("s3://bucket/data/c.parquet", anchorSchema);
+        schemasByPath.put("s3://bucket/data/z.parquet", appendedSchema);
+
+        String glob = "s3://bucket/data/*.parquet";
+        Map<String, Map<String, Object>> pathConfigs = Map.of(glob, new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME)));
+
+        List<StorageEntry> before = List.of(
+            entry("s3://bucket/data/a.parquet", 100),
+            entry("s3://bucket/data/b.parquet", 200),
+            entry("s3://bucket/data/c.parquet", 300)
+        );
+        List<StorageEntry> after = List.of(
+            entry("s3://bucket/data/a.parquet", 100),
+            entry("s3://bucket/data/b.parquet", 200),
+            entry("s3://bucket/data/c.parquet", 300),
+            entry("s3://bucket/data/z.parquet", 400)
+        );
+
+        List<Attribute> schemaBefore = resolveSchemaOverListing(glob, pathConfigs, before, schemasByPath);
+        List<Attribute> schemaAfter = resolveSchemaOverListing(glob, pathConfigs, after, schemasByPath);
+
+        assertEquals("before the append the union is the shared schema", describe(anchorSchema), describe(schemaBefore));
+        assertThat(
+            "under union_by_name the appended file's column must reach the resolved schema",
+            describe(schemaAfter),
+            hasItem("extra:keyword")
+        );
+        assertNotEquals(
+            "the same append that first_file_wins ignores must change the union_by_name schema",
+            describe(schemaBefore),
+            describe(schemaAfter)
+        );
+    }
+
+    /** A schema as {@code name:type} pairs, so an assertion failure names the difference instead of an object graph. */
+    private static List<String> describe(List<Attribute> schema) {
+        return schema.stream().map(a -> a.name() + ":" + a.dataType().typeName()).toList();
     }
 
     /**

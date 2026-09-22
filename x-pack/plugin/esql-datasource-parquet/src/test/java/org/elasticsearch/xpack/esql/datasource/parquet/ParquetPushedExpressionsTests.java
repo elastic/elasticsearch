@@ -2781,7 +2781,11 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertNull("a list-valued keyword bound must not become a scalar bound", predicateFor(schema, mvLess));
         FilterPredicate underAnd = predicateFor(
             schema,
-            new And(Source.EMPTY, mvLess, new Equals(Source.EMPTY, attr("region", DataType.KEYWORD), lit(new BytesRef("zoo"), DataType.KEYWORD), null))
+            new And(
+                Source.EMPTY,
+                mvLess,
+                new Equals(Source.EMPTY, attr("region", DataType.KEYWORD), lit(new BytesRef("zoo"), DataType.KEYWORD), null)
+            )
         );
         assertNotNull("the other arm still pushes", underAnd);
         assertThat(underAnd.toString(), not(containsString("[zzz]")));

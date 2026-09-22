@@ -238,6 +238,8 @@ public final class FormatNameResolver {
         }
     }
 
+    // resource is intentionally not embedded in the message — it is a storage path and would leak
+    // the storage location to the caller.
     public static String ambiguousDatasetFormatMessage(String resource) {
         return "Cannot determine a single format for the dataset resource; "
             + "set the dataset's [format] setting, or split mixed formats into separate datasets.";

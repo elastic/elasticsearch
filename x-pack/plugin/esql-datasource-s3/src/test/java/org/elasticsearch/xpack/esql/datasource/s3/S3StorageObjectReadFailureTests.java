@@ -51,6 +51,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.net.ssl.SSLHandshakeException;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -214,7 +215,8 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
         assertSame(expired, thrown.getCause());
         assertThat(thrown.getMessage(), containsString("expired or invalid"));
         assertThat(thrown.getMessage(), containsString("Refresh the data source credentials"));
-        assertThat(thrown.getMessage(), containsString("reading [" + PATH + "]"));
+        // The storage path is intentionally omitted here; mapResolveFailure adds it for authorised callers via LocatedException.
+        assertThat(thrown.getMessage(), not(containsString(PATH.toString())));
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(thrown));
         assertSame(thrown, ExternalFailures.classify(thrown));
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(thrown)));

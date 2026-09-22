@@ -121,6 +121,7 @@ public class DatasetLocationSecurityIT extends ESRestTestCase {
     private static final String GOOD_CSV = "loc/good.csv";
     private static final String DENIED_CSV = "loc/denied.csv";
     private static final String GARBAGE_PARQUET = "loc/garbage.parquet";
+    private static final String GARBAGE_ORC = "loc/garbage.orc";
     private static final String GLOB_A = "loc/glob/a.csv";
     private static final String GLOB_B = "loc/glob/b.csv";
 
@@ -134,6 +135,12 @@ public class DatasetLocationSecurityIT extends ESRestTestCase {
         s3HttpFixture.seedBlob(
             GARBAGE_PARQUET,
             "this is plain text pretending to be a parquet file, repeated to give it some length.\n".repeat(8)
+                .getBytes(StandardCharsets.UTF_8)
+        );
+        // Garbage bytes that will fail ORC tail parsing (no valid PostScript or magic).
+        s3HttpFixture.seedBlob(
+            GARBAGE_ORC,
+            "this is plain text pretending to be an orc file, repeated to give it some length.\n".repeat(8)
                 .getBytes(StandardCharsets.UTF_8)
         );
     }
@@ -180,12 +187,15 @@ public class DatasetLocationSecurityIT extends ESRestTestCase {
         putDataset("ds_loc_denied_glob", "ds_loc_bad_src", s3("loc/glob/*.csv"), null);
         // Shape 3: single object, format mismatch (garbage bytes with a .parquet extension).
         putDataset("ds_loc_wrong_format", "ds_loc_good_src", s3(GARBAGE_PARQUET), null);
+        // Shape 4: single object, ORC tail parsing failure (garbage bytes with an .orc extension).
+        // Verifies that OrcFormatReader does not embed the full storage path in its error message.
+        putDataset("ds_loc_bad_orc", "ds_loc_good_src", s3(GARBAGE_ORC), null);
         // Good dataset for the profile-plan test.
         putDataset("ds_loc_good", "ds_loc_good_src", s3(GOOD_CSV), null);
 
         // ── Failing shapes: reader must not see bucket; metadata_reader must ─────────────────────
 
-        for (String dataset : List.of("ds_loc_denied_single", "ds_loc_denied_glob", "ds_loc_wrong_format")) {
+        for (String dataset : List.of("ds_loc_denied_single", "ds_loc_denied_glob", "ds_loc_wrong_format", "ds_loc_bad_orc")) {
             // reader must not see the bucket name in any field of the error response
             ResponseException readerError = expectThrows(
                 ResponseException.class,

@@ -423,7 +423,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             if (other instanceof RuntimeException re) {
                 throw re;
             }
-            throw new IOException("Failed to parse ORC tail for [" + path + "]", other);
+            throw new IOException("Failed to parse ORC tail for [" + path.getName() + "]", other);
         }
     }
 

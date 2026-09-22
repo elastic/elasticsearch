@@ -281,7 +281,7 @@ public class GcsStorageProvider implements StorageProvider {
             }
         } catch (Exception e) {
             throw new IOException(
-                "Failed to list children in bucket [" + bucket + "] with prefix [" + objectPrefix + "]: " + GcsFailureDetail.of(e),
+                "Failed to list children in the configured path: " + GcsFailureDetail.of(e),
                 e
             );
         }

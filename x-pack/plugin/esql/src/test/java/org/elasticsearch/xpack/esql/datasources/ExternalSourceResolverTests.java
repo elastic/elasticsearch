@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
+import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.FileMetadataCacheKey;
@@ -3765,40 +3766,49 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * A cache {@code ExecutionException} wrapping expired session credentials must stay 400, not fall
-     * through to the terminal 500 arm. The store message already names the object, so the wrapper
-     * must not name it again.
+     * A cache {@code ExecutionException} wrapping expired session credentials must produce a
+     * LocatedException: unauthorized callers get 400 without the path; authorized callers see the
+     * path in the resolved exception.
      */
     public void testCredentialsExpiredKeepsIts400ThroughAWrapper() {
         ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
         String path = "s3://b/x.parquet";
+        // Providers no longer embed the storage path in the message; only the refresh hint appears.
         ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException(
-            "Session credentials expired reading [" + path + "]. Refresh the data source credentials and re-run the query."
+            "Session credentials expired. Refresh the data source credentials and re-run the query."
         );
 
         RuntimeException mapped = resolver.mapResolveFailure(path, new ExecutionException(expired));
 
-        assertThat(mapped, instanceOf(ExternalCredentialsExpiredException.class));
-        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(mapped));
-        assertThat(mapped.getMessage(), containsString("Refresh the data source credentials"));
-        assertEquals(
-            "the object is named once, not once by the store and again by the wrapper",
-            mapped.getMessage().indexOf(path),
-            mapped.getMessage().lastIndexOf(path)
-        );
+        assertThat(mapped, instanceOf(ExternalFailures.LocatedException.class));
+        ExternalFailures.LocatedException located = (ExternalFailures.LocatedException) mapped;
+
+        RuntimeException unlocated = located.resolve(false);
+        assertThat(unlocated, instanceOf(ExternalCredentialsExpiredException.class));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(unlocated));
+        assertThat(unlocated.getMessage(), containsString("Refresh the data source credentials"));
+        assertThat("unauthorized caller must not see the path", unlocated.getMessage(), not(containsString(path)));
+
+        RuntimeException locatedResolved = located.resolve(true);
+        assertThat(locatedResolved, instanceOf(ExternalCredentialsExpiredException.class));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(locatedResolved));
+        assertThat(locatedResolved.getMessage(), containsString(path));
     }
 
     public void testCredentialsExpiredRawStays400() {
         ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        // Providers no longer embed the storage path in the message.
         ExternalCredentialsExpiredException expired = new ExternalCredentialsExpiredException(
-            "Session credentials expired reading [s3://b/k]. Refresh the data source credentials and re-run the query."
+            "Session credentials expired. Refresh the data source credentials and re-run the query."
         );
 
         RuntimeException mapped = resolver.mapResolveFailure("s3://b/k", expired);
 
-        assertThat(mapped, instanceOf(ExternalCredentialsExpiredException.class));
-        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(mapped));
-        assertThat(mapped.getMessage(), containsString("Refresh the data source credentials"));
+        assertThat(mapped, instanceOf(ExternalFailures.LocatedException.class));
+        RuntimeException unlocated = ((ExternalFailures.LocatedException) mapped).resolve(false);
+        assertThat(unlocated, instanceOf(ExternalCredentialsExpiredException.class));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(unlocated));
+        assertThat(unlocated.getMessage(), containsString("Refresh the data source credentials"));
     }
 
     /**

@@ -1039,8 +1039,9 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             sb.append("[splits=").append(splits.size()).append("]");
         }
         if (datasetName != null) {
-            // Dataset name is a storage location identifier — redact with mapper.location().
-            sb.append("[dataset=").append(mapper.location(datasetName)).append("]");
+            // Dataset name is the logical name the caller used in FROM — always visible, redact only
+            // the storage URI (sourcePath) via mapper.location() above.
+            sb.append("[dataset=").append(datasetName).append("]");
         }
         NodeUtils.toString(sb, attributes, format, mapper);
     }

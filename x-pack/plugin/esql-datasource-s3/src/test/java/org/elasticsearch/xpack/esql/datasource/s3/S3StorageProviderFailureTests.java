@@ -213,7 +213,7 @@ public class S3StorageProviderFailureTests extends ESTestCase {
         S3StorageProvider provider = S3StorageProvider.forTesting(client, null);
         ExternalCredentialsExpiredException thrown = expectThrows(ExternalCredentialsExpiredException.class, () -> provider.exists(PATH));
         assertSame(expired, thrown.getCause());
-        assertThat(thrown.getMessage(), containsString("checking existence"));
+        assertThat(thrown.getMessage(), containsString("checking object existence"));
         verify(client, never()).headBucket(any(HeadBucketRequest.class));
     }
 

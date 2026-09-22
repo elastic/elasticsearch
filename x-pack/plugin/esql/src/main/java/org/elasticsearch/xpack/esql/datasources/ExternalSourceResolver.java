@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -735,6 +736,7 @@ public class ExternalSourceResolver {
         // it so the coordinator can reinstate the path for authorised callers.
         if (e instanceof ExternalFailures.LocatedException locatedEx) {
             recordDiscoveryFailure();
+            LOGGER.error("Failed to resolve external source [{}]: {}", path, locatedEx.getMessage(), locatedEx);
             return locatedEx;
         }
         // A buried 503 (retryable back-pressure) must not be masked as a 400 by the factory loop's IllegalArgumentException
@@ -749,12 +751,8 @@ public class ExternalSourceResolver {
         if (unavailable != null) {
             recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-            return new ExternalUnavailableException(
-                unavailable.throttling(),
-                unavailable,
-                "{}",
-                unavailable.getMessage() != null ? unavailable.getMessage() : "Failed to resolve external source"
-            );
+            // Return the original exception to preserve retryAfterMs and all other fields.
+            return unavailable;
         }
         // Expired session tokens are a typed 400 so prefetch/listing fail-fast can instanceof them.
         // Recover from a cache ExecutionException the same way as the 503 arm: without this, a glob
@@ -766,11 +764,16 @@ public class ExternalSourceResolver {
         if (expired != null) {
             recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-            return new ExternalCredentialsExpiredException(
+            // Wrap in LocatedException so reinstateLocationIfAuthorized can show the path to
+            // authorised callers while hiding it from everyone else.
+            String expiredDetail = expired.getMessage() != null ? expired.getMessage() : "Failed to resolve external source";
+            RuntimeException unlocatedExpired = new ExternalCredentialsExpiredException(expired, "{}", expiredDetail);
+            RuntimeException locatedExpired = new ExternalCredentialsExpiredException(
                 expired,
                 "{}",
-                ExternalFailures.locate("Failed to resolve external source", path, expired.getMessage())
+                ExternalFailures.locate("Failed to resolve external source", path, expiredDetail)
             );
+            return ExternalFailures.locatedException(unlocatedExpired, locatedExpired);
         }
         // A permit-acquisition interrupt surfaces as an EsRejectedExecutionException (429). The factory loop wraps it
         // in an IllegalArgumentException (400), so recover it from the cause chain before the IllegalArgumentException
@@ -782,11 +785,8 @@ public class ExternalSourceResolver {
         if (rejected != null) {
             recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-            EsRejectedExecutionException wrapped = new EsRejectedExecutionException(
-                rejected.getMessage() != null ? rejected.getMessage() : "Failed to resolve external source"
-            );
-            wrapped.initCause(rejected);
-            return wrapped;
+            // Return the original exception to preserve isExecutorShutdown() and all other fields.
+            return rejected;
         }
         // A breaker trip carries its own 429 and must survive a wrapper for the same reason: ParsedFooterCache
         // raises it during resolution, and the boundary already treats it as a status carrier alongside the two
@@ -2818,20 +2818,24 @@ public class ExternalSourceResolver {
      */
     private static RuntimeException lastFactoryFailure(String path, Exception lastFailure) {
         String detail = ExternalFailures.rootDetail(lastFailure);
-        Throwable rootCause = ExternalFailures.rootCause(lastFailure);
         // Status-bearing exceptions (503, 429, etc.) carry their own HTTP status and must flow
         // through mapResolveFailure's recovery arms unmodified. LocatedException is checked first
         // in mapResolveFailure, so wrapping these would bypass status recovery.
-        // EsRejectedExecutionException extends RejectedExecutionException (not ElasticsearchException),
-        // so it requires an explicit check here.
-        if (rootCause instanceof org.elasticsearch.ElasticsearchException
-            || rootCause instanceof EsRejectedExecutionException) {
-            return new IllegalArgumentException(detail, rootCause);
+        // Use full-chain unwrap (not just the root cause) so a status carrier buried behind an
+        // intermediate wrapper is still detected. EsRejectedExecutionException extends
+        // RejectedExecutionException (not ElasticsearchException) and requires an explicit check.
+        if (ExceptionsHelper.unwrap(lastFailure, ElasticsearchException.class) != null
+            || ExceptionsHelper.unwrap(lastFailure, EsRejectedExecutionException.class) != null) {
+            // Preserve the full cause chain so mapResolveFailure's unwrap arms can find the
+            // status carrier regardless of how many wrappers surround it.
+            return new IllegalArgumentException(detail, lastFailure);
         }
-        RuntimeException unlocated = new IllegalArgumentException(detail, rootCause);
+        // Preserve the full cause chain in both variants so stack frames from factory attempts
+        // (e.g. HTTP client exceptions wrapping an SDK timeout) are not silently discarded.
+        RuntimeException unlocated = new IllegalArgumentException(detail, lastFailure);
         RuntimeException located = new IllegalArgumentException(
             ExternalFailures.locate("Failed to resolve external source", path, detail),
-            rootCause
+            lastFailure
         );
         return ExternalFailures.locatedException(unlocated, located);
     }

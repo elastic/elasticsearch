@@ -93,6 +93,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtract
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
@@ -613,7 +614,7 @@ public class EsqlSession {
                     // Used to resolve LocatedException on the execution failure path, where the
                     // SubscribableListener chain ends at .addListener(listener) rather than going
                     // through analysisListener/reinstateLocationIfAuthorized.
-                    var callerHoldsDatasetLocationPrivilege = new Holder<>(false);
+                    var callerHoldsDatasetLocationPrivilege = new AtomicBoolean(false);
                     SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, planTimeProfile, l))
                         .<LogicalPlan>andThen(
                             (l, p) -> preMapper.preMapper(
@@ -626,7 +627,7 @@ public class EsqlSession {
                             checkDatasetLocationPrivilege(p, l);
                         })
                         .<Result>andThen((l, canSee) -> {
-                            callerHoldsDatasetLocationPrivilege.set(canSee);
+                            callerHoldsDatasetLocationPrivilege.set(canSee);  // volatile write; visible to addListener below
                             LogicalPlan p = preMappedPlan.get();
                             columnMetadata.set(
                                 createColumnMetadata(
@@ -680,7 +681,7 @@ public class EsqlSession {
                         })
                         .addListener(ActionListener.wrap(listener::onResponse, e -> {
                             if (e instanceof ExternalFailures.LocatedException located) {
-                                listener.onFailure(located.resolve(callerHoldsDatasetLocationPrivilege.get()));
+                                listener.onFailure(located.resolve(callerHoldsDatasetLocationPrivilege.get()));  // volatile read
                             } else {
                                 listener.onFailure(e);
                             }
@@ -790,7 +791,9 @@ public class EsqlSession {
      */
     private void checkDatasetLocationPrivilege(Set<String> datasetNames, ActionListener<Boolean> listener) {
         if (datasetNames.isEmpty()) {
-            listener.onResponse(false);
+            // No named datasets to check (e.g. EXTERNAL "s3://…" literal URI queries): the caller
+            // supplied the URI themselves, so there is no privilege boundary to enforce — show the path.
+            listener.onResponse(true);
             return;
         }
         final Settings settings = clusterService.getSettings();
@@ -798,13 +801,13 @@ public class EsqlSession {
             listener.onResponse(true);
             return;
         }
-        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, transportService.getThreadPool().getThreadContext());
+        final SecurityContext securityContext = new SecurityContext(settings, transportService.getThreadPool().getThreadContext());
         final User user = securityContext.getUser();
         if (user == null) {
-            // No user in the thread context means the security plugin is not running (e.g. in test
-            // clusters where xpack.security.enabled defaults to true but the plugin is absent).
-            // Without an active security system there is nothing to protect, so show the path.
-            listener.onResponse(true);
+            // No user in the thread context. In production with security enabled and the plugin
+            // running, API calls always carry a user — null indicates a system/stashed context where
+            // we cannot verify privileges. Fail closed to avoid accidentally leaking paths.
+            listener.onResponse(false);
             return;
         }
         HasPrivilegesRequest request = new HasPrivilegesRequest();

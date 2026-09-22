@@ -1193,7 +1193,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         for (String name : headerNames) {
             if (seen.add(name) == false) {
                 throw new IllegalArgumentException(
-                    "the header of [" + object.path() + "] has duplicate column name [" + name + "]; declared columns cannot bind by name"
+                    "the header of [" + object.path().objectName() + "] has duplicate column name [" + name + "]; declared columns cannot bind by name"
                 );
             }
         }
@@ -2078,7 +2078,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 if (headerColumns == null) {
                     throw new IllegalStateException(
                         "headered declared-provenance read of ["
-                            + object.path()
+                            + object.path().objectName()
                             + "] reached a non-first split without the file's header columns; cannot bind the declared "
                             + "schema by name"
                     );
@@ -2327,7 +2327,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 "pinned schema has "
                     + readSchema.size()
                     + " columns but ["
-                    + object.path()
+                    + object.path().objectName()
                     + "] has only "
                     + fields.length
                     + " — the file may have drifted (or set header_row=false if the file has no header row)"

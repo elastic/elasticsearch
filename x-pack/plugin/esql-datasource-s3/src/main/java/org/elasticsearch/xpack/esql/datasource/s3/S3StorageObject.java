@@ -254,7 +254,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 cause
             );
         }
-        ExternalCredentialsExpiredException expired = S3FailureDetail.expired(cause, "reading [" + path + "]");
+        ExternalCredentialsExpiredException expired = S3FailureDetail.expired(cause, "reading object");
         if (expired != null) {
             return expired;
         }

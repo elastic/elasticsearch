@@ -771,7 +771,7 @@ public class S3StorageProvider implements StorageProvider {
                 throw unavailable;
             }
             throw new IOException(
-                "Failed to list children in bucket [" + bucket + "] with prefix [" + keyPrefix + "]: " + S3FailureDetail.of(e),
+                "Failed to list children in the configured path: " + S3FailureDetail.of(e),
                 e
             );
         }
@@ -808,7 +808,7 @@ public class S3StorageProvider implements StorageProvider {
         } catch (NoSuchKeyException e) {
             return false;
         } catch (Exception e) {
-            ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "checking existence of [" + path + "]");
+            ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "checking object existence");
             if (expired != null) {
                 throw expired;
             }
@@ -841,7 +841,7 @@ public class S3StorageProvider implements StorageProvider {
         } catch (NoSuchKeyException e) {
             return false;
         } catch (Exception e) {
-            ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "checking existence of [" + path + "]");
+            ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "checking object existence");
             if (expired != null) {
                 throw expired;
             }
@@ -1052,7 +1052,7 @@ public class S3StorageProvider implements StorageProvider {
             } catch (Exception e) {
                 ExternalCredentialsExpiredException expired = S3FailureDetail.expired(
                     e,
-                    "listing objects in bucket [" + bucket + "] with prefix [" + prefix + "]"
+                    "listing objects in the configured path"
                 );
                 if (expired != null) {
                     throw expired;

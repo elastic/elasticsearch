@@ -130,32 +130,32 @@ public final class StringColumnWriter {
         }
 
         if (numDocsWithField == 0) {
-            return StringColumnMetadata.empty(ColumnIteratorWriter.write(cursors, 0, maxDoc, data));
+            return StringColumnMetadata.empty(ColumnIteratorMetadata.empty(maxDoc));
         }
 
-        // For a sparse column that needs a survey, the presence pass and the survey walk the same documents,
-        // so they can share a single cursor. SurveyingDocs wraps the cursor and feeds values to the surveyor
-        // on every nextDoc() call; IndexedDISI.writeBitSet drives the walk via the default intoBitSet, which
-        // loops on nextDoc(), so every document is seen exactly once.
-        final boolean combinedPass = policy.enabled() && known == null && numDocsWithField < maxDoc;
-
-        final ColumnIteratorMetadata iterator;
+        // Survey if needed. A merge that worked out the vocabulary from recorded summaries does not survey.
         Vocabulary.Terms surveyed = null;
-        if (combinedPass) {
-            final SurveyingDocs docs = new SurveyingDocs(cursors.get(), Vocabulary.surveyor(policy), numDocsWithField);
-            iterator = ColumnIteratorWriter.write(docs, numDocsWithField, maxDoc, data);
-            surveyed = docs.finish();
-        } else {
-            iterator = ColumnIteratorWriter.write(cursors, numDocsWithField, maxDoc, data);
-            if (policy.enabled()) {
-                // A merge that worked out the vocabulary from what its inputs recorded does not survey again.
-                surveyed = known != null ? known : Vocabulary.survey(cursors.get(), policy);
-            }
+        if (policy.enabled()) {
+            surveyed = known != null ? known : Vocabulary.survey(cursors.get(), policy);
         }
 
-        if (policy.enabled()) {
-            // Coverage is a lower bound, so a column admitted here covers at least as much as it claims.
-            if (surveyed != null && policy.worthKeeping(surveyed.coverage(), surveyed.dictionaryBytes(), surveyed.columnBytes())) {
+        // Dictionary path: presence written first (so the DISI precedes the dictionary in data), then values.
+        // Commit 4 will fold presence into the dictionary value pass the same way the plain path does it here.
+        if (policy.enabled()
+            && surveyed != null
+            && policy.worthKeeping(surveyed.coverage(), surveyed.dictionaryBytes(), surveyed.columnBytes())) {
+            try (
+                ColumnIteratorWriter<StringColumnValues> presence = ColumnIteratorWriter.open(
+                    cursors,
+                    numDocsWithField,
+                    maxDoc,
+                    directory,
+                    context,
+                    data.getName()
+                )
+            ) {
+                presence.walkPresence();
+                final ColumnIteratorMetadata iterator = presence.install(data);
                 return withSummary(
                     writeDictionary(
                         iterator,
@@ -182,99 +182,80 @@ public final class StringColumnWriter {
             }
         }
 
-        // Set false the moment a value is seen out of order; nothing after that can restore it.
-        boolean sorted = true;
+        // Plain path: presence folded into the value pass — one cursor drives both.
         // Whether a page of this column is worth naming its values. Naming costs a hash and a probe apiece and
         // buys a consumer one entry per distinct value, so it pays where equal values arrive together and buys
         // nothing where every value differs from the one before it. The stream finds those runs anyway while
         // sizing its blocks, so what a page could collapse is known without comparing anything twice. A column
         // written under no dictionary policy was told not to weigh what it repeats, and the page decides.
-        final boolean valuesWorthNaming;
-        final ValueStream.Metadata written;
-        final SlotAddressing addressing;
-        final MonotonicWriter.Table nullSlotTable;
         try (
-            ValueStream.Writer stream = new ValueStream.Writer(
-                chunkCodec,
-                sizes.plainChunks(),
-                valuesPerBlock,
-                numValues,
-                directory,
-                context,
-                data.getName(),
-                data
-            );
-            AddressingWriter slots = AddressingWriter.open(
+            ColumnIteratorWriter<StringColumnValues> presence = ColumnIteratorWriter.open(
+                cursors,
                 numDocsWithField,
-                numValues,
-                sizes.slotCountsBlockSize(),
+                maxDoc,
                 directory,
                 context,
                 data.getName()
-            );
-            // Bytes have no spare value to mean null with, so this layout alone tables its null slots.
-            NullSlotWriter nullSlots = NullSlotWriter.open(numNullSlots, directory, context, data.getName())
+            )
         ) {
-            long valueAddress = 0;
-            final BytesRef empty = new BytesRef(BytesRef.EMPTY_BYTES);
-            StringColumnValues values = cursors.get();
-            // Whether the values arrive in term order, which lets a search bisect them instead of comparing
-            // every one. Free to know here: the values are already in hand, and the comparison is one memcmp.
-            // The first value out of order settles it, and the rest are written without being compared: what
-            // the comparison decides cannot be restored, and the value it would compare against is not kept.
-            final BytesRefBuilder previous = new BytesRefBuilder();
-            boolean hasPrevious = false;
-            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                slots.startDocument(valueAddress);
-                for (int i = 0, count = values.valueCount(); i < count; i++) {
-                    values.nextValue();
-                    final BytesRef value = values.value();
-                    if (value == null) {
-                        // A null stores zero bytes, so it takes an address like any other and the table above
-                        // is the only thing that tells it from an empty string. It has no place in term order
-                        // either, so a column holding one is not one a search can bisect.
-                        sorted = false;
-                        nullSlots.recordNull(valueAddress);
-                        stream.add(empty);
-                    } else {
-                        if (sorted) {
-                            if (hasPrevious && previous.get().compareTo(value) > 0) {
-                                sorted = false;
-                            } else {
-                                previous.copyBytes(value);
-                                hasPrevious = true;
-                            }
-                        }
-                        stream.add(value);
-                    }
-                    valueAddress++;
-                }
+            final ValueStream.Metadata written;
+            final boolean valuesWorthNaming;
+            final SlotAddressing addressing;
+            final MonotonicWriter.Table nullSlotTable;
+            final boolean sorted;
+            try (
+                ValueStream.Writer stream = new ValueStream.Writer(
+                    chunkCodec,
+                    sizes.plainChunks(),
+                    valuesPerBlock,
+                    numValues,
+                    directory,
+                    context,
+                    data.getName(),
+                    data
+                );
+                AddressingWriter slots = AddressingWriter.open(
+                    numDocsWithField,
+                    numValues,
+                    sizes.slotCountsBlockSize(),
+                    directory,
+                    context,
+                    data.getName()
+                );
+                // Bytes have no spare value to mean null with, so this layout alone tables its null slots.
+                NullSlotWriter nullSlots = NullSlotWriter.open(numNullSlots, directory, context, data.getName())
+            ) {
+                final PlainValuePass values = new PlainValuePass(stream, slots, nullSlots);
+                presence.walk(values);
+                written = stream.finish();
+                // Whether the values arrived in term order is settled by the pass; see PlainValuePass.
+                sorted = values.sorted();
+                valuesWorthNaming = policy.enabled() == false || stream.runs() * StringColumnReader.MIN_PAGE_REPEAT <= numValues;
+                addressing = slots.finish(values.valueAddress(), data);
+                nullSlotTable = nullSlots.finish(data);
             }
-            written = stream.finish();
-            valuesWorthNaming = policy.enabled() == false || stream.runs() * StringColumnReader.MIN_PAGE_REPEAT <= numValues;
-            addressing = slots.finish(valueAddress, data);
-            nullSlotTable = nullSlots.finish(data);
-        }
-        return withSummary(
-            StringColumnMetadata.plain(
-                iterator,
-                numDocsWithField,
+            final ColumnIteratorMetadata iterator = presence.install(data);
+            return withSummary(
+                StringColumnMetadata.plain(
+                    iterator,
+                    numDocsWithField,
+                    numValues,
+                    numNullSlots,
+                    addressing,
+                    nullSlotTable,
+                    written,
+                    sorted,
+                    valuesWorthNaming
+                ),
+                surveyed,
                 numValues,
-                numNullSlots,
-                addressing,
-                nullSlotTable,
-                written,
-                sorted,
-                valuesWorthNaming
-            ),
-            surveyed,
-            numValues,
-            chunkCodec,
-            sizes,
-            directory,
-            context,
-            data
-        );
+                chunkCodec,
+                sizes,
+                directory,
+                context,
+                data
+            );
+        }
     }
 
     /**

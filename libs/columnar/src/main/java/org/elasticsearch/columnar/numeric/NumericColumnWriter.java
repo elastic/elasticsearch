@@ -73,80 +73,98 @@ public final class NumericColumnWriter {
         IndexOutput data,
         IndexOutput skipIndex
     ) throws IOException {
-        ColumnIteratorMetadata iterator = ColumnIteratorWriter.write(cursors, numDocsWithField, maxDoc, data);
-        if (numDocsWithField == 0) {
-            return NumericColumnMetadata.empty(iterator, blockBytesCodec.id());
-        }
-
-        int blockSize = pipeline.blockSize();
-        boolean tableAddresses = valueAddressed && numValues > numDocsWithField;
-
-        MonotonicWriter valueAddresses = null;
-        // The values go straight into the column, which this writer owns until they are done.
+        // The presence structure is staged and installed after the value blocks so that LongBlocks.Writer
+        // can capture the correct value-start file pointer without a preceding DISI shifting it.
         try (
-            LongBlocks.Writer blocks = LongBlocks.Writer.into(
-                pipeline,
-                blockBytesCodec,
-                numValues,
+            ColumnIteratorWriter<NumericColumnValues> presence = ColumnIteratorWriter.open(
+                cursors,
+                numDocsWithField,
+                maxDoc,
                 directory,
                 context,
-                data.getName(),
-                data
+                data.getName()
             )
         ) {
-            if (tableAddresses) {
-                valueAddresses = new MonotonicWriter(directory, context, data.getName(), numDocsWithField + 1L);
+            // Separate presence pass: for dense/empty no cursor is opened; for sparse one cursor stages the
+            // DISI. The value loop opens a second cursor below. Folding the two into one pass is the numeric
+            // follow-up once NumericValuePass exists.
+            presence.walkPresence();
+            if (numDocsWithField == 0) {
+                return NumericColumnMetadata.empty(presence.install(data), blockBytesCodec.id());
             }
 
-            long valueAddress = 0;
-            SkipIndexCodec.Writer skip = skipCodec == null ? null : skipCodec.writer();
-            NumericColumnValues values = cursors.get();
-            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+            int blockSize = pipeline.blockSize();
+            boolean tableAddresses = valueAddressed && numValues > numDocsWithField;
+
+            MonotonicWriter valueAddresses = null;
+            // The values go straight into the column, which this writer owns until they are done.
+            try (
+                LongBlocks.Writer blocks = LongBlocks.Writer.into(
+                    pipeline,
+                    blockBytesCodec,
+                    numValues,
+                    directory,
+                    context,
+                    data.getName(),
+                    data
+                )
+            ) {
+                if (tableAddresses) {
+                    valueAddresses = new MonotonicWriter(directory, context, data.getName(), numDocsWithField + 1L);
+                }
+
+                long valueAddress = 0;
+                SkipIndexCodec.Writer skip = skipCodec == null ? null : skipCodec.writer();
+                NumericColumnValues values = cursors.get();
+                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                    if (tableAddresses) {
+                        valueAddresses.add(valueAddress);
+                    }
+                    int count = values.valueCount();
+                    if (skip != null) {
+                        skip.startDoc(doc, count);
+                    }
+                    for (int i = 0; i < count; i++) {
+                        long value = values.nextValue();
+                        if (skip != null) {
+                            skip.add(value);
+                        }
+                        blocks.add(value);
+                        valueAddress++;
+                    }
+                }
                 if (tableAddresses) {
                     valueAddresses.add(valueAddress);
                 }
-                int count = values.valueCount();
-                if (skip != null) {
-                    skip.startDoc(doc, count);
-                }
-                for (int i = 0; i < count; i++) {
-                    long value = values.nextValue();
-                    if (skip != null) {
-                        skip.add(value);
-                    }
-                    blocks.add(value);
-                    valueAddress++;
-                }
-            }
-            if (tableAddresses) {
-                valueAddresses.add(valueAddress);
-            }
-            final LongBlocks.Metadata written = blocks.finish(data);
-            MonotonicWriter.Table addresses = tableAddresses ? valueAddresses.finish(data) : MonotonicWriter.Table.NONE;
+                final LongBlocks.Metadata written = blocks.finish(data);
+                MonotonicWriter.Table addresses = tableAddresses ? valueAddresses.finish(data) : MonotonicWriter.Table.NONE;
 
-            // The writer buffered the skip bytes while being fed inline; they are flushed here, so the
-            // recorded offset is the skip-index file's pointer.
-            NumericColumnMetadata.Skipper skipper = skip == null ? null : skip.finish(skipIndex);
+                // The writer buffered the skip bytes while being fed inline; they are flushed here, so the
+                // recorded offset is the skip-index file's pointer.
+                NumericColumnMetadata.Skipper skipper = skip == null ? null : skip.finish(skipIndex);
 
-            return new NumericColumnMetadata(
-                iterator,
-                numDocsWithField,
-                numValues,
-                written.blockSize(),
-                written.blockBytesCodecId(),
-                written.terminalId(),
-                written.transformIds(),
-                written.valuesOffset(),
-                written.blockOffsets().dataOffset(),
-                written.blockOffsets().dataLength(),
-                written.blockOffsets().meta(),
-                addresses.dataOffset(),
-                addresses.dataLength(),
-                addresses.meta(),
-                skipper
-            );
-        } finally {
-            IOUtils.close(valueAddresses);
+                // Presence bytes follow the value blocks; ColumnIteratorMetadata records the absolute offset.
+                final ColumnIteratorMetadata iterator = presence.install(data);
+                return new NumericColumnMetadata(
+                    iterator,
+                    numDocsWithField,
+                    numValues,
+                    written.blockSize(),
+                    written.blockBytesCodecId(),
+                    written.terminalId(),
+                    written.transformIds(),
+                    written.valuesOffset(),
+                    written.blockOffsets().dataOffset(),
+                    written.blockOffsets().dataLength(),
+                    written.blockOffsets().meta(),
+                    addresses.dataOffset(),
+                    addresses.dataLength(),
+                    addresses.meta(),
+                    skipper
+                );
+            } finally {
+                IOUtils.close(valueAddresses);
+            }
         }
     }
 }

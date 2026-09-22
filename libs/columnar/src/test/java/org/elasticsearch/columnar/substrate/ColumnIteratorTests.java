@@ -118,8 +118,20 @@ public class ColumnIteratorTests extends ESTestCase {
             ColumnIteratorMetadata written;
             try (IndexOutput out = dir.createOutput("iterator.cnd", IOContext.DEFAULT)) {
                 ColumnarCodecUtil.writeHeader(out, DATA_NAME, FormatVersion.CURRENT, segmentId, "");
-                DocIdSetIterator docsWithField = new BitSetIterator(expected, cardinality);
-                written = ColumnIteratorWriter.write(docsWithField, cardinality, maxDoc, out);
+                final DocIdSetIterator docsWithField = new BitSetIterator(expected, cardinality);
+                try (
+                    ColumnIteratorWriter<DocIdSetIterator> writer = ColumnIteratorWriter.open(
+                        () -> docsWithField,
+                        cardinality,
+                        maxDoc,
+                        dir,
+                        IOContext.DEFAULT,
+                        "iterator"
+                    )
+                ) {
+                    writer.walkPresence();
+                    written = writer.install(out);
+                }
                 ColumnarCodecUtil.writeFooter(out);
             }
 

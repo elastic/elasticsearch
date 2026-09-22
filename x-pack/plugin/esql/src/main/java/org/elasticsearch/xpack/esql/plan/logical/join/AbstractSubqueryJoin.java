@@ -1082,28 +1082,39 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
     }
 
     /**
+     * Returns {@code true} when this subquery join still needs its right-side subplan to be executed,
+     * i.e. the right side has not yet been replaced with a materialized {@link LocalRelation}.
+     */
+    public static boolean isPending(AbstractSubqueryJoin sj, Set<LocalRelation> subPlansResults) {
+        return !(sj.right() instanceof LocalRelation lr && subPlansResults.contains(lr));
+    }
+
+    /**
+     * Extracts the subplan tuple from a specific subquery join node that is already known to be pending
+     * (via {@link #isPending}). Unlike {@link #firstSubPlan}, this does not re-scan the whole plan.
+     * The right side is an independent subquery with no {@link StubRelation}, so the executed node is
+     * the very same instance held on the join's right side and doubles as the identity key for
+     * {@link #newMainPlan}.
+     */
+    public static LogicalPlanTuple subPlanFor(AbstractSubqueryJoin sj) {
+        LogicalPlan subPlan = sj.right();
+        subPlan.setOptimized();
+        return new LogicalPlanTuple(subPlan, subPlan);
+    }
+
+    /**
      * Finds the first subquery join in the plan whose right side has not yet been replaced with results. Unlike InlineJoin, the right
      * side is an independent subquery that doesn't use StubRelation, no replaceStub is needed, deep copy is not required.
      */
     public static LogicalPlanTuple firstSubPlan(LogicalPlan optimizedPlan, Set<LocalRelation> subPlansResults) {
-        Holder<LogicalPlan> subPlanHolder = new Holder<>();
+        Holder<AbstractSubqueryJoin> joinHolder = new Holder<>();
         optimizedPlan.forEachUp(AbstractSubqueryJoin.class, sj -> {
-            if (subPlanHolder.get() == null) {
-                if (sj.right() instanceof LocalRelation lr && subPlansResults.contains(lr)) {
-                    return;
-                }
-                subPlanHolder.set(sj.right());
+            if (joinHolder.get() == null && isPending(sj, subPlansResults)) {
+                joinHolder.set(sj);
             }
         });
-        LogicalPlan subPlan = subPlanHolder.get();
-        if (subPlan == null) {
-            return null;
-        }
-        subPlan.setOptimized();
-        // Unlike InlineJoin there is no StubRelation deep copy here, so the node executed as the subplan is the very same instance held
-        // on the join's right side. It therefore doubles as the identity key that newMainPlan matches against, hence both tuple slots are
-        // the same.
-        return new LogicalPlanTuple(subPlan, subPlan);
+        AbstractSubqueryJoin join = joinHolder.get();
+        return join != null ? subPlanFor(join) : null;
     }
 
     public static LogicalPlan newMainPlan(

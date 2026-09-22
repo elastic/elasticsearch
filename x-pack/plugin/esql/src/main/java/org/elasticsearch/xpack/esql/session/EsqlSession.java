@@ -129,7 +129,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -1121,49 +1120,43 @@ public class EsqlSession {
         // are resolved before outer ones that depend on them.
         LogicalPlan firstJoin = findFirstSubPlanJoin(mainPlan, subPlansResults);
 
-        if (firstJoin instanceof AbstractSubqueryJoin) {
-            AbstractSubqueryJoin.LogicalPlanTuple semiJoinTuple = AbstractSubqueryJoin.firstSubPlan(mainPlan, subPlansResults);
-            if (semiJoinTuple != null) {
-                AtomicReference<Page> localRelationPage = new AtomicReference<>();
-                subPlanAndCallback = new SubPlanAndCallback(semiJoinTuple.subPlan(), result -> {
-                    LocalRelation resultWrapper = resultToPlan(semiJoinTuple.subPlan().source(), result);
-                    // AbstractSubqueryJoin.inlineData may release this page eagerly (filter / empty paths) or swap
-                    // it for a smaller, breaker-tracked dedup page (hash-join path) so the cleanup
-                    // below releases the right one at end of main plan execution.
-                    localRelationPage.set(resultWrapper.supplier().get());
-                    subPlansResults.add(resultWrapper);
-                    return AbstractSubqueryJoin.newMainPlan(
-                        mainPlan,
-                        semiJoinTuple,
-                        resultWrapper,
-                        resolveInSubqueryHashJoinThreshold(configuration),
-                        blockFactory,
-                        localRelationPage
-                    );
-                }, () -> releaseLocalRelationBlocks(localRelationPage), true, false);
-            }
-        } else if (firstJoin instanceof InnerJoin) {
-            InnerJoin.LogicalPlanTuple subPlans = InnerJoin.firstSubPlan(mainPlan, subPlansResults);
-            if (subPlans != null) {
-                AtomicReference<Page> localRelationPage = new AtomicReference<>();
-                subPlanAndCallback = new SubPlanAndCallback(subPlans.subPlan(), result -> {
-                    LocalRelation resultWrapper = resultToPlan(subPlans.subPlan().source(), result);
-                    localRelationPage.set(resultWrapper.supplier().get());
-                    subPlansResults.add(resultWrapper);
-                    return InnerJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
-                }, () -> releaseLocalRelationBlocks(localRelationPage), true, false);
-            }
-        } else if (firstJoin instanceof InlineJoin) {
-            InlineJoin.LogicalPlanTuple subPlans = InlineJoin.firstSubPlan(mainPlan, subPlansResults);
-            if (subPlans != null) {
-                AtomicReference<Page> localRelationPage = new AtomicReference<>();
-                subPlanAndCallback = new SubPlanAndCallback(subPlans.stubReplacedSubPlan(), result -> {
-                    LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan().source(), result);
-                    localRelationPage.set(resultWrapper.supplier().get());
-                    subPlansResults.add(resultWrapper);
-                    return InlineJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
-                }, () -> releaseLocalRelationBlocks(localRelationPage), false, false);
-            }
+        if (firstJoin instanceof AbstractSubqueryJoin sj) {
+            AbstractSubqueryJoin.LogicalPlanTuple semiJoinTuple = AbstractSubqueryJoin.subPlanFor(sj);
+            AtomicReference<Page> localRelationPage = new AtomicReference<>();
+            subPlanAndCallback = new SubPlanAndCallback(semiJoinTuple.subPlan(), result -> {
+                LocalRelation resultWrapper = resultToPlan(semiJoinTuple.subPlan().source(), result);
+                // AbstractSubqueryJoin.inlineData may release this page eagerly (filter / empty paths) or swap
+                // it for a smaller, breaker-tracked dedup page (hash-join path) so the cleanup
+                // below releases the right one at end of main plan execution.
+                localRelationPage.set(resultWrapper.supplier().get());
+                subPlansResults.add(resultWrapper);
+                return AbstractSubqueryJoin.newMainPlan(
+                    mainPlan,
+                    semiJoinTuple,
+                    resultWrapper,
+                    resolveInSubqueryHashJoinThreshold(configuration),
+                    blockFactory,
+                    localRelationPage
+                );
+            }, () -> releaseLocalRelationBlocks(localRelationPage), true, false);
+        } else if (firstJoin instanceof InnerJoin ej) {
+            InnerJoin.LogicalPlanTuple subPlans = InnerJoin.subPlanFor(ej);
+            AtomicReference<Page> localRelationPage = new AtomicReference<>();
+            subPlanAndCallback = new SubPlanAndCallback(subPlans.subPlan(), result -> {
+                LocalRelation resultWrapper = resultToPlan(subPlans.subPlan().source(), result);
+                localRelationPage.set(resultWrapper.supplier().get());
+                subPlansResults.add(resultWrapper);
+                return InnerJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
+            }, () -> releaseLocalRelationBlocks(localRelationPage), true, false);
+        } else if (firstJoin instanceof InlineJoin ij) {
+            InlineJoin.LogicalPlanTuple subPlans = InlineJoin.subPlanFor(ij);
+            AtomicReference<Page> localRelationPage = new AtomicReference<>();
+            subPlanAndCallback = new SubPlanAndCallback(subPlans.stubReplacedSubPlan(), result -> {
+                LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan().source(), result);
+                localRelationPage.set(resultWrapper.supplier().get());
+                subPlansResults.add(resultWrapper);
+                return InlineJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
+            }, () -> releaseLocalRelationBlocks(localRelationPage), false, false);
         }
 
         LogicalPlan plan = subPlanAndCallback != null ? subPlanAndCallback.subPlan() : mainPlan;
@@ -1187,38 +1180,27 @@ public class EsqlSession {
     }
 
     /**
+     * Returns {@code true} when the given plan node is a join whose subplan has not yet been executed.
+     * Delegates to the per-type {@code isPending} methods to avoid duplicating the three divergent
+     * pending-detection conditions that each join type requires.
+     */
+    static boolean isPendingJoin(LogicalPlan p, Set<LocalRelation> subPlansResults) {
+        return (p instanceof AbstractSubqueryJoin sj && AbstractSubqueryJoin.isPending(sj, subPlansResults))
+            || (p instanceof InnerJoin ej && InnerJoin.isPending(ej, subPlansResults))
+            || (p instanceof InlineJoin ij && InlineJoin.isPending(ij, subPlansResults));
+    }
+
+    /**
      * Finds the first (bottom-up) SemiJoin, InnerJoin or InlineJoin in the plan that has an unresolved subplan.
      * Returns the join node itself, or null if none found.
      */
     private static LogicalPlan findFirstSubPlanJoin(LogicalPlan plan, Set<LocalRelation> subPlansResults) {
         Holder<LogicalPlan> result = new Holder<>();
         // Evaluate the right hand side of a SemiJoin/InnerJoin/InlineJoin, unless it is a LocalRelation and registered in subPlansResults
-        // already
+        // already. Processing is bottom up; whether checking the subquery join, InnerJoin or InlineJoin first does not matter.
         plan.forEachUp(p -> {
-            if (result.get() != null) {
-                return;
-            }
-            // Whether checking the subquery join, InnerJoin or InlineJoin first does not matter, the plan is processed bottom up, looking
-            // for
-            // joins whose right child haven't been evaluated yet
-            if (p instanceof AbstractSubqueryJoin sj) {
-                if (sj.right() instanceof LocalRelation lr && subPlansResults.contains(lr)) {
-                    return; // already processed
-                }
-                result.set(sj);
-            } else if (p instanceof InnerJoin ej) {
-                if (ej.right() instanceof LocalRelation lr && subPlansResults.contains(lr)) {
-                    return; // already processed
-                }
-                result.set(ej);
-            } else if (p instanceof InlineJoin ij) {
-                if (ij.right().anyMatch(r -> r instanceof StubRelation)) {
-                    result.set(ij);
-                } else if (ij.right() instanceof LocalRelation lr && (subPlansResults.isEmpty() || subPlansResults.contains(lr) == false)) {
-                    result.set(ij);
-                } else if (ij.right() instanceof LocalRelation == false && ij.right().anyMatch(r -> r instanceof LocalRelation)) {
-                    result.set(ij);
-                }
+            if (result.get() == null && isPendingJoin(p, subPlansResults)) {
+                result.set(p);
             }
         });
         return result.get();

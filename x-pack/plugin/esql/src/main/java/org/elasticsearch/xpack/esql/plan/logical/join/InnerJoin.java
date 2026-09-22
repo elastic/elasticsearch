@@ -99,26 +99,37 @@ public class InnerJoin extends Join implements SortPreserving {
     }
 
     /**
+     * Returns {@code true} when this join still needs its right-side subplan to be executed, i.e.
+     * the right side has not yet been replaced with a materialized {@link LocalRelation}.
+     */
+    public static boolean isPending(InnerJoin join, Set<LocalRelation> subPlansResults) {
+        return !(join.right() instanceof LocalRelation lr && subPlansResults.contains(lr));
+    }
+
+    /**
+     * Extracts the subplan tuple from a specific {@link InnerJoin} node that is already known to be
+     * pending (via {@link #isPending}). Unlike {@link #firstSubPlan}, this does not re-scan the whole
+     * plan. The right side is an independent subquery, so the executed node is the very same instance
+     * held on the join's right side and doubles as the identity key for {@link #newMainPlan}.
+     */
+    public static LogicalPlanTuple subPlanFor(InnerJoin join) {
+        LogicalPlan subPlan = join.right();
+        subPlan.setOptimized();
+        return new LogicalPlanTuple(subPlan, subPlan);
+    }
+
+    /**
      * Finds the first (bottom-up) {@link InnerJoin} whose right subquery has not yet been replaced with results.
      */
     public static LogicalPlanTuple firstSubPlan(LogicalPlan optimizedPlan, Set<LocalRelation> subPlansResults) {
-        var subPlanHolder = new Holder<LogicalPlan>();
+        var joinHolder = new Holder<InnerJoin>();
         optimizedPlan.forEachUp(InnerJoin.class, join -> {
-            if (subPlanHolder.get() == null) {
-                if ((join.right() instanceof LocalRelation lr && subPlansResults.contains(lr)) == false) {
-                    subPlanHolder.set(join.right());
-                }
+            if (joinHolder.get() == null && isPending(join, subPlansResults)) {
+                joinHolder.set(join);
             }
         });
-
-        var subPlan = subPlanHolder.get();
-        if (subPlan == null) {
-            return null;
-        }
-        subPlan.setOptimized();
-        // same instance held on the join's right side, so it doubles as the identity key used to substitute the
-        // materialized result back into the main plan hence both tuple slots are the same.
-        return new LogicalPlanTuple(subPlan, subPlan);
+        InnerJoin join = joinHolder.get();
+        return join != null ? subPlanFor(join) : null;
     }
 
     /**

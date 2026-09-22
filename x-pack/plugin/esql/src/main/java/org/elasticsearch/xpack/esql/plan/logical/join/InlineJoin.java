@@ -168,42 +168,53 @@ public class InlineJoin extends Join implements SortPreserving {
      *                  ]
      * </pre>
      */
+    /**
+     * Returns {@code true} when this InlineJoin still needs its subplan to be executed.
+     * The predicate mirrors the three-branch condition in {@link #firstSubPlan}: the right
+     * side contains a {@link StubRelation}, or is/contains a {@link LocalRelation} that has
+     * not yet been replaced by execution results.
+     */
+    public static boolean isPending(InlineJoin ij, Set<LocalRelation> subPlansResults) {
+        return ij.right().anyMatch(p -> p instanceof StubRelation)
+            || (ij.right() instanceof LocalRelation lr && (subPlansResults.isEmpty() || subPlansResults.contains(lr) == false))
+            || (ij.right() instanceof LocalRelation == false && ij.right().anyMatch(p -> p instanceof LocalRelation));
+    }
+
+    /**
+     * Extracts the subplan tuple from a specific {@link InlineJoin} node that is already known to be
+     * pending (via {@link #isPending}). Unlike {@link #firstSubPlan}, this does not re-scan the whole
+     * plan. The stub on the right side is replaced with the left subtree via {@link #replaceStub}, and
+     * every {@link LocalRelation} in the resulting plan is wrapped in a {@link CopyingLocalSupplier} so
+     * it can be read multiple times.
+     */
+    public static LogicalPlanTuple subPlanFor(InlineJoin ij) {
+        LogicalPlan stubReplacedSubPlan;
+        if (ij.right().anyMatch(p -> p instanceof StubRelation)) {
+            stubReplacedSubPlan = replaceStub(ij.left(), ij.right());
+        } else {
+            // StubRelation was already replaced with a LocalRelation during optimization
+            stubReplacedSubPlan = ij.right();
+        }
+        stubReplacedSubPlan = stubReplacedSubPlan.transformUp(LocalRelation.class, lr -> {
+            if (lr.supplier() instanceof CopyingLocalSupplier == false) {
+                return new LocalRelation(lr.source(), lr.output(), new CopyingLocalSupplier(lr.supplier().get()));
+            }
+            return lr;
+        });
+        stubReplacedSubPlan.setOptimized();
+        return new LogicalPlanTuple(stubReplacedSubPlan, ij.right());
+    }
+
     public static LogicalPlanTuple firstSubPlan(LogicalPlan optimizedPlan, Set<LocalRelation> subPlansResults) {
-        final Holder<LogicalPlan> stubReplacedSubPlanHolder = new Holder<>();
-        final Holder<LogicalPlan> originalSubPlanHolder = new Holder<>();
+        final Holder<InlineJoin> joinHolder = new Holder<>();
         // Collect the first inlinejoin (bottom up in the tree)
         optimizedPlan.forEachUp(InlineJoin.class, ij -> {
-            // extract the right side of the plan and replace its source
-            if (stubReplacedSubPlanHolder.get() == null) {
-                if (ij.right().anyMatch(p -> p instanceof StubRelation)) {
-                    stubReplacedSubPlanHolder.set(replaceStub(ij.left(), ij.right()));
-                } else if (ij.right() instanceof LocalRelation relation
-                    && (subPlansResults.isEmpty() || subPlansResults.contains(relation) == false)
-                    || ij.right() instanceof LocalRelation == false && ij.right().anyMatch(p -> p instanceof LocalRelation)) {
-                        // In case the plan was optimized further and the StubRelation was replaced with a LocalRelation
-                        // or the right hand side became a LocalRelation alltogether, there is no need to replace the source of the
-                        // right-hand side anymore.
-                        stubReplacedSubPlanHolder.set(ij.right());
-                        // TODO: INLINE STATS this is essentially an optimization similar to the one in PruneInlineJoinOnEmptyRightSide
-                        // this further supports the idea of running the optimization step again after the substitutions (see EsqlSession
-                        // executeSubPlan() method where we could run the optimizer after the results are replaced in place).
-                    }
-                originalSubPlanHolder.set(ij.right());
+            if (joinHolder.get() == null && isPending(ij, subPlansResults)) {
+                joinHolder.set(ij);
             }
         });
-        LogicalPlanTuple tuple = null;
-        var plan = stubReplacedSubPlanHolder.get();
-        if (plan != null) {
-            plan = plan.transformUp(LocalRelation.class, lr -> {
-                if (lr.supplier() instanceof CopyingLocalSupplier == false) {
-                    return new LocalRelation(lr.source(), lr.output(), new CopyingLocalSupplier(lr.supplier().get()));
-                }
-                return lr;
-            });
-            plan.setOptimized();
-            tuple = new LogicalPlanTuple(plan, originalSubPlanHolder.get());
-        }
-        return tuple;
+        InlineJoin join = joinHolder.get();
+        return join != null ? subPlanFor(join) : null;
     }
 
     public static LogicalPlan newMainPlan(LogicalPlan optimizedPlan, InlineJoin.LogicalPlanTuple subPlans, LocalRelation resultWrapper) {

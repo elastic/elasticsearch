@@ -23,6 +23,60 @@ import static org.hamcrest.Matchers.lessThan;
 
 public class AssignmentPlanTests extends ESTestCase {
 
+    public void testFindOptimalAllocations_BoundsByPerAllocationMemory_WhenPerDeploymentIsZero() {
+        long perAllocation = ByteSizeValue.ofMb(100).getBytes();
+        // A deployment with only a per-allocation memory cost (per-deployment base is zero), as is the case once
+        // observed runtime memory is threaded in for e.g. an ELSER deployment.
+        Deployment m = new AssignmentPlan.Deployment(
+            "m_1",
+            "m_1",
+            ByteSizeValue.ofMb(20).getBytes(),
+            10,
+            1,
+            Map.of(),
+            0,
+            null,
+            0,
+            perAllocation
+        );
+
+        long base = m.estimateMemoryUsageBytes(0);
+        // Enough headroom for exactly three allocations beyond the base footprint.
+        long availableForThree = base + perAllocation * 3 + perAllocation / 2;
+        assertThat(m.findOptimalAllocations(10, availableForThree), equalTo(3));
+        // Still capped by the requested maximum.
+        assertThat(m.findOptimalAllocations(2, availableForThree), equalTo(2));
+        // No headroom beyond the base means no allocations fit.
+        assertThat(m.findOptimalAllocations(10, base), equalTo(0));
+    }
+
+    public void testFindExcessAllocations_BoundsByPerAllocationMemory_WhenPerDeploymentIsZero() {
+        long perAllocation = ByteSizeValue.ofMb(100).getBytes();
+        Deployment m = new AssignmentPlan.Deployment(
+            "m_1",
+            "m_1",
+            ByteSizeValue.ofMb(20).getBytes(),
+            10,
+            1,
+            Map.of(),
+            0,
+            null,
+            0,
+            perAllocation
+        );
+
+        assertThat(m.findExcessAllocations(10, perAllocation * 4), equalTo(4));
+        assertThat(m.findExcessAllocations(2, perAllocation * 4), equalTo(2));
+    }
+
+    public void testFindAllocations_NoMemoryBound_WhenPerAllocationMemoryIsZero() {
+        Deployment m = new AssignmentPlan.Deployment("m_1", "m_1", 40, 10, 1, Map.of(), 0, null, 0, 0);
+        // Without a per-allocation memory figure there is nothing to bound by, so the requested maximum is returned
+        // regardless of available memory.
+        assertThat(m.findOptimalAllocations(7, 1L), equalTo(7));
+        assertThat(m.findExcessAllocations(7, 1L), equalTo(7));
+    }
+
     public void testBuilderCtor_GivenDuplicateNode() {
         Node n = new Node("n_1", 100, 4);
         AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", "m_1", 40, 1, 2, Map.of(), 0, null, 0, 0);

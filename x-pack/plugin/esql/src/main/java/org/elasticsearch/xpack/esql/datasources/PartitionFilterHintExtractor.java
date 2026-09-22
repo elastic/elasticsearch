@@ -12,6 +12,8 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -28,6 +30,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -130,9 +133,10 @@ public final class PartitionFilterHintExtractor {
         if (node instanceof UnresolvedExternalRelation rel) {
             String path = extractPath(rel);
             if (path != null) {
+                Set<String> requestedMetadata = requestedMetadataNames(rel);
                 List<PartitionFilterHint> hints = new ArrayList<>();
                 for (Expression conjunct : guardingConjuncts) {
-                    extractFromExpression(conjunct, hints);
+                    extractFromExpression(conjunct, hints, requestedMetadata);
                 }
                 // Registered even when empty: an occurrence with no usable hint must veto the rewrite, not be ignored.
                 result.computeIfAbsent(path, k -> new ArrayList<>()).add(hints);
@@ -163,17 +167,32 @@ public final class PartitionFilterHintExtractor {
         return expression.anyMatch(e -> e instanceof Attribute attr && names.contains(attr.name()));
     }
 
-    private static void extractFromExpression(Expression expr, List<PartitionFilterHint> hints) {
+    /**
+     * Names from the relation's {@code METADATA} clause that listing may treat as engine values.
+     */
+    private static Set<String> requestedMetadataNames(UnresolvedExternalRelation rel) {
+        Set<String> names = new LinkedHashSet<>();
+        for (NamedExpression field : rel.metadataFields()) {
+            names.add(MetadataAttribute.metadataName(field));
+        }
+        return names;
+    }
+
+    private static void extractFromExpression(Expression expr, List<PartitionFilterHint> hints, Set<String> requestedMetadata) {
         for (Expression conjunct : Predicates.splitAnd(expr)) {
             if (conjunct instanceof EsqlBinaryComparison comparison) {
-                extractFromComparison(comparison, hints);
+                extractFromComparison(comparison, hints, requestedMetadata);
             } else if (conjunct instanceof In in) {
-                extractFromIn(in, hints);
+                extractFromIn(in, hints, requestedMetadata);
             }
         }
     }
 
-    private static void extractFromComparison(EsqlBinaryComparison comparison, List<PartitionFilterHint> hints) {
+    private static void extractFromComparison(
+        EsqlBinaryComparison comparison,
+        List<PartitionFilterHint> hints,
+        Set<String> requestedMetadata
+    ) {
         Expression left = comparison.left();
         Expression right = comparison.right();
 
@@ -193,6 +212,9 @@ public final class PartitionFilterHintExtractor {
         if (columnName == null) {
             return;
         }
+        if (isUnrequestedFileMetadata(columnName, requestedMetadata)) {
+            return;
+        }
 
         Operator operator = toOperator(comparison, reversed);
         if (operator != null) {
@@ -200,12 +222,16 @@ public final class PartitionFilterHintExtractor {
         }
     }
 
-    private static void extractFromIn(In in, List<PartitionFilterHint> hints) {
+    private static void extractFromIn(In in, List<PartitionFilterHint> hints, Set<String> requestedMetadata) {
         Expression value = in.value();
         if (value instanceof UnresolvedAttribute == false) {
             return;
         }
         UnresolvedAttribute attr = (UnresolvedAttribute) value;
+        String columnName = attr.name();
+        if (isUnrequestedFileMetadata(columnName, requestedMetadata)) {
+            return;
+        }
 
         List<Object> literalValues = new ArrayList<>();
         for (Expression listItem : in.list()) {
@@ -217,8 +243,16 @@ public final class PartitionFilterHintExtractor {
         }
 
         if (literalValues.isEmpty() == false) {
-            hints.add(new PartitionFilterHint(attr.name(), Operator.IN, literalValues));
+            hints.add(new PartitionFilterHint(columnName, Operator.IN, literalValues));
         }
+    }
+
+    /**
+     * A {@code _file.*} predicate is a listing hint only when that name is in the relation's
+     * {@code METADATA} clause. Without the clause the name is an ordinary data column.
+     */
+    private static boolean isUnrequestedFileMetadata(String columnName, Set<String> requestedMetadata) {
+        return FileMetadataColumns.isFileMetadataColumn(columnName) && requestedMetadata.contains(columnName) == false;
     }
 
     private static Object normalizeValue(Object value) {

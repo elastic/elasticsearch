@@ -3559,7 +3559,7 @@ public class GlobExpanderTests extends ESTestCase {
         CountingStubProvider provider = new CountingStubProvider(listing);
 
         FileList result = GlobExpander.expand(
-            "s3://bucket/data/**/*.parquet",
+            "s3://bucket/data/" + "**/*.parquet",
             provider,
             null,
             HIVE_ON,
@@ -3587,7 +3587,7 @@ public class GlobExpanderTests extends ESTestCase {
         listing.add(entry("s3://bucket/data/year=unknown/late.parquet", 100));
 
         FileList bounded = GlobExpander.expand(
-            "s3://bucket/data/**/*.parquet",
+            "s3://bucket/data/" + "**/*.parquet",
             new CountingStubProvider(listing),
             null,
             HIVE_ON,
@@ -3597,7 +3597,7 @@ public class GlobExpanderTests extends ESTestCase {
             1000
         );
         FileList unbounded = GlobExpander.expand(
-            "s3://bucket/data/**/*.parquet",
+            "s3://bucket/data/" + "**/*.parquet",
             new CountingStubProvider(listing),
             null,
             HIVE_ON,

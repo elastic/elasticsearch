@@ -4871,6 +4871,43 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * The other direction, and the one that bounds the anchor identity: a file arriving BEFORE the anchor under
+     * the configured order becomes the new anchor, so the resolved schema changes. An identity that said only
+     * "some anchor" would serve the old schema here; the identity has to name WHICH file is the anchor, which the
+     * anchor's own path, mtime and size do.
+     * <p>
+     * Together with {@link #testFirstFileWinsSchemaIsUnchangedByAnAppendAfterTheAnchor} this pins both sides: an
+     * append after the anchor must not invalidate, an arrival before it must.
+     */
+    public void testFirstFileWinsSchemaChangesWhenAFileSortsBeforeTheAnchor() throws Exception {
+        List<Attribute> anchorSchema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
+        List<Attribute> earlierSchema = List.of(attr("id", DataType.LONG), attr("other", DataType.KEYWORD));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/0.parquet", earlierSchema);
+        schemasByPath.put("s3://bucket/data/a.parquet", anchorSchema);
+        schemasByPath.put("s3://bucket/data/b.parquet", anchorSchema);
+
+        String glob = "s3://bucket/data/*.parquet";
+        Map<String, Object> config = Map.of("schema_resolution", "first_file_wins", "file_sort_by", "name");
+        Map<String, Map<String, Object>> pathConfigs = Map.of(glob, new HashMap<>(config));
+
+        List<StorageEntry> before = List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200));
+        List<StorageEntry> after = List.of(
+            entry("s3://bucket/data/0.parquet", 50),
+            entry("s3://bucket/data/a.parquet", 100),
+            entry("s3://bucket/data/b.parquet", 200)
+        );
+
+        List<Attribute> schemaBefore = resolveSchemaOverListing(glob, pathConfigs, before, schemasByPath);
+        List<Attribute> schemaAfter = resolveSchemaOverListing(glob, pathConfigs, after, schemasByPath);
+
+        assertEquals("a.parquet anchors the first resolve", describe(anchorSchema), describe(schemaBefore));
+        assertEquals("0.parquet anchors the second resolve", describe(earlierSchema), describe(schemaAfter));
+        assertNotEquals("a file arriving before the anchor must change the resolved schema", describe(schemaBefore), describe(schemaAfter));
+    }
+
+    /**
      * The positive control for {@link #testFirstFileWinsSchemaIsUnchangedByAnAppendAfterTheAnchor}: the SAME corpus
      * and the SAME append under {@code union_by_name} DOES change the resolved schema, which gains the appended
      * file's extra column. Without this, the first-file-wins test could pass because the fixture cannot observe an

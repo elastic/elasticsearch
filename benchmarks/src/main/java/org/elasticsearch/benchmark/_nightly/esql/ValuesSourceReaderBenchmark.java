@@ -48,7 +48,6 @@ import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -81,6 +80,7 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -299,14 +299,14 @@ public class ValuesSourceReaderBenchmark {
      * <ul>
      * <li>{@code in_order} is how {@link LuceneSourceOperator} produces them to read in
      *     the most efficient possible way. We </li>
-     * <li>{@code shuffled} is chunked the same size as {@link LuceneSourceOperator} but
-     *     loads in a shuffled order, like a hypothetical {@link TopNOperator} that can
-     *     output large blocks would output.</li>
-     * <li>{@code shuffled_sparse} is shuffled across segments, selecting every sixteenth
-     *     document. This is large enough to consider sequential stored fields, but too
-     *     sparse to use them.</li>
-     * <li>{@code shuffled_small} is shuffled across segments, selecting at most ten
-     *     contiguous documents from each segment. This is too small to use sequential
+     * <li>{@code shuffled} divides every segment into dense contiguous ranges and
+     *     interleaves them across segments.</li>
+     * <li>{@code shuffled_sparse} uses the same documents and page shapes as
+     *     {@code shuffled}, but distributes each segment by document ID modulo sixteen.
+     *     This is large enough to consider sequential stored fields, but too sparse to
+     *     use them.</li>
+     * <li>{@code shuffled_small} reads every document once in pages that contain at most
+     *     ten contiguous documents from each segment. This is too small to use sequential
      *     stored fields.</li>
      * <li>{@code shuffled_singles} is shuffled in the same order as {@code shuffled} but
      *     each page has a single document rather than {@code BLOCK_SIZE} docs.</li>
@@ -322,6 +322,7 @@ public class ValuesSourceReaderBenchmark {
     private IndexReader reader;
     private List<Page> pages;
     private long expectedSum;
+    private BitSet selectedDocs;
 
     @Benchmark
     @OperationsPerInvocation(INDEX_SIZE)
@@ -484,6 +485,7 @@ public class ValuesSourceReaderBenchmark {
     private void setupPages() {
         pages = new ArrayList<>();
         expectedSum = 0;
+        selectedDocs = new BitSet(INDEX_SIZE);
         switch (layout) {
             case "in_order" -> {
                 IntVector.Builder docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
@@ -493,7 +495,7 @@ public class ValuesSourceReaderBenchmark {
                         int end = Math.min(begin + BLOCK_LENGTH, ctx.reader().maxDoc());
                         for (int doc = begin; doc < end; doc++) {
                             docs.appendInt(doc);
-                            expectedSum += expectedValue(ctx.docBase + doc);
+                            trackExpectedDoc(ctx.docBase + doc);
                         }
                         pages.add(
                             new Page(
@@ -511,9 +513,9 @@ public class ValuesSourceReaderBenchmark {
                     }
                 }
             }
-            case "shuffled" -> setupShuffledPages(1, Integer.MAX_VALUE);
-            case "shuffled_sparse" -> setupShuffledPages(16, Integer.MAX_VALUE);
-            case "shuffled_small" -> setupShuffledPages(1, 10);
+            case "shuffled" -> setupShuffledPages(SegmentDocLayout.CONTIGUOUS);
+            case "shuffled_sparse" -> setupShuffledPages(SegmentDocLayout.STRIDED);
+            case "shuffled_small" -> setupSmallShuffledPages();
             case "shuffled_singles" -> {
                 record ItrAndContext(PrimitiveIterator.OfInt itr, LeafReaderContext ctx) {}
                 List<ItrAndContext> docItrs = new ArrayList<>(reader.leaves().size());
@@ -529,7 +531,7 @@ public class ValuesSourceReaderBenchmark {
                             continue;
                         }
                         int doc = next.itr.nextInt();
-                        expectedSum += expectedValue(next.ctx.docBase + doc);
+                        trackExpectedDoc(next.ctx.docBase + doc);
                         pages.add(
                             new Page(
                                 new DocVector(
@@ -546,47 +548,77 @@ public class ValuesSourceReaderBenchmark {
             }
             default -> throw new IllegalArgumentException("unsupported layout [" + layout + "]");
         }
+        if (selectedDocs.cardinality() != INDEX_SIZE) {
+            throw new AssertionError(
+                "[" + layout + "] expected [" + INDEX_SIZE + "] unique documents but had [" + selectedDocs.cardinality() + "]"
+            );
+        }
     }
 
-    private void setupShuffledPages(int stride, int maxDocsPerLeaf) {
-        record ItrAndContext(PrimitiveIterator.OfInt itr, LeafReaderContext ctx) {}
-        int totalSize = 0;
-        while (totalSize < INDEX_SIZE) {
-            List<ItrAndContext> docItrs = new ArrayList<>(reader.leaves().size());
-            for (LeafReaderContext ctx : reader.leaves()) {
-                PrimitiveIterator.OfInt itr = IntStream.iterate(0, doc -> doc < ctx.reader().maxDoc(), doc -> doc + stride)
-                    .limit(maxDocsPerLeaf)
-                    .iterator();
-                docItrs.add(new ItrAndContext(itr, ctx));
-            }
+    private enum SegmentDocLayout {
+        CONTIGUOUS,
+        STRIDED
+    }
+
+    private void setupShuffledPages(SegmentDocLayout segmentDocLayout) {
+        int stride = 16;
+        for (int page = 0; page < stride; page++) {
             IntVector.Builder docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
             IntVector.Builder leafs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
             int pageSize = 0;
-            while (docItrs.isEmpty() == false && totalSize < INDEX_SIZE) {
-                Iterator<ItrAndContext> itrItr = docItrs.iterator();
-                while (itrItr.hasNext() && totalSize < INDEX_SIZE) {
-                    ItrAndContext next = itrItr.next();
-                    if (false == next.itr.hasNext()) {
-                        itrItr.remove();
-                        continue;
+            int positionInLeaf = 0;
+            boolean added;
+            do {
+                added = false;
+                for (LeafReaderContext ctx : reader.leaves()) {
+                    int count = docsForResidue(ctx.reader().maxDoc(), page, stride);
+                    if (positionInLeaf < count) {
+                        int doc = segmentDocLayout == SegmentDocLayout.STRIDED
+                            ? page + positionInLeaf * stride
+                            : densePageStart(ctx.reader().maxDoc(), page, stride) + positionInLeaf;
+                        docs.appendInt(doc);
+                        leafs.appendInt(ctx.ord);
+                        trackExpectedDoc(ctx.docBase + doc);
+                        pageSize++;
+                        added = true;
                     }
-                    int doc = next.itr.nextInt();
-                    docs.appendInt(doc);
-                    leafs.appendInt(next.ctx.ord);
-                    expectedSum += expectedValue(next.ctx.docBase + doc);
-                    pageSize++;
-                    totalSize++;
-                    if (pageSize == BLOCK_LENGTH) {
-                        addShuffledPage(docs, leafs, pageSize);
-                        docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
-                        leafs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
-                        pageSize = 0;
+                }
+                positionInLeaf++;
+            } while (added);
+            addShuffledPage(docs, leafs, pageSize);
+        }
+    }
+
+    private static int densePageStart(int maxDoc, int page, int pageCount) {
+        int minimumPageSize = maxDoc / pageCount;
+        return page * minimumPageSize + Math.min(page, maxDoc % pageCount);
+    }
+
+    private static int docsForResidue(int maxDoc, int residue, int stride) {
+        return maxDoc <= residue ? 0 : (maxDoc - 1 - residue) / stride + 1;
+    }
+
+    private void setupSmallShuffledPages() {
+        int docsPerLeaf = 10;
+        for (int page = 0;; page++) {
+            IntVector.Builder docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
+            IntVector.Builder leafs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
+            int pageSize = 0;
+            for (int positionInLeaf = 0; positionInLeaf < docsPerLeaf; positionInLeaf++) {
+                for (LeafReaderContext ctx : reader.leaves()) {
+                    int doc = page * docsPerLeaf + positionInLeaf;
+                    if (doc < ctx.reader().maxDoc()) {
+                        docs.appendInt(doc);
+                        leafs.appendInt(ctx.ord);
+                        trackExpectedDoc(ctx.docBase + doc);
+                        pageSize++;
                     }
                 }
             }
-            if (pageSize > 0) {
-                addShuffledPage(docs, leafs, pageSize);
+            if (pageSize == 0) {
+                return;
             }
+            addShuffledPage(docs, leafs, pageSize);
         }
     }
 
@@ -602,6 +634,14 @@ public class ValuesSourceReaderBenchmark {
                 ).asBlock()
             )
         );
+    }
+
+    private void trackExpectedDoc(int doc) {
+        if (selectedDocs.get(doc)) {
+            throw new AssertionError("[" + layout + "] selected duplicate document [" + doc + "]");
+        }
+        selectedDocs.set(doc);
+        expectedSum += expectedValue(doc);
     }
 
     private long expectedValue(int doc) {

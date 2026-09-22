@@ -1447,8 +1447,8 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         final AtomicReference<SearchRequest> searchRequest = new AtomicReference<>();
         doAnswer(invocationOnMock -> {
-            searchRequest.set(invocationOnMock.getArgument(0));
-            final ActionListener<SearchResponse> listener = invocationOnMock.getArgument(1);
+            searchRequest.set(invocationOnMock.getArgument(1));
+            final ActionListener<SearchResponse> listener = invocationOnMock.getArgument(2);
             ActionListener.respondAndRelease(
                 listener,
                 SearchResponseUtils.response()
@@ -1474,7 +1474,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                     .build()
             );
             return null;
-        }).when(client).search(any(SearchRequest.class), anyActionListener());
+        }).when(client).execute(eq(TransportSearchAction.TYPE), any(SearchRequest.class), anyActionListener());
 
         final ApiKeyService apiKeyService = createApiKeyService();
         final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
@@ -1500,12 +1500,13 @@ public class ApiKeyServiceTests extends ESTestCase {
         // the counts must come from the aggregation alone, since a cluster can hold far more REST keys than can be read back
         assertThat(source.size(), equalTo(0));
 
-        // the bucket names declared by the aggregation are the names the response is read back by, so they have to agree
+        // the bucket names declared by the aggregation are the names the response is read back by, so they have to agree. The builder
+        // sorts keyed filters by key, so assert on the set of names rather than on their order.
         final FiltersAggregationBuilder countsAgg = (FiltersAggregationBuilder) source.aggregations()
             .getAggregatorFactories()
             .iterator()
             .next();
-        assertThat(countsAgg.filters().stream().map(KeyedFilter::key).toList(), contains("active", "invalidated", "expired"));
+        assertThat(countsAgg.filters().stream().map(KeyedFilter::key).toList(), containsInAnyOrder("active", "invalidated", "expired"));
     }
 
     /**
@@ -1517,10 +1518,10 @@ public class ApiKeyServiceTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client));
         doAnswer(invocationOnMock -> {
-            final ActionListener<SearchResponse> listener = invocationOnMock.getArgument(1);
+            final ActionListener<SearchResponse> listener = invocationOnMock.getArgument(2);
             ActionListener.respondAndRelease(listener, SearchResponseUtils.response().shards(0, 0, 0).tookInMillis(1L).build());
             return null;
-        }).when(client).search(any(SearchRequest.class), anyActionListener());
+        }).when(client).execute(eq(TransportSearchAction.TYPE), any(SearchRequest.class), anyActionListener());
 
         final ApiKeyService apiKeyService = createApiKeyService();
         final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();

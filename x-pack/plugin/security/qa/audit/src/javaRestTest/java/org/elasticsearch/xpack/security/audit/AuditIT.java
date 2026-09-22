@@ -57,6 +57,9 @@ public class AuditIT extends ESRestTestCase {
 
     private static final String ENCRYPTION_PASSWORD_ID = "test";
 
+    /** Loopback, admitted by the allowlist below: a permitted endpoint that routes nowhere. */
+    private static final String FIXTURE_ENDPOINT = "https://127.0.0.1:9000";
+
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(1) // A single node makes it easier to find audit events
@@ -68,6 +71,8 @@ public class AuditIT extends ESRestTestCase {
         .setting("xpack.security.audit.logfile.events.include", "[ \"_all\" ]")
         .setting("xpack.security.audit.logfile.events.emit_request_body", "true")
         .setting("esql.federation.enabled", "true")
+        // Endpoints are confined to AWS hosts, so permit loopback the way the esql suites do.
+        .setting("esql.external.allowed_endpoint_hosts", "127.0.0.1:*,[::1]:*,localhost:*")
         .keystore("cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID, "audit-it-encryption-password")
         .keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID)
         .user("admin_user", "admin-password")
@@ -126,7 +131,9 @@ public class AuditIT extends ESRestTestCase {
                 + accessKey
                 + "\",\"secret_key\":\""
                 + secretKey
-                + "\",\"endpoint\":\"http://localhost:12345\"}}"
+                + "\",\"endpoint\":\""
+                + FIXTURE_ENDPOINT
+                + "\"}}"
         );
         executeAndVerifyAudit(request, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
             String body = asInstanceOf(String.class, event.get(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME));
@@ -160,7 +167,9 @@ public class AuditIT extends ESRestTestCase {
                 + accessKey
                 + "\",\"secret_key\":\""
                 + secretKey
-                + "\",\"endpoint\":\"http://localhost:12345\"}}"
+                + "\",\"endpoint\":\""
+                + FIXTURE_ENDPOINT
+                + "\"}}"
         );
         request.addParameter("source_content_type", "application/json");
         request.addParameter("ignore", "400");

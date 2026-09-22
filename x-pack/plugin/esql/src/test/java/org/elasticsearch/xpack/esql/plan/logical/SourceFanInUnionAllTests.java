@@ -144,11 +144,11 @@ public class SourceFanInUnionAllTests extends ESTestCase {
 
     public void testCompactionDoesNotLiftFanInOrFork() {
         ViewUnionAll nestedFanIn = viewOf(viewOf(fanIn(external("a"), external("b"))));
-        LogicalPlan compactedFanIn = ViewCompaction.postIndexResolution(nestedFanIn);
+        LogicalPlan compactedFanIn = ViewCompaction.postIndexResolution(nestedFanIn, false);
         assertThat(compactedFanIn.anyMatch(p -> p instanceof SourceFanInUnionAll), equalTo(true));
 
         Fork fork = new Fork(Source.EMPTY, List.of(index("a"), index("b")), List.of());
-        LogicalPlan compactedFork = ViewCompaction.postIndexResolution(viewOf(fork));
+        LogicalPlan compactedFork = ViewCompaction.postIndexResolution(viewOf(fork), false);
         assertThat(compactedFork.anyMatch(p -> p instanceof Fork), equalTo(true));
     }
 
@@ -161,7 +161,7 @@ public class SourceFanInUnionAllTests extends ESTestCase {
     public void testStripViewShadowCollapsesFanIn() {
         ViewShadowRelation shadow = new ViewShadowRelation(Source.EMPTY, "v", LinkedIndexPattern.Kind.OPTIONAL, "v");
         SourceFanInUnionAll fanIn = fanIn(external("a"), shadow);
-        assertThat(ViewCompaction.postIndexResolution(fanIn), instanceOf(ExternalRelation.class));
+        assertThat(ViewCompaction.postIndexResolution(fanIn, false), instanceOf(ExternalRelation.class));
     }
 
     public void testBranchCapDoesNotApplyToWideFanIn() {
@@ -271,7 +271,7 @@ public class SourceFanInUnionAllTests extends ESTestCase {
         for (int i = 0; i < children.size(); i++) {
             named.put("b" + i, children.get(i));
         }
-        return new ViewUnionAll(Source.EMPTY, named, List.of());
+        return new ViewUnionAll(Source.EMPTY, named, named.keySet(), List.of());
     }
 
     private static ExternalRelation external(String name) {

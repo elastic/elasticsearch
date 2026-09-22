@@ -3952,6 +3952,14 @@ public class EsqlCapabilities {
         FIX_TS_STATS_ALIAS_GROUPING_SHADOW,
 
         /**
+         * {@code TS} {@code STATS} with a {@code TBUCKET}/{@code TSTEP} bucket count and no timestamp bounds
+         * no longer trips the surrogate invariant before verification runs: translation is skipped so
+         * verification rejects the query with the intended missing-bounds error.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/159602">#159602</a>.
+         */
+        FIX_TS_TBUCKET_MISSING_BOUNDS,
+
+        /**
          * CHANGE_POINT now uses EventDetector (multiple events, log-space p-values), which can report
          * a change point at a slightly different bucket and with different p-values than the previous
          * implementation.
@@ -4027,10 +4035,19 @@ public class EsqlCapabilities {
          * happens to hold. The empty string is produced only for a {@code keyword}/{@code text} column of a
          * strictly declared schema ({@code mappings} with {@code dynamic: false}), and setting {@code null_value}
          * to the empty string forces {@code null} there too. Supersedes {@link #EXTERNAL_CSV_EMPTY_STRING_NOT_NULL}.
-         * Gates the csv-spec tests that assert this, since it changes results for an ordinary inferred read:
-         * a pre-change node still answers {@code ""} for a blank cell in a column that sampled as a string.
+         * Superseded by {@link #EXTERNAL_CSV_BLANK_CELL_EMPTY_STRING_UNLESS_NULL_TOKEN}, which removes the
+         * inferred-vs-declared distinction: a blank string cell reads {@code ""} regardless of schema provenance.
+         * No longer referenced by any spec.
          */
-        EXTERNAL_CSV_BLANK_CELL_NULL_UNLESS_DECLARED,
+        EXTERNAL_CSV_BLANK_CELL_NULL_UNLESS_DECLARED(false),
+
+        /**
+         * A blank cell in an external CSV/TSV datasource reads as {@code ""} on a {@code keyword}/{@code text}
+         * column and as {@code null} on every other type, identically for inferred and declared reads.
+         * The only way to get {@code null} for a blank string cell is to set {@code null_value: ""}.
+         * Supersedes {@link #EXTERNAL_CSV_BLANK_CELL_NULL_UNLESS_DECLARED}.
+         */
+        EXTERNAL_CSV_BLANK_CELL_EMPTY_STRING_UNLESS_NULL_TOKEN,
 
         /**
          * Materialize more aggregate inputs into a synthetic pre-agg eval.

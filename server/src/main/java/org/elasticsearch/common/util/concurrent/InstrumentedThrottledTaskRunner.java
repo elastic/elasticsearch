@@ -28,7 +28,7 @@ public class InstrumentedThrottledTaskRunner<T extends ActionListener<Releasable
     static final String THROTTLED_TASK_RUNNER_METRIC_PREFIX = "es.throttled_task_runner.";
     static final String THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE = ".tasks.queue.size";
     static final String THROTTLED_TASK_RUNNER_METRIC_NAME_RUNNING = ".tasks.running.current";
-    static final String THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE_TIME = ".tasks.queue_latency.histogram";
+    static final String THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE_TIME = ".tasks.queue.latency.histogram";
 
     private final AbstractThrottledTaskRunner<TimedTask<T>> runner;
     private final LongSupplier relativeTimeNanosProvider;

@@ -412,8 +412,11 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             Header in = switch (agg.grouping()) {
                 // by(a,b,c): keep exactly {a,b,c}; rest is null-filled
                 case BY -> finite(partitionKey);
-                // without(a,b,c): declare the dropped set and widen every pending packed column by it
-                case WITHOUT -> union(sub(parentHeader, finite(partitionKey)), open(finite(partitionKey)));
+                // without(a,b,c): declare the dropped set and widen every pending packed column by it.
+                // without(): no labels dropped, so no packed column is needed; pass the parent header through.
+                case WITHOUT -> partitionKey.isEmpty()
+                    ? parentHeader
+                    : union(sub(parentHeader, finite(partitionKey)), open(finite(partitionKey)));
                 // this node doesn't have any requirement
                 case NONE -> Header.PassThrough;
             };

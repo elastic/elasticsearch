@@ -51,7 +51,11 @@ public record StatusReport(List<TaskEntry> tasks, List<SuiteEntry> suites, List<
             w.println("  \"tasks\" : [");
             for (int i = 0; i < tasks.size(); i++) {
                 TaskEntry t = tasks.get(i);
-                w.printf("    { \"path\" : %s, \"outcome\" : %s }", jsonString(t.path()), jsonString(t.outcome()));
+                w.printf(
+                    "    { \"path\" : %s, \"outcome\" : %s }",
+                    JsonStrings.jsonString(t.path()),
+                    JsonStrings.jsonString(t.outcome())
+                );
                 w.println(i < tasks.size() - 1 ? "," : "");
             }
             w.println("  ],");
@@ -60,9 +64,9 @@ public record StatusReport(List<TaskEntry> tasks, List<SuiteEntry> suites, List<
                 SuiteEntry s = suites.get(i);
                 w.printf(
                     "    { \"taskPath\" : %s, \"className\" : %s, \"result\" : %s }",
-                    jsonString(s.taskPath()),
-                    jsonString(s.className()),
-                    jsonString(s.result())
+                    JsonStrings.jsonString(s.taskPath()),
+                    JsonStrings.jsonString(s.className()),
+                    JsonStrings.jsonString(s.result())
                 );
                 w.println(i < suites.size() - 1 ? "," : "");
             }
@@ -72,43 +76,17 @@ public record StatusReport(List<TaskEntry> tasks, List<SuiteEntry> suites, List<
                 TestEntry t = tests.get(i);
                 w.printf(
                     "    { \"taskPath\" : %s, \"className\" : %s, \"methodName\" : %s, \"result\" : %s }",
-                    jsonString(t.taskPath()),
-                    jsonString(t.className()),
-                    jsonString(t.methodName()),
-                    jsonString(t.result())
+                    JsonStrings.jsonString(t.taskPath()),
+                    JsonStrings.jsonString(t.className()),
+                    JsonStrings.jsonString(t.methodName()),
+                    JsonStrings.jsonString(t.result())
                 );
                 w.println(i < tests.size() - 1 ? "," : "");
             }
             w.println("  ],");
             w.printf("  \"cancelled\" : %s,%n", cancelled);
-            w.printf("  \"preemptedAt\" : %s%n", preemptedAt != null ? jsonString(preemptedAt) : "null");
+            w.printf("  \"preemptedAt\" : %s%n", preemptedAt != null ? JsonStrings.jsonString(preemptedAt) : "null");
             w.println("}");
         }
-    }
-
-    private static String jsonString(String value) {
-        if (value == null) {
-            return "null";
-        }
-        StringBuilder sb = new StringBuilder("\"");
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            switch (c) {
-                case '"' -> sb.append("\\\"");
-                case '\\' -> sb.append("\\\\");
-                case '\n' -> sb.append("\\n");
-                case '\r' -> sb.append("\\r");
-                case '\t' -> sb.append("\\t");
-                default -> {
-                    if (c < 0x20) {
-                        sb.append(String.format("\\u%04x", (int) c));
-                    } else {
-                        sb.append(c);
-                    }
-                }
-            }
-        }
-        sb.append('"');
-        return sb.toString();
     }
 }

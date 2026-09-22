@@ -39,6 +39,7 @@ import java.util.RandomAccess;
 import java.util.Set;
 import java.util.UUID;
 
+import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.LAX;
 import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.ORDERED;
 import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.UNMODIFIABLE;
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
@@ -946,17 +947,31 @@ public class CollectionUtilsTests extends ESTestCase {
         expectThrows(UnsupportedOperationException.class, () -> copy.put("x", "y"));
     }
 
-    public void testDeepCopyUnknownTypeAssertsInDev() {
-        // Tests run with assertions enabled (-ea), so assert false fires as AssertionError.
-        // In production (no -ea) the value would be passed through by reference.
-        var e = expectThrows(AssertionError.class, () -> deepCopy(new Object()));
+    public void testDeepCopyUnknownTypeThrows() {
+        // Default (strict) behavior: unknown types always throw, even in production.
+        var e = expectThrows(IllegalArgumentException.class, () -> deepCopy(new Object()));
         assertThat(e.getMessage(), equalTo("unexpected value type [class java.lang.Object]"));
     }
 
-    public void testDeepCopyUnknownTypeNestedInMapAssertsInDev() {
+    public void testDeepCopyUnknownTypeNestedInMapThrows() {
         Map<String, Object> map = new HashMap<>();
         map.put("bad", new Object());
-        expectThrows(AssertionError.class, () -> deepCopy(map));
+        expectThrows(IllegalArgumentException.class, () -> deepCopy(map));
+    }
+
+    public void testDeepCopyLaxUnknownTypeAssertsInDev() {
+        // LAX behavior: tests run with -ea so the assert fires as AssertionError; in production the
+        // value is passed through by reference without throwing.
+        var e = expectThrows(AssertionError.class, () -> deepCopy(new Object(), LAX));
+        assertThat(e.getMessage(), equalTo("unexpected value type [class java.lang.Object]"));
+    }
+
+    public void testDeepCopyLaxUnmodifiableByteArrayCopiesInsteadOfThrowing() {
+        // LAX suppresses the UNMODIFIABLE constraint for array types; the result is a mutable copy.
+        byte[] arr = new byte[] { 1, 2, 3 };
+        byte[] copy = deepCopy(arr, UNMODIFIABLE, LAX);
+        assertNotSame(arr, copy);
+        assertArrayEquals(new byte[] { 1, 2, 3 }, copy);
     }
 
     public void testDeepCopy() {

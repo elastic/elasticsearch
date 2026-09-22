@@ -195,7 +195,24 @@ public class CollectionUtils {
          * Use insertion-order-preserving collections ({@link LinkedHashMap}, {@link java.util.LinkedHashSet}) when
          * copying {@link Map} and {@link Set} instances.
          */
-        ORDERED(2);
+        ORDERED(2),
+        /**
+         * Relax strict type checking for unrecognized value types and array unmodifiability constraints.
+         * <p>
+         * By default, {@link #deepCopy} throws {@link IllegalArgumentException} if it encounters a value
+         * whose type it does not recognize, and throws if {@link #UNMODIFIABLE} is combined with an array
+         * type ({@code byte[]}, {@code double[]}, {@code double[][]}) that cannot be made unmodifiable.
+         * <p>
+         * With {@code LAX}:
+         * <ul>
+         *   <li>Unrecognized types trigger a development-time assertion (visible in tests, which run with
+         *       {@code -ea}) but are passed through by reference at runtime, so callers on user-facing
+         *       data paths are not broken by an unexpected type.</li>
+         *   <li>Array types combined with {@link #UNMODIFIABLE} are silently copied rather than throwing.
+         *       The caller accepts that the resulting array is still mutable.</li>
+         * </ul>
+         */
+        LAX(4);
 
         private final int mask;
 
@@ -209,9 +226,10 @@ public class CollectionUtils {
      * {@code byte[]}, {@code double[]}, {@code double[][]}, {@link Date}, and all immutable scalar
      * types produced by JSON parsing ({@link String}, {@link Boolean}, {@link Integer}, {@link Long},
      * {@link Float}, {@link Double}, {@link BigInteger}, {@link BigDecimal}, {@link Byte},
-     * {@link Short}, {@link Character}, {@link ZonedDateTime}). For any other type, asserts at
-     * development time (when assertions are enabled) and returns the value by reference at runtime,
-     * so callers on data paths are not broken by an unexpected type.
+     * {@link Short}, {@link Character}, {@link ZonedDateTime}). For any other type, throws
+     * {@link IllegalArgumentException} by default. Pass {@link DeepCopyOption#LAX} to instead
+     * assert at development time and pass the value through by reference at runtime, which avoids
+     * breaking callers on user-facing data paths when an unexpected type sneaks in.
      */
     public static <T> T deepCopy(T value) {
         return deepCopyInternal(value, 0);
@@ -227,13 +245,19 @@ public class CollectionUtils {
         return deepCopyInternal(value, a.mask | b.mask);
     }
 
-    // note: in the future, three option or varargs methods can be added -- with only two possible options at present
-    // it's simple enough to just iterate the 0, 1, and 2 options. :shrug:
+    /** @see #deepCopy(Object) */
+    public static <T> T deepCopy(T value, DeepCopyOption a, DeepCopyOption b, DeepCopyOption c) {
+        return deepCopyInternal(value, a.mask | b.mask | c.mask);
+    }
+
+    // note: in the future, four option or varargs methods can be added -- with only three possible options at present
+    // it's simple enough to just iterate them. :shrug:
 
     @SuppressWarnings("unchecked")
     private static <T> T deepCopyInternal(T value, int options) {
         final boolean unmodifiable = (options & DeepCopyOption.UNMODIFIABLE.mask) != 0;
         final boolean ordered = (options & DeepCopyOption.ORDERED.mask) != 0;
+        final boolean lax = (options & DeepCopyOption.LAX.mask) != 0;
         if (value == null
             || value instanceof String
             || value instanceof Boolean
@@ -261,12 +285,13 @@ public class CollectionUtils {
             }
             return (T) (unmodifiable ? Collections.unmodifiableSet(copy) : copy);
         } else if (value instanceof byte[] bytes) {
-            if (unmodifiable) {
+            // arrays cannot be made unmodifiable; LAX callers accept a mutable copy rather than a failure
+            if (unmodifiable && !lax) {
                 throw new IllegalArgumentException("cannot make array type [" + value.getClass() + "] unmodifiable");
             }
             return (T) Arrays.copyOf(bytes, bytes.length);
         } else if (value instanceof double[][] doubles) {
-            if (unmodifiable) {
+            if (unmodifiable && !lax) {
                 throw new IllegalArgumentException("cannot make array type [" + value.getClass() + "] unmodifiable");
             }
             double[][] result = new double[doubles.length][];
@@ -275,7 +300,7 @@ public class CollectionUtils {
             }
             return (T) result;
         } else if (value instanceof double[] doubles) {
-            if (unmodifiable) {
+            if (unmodifiable && !lax) {
                 throw new IllegalArgumentException("cannot make array type [" + value.getClass() + "] unmodifiable");
             }
             return (T) Arrays.copyOf(doubles, doubles.length);
@@ -291,12 +316,14 @@ public class CollectionUtils {
                 return value;
             } else if (value instanceof Date date) {
                 return (T) date.clone();
-            } else {
+            } else if (lax) {
                 // If this list of expected value types ends up not being exhaustive, we want to know
                 // at development time, but it is better to pass the value through at runtime rather
                 // than blow up on users.
                 assert false : "unexpected value type [" + value.getClass() + "]";
                 return value;
+            } else {
+                throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
             }
     }
 

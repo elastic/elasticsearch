@@ -193,6 +193,16 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    public void testKnnLimitAppendedInNestedUnionAllBranchIsBranchOrderIndependent() {
+        runGoldenTest("""
+                FROM (FROM (FROM colors | LIMIT 10),
+                     (FROM colors METADATA _score | WHERE knn(rgb_vector, "007800"))
+                 METADATA _score),
+                 (FROM colors) METADATA _score
+            | LIMIT 5
+            """, STAGES);
+    }
+
     public void testNoKnnLimitAppendedWhenNestedBranchAlreadyBounded() {
         runGoldenTest("""
             FROM (FROM (FROM colors | LIMIT 5),

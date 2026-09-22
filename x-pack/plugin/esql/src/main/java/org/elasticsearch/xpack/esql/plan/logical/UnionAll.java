@@ -158,27 +158,44 @@ public class UnionAll extends MergePlan implements PostOptimizationPlanVerificat
         }
     }
 
-    /** Checks both {@link UnionAll} limits independently for the main query and every {@code IN} subquery. */
-    public static void checkNestedSubqueryLimits(LogicalPlan optimizedPlan, int maxBranches, int maxLevels, Failures failures) {
+    /**
+     * Checks max_branch_count and max_branch_level for the main query and every {@code IN} subquery independently.
+     */
+    public static void checkNestedSubqueryLimits(
+        LogicalPlan optimizedPlan,
+        int maxBranchCount,
+        int maxBranchLevel,
+        String maxBranchCountSource,
+        String maxBranchLevelSource,
+        Failures failures
+    ) {
         UnionStats stats = unionStats(optimizedPlan);
-        checkTotalBranchCount(stats, maxBranches, failures);
-        checkMaxNestingLevel(stats, maxLevels, failures);
-        checkInSubqueryLimits(optimizedPlan, maxBranches, maxLevels, failures);
+        checkTotalBranchCount(stats, maxBranchCount, maxBranchCountSource, failures);
+        checkMaxNestingLevel(stats, maxBranchLevel, maxBranchLevelSource, failures);
+        checkInSubqueryLimits(optimizedPlan, maxBranchCount, maxBranchLevel, maxBranchCountSource, maxBranchLevelSource, failures);
     }
 
-    private static void checkInSubqueryLimits(LogicalPlan plan, int maxBranches, int maxLevels, Failures failures) {
+    private static void checkInSubqueryLimits(
+        LogicalPlan plan,
+        int maxBranches,
+        int maxLevels,
+        String branchCountSource,
+        String branchLevelSource,
+        Failures failures
+    ) {
         if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
-            checkNestedSubqueryLimits(subqueryJoin.right(), maxBranches, maxLevels, failures);
-            checkInSubqueryLimits(subqueryJoin.left(), maxBranches, maxLevels, failures);
+            checkNestedSubqueryLimits(subqueryJoin.right(), maxBranches, maxLevels, branchCountSource, branchLevelSource, failures);
+            checkInSubqueryLimits(subqueryJoin.left(), maxBranches, maxLevels, branchCountSource, branchLevelSource, failures);
             return;
         }
         for (LogicalPlan child : plan.children()) {
-            checkInSubqueryLimits(child, maxBranches, maxLevels, failures);
+            checkInSubqueryLimits(child, maxBranches, maxLevels, branchCountSource, branchLevelSource, failures);
         }
     }
 
     /**
-     * Rejects a query whose leaf branches exceed {@code maxBranches}, the {@link QueryPragmas#MAX_BRANCH_COUNT} query pragma.
+     * Rejects a query whose leaf branches exceed {@code maxBranches}, taken from the {@link QueryPragmas#MAX_BRANCH_COUNT} query pragma
+     * when that pragma is set, otherwise from {@code esql.query.max_branch_count}.
      * <p>
      * Only producer leaves are counted — {@link UnionAll} nodes themselves are coordinator merge segments, not branches, and are
      * bounded separately by the maximum nesting-level check. Each leaf becomes a data node query (or a coordinator-local source), so
@@ -191,26 +208,26 @@ public class UnionAll extends MergePlan implements PostOptimizationPlanVerificat
      * compute service. It counts leaves under {@link ViewUnionAll}s too: a union produced by expanding a {@code FROM} pattern or view costs
      * exactly the same at execution time as one the user wrote.
      */
-    private static void checkTotalBranchCount(UnionStats stats, int maxBranches, Failures failures) {
+    private static void checkTotalBranchCount(UnionStats stats, int maxBranches, String branchCountSource, Failures failures) {
         if (stats.first() == null || stats.leaves() <= maxBranches) {
             return;
         }
         failures.add(
             Failure.fail(
                 stats.first(),
-                "query resolved to {} branches in total, exceeding the limit of {} set by the [{}] query pragma. "
+                "query resolved to {} branches in total, exceeding the limit of {} set by the {}. "
                     + "Reduce the number of sources - subqueries, patterns expanding to several indices, or views - "
                     + "or split this into multiple queries.",
                 stats.leaves(),
                 maxBranches,
-                QueryPragmas.MAX_BRANCH_COUNT.getKey()
+                branchCountSource
             )
         );
     }
 
     /**
-     * Rejects a query whose {@link UnionAll}s nest deeper than {@code maxLevels}, the
-     * {@link QueryPragmas#MAX_BRANCH_LEVEL} query pragma.
+     * Rejects a query whose {@link UnionAll}s nest deeper than {@code maxLevels}, taken from the {@link QueryPragmas#MAX_BRANCH_LEVEL}
+     * query pragma when that pragma is set, otherwise from {@code esql.query.max_branch_level}.
      * <p>
      * Each nested union becomes a coordinator merge segment that is wired before any leaf runs, so the depth is what a
      * single request commits the coordinator to on the merge-segment stack. {@link #checkTotalBranchCount} bounds how
@@ -222,19 +239,19 @@ public class UnionAll extends MergePlan implements PostOptimizationPlanVerificat
      * service. It counts {@link ViewUnionAll}s too: a union produced by expanding a {@code FROM} pattern or view costs exactly the same at
      * execution time as one the user wrote.
      */
-    private static void checkMaxNestingLevel(UnionStats stats, int maxLevels, Failures failures) {
+    private static void checkMaxNestingLevel(UnionStats stats, int maxLevels, String branchLevelSource, Failures failures) {
         if (stats.depth() <= maxLevels) {
             return;
         }
         failures.add(
             Failure.fail(
                 stats.deepest(),
-                "query resolved to {} nested union levels, exceeding the limit of {} set by the [{}] query pragma. "
+                "query resolved to {} nested union levels, exceeding the limit of {} set by the {}. "
                     + "Reduce the nesting of sources - subqueries, patterns expanding to several indices, or views - "
                     + "or split this into multiple queries.",
                 stats.depth(),
                 maxLevels,
-                QueryPragmas.MAX_BRANCH_LEVEL.getKey()
+                branchLevelSource
             )
         );
     }

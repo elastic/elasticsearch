@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -421,18 +422,7 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNestedSubqueryExceedsMaxBranchCountPragma() {
-        var query = """
-            FROM
-               ( FROM ok | WHERE id == 1 ),
-               ( FROM
-                    ( FROM ok | WHERE id == 2 ),
-                    ( FROM
-                         ( FROM ok | WHERE id == 3 ),
-                         ( FROM ok | WHERE id == 4 )
-                    )
-               )
-            | KEEP id
-            """;
+        var query = fourLeafThreeLevelQuery();
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 3).build());
         expectThrows(
             VerificationException.class,
@@ -442,7 +432,77 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNestedSubqueryExceedsMaxBranchLevelPragma() {
-        var query = """
+        var query = fourLeafThreeLevelQuery();
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 2).build());
+        expectThrows(
+            VerificationException.class,
+            containsString("query resolved to 3 nested union levels, exceeding the limit of 2 set by the [max_branch_level] query pragma"),
+            () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)).close()
+        );
+    }
+
+    public void testNestedSubqueryExceedsMaxBranchCountClusterSetting() {
+        var query = fourLeafThreeLevelQuery();
+        try {
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey(), 3));
+            expectThrows(
+                VerificationException.class,
+                containsString(
+                    "query resolved to 4 branches in total, "
+                        + "exceeding the limit of 3 set by the [esql.query.max_branch_count] cluster setting"
+                ),
+                () -> run(query).close()
+            );
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey()));
+        }
+    }
+
+    public void testNestedSubqueryExceedsMaxBranchLevelClusterSetting() {
+        var query = fourLeafThreeLevelQuery();
+        try {
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_BRANCH_LEVEL.getKey(), 2));
+            expectThrows(
+                VerificationException.class,
+                containsString(
+                    "query resolved to 3 nested union levels, "
+                        + "exceeding the limit of 2 set by the [esql.query.max_branch_level] cluster setting"
+                ),
+                () -> run(query).close()
+            );
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(EsqlFlags.ESQL_MAX_BRANCH_LEVEL.getKey()));
+        }
+    }
+
+    public void testPragmaOverridesClusterMaxBranchCount() {
+        var query = fourLeafThreeLevelQuery();
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 4).build());
+        try {
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey(), 3));
+            try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+                assertThat(resp.values().hasNext(), equalTo(true));
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey()));
+        }
+    }
+
+    public void testPragmaOverridesClusterMaxBranchLevel() {
+        var query = fourLeafThreeLevelQuery();
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 3).build());
+        try {
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_BRANCH_LEVEL.getKey(), 2));
+            try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+                assertThat(resp.values().hasNext(), equalTo(true));
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(EsqlFlags.ESQL_MAX_BRANCH_LEVEL.getKey()));
+        }
+    }
+
+    private static String fourLeafThreeLevelQuery() {
+        return """
             FROM
                ( FROM ok | WHERE id == 1 ),
                ( FROM
@@ -454,12 +514,6 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
                )
             | KEEP id
             """;
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 2).build());
-        expectThrows(
-            VerificationException.class,
-            containsString("query resolved to 3 nested union levels, exceeding the limit of 2 set by the [max_branch_level] query pragma"),
-            () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)).close()
-        );
     }
 
     /**

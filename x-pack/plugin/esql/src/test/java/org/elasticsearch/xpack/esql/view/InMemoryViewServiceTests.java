@@ -2059,8 +2059,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
      * <ul>
      *   <li>nesting &gt; max view depth (default 10): depth-exceeded error, no further checks</li>
      *   <li>otherwise resolution succeeds, then {@link UnionAll#checkNestedSubqueryLimits} must
-     *       fail exactly when that leaf count exceeds the default
-     *       {@code max_branch_count} (20)</li>
+     *       fail exactly when that leaf count exceeds the default {@code max_branch_count} (20)</li>
      *   <li>branching &ge; 2 and nesting &ge; 2: the plan contains nested {@link ViewUnionAll}s;
      *       {@link LogicalVerifier} reports {@code nesting - 1} failures, each
      *       {@code cannot be combined with subqueries} and naming the wrapper view that created
@@ -2096,11 +2095,18 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
                         // Validate max_branch_count limit
                         Failures maxBranchFailures = new Failures();
-                        int maxQueryBranches = QueryPragmas.MAX_BRANCH_COUNT.getDefault(Settings.EMPTY);
-                        UnionAll.checkNestedSubqueryLimits(result, maxQueryBranches, Integer.MAX_VALUE, maxBranchFailures);
+                        int maxBranchCount = QueryPragmas.MAX_BRANCH_COUNT.getDefault(Settings.EMPTY);
+                        UnionAll.checkNestedSubqueryLimits(
+                            result,
+                            maxBranchCount,
+                            Integer.MAX_VALUE,
+                            "[max_branch_count] query pragma",
+                            "[max_branch_level] query pragma",
+                            maxBranchFailures
+                        );
 
                         int expectedLeaves = nesting * (branching - 1) + 1;
-                        if (expectedLeaves > maxQueryBranches) {
+                        if (expectedLeaves > maxBranchCount) {
                             assertTrue(
                                 "Expected branch failures for nesting="
                                     + nesting
@@ -2114,7 +2120,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
                             assertThat(
                                 "nesting=" + nesting + ", branching=" + branching,
                                 maxBranchFailures.failures().toString(),
-                                containsString("exceeding the limit of " + maxQueryBranches + " set by the [max_branch_count] query pragma")
+                                containsString("exceeding the limit of " + maxBranchCount + " set by the [max_branch_count] query pragma")
                             );
                         } else {
                             assertFalse(

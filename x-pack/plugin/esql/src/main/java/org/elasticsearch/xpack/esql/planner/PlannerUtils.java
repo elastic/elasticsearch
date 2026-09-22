@@ -272,7 +272,12 @@ public class PlannerUtils {
      * This deliberately skips general local optimization while retaining the passes that make field extraction explicit.
      */
     public static PhysicalPlan toPhysicalPlanForReductionSchema(LogicalPlan plan, LocalPhysicalOptimizerContext context) {
-        var logicalContext = new LocalLogicalOptimizerContext(context.configuration(), context.foldCtx(), context.searchStats());
+        var logicalContext = new LocalLogicalOptimizerContext(
+            context.configuration(),
+            context.foldCtx(),
+            context.searchStats(),
+            context.flags()
+        );
         // Replace NULL-typed fields from UNMAPPED_FIELDS="NULLIFY" before field extraction tries to load them from an index.
         LogicalPlan optimized = new ReplaceFieldWithConstantOrNull().apply(plan, logicalContext);
         return new InsertFieldExtraction().apply(new ReplaceSourceAttributes().apply(LocalMapper.INSTANCE.map(optimized)), context);
@@ -386,7 +391,9 @@ public class PlannerUtils {
         SearchStats searchStats,
         PlanTimeProfile planTimeProfile
     ) {
-        final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
+        final var logicalOptimizer = new LocalLogicalPlanOptimizer(
+            new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats, flags)
+        );
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
             new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats)
         );
@@ -428,7 +435,9 @@ public class PlannerUtils {
         SearchStats searchStats,
         PlanTimeProfile planTimeProfile
     ) {
-        final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
+        final var logicalOptimizer = new LocalLogicalPlanOptimizer(
+            new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats, flags)
+        );
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
             new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats)
         );
@@ -475,7 +484,9 @@ public class PlannerUtils {
         List<? extends ExternalSplit> externalSplits,
         PlanTimeProfile planTimeProfile
     ) {
-        final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
+        final var logicalOptimizer = new LocalLogicalPlanOptimizer(
+            new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats, flags)
+        );
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
             new LocalPhysicalOptimizerContext(
                 plannerSettings,

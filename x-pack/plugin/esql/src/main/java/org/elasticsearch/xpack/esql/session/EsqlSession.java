@@ -570,7 +570,7 @@ public class EsqlSession {
                         new LogicalPreOptimizerContext(foldContext, inferenceService, minimumVersion)
                     );
                     var logicalPlanOptimizer = new LogicalPlanOptimizer(
-                        new LogicalOptimizerContext(finalConfiguration, foldContext, minimumVersion)
+                        new LogicalOptimizerContext(finalConfiguration, foldContext, minimumVersion, flags)
                     );
                     var physicalPlanOptimizer = new PhysicalPlanOptimizer(
                         new PhysicalOptimizerContext(configuration, minimumVersion, flags)

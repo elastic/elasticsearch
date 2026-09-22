@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.ArrayList;
@@ -32,11 +33,18 @@ public final class LogicalVerifier extends PostOptimizationPhasePlanVerifier<Log
      * Verifies the optimized coordinator plan, additionally applying the limits that are defined for each independently executed query
      * rather than for a single node.
      */
-    public Failures verify(LogicalPlan optimizedPlan, List<Attribute> expectedOutputAttributes, QueryPragmas pragmas) {
+    public Failures verify(LogicalPlan optimizedPlan, List<Attribute> expectedOutputAttributes, QueryPragmas pragmas, EsqlFlags flags) {
         assert isLocal == false : "query-wide limits apply to the coordinator plan only";
         Failures failures = verify(optimizedPlan, expectedOutputAttributes);
         // These limits need complete main-query and IN-subquery plans, so they live here rather than in {@link #checkPlanConsistency}.
-        UnionAll.checkNestedSubqueryLimits(optimizedPlan, pragmas.maxBranchCount(), pragmas.maxBranchLevel(), failures);
+        UnionAll.checkNestedSubqueryLimits(
+            optimizedPlan,
+            pragmas.maxBranchCount(flags.maxBranchCount()),
+            pragmas.maxBranchLevel(flags.maxBranchLevel()),
+            pragmas.maxBranchCountLimitSource(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey()),
+            pragmas.maxBranchLevelLimitSource(EsqlFlags.ESQL_MAX_BRANCH_LEVEL.getKey()),
+            failures
+        );
         return failures;
     }
 

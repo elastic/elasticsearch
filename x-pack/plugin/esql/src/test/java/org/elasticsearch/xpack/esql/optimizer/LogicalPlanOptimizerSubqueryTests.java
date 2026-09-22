@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.List;
@@ -397,6 +398,146 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
         assertThat(e.getMessage(), containsString("query resolved to 2 nested union levels, exceeding the limit of 1"));
     }
 
+    public void testTotalBranchCountExceedsMaxBranchCountInClusterSettings() {
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> planSubquery(FOUR_LEAF_THREE_LEVEL, Settings.EMPTY, EsqlFlags.withMaxBranchLimits(3, 5))
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "query resolved to 4 branches in total, exceeding the limit of 3 set by the [esql.query.max_branch_count] cluster setting"
+            )
+        );
+    }
+
+    public void testMaxBranchCountPragmaOverridesClusterSettings() {
+        // pragma raises the limit above the cluster setting
+        planSubquery(
+            FOUR_LEAF_THREE_LEVEL,
+            Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 4).build(),
+            EsqlFlags.withMaxBranchLimits(3, 5)
+        );
+        // pragma lowers the limit below the cluster setting
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> planSubquery(
+                FOUR_LEAF_THREE_LEVEL,
+                Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 2).build(),
+                EsqlFlags.withMaxBranchLimits(10, 5)
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("query resolved to 4 branches in total, exceeding the limit of 2 set by the [max_branch_count] query pragma")
+        );
+    }
+
+    public void testNestingLevelExceedsMaxBranchLevelInClusterSettings() {
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> planSubquery(FOUR_LEAF_THREE_LEVEL, Settings.EMPTY, EsqlFlags.withMaxBranchLimits(20, 2))
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "query resolved to 3 nested union levels, exceeding the limit of 2 set by the [esql.query.max_branch_level] cluster setting"
+            )
+        );
+    }
+
+    public void testMaxBranchLevelOverridesClusterSettings() {
+        // pragma raises the limit above the cluster setting
+        planSubquery(
+            FOUR_LEAF_THREE_LEVEL,
+            Settings.builder().put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 3).build(),
+            EsqlFlags.withMaxBranchLimits(20, 2)
+        );
+        // pragma lowers the limit below the cluster setting
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> planSubquery(
+                FOUR_LEAF_THREE_LEVEL,
+                Settings.builder().put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 2).build(),
+                EsqlFlags.withMaxBranchLimits(20, 10)
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("query resolved to 3 nested union levels, exceeding the limit of 2 set by the [max_branch_level] query pragma")
+        );
+    }
+
+    public void testTotalBranchCountExceedsMaxBranchCountInClusterSettingsWithView() {
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> planSubquery(viewAnalyzer(), FOUR_LEAF_THREE_LEVEL_VIEWS, Settings.EMPTY, EsqlFlags.withMaxBranchLimits(3, 5))
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "query resolved to 4 branches in total, exceeding the limit of 3 set by the [esql.query.max_branch_count] cluster setting"
+            )
+        );
+    }
+
+    public void testMaxBranchCountPragmaOverridesClusterSettingsWithView() {
+        planSubquery(
+            viewAnalyzer(),
+            FOUR_LEAF_THREE_LEVEL_VIEWS,
+            Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 4).build(),
+            EsqlFlags.withMaxBranchLimits(3, 5)
+        );
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> planSubquery(
+                viewAnalyzer(),
+                FOUR_LEAF_THREE_LEVEL_VIEWS,
+                Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 2).build(),
+                EsqlFlags.withMaxBranchLimits(10, 5)
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("query resolved to 4 branches in total, exceeding the limit of 2 set by the [max_branch_count] query pragma")
+        );
+    }
+
+    public void testNestingLevelExceedsMaxBranchLevelInClusterSettingsWithView() {
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> planSubquery(viewAnalyzer(), FOUR_LEAF_THREE_LEVEL_VIEWS, Settings.EMPTY, EsqlFlags.withMaxBranchLimits(20, 2))
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "query resolved to 3 nested union levels, exceeding the limit of 2 set by the [esql.query.max_branch_level] cluster setting"
+            )
+        );
+    }
+
+    public void testMaxBranchLevelOverridesClusterSettingsWithView() {
+        planSubquery(
+            viewAnalyzer(),
+            FOUR_LEAF_THREE_LEVEL_VIEWS,
+            Settings.builder().put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 3).build(),
+            EsqlFlags.withMaxBranchLimits(20, 2)
+        );
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> planSubquery(
+                viewAnalyzer(),
+                FOUR_LEAF_THREE_LEVEL_VIEWS,
+                Settings.builder().put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 2).build(),
+                EsqlFlags.withMaxBranchLimits(20, 10)
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("query resolved to 3 nested union levels, exceeding the limit of 2 set by the [max_branch_level] query pragma")
+        );
+    }
+
     private void assertNestedSubqueryLimits(String query, TestAnalyzer analyzer, int branches, int levels) {
         Settings atLimit = Settings.builder()
             .put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), branches)
@@ -438,16 +579,33 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
         );
     }
 
+    private static final String FOUR_LEAF_THREE_LEVEL = """
+        FROM test, (FROM test, (FROM test, (FROM languages)))
+        | STATS c = COUNT(*)
+        """;
+
+    private static final String FOUR_LEAF_THREE_LEVEL_VIEWS = """
+        FROM view_0, (FROM view_1, (FROM view_0, (FROM view_1)))
+        | STATS c = COUNT(*)
+        """;
+
     private LogicalPlan planSubquery(String query, Settings pragmaSettings) {
-        return planSubquery(subqueryAnalyzer(), query, pragmaSettings);
+        return planSubquery(subqueryAnalyzer(), query, pragmaSettings, null);
+    }
+
+    private LogicalPlan planSubquery(String query, Settings pragmaSettings, EsqlFlags flags) {
+        return planSubquery(subqueryAnalyzer(), query, pragmaSettings, flags);
     }
 
     private LogicalPlan planSubquery(TestAnalyzer analyzer, String query, Settings pragmaSettings) {
-        var context = new LogicalOptimizerContext(
-            configuration(new QueryPragmas(pragmaSettings), query),
-            logicalOptimizerCtx.foldCtx(),
-            logicalOptimizerCtx.minimumVersion()
-        );
+        return planSubquery(analyzer, query, pragmaSettings, null);
+    }
+
+    private LogicalPlan planSubquery(TestAnalyzer analyzer, String query, Settings pragmaSettings, EsqlFlags flags) {
+        var configuration = configuration(new QueryPragmas(pragmaSettings), query);
+        var context = flags == null
+            ? new LogicalOptimizerContext(configuration, logicalOptimizerCtx.foldCtx(), logicalOptimizerCtx.minimumVersion())
+            : new LogicalOptimizerContext(configuration, logicalOptimizerCtx.foldCtx(), logicalOptimizerCtx.minimumVersion(), flags);
         return new LogicalPlanOptimizer(context).optimize(analyzer.query(query));
     }
 

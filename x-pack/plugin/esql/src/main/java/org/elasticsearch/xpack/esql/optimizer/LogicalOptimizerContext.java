@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.Objects;
@@ -17,11 +18,20 @@ public class LogicalOptimizerContext {
     private final Configuration configuration;
     private final FoldContext foldCtx;
     private final TransportVersion minimumVersion;
+    private final EsqlFlags flags;
 
+    /**
+     * Constructor for tests, production passes session flags via the four-argument constructor.
+     */
     public LogicalOptimizerContext(Configuration configuration, FoldContext foldCtx, TransportVersion minimumVersion) {
+        this(configuration, foldCtx, minimumVersion, EsqlFlags.DEFAULTS);
+    }
+
+    public LogicalOptimizerContext(Configuration configuration, FoldContext foldCtx, TransportVersion minimumVersion, EsqlFlags flags) {
         this.configuration = configuration;
         this.foldCtx = foldCtx;
         this.minimumVersion = minimumVersion;
+        this.flags = flags;
     }
 
     public Configuration configuration() {
@@ -34,6 +44,10 @@ public class LogicalOptimizerContext {
 
     public TransportVersion minimumVersion() {
         return minimumVersion;
+    }
+
+    public EsqlFlags flags() {
+        return flags;
     }
 
     @Override

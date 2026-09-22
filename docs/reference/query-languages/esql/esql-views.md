@@ -83,7 +83,6 @@ Where `index_pattern` is a comma-separated list of index or view names, includin
 wildcards and date-math.
 
 ### Wildcard patterns and views [esql-views-wildcards]
-
 By default, a wildcard pattern in `FROM` does not match views. `FROM my_view` reads the view by exact name, while `FROM my-view-*` resolves to indices, data streams, and aliases only — registered views are excluded.
 
 To include views in wildcard resolution, enable the `wildcards_match_views` setting:
@@ -93,7 +92,7 @@ SET wildcards_match_views = true;
 FROM my-view-*
 ```
 
-You can also send it in the `_query` request body as `"settings": {"wildcards_match_views": true}`, or change the cluster-wide default by setting `esql.query.settings.wildcards_match_views` in `elasticsearch.yml` or via the cluster settings API {applies_to}`stack: experimental 9.6+`. A value set in the query overrides the request body, which overrides the cluster default.
+You can also send it in the `_query` request body as `"settings": {"wildcards_match_views": true}`, or change the cluster-wide default by setting `esql.query.settings.wildcards_match_views` in `elasticsearch.yml` or via the cluster settings API. A value set in the query overrides the request body, which overrides the cluster default.
 
 ## Privileges [esql-views-privileges]
 

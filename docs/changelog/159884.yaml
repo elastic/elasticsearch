@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 159884
-summary: Opt-in pattern view resolution
+summary: Require explicit opt-in for resolving views in wildcard patterns
 type: enhancement

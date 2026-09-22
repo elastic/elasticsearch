@@ -32,22 +32,11 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Benchmarks {@link HyperLogLogPlusPlus} across scenarios that cover every operating mode.
+ * Benchmarks {@link HyperLogLogPlusPlus} across scenarios covering every operating mode.
  *
- * <p>The {@code scenario} parameter encodes {@code "profile:numGroups"} as a single compound
- * value. Each combination is chosen so that the total number of pre-generated (hash, groupId)
- * pairs never exceeds 10 M (≈120 MB for the two parallel arrays), avoiding any
- * runtime truncation. The HLL precision is kept as a separate axis because it changes the
- * LC→HLL upgrade threshold (≈3 072 at p=14; ≈49 152 at p=18) and the HLL register-array
- * size, producing meaningfully different code paths for the mid- and high-cardinality profiles.
- *
- * <p>Note: {@code precision} does not affect the algorithmic path for {@code single} or
- * {@code uniform8} (both stay well within LC at either precision), so those four combinations
- * are effectively identical at the algorithm level. They are kept rather than restructured
- * to avoid complicating the parameterization.
- *
- * <p>Each {@link #collect()} invocation creates a fresh {@link HyperLogLogPlusPlus}, replays
- * all pre-generated pairs, then sums cardinalities across all groups and returns the sum to
+ * <p>{@code scenario} encodes {@code "profile:numGroups"}; {@code precision} is a separate axis
+ * because it shifts the LC→HLL upgrade threshold and register-array size. Each {@link #collect()}
+ * invocation creates a fresh instance, replays all pre-generated pairs, and sums cardinalities to
  * prevent dead-code elimination.
  */
 @BenchmarkMode(Mode.AverageTime)
@@ -83,29 +72,31 @@ public class HyperLogLogPlusPlusBenchmark {
      *   <tr><td>{@code skewed:1000}</td><td>≈1.8M avg, ≤3M worst-case</td><td>mixed LC+HLL</td><td>mixed LC+HLL</td></tr>
      * </table>
      */
-    @Param({
-        // LC mode: many groups, very few distinct values each
-        "single:100000",    // 100 000 groups × 1 distinct  = 100k pairs
-        "uniform8:100000",  // 100 000 groups × 8 distinct  = 800k pairs
+    @Param(
+        {
+            // LC mode: many groups, very few distinct values each
+            "single:100000",    // 100 000 groups × 1 distinct = 100k pairs
+            "uniform8:100000",  // 100 000 groups × 8 distinct = 800k pairs
 
-        // LC→HLL upgrade at p=14 (≈3 072 distinct); stays LC at p=18 (≈49 152)
-        "uniform_5k:1",     //  1 group  × 5 000 distinct  = 5k pairs   (ungrouped case)
-        "uniform_5k:1000",  //  1k groups × 5 000 distinct = 5M pairs
-        "uniform_5k:2000",  //  2k groups × 5 000 distinct = 10M pairs
+            // LC→HLL upgrade at p=14 (≈3 072 distinct); stays LC at p=18 (≈49 152)
+            "uniform_5k:1",     // 1 group × 5 000 distinct = 5k pairs (ungrouped case)
+            "uniform_5k:1000",  // 1k groups × 5 000 distinct = 5M pairs
+            "uniform_5k:2000",  // 2k groups × 5 000 distinct = 10M pairs
 
-        // HLL steady-state: all groups well past upgrade at both precisions
-        "uniform_50k:1",    //  1 group  × 50 000 distinct = 50k pairs  (ungrouped case)
-        "uniform_50k:200",  // 200 groups × 50 000 distinct = 10M pairs
+            // HLL steady-state: all groups well past upgrade at both precisions
+            "uniform_50k:1",    // 1 group × 50 000 distinct = 50k pairs (ungrouped case)
+            "uniform_50k:200",  // 200 groups × 50 000 distinct = 10M pairs
 
-        // Very deep HLL: millions of distinct values, register-update hot path
-        "uniform_1M:1",     //  1 group  × 1 000 000 distinct = 1M pairs (ungrouped case)
-        "uniform_1M:10",    // 10 groups × 1 000 000 distinct = 10M pairs
+            // Very deep HLL: millions of distinct values, register-update hot path
+            "uniform_1M:1",     // 1 group × 1 000 000 distinct = 1M pairs (ungrouped case)
+            "uniform_1M:10",    // 10 groups × 1 000 000 distinct = 10M pairs
 
-        // Power-law mix: most groups in LC, a tail in HLL — typical real aggregation
-        // Tail capped at 100k (not 1M) to keep totals bounded; 1M-value depth is
-        // covered by the uniform_1M scenarios above.
-        "skewed:1000",      // 1k groups, ≈1.8M total pairs avg, ≤3M worst-case
-    })
+            // Power-law mix: most groups in LC, a tail in HLL — typical real aggregation
+            // Tail capped at 100k (not 1M) to keep totals bounded; 1M-value depth is
+            // covered by the uniform_1M scenarios above.
+            "skewed:1000",      // 1k groups, ≈1.8M total pairs avg, ≤3M worst-case
+        }
+    )
     String scenario;
 
     /** Pre-generated hashes, one per pair. */
@@ -153,11 +144,11 @@ public class HyperLogLogPlusPlusBenchmark {
             case "uniform_1M" -> 1_000_000;
             case "skewed" -> {
                 // Power-law buckets (cumulative probability):
-                //   70% → 1           (LC minimal)
-                //   88% → 2–50        (LC low)
-                //   96% → 51–5 000    (LC high / HLL entry for p=14)
-                //   99% → 5 001–50 000 (HLL for p=14, LC/entry for p=18)
-                //  100% → 50 001–100 000 (HLL deep for both precisions)
+                // 70% → 1 (LC minimal)
+                // 88% → 2–50 (LC low)
+                // 96% → 51–5 000 (LC high / HLL entry for p=14)
+                // 99% → 5 001–50 000 (HLL for p=14, LC/entry for p=18)
+                // 100% → 50 001–100 000 (HLL deep for both precisions)
                 int r = random.nextInt(100);
                 if (r < 70) yield 1;
                 else if (r < 88) yield 2 + random.nextInt(49);

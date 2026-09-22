@@ -175,7 +175,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     @Override
     protected AbstractHyperLogLog.RunLenIterator getHyperLogLog(long bucketOrd) {
-        return hll.getRunLens(bucketState.get(bucketOrd) & PAYLOAD_MASK);
+        return hll.getRunLens(payload(bucketState.get(bucketOrd)));
     }
 
     @Override

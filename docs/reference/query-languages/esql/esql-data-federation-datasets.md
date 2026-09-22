@@ -301,6 +301,13 @@ The following settings apply to all file-based data sources:
 `max_split_probes` and `split_probe_window` are independent. The first defines how many record-boundary searches a query runs. The second defines how many bytes each one reads. Their product is the bytes a query can read while searching, which cannot exceed 4 GB. With the default values, it is 1000 searches of `256kb`, or around 250 MB. Size the window from the dataset's longest record and the count from the number of splits the scan needs. Lower one of them if the pair is rejected. The budget covers searches at fixed offsets: a sequentially scanned file (quoted or escaped CSV and TSV) is bounded by `external_max_record_size` rather than by either key.
 :::
 
+:::{note}
+`partition_sample_size` applies only to a query that reads no rows, and only when the listing is the whole
+dataset in the store's own order. A query that reads rows lists every file. So does one that filters on a
+partition column or on `_file.*`, and so does a dataset that sets `file_sort_by` or `file_order` away from its
+default. In each of those cases raising the sample size has no effect.
+:::
+
 ### Excluding non-data objects
 
 ```{applies_to}

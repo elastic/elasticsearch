@@ -31,15 +31,12 @@ import java.util.Map;
  * resolves.
  *
  * <p>{@value #BUILD_TASK} is finalized by {@value #VERIFY_ABI_TASK}, a {@link
- * VerifyNativeLibraryLinuxAbiTask} scoped to the tree {@value #BUILD_TASK} just built and defaulted
- * to the RHEL 8 policy (glibc {@value #DEFAULT_MAX_GLIBC_VERSION}, {@code GLIBCXX_}
- * {@value #DEFAULT_MAX_GLIBCXX_VERSION}). Only a fresh build can introduce a binary requiring a
- * newer glibc/libstdc++ than we support, so the check runs there and nowhere else — a library
- * resolved from its published artifact is assumed to already meet the policy and is never checked.
- * This never forces a build: {@value #BUILD_TASK} only runs when a {@code docker}/{@code host} mode
- * is selected (see {@link NativeLibraryBuildExtension#getModeEnvironmentVariable()}), same as
- * before the ABI check existed. Verification itself runs only on Linux build hosts, where {@code
- * objdump} is meaningful; it is skipped on macOS and Windows.
+ * VerifyNativeLibraryLinuxAbiTask} defaulted to the RHEL 8 policy (glibc
+ * {@value #DEFAULT_MAX_GLIBC_VERSION}, {@code GLIBCXX_} {@value #DEFAULT_MAX_GLIBCXX_VERSION}).
+ * Only a fresh build can introduce a binary that needs a newer glibc/libstdc++ than we support, so
+ * libraries resolved from a published artifact are assumed compliant and are never checked.
+ * Verification only runs on Linux build hosts, where {@code objdump} is meaningful; it's skipped on
+ * macOS and Windows, and never forces {@value #BUILD_TASK} to run when it otherwise wouldn't.
  */
 public class NativeLibraryBuildPlugin implements Plugin<Project> {
 

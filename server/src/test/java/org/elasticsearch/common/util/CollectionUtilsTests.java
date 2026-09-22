@@ -56,6 +56,8 @@ import static org.elasticsearch.common.util.CollectionUtils.toArray;
 import static org.elasticsearch.common.util.CollectionUtils.wrapUnmodifiableOrEmptySingleton;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class CollectionUtilsTests extends ESTestCase {
 
@@ -913,5 +915,52 @@ public class CollectionUtilsTests extends ESTestCase {
         Map<String, Object> map = new HashMap<>();
         map.put("bad", new Object());
         expectThrows(IllegalArgumentException.class, () -> deepCopy(map));
+    }
+
+    public void testDeepCopy() {
+        Map<String, Object> original = new HashMap<>();
+        {
+            original.put("foo", "bar");
+            original.put("int", 123);
+            original.put("double", 123.0D);
+            Map<String, Object> innerObject = new HashMap<>();
+            innerObject.put("buzz", "hello world");
+            innerObject.put("foo_null", null);
+            innerObject.put("1", "bar");
+            innerObject.put("long", 123L);
+            List<String> innerInnerList = new ArrayList<>();
+            innerInnerList.add("item1");
+            List<Object> innerList = new ArrayList<>();
+            innerList.add(innerInnerList);
+            innerObject.put("list", innerList);
+            original.put("fizz", innerObject);
+            List<Map<String, Object>> list = new ArrayList<>();
+            Map<String, Object> value = new HashMap<>();
+            value.put("field", "value");
+            list.add(value);
+            list.add(null);
+            original.put("list", list);
+            List<String> list2 = new ArrayList<>();
+            list2.add("foo");
+            list2.add("bar");
+            list2.add("baz");
+            original.put("list2", list2);
+        }
+
+        Map<?, ?> result = deepCopy(original);
+        assertThat(result, equalTo(original));
+        assertThat(result, not(sameInstance(original)));
+
+        result = deepCopy(original, UNMODIFIABLE);
+        assertThat(result, equalTo(original));
+        assertThat(result, not(sameInstance(original)));
+        Map<?, ?> innerMap = (Map<?, ?>) result.get("fizz");
+        expectThrows(UnsupportedOperationException.class, () -> innerMap.remove("x"));
+        List<?> innerList = (List<?>) result.get("list");
+        expectThrows(UnsupportedOperationException.class, () -> innerList.remove(0));
+
+        original.put("embedded_object", new byte[] { 1, 2, 3 });
+        result = deepCopy(original);
+        assertArrayEquals(new byte[] { 1, 2, 3 }, (byte[]) result.get("embedded_object"));
     }
 }

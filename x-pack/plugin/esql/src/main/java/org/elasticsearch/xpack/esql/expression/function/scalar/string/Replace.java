@@ -1096,31 +1096,41 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
         var newStrEval = toEvaluator.apply(newStr);
 
         if (regex.foldable() && regex.dataType() == DataType.KEYWORD) {
-            Pattern regexPattern;
-            try {
-                regexPattern = Pattern.compile(BytesRefs.toString(regex.fold(toEvaluator.foldCtx())));
-            } catch (PatternSyntaxException | StackOverflowError e) {
-                // warnExceptions only wraps process(), so throwing here would fail the query.
-                // Fall through to the per-row evaluator, which turns these into a warning and null.
-                regexPattern = null;
-            }
-            if (regexPattern != null) {
-                byte[] literalPrefix = extractLiteralPrefix(regexPattern);
-                if (newStr.foldable() && newStr.dataType() == DataType.KEYWORD) {
-                    // Both regex and newStr are constants: use the dictionary-aware evaluator that applies
-                    // REPLACE once per dictionary entry on OrdinalBytesRefBlock inputs.
-                    BytesRef constantNewStr = BytesRefs.toBytesRef(newStr.fold(toEvaluator.foldCtx()));
-                    if (constantNewStr != null) {
-                        CaptureUntilDelimiterIdiom idiom = extractCaptureUntilDelimiterIdiom(regexPattern, constantNewStr);
-                        if (idiom != null) {
-                            // Idiom-matched: a hand-written byte scan replaces the regex engine entirely (no
-                            // UTF-8 decode, no codepoint counting) -- see extractCaptureUntilDelimiterIdiom.
-                            return new ReplaceCaptureUntilDelimiterEvaluator.Factory(source(), strEval, idiom);
-                        }
-                        return new ReplaceConstantOrdinalEvaluator.Factory(source(), strEval, regexPattern, literalPrefix, constantNewStr);
-                    }
+            String regexString = BytesRefs.toString(regex.fold(toEvaluator.foldCtx()));
+            if (regexString != null) {
+                Pattern regexPattern;
+                try {
+                    regexPattern = Pattern.compile(regexString);
+                } catch (PatternSyntaxException | StackOverflowError e) {
+                    // warnExceptions only wraps process(), so throwing here would fail the query.
+                    // Fall through to the per-row evaluator, which turns these into a warning and null.
+                    regexPattern = null;
                 }
-                return new ReplaceConstantEvaluator.Factory(source(), strEval, regexPattern, literalPrefix, newStrEval);
+                if (regexPattern != null) {
+                    byte[] literalPrefix = extractLiteralPrefix(regexPattern);
+                    if (newStr.foldable() && newStr.dataType() == DataType.KEYWORD) {
+                        // Both regex and newStr are constants: use the dictionary-aware evaluator that applies
+                        // REPLACE once per dictionary entry on OrdinalBytesRefBlock inputs.
+                        BytesRef constantNewStr = BytesRefs.toBytesRef(newStr.fold(toEvaluator.foldCtx()));
+                        if (constantNewStr != null) {
+                            CaptureUntilDelimiterIdiom idiom = extractCaptureUntilDelimiterIdiom(regexPattern, constantNewStr);
+                            if (idiom != null) {
+                                // Idiom-matched: a hand-written byte scan replaces the regex engine entirely
+                                // (no UTF-8 decode, no codepoint counting) -- see
+                                // extractCaptureUntilDelimiterIdiom.
+                                return new ReplaceCaptureUntilDelimiterEvaluator.Factory(source(), strEval, idiom);
+                            }
+                            return new ReplaceConstantOrdinalEvaluator.Factory(
+                                source(),
+                                strEval,
+                                regexPattern,
+                                literalPrefix,
+                                constantNewStr
+                            );
+                        }
+                    }
+                    return new ReplaceConstantEvaluator.Factory(source(), strEval, regexPattern, literalPrefix, newStrEval);
+                }
             }
         }
 

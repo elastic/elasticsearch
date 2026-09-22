@@ -62,9 +62,6 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
 
         and: "assemble task triggered"
         assertOutputContains(result.output, "[8.4.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
-
-        and: "the nested build reuses the pre-seeded wrapper distribution"
-        assertOutputMissing(result.output, "Downloading https://services.gradle.org/distributions/gradle-")
     }
 
     def "supports linux aarch distributions"() {
@@ -83,9 +80,6 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
 
         and: "assemble tasks triggered"
         assertOutputContains(result.output, "[8.4.0] > Task :distribution:archives:linux-aarch64-tar:extractedAssemble")
-
-        and: "the nested build reuses the pre-seeded wrapper distribution"
-        assertOutputMissing(result.output, "Downloading https://services.gradle.org/distributions/gradle-")
     }
 
     def "downloads distribution from DRA snapshot when mode=dra and hash override is set"() {

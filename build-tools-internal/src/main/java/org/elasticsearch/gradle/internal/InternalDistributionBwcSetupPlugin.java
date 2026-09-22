@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal;
 
+import org.apache.commons.io.FileUtils;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
@@ -24,7 +25,6 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Attribute;
 import org.gradle.api.file.ConfigurableFileCollection;
-import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.model.ObjectFactory;
@@ -81,17 +81,11 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
     private final ObjectFactory objectFactory;
     private ProviderFactory providerFactory;
     private JavaToolchainService toolChainService;
-    private FileSystemOperations fileSystemOperations;
 
     @Inject
-    public InternalDistributionBwcSetupPlugin(
-        ObjectFactory objectFactory,
-        ProviderFactory providerFactory,
-        FileSystemOperations fileSystemOperations
-    ) {
+    public InternalDistributionBwcSetupPlugin(ObjectFactory objectFactory, ProviderFactory providerFactory) {
         this.objectFactory = objectFactory;
         this.providerFactory = providerFactory;
-        this.fileSystemOperations = fileSystemOperations;
     }
 
     @Override
@@ -109,8 +103,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 providerFactory,
                 objectFactory,
                 toolChainService,
-                isCi,
-                fileSystemOperations
+                isCi
             );
         });
 
@@ -127,8 +120,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 providerFactory,
                 objectFactory,
                 toolChainService,
-                isCi,
-                fileSystemOperations
+                isCi
             );
         }
 
@@ -143,8 +135,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 providerFactory,
                 objectFactory,
                 toolChainService,
-                isCi,
-                fileSystemOperations
+                isCi
             );
         }
         // In a scenario where we do not have unreleased previous major we still wanna resolve some resources directly from branch
@@ -159,8 +150,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         ProviderFactory providerFactory,
         ObjectFactory objectFactory,
         JavaToolchainService toolChainService,
-        Boolean isCi,
-        FileSystemOperations fileSystemOperations
+        Boolean isCi
     ) {
         ProjectLayout layout = project.getLayout();
         Provider<BwcVersions.UnreleasedVersionInfo> versionInfoProvider = providerFactory.provider(() -> versionInfo);
@@ -228,11 +218,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             String wrapperDistributionPath = WRAPPER_DISTS_RELATIVE_PATH + "/" + currentWrapperDistributionDirName(project);
             task.doLast(t -> {
                 File uniqueGradleUserHome = new File(gradleUserHome.getAbsolutePath() + "-" + projectName);
-                File wrapperDistributionDir = new File(uniqueGradleUserHome, wrapperDistributionPath);
-                if (isReadyWrapperDistribution(wrapperDistributionDir)) {
-                    return;
-                }
-                seedUniqueGradleUserHome(fileSystemOperations, gradleUserHome, uniqueGradleUserHome, wrapperDistributionPath);
+                seedUniqueGradleUserHome(gradleUserHome, uniqueGradleUserHome, wrapperDistributionPath);
             });
         });
 
@@ -401,45 +387,50 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         return "gradle-" + project.getGradle().getGradleVersion() + "-bin";
     }
 
-    private static void seedUniqueGradleUserHome(
-        FileSystemOperations fileSystemOperations,
-        File sourceGradleUserHome,
-        File uniqueGradleUserHome,
-        String wrapperDistributionPath
-    ) {
+    static void seedUniqueGradleUserHome(File sourceGradleUserHome, File uniqueGradleUserHome, String wrapperDistributionPath) {
         File wrapperSeedLock = new File(uniqueGradleUserHome.getParentFile(), uniqueGradleUserHome.getName() + ".seed.lock");
         withExclusiveFileLock(wrapperSeedLock, () -> {
-            File wrapperDistributionDir = new File(uniqueGradleUserHome, wrapperDistributionPath);
-            if (isReadyWrapperDistribution(wrapperDistributionDir)) {
-                return;
-            }
+            File sourceWrapperDistributionDir = new File(sourceGradleUserHome, wrapperDistributionPath);
+            File existingWrapperDistributionDir = new File(uniqueGradleUserHome, wrapperDistributionPath);
+            File wrapperDistributionSeedSource = isReadyWrapperDistribution(sourceWrapperDistributionDir)
+                ? sourceWrapperDistributionDir
+                : isReadyWrapperDistribution(existingWrapperDistributionDir) ? existingWrapperDistributionDir : null;
             File stagingGradleUserHome = new File(
                 uniqueGradleUserHome.getParentFile(),
                 uniqueGradleUserHome.getName() + ".tmp-" + UUID.randomUUID()
             );
-            fileSystemOperations.delete(delete -> delete.delete(stagingGradleUserHome));
-            fileSystemOperations.copy(copy -> {
-                copy.into(stagingGradleUserHome);
-                copy.from(sourceGradleUserHome, copySpec -> {
-                    copySpec.include("gradle.properties");
-                    copySpec.include("init.d/*");
-                });
-            });
-            File sourceWrapperDistributionDir = new File(sourceGradleUserHome, wrapperDistributionPath);
-            if (isReadyWrapperDistribution(sourceWrapperDistributionDir)) {
-                fileSystemOperations.copy(copy -> {
-                    copy.into(new File(stagingGradleUserHome, WRAPPER_DISTS_RELATIVE_PATH));
-                    copy.from(sourceWrapperDistributionDir);
-                });
+            FileUtils.deleteQuietly(stagingGradleUserHome);
+            try {
+                copyGradleUserHomeConfig(sourceGradleUserHome, stagingGradleUserHome);
+                if (wrapperDistributionSeedSource != null) {
+                    FileUtils.copyDirectory(
+                        wrapperDistributionSeedSource,
+                        new File(new File(stagingGradleUserHome, WRAPPER_DISTS_RELATIVE_PATH), wrapperDistributionSeedSource.getName())
+                    );
+                }
+                if (uniqueGradleUserHome.exists()) {
+                    FileUtils.deleteDirectory(uniqueGradleUserHome);
+                }
+                Files.move(stagingGradleUserHome.toPath(), uniqueGradleUserHome.toPath(), StandardCopyOption.ATOMIC_MOVE);
+            } finally {
+                FileUtils.deleteQuietly(stagingGradleUserHome);
             }
-            if (uniqueGradleUserHome.exists()) {
-                fileSystemOperations.delete(delete -> delete.delete(uniqueGradleUserHome));
-            }
-            Files.move(stagingGradleUserHome.toPath(), uniqueGradleUserHome.toPath(), StandardCopyOption.ATOMIC_MOVE);
         });
     }
 
-    private static boolean isReadyWrapperDistribution(File wrapperDistributionDir) {
+    private static void copyGradleUserHomeConfig(File sourceGradleUserHome, File targetGradleUserHome) throws IOException {
+        FileUtils.forceMkdir(targetGradleUserHome);
+        File gradleProperties = new File(sourceGradleUserHome, "gradle.properties");
+        if (gradleProperties.isFile()) {
+            FileUtils.copyFileToDirectory(gradleProperties, targetGradleUserHome);
+        }
+        File initScriptsDir = new File(sourceGradleUserHome, "init.d");
+        if (initScriptsDir.isDirectory()) {
+            FileUtils.copyDirectory(initScriptsDir, new File(targetGradleUserHome, initScriptsDir.getName()));
+        }
+    }
+
+    static boolean isReadyWrapperDistribution(File wrapperDistributionDir) {
         if (wrapperDistributionDir.isDirectory() == false) {
             return false;
         }

@@ -84,12 +84,13 @@ abstract class AbstractGitAwareGradleFuncTest extends AbstractGradleInternalPlug
             return
         }
         String currentWrapperDistributionDirName = "gradle-${GradleVersion.current().version}-bin"
-        File testKitWrapperDistributionDir = new File(testKitDirPath, WRAPPER_DISTS_RELATIVE_PATH + "/" + currentWrapperDistributionDirName)
+        File testKitWrapperDistsDir = new File(testKitDirPath, WRAPPER_DISTS_RELATIVE_PATH)
+        File testKitWrapperDistributionDir = new File(testKitWrapperDistsDir, currentWrapperDistributionDirName)
         if (isReadyWrapperDistribution(testKitWrapperDistributionDir)) {
             return
         }
         File gradleUserHome = resolveGradleUserHome()
-        File localWrapperDistributionDir = new File(gradleUserHome, "${WRAPPER_DISTS_RELATIVE_PATH}/${currentWrapperDistributionDirName}")
+        File localWrapperDistributionDir = new File(new File(gradleUserHome, WRAPPER_DISTS_RELATIVE_PATH), currentWrapperDistributionDirName)
         if (isReadyWrapperDistribution(localWrapperDistributionDir) == false) {
             return
         }

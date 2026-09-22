@@ -37,14 +37,12 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.export.TraceSupplier;
-import org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportTracerSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportTracerSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.tracing.TraceContext;
@@ -58,20 +56,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_TRACES_ENABLED_SYSTEM_PROPERTY;
-
 /**
  * {@link org.elasticsearch.telemetry.tracing.Tracer} implementation provided by the Elasticsearch {@code apm}
- * module ({@code modules/apm}). It records spans using the OpenTelemetry API. Export is delegated to a
- * {@link TraceSupplier} chosen at construction time:
- * <ul>
- *   <li>{@link AgentExportTracerSupplier} returns {@code GlobalOpenTelemetry.get()}, which the Elasticsearch
- *       APM Java agent intercepts to ship spans to Elastic APM.</li>
- *   <li>{@link OtelSdkExportTracerSupplier} returns an {@link io.opentelemetry.sdk.OpenTelemetrySdk} owned by
- *       this module that exports spans over OTLP. Activated by the
- *       {@code telemetry.otel.traces.enabled=true} JVM system property and bypasses
- *       {@code GlobalOpenTelemetry} entirely.</li>
- * </ul>
+ * module ({@code modules/apm}). It records spans using the OpenTelemetry API and exports them over OTLP through
+ * the {@link OtelSdkExportTracerSupplier}, an {@link io.opentelemetry.sdk.OpenTelemetrySdk} owned by this module.
  */
 public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.telemetry.tracing.Tracer {
 
@@ -97,11 +85,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     private String clusterName;
     private String nodeName;
 
-    /**
-     * Activates the OTel SDK trace path (vs. APM Agent) when set to {@code true}.
-     */
-    private final boolean useOtelSdkTracesExport;
-
     /** Maximum local span depth on the OTel SDK path; see {@link OtelSdkSettings#TELEMETRY_TRACING_MAX_DEPTH}. */
     private volatile int maxTraceDepth;
 
@@ -125,21 +108,14 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     public APMTracer(Settings settings, Supplier<MeterProvider> meterProvider) {
         this(
             settings,
-            traceSupplierFor(settings, meterProvider),
-            otelTracesEnabled(),
-            initialMaxTraceDepth(settings),
-            initialRecordExceptionStacks(settings)
+            new OtelSdkExportTracerSupplier(settings, meterProvider),
+            OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH.get(settings),
+            OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS.get(settings)
         );
     }
 
     // package-private for testing
-    APMTracer(
-        Settings settings,
-        TraceSupplier traceSupplier,
-        boolean useOtelSdkTracesExport,
-        int maxTraceDepth,
-        boolean recordExceptionStacks
-    ) {
+    APMTracer(Settings settings, TraceSupplier traceSupplier, int maxTraceDepth, boolean recordExceptionStacks) {
         this.traceSupplier = traceSupplier;
         this.includeNames = APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.get(settings);
         this.excludeNames = APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.get(settings);
@@ -148,26 +124,8 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
         this.labelFilterAutomaton = buildAutomaton(labelFilters, List.of());
         this.enabled = APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings);
-        this.useOtelSdkTracesExport = useOtelSdkTracesExport;
         this.maxTraceDepth = maxTraceDepth;
         this.recordExceptionStacks = recordExceptionStacks;
-    }
-
-    private static boolean otelTracesEnabled() {
-        return Booleans.parseBoolean(System.getProperty(OTEL_TRACES_ENABLED_SYSTEM_PROPERTY, "false"));
-    }
-
-    private static TraceSupplier traceSupplierFor(Settings settings, Supplier<MeterProvider> meterProvider) {
-        // AgentExportTracerSupplier delegates to GlobalOpenTelemetry, so the APM Java agent owns its own metrics.
-        return otelTracesEnabled() ? new OtelSdkExportTracerSupplier(settings, meterProvider) : new AgentExportTracerSupplier(settings);
-    }
-
-    private static int initialMaxTraceDepth(Settings settings) {
-        return otelTracesEnabled() ? OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH.get(settings) : 0;
-    }
-
-    private static boolean initialRecordExceptionStacks(Settings settings) {
-        return otelTracesEnabled() && OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS.get(settings);
     }
 
     public CompletableResultCode attemptFlushTraces() {
@@ -293,8 +251,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                 localDepth = 0;
             }
 
-            // On the OTel SDK path, drop spans exceeding max_trace_depth. The Agent path uses transaction_max_spans.
-            if (useOtelSdkTracesExport && localDepth > maxTraceDepth) {
+            if (localDepth > maxTraceDepth) {
                 logger.trace("Skipping span [{}] [{}] at local depth {} (maxTraceDepth={})", spanId, spanName, localDepth, maxTraceDepth);
                 return null;
             }
@@ -316,13 +273,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
             final Span span = spanBuilder.startSpan();
             if (span.isRecording() == false) {
-                if (localParentContext == null) {
-                    // this root span (transactions) is dropped due to sampling; the agent might report these when connected to
-                    // very old versions of apm server, however (with an incorrect duration)
-                    logger.trace("Root span [{}] [{}] will not be recorded due to sampling", spanId, spanName);
-                } else {
-                    logger.trace("Span [{}] [{}] will not be recorded due to transaction_max_spans reached", spanId, spanName);
-                }
+                logger.trace("Span [{}] [{}] will not be recorded due to sampling", spanId, spanName);
                 span.end(); // end span immediately to release any resources.
                 return null; // return null to discard and not record in map of spans
             }
@@ -405,8 +356,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
      * }
      * }</pre>
      * This typically isn't useful in Elasticsearch, because a {@link Scope} can't be used across threads.
-     * However, if a scope is active, then the APM agent can capture additional information, so this method
-     * exists to make it possible to use scopes in the few situation where it makes sense.
+     * This method exists to make it possible to use scopes in the few situation where it makes sense.
      *
      * @param traceable provides the ID of a currently-open span for which to open a scope.
      * @return a method to close the scope when you are finished with it.
@@ -480,7 +430,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         if (span == null) {
             return;
         }
-        if (useOtelSdkTracesExport == false || recordExceptionStacks) {
+        if (recordExceptionStacks) {
             span.recordException(throwable);
             return;
         }

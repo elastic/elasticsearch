@@ -10,10 +10,16 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.concurrent.InstrumentedThrottledTaskRunner.TimedTask;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.Comparator;
 import java.util.concurrent.Executor;
 import java.util.concurrent.PriorityBlockingQueue;
+import java.util.function.Consumer;
+import java.util.function.IntSupplier;
+import java.util.function.LongSupplier;
 
 /**
  * {@link PrioritizedThrottledAsyncTaskRunner} performs the enqueued tasks in the order dictated by the
@@ -21,12 +27,38 @@ import java.util.concurrent.PriorityBlockingQueue;
  * that is dequeued to be run, is forked off to the given executor.
  */
 public class PrioritizedThrottledAsyncTaskRunner<T extends ActionListener<Releasable> & Comparable<T>> {
-    private final AbstractThrottledTaskRunner<T> runner;
-    private final PriorityBlockingQueue<T> queue;
+    private final Consumer<T> enqueuer;
+    private final IntSupplier runningTasks;
+    private final IntSupplier queuedTasks;
 
     public PrioritizedThrottledAsyncTaskRunner(final String name, final int maxRunningTasks, final Executor executor) {
-        this.queue = new PriorityBlockingQueue<>();
-        this.runner = new AbstractThrottledTaskRunner<>(name, maxRunningTasks, executor, queue);
+        final var runner = new AbstractThrottledTaskRunner<T>(name, maxRunningTasks, executor, new PriorityBlockingQueue<>());
+        this.enqueuer = runner::enqueueTask;
+        this.runningTasks = runner::runningTasks;
+        this.queuedTasks = runner::queuedTasks;
+    }
+
+    /**
+     * Creates an instrumented runner, see {@link InstrumentedThrottledTaskRunner}.
+     */
+    public PrioritizedThrottledAsyncTaskRunner(
+        final String name,
+        final int maxRunningTasks,
+        final Executor executor,
+        final MeterRegistry meterRegistry,
+        final LongSupplier relativeTimeNanosProvider
+    ) {
+        final var runner = new InstrumentedThrottledTaskRunner<T>(
+            name,
+            maxRunningTasks,
+            executor,
+            new PriorityBlockingQueue<>(11, Comparator.comparing(TimedTask::task)),
+            meterRegistry,
+            relativeTimeNanosProvider
+        );
+        this.enqueuer = runner::enqueueTask;
+        this.runningTasks = runner::runningTasks;
+        this.queuedTasks = runner::queuedTasks;
     }
 
     /**
@@ -35,16 +67,16 @@ public class PrioritizedThrottledAsyncTaskRunner<T extends ActionListener<Releas
      * task.
      */
     public void enqueueTask(final T task) {
-        runner.enqueueTask(task);
+        enqueuer.accept(task);
     }
 
     // Only use for testing
     public int runningTasks() {
-        return runner.runningTasks();
+        return runningTasks.getAsInt();
     }
 
     // Only use for testing
     public int queueSize() {
-        return queue.size();
+        return queuedTasks.getAsInt();
     }
 }

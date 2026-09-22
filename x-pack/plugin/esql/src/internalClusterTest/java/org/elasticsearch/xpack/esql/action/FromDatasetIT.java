@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
@@ -5308,6 +5309,11 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _file.record_ref | SORT emp_no | LIMIT 10"), TIMEOUT)) {
             List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
             assertThat("_file.record_ref must surface without KEEP, got " + names, names, hasItem("_file.record_ref"));
+            assertThat(
+                "synthetic _rowPosition must stay out of the result, got " + names,
+                names,
+                not(hasItem(ColumnExtractor.ROW_POSITION_COLUMN))
+            );
             int refIdx = names.indexOf("_file.record_ref");
 
             List<List<Object>> rows = getValuesList(response);
@@ -5679,6 +5685,49 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    public void testMetadataIdWinsOverPhysicalColumn() throws Exception {
+        Path fixture = createTempFile("collision-id-", ".csv");
+        Files.writeString(
+            fixture,
+            String.join("\n", "_id:keyword,emp_no:integer,first_name:keyword", "row-a,1,Alice", "row-b,2,Bob", "row-c,3,Carol") + "\n"
+        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("collision_id", "local_ds", fixture.toUri().toString(), Map.of("format", "csv"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM collision_id METADATA _id | KEEP _id, emp_no | SORT emp_no"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            int idIdx = names.indexOf("_id");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (List<Object> row : rows) {
+                assertNull(row.get(idIdx));
+            }
+        }
+
+        try (var response = run(syncEsqlQueryRequest("FROM collision_id | KEEP _id, emp_no | SORT emp_no"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            int idIdx = names.indexOf("_id");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.get(0).get(idIdx).toString(), equalTo("row-a"));
+            assertThat(rows.get(1).get(idIdx).toString(), equalTo("row-b"));
+            assertThat(rows.get(2).get(idIdx).toString(), equalTo("row-c"));
+        }
+
+        // METADATA _id survives KEEP * and stays null. The physical _id cells do not.
+        try (var response = run(syncEsqlQueryRequest("FROM collision_id METADATA _id | KEEP * | SORT emp_no"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat(names, hasItem("_id"));
+            assertThat(names, hasItem("emp_no"));
+            assertThat(names, hasItem("first_name"));
+            int idIdx = names.indexOf("_id");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (List<Object> row : rows) {
+                assertNull(row.get(idIdx));
+            }
+        }
+    }
+
     /**
      * The declared-schema face of the partition-detection settings defect. A declared column colliding with a path-derived
      * partition key is rejected ({@link #testNonStrictPartitionKeyCollisionRejected}), and on main
@@ -5917,6 +5966,56 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(((Number) rows.get(3).get(empNoCol)).intValue(), equalTo(100));
             assertThat(rows.get(3).get(indexCol).toString(), equalTo("metadata_idx"));
             assertThat("index row keeps its document identity", rows.get(3).get(idCol), notNullValue());
+        }
+    }
+
+    public void testFromDatasetKeepStarIncludesMetadataId() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _id | KEEP * | LIMIT 1"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat(names, hasItem("_id"));
+            assertThat(names, hasItem("emp_no"));
+        }
+    }
+
+    public void testFromTwoDatasetsKeepStarIncludesMetadataIdBothOrders() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        registerDataset("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
+
+        for (String query : List.of(
+            "FROM employees, employees_alt METADATA _id | KEEP * | LIMIT 1",
+            "FROM employees_alt, employees METADATA _id | KEEP * | LIMIT 1"
+        )) {
+            try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+                List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+                assertThat(query + " columns: " + names, names, hasItem("_id"));
+                assertThat(query + " columns: " + names, names, hasItem("emp_no"));
+            }
+        }
+    }
+
+    public void testFromMixedIndexAndDatasetKeepStarIncludesMetadataIdBothOrders() throws Exception {
+        assertAcked(
+            client().admin().indices().prepareCreate("metadata_idx").setMapping("emp_no", "type=integer", "first_name", "type=keyword")
+        );
+        prepareIndex("metadata_idx").setSource(Map.of("emp_no", 100, "first_name", "Zoe")).get();
+        client().admin().indices().prepareRefresh("metadata_idx").get();
+
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        for (String query : List.of(
+            "FROM metadata_idx, employees METADATA _id | KEEP * | LIMIT 1",
+            "FROM employees, metadata_idx METADATA _id | KEEP * | LIMIT 1"
+        )) {
+            try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+                List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+                assertThat(query + " columns: " + names, names, hasItem("_id"));
+                assertThat(query + " columns: " + names, names, hasItem("emp_no"));
+            }
         }
     }
 

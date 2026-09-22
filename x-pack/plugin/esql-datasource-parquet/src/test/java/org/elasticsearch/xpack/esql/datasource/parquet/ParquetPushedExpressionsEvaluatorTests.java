@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
@@ -1727,13 +1728,139 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * When the predicate column is absent from the block map, a LIKE-family conjunct promoted to
+     * {@code Pushability.YES} (dropped from FilterExec) must produce an empty survivor mask, not
+     * the all-survive {@code null} sentinel. The column is null-filled above the reader under
+     * union_by_name, and no pattern matches null. See elastic/esql-planning#2052.
+     */
     public void testWildcardLikeWithMissingColumn() {
-        // Missing predicate column -> evaluateExpression returns null -> evaluateFilter treats
-        // the predicate as "unknown for all rows", which collapses to "all survive" (null return).
         Map<String, Block> blocks = new HashMap<>();
         WordMask reusable = new WordMask();
 
         Expression like = new WildcardLike(Source.EMPTY, attr("missing", DataType.KEYWORD), new WildcardPattern("*foo*"));
+        assertSurvivors(new ParquetPushedExpressions(List.of(like)), blocks, 3, reusable, new int[] {});
+    }
+
+    /** NOT (col LIKE p) on a missing column must also yield no survivors (null does not match, NOT null is null). */
+    public void testNotWildcardLikeWithMissingColumn() {
+        Map<String, Block> blocks = new HashMap<>();
+        WordMask reusable = new WordMask();
+
+        Expression like = new WildcardLike(Source.EMPTY, attr("missing", DataType.KEYWORD), new WildcardPattern("*foo*"));
+        Expression notLike = new Not(Source.EMPTY, like);
+        assertSurvivors(new ParquetPushedExpressions(List.of(notLike)), blocks, 3, reusable, new int[] {});
+    }
+
+    /** StartsWith on a missing column yields no survivors. */
+    public void testStartsWithMissingColumn() {
+        Map<String, Block> blocks = new HashMap<>();
+        WordMask reusable = new WordMask();
+
+        Expression expr = new StartsWith(Source.EMPTY, attr("missing", DataType.KEYWORD), lit(new BytesRef("foo"), DataType.KEYWORD));
+        assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, 3, reusable, new int[] {});
+    }
+
+    /** NOT StartsWith on a missing column yields no survivors. */
+    public void testNotStartsWithMissingColumn() {
+        Map<String, Block> blocks = new HashMap<>();
+        WordMask reusable = new WordMask();
+
+        Expression expr = new Not(
+            Source.EMPTY,
+            new StartsWith(Source.EMPTY, attr("missing", DataType.KEYWORD), lit(new BytesRef("foo"), DataType.KEYWORD))
+        );
+        assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, 3, reusable, new int[] {});
+    }
+
+    /** EndsWith on a missing column yields no survivors. */
+    public void testEndsWithMissingColumn() {
+        Map<String, Block> blocks = new HashMap<>();
+        WordMask reusable = new WordMask();
+
+        Expression expr = new EndsWith(Source.EMPTY, attr("missing", DataType.KEYWORD), lit(new BytesRef("bar"), DataType.KEYWORD));
+        assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, 3, reusable, new int[] {});
+    }
+
+    /** Contains on a missing column yields no survivors. */
+    public void testContainsMissingColumn() {
+        Map<String, Block> blocks = new HashMap<>();
+        WordMask reusable = new WordMask();
+
+        Expression expr = new Contains(Source.EMPTY, attr("missing", DataType.KEYWORD), lit(new BytesRef("baz"), DataType.KEYWORD));
+        assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, 3, reusable, new int[] {});
+    }
+
+    /**
+     * And(likeOnAbsentColumn, comparisonOnPresentColumn): the And short-circuits on the empty mask
+     * and yields no survivors regardless of the comparison's result.
+     */
+    public void testAndWithLikeOnMissingColumnAndPresentComparison() {
+        long[] values = { 10L, 20L, 30L };
+        Block presentBlock = blockFactory.newLongArrayVector(values, values.length).asBlock();
+        try (presentBlock) {
+            Map<String, Block> blocks = new HashMap<>();
+            blocks.put("score", presentBlock);
+            WordMask reusable = new WordMask();
+
+            // "missing" absent, "score" present with all rows > 5 (comparison passes all 3 rows).
+            Expression like = new WildcardLike(Source.EMPTY, attr("missing", DataType.KEYWORD), new WildcardPattern("*foo*"));
+            Expression comparison = new GreaterThan(Source.EMPTY, attr("score", DataType.LONG), lit(5L, DataType.LONG), null);
+            Expression and = new And(Source.EMPTY, like, comparison);
+            assertSurvivors(new ParquetPushedExpressions(List.of(and)), blocks, 3, reusable, new int[] {});
+        }
+    }
+
+    /**
+     * Or(likeOnAbsentColumn, comparisonOnPresentColumn): the absent-column LIKE returns an empty
+     * mask (not null), so the Or result is exactly the comparison's survivors — more precise than
+     * the old behavior where the null sentinel made the entire Or null ("all survive").
+     */
+    public void testOrWithLikeOnMissingColumnAndPresentComparison() {
+        long[] values = { 10L, 20L, 30L };
+        Block presentBlock = blockFactory.newLongArrayVector(values, values.length).asBlock();
+        try (presentBlock) {
+            Map<String, Block> blocks = new HashMap<>();
+            blocks.put("score", presentBlock);
+            WordMask reusable = new WordMask();
+
+            // "missing" absent, "score > 15" matches rows 1 and 2.
+            Expression like = new WildcardLike(Source.EMPTY, attr("missing", DataType.KEYWORD), new WildcardPattern("*foo*"));
+            Expression comparison = new GreaterThan(Source.EMPTY, attr("score", DataType.LONG), lit(15L, DataType.LONG), null);
+            Expression or = new Or(Source.EMPTY, like, comparison);
+            // Or(empty, {1,2}) = {1,2}
+            assertSurvivors(new ParquetPushedExpressions(List.of(or)), blocks, 3, reusable, new int[] { 1, 2 });
+        }
+    }
+
+    /**
+     * A LIKE whose field is not a NamedExpression still yields the conservative all-survive sentinel
+     * (null), because there is no column name to check for absence.
+     */
+    public void testLikeOnNonNamedExpressionFieldYieldsNull() {
+        Map<String, Block> blocks = new HashMap<>();
+        WordMask reusable = new WordMask();
+
+        // A Literal is not a NamedExpression — namedBlock returns null and missingColumnMask
+        // also returns null (the field-is-not-NamedExpression branch).
+        Expression field = lit(new BytesRef("constant"), DataType.KEYWORD);
+        Expression like = new WildcardLike(Source.EMPTY, field, new WildcardPattern("*foo*"));
+        WordMask result = new ParquetPushedExpressions(List.of(like)).evaluateFilter(blocks, 3, reusable);
+        assertNull(result);
+    }
+
+    /**
+     * A LIKE on a virtual column (e.g. _file.name) that has no block still yields the conservative
+     * all-survive sentinel. Virtual columns are materialized downstream with real values; returning
+     * an empty mask would drop every row of the file. See elastic/esql-planning#2052 and #149393.
+     */
+    public void testLikeOnVirtualColumnWithNoBlockYieldsNull() {
+        Map<String, Block> blocks = new HashMap<>();
+        WordMask reusable = new WordMask();
+
+        // ExternalMetadataAttribute implements VirtualAttribute -> isVirtualColumn returns true.
+        Expression field = new ExternalMetadataAttribute(Source.EMPTY, "_file.name", DataType.KEYWORD);
+        Expression like = new WildcardLike(Source.EMPTY, field, new WildcardPattern("*foo*"));
         WordMask result = new ParquetPushedExpressions(List.of(like)).evaluateFilter(blocks, 3, reusable);
         assertNull(result);
     }

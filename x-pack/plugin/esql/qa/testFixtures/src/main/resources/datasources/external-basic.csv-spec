@@ -130,11 +130,10 @@ count:long
 100
 ;
 
-// The 10 employees with a blank gender cell group under null: the dataset is registered without mappings,
-// so its schema is inferred and a blank cell carries no value. SORT ... ASC puts that group last.
+// The 10 employees with a blank gender cell group under "": a blank string cell reads as the empty string.
 aggregateByGender
 required_capability: dataset_in_from_command
-required_capability: external_csv_blank_cell_null_unless_declared
+required_capability: external_csv_blank_cell_empty_string_unless_null_token
 dataset: employees_no_mv: "{{employees_no_mv}}"
 
 FROM employees_no_mv
@@ -142,9 +141,9 @@ FROM employees_no_mv
 | SORT gender;
 
 count:long | gender:keyword
+10         | ""
 33         | "F"
 57         | "M"
-10         | null
 ;
 
 aggregateAverageSalary
@@ -170,7 +169,7 @@ min_salary:integer | max_salary:integer | avg_salary:double
 
 aggregateSalaryByGender
 required_capability: dataset_in_from_command
-required_capability: external_csv_blank_cell_null_unless_declared
+required_capability: external_csv_blank_cell_empty_string_unless_null_token
 dataset: employees_no_mv: "{{employees_no_mv}}"
 
 FROM employees_no_mv
@@ -178,9 +177,9 @@ FROM employees_no_mv
 | SORT gender;
 
 avg_salary:double    | count:long | gender:keyword
+48760.5              | 10         | ""
 50490.78787878788    | 33         | "F"
 46860.59649122807    | 57         | "M"
-48760.5              | 10         | null
 ;
 
 filterAndSort
@@ -1076,25 +1075,25 @@ groups:long | total:long
 1           | 100
 ;
 
-// -- Wildcard / pattern interaction with virtual columns --
-// `KEEP *` and implicit projections do NOT expand virtual `_file.*` columns: users must request
-// them by name or via an explicit pattern. `KEEP _file*` *does* match through pattern resolution
-// (ExternalMetadataAttribute.synthetic == false), so the user can opt in pattern-style.
+// -- Wildcard / pattern interaction with METADATA columns --
+// KEEP * keeps a _file.* column the user named in METADATA. A name that was not named is
+// not in the schema. KEEP _file* matches the METADATA-requested _file.* columns
+// (ExternalMetadataAttribute.synthetic == false).
 
-fileMetadataWildcardKeepExcludesVirtualColumns
+fileMetadataKeepStarKeepsRequestedMetadata
 required_capability: external_source_file_metadata_columns
+required_capability: external_source_keep_star_keeps_file_metadata
 dataset: employees_no_mv: "{{employees_no_mv}}"
 
-// `KEEP *` does not expand the _file.* metadata columns brought into scope via METADATA — metadata
-// columns must be named explicitly — so the wildcard returns data columns only. Demonstrated
-// indirectly: the query still returns 100 rows with the data columns present.
+// _file.size was named in METADATA, so KEEP * leaves it in scope and the aggregate can read it.
 FROM employees_no_mv METADATA _file.size
 | KEEP *
-| WHERE salary > 0
+| STATS min_size = MIN(`_file.size`)
+| WHERE min_size > 0
 | STATS count = COUNT(*);
 
 count:long
-100
+1
 ;
 
 fileMetadataKeepExplicitPatternMatches

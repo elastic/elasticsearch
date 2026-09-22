@@ -11,17 +11,22 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.esql.DataSourceRequestInfo;
 import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.DatasourcePrivileges.DatasourcePermissionGroup;
 import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.elasticsearch.xpack.security.audit.AuditTrail;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authz.RBACEngine.RBACAuthorizationInfo;
 import org.elasticsearch.xpack.security.authz.interceptor.DatasetDatasourceRequestInterceptor;
 
@@ -29,11 +34,24 @@ import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class DatasetDatasourceRequestInterceptorTests extends ESTestCase {
 
-    private final DatasetDatasourceRequestInterceptor interceptor = new DatasetDatasourceRequestInterceptor();
+    private final ThreadContext threadContext = new ThreadContext(org.elasticsearch.common.settings.Settings.EMPTY);
+    private final AuditTrail auditTrail = mock(AuditTrail.class);
+    private final AuditTrailService auditTrailService = mock(AuditTrailService.class);
+    private final DatasetDatasourceRequestInterceptor interceptor;
+
+    public DatasetDatasourceRequestInterceptorTests() {
+        when(auditTrailService.get()).thenReturn(auditTrail);
+        interceptor = new DatasetDatasourceRequestInterceptor(threadContext, auditTrailService);
+    }
 
     public void testPutDatasetDatasourceAuthorized() throws Exception {
         Role role = roleWithDatasourceRead("myds");
@@ -41,6 +59,8 @@ public class DatasetDatasourceRequestInterceptorTests extends ESTestCase {
         var future = new PlainActionFuture<Void>();
         interceptor.intercept(requestInfo, mock(AuthorizationEngine.class), rbacInfo(role)).addListener(future);
         assertNull(future.actionGet());
+        verify(auditTrail, never()).accessDenied(any(), any(), any(), any(), any());
+        verify(auditTrail).datasetConfigChange(any(), any(), eq(EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME), any(), any());
     }
 
     public void testPutDatasetDatasourceDenied() {
@@ -50,6 +70,14 @@ public class DatasetDatasourceRequestInterceptorTests extends ESTestCase {
         interceptor.intercept(requestInfo, mock(AuthorizationEngine.class), rbacInfo(role)).addListener(future);
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(e.getMessage(), containsString(EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASET_DATASOURCE_ACTION_NAME));
+        verify(auditTrail).accessDenied(
+            any(),
+            any(Authentication.class),
+            eq(EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME),
+            any(),
+            any(AuthorizationInfo.class)
+        );
+        verify(auditTrail, never()).datasetConfigChange(any(), any(), any(), any(), any());
     }
 
     public void testSkipsWhenDatasourceActionMatchesRequestAction() {
@@ -63,6 +91,8 @@ public class DatasetDatasourceRequestInterceptorTests extends ESTestCase {
         var future = new PlainActionFuture<Void>();
         interceptor.intercept(requestInfo, mock(AuthorizationEngine.class), rbacInfo(role)).addListener(future);
         assertNull(future.actionGet());
+        verify(auditTrail, never()).accessDenied(any(), any(), any(), any(), any());
+        verify(auditTrail, never()).datasetConfigChange(any(), any(), any(), any(), any());
     }
 
     private static RequestInfo putDatasetRequestInfo(String dataSource) {

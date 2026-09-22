@@ -15,6 +15,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.filter.MarkerFilter;
 import org.apache.logging.log4j.message.StringMapMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -44,6 +45,11 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.esql.DataSourceRequestInfo;
+import org.elasticsearch.xpack.core.esql.EsqlDataSourceActionNames;
+import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
+import org.elasticsearch.xpack.core.esql.PutDataSourceAuditInfo;
+import org.elasticsearch.xpack.core.esql.PutDatasetAuditInfo;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.Grant;
@@ -365,7 +371,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         UpdateApiKeyAction.NAME,
         BulkUpdateApiKeyAction.NAME,
         CreateCrossClusterApiKeyAction.NAME,
-        UpdateCrossClusterApiKeyAction.NAME
+        UpdateCrossClusterApiKeyAction.NAME,
+        EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME,
+        EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME,
+        EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME
     );
     private static final String FILTER_POLICY_PREFIX = setting("audit.logfile.events.ignore_filters.");
     // because of the default wildcard value (*) for the field filter, a policy with
@@ -556,7 +565,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     @Override
     public void authenticationSuccess(String requestId, Authentication authentication, String action, TransportRequest transportRequest) {
         if (events.contains(AUTHENTICATION_SUCCESS)) {
-            final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
+            final Optional<String[]> indices = Optional.ofNullable(indicesOrDataSources(transportRequest));
             String realm = ApiKeyService.getCreatorRealmName(authentication);
             final var ctx = new AuditEventContext(indices.orElse(null), null, realm, AuditSubject.from(authentication));
             if (customizer.suppress(ctx)) return;
@@ -588,7 +597,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     @Override
     public void anonymousAccessDenied(String requestId, String action, TransportRequest transportRequest) {
         if (events.contains(ANONYMOUS_ACCESS_DENIED)) {
-            final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
+            final Optional<String[]> indices = Optional.ofNullable(indicesOrDataSources(transportRequest));
             final var ctx = new AuditEventContext(indices.orElse(null), null, null);
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
@@ -622,7 +631,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     @Override
     public void authenticationFailed(String requestId, AuthenticationToken token, String action, TransportRequest transportRequest) {
         if (events.contains(AUTHENTICATION_FAILED)) {
-            final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
+            final Optional<String[]> indices = Optional.ofNullable(indicesOrDataSources(transportRequest));
             final var ctx = new AuditEventContext(indices.orElse(null), null, null);
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
@@ -659,7 +668,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     @Override
     public void authenticationFailed(String requestId, String action, TransportRequest transportRequest) {
         if (events.contains(AUTHENTICATION_FAILED)) {
-            final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
+            final Optional<String[]> indices = Optional.ofNullable(indicesOrDataSources(transportRequest));
             final var ctx = new AuditEventContext(indices.orElse(null), null, null);
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
@@ -704,7 +713,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         TransportRequest transportRequest
     ) {
         if (events.contains(REALM_AUTHENTICATION_FAILED)) {
-            final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
+            final Optional<String[]> indices = Optional.ofNullable(indicesOrDataSources(transportRequest));
             final var ctx = new AuditEventContext(indices.orElse(null), null, null);
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
@@ -742,6 +751,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
     }
 
+    private static String[] indicesOrDataSources(TransportRequest request) {
+        String[] idx = indices(request);
+        if (idx == null && request instanceof DataSourceRequestInfo dsi) {
+            return dsi.dataSourceNames();
+        }
+        return idx;
+    }
+
     @Override
     public void accessGranted(
         String requestId,
@@ -753,7 +770,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         final User user = authentication.getEffectiveSubject().getUser();
         final boolean isSystem = user instanceof InternalUser;
         if ((isSystem && events.contains(SYSTEM_ACCESS_GRANTED)) || ((isSystem == false) && events.contains(ACCESS_GRANTED))) {
-            final Optional<String[]> indices = Optional.ofNullable(indices(msg));
+            final Optional<String[]> indices = Optional.ofNullable(indicesOrDataSources(msg));
             String realm = ApiKeyService.getCreatorRealmName(authentication);
             final var ctx = new AuditEventContext(
                 indices.orElse(null),
@@ -880,7 +897,15 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(createCrossClusterApiKeyRequest).build();
                 } else if (msg instanceof final UpdateCrossClusterApiKeyRequest updateCrossClusterApiKeyRequest) {
                     assert UpdateCrossClusterApiKeyAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId, authentication).withRequestBody(updateCrossClusterApiKeyRequest).build();
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(updateCrossClusterApiKeyRequest).build();
+                } else if (msg instanceof PutDataSourceAuditInfo putDataSourceAuditInfo) {
+                    assert EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(putDataSourceAuditInfo).build();
+                } else if (msg instanceof DataSourceRequestInfo dsi
+                    && EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME.equals(action)) {
+                        securityChangeLogEntryBuilder(requestId).withDeleteDataSource(dsi.dataSourceNames()).build();
+                } else if (msg instanceof IndicesRequest ir && EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME.equals(action)) {
+                    securityChangeLogEntryBuilder(requestId).withDeleteDataset(ir.indices()).build();
                 } else {
                     throw new IllegalStateException(
                         "Unknown message class type ["
@@ -958,7 +983,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         AuthorizationInfo authorizationInfo
     ) {
         if (events.contains(ACCESS_DENIED)) {
-            final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
+            final Optional<String[]> indices = Optional.ofNullable(indicesOrDataSources(transportRequest));
             String realm = ApiKeyService.getCreatorRealmName(authentication);
             final var ctx = new AuditEventContext(
                 indices.orElse(null),
@@ -994,6 +1019,23 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
+    public void datasetConfigChange(
+        String requestId,
+        Authentication authentication,
+        String action,
+        TransportRequest transportRequest,
+        AuthorizationInfo authorizationInfo
+    ) {
+        if (events.contains(SECURITY_CONFIG_CHANGE) && transportRequest instanceof PutDatasetAuditInfo putDatasetAuditInfo) {
+            try {
+                securityChangeLogEntryBuilder(requestId).withRequestBody(putDatasetAuditInfo).build();
+            } catch (IOException e) {
+                throw new ElasticsearchSecurityException("Unexpected error while serializing event data", e);
+            }
+        }
+    }
+
+    @Override
     public void tamperedRequest(String requestId, HttpPreRequest request) {
         if (events.contains(TAMPERED_REQUEST) && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
             new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
@@ -1008,7 +1050,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     @Override
     public void tamperedRequest(String requestId, String action, TransportRequest transportRequest) {
         if (events.contains(TAMPERED_REQUEST)) {
-            final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
+            final Optional<String[]> indices = Optional.ofNullable(indicesOrDataSources(transportRequest));
             final var ctx = new AuditEventContext(indices.orElse(null), null, null);
             if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
@@ -1029,7 +1071,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     @Override
     public void tamperedRequest(String requestId, Authentication authentication, String action, TransportRequest transportRequest) {
         if (events.contains(TAMPERED_REQUEST)) {
-            final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
+            final Optional<String[]> indices = Optional.ofNullable(indicesOrDataSources(transportRequest));
             String realm = ApiKeyService.getCreatorRealmName(authentication);
             final var ctx = new AuditEventContext(indices.orElse(null), null, realm, AuditSubject.from(authentication));
             if (customizer.suppress(ctx)) return;
@@ -1099,7 +1141,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         AuthorizationInfo authorizationInfo
     ) {
         if (events.contains(RUN_AS_GRANTED)) {
-            final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
+            final Optional<String[]> indices = Optional.ofNullable(indicesOrDataSources(transportRequest));
             final String realm = ApiKeyService.getCreatorRealmName(authentication);
             final var ctx = new AuditEventContext(
                 indices.orElse(null),
@@ -1143,7 +1185,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         AuthorizationInfo authorizationInfo
     ) {
         if (events.contains(RUN_AS_DENIED)) {
-            final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
+            final Optional<String[]> indices = Optional.ofNullable(indicesOrDataSources(transportRequest));
             String realm = ApiKeyService.getCreatorRealmName(authentication);
             final var ctx = new AuditEventContext(
                 indices.orElse(null),
@@ -1734,6 +1776,49 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .field("name", roleName)
                 .endObject() // role
                 .endObject();
+            logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        LogEntryBuilder withRequestBody(PutDataSourceAuditInfo info) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "put_data_source");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject()
+                .startObject("data_source")
+                .field("name", info.dataSourceNames()[0])
+                .field("type", info.dataSourceType())
+                .endObject()
+                .endObject();
+            logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        LogEntryBuilder withDeleteDataSource(String[] names) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "delete_data_source");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject().startObject("data_source").array("names", names).endObject().endObject();
+            logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        LogEntryBuilder withRequestBody(PutDatasetAuditInfo info) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "put_dataset");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject()
+                .startObject("dataset")
+                .field("name", info.datasetName())
+                .field("data_source", info.datasetDataSource())
+                .field("resource", info.datasetResource())
+                .endObject()
+                .endObject();
+            logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        LogEntryBuilder withDeleteDataset(String[] names) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "delete_dataset");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject().startObject("dataset").array("names", names).endObject().endObject();
             logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;
         }

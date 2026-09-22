@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.esql.DataSourceRequestInfo;
 import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
+import org.elasticsearch.xpack.core.esql.PutDatasetAuditInfo;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -48,7 +49,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest, DataSourceRequestInfo {
+    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest, DataSourceRequestInfo, PutDatasetAuditInfo {
         private static final ParseField DATA_SOURCE = new ParseField("data_source");
         private static final ParseField RESOURCE = new ParseField("resource");
         private static final ParseField DESCRIPTION = new ParseField("description");
@@ -187,6 +188,21 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
 
         public String name() {
             return name;
+        }
+
+        @Override
+        public String datasetName() {
+            return name;
+        }
+
+        @Override
+        public String datasetDataSource() {
+            return dataSource;
+        }
+
+        @Override
+        public String datasetResource() {
+            return resource;
         }
 
         public String dataSource() {

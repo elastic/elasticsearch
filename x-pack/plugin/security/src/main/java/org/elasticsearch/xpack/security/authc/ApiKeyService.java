@@ -1860,12 +1860,12 @@ public class ApiKeyService implements Closeable {
                     TransportSearchAction.TYPE,
                     request,
                     ActionListener.wrap(searchResponse -> {
-                        // A response carries no aggregations only when no shard result was reduced, in which case nothing was counted.
-                        // Requesting an aggregation makes the search execute at least one shard, so this is not expected in practice.
                         final InternalAggregations aggregations = searchResponse.getAggregations();
                         final Filters counts = aggregations == null ? null : aggregations.get(countsAgg.getName());
                         if (counts == null) {
-                            listener.onResponse(Map.of("active", 0L, "invalidated", 0L, "expired", 0L));
+                            // report no counts rather than zeros, which would claim the cluster holds no API keys
+                            logger.debug("no [{}] aggregation in the search response for REST API key usage", countsAgg.getName());
+                            listener.onResponse(Map.of());
                             return;
                         }
                         listener.onResponse(

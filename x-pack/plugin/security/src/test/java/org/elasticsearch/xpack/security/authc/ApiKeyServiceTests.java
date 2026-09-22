@@ -1509,10 +1509,10 @@ public class ApiKeyServiceTests extends ESTestCase {
     }
 
     /**
-     * A search that reduced no shard result comes back successful but carries no aggregations. Nothing was counted in that case, so the
-     * counts are reported as zeros rather than throwing a {@link NullPointerException}.
+     * A search that reduced no shard result comes back successful but carries no aggregations. No counts can be derived in that case, so
+     * none are reported: zeros would claim the cluster holds no API keys, which is not something the response says.
      */
-    public void testRestApiKeyUsageStatsAreZerosWhenResponseHasNoAggregations() {
+    public void testRestApiKeyUsageStatsAreEmptyWhenResponseHasNoAggregations() {
         when(clock.instant()).thenReturn(Instant.now());
         when(client.threadPool()).thenReturn(threadPool);
         when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client));
@@ -1526,7 +1526,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
         apiKeyService.restApiKeyUsageStats(future);
 
-        assertThat(future.actionGet(), equalTo(Map.of("active", 0L, "invalidated", 0L, "expired", 0L)));
+        assertThat(future.actionGet(), anEmptyMap());
     }
 
     private Map<String, Object> mockKeyDocument(

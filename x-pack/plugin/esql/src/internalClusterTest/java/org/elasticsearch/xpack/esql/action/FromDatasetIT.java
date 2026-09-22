@@ -3593,6 +3593,89 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
+     * Declared-type twin of {@link #testScalingDifferentialOverAnnotatedSortColumns} for the INT32 case: an
+     * {@code INT32 DECIMAL(9,2)} column declared as {@code integer} routes through the {@code case INT} arm of
+     * {@code rawValueFromStats} / {@code rawValueFromPageIndex}. That arm does not check
+     * {@code sortColumnAnnotationScales}, so it passes the raw unscaled integer (100..2099) to the threshold
+     * comparator instead of declining. The decoded bound is a whole-number integer (1..20), and 100 &gt; 1, so
+     * the comparator decides every row group is dominated and skips the rows holding the true minimum. The fix makes
+     * the arm yield {@code null} when the annotation rescales, preventing the skip.
+     *
+     * <p>The file is four columns wide so that {@code InsertExternalFieldExtraction} defers enough columns to engage
+     * the threshold rail; projecting fewer keeps the scan narrow and the threshold is never published.
+     */
+    public void testScalingDifferentialOverDeclaredIntegerDecimalSortColumn() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        // Raw unscaled integers 100..2099; with DECIMAL(9,2) annotation, decode divides by 100, giving 1.00..20.99.
+        // Declared integer: the double is cast to int (floor), yielding 1..20. Ascending values so the true minimum
+        // (1) lives in the first row groups — a unit-blind threshold still skips them because raw 100 > decoded 1.
+        int rowCount = 2000;
+        Path file = writeDecimalInt32Fixture("decimal_int32_sort", rowCount);
+
+        // Undeclared: amt infers as double (DECIMAL annotation), DOUBLE arm is correct, used as control.
+        registerDecimalInt32Dataset("decimal_int_inferred_ds", file, null);
+        // Declared: amt is integer, routes through the INT arm where the bug lives.
+        registerDecimalInt32Dataset("decimal_int_declared_ds", file, "integer");
+
+        // Ground truth: unsorted scan of the declared dataset (no sort, no filter — no pruning).
+        List<Integer> truth = new ArrayList<>();
+        try (var response = run(syncEsqlQueryRequest("FROM decimal_int_declared_ds | KEEP amt | LIMIT 5000"), TIMEOUT)) {
+            for (List<Object> row : getValuesList(response)) {
+                truth.add(((Number) row.get(0)).intValue());
+            }
+        }
+        assertThat("ground truth must see every row", truth, hasSize(rowCount));
+        int min = truth.stream().mapToInt(Integer::intValue).min().getAsInt();
+        int max = truth.stream().mapToInt(Integer::intValue).max().getAsInt();
+
+        // Control ground truth: unsorted scan of the inferred (double) dataset, used for SORT probes below.
+        List<Double> inferredTruth = new ArrayList<>();
+        try (var response = run(syncEsqlQueryRequest("FROM decimal_int_inferred_ds | KEEP amt | LIMIT 5000"), TIMEOUT)) {
+            for (List<Object> row : getValuesList(response)) {
+                inferredTruth.add(((Number) row.get(0)).doubleValue());
+            }
+        }
+        assertThat("inferred ground truth must see every row", inferredTruth, hasSize(rowCount));
+        double inferredMin = inferredTruth.stream().mapToDouble(Double::doubleValue).min().getAsDouble();
+        double inferredMax = inferredTruth.stream().mapToDouble(Double::doubleValue).max().getAsDouble();
+
+        // Control: undeclared DOUBLE arm is unaffected; verify COUNT and both sort directions are correct.
+        assertQ("undeclared [double] STATS COUNT", "FROM decimal_int_inferred_ds | STATS c = COUNT(amt)", (long) rowCount);
+        assertQ(
+            "undeclared [double] SORT ASC LIMIT 1 (wide)",
+            "FROM decimal_int_inferred_ds | SORT amt ASC | LIMIT 1 | KEEP amt, id, pri, msg",
+            inferredMin
+        );
+        assertQ(
+            "undeclared [double] SORT DESC LIMIT 1 (wide)",
+            "FROM decimal_int_inferred_ds | SORT amt DESC | LIMIT 1 | KEEP amt, id, pri, msg",
+            inferredMax
+        );
+
+        // Declared integer: the INT arm must decline to compare a rescaled raw stat against the decoded bound.
+        List<String> failures = new ArrayList<>();
+        record Probe(String what, String query, Object expected) {}
+        List<Probe> probes = List.of(
+            new Probe("SORT ASC LIMIT 1 (wide)", "FROM decimal_int_declared_ds | SORT amt ASC | LIMIT 1 | KEEP amt, id, pri, msg", min),
+            new Probe("SORT DESC LIMIT 1 (wide)", "FROM decimal_int_declared_ds | SORT amt DESC | LIMIT 1 | KEEP amt, id, pri, msg", max),
+            new Probe("STATS COUNT", "FROM decimal_int_declared_ds | STATS c = COUNT(amt)", (long) rowCount)
+        );
+        for (Probe probe : probes) {
+            try (var response = run(syncEsqlQueryRequest(probe.query()), TIMEOUT)) {
+                List<List<Object>> rows = getValuesList(response);
+                Object actual = rows.isEmpty() ? null : rows.get(0).get(0);
+                if (Objects.equals(probe.expected(), actual) == false) {
+                    failures.add(
+                        "[" + probe.what() + "] expected " + probe.expected() + " but got " + actual + "  (query: " + probe.query() + ")"
+                    );
+                }
+            }
+        }
+        assertTrue("the engine disagreed with fully-decoded ground truth:\n  " + String.join("\n  ", failures), failures.isEmpty());
+    }
+
+    /**
      * Wide, multi-row-group {@code UINT_64} differential: ground truth comes from an unpruned
      * scan; filter pushdown, TopN threshold pruning (ASC and DESC), and stats-answered MIN/MAX must all agree with
      * it across the 2^63 boundary. The fixture is 4 columns wide (so the TopN deferred-extraction threshold rail
@@ -3909,6 +3992,74 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         Path tempFile = createTempDir().resolve(name + ".parquet");
         Files.write(tempFile, baos.toByteArray());
         return tempFile;
+    }
+
+    /**
+     * Four-column {@code DECIMAL(9,2)} fixture for {@link #testScalingDifferentialOverDeclaredIntegerDecimalSortColumn}.
+     * Raw unscaled integers {@code 100..100+rowCount-1}, stored as {@code INT32} with a {@code DECIMAL(9,2)} annotation.
+     * Four columns are required so {@code InsertExternalFieldExtraction} defers enough to engage the threshold rail.
+     * Very small row groups (256 bytes) ensure there are always later groups for a unit-blind threshold to wrongly skip.
+     */
+    private Path writeDecimalInt32Fixture(String name, int rowCount) throws IOException {
+        MessageType schema = MessageTypeParser.parseMessageType(
+            "message decimal_int32 {"
+                + " required int32 amt (DECIMAL(9,2));"
+                + " required int64 id;"
+                + " required int32 pri;"
+                + " required binary msg (UTF8);"
+                + " }"
+        );
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withRowGroupSize(256L)
+                .withPageSize(64)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (int i = 0; i < rowCount; i++) {
+                Group g = factory.newGroup();
+                g.add("amt", 100 + i);
+                g.add("id", (long) i);
+                g.add("pri", i);
+                g.add("msg", "m" + i);
+                writer.write(g);
+            }
+        }
+        Path tempFile = createTempDir().resolve(name + ".parquet");
+        Files.write(tempFile, baos.toByteArray());
+        return tempFile;
+    }
+
+    /**
+     * Registers a dataset over the DECIMAL INT32 fixture. When {@code amtType} is non-null, declares {@code amt}
+     * as that type with {@code dynamic:true}; when null, registers with no declared mapping (fully inferred).
+     */
+    private void registerDecimalInt32Dataset(String dataset, Path file, @Nullable String amtType) throws Exception {
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        DatasetMapping mapping = null;
+        if (amtType != null) {
+            properties.put("amt", new DatasetFieldMapping(amtType, null));
+            mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        }
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    dataset,
+                    "local_ds",
+                    file.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
     }
 
     /**

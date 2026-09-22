@@ -171,7 +171,9 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
         // Target node has a max of 2 concurrent recoveries slots. Source has a limit of 1.
         // This creates target active=2, target queued=1, source active=1, source queued=1.
         final var targetNode = internalCluster().startDataOnlyNode(
-            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 2).build()
+            Settings.builder()
+                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 2)
+                .build()
         );
         final var targetTelemetry = resetAndGetTelemetryPlugin(targetNode);
         final var sourceTelemetry = resetAndGetTelemetryPlugin(sourceNode);
@@ -386,7 +388,9 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
 
     public void testRecoveryMetricsOnThrottledStoreRecovery() {
         final var node = internalCluster().startNode(
-            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
+            Settings.builder()
+                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+                .build()
         );
         final var telemetry = resetAndGetTelemetryPlugin(node);
 
@@ -491,7 +495,9 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
     public void testDirectCancellationMetricsQueuedAndStarted() throws Exception {
         final var node1 = internalCluster().startNode();
         final var node2 = internalCluster().startNode(
-            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
+            Settings.builder()
+                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+                .build()
         );
         final var node2Telemetry = resetAndGetTelemetryPlugin(node2);
 

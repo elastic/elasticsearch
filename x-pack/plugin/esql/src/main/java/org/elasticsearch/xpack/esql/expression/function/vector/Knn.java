@@ -397,8 +397,7 @@ public class Knn extends SingleFieldFullTextFunction
             failures.add(
                 Failure.fail(
                     query(),
-                    "[KNN] cannot operate on [{}]; Cosine similarity does not support (query) vectors with zero magnitude.",
-                    query().sourceText()
+                    "[KNN] cannot operate on provided query vector; Cosine similarity does not support (query) vectors with zero magnitude."
                 )
             );
         }
@@ -406,8 +405,7 @@ public class Knn extends SingleFieldFullTextFunction
             failures.add(
                 Failure.fail(
                     query(),
-                    "[KNN] dot_product requires unit-length vectors; query vector [{}] has magnitude [{}]",
-                    query().sourceText(),
+                    "[KNN] dot_product requires unit-length vectors; provided query vector has magnitude [{}]",
                     Math.sqrt(squaredMagnitude)
                 )
             );

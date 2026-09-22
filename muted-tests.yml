@@ -708,3 +708,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalDistributedNodeUnavailableIT
   method: testUnreachableNodeAtDispatchIsReassignedWhenPartialResultsDisallowed
   issue: https://github.com/elastic/elasticsearch/issues/159983
+- class: org.elasticsearch.test.rest.yaml.RcsCcsSearchYamlTestSuiteIT
+  method: test {p0=search/340_flattened/Test flattened mapped sub-field as index sort field}
+  issue: https://github.com/elastic/elasticsearch/issues/160031

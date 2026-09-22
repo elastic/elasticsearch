@@ -64,6 +64,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<DatafeedUpdate> {
@@ -126,6 +127,9 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         }
         if (randomBoolean()) {
             builder.setMaxEmptySearches(randomBoolean() ? -1 : randomIntBetween(10, 100));
+        }
+        if (randomBoolean()) {
+            builder.setMaxConsecutiveExtractionFailures(randomBoolean() ? -1 : randomIntBetween(1, 100));
         }
         if (randomBoolean()) {
             builder.setIndicesOptions(
@@ -402,7 +406,7 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
     @Override
     protected DatafeedUpdate mutateInstance(DatafeedUpdate instance) throws IOException {
         DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder(instance);
-        switch (between(1, 12)) {
+        switch (between(1, 13)) {
             case 1:
                 builder.setId(instance.getId() + DatafeedConfigTests.randomValidDatafeedId());
                 break;
@@ -522,9 +526,33 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
                     builder.setRuntimeMappings(field);
                 }
                 break;
+            case 13:
+                if (instance.getMaxConsecutiveExtractionFailures() == null) {
+                    builder.setMaxConsecutiveExtractionFailures(randomFrom(-1, 10));
+                } else if (instance.getMaxConsecutiveExtractionFailures() == -1) {
+                    builder.setMaxConsecutiveExtractionFailures(10);
+                } else {
+                    builder.setMaxConsecutiveExtractionFailures(instance.getMaxConsecutiveExtractionFailures() + 100);
+                }
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
         return builder.build();
+    }
+
+    public void testApplyMaxConsecutiveExtractionFailures() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder(DatafeedConfigTests.createRandomizedDatafeedConfig("foo"))
+            .setMaxConsecutiveExtractionFailures(null)
+            .build();
+        assertThat(datafeed.getMaxConsecutiveExtractionFailures(), is(nullValue()));
+
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setMaxConsecutiveExtractionFailures(25).build();
+        DatafeedConfig updated = update.apply(datafeed, Collections.emptyMap(), clusterState);
+        assertThat(updated.getMaxConsecutiveExtractionFailures(), equalTo(25));
+
+        DatafeedUpdate disable = new DatafeedUpdate.Builder(datafeed.getId()).setMaxConsecutiveExtractionFailures(-1).build();
+        DatafeedConfig disabled = disable.apply(updated, Collections.emptyMap(), clusterState);
+        assertThat(disabled.getMaxConsecutiveExtractionFailures(), equalTo(-1));
     }
 }

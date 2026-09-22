@@ -154,12 +154,8 @@ public final class SimdJsonTestDocuments {
     }
 
     /**
-     * Malformed documents that both simdjson and Jackson/XContent are expected to reject, though
-     * not necessarily with the same message - unlike the number-specific cases in
-     * {@code SimdJsonJacksonComparisonTests} (leading zeros, empty fraction/exponent), which do
-     * compare message text and so aren't duplicated here. Grouped by RFC 8259 rule violated:
-     * unescaped control characters, unrecognized/incomplete escapes, structural grammar errors,
-     * and non-standard number tokens neither parser is configured to accept.
+     * Malformed documents that both simdjson and Jackson/XContent are expected to reject.
+     * Grouped by RFC 8259 rule violated.
      */
     public static List<String> invalidDocumentsRejectedByBothParsers() {
         List<String> docs = new ArrayList<>();

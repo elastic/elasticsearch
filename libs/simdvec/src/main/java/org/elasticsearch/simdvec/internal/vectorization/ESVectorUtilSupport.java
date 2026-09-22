@@ -155,6 +155,13 @@ public interface ESVectorUtilSupport {
 
     int indexOf(byte[] bytes, int offset, int length, byte marker);
 
+    /**
+     * Returns the offset (relative to {@code offset}) of the first occurrence of any of {@code b0},
+     * {@code b1}, {@code b2}, or {@code b3} in {@code bytes[offset, offset + length)}, or -1 if none
+     * of them is present.
+     */
+    int indexOfAny(byte[] bytes, int offset, int length, byte b0, byte b1, byte b2, byte b3);
+
     int codePointCount(BytesRef bytesRef);
 
     boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength);

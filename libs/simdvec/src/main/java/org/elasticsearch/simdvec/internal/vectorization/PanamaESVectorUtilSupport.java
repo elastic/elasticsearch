@@ -2131,6 +2131,41 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
+    public int indexOfAny(
+        final byte[] bytes,
+        final int offset,
+        final int length,
+        final byte b0,
+        final byte b1,
+        final byte b2,
+        final byte b3
+    ) {
+        final ByteVector v0 = ByteVector.broadcast(BYTE_SPECIES, b0);
+        final ByteVector v1 = ByteVector.broadcast(BYTE_SPECIES, b1);
+        final ByteVector v2 = ByteVector.broadcast(BYTE_SPECIES, b2);
+        final ByteVector v3 = ByteVector.broadcast(BYTE_SPECIES, b3);
+        final int loopBound = BYTE_SPECIES.loopBound(length);
+        for (int i = 0; i < loopBound; i += BYTE_SPECIES.length()) {
+            ByteVector chunk = ByteVector.fromArray(BYTE_SPECIES, bytes, offset + i);
+            VectorMask<Byte> mask = chunk.eq(v0).or(chunk.eq(v1)).or(chunk.eq(v2)).or(chunk.eq(v3));
+            if (mask.anyTrue()) {
+                return i + mask.firstTrue();
+            }
+        }
+        // Scalar tail, not a masked vector load: benchmarking showed a masked load here is
+        // consistently *slower* than a scalar loop on hardware without cheap masked-load support
+        // (e.g. no AVX-512 on x86, or NEON on aarch64) -- see LineTerminatorScanBenchmark.
+        if (loopBound < length) {
+            int remaining = length - loopBound;
+            int tail = ByteArrayUtils.indexOfAny(bytes, offset + loopBound, remaining, b0, b1, b2, b3);
+            if (tail >= 0) {
+                return loopBound + tail;
+            }
+        }
+        return -1;
+    }
+
+    @Override
     public boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength) {
         // Scalar logic is faster for short values (below approximately 24 bytes)
         if (valueLength < 24) {

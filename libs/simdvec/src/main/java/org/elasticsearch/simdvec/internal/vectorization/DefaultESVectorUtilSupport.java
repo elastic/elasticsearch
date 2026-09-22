@@ -667,6 +667,11 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public int indexOfAny(byte[] bytes, int offset, int length, byte b0, byte b1, byte b2, byte b3) {
+        return ByteArrayUtils.indexOfAny(bytes, offset, length, b0, b1, b2, b3);
+    }
+
+    @Override
     public int codePointCount(BytesRef bytesRef) {
         return ByteArrayUtils.codePointCount(bytesRef.bytes, bytesRef.offset, bytesRef.length);
     }

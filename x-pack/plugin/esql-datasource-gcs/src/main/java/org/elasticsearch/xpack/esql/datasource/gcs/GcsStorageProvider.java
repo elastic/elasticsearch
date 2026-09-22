@@ -280,10 +280,7 @@ public class GcsStorageProvider implements StorageProvider {
                 files.add(toStorageEntry(blob, pathPrefix));
             }
         } catch (Exception e) {
-            throw new IOException(
-                "Failed to list children in the configured path: " + GcsFailureDetail.of(e),
-                e
-            );
+            throw new IOException("Failed to list children in the configured path: " + GcsFailureDetail.of(e), e);
         }
         return new StorageChildren(files, directories);
     }

@@ -26,8 +26,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.concurrent.ExecutionException;
 
-import static org.hamcrest.Matchers.equalTo;
-
 public class ExternalFailuresTests extends ESTestCase {
 
     public void testErrorIsRethrown() {
@@ -266,7 +264,6 @@ public class ExternalFailuresTests extends ESTestCase {
         assertSame("classify must pass an already-typed surface() result through unchanged", surfaced, classified);
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
     }
-
 
     public void testRootCauseStepsThroughAToStringDerivedWrapper() {
         IOException real = new IOException("Object not found: s3://bucket/x.csv");

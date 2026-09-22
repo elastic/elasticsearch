@@ -31,6 +31,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -43,8 +44,13 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -68,7 +74,6 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
     protected static final String PASS = "x-pack-test-password";
     protected static final String DEFAULT_DATA_STREAM = "metrics-generic.prometheus-default";
     protected static final String MIXED_METRICS_PROMETHEUS_METRIC = "explorer_prometheus_metric";
-
     private static final String NON_PROMETHEUS_METRICS_DATA_STREAM = "metrics-system.cpu-default";
 
     private static Path httpCertificateAuthority;
@@ -229,21 +234,16 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
      * failures. Use this when a test needs full control over the time series and samples being ingested.
      */
     protected void ingestTestData(RemoteWrite.WriteRequest writeRequestPayload) throws IOException {
+        ingestTestData(writeRequestPayload, Instant.parse("2026-01-01T00:00:00Z"));
+    }
+
+    /**
+     * Same as {@link #ingestTestData(RemoteWrite.WriteRequest)} but pins the TSDS start_time relative to
+     * the given sample time instead of the 2026 suite default.
+     */
+    protected void ingestTestData(RemoteWrite.WriteRequest writeRequestPayload, Instant at) throws IOException {
         var api = client();
-        Request putCustomTemplate = makeRequest("PUT", "/_component_template/metrics-prometheus@custom", """
-            {
-              "template": {
-                "settings": {
-                  "index": {
-                    "time_series": {
-                      "start_time": "2026-01-01T00:00:00Z"
-                    }
-                  }
-                }
-              }
-            }
-            """);
-        api.performRequest(putCustomTemplate);
+        ensureStartTime(at);
 
         Request writeRequest = new Request("POST", "/_prometheus/api/v1/write");
         writeRequest.setEntity(new ByteArrayEntity(writeRequestPayload.toByteArray(), ContentType.create("application/x-protobuf")));
@@ -451,6 +451,155 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
             }
             throw e;
         }
+    }
+
+    // --- shared tx/rx sample data served through every ingestion path ---
+    //
+    // The remote-write API stores one document per series carrying a single metric value plus a synthetic
+    // __name__ label, while bulk stores every metric value in one document with no __name__ label. All tests
+    // share one tx/rx pair in the default data stream: each phase wipes the stream first because bulk
+    // documents without __name__ share series identity per host and timestamp.
+
+    private record TxRxRow(String host, double tx, Double rx) {}
+
+    private static final TxRxRow HOST_A = new TxRxRow("a", 10, 2.0);
+    private static final TxRxRow HOST_B = new TxRxRow("b", 30, 3.0);
+    private static final TxRxRow HOST_C = new TxRxRow("c", 12, 4.0);
+    /** Collision pair for the duplicate-rejection tests; never part of the main ingestion. */
+    private static final TxRxRow HOST_D = new TxRxRow("d", 10, 10.0);
+
+    private static final List<TxRxRow> TX_RX = List.of(HOST_A, HOST_B, HOST_C);
+
+    protected static Map<String, Double> txRxRatios() {
+        return TX_RX.stream().collect(Collectors.toUnmodifiableMap(TxRxRow::host, row -> row.tx() / row.rx()));
+    }
+
+    /**
+     * Sends the tx/rx series through the remote-write API.
+     */
+    protected void ingestTestDataUsingRemoteWrite(Instant at) throws IOException {
+        var request = RemoteWrite.WriteRequest.newBuilder();
+
+        for (var row : TX_RX) {
+            request.addTimeseries(remoteWriteSeries("tx", row.host(), row.tx(), at));
+            request.addTimeseries(remoteWriteSeries("rx", row.host(), row.rx(), at));
+        }
+
+        ingestTestData(request.build(), at);
+    }
+
+    /**
+     * Bulks OTel-shaped documents (every metric value, no __name__ label).
+     */
+    protected void ingestTestDataUsingBulk(Instant at) throws IOException {
+        bulkDocuments(TX_RX.stream().flatMap(row -> bulkDocuments(row, "tx", "rx", at).stream()).toList(), at);
+    }
+
+    /**
+     * Sends host {@code a} and the tx sample of host {@code c} via bulk and the rest via remote-write.
+     * Always also ingests the colliding tx_dup/rx_dup pair for the otherwise-unused host {@code d} (a bulk
+     * document plus remote-write documents whose binary match keys collide), so the duplicate-rejection
+     * tests need no separate ingestion: selectors keep every other query blind to it.
+     */
+    protected void ingestTestDataUsingRemoteWriteAndBulk(Instant at) throws IOException {
+        var documents = new ArrayList<>(bulkDocuments(HOST_A, "tx", "rx", at));
+        documents.addAll(bulkDocuments(new TxRxRow(HOST_C.host(), HOST_C.tx(), null), "tx", "rx", at));
+        documents.addAll(bulkDocuments(HOST_D, "tx_dup", "rx_dup", at));
+        bulkDocuments(documents, at);
+        var mixedPayload = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(remoteWriteSeries("tx", HOST_B.host(), HOST_B.tx(), at))
+            .addTimeseries(remoteWriteSeries("rx", HOST_B.host(), HOST_B.rx(), at))
+            .addTimeseries(remoteWriteSeries("rx", HOST_C.host(), HOST_C.rx(), at))
+            .addTimeseries(remoteWriteSeries("tx_dup", HOST_D.host(), 20, at))
+            .addTimeseries(remoteWriteSeries("rx_dup", HOST_D.host(), 2, at))
+            .build();
+        ingestTestData(mixedPayload, at);
+    }
+
+    private static RemoteWrite.TimeSeries remoteWriteSeries(String metric, String host, double value, Instant at) {
+        return RemoteWrite.TimeSeries.newBuilder()
+            .addLabels(label("__name__", metric))
+            .addLabels(label("host", host))
+            .addLabels(label("cluster", clusterFor(host)))
+            .addSamples(sample(value / 2, at.minusSeconds(30).toEpochMilli()))
+            .addSamples(sample(value, at.toEpochMilli()))
+            .build();
+    }
+
+    private static String clusterFor(String host) {
+        return host.equals("c") ? "qa" : "prod";
+    }
+
+    private static Map<String, Object> otelDocument(String host, String txName, Double tx, String rxName, Double rx, Instant at) {
+        var metrics = new HashMap<String, Object>();
+        if (tx != null) {
+            metrics.put(txName, tx);
+        }
+        if (rx != null) {
+            metrics.put(rxName, rx);
+        }
+
+        return Map.of("@timestamp", at.toString(), "labels", Map.of("host", host, "cluster", clusterFor(host)), "metrics", metrics);
+    }
+
+    private static List<Map<String, Object>> bulkDocuments(TxRxRow row, String txName, String rxName, Instant at) {
+        Double halfRx = row.rx() == null ? null : row.rx() / 2;
+        return List.of(
+            otelDocument(row.host(), txName, row.tx() / 2, rxName, halfRx, at.minusSeconds(30)),
+            otelDocument(row.host(), txName, row.tx(), rxName, row.rx(), at)
+        );
+    }
+
+    private void bulkDocuments(List<Map<String, Object>> documents, Instant at) throws IOException {
+        ensureStartTime(at);
+        StringBuilder body = new StringBuilder();
+        for (Map<String, Object> document : documents) {
+            String result;
+            try (var builder = XContentFactory.jsonBuilder()) {
+                result = Strings.toString(builder.map(document));
+            }
+            body.append("{\"create\":{}}\n").append(result).append('\n');
+        }
+        Request bulk = new Request("POST", "/" + DEFAULT_DATA_STREAM + "/_bulk");
+        bulk.addParameter("refresh", "true");
+        bulk.setJsonEntity(body.toString());
+        ObjectPath response = ObjectPath.createFromResponse(client().performRequest(bulk));
+        assertThat(response.toString(), response.evaluate("errors"), equalTo(false));
+    }
+
+    /**
+     * Deletes the default data stream so the next ingestion phase starts clean. Selectors isolate reads,
+     * but not ingest identity: bulk documents without {@code __name__} share series identity per host and
+     * timestamp regardless of their metric fields, so phases must not accumulate in one stream.
+     */
+    protected void wipeDefaultStream() throws IOException {
+        try {
+            client().performRequest(new Request("DELETE", "/_data_stream/" + DEFAULT_DATA_STREAM));
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                throw e;
+            }
+        }
+    }
+
+    /**
+     * Pins the TSDS start_time a day ahead of the fixture samples. Test methods share the cluster while
+     * pinning different sample timestamps, so each ingestion path sets the bound its own samples satisfy.
+     */
+    private void ensureStartTime(Instant at) throws IOException {
+        client().performRequest(makeRequest("PUT", "/_component_template/metrics-prometheus@custom", """
+            {
+              "template": {
+                "settings": {
+                  "index": {
+                    "time_series": {
+                      "start_time": "%s"
+                    }
+                  }
+                }
+              }
+            }
+            """, at.minus(1, ChronoUnit.DAYS).toString()));
     }
 
     // --- security helpers ---

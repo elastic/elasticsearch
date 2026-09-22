@@ -169,6 +169,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -364,6 +365,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     /** Closed by {@link #close()} on node shutdown to release S3/Azure workload-identity resources. */
     private volatile DataSourceModule dataSourceModule;
+
+    /** Names of credential (secret) settings across all registered data source providers, for audit-log filtering. */
+    private volatile Set<String> dataSourceSecretSettingNames = Set.of();
 
     @Override
     public void close() throws IOException {
@@ -573,6 +577,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 }
             });
         }
+        Set<String> secretNames = new HashSet<>();
+        allDataSourcePlugins.forEach(p -> secretNames.addAll(p.datasourceSecretSettingNames()));
+        this.dataSourceSecretSettingNames = Set.copyOf(secretNames);
 
         QueryMetricsListener collector = metricsCollectors.isEmpty() ? QueryMetricsListener.NOOP : metrics -> {
             for (var c : metricsCollectors) {
@@ -681,6 +688,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
                 EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
                 EsqlFlags.ESQL_REMOTE_FETCH_TOPN,
+                RemoteFetchService.MAX_WORKERS_SETTING,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,
@@ -757,7 +765,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // not available the routes are unregistered, so PUT/GET/DELETE of data sources and datasets return the
         // framework's standard "no handler found for uri" (400), as if the feature never existed.
         if (Federation.isAvailable(restHandlersServices.settings())) {
-            handlers.add(new RestPutDataSourceAction());
+            handlers.add(new RestPutDataSourceAction(dataSourceSecretSettingNames));
             handlers.add(new RestGetDataSourceAction());
             handlers.add(new RestDeleteDataSourceAction());
             handlers.add(new RestPutDatasetAction());

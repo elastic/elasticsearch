@@ -52,7 +52,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 /**
  * Represents a Lucene commit point with additional information required to manage this commit in the object store as well as locally. Such
- * objects are uploaded to the object store as binary blobs.
+ * objects are uploaded to the object store as part of {@link BatchedCompoundCommit} binary blobs.
  *
  * A hollow commit is one that does not have translog and will be recovered with a hollow engine (i.e., not fully ready for ingestion, but
  * will be loaded when ingestion first comes). For a hollow commit, the translog recovery start file is set to
@@ -201,7 +201,7 @@ public record StatelessCompoundCommit(
     }
 
     public String toShortDescription() {
-        return '[' + primaryTerm() + "][" + generation() + ']' + (hollow() ? "[h]" : "");
+        return "[term:" + primaryTerm() + "][gen:" + generation() + ']' + (hollow() ? "[h]" : "");
     }
 
     @Override

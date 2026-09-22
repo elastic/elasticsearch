@@ -251,7 +251,7 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
         }
     }
 
-    // Since CC and BCC share the same naming scheme, these methods work equally for both of them.
+    // A batched compound commit is stored as a single blob whose name is derived from the generation of its first compound commit.
     public static boolean startsWithBlobPrefix(String name) {
         return name.startsWith(PREFIX);
     }
@@ -263,6 +263,6 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
 
     public static long parseGenerationFromBlobName(String name) {
         assert startsWithBlobPrefix(name) : name;
-        return Long.parseLong(name.substring(name.lastIndexOf('_') + 1));
+        return Long.parseLong(name.substring(PREFIX.length()));
     }
 }

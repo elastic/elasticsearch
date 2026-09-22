@@ -289,24 +289,59 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
      * The question this pins is whether that licensed count can then answer for the narrower read, which would make
      * a warm COUNT(*) disagree with the cold one over the same dataset. Warm must equal cold, whichever ran first.
      */
+    /**
+     * A ragged corpus read two ways that SHARE a cache namespace. Both datasets carry the same format settings —
+     * `schema_resolution` and `file_sort_by` are part of the cache key, so anything else gives them separate
+     * entries and tests nothing — and differ only in their mapping: one infers, and reads every part at the
+     * anchor's three columns, dropping the wider part's rows; the other declares all four, binds by name — so
+     * the file's own header bounds its rows — keeps them, and its count is licensed as the files' physical one.
+     * <p>
+     * The narrow read's warm {@code COUNT(*)} must equal its own cold one whichever read measured the files
+     * first. A licensed count is the file's number; it is not the narrow read's number, and the narrow read is
+     * what is being answered.
+     */
     public void testALicensedCountDoesNotAnswerForAReadThatDropsWiderRows() throws Exception {
+        Map<String, Object> shared = Map.of(
+            "format",
+            "csv",
+            "error_mode",
+            "null_field",
+            "schema_resolution",
+            "first_file_wins",
+            "file_sort_by",
+            "name"
+        );
+        LinkedHashMap<String, DatasetFieldMapping> fourColumns = new LinkedHashMap<>();
+        fourColumns.put("id", new DatasetFieldMapping("integer", null));
+        fourColumns.put("color", new DatasetFieldMapping("keyword", null));
+        fourColumns.put("value", new DatasetFieldMapping("integer", null));
+        fourColumns.put("extra", new DatasetFieldMapping("keyword", null));
+
         Path narrowFirst = writeRaggedCorpus();
         Path widerFirst = writeRaggedCorpus();
 
-        // What the narrow read counts on its own: the answer both orders below must keep producing.
-        long narrowCount = raggedNarrowCount("ragged_baseline_csv", narrowFirst);
+        // What the narrow read counts on its own, with nothing warm: the answer both orders below must keep.
+        long narrowCount = raggedCount(registerDataset("ragged_baseline_csv", globUri(narrowFirst, "*.csv"), shared));
         assertThat("the premise: the narrow read must drop the wider part's rows", narrowCount, equalTo(2L));
 
-        // Order one: the narrow read measured first, then a wider read licenses the files' physical counts into
-        // the entries it shares with it. Its warm answer must still be its own.
-        assertThat("the wider read keeps every row", raggedUnionCount("ragged_union_after_csv", narrowFirst), equalTo(5L));
-        assertThat(raggedNarrowCount("ragged_narrow_after_csv", narrowFirst), equalTo(narrowCount));
-        assertThat(raggedNarrowCount("ragged_narrow_after_csv", narrowFirst), equalTo(narrowCount));
+        // Order one: the narrow read measured first, then a wider read of the same files licenses their physical
+        // counts into the entries the two share.
+        String wideAfter = registerStrictDataset("ragged_wide_after", globUri(narrowFirst, "*.csv"), fourColumns, shared);
+        assertThat("the wider read keeps every row", raggedCount(wideAfter), equalTo(5L));
+        assertThat(raggedCount(registerDataset("ragged_narrow_after", globUri(narrowFirst, "*.csv"), shared)), equalTo(narrowCount));
+        assertThat(raggedCount(registerDataset("ragged_narrow_after2", globUri(narrowFirst, "*.csv"), shared)), equalTo(narrowCount));
 
         // Order two: the wider read fills the entries first, before the narrow read has measured anything.
-        assertThat("the wider read keeps every row", raggedUnionCount("ragged_union_first_csv", widerFirst), equalTo(5L));
-        assertThat(raggedNarrowCount("ragged_narrow_last_csv", widerFirst), equalTo(narrowCount));
-        assertThat(raggedNarrowCount("ragged_narrow_last_csv", widerFirst), equalTo(narrowCount));
+        String wideFirst = registerStrictDataset("ragged_wide_first", globUri(widerFirst, "*.csv"), fourColumns, shared);
+        assertThat("the wider read keeps every row", raggedCount(wideFirst), equalTo(5L));
+        assertThat(raggedCount(registerDataset("ragged_narrow_last", globUri(widerFirst, "*.csv"), shared)), equalTo(narrowCount));
+        assertThat(raggedCount(registerDataset("ragged_narrow_last2", globUri(widerFirst, "*.csv"), shared)), equalTo(narrowCount));
+    }
+
+    private long raggedCount(String dataset) {
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS c = COUNT(*)"), TimeValue.timeValueMinutes(5))) {
+            return (Long) response.response().column(0).iterator().next();
+        }
     }
 
     /** Two parts, the second a column wider than the first, so the anchor's schema cannot bound its rows. */
@@ -319,30 +354,6 @@ public class ExternalMultiFileWarmAggregateFoldIT extends AbstractExternalDataSo
             StandardCharsets.UTF_8
         );
         return dir;
-    }
-
-    /** {@code COUNT(*)} over the corpus read at the anchor's three columns, which drops the wider part's rows. */
-    private long raggedNarrowCount(String name, Path dir) {
-        String dataset = registerDataset(
-            name,
-            globUri(dir, "*.csv"),
-            Map.of("format", "csv", "error_mode", "null_field", "schema_resolution", "first_file_wins", "file_sort_by", "name")
-        );
-        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS c = COUNT(*)"), TimeValue.timeValueMinutes(5))) {
-            return (Long) response.response().column(0).iterator().next();
-        }
-    }
-
-    /** {@code COUNT(*)} over the same corpus read at all four columns: it drops nothing, so its count is licensed. */
-    private long raggedUnionCount(String name, Path dir) {
-        String dataset = registerDataset(
-            name,
-            globUri(dir, "*.csv"),
-            Map.of("format", "csv", "error_mode", "null_field", "schema_resolution", "union_by_name")
-        );
-        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS c = COUNT(*)"), TimeValue.timeValueMinutes(5))) {
-            return (Long) response.response().column(0).iterator().next();
-        }
     }
 
     /**

@@ -1288,15 +1288,17 @@ public class ExternalSourceResolver {
                 if (inferred == null && path.equals(anchorPath)) {
                     inferred = anchorNativeTypes;
                 }
-                perFileInfo.put(
-                    path,
-                    new SchemaReconciliation.FileSchemaInfo(
-                        fileSchema,
-                        mapping,
-                        fileStatisticsForFirstFileWins(listing, extMetadata, cached),
-                        inferred
-                    )
-                );
+                // A file holding a column the anchor's schema has no slot for is read at a schema narrower than
+                // its own rows, and a row wider than the schema it is read at is dropped. Another read of the same
+                // file can keep those rows and license its count as the file's physical one — a by-name declared
+                // read bounds rows by the file's own header — and that licence is what carries the count into the
+                // entry these reads share. Both numbers are right and they are not the same number, so this read
+                // serves none of that file's statistics and its aggregates re-scan.
+                SourceStatistics fileStats = fileStatisticsForFirstFileWins(listing, extMetadata, cached);
+                if (fileStats != null && anchorBindsEveryColumnOf(fileSchema.attributes(), inferred)) {
+                    fileStats = null;
+                }
+                perFileInfo.put(path, new SchemaReconciliation.FileSchemaInfo(fileSchema, mapping, fileStats, inferred));
             }
             schemaMap = Collections.unmodifiableMap(perFileInfo);
         } else {
@@ -1312,6 +1314,22 @@ public class ExternalSourceResolver {
      * that harvest is the file's own, not a cross-file fold.
      */
     @Nullable
+    /**
+     * True when the file's own inferred columns include one the read schema has no slot for. {@code inferred} is
+     * this file's own column set where the resolve captured it; without it there is nothing to compare and the
+     * answer is false — the read-schema-blind cache's existing behaviour, unchanged.
+     */
+    private static boolean anchorBindsEveryColumnOf(List<Attribute> readSchema, @Nullable Map<String, DataType> inferred) {
+        if (inferred == null || inferred.isEmpty()) {
+            return false;
+        }
+        Set<String> bindable = new HashSet<>(readSchema.size());
+        for (Attribute attribute : readSchema) {
+            bindable.add(attribute.name());
+        }
+        return bindable.containsAll(inferred.keySet()) == false;
+    }
+
     private static SourceStatistics fileStatisticsForFirstFileWins(
         FileList listing,
         ExternalSourceMetadata extMetadata,
@@ -2611,6 +2629,10 @@ public class ExternalSourceResolver {
         gatherPerFile(listing, config, false, ActionListener.wrap(allMeta -> {
             collectReadConfigs(listing, allMeta, readConfigsOut);
             collectInferredTypes(listing, allMeta, inferredTypesOut);
+            if (someFileIsWiderThanTheAnchor(listing, inferredTypesOut)) {
+                listener.onResponse(null);
+                return;
+            }
             listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls, declaredTypeColumns));
         }, e -> {
             // Cancellation is not a "could not aggregate stats" condition — propagate it so the query aborts promptly
@@ -2636,13 +2658,18 @@ public class ExternalSourceResolver {
      * place on the first-file-wins rail where per-file metadata exists.
      */
     private static void collectReadConfigs(FileList listing, List<SourceMetadata> allMeta, Map<String, String> into) {
-        int count = Math.min(listing.fileCount(), allMeta.size());
-        for (int i = 0; i < count; i++) {
-            SourceMetadata meta = allMeta.get(i);
-            Map<String, Object> fileMeta = meta == null ? null : meta.sourceMetadata();
-            Object shape = fileMeta == null ? null : fileMeta.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
-            if (shape instanceof String str) {
-                into.put(listing.path(i).toString(), str);
+        // What THIS dataset will read each file at, which on an anchor-pinned glob is the anchor's schema for
+        // every file — not the configuration whichever read happens to have stamped a file's cache entry. The
+        // dataset-level promise is fulfilled by matching this value, so recording the entry's stamp instead let
+        // another dataset's licensed counts fill this one's promise, and a file's physical count is not this
+        // read's count where this read is narrower than the file. An unrecorded path accepts either, so a value
+        // must be recorded for every path.
+        SourceMetadata anchorMeta = allMeta.isEmpty() ? null : allMeta.get(0);
+        Map<String, Object> anchorFileMeta = anchorMeta == null ? null : anchorMeta.sourceMetadata();
+        Object anchorShape = anchorFileMeta == null ? null : anchorFileMeta.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
+        if (anchorShape instanceof String anchorStr) {
+            for (int i = 0; i < listing.fileCount(); i++) {
+                into.put(listing.path(i).toString(), anchorStr);
             }
         }
     }
@@ -2652,6 +2679,33 @@ public class ExternalSourceResolver {
      * {@link SchemaReconciliation.FileSchemaInfo#fileSchema} to the anchor, so stamp-time rewrite
      * and unsigned encode need this snapshot to see the file's own type.
      */
+    /**
+     * Whether some file holds a column the anchor's schema has no slot for. Every file of an anchor-pinned glob
+     * is read at the anchor's schema, bound by position, and a row wider than the schema it is read at is dropped
+     * — so this read does not count all of that file's rows. Another read can: a by-name declared read of the same
+     * file bounds rows by the file's own header, keeps them, and licenses its count as the file's physical one,
+     * which is what carries that count into the per-file entry the two reads share. Both numbers are right and
+     * they are not the same number, and the entry does not record which read measured which key, so this dataset's
+     * aggregate cannot be folded from those entries and its queries re-scan.
+     * <p>
+     * Pinned by {@code ExternalMultiFileWarmAggregateFoldIT#testALicensedCountDoesNotAnswerForAReadThatDropsWiderRows},
+     * which fails against this branch's starting commit only because the licence was narrower there.
+     */
+    private static boolean someFileIsWiderThanTheAnchor(FileList listing, Map<StoragePath, Map<String, DataType>> inferredTypes) {
+        Map<String, DataType> anchor = inferredTypes.get(listing.path(0));
+        if (anchor == null) {
+            return false; // the anchor's own columns are unknown, so there is nothing to compare against
+        }
+        for (int i = 1; i < listing.fileCount(); i++) {
+            Map<String, DataType> fileTypes = inferredTypes.get(listing.path(i));
+            if (fileTypes != null && anchor.keySet().containsAll(fileTypes.keySet()) == false) {
+                LOGGER.debug("multi-file stats aggregate refused: [{}] holds columns the anchor cannot bind", listing.path(i));
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static void collectInferredTypes(FileList listing, List<SourceMetadata> allMeta, Map<StoragePath, Map<String, DataType>> into) {
         int count = Math.min(listing.fileCount(), allMeta.size());
         for (int i = 0; i < count; i++) {
@@ -2682,6 +2736,10 @@ public class ExternalSourceResolver {
         gatherPerFile(listing, config, true, ActionListener.wrap(allMeta -> {
             collectReadConfigs(listing, allMeta, readConfigsOut);
             collectInferredTypes(listing, allMeta, inferredTypesOut);
+            if (someFileIsWiderThanTheAnchor(listing, inferredTypesOut)) {
+                listener.onResponse(null);
+                return;
+            }
             listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls, declaredTypeColumns));
         }, e -> {
             // A bare cancellation, or a read that failed because the query was cancelled mid-flight (the cache wraps

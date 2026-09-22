@@ -423,6 +423,33 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         );
     }
 
+    /**
+     * The same rule on the direct-to-block path, which is what production reads a large file with. A pinned
+     * schema means no sampling, so the rows reach the direct walkers rather than the prefetched-sample replay
+     * the test above exercises; the drop has to be attributed there too or one bad row costs the whole chunk.
+     */
+    public void testALostRowCostsOnlyItsOwnStripeOnTheDirectPath() throws Exception {
+        StringBuilder csv = new StringBuilder("id,n\n");
+        for (int i = 0; i < 40; i++) {
+            csv.append(i).append(',').append(i == 20 ? "1,2,3,4,5,6" : Integer.toString(i * 10)).append('\n');
+        }
+        List<Attribute> pinned = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.TRUE, null, false),
+            new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG, Nullability.TRUE, null, false)
+        );
+        List<Map<String, Object>> fragments = captureWithPolicy(
+            csv.toString().getBytes(StandardCharsets.UTF_8),
+            64L,
+            new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 1.0, false),
+            pinned
+        );
+        assertThat("the read must publish several stripes for this to say anything", fragments.size(), greaterThan(2));
+        long unlicensed = fragments.stream()
+            .filter(f -> f.containsKey(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY) == false)
+            .count();
+        assertEquals("exactly the stripe that lost the row loses its licence", 1L, unlicensed);
+    }
+
     /** A clean read of the same shape licenses every stripe, so the assertion above is about the loss. */
     public void testACleanLenientReadLicensesEveryStripe() throws Exception {
         StringBuilder csv = new StringBuilder("id,n\n");
@@ -445,8 +472,13 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
     }
 
     private List<Map<String, Object>> captureWithPolicy(byte[] bytes, long stripeSize, ErrorPolicy policy) throws Exception {
+        return captureWithPolicy(bytes, stripeSize, policy, null);
+    }
+
+    private List<Map<String, Object>> captureWithPolicy(byte[] bytes, long stripeSize, ErrorPolicy policy, List<Attribute> readSchema)
+        throws Exception {
         StorageObject o = memoryObject(bytes);
-        FormatReadContext ctx = FormatReadContext.builder()
+        FormatReadContext.Builder builder = FormatReadContext.builder()
             .projectedColumns(List.of("n"))
             .batchSize(1000)
             .recordAligned(true)
@@ -455,8 +487,11 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             .splitStartByte(0)
             .stats(0, stripeSize, true)
             .errorPolicy(policy)
-            .statsColumnScope(StripeColumnScope.PROJECTED)
-            .build();
+            .statsColumnScope(StripeColumnScope.PROJECTED);
+        if (readSchema != null) {
+            builder = builder.readSchema(readSchema);
+        }
+        FormatReadContext ctx = builder.build();
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         try (
             var handle = ExternalStatsCapture.bind(sink);

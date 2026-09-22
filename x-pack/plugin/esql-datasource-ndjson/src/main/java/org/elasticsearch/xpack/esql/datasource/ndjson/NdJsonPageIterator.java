@@ -702,6 +702,13 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                     if (statsStripeSize > 0) {
                         // Byte-range cover emit (shared with CSV): one fragment per stripe the chunk's byte range
                         // overlaps, including empty edge stripes. Safe-miss if row/offset alignment was lost.
+                        if (pageDecoder != null && pageDecoder.offsetBaselineLost()) {
+                            // Same reason forEachStripeRun safe-misses on it, applied where that check cannot
+                            // reach: a recovery whose remaining records never form a page still leaves their
+                            // offsets short, and a drop recorded at a short offset unlicenses a stripe that did
+                            // not lose it while the one that did keeps its licence.
+                            stripeCaptureDisabled = true;
+                        }
                         if (stripeCaptureDisabled == false && stripeHarvester.isEmpty() == false) {
                             // Where this read lost records, so the licence is refused at those stripes and
                             // granted at the rest; a loss with no offset behind it taints the whole read.

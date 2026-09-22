@@ -689,13 +689,12 @@ public class ExternalSourceCacheService implements Closeable {
             String expectedReadConfig = pending.pathToReadConfig().get(expected.getKey());
             if (expectedReadConfig != null) {
                 Object contributionReadConfig = stats.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
-                boolean licensed = Boolean.TRUE.equals(stats.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
-                // The licence lets a differently-read count stand in where the promise's own reads differ file to
-                // file, as a first_file_wins or union_by_name glob's do. A name-bound promise is not such a case:
-                // every path is promised the one declared read, so another read's count — licensed or not — is a
-                // different dataset's answer, and would be served to this one.
-                boolean mayCross = licensed && pending.datasetKey().isNameBound() == false;
-                if (Objects.equals(contributionReadConfig, expectedReadConfig) == false && mayCross == false) {
+                // A promise is the sum of what THIS dataset's reads counted, so only those reads may fill it.
+                // A licensed count is the file's physical record count, which is not the same claim: a read whose
+                // schema is narrower than a file's rows drops them, so the file's number is larger than the number
+                // this dataset's own scan produces. Letting a licensed count stand in here served exactly that
+                // wrong answer — pinned by ExternalMultiFileWarmAggregateFoldIT's ragged-corpus guard.
+                if (Objects.equals(contributionReadConfig, expectedReadConfig) == false) {
                     return null;
                 }
             }

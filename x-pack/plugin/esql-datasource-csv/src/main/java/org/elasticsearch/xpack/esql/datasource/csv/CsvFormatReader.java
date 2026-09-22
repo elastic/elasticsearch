@@ -5141,6 +5141,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     totalRowCount++;
                     if (captureStripeOffsets) {
                         directOffsets[dataIdx] = splitStartByte + recordReader.bytesRead() - recordReader.lastRecordBytes();
+                        // The direct walkers drop through onRowError like every other path; naming the row's
+                        // offset here is what lets the loss be charged to its own stripe rather than the read.
+                        droppedRowStartByte = directOffsets[dataIdx];
                     }
                     if (splitAndConvertDirect(recordReader.recordBuffer(), 0, recordReader.recordLength())) {
                         if (captureStripeOffsets) {
@@ -5186,6 +5189,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     totalRowCount++;
                     if (captureStripeOffsets) {
                         directOffsets[dataIdx] = splitStartByte + recordReader.bytesRead() - recordReader.lastRecordBytes();
+                        // The direct walkers drop through onRowError like every other path; naming the row's
+                        // offset here is what lets the loss be charged to its own stripe rather than the read.
+                        droppedRowStartByte = directOffsets[dataIdx];
                     }
                     if (splitAndConvertDirect(recordReader.recordBuffer(), 0, recordReader.recordLength())) {
                         if (useByteHint) {

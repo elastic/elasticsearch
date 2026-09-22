@@ -21,6 +21,14 @@ public class Clusters {
         return buildClusterSpec().build();
     }
 
+    /**
+     * The addresses the suite's REST client sends requests to. Any node can coordinate here; serverless replaces this class
+     * and sends everything to the search node, which is where its proxy routes {@code _query}.
+     */
+    static String testRestCluster(ElasticsearchCluster cluster) {
+        return cluster.getHttpAddresses();
+    }
+
     static LocalClusterSpecBuilder<ElasticsearchCluster> buildClusterSpec() {
         var spec = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)

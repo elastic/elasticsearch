@@ -1082,6 +1082,7 @@ groups:long | total:long
 
 fileMetadataKeepStarKeepsRequestedMetadata
 required_capability: external_source_file_metadata_columns
+required_capability: external_source_keep_star_keeps_file_metadata
 dataset: employees_no_mv: "{{employees_no_mv}}"
 
 // _file.size was named in METADATA, so KEEP * leaves it in scope and the aggregate can read it.

@@ -4062,6 +4062,14 @@ public class EsqlCapabilities {
          */
         FIX_AGGS_MULTIPLE_INPUT_FIELDS,
 
+        /**
+         * {@code KEEP *} retains a {@code _file.*} column named in the {@code METADATA} clause.
+         * Older coordinators omit those columns from star expansion, so a later reference fails
+         * verification with {@code Unknown column [_file.*]}. Tests that read the column after
+         * {@code KEEP *} gate on this capability.
+         */
+        EXTERNAL_SOURCE_KEEP_STAR_KEEPS_FILE_METADATA,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

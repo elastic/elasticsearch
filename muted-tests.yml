@@ -525,3 +525,6 @@ tests:
 - class: org.elasticsearch.index.store.FieldInfoCachingDirectoryTests
   method: testWeakReferenceReclaimsCanonical
   issue: https://github.com/elastic/elasticsearch/issues/159154
+- class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
+  method: testDeploymentSurvivesRestart {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/151923

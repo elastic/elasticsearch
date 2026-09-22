@@ -46,10 +46,14 @@ public sealed interface DatasetSchema permits DatasetSchema.FromAnchor, DatasetS
      * from the listing on every serve, which is purely CPU work, and each file's statistics are read where they are
      * read today — this resolve never gathered them.
      */
-    record FromAnchor(SchemaCacheEntry anchor) implements DatasetSchema {
+    record FromAnchor(SchemaCacheEntry anchor, List<String> readerNotices) implements DatasetSchema {
+        public FromAnchor {
+            readerNotices = List.copyOf(readerNotices);
+        }
+
         @Override
         public long estimatedBytes() {
-            return anchor.estimatedBytes();
+            return anchor.estimatedBytes() + noticesBytes(readerNotices);
         }
     }
 
@@ -58,12 +62,16 @@ public sealed interface DatasetSchema permits DatasetSchema.FromAnchor, DatasetS
      * read schema once, and for every file which of those it reads at, how its columns map, and what was learned
      * about it.
      */
-    record FromEveryFile(SchemaCacheEntry dataset, List<SchemaCacheEntry> fileSchemas, Map<FileFingerprint, FileShape> files)
-        implements
-            DatasetSchema {
+    record FromEveryFile(
+        SchemaCacheEntry dataset,
+        List<SchemaCacheEntry> fileSchemas,
+        Map<FileFingerprint, FileShape> files,
+        List<String> readerNotices
+    ) implements DatasetSchema {
         public FromEveryFile {
             fileSchemas = List.copyOf(fileSchemas);
             files = Map.copyOf(files);
+            readerNotices = List.copyOf(readerNotices);
         }
 
         /**
@@ -97,8 +105,21 @@ public sealed interface DatasetSchema permits DatasetSchema.FromAnchor, DatasetS
                 }
             }
             bytes += distinctMappings.size() * (64L + dataset.columnNames().length * 12L);
-            return bytes + filesBytes(perFile, files.size());
+            return bytes + filesBytes(perFile, files.size()) + noticesBytes(readerNotices);
         }
+    }
+
+    /**
+     * What each file's reader said while it was read — the per-path notice channel, which is not the one the
+     * reconcile writes to. Held so a served resolve can say it again; a resolve that reads no file would otherwise
+     * go quiet about it.
+     */
+    private static long noticesBytes(List<String> notices) {
+        long bytes = 0;
+        for (String notice : notices) {
+            bytes += 48 + notice.length() * 2L;
+        }
+        return bytes;
     }
 
     /** A per-file map's own overhead: a 16-byte fingerprint key and a map entry per file, on top of its values. */

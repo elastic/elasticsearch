@@ -68,7 +68,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
     /** A first_file_wins resolution: the anchor's schema, and nothing else. */
     private static DatasetSchema anchorResolution(int columns) {
-        return new DatasetSchema.FromAnchor(schemaEntry(columns));
+        return new DatasetSchema.FromAnchor(schemaEntry(columns), List.of());
     }
 
     /**
@@ -87,7 +87,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 new DatasetSchema.FromEveryFile.FileShape(0, null, inferredTypes)
             );
         }
-        return new DatasetSchema.FromEveryFile(schemaEntry(columns), List.of(schemaEntry(columns)), shapes);
+        return new DatasetSchema.FromEveryFile(schemaEntry(columns), List.of(schemaEntry(columns)), shapes, List.of());
     }
 
     public void testDatasetResolutionRoundTripsAndCountsHitsAndMisses() {

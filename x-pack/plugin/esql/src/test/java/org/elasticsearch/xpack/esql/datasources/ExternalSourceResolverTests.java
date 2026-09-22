@@ -4842,6 +4842,46 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * A resolve that reads no file must still say what reading the files said. Notices travel in two channels — the
+     * reconcile's own and each file reader's — and a served resolve runs neither, so both are stored on the entry and
+     * replayed from it.
+     * <p>
+     * The reader here emits a notice from every file, so the comparison is not between two empty lists: delete the
+     * replay and this fails.
+     */
+    public void testAServedResolveSaysWhatTheResolveThatFilledItSaid() throws Exception {
+        String readerNotice = "a null marker was left undecoded";
+        Settings cacheSettings = Settings.builder()
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
+            .build();
+        List<StorageEntry> two = List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        for (StorageEntry e : two) {
+            schemasByPath.put(e.path().toString(), List.of(attr("id", DataType.INTEGER)));
+        }
+        String glob = "s3://bucket/data/*.parquet";
+
+        for (FormatReader.SchemaResolution strategy : FormatReader.SchemaResolution.values()) {
+            CountingStorageProvider provider = new CountingStorageProvider(Map.of("s3://bucket/data/", two), schemasByPath);
+            Map<String, Map<String, Object>> pathConfigs = Map.of(glob, new HashMap<>(configFor(strategy)));
+            try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheSettings)) {
+                ExternalSourceResolver resolver = createResolverWithReader(
+                    provider,
+                    new StubFormatReader(schemasByPath, List.of(readerNotice)),
+                    cacheService
+                );
+                ExternalSourceResolution cold = resolveUnder(resolver, glob, pathConfigs, ResolutionDemand.SCHEMA_DISCOVERY);
+                assertThat("[" + strategy + "] the reader must say something to replay", cold.warnings(), hasItem(readerNotice));
+
+                ExternalSourceResolution served = resolveUnder(resolver, glob, pathConfigs, ResolutionDemand.SCHEMA_DISCOVERY);
+                assertEquals("[" + strategy + "] a served resolve must say what the cold one said", cold.warnings(), served.warnings());
+            }
+        }
+    }
+
+    /**
      * With no format declared on the dataset, the key takes the reading format from the resource pattern, exactly as
      * the read path does — and refuses to key at all when nothing claims the extension, because a cache is an
      * optimization and must never turn a resolvable read into a failure.
@@ -4908,7 +4948,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             short1.remove(listing.path(1));
             assertNull(
                 "a reconcile that said nothing about a file cannot be cached: the serve could not rebuild it",
-                ExternalSourceResolver.datasetSchemaOf(source.metadata(), listing, short1, List.of())
+                ExternalSourceResolver.datasetSchemaOf(source.metadata(), listing, short1, List.of(), List.of())
             );
 
             DatasetSchemaKey key = resolver.datasetSchemaKey(listing, Map.of(), null, FormatReader.SchemaResolution.UNION_BY_NAME);
@@ -4916,6 +4956,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 source.metadata(),
                 GlobExpander.fileListOf(List.of(two.get(0)), "s3://bucket/data/*.parquet"),
                 source.schemaMap(),
+                List.of(),
                 List.of()
             );
             assertNotNull(partial);
@@ -7011,9 +7052,16 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
 
         private final Map<String, List<Attribute>> schemasByPath;
+        private final List<String> noticePerFile;
 
         StubFormatReader(Map<String, List<Attribute>> schemasByPath) {
+            this(schemasByPath, List.of());
+        }
+
+        /** Emits {@code noticePerFile} from every file it reads, as a text reader emits notices of its own. */
+        StubFormatReader(Map<String, List<Attribute>> schemasByPath, List<String> noticePerFile) {
             this.schemasByPath = schemasByPath;
+            this.noticePerFile = noticePerFile;
         }
 
         @Override
@@ -7023,7 +7071,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             if (schema == null) {
                 throw new IllegalArgumentException("No schema configured for path: " + path);
             }
-            return new StubSourceMetadata(path, schema);
+            return new StubSourceMetadata(path, schema, noticePerFile);
         }
 
         @Override
@@ -7048,10 +7096,21 @@ public class ExternalSourceResolverTests extends ESTestCase {
     private static class StubSourceMetadata implements SourceMetadata {
         private final String location;
         private final List<Attribute> schema;
+        private final List<String> warnings;
 
         StubSourceMetadata(String location, List<Attribute> schema) {
+            this(location, schema, List.of());
+        }
+
+        StubSourceMetadata(String location, List<Attribute> schema, List<String> warnings) {
             this.location = location;
             this.schema = schema;
+            this.warnings = warnings;
+        }
+
+        @Override
+        public List<String> warnings() {
+            return warnings;
         }
 
         @Override

@@ -1089,18 +1089,24 @@ public class ExternalSourceResolver {
                 ? datasetSchemaKey(listing, fileConfig, datasetFormat, schemaResolution)
                 : null;
             if (schemaKey != null && cacheService.getDatasetSchema(schemaKey) instanceof DatasetSchema.FromAnchor cached) {
-                // What reading the anchor said, said again: a serve must not go quiet about it.
+                // What reading the anchor said, said again, each notice into the channel it came from: a serve must
+                // not go quiet about it. The reader's own notices are the per-path channel, not the schema one.
                 pendingSchemaWarnings.addAll(cached.anchor().warnings());
+                pendingMetadataWarnings.addAll(cached.readerNotices());
                 anchorListener.onResponse(buildMetadataFromCache(cached.anchor(), cached.anchor().toAttributes(), fileConfig));
                 return;
             }
             List<String> anchorNoticesBefore = pendingSchemaWarnings.snapshot();
+            List<String> anchorReaderNoticesBefore = pendingMetadataWarnings.snapshot();
             ActionListener<ExternalSourceMetadata> cachingAnchorListener = schemaKey == null
                 ? anchorListener
                 : ActionListener.wrap(anchorMetadata -> {
                     cacheService.putDatasetSchema(
                         schemaKey,
-                        new DatasetSchema.FromAnchor(datasetEntryOf(anchorMetadata, noticesSince(anchorNoticesBefore)))
+                        new DatasetSchema.FromAnchor(
+                            datasetEntryOf(anchorMetadata, noticesSince(pendingSchemaWarnings, anchorNoticesBefore)),
+                            noticesSince(pendingMetadataWarnings, anchorReaderNoticesBefore)
+                        )
                     );
                     anchorListener.onResponse(anchorMetadata);
                 }, listener::onFailure);
@@ -1888,7 +1894,8 @@ public class ExternalSourceResolver {
         ExternalSourceMetadata metadata,
         FileList listing,
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
-        List<String> warnings
+        List<String> warnings,
+        List<String> readerNotices
     ) {
         List<SchemaCacheEntry> fileSchemas = new ArrayList<>();
         Map<String, Integer> indexBySignature = new HashMap<>();
@@ -1911,7 +1918,7 @@ public class ExternalSourceResolver {
             files.put(listing.fileFingerprint(i), new DatasetSchema.FromEveryFile.FileShape(index, info.mapping(), info.inferredTypes()));
         }
         SchemaCacheEntry dataset = datasetEntryOf(metadata, warnings);
-        return new DatasetSchema.FromEveryFile(dataset, fileSchemas, files);
+        return new DatasetSchema.FromEveryFile(dataset, fileSchemas, files, readerNotices);
     }
 
     /** Names, types and nullabilities — what makes two files read at the same schema, without their attributes' ids. */
@@ -1957,8 +1964,10 @@ public class ExternalSourceResolver {
                     )
                 );
             }
-            // The reconcile that produced this emitted its warnings once; a served resolve must say the same things.
-            entry.dataset().warnings().forEach(pendingSchemaWarnings::add);
+            // The resolve that produced this said these things once; a served resolve says them again, each notice
+            // into the channel it came from.
+            pendingSchemaWarnings.addAll(entry.dataset().warnings());
+            pendingMetadataWarnings.addAll(entry.readerNotices());
             return new ExternalSourceResolution.ResolvedSource(
                 buildMetadataFromCache(entry.dataset(), entry.dataset().toAttributes(), config),
                 listing,
@@ -1996,6 +2005,13 @@ public class ExternalSourceResolver {
         return DatasetSchemaKeys.of(SchemaBreadth.of(schemaResolution), listing, format, storageConfig(config));
     }
 
+    /** The notices {@code buffer} has gained since {@code before}. */
+    private static List<String> noticesSince(NoticeBuffer buffer, List<String> before) {
+        List<String> added = new ArrayList<>(buffer.snapshot());
+        added.removeAll(before);
+        return added;
+    }
+
     /**
      * {@code metadata} as a cache entry: its schema, with every statistic dropped and NO connector configuration.
      * <p>
@@ -2006,13 +2022,6 @@ public class ExternalSourceResolver {
      * merged under the serving query's own configuration, so anything kept here would follow one query's settings —
      * the data source's credentials among them — onto another query's plan.
      */
-    /** The notices {@link #pendingSchemaWarnings} has gained since {@code before}. */
-    private List<String> noticesSince(List<String> before) {
-        List<String> added = new ArrayList<>(pendingSchemaWarnings.snapshot());
-        added.removeAll(before);
-        return added;
-    }
-
     private static SchemaCacheEntry datasetEntryOf(ExternalSourceMetadata metadata, List<String> warnings) {
         return SchemaCacheEntry.from(
             metadata.schema(),
@@ -2172,10 +2181,11 @@ public class ExternalSourceResolver {
                 return;
             }
         }
-        // Everything this rail says reaches the caller through pendingSchemaWarnings, which a served resolve never
-        // runs: the reconcile's widening notices, the partition shadow, and each file reader's own. They are captured
-        // as the difference this rail makes to the buffer, and replayed from the entry on a serve.
+        // Everything this rail says reaches the caller through two notice channels a served resolve never runs: the
+        // reconcile's widening notices and the partition shadow go to the schema channel, and each file reader's own
+        // go to the per-path one. Both are captured as the difference this rail makes, and replayed on a serve.
         List<String> noticesBefore = pendingSchemaWarnings.snapshot();
+        List<String> readerNoticesBefore = pendingMetadataWarnings.snapshot();
         long startNanos = System.nanoTime();
         DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(fileList, config, cacheable);
         readAllFileMetadata(fileList, config, cacheable, ActionListener.wrap(allMetadata -> {
@@ -2275,7 +2285,13 @@ public class ExternalSourceResolver {
 
                 Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = result.perFileInfo();
                 if (schemaKey != null) {
-                    DatasetSchema datasetSchema = datasetSchemaOf(extMetadata, fileList, schemaMap, noticesSince(noticesBefore));
+                    DatasetSchema datasetSchema = datasetSchemaOf(
+                        extMetadata,
+                        fileList,
+                        schemaMap,
+                        noticesSince(pendingSchemaWarnings, noticesBefore),
+                        noticesSince(pendingMetadataWarnings, readerNoticesBefore)
+                    );
                     if (datasetSchema != null) {
                         cacheService.putDatasetSchema(schemaKey, datasetSchema);
                     }

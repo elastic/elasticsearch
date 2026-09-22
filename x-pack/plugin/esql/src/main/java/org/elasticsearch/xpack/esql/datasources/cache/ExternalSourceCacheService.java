@@ -210,7 +210,7 @@ public class ExternalSourceCacheService implements Closeable {
             .build();
 
         logger.info(
-            "External source cache initialized: total=[{}], schema=[{}], datasetAggregate=[{}], datasetResolution=[{}], "
+            "External source cache initialized: total=[{}], schema=[{}], datasetAggregate=[{}], datasetSchema=[{}], "
                 + "listing=[{}], fileMetadataMaxEntries=[{}], listingTTL=[{}]",
             totalBudget,
             ByteSizeValue.ofBytes(schemaBudget),

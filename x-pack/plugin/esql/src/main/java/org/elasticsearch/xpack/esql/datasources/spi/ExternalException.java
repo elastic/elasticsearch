@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.esql.core.QlException;
  * <ul>
  *     <li>{@link ExternalClientException} &rarr; 400, the request pointed us at something we cannot
  *     read or decode (bad/unsupported input, missing object).</li>
+ *     <li>{@link ExternalCredentialsExpiredException} &rarr; 400, session or temporary credentials
+ *     used to read the store have expired or been rejected; refresh and re-run.</li>
  *     <li>{@link ExternalServerException} &rarr; 500, a bug or broken invariant in our own reading
  *     code.</li>
  *     <li>{@link ExternalUnavailableException} &rarr; 503, a retryable back-pressure /

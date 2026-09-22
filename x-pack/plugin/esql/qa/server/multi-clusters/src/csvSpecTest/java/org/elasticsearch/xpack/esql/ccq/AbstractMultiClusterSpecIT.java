@@ -61,6 +61,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOK
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_PLANNING_V1;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_INFO_COMMAND;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ML_ANOMALIES;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION;
@@ -283,6 +284,7 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         // MultiCluster CCS does not yet support VIEWS, due to rewriting FROM name to FROM *:name
         assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(VIEWS_WITH_NO_BRANCHING.capabilityName()));
         assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(VIEWS_WITH_BRANCHING.capabilityName()));
+        assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(ML_ANOMALIES.capabilityName()));
 
         assumeFalse(
             "Dense vector equality is not supported in CCS unless all nodes support it",

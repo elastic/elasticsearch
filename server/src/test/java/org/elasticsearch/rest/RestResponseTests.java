@@ -522,12 +522,12 @@ public class RestResponseTests extends ESTestCase {
         assertEquals(500, fields.get("http.response.status_code"));
     }
 
-    public void testSuppressedLoggingRecordsMissingRootCauseMessage() throws IOException {
+    public void testSuppressedLoggingOmitsAbsentRootCauseMessage() throws IOException {
         final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
 
         new RestResponse(channel, new ElasticsearchException("outer", new IllegalStateException()));
 
-        assertEquals("<missing>", lastLoggedFields().get("elasticsearch.error.root_cause.message"));
+        assertFalse(lastLoggedFields().containsKey("elasticsearch.error.root_cause.message"));
     }
 
     public void testSuppressedLoggingRecordsIndexAndShard() throws IOException {

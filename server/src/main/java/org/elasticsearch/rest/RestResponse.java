@@ -69,10 +69,6 @@ public final class RestResponse implements Releasable {
     ///
     private static final Logger SUPPRESSED_ERROR_LOGGER = LogManager.getLogger("rest.suppressed");
 
-    /// Recorded in place of a field whose value the exception did not carry, so that the field is present and a document is
-    /// never silently dropped from an aggregation over it.
-    private static final String NO_VALUE = "<missing>";
-
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(AbstractRestChannel.class);
 
     private final RestStatus status;
@@ -164,7 +160,7 @@ public final class RestResponse implements Releasable {
                     .field("url.path", channel.request().rawPath())
                     .field("http.response.status_code", status.getStatus())
                     .field("elasticsearch.error.root_cause.type", rootCause.getClass().getName())
-                    .field("elasticsearch.error.root_cause.message", Objects.requireNonNullElse(rootCause.getMessage(), NO_VALUE));
+                    .field("elasticsearch.error.root_cause.message", rootCause.getMessage());
                 if (causes.indexScoped() != null) {
                     message.field("elasticsearch.error.index", causes.indexScoped().getIndex().getName());
                     if (causes.indexScoped().getShardId() != null) {

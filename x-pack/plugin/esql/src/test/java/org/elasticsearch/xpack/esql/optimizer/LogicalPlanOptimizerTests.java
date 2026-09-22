@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
@@ -74,6 +75,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongBase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
@@ -164,6 +166,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -1026,7 +1029,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var aggs = agg.aggregates();
         assertThat(Expressions.names(aggs), contains("s", "f"));
         Alias as = as(aggs.get(0), Alias.class);
-        var aggFunc = as(as.child(), AggregateFunction.class);
+        var aggFunc = as(as.child(), Sum.class);
         assertThat(Expressions.name(aggFunc.field()), is("emp_no"));
         as = as(aggs.get(1), Alias.class);
         assertThat(Expressions.name(as.child()), is("first_name"));
@@ -4279,7 +4282,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.names(agg.aggregates()), contains("centroid"));
         assertTrue("Expected GEO_POINT aggregation for STATS", agg.aggregates().stream().allMatch(aggExp -> {
             var alias = as(aggExp, Alias.class);
-            var aggFunc = as(alias.child(), AggregateFunction.class);
+            var aggFunc = as(alias.child(), SpatialCentroid.class);
             var aggField = as(aggFunc.field(), FieldAttribute.class);
             return aggField.dataType() == GEO_POINT;
         }));
@@ -4306,7 +4309,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.names(agg.aggregates()), contains("centroid"));
         assertTrue("Expected GEO_POINT aggregation for STATS", agg.aggregates().stream().allMatch(aggExp -> {
             var alias = as(aggExp, Alias.class);
-            var aggFunc = as(alias.child(), AggregateFunction.class);
+            var aggFunc = as(alias.child(), SpatialCentroid.class);
             var aggField = as(aggFunc.field(), FieldAttribute.class);
             return aggField.dataType() == GEO_POINT;
         }));
@@ -10230,6 +10233,138 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * Aligned {@code DATE_TRUNC(1 year, hire_date) == ...} becomes
+     * {@code hire_date >= start AND hire_date < next}.
+     */
+    public void testDateTruncEqualsInvertsToTimestampRange() {
+        assertDateTruncYearEqualsInverts("""
+            FROM test
+            | WHERE DATE_TRUNC(1 year, hire_date) == "1986-01-01T00:00:00Z"
+            """);
+    }
+
+    /**
+     * Listing cannot fold a quoted interval ({@code DATE_TRUNC("1 year", ...)} stays KEYWORD).
+     * After analysis ImplicitCasting, invert sees a Period and produces the same range.
+     */
+    public void testDateTruncQuotedIntervalEqualsInvertsToTimestampRange() {
+        assertDateTruncYearEqualsInverts("""
+            FROM test
+            | WHERE DATE_TRUNC("1 year", hire_date) == "1986-01-01T00:00:00Z"
+            """);
+    }
+
+    private void assertDateTruncYearEqualsInverts(String query) {
+        long start = Instant.parse("1986-01-01T00:00:00Z").toEpochMilli();
+        long next = Instant.parse("1987-01-01T00:00:00Z").toEpochMilli();
+
+        var plan = plan(query);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        assertHireDateHalfOpenRange(filter.condition(), start, next);
+        as(filter.child(), EsRelation.class);
+    }
+
+    /**
+     * Non-aligned {@code DATE_TRUNC} equality is the empty range {@code field >= start AND field < start}.
+     */
+    public void testDateTruncNonAlignedEqualsIsEmpty() {
+        long start = Instant.parse("1986-01-01T00:00:00Z").toEpochMilli();
+
+        var plan = plan("""
+            FROM test
+            | WHERE DATE_TRUNC(1 year, hire_date) == "1986-06-01T00:00:00Z"
+            """);
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        assertHireDateHalfOpenRange(filter.condition(), start, start);
+        as(filter.child(), EsRelation.class);
+    }
+
+    /**
+     * Monotonic {@code DATE_EXTRACT("year", hire_date) == 1986} is the same half-open year range.
+     */
+    public void testDateExtractYearEqualsInvertsToTimestampRange() {
+        assertDateExtractYearEqualsInverts("""
+            FROM test
+            | WHERE DATE_EXTRACT("year", hire_date) == 1986
+            """);
+    }
+
+    /**
+     * Literal on the left must move before invert; otherwise the comparison is skipped.
+     */
+    public void testDateExtractYearEqualsLiteralOnTheLeftInverts() {
+        assertDateExtractYearEqualsInverts("""
+            FROM test
+            | WHERE 1986 == DATE_EXTRACT("year", hire_date)
+            """);
+    }
+
+    private void assertDateExtractYearEqualsInverts(String query) {
+        long start = Instant.parse("1986-01-01T00:00:00Z").toEpochMilli();
+        long next = Instant.parse("1987-01-01T00:00:00Z").toEpochMilli();
+
+        var plan = plan(query);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        assertHireDateHalfOpenRange(filter.condition(), start, next);
+        as(filter.child(), EsRelation.class);
+    }
+
+    public void testDateTruncDayAndWeekEqualsInverts() {
+        var day = plan("""
+            FROM test
+            | WHERE DATE_TRUNC(1 day, hire_date) == "1986-01-01T00:00:00Z"
+            """);
+        assertHireDateHalfOpenRange(
+            as(as(day, Limit.class).child(), Filter.class).condition(),
+            Instant.parse("1986-01-01T00:00:00Z").toEpochMilli(),
+            Instant.parse("1986-01-02T00:00:00Z").toEpochMilli()
+        );
+
+        // 1985-12-30 is Monday; 1 week uses WEEK_OF_WEEKYEAR, not a 7-day epoch bucket.
+        var week = plan("""
+            FROM test
+            | WHERE DATE_TRUNC(1 week, hire_date) == "1985-12-30T00:00:00Z"
+            """);
+        assertHireDateHalfOpenRange(
+            as(as(week, Limit.class).child(), Filter.class).condition(),
+            Instant.parse("1985-12-30T00:00:00Z").toEpochMilli(),
+            Instant.parse("1986-01-06T00:00:00Z").toEpochMilli()
+        );
+    }
+
+    /**
+     * Cyclic extracts stay as function comparisons; they are not a single timestamp interval.
+     */
+    public void testDateExtractMonthOfYearNotInverted() {
+        var plan = plan("""
+            FROM test
+            | WHERE DATE_EXTRACT("month_of_year", hire_date) == 7
+            """);
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var eq = as(filter.condition(), Equals.class);
+        as(eq.left(), DateExtract.class);
+        as(filter.child(), EsRelation.class);
+    }
+
+    private static void assertHireDateHalfOpenRange(Expression condition, long start, long next) {
+        var and = as(condition, And.class);
+        var gte = as(and.left(), GreaterThanOrEqual.class);
+        var lt = as(and.right(), LessThan.class);
+        assertThat(Expressions.name(gte.left()), equalTo("hire_date"));
+        assertThat(Expressions.name(lt.left()), equalTo("hire_date"));
+        assertThat(gte.right().fold(FoldContext.small()), equalTo(start));
+        assertThat(lt.right().fold(FoldContext.small()), equalTo(next));
+        assertThat(gte.right().dataType(), equalTo(DataType.DATETIME));
+        assertThat(lt.right().dataType(), equalTo(DataType.DATETIME));
+    }
+
+    /**
      * {@snippet lang="text":
      * Project[[to_long{r}#2754, to_integer{r}#2757]]
      * \_Eval[[TOLONG(string{f}#2761) AS to_long#2754, TOINTEGER(string{f}#2761) AS to_integer#2757]]
@@ -10347,7 +10482,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * Nested subqueries are not supported yet.
      */
     public void testNestedSubqueries() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeFalse("Requires nested subquery in FROM command disabled", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         VerificationException e = expectThrows(VerificationException.class, () -> planSubquery("""
             FROM test, (FROM test, (FROM languages
                                                       | WHERE language_code > 0))

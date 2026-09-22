@@ -194,6 +194,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testKnnLimitAppendedInNestedUnionAllBranchIsBranchOrderIndependent() {
+        // validate the fix to PushLimitToKnn
         runGoldenTest("""
                 FROM (FROM (FROM colors | LIMIT 10),
                      (FROM colors METADATA _score | WHERE knn(rgb_vector, "007800"))

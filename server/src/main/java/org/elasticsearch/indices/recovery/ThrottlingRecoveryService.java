@@ -105,7 +105,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     public static final Setting<Double> INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING = Setting.doubleSetting(
         "indices.recovery.max_concurrent_incoming_recoveries_per_heap_gb",
         Double.MAX_VALUE,
-        Double.MIN_VALUE,
+        Double.MIN_NORMAL,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -534,14 +534,18 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     }
 
     private void setMaxConcurrentRecoveries(int newMax) {
-        recoveriesThrottle.setMaxConcurrentRecoveries(newMax);
+        synchronized (this) {
+            recoveriesThrottle.setMaxConcurrentRecoveries(newMax);
+        }
         if (lifecycle.started() /* calls before start can (must) be ignored */) {
             fillSlots();
         }
     }
 
     private void setRelocationRecoveriesMaxProportion(RatioValue newProportion) {
-        recoveriesThrottle.setRelocationRecoveriesMaxProportion(newProportion.getAsRatio());
+        synchronized (this) {
+            recoveriesThrottle.setRelocationRecoveriesMaxProportion(newProportion.getAsRatio());
+        }
         if (lifecycle.started()) {
             fillSlots();
         }
@@ -650,8 +654,8 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             maxConcurrentRecoveriesPerHeapGb = newRatio;
         }
 
-        /// Returns the effective max concurrent relocation recoveries, derived from the provided effectiveMaxConcurrentRecoveries
-        /// and [#relocationRecoveriesMaxProportion].
+        /// Returns the effective max concurrent relocation recoveries, derived from the provided
+        /// effectiveMaxConcurrentRecoveries and [#relocationRecoveriesMaxProportion].
         int effectiveMaxConcurrentRelocationRecoveries(int effectiveMaxConcurrentRecoveries) {
             return (int) Math.ceil(effectiveMaxConcurrentRecoveries * relocationRecoveriesMaxProportion);
         }
@@ -659,11 +663,12 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         /// Computes the effective max concurrent recoveries, derived from [#maxConcurrentRecoveries] and
         /// [#maxConcurrentRecoveriesPerHeapGb].
         private int effectiveMaxConcurrentRecoveries() {
-            if (maxConcurrentRecoveriesPerHeapGb >= Double.MAX_VALUE || maxHeapBytes.getBytes() <= 0) {
+            if (maxConcurrentRecoveriesPerHeapGb == Double.MAX_VALUE) {
                 return maxConcurrentRecoveries;
             }
-            int heapBasedMax = (int) Math.ceil(maxHeapBytes.getGbFrac() * maxConcurrentRecoveriesPerHeapGb);
-            return Math.min(maxConcurrentRecoveries, heapBasedMax);
+            final double heapInGb = maxHeapBytes.getGbFrac();
+            assert heapInGb > 0;
+            return Math.min(maxConcurrentRecoveries, (int) Math.ceil(heapInGb * maxConcurrentRecoveriesPerHeapGb));
         }
 
         void incrementRunning(PendingRecovery recoveryNowRunning) {

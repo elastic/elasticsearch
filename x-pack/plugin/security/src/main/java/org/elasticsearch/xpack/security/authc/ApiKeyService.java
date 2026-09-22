@@ -251,7 +251,6 @@ public class ApiKeyService implements Closeable {
     private static final long EVICTION_MONITOR_INTERVAL_SECONDS = 300L; // 5 minutes
     private static final long EVICTION_MONITOR_INTERVAL_NANOS = EVICTION_MONITOR_INTERVAL_SECONDS * 1_000_000_000L;
     private static final long EVICTION_WARNING_THRESHOLD = 15L * EVICTION_MONITOR_INTERVAL_SECONDS; // 15 eviction per sec = 4500 in 5 min
-    private static final String REST_API_KEY_COUNTS_AGG_NAME = "rest_api_key_counts";
     private final AtomicLong lastEvictionCheckedAt = new AtomicLong(0);
     private final LongAdder evictionCounter = new LongAdder();
 
@@ -1836,6 +1835,7 @@ public class ApiKeyService implements Closeable {
         } else if (projectSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
             listener.onFailure(projectSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
         } else {
+            final FiltersAggregationBuilder countsAgg = restApiKeyCountsAggregation(clock.instant().toEpochMilli());
             final SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
                 .setQuery(
                     QueryBuilders.boolQuery()
@@ -1850,7 +1850,7 @@ public class ApiKeyService implements Closeable {
                 )
                 .setSize(0)
                 .setTrackTotalHits(false)
-                .addAggregation(restApiKeyCountsAggregation(clock.instant().toEpochMilli()))
+                .addAggregation(countsAgg)
                 .request();
             projectSecurityIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
@@ -1860,7 +1860,7 @@ public class ApiKeyService implements Closeable {
                     TransportSearchAction.TYPE,
                     request,
                     ActionListener.wrap(searchResponse -> {
-                        final Filters counts = searchResponse.getAggregations().get(REST_API_KEY_COUNTS_AGG_NAME);
+                        final Filters counts = searchResponse.getAggregations().get(countsAgg.getName());
                         listener.onResponse(
                             Map.of(
                                 "active",
@@ -1884,7 +1884,7 @@ public class ApiKeyService implements Closeable {
     private static FiltersAggregationBuilder restApiKeyCountsAggregation(long nowMillis) {
         final QueryBuilder notInvalidated = QueryBuilders.termQuery("api_key_invalidated", false);
         return new FiltersAggregationBuilder(
-            REST_API_KEY_COUNTS_AGG_NAME,
+            "rest_api_key_counts",
             new KeyedFilter(
                 "active",
                 QueryBuilders.boolQuery()

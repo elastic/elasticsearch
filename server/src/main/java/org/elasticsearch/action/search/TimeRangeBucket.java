@@ -20,6 +20,8 @@ import java.util.List;
  * {@link SearchRequestAttributesExtractor#TIME_RANGE_FILTER_FROM_ATTRIBUTE}
  * (via {@link SearchRequestAttributesExtractor#introspectTimeRange})
  * and the blob-cache read/miss age histogram bucket boundaries.
+ * Blob-cache age histograms are intended for search-node observability; indexing-tier
+ * region timestamps are not fully supported, so dashboards should filter to search nodes.
  *
  * <p>{@link #resolve} maps negative ages (future timestamps) to {@link #FifteenMinutes} and
  * everything beyond 14 days to {@link #OlderThan14Days}. The same thresholds converted to hours

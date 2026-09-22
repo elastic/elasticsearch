@@ -74,6 +74,8 @@ public class BlobCacheMetrics {
     public static final String BLOB_CACHE_MISS_TOTAL = "es.blob_cache.miss.total";
     /**
      * Age of each cache-path read in hours, bucketed with the {@link TimeRangeBucket} thresholds.
+     * Intended for <em>search-node</em> observability: indexing-tier region timestamps are not
+     * fully supported, so dashboards should filter these histograms to search nodes.
      * Warming does not record here (same as {@link #BLOB_CACHE_READ_TOTAL}). Sentinel timestamps
      * (negative) and {@linkplain #recordBypassRead() bypass} reads are omitted so the distribution
      * reflects region ages that hit the cache. Those events still increment {@link #BLOB_CACHE_READ_TOTAL};
@@ -82,6 +84,8 @@ public class BlobCacheMetrics {
     public static final String BLOB_CACHE_READ_AGE = "es.blob_cache.read.age.histogram";
     /**
      * Age of each cache-path miss in hours, bucketed with the {@link TimeRangeBucket} thresholds.
+     * Intended for <em>search-node</em> observability: indexing-tier region timestamps are not
+     * fully supported, so dashboards should filter these histograms to search nodes.
      * Warming does not record here (same as {@link #BLOB_CACHE_MISS_TOTAL}). Sentinel timestamps
      * (negative) and {@linkplain #recordBypassRead() bypass} reads are omitted so the distribution
      * reflects region ages that missed the cache. Those events still increment {@link #BLOB_CACHE_MISS_TOTAL};
@@ -202,8 +206,6 @@ public class BlobCacheMetrics {
         Decay
     }
 
-    // Async gauges registered after this(...) capture this.readCount / this.missCount.
-    @SuppressWarnings("this-escape")
     public BlobCacheMetrics(MeterRegistry meterRegistry, TimeProvider timeProvider) {
         this(
             meterRegistry.registerLongCounter(
@@ -293,13 +295,16 @@ public class BlobCacheMetrics {
             meterRegistry.registerDoubleHistogram(
                 BLOB_CACHE_READ_AGE,
                 "The age of data served by a cache read (warming not included), in hours; "
+                    + "use for search-node observability only (indexing-tier timestamps are not fully supported); "
                     + "sentinel timestamps and bypasses are omitted",
                 "hours",
                 TimeRangeBucket.histogramHourBoundaries()
             ),
             meterRegistry.registerDoubleHistogram(
                 BLOB_CACHE_MISS_AGE,
-                "The age of data that missed the cache (warming not included), in hours; sentinel timestamps and bypasses are omitted",
+                "The age of data that missed the cache (warming not included), in hours; "
+                    + "use for search-node observability only (indexing-tier timestamps are not fully supported); "
+                    + "sentinel timestamps and bypasses are omitted",
                 "hours",
                 TimeRangeBucket.histogramHourBoundaries()
             ),

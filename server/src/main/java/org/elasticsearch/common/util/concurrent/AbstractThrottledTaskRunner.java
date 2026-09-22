@@ -93,16 +93,6 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
             "time tasks spent in the queue for throttled task runner " + taskRunnerName,
             "milliseconds"
         );
-        registerGauges(meterRegistry, this.taskRunnerName, metricName);
-    }
-
-    public String getTaskRunnerName() {
-        return taskRunnerName;
-    }
-
-    // register metrics to get task-queue depth and currently-running tasks
-    private void registerGauges(MeterRegistry meterRegistry, String taskRunnerName, String metricName) {
-        final var prefix = THROTTLED_TASK_RUNNER_METRIC_PREFIX + metricName;
         meterRegistry.registerLongAsyncGauge(
             prefix + THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE,
             "number of tasks waiting in the queue for throttled task runner " + taskRunnerName,
@@ -115,6 +105,10 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
             "count",
             () -> new LongWithAttributes(runningTasks())
         );
+    }
+
+    public String getTaskRunnerName() {
+        return taskRunnerName;
     }
 
     /**

@@ -710,3 +710,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/159951
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   issue: https://github.com/elastic/elasticsearch/issues/159953
+- class: org.elasticsearch.xpack.esql.action.ExternalDistributedNodeUnavailableIT
+  method: testNodeGoneFromClusterStateBetweenPlanningAndDispatchIsReassigned
+  issue: https://github.com/elastic/elasticsearch/issues/159977

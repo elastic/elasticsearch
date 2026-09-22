@@ -756,6 +756,45 @@ public class CollectionUtilsTests extends ESTestCase {
         assertArrayEquals(original[1], copy[1], 0.0);
     }
 
+    public void testDeepCopyIntArray() {
+        int[] original = new int[] { 10, 20, 30 };
+        int[] copy = deepCopy(original);
+        assertNotSame(original, copy);
+        assertArrayEquals(original, copy);
+        copy[0] = 99;
+        assertNotEquals(99, original[0]);
+    }
+
+    public void testDeepCopyStringArray() {
+        // String[] is the typical result of String#split() in a script processor
+        String[] original = "foo.bar.baz".split("\\.");
+        String[] copy = deepCopy(original);
+        assertNotSame(original, copy);
+        assertArrayEquals(original, copy);
+        original[0] = "mutated";
+        assertThat(copy[0], equalTo("foo"));
+    }
+
+    public void testDeepCopyStringArrayNestedInMap() {
+        // exercises the path where an Object array appears as a map value
+        String[] arr = "a.b.c".split("\\.");
+        Map<String, Object> original = new HashMap<>(Map.of("parts", arr));
+        Map<String, Object> copy = deepCopy(original);
+        assertNotSame(original, copy);
+        String[] copiedArr = (String[]) copy.get("parts");
+        assertNotSame(arr, copiedArr);
+        assertArrayEquals(arr, copiedArr);
+        arr[0] = "mutated";
+        assertThat(copiedArr[0], equalTo("a"));
+    }
+
+    public void testDeepCopyObjectArrayWithNullElements() {
+        Object[] original = new Object[] { "hello", null, 42 };
+        Object[] copy = deepCopy(original);
+        assertNotSame(original, copy);
+        assertArrayEquals(original, copy);
+    }
+
     public void testDeepCopyNestedMapInList() {
         Map<String, Object> inner = new HashMap<>(Map.of("key", "value"));
         List<Object> list = new ArrayList<>(List.of(inner));

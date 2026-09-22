@@ -99,7 +99,10 @@ public class DecodedVectorTests extends ESTestCase {
      * hex path, so the call falls through to the base64 path and fails.
      */
     public void testDecodeHexWithParseHexDisabled() {
-        int dims = randomDims();
+        // A single-byte vector hex-encodes to 2 characters, which are also valid base64 decoding to exactly 1 byte —
+        // i.e. the expected vector length — so the base64 fallback would succeed and no exception would be thrown.
+        // Require dims >= 16 to rule out that degenerate case.
+        int dims = randomCompatibleDimensions(elementType, 16, 128);
         int vectorLength = elementType.vectorLength(dims);
         byte[] raw = randomByteVector(vectorLength);
         String hex = HexFormat.of().formatHex(raw);

@@ -767,7 +767,7 @@ public class RestResponseTests extends ESTestCase {
         assertThat(chain.indexScoped(), sameInstance(deep));
     }
 
-    public void testSuppressedLoggingKeepsFailureLocationAcrossTransport() throws IOException {
+    public void testSuppressedLoggingOmitsFallbackLocationAcrossTransport() throws IOException {
         final ShardSearchFailure shardFailure = new ShardSearchFailure(
             new IllegalStateException("engine is closed"),
             new SearchShardTarget("node", new ShardId("my-index", "uuid", 3), null)
@@ -787,11 +787,38 @@ public class RestResponseTests extends ESTestCase {
 
         new RestResponse(new DetailedExceptionRestChannel(new FakeRestRequest()), received);
 
+        // NOTE: serialization rebuilds the cause and the shard failures separately, so the fallback can no longer tell that
+        // they describe the same failure. A location carried on the cause chain itself still survives, as it is metadata
         final Map<String, ?> fields = lastLoggedFields();
         assertEquals(IllegalStateException.class.getName(), fields.get("elasticsearch.error.root_cause.type"));
         assertEquals("engine is closed", fields.get("elasticsearch.error.root_cause.message"));
-        assertEquals("my-index", fields.get("elasticsearch.error.index"));
-        assertEquals(3, fields.get("elasticsearch.error.shard"));
+        assertFalse(fields.containsKey("elasticsearch.error.index"));
+        assertFalse(fields.containsKey("elasticsearch.error.shard"));
+    }
+
+    public void testSuppressedLoggingOmitsLocationForIndistinguishableFailures() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+        final ShardSearchFailure shardFailure = new ShardSearchFailure(
+            new IllegalStateException("engine is closed"),
+            new SearchShardTarget("node", new ShardId("my-index", "uuid", 3), null)
+        );
+
+        new RestResponse(
+            channel,
+            new SearchPhaseExecutionException(
+                "fetch",
+                "Phase failed",
+                new IllegalStateException("engine is closed"),
+                new ShardSearchFailure[] { shardFailure }
+            )
+        );
+
+        // NOTE: the coordinator failure and the shard failure share a class and a message but are unrelated, so comparing those
+        // rather than identity would attribute the failure to a shard it did not happen on
+        final Map<String, ?> fields = lastLoggedFields();
+        assertEquals("engine is closed", fields.get("elasticsearch.error.root_cause.message"));
+        assertFalse(fields.containsKey("elasticsearch.error.index"));
+        assertFalse(fields.containsKey("elasticsearch.error.shard"));
     }
 
     public void testSuppressedLoggingSerialisesToLegacyJson() throws IOException {

@@ -316,14 +316,6 @@ public final class RestResponse implements Releasable {
         }
     }
 
-    /**
-     * Whether two throwables describe the same failure. Transport serialization writes the search exception's cause and its
-     * shard failures separately, so a round trip yields equal but distinct objects and identity cannot be used.
-     */
-    private static boolean isSameFailure(Throwable one, Throwable other) {
-        return one.getClass() == other.getClass() && Objects.equals(one.getMessage(), other.getMessage());
-    }
-
     private static ESLogMessage suppressedErrorMessage(RestChannel channel, RestStatus status, Exception e) {
         final CauseChain causes = walkCauseChain(e);
         final Throwable rootCause = causes.deepest();
@@ -351,11 +343,13 @@ public final class RestResponse implements Releasable {
             // NOTE: a shard failure records where it happened on the ShardSearchFailure rather than on the exception it wraps, so
             // the cause chain carries no index. The search failure is looked up on the chain because cross cluster search wraps it
             // NOTE: a coordinator failure is passed to the exception explicitly and then wins over the guessed shard cause, so the
-            // shard is attached only when the recorded cause is the one that shard failed with
+            // shard is attached only when the recorded cause is the one that shard failed with. Identity is required because two
+            // unrelated failures can share a class and a message, which means the fallback is skipped once transport
+            // serialization has rebuilt the cause and the shard failures as separate objects
             final ShardSearchFailure[] shardFailures = search.shardFailures();
             if (shardFailures.length > 0
                 && shardFailures[0].index() != null
-                && isSameFailure(walkCauseChain(shardFailures[0].getCause()).deepest(), causes.deepest())) {
+                && walkCauseChain(shardFailures[0].getCause()).deepest() == causes.deepest()) {
                 message.field("elasticsearch.error.index", shardFailures[0].index());
                 message.field("elasticsearch.error.shard", shardFailures[0].shardId());
             }

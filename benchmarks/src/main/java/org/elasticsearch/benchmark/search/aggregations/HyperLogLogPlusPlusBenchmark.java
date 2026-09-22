@@ -9,6 +9,8 @@
 
 package org.elasticsearch.benchmark.search.aggregations;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.BytesRefStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.search.aggregations.metrics.HyperLogLogPlusPlus;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -21,6 +23,7 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.runner.Runner;
@@ -99,6 +102,9 @@ public class HyperLogLogPlusPlusBenchmark {
     )
     String scenario;
 
+    /** Number of simulated shards for the merge benchmark. */
+    private static final int NUM_SHARDS = 4;
+
     /** Pre-generated hashes, one per pair. */
     private long[] hashes;
 
@@ -108,8 +114,14 @@ public class HyperLogLogPlusPlusBenchmark {
     /** Parsed from {@link #scenario}; used to initialize and iterate over HLL buckets. */
     private int numGroups;
 
+    /** Pre-built partial HLL states, one per simulated shard, for the merge benchmark. */
+    private HyperLogLogPlusPlus[] sources;
+
+    /** Pre-serialized HLL states (via writeTo) for the combine benchmark: [shard][group]. */
+    private BytesRef[][] serialized;
+
     @Setup
-    public void setUp() {
+    public void setUp() throws Exception {
         int colon = scenario.indexOf(':');
         String profile = scenario.substring(0, colon);
         numGroups = Integer.parseInt(scenario.substring(colon + 1));
@@ -133,6 +145,40 @@ public class HyperLogLogPlusPlusBenchmark {
             }
         }
         fisherYates(random, hashes, groupIds, totalPairs);
+
+        // Build per-shard partial states for the merge benchmark.
+        sources = new HyperLogLogPlusPlus[NUM_SHARDS];
+        int total = hashes.length;
+        for (int s = 0; s < NUM_SHARDS; s++) {
+            sources[s] = new HyperLogLogPlusPlus(precision, BigArrays.NON_RECYCLING_INSTANCE, numGroups);
+            int start = (int) ((long) s * total / NUM_SHARDS);
+            int end = (int) ((long) (s + 1) * total / NUM_SHARDS);
+            for (int i = start; i < end; i++) {
+                sources[s].collect(groupIds[i], hashes[i]);
+            }
+        }
+
+        // Pre-serialize each shard's per-group state for the combine benchmark.
+        buildSerialized();
+    }
+
+    @TearDown
+    public void tearDown() {
+        for (HyperLogLogPlusPlus src : sources) {
+            src.close();
+        }
+    }
+
+    private void buildSerialized() throws Exception {
+        serialized = new BytesRef[NUM_SHARDS][numGroups];
+        BytesRefStreamOutput out = new BytesRefStreamOutput();
+        for (int s = 0; s < NUM_SHARDS; s++) {
+            for (int g = 0; g < numGroups; g++) {
+                out.reset();
+                sources[s].writeTo(g, out);
+                serialized[s][g] = BytesRef.deepCopyOf(out.get());
+            }
+        }
     }
 
     private static int groupCardinality(String profile, Random random) {
@@ -173,11 +219,7 @@ public class HyperLogLogPlusPlusBenchmark {
         }
     }
 
-    /**
-     * Collects all pre-generated (hash, groupId) pairs into a fresh {@link HyperLogLogPlusPlus},
-     * then sums cardinalities across all groups. The sum is returned to prevent dead-code
-     * elimination by the JIT.
-     */
+    /** Collects all pre-generated hashes into a fresh HLL, returns cardinality sum to prevent DCE. */
     @Benchmark
     public long collect() {
         try (HyperLogLogPlusPlus hll = new HyperLogLogPlusPlus(precision, BigArrays.NON_RECYCLING_INSTANCE, numGroups)) {
@@ -190,6 +232,40 @@ public class HyperLogLogPlusPlusBenchmark {
             long sum = 0;
             for (int group = 0; group < numGroups; group++) {
                 sum += hll.cardinality(group);
+            }
+            return sum;
+        }
+    }
+
+    /** Combines pre-serialized BytesRef shard states, exercising the full deserialization path. */
+    @Benchmark
+    public long combine() throws Exception {
+        try (HyperLogLogPlusPlus dest = new HyperLogLogPlusPlus(precision, BigArrays.NON_RECYCLING_INSTANCE, numGroups)) {
+            for (int s = 0; s < NUM_SHARDS; s++) {
+                for (int g = 0; g < numGroups; g++) {
+                    dest.combine(g, serialized[s][g]);
+                }
+            }
+            long sum = 0;
+            for (int g = 0; g < numGroups; g++) {
+                sum += dest.cardinality(g);
+            }
+            return sum;
+        }
+    }
+
+    /** Merges per-shard HLL states directly (no serialization), returns cardinality sum to prevent DCE. */
+    @Benchmark
+    public long merge() {
+        try (HyperLogLogPlusPlus dest = new HyperLogLogPlusPlus(precision, BigArrays.NON_RECYCLING_INSTANCE, numGroups)) {
+            for (HyperLogLogPlusPlus src : sources) {
+                for (int g = 0; g < numGroups; g++) {
+                    dest.merge(g, src, g);
+                }
+            }
+            long sum = 0;
+            for (int g = 0; g < numGroups; g++) {
+                sum += dest.cardinality(g);
             }
             return sum;
         }

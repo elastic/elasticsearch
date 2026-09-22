@@ -133,6 +133,10 @@ setup:
 
 ---
 "Knn search with hex string for byte field - cannot decode string" :
+  - requires:
+      cluster_features: [ "mapper.dense_vector.unified_value_formats" ]
+      reason: "unified value formats changed error message"
+
   - do:
       catch: /must be a valid base64 or hex string/
       search:

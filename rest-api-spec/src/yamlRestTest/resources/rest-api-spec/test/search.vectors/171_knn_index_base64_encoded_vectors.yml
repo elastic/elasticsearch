@@ -72,6 +72,10 @@ setup:
 
 ---
 "Fail to index invalid base64 on float field":
+  - requires:
+      cluster_features: [ "mapper.dense_vector.unified_value_formats" ]
+      reason: "unified value formats changed error message"
+
   - do:
       catch: /must be a valid base64 string/
       index:
@@ -97,6 +101,10 @@ setup:
 
 ---
 "Fail to index wrong-dimension hex on byte field":
+  - requires:
+      cluster_features: [ "mapper.dense_vector.unified_value_formats" ]
+      reason: "unified value formats changed error message"
+
   # '807f0a0b' is valid hex encoding 4 bytes; field expects 3 dimensions
   - do:
       catch: /dimensions \[4\] than the expected \[3\]/
@@ -110,6 +118,10 @@ setup:
 
 ---
 "Fail to index undecodable string on byte field":
+  - requires:
+      cluster_features: [ "mapper.dense_vector.unified_value_formats" ]
+      reason: "unified value formats changed error message"
+
   - do:
       catch: /must be a valid base64 or hex string/
       index:

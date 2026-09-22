@@ -147,8 +147,6 @@ The following search functions are available for datasets:
 
 One `FROM` still resolves at most 8 producers. That cap is separate from `FORK`'s own limit of 8 branches. The `max_branch_count` query pragma (default 20) bounds the producers under the `FORK`, so branches times sources can be rejected before either per-command cap is reached. Eight `FORK` branches over a `FROM` that resolves to 8 producers is 64 producers, which exceeds the default.
 
-A `FORK` branch that is itself a subquery is rejected, and so is a second `FORK` in the same query.
-
 ## Limitations
 
 :::{include} _snippets/data-federation/experimental-warning.md

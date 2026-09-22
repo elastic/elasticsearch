@@ -65,11 +65,6 @@ public final class SourceFanInUnionAll extends UnionAll {
     }
 
     @Override
-    public SourceFanInUnionAll refreshOutput() {
-        return new SourceFanInUnionAll(source(), children(), refreshedOutput());
-    }
-
-    @Override
     public LogicalPlan pruneEmptyBranches(Predicate<LogicalPlan> isEmpty) {
         List<LogicalPlan> kept = new ArrayList<>(children().size());
         for (LogicalPlan child : children()) {

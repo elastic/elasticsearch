@@ -5082,6 +5082,71 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    public void testForkFourBranchesOverFiveDatasets() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        List<String> datasets = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            String name = "fork_cap5_ds" + i;
+            registerDataset(name, "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+            datasets.add(name);
+        }
+        // Each dataset has emp_no 1, 2, and 3. Five producers under four FORK branches is 20 leaves.
+        String query = "FROM "
+            + String.join(", ", datasets)
+            + " | FORK (WHERE emp_no == 1) (WHERE emp_no == 2) (WHERE emp_no == 3) (WHERE emp_no <= 3)"
+            + " | STATS c = COUNT(*) BY _fork | SORT _fork";
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(4));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(5L));
+            assertThat(rows.get(0).get(1).toString(), equalTo("fork1"));
+            assertThat(((Number) rows.get(1).get(0)).longValue(), equalTo(5L));
+            assertThat(rows.get(1).get(1).toString(), equalTo("fork2"));
+            assertThat(((Number) rows.get(2).get(0)).longValue(), equalTo(5L));
+            assertThat(rows.get(2).get(1).toString(), equalTo("fork3"));
+            assertThat(((Number) rows.get(3).get(0)).longValue(), equalTo(15L));
+            assertThat(rows.get(3).get(1).toString(), equalTo("fork4"));
+        }
+    }
+
+    public void testForkFourBranchesOverFourDatasetsAndTenIndices() throws Exception {
+        List<String> sources = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            String index = "fork_cap_idx" + i;
+            assertAcked(
+                client().admin().indices().prepareCreate(index).setMapping("emp_no", "type=integer", "first_name", "type=keyword")
+            );
+            prepareIndex(index).setSource(Map.of("emp_no", 1, "first_name", "Idx")).get();
+            sources.add(index);
+        }
+        client().admin().indices().prepareRefresh("fork_cap_idx*").get();
+
+        registerDataSource("local_ds", Map.of());
+        for (int i = 0; i < 4; i++) {
+            String dataset = "fork_cap4_ds" + i;
+            registerDataset(dataset, "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+            sources.add(dataset);
+        }
+        // The ten indices are one producer, so this FROM is 5 producers. Four FORK branches make 20 leaves.
+        // emp_no == 1 matches every index document and one row from each dataset.
+        String query = "FROM "
+            + String.join(", ", sources)
+            + " | FORK (WHERE emp_no == 1) (WHERE emp_no == 2) (WHERE emp_no == 3) (WHERE emp_no <= 3)"
+            + " | STATS c = COUNT(*) BY _fork | SORT _fork";
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(4));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(14L));
+            assertThat(rows.get(0).get(1).toString(), equalTo("fork1"));
+            assertThat(((Number) rows.get(1).get(0)).longValue(), equalTo(4L));
+            assertThat(rows.get(1).get(1).toString(), equalTo("fork2"));
+            assertThat(((Number) rows.get(2).get(0)).longValue(), equalTo(4L));
+            assertThat(rows.get(2).get(1).toString(), equalTo("fork3"));
+            assertThat(((Number) rows.get(3).get(0)).longValue(), equalTo(22L));
+            assertThat(rows.get(3).get(1).toString(), equalTo("fork4"));
+        }
+    }
+
     public void testForkOverSourceOnlyView() throws Exception {
         registerDataSource("local_ds", Map.of());
         registerDataset("fork_view_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));

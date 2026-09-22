@@ -100,26 +100,54 @@ public final class DeclaredSchemaResolver {
      * and never sees the physical names; a {@code path} rename is applied at the reader-facing boundary via
      * {@link PhysicalNames} (physical names then reach by-name readers; text readers read positionally). The two lists
      * pair position-for-position.
+     * <p>
+     * {@code sampledOut} holds declared columns that were absent from the inferred schema because the sample did not
+     * see them (sparse columns in sample-derived formats such as NDJSON). These columns are appended to {@code output}
+     * and {@code fileSchema} at their declared type; the caller must also include them in every per-file schema so the
+     * reader looks them up by name. Empty when the schema is complete (Parquet/ORC, headered CSV/TSV) or when no
+     * declared column was missed by the sample.
      */
-    public record Overlaid(List<Attribute> output, List<Attribute> fileSchema) {}
+    public record Overlaid(List<Attribute> output, List<Attribute> fileSchema, List<Attribute> sampledOut) {
+        /** Convenience form: no sampled-out columns (schema is complete or all declared columns were found). */
+        public Overlaid(List<Attribute> output, List<Attribute> fileSchema) {
+            this(output, fileSchema, List.of());
+        }
+    }
 
     /**
      * Apply a non-strict ({@code dynamic: true}) mapping over an inferred schema: every declared column overrides the
      * inferred column of the same physical name — renamed to its logical name and pinned to its declared type — while
      * undeclared inferred columns pass through unchanged. A declared column whose physical name is absent from the
-     * inferred schema is an error (it references a column the source does not have).
+     * inferred schema is an error when the schema is complete (every column in the source is listed, e.g. a CSV header
+     * or a Parquet footer); for sample-derived schemas (NDJSON, headerless CSV/TSV) the column is kept at its declared
+     * type instead.
      */
     public static Overlaid overlayNonStrict(List<Attribute> inferred, DatasetMapping mapping) {
-        return overlayNonStrict(inferred, mapping, false);
+        return overlayNonStrict(inferred, mapping, false, true);
     }
 
     /**
      * As {@link #overlayNonStrict(List, DatasetMapping)} but {@code lenient} controls the unmatched-declared-column
      * policy: strict ({@code false}) errors when a declared column is absent from {@code inferred} (used against the
      * unified schema, where every declared column must appear); lenient ({@code true}) skips it (used per-file, where
-     * a column may legitimately be absent from one file under union-by-name).
+     * a column may legitimately be absent from one file under union-by-name). {@code schemaIsComplete} is assumed true
+     * (schema came from a header or file footer, not a sample).
      */
     public static Overlaid overlayNonStrict(List<Attribute> inferred, DatasetMapping mapping, boolean lenient) {
+        return overlayNonStrict(inferred, mapping, lenient, true);
+    }
+
+    /**
+     * Full form: {@code schemaIsComplete} controls whether a declared column absent from {@code inferred} is an error
+     * ({@code true} — schema is authoritative, e.g. CSV header or Parquet footer) or is kept at its declared type and
+     * returned in {@link Overlaid#sampledOut()} ({@code false} — schema was reconstructed from a bounded sample, e.g.
+     * NDJSON or headerless CSV/TSV). {@code lenient} is orthogonal: it governs per-file union-by-name skipping and is
+     * unaffected by {@code schemaIsComplete}.
+     * <p>
+     * Callers that know the completeness use this overload directly; the two-argument entry points default to
+     * {@code schemaIsComplete = true} (existing behavior, suitable for all callers that do not distinguish).
+     */
+    static Overlaid overlayNonStrict(List<Attribute> inferred, DatasetMapping mapping, boolean lenient, boolean schemaIsComplete) {
         DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
         if (mappings == null || mappings.properties().isEmpty()) {
             return new Overlaid(inferred, inferred);
@@ -137,16 +165,27 @@ public final class DeclaredSchemaResolver {
         for (Attribute a : inferred) {
             inferredNames.add(a.name());
         }
-        // Every physical a declared column reads must exist in the (authoritative unified) inferred schema.
-        if (lenient == false) {
-            List<String> missing = logicalByPhysical.keySet().stream().filter(p -> inferredNames.contains(p) == false).sorted().toList();
-            if (missing.isEmpty() == false) {
-                throw new IllegalArgumentException("declared columns not found in the source: " + missing);
+        // Declared columns whose physical name is absent from the inferred schema.
+        List<String> missing = lenient
+            ? List.of()
+            : logicalByPhysical.keySet().stream().filter(p -> inferredNames.contains(p) == false).sorted().toList();
+        List<Attribute> sampledOut;
+        if (missing.isEmpty()) {
+            sampledOut = List.of();
+        } else if (schemaIsComplete) {
+            // Schema is authoritative (e.g. CSV header, Parquet footer): missing declared column is a real error.
+            throw new IllegalArgumentException("declared columns not found in the source: " + missing);
+        } else {
+            // Sample-derived schema (NDJSON, headerless CSV/TSV): the column may be sparse and simply not seen.
+            // Append it at its declared type; the reader will look it up by name and null-fill absent records.
+            sampledOut = new ArrayList<>(missing.size());
+            for (String physical : missing) {
+                sampledOut.add(new ReferenceAttribute(Source.EMPTY, null, logicalByPhysical.get(physical), typeByPhysical.get(physical)));
             }
         }
         // Walk inferred: a declared column overrides the inferred column of its physical name (renamed to its logical
         // name, retyped) at that column's position; undeclared inferred columns pass through unchanged.
-        List<Attribute> output = new ArrayList<>(inferred.size());
+        List<Attribute> output = new ArrayList<>(inferred.size() + sampledOut.size());
         for (Attribute a : inferred) {
             DataType declaredType = typeByPhysical.get(a.name());
             if (declaredType != null) {
@@ -155,6 +194,7 @@ public final class DeclaredSchemaResolver {
                 output.add(a);
             }
         }
+        output.addAll(sampledOut);
         // A move whose logical name collides with a surviving (undeclared) inferred column would produce two output
         // columns with the same name (declare logical `y` with path `x` when the file also has an undeclared `y`).
         // Reject against the authoritative unified schema (lenient == false); PUT cannot catch this — it needs the file.
@@ -170,7 +210,8 @@ public final class DeclaredSchemaResolver {
         }
         // Both lists carry LOGICAL names; a `path` move is physicalized at the reader boundary via PhysicalNames, so
         // the operator and reconciliation never see physical names.
-        return new Overlaid(output, output);
+        List<Attribute> sampledOutFinal = sampledOut.isEmpty() ? List.of() : List.copyOf(sampledOut);
+        return new Overlaid(List.copyOf(output), List.copyOf(output), sampledOutFinal);
     }
 
     /**

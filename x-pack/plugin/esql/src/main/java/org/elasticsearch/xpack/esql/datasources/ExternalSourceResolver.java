@@ -3814,6 +3814,32 @@ public class ExternalSourceResolver {
     static final Set<String> COERCING_FILE_TYPED_FORMATS = Set.of("parquet", "orc");
 
     /**
+     * Whether the schema this read produced is a <em>complete</em> column list — every column in the source is named —
+     * or a <em>sample-derived</em> one that may omit sparse or late-appearing columns.
+     * <p>
+     * File-typed formats (Parquet, ORC) derive their schema from the file footer, which is authoritative: every column
+     * the file contains is listed. CSV and TSV with a header row are complete for the same reason — the header names
+     * every column regardless of whether any sampled row carries a value. NDJSON and headerless CSV/TSV build their
+     * column set from a bounded prefix of records; a column whose first non-null value sits past the sample window is
+     * absent from the inferred schema even though the data has it.
+     * <p>
+     * A declared column absent from a complete schema is a typo the user wants reported. A declared column absent from
+     * a sample-derived schema may simply be sparse — it must not be rejected.
+     * <p>
+     * {@code header_row} defaults to {@code true} for CSV/TSV, so an absent key means complete.
+     */
+    private static boolean isSchemaComplete(String sourceType, Map<String, Object> config) {
+        if (FILE_TYPED_FORMATS.contains(sourceType)) {
+            return true;
+        }
+        if ("csv".equals(sourceType) || "tsv".equals(sourceType)) {
+            Object v = config != null ? config.get("header_row") : null;
+            return v == null || Boolean.TRUE.equals(v) || "true".equalsIgnoreCase(String.valueOf(v));
+        }
+        return false;
+    }
+
+    /**
      * The declaration-vs-source violations detectable without reading file content: a declared column colliding with a
      * hive partition key. Every declaration resolution path (strict single/multi and the non-strict overlay) funnels
      * through this one guard so enforcement stays uniform and a future path cannot silently skip a check. The
@@ -3984,7 +4010,13 @@ public class ExternalSourceResolver {
         if (fileTyped) {
             rejectUncoercibleFileTypedRetypes(inferred.schema(), inferred.sourceType(), declaredMapping);
         }
-        DeclaredSchemaResolver.Overlaid unified = DeclaredSchemaResolver.overlayNonStrict(inferred.schema(), declaredMapping, false);
+        boolean schemaIsComplete = isSchemaComplete(inferred.sourceType(), inferred.config());
+        DeclaredSchemaResolver.Overlaid unified = DeclaredSchemaResolver.overlayNonStrict(
+            inferred.schema(),
+            declaredMapping,
+            false,
+            schemaIsComplete
+        );
         DeclaredReadSpec declaredReadSpec = declaredReadSpecOf(declaredMapping);
         // S1 boundary: the warm-aggregate _stats.* map on sourceMetadata is keyed PHYSICAL and holds INFERRED-type values;
         // the declared overlay renames/retypes the plan afterwards. Rekey renames (a pure `path` move changes no value, so
@@ -4007,8 +4039,8 @@ public class ExternalSourceResolver {
                 }
                 DataType declaredType = overlaidTypes.get(logical);
                 DataType inferredType = inferredTypes.get(physical);
-                // inferredType == null is unreachable (overlayNonStrict(lenient=false) above rejects a declared column
-                // absent from the unified schema), but poison defensively rather than trust an unkeyed stat.
+                // inferredType == null: declared column was absent from the sample (sparse field in a sample-derived
+                // schema). No inferred stat exists, so poison to prevent stale pushdowns from a missing-column entry.
                 if (me.getValue().format() != null || inferredType == null || inferredType != declaredType) {
                     poisonColumns.add(logical);
                 }
@@ -4055,14 +4087,27 @@ public class ExternalSourceResolver {
                 declaredMapping,
                 true
             );
-            String perFileReadConfig = ReadConfigFingerprint.of(perFile.fileSchema(), declaredReadSpec);
+            // Sampled-out declared columns (absent from the unified inferred schema because the sample did not reach
+            // them) are appended to every per-file schema so the reader looks them up by name and null-fills records
+            // that do not carry the field. Under union-by-name, sampledOut() is empty whenever the column appeared in
+            // at least one file's inferred schema — the lenient per-file overlay correctly skips truly absent columns
+            // in the other files, leaving their column-mapping slots as null-fill, which is the intended behavior.
+            List<Attribute> perFileSchema;
+            if (unified.sampledOut().isEmpty()) {
+                perFileSchema = perFile.fileSchema();
+            } else {
+                ArrayList<Attribute> extended = new ArrayList<>(perFile.fileSchema());
+                extended.addAll(unified.sampledOut());
+                perFileSchema = List.copyOf(extended);
+            }
+            String perFileReadConfig = ReadConfigFingerprint.of(perFileSchema, declaredReadSpec);
             if (expectedReadConfig == null) {
                 expectedReadConfig = perFileReadConfig;
             } else if (expectedReadConfig.equals(perFileReadConfig) == false) {
                 perFileReadConfigsDisagree = true;
             }
             ColumnMapping mapping = hasDeclaredColumns
-                ? SchemaReconciliation.computeMapping(dataOnlyUnifiedOverlaid, perFile.fileSchema())
+                ? SchemaReconciliation.computeMapping(dataOnlyUnifiedOverlaid, perFileSchema)
                 : info.mapping();
             // PRE-retype file types, physical-keyed, so the stats boundaries recover the file's real inferred types
             // (the split-level footer normalize and the resolve/commit pinned-column safe-miss), not the overlaid
@@ -4083,7 +4128,7 @@ public class ExternalSourceResolver {
             overlaidSchemaMap.put(
                 e.getKey(),
                 new SchemaReconciliation.FileSchemaInfo(
-                    new ExternalSchema(perFile.fileSchema()),
+                    new ExternalSchema(perFileSchema),
                     mapping,
                     info.statistics(),
                     preRetypeInferredTypes

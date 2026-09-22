@@ -2816,6 +2816,208 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat("the absent declared column must emit an absentDeclaredColumnMessage Warning header on NDJSON", warnings, not(empty()));
     }
 
+    /**
+     * A declared column that is sparse in the NDJSON file (present in some records but not in the first
+     * {@code schema_sample_size} records) must be queryable under {@code dynamic: true}.
+     * <p>
+     * Before the fix: the overlay rejected the dataset with "declared columns not found in the source: [spin_id]"
+     * because the sample-derived schema did not list {@code spin_id}. After the fix: the column is accepted and the
+     * reader looks it up by name in each record, returning {@code null} for records that lack it.
+     */
+    public void testSampledOutDeclaredColumnReadsItsValues() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        // Record 1: no spin_id. Record 2: has spin_id. schema_sample_size=1 ensures the sample only sees record 1,
+        // so the inferred schema has only emp_no and first_name — spin_id is absent from the sample.
+        Path ndjson = createTempFile("dataset-sampled-out-", ".ndjson");
+        Files.writeString(
+            ndjson,
+            String.join("\n", "{\"emp_no\":1,\"first_name\":\"Alice\"}", "{\"emp_no\":2,\"first_name\":\"Bob\",\"spin_id\":\"B001\"}")
+                + "\n"
+        );
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("spin_id", new DatasetFieldMapping("keyword", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "ndjson_sampled_out",
+                    "local_ds",
+                    ndjson.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "ndjson", "schema_sample_size", 1)),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM ndjson_sampled_out | STATS rows = COUNT(*), present = COUNT(spin_id)"))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat("total row count", rows.get(0).get(0), equalTo(2L));
+            assertThat("spin_id non-null count", rows.get(0).get(1), equalTo(1L));
+        }
+    }
+
+    /**
+     * A dataset with a sampled-out declared column must not block a query that does not use that column.
+     * Before the fix, {@code COUNT(*)} was rejected even though it never referenced {@code spin_id}.
+     */
+    public void testSampledOutDeclaredColumnDoesNotBlockACount() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path ndjson = createTempFile("dataset-sampled-out-count-", ".ndjson");
+        Files.writeString(
+            ndjson,
+            String.join("\n", "{\"emp_no\":1,\"first_name\":\"Alice\"}", "{\"emp_no\":2,\"first_name\":\"Bob\",\"spin_id\":\"B001\"}")
+                + "\n"
+        );
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("spin_id", new DatasetFieldMapping("keyword", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "ndjson_sampled_out_count",
+                    "local_ds",
+                    ndjson.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "ndjson", "schema_sample_size", 1)),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM ndjson_sampled_out_count | STATS count = COUNT(*)"))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat("total row count", rows.get(0).get(0), equalTo(2L));
+        }
+    }
+
+    /**
+     * {@code dynamic: true} and {@code dynamic: false} must return the same values for a sparse declared column.
+     * Before the fix: the {@code dynamic: true} registration threw; {@code dynamic: false} returned the 1 value correctly.
+     */
+    public void testBothDynamicModesAgreeOnASampledOutColumn() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path ndjson = createTempFile("dataset-dynamic-agree-", ".ndjson");
+        Files.writeString(
+            ndjson,
+            String.join("\n", "{\"emp_no\":1,\"first_name\":\"Alice\"}", "{\"emp_no\":2,\"first_name\":\"Bob\",\"spin_id\":\"B001\"}")
+                + "\n"
+        );
+
+        // Register same file under dynamic: true (the fix enables this)
+        Map<String, DatasetFieldMapping> propertiesDynamic = new LinkedHashMap<>();
+        propertiesDynamic.put("spin_id", new DatasetFieldMapping("keyword", null));
+        DatasetMapping mappingDynamic = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, propertiesDynamic));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "ndjson_dynamic_true",
+                    "local_ds",
+                    ndjson.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "ndjson", "schema_sample_size", 1)),
+                    mappingDynamic
+                )
+            )
+        );
+
+        // Register same file under dynamic: false (baseline that always worked)
+        Map<String, DatasetFieldMapping> propertiesStrict = new LinkedHashMap<>();
+        propertiesStrict.put("emp_no", new DatasetFieldMapping("integer", null));
+        propertiesStrict.put("first_name", new DatasetFieldMapping("keyword", null));
+        propertiesStrict.put("spin_id", new DatasetFieldMapping("keyword", null));
+        DatasetMapping mappingStrict = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, propertiesStrict));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "ndjson_dynamic_false",
+                    "local_ds",
+                    ndjson.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "ndjson", "schema_sample_size", 1)),
+                    mappingStrict
+                )
+            )
+        );
+
+        long dynamicTruePresent;
+        try (var response = run(syncEsqlQueryRequest("FROM ndjson_dynamic_true | STATS present = COUNT(spin_id)"))) {
+            dynamicTruePresent = (Long) getValuesList(response).get(0).get(0);
+        }
+        long dynamicFalsePresent;
+        try (var response = run(syncEsqlQueryRequest("FROM ndjson_dynamic_false | STATS present = COUNT(spin_id)"))) {
+            dynamicFalsePresent = (Long) getValuesList(response).get(0).get(0);
+        }
+        assertThat(
+            "dynamic:true and dynamic:false must agree on the declared sparse column count",
+            dynamicTruePresent,
+            equalTo(dynamicFalsePresent)
+        );
+        assertThat("spin_id is present in exactly 1 of 2 records", dynamicTruePresent, equalTo(1L));
+    }
+
+    /**
+     * A declared synthetic column ({@code col2}) that is absent from the sampled rows of a headerless
+     * CSV must be queryable under {@code dynamic: true}.
+     * <p>
+     * Headerless CSV names columns positionally ({@code col0}, {@code col1}, …). When
+     * {@code schema_sample_size: 1} and the sample only sees the first row (2 columns wide), the
+     * inferred schema has {@code col0} and {@code col1} — {@code col2} is absent. Declaring {@code col2}
+     * should be accepted: the per-file schema is widened to 3 columns, the row-width tripwire widens
+     * accordingly, and a row that carries a third field delivers its value for {@code col2}.
+     * <p>
+     * Before the fix: the overlay rejected the dataset with
+     * {@code "declared columns not found in the source: [col2]"}.
+     * After the fix: the column is accepted; the second row's third field is returned as {@code col2},
+     * while the first row null-fills it.
+     */
+    public void testSampledOutSyntheticColumnIsDeclarable() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        // Row 1: 2 columns. Row 2: 3 columns. schema_sample_size=1 means only row 1 is sampled,
+        // so the inferred schema has col0 and col1 — col2 is "sampled out".
+        Path csv = createTempFile("dataset-headerless-sampled-out-", ".csv");
+        Files.writeString(csv, "1,Alice\n2,Bob,Extra\n");
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("col2", new DatasetFieldMapping("keyword", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "csv_headerless_sampled_out",
+                    "local_ds",
+                    csv.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv", "header_row", false, "schema_sample_size", 1)),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM csv_headerless_sampled_out | STATS rows = COUNT(*), present = COUNT(col2)"))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat("total row count", rows.get(0).get(0), equalTo(2L));
+            assertThat("col2 non-null count", rows.get(0).get(1), equalTo(1L));
+        }
+    }
+
     public void testDeclaredTypeConflictingWithPhysicalParquetTypeRejected() throws Exception {
         // Parquet columns carry their own type. A declared type with a defined read-time coercion (e.g. long->datetime,
         // long->keyword) is coerced; one with NO coercion (long->ip here — the ip mapper only ingests string tokens) is

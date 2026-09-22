@@ -254,9 +254,9 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     }
 
     public void testMvInRangeWithExclusiveBoundsPushesInclusiveSuperset() throws IOException {
-        // The open interval (100, 400): both boundary values are false, but every pushed bound — the statistics
-        // predicate, the page index and the row-level mask — goes in inclusive regardless of the options. The
-        // superset must cost pruning, never rows. The mv_in_range analogue of the strict-truth cases below.
+        // The open interval (100, 400): both boundary values are false. The statistics predicate and the page index
+        // take the bound inclusively whatever the options say, while the row mask reads it exactly. The superset at the
+        // chunk level must cost pruning, never rows. The mv_in_range analogue of the strict-truth cases below.
         runDifferential(mvInRangeExclusive(ID, DataType.LONG, 100L, 400L));
     }
 
@@ -1047,8 +1047,8 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
             if (row.get(((ReferenceAttribute) mvInRange.field()).name()) == null) {
                 return Boolean.FALSE;
             }
-            // include_lower / include_upper default to true. Every pushed bound goes in inclusive whatever they say,
-            // so an exclusive option is where the pushed superset is strictly wider than the truth.
+            // include_lower / include_upper default to true. The chunk-level bound goes in inclusive whatever they say,
+            // so an exclusive option is where the pushed superset is strictly wider than the truth; the row mask is exact.
             Boolean lower = cmpOrdered(row, mvInRange.field(), mvInRange.lower(), 1, boundOption(mvInRange.options(), "include_lower"));
             Boolean upper = cmpOrdered(row, mvInRange.field(), mvInRange.upper(), -1, boundOption(mvInRange.options(), "include_upper"));
             return Boolean.TRUE.equals(lower) && Boolean.TRUE.equals(upper);

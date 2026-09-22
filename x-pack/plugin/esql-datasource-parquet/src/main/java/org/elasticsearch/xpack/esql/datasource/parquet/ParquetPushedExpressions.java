@@ -26,6 +26,7 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
@@ -1618,7 +1619,7 @@ final class ParquetPushedExpressions {
             if (value == null || value instanceof List) {
                 return null; // a list-valued mv_contains is "contains all of these", not an equality
             }
-            return evaluateComparison(new Equals(mv.source(), mv.left(), mv.right(), null), block, value, rowCount, dictCache);
+            return evaluateComparison(mv, new Equals(mv.source(), mv.left(), mv.right(), null), block, value, rowCount, dictCache);
         }
         if (expr instanceof MvIntersects mv) {
             Block block = singleValuedBlock(mv.left(), blocks);
@@ -1641,7 +1642,7 @@ final class ParquetPushedExpressions {
             if (literals.isEmpty()) {
                 return null;
             }
-            return evaluateIn(new In(mv.source(), mv.left(), literals), block, rowCount, dictCache);
+            return evaluateIn(mv, new In(mv.source(), mv.left(), literals), block, rowCount, dictCache);
         }
         if (expr instanceof MvInRange mv) {
             Block block = singleValuedBlock(mv.field(), blocks);
@@ -1660,7 +1661,7 @@ final class ParquetPushedExpressions {
             EsqlBinaryComparison exact = mv.includeBound()
                 ? new GreaterThanOrEqual(mv.source(), mv.field(), mv.bound(), null)
                 : new GreaterThan(mv.source(), mv.field(), mv.bound(), null);
-            return evaluateComparison(exact, block, bound, rowCount, dictCache);
+            return evaluateComparison(mv, exact, block, bound, rowCount, dictCache);
         }
         if (expr instanceof MvLess mv) {
             Block block = singleValuedBlock(mv.field(), blocks);
@@ -1671,7 +1672,7 @@ final class ParquetPushedExpressions {
             EsqlBinaryComparison exact = mv.includeBound()
                 ? new LessThanOrEqual(mv.source(), mv.field(), mv.bound(), null)
                 : new LessThan(mv.source(), mv.field(), mv.bound(), null);
-            return evaluateComparison(exact, block, bound, rowCount, dictCache);
+            return evaluateComparison(mv, exact, block, bound, rowCount, dictCache);
         }
         if (expr instanceof And and) {
             WordMask left = evaluateExpression(and.left(), blocks, rowCount, intermediateMask, dictCache);
@@ -1851,7 +1852,7 @@ final class ParquetPushedExpressions {
     private static Block singleValuedBlock(Expression field, Map<String, Block> blocks) {
         if (field instanceof NamedExpression ne) {
             Block block = blocks.get(ne.name());
-            return block == null || block.mayHaveMultivaluedFields() || block instanceof DoubleBlock ? null : block;
+            return block == null || block.mayHaveMultivaluedFields() || block.elementType() == ElementType.DOUBLE ? null : block;
         }
         return null;
     }
@@ -1899,6 +1900,22 @@ final class ParquetPushedExpressions {
     }
 
     private static WordMask evaluateComparison(
+        EsqlBinaryComparison bc,
+        Block block,
+        Object literal,
+        int rowCount,
+        @Nullable Map<Expression, boolean[]> dictCache
+    ) {
+        return evaluateComparison(bc, bc, block, literal, rowCount, dictCache);
+    }
+
+    /**
+     * As above, with the dictionary cache keyed on {@code cacheKey} rather than on the comparison itself. The mv_ arms
+     * build their scalar sibling fresh for each batch, so keying on it would miss every time and leave another bitmap
+     * behind until the row group ends; they pass their own node, which is the same instance for the whole query.
+     */
+    private static WordMask evaluateComparison(
+        Expression cacheKey,
         EsqlBinaryComparison bc,
         Block block,
         Object literal,
@@ -1968,7 +1985,7 @@ final class ParquetPushedExpressions {
             // per row group.
             BytesRef val = toByteRef(literal);
             Predicate<BytesRef> matcher = bytesRefComparisonMatcher(bc, val);
-            boolean[] dictMatches = memoizedDictionaryMatches(dictCache, bc, obb.getDictionaryVector(), matcher);
+            boolean[] dictMatches = memoizedDictionaryMatches(dictCache, cacheKey, obb.getDictionaryVector(), matcher);
             applyDictionaryMatches(obb, dictMatches, mask, rowCount);
         } else if (block instanceof BytesRefBlock bb) {
             BytesRef val = toByteRef(literal);
@@ -2063,6 +2080,17 @@ final class ParquetPushedExpressions {
     }
 
     private static WordMask evaluateIn(In inExpr, Block block, int rowCount, @Nullable Map<Expression, boolean[]> dictCache) {
+        return evaluateIn(inExpr, inExpr, block, rowCount, dictCache);
+    }
+
+    /** As above, with the dictionary cache keyed on {@code cacheKey}; see {@link #evaluateComparison}. */
+    private static WordMask evaluateIn(
+        Expression cacheKey,
+        In inExpr,
+        Block block,
+        int rowCount,
+        @Nullable Map<Expression, boolean[]> dictCache
+    ) {
         List<Object> values = new ArrayList<>();
         for (Expression item : inExpr.list()) {
             Object val = literalValueOf(item);
@@ -2137,7 +2165,7 @@ final class ParquetPushedExpressions {
             for (Object v : values) {
                 refSet.add(toByteRef(v));
             }
-            boolean[] dictMatches = memoizedDictionaryMatches(dictCache, inExpr, obb.getDictionaryVector(), refSet::contains);
+            boolean[] dictMatches = memoizedDictionaryMatches(dictCache, cacheKey, obb.getDictionaryVector(), refSet::contains);
             applyDictionaryMatches(obb, dictMatches, mask, rowCount);
         } else if (block instanceof BytesRefBlock bb) {
             Set<BytesRef> refSet = new HashSet<>();

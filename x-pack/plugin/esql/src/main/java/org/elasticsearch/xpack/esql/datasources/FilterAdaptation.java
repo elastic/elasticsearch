@@ -54,8 +54,9 @@ import java.util.Set;
  *   <li>{@code NOT(child)}: if child is null → TRUE; if child is TRUE → null</li>
  * </ul>
  * <p>
- * RECHECK semantics guarantee correctness: the adapted filter only affects I/O optimization
- * (row-group/stripe skipping), never row-level correctness.
+ * RECHECK keeps a retained FilterExec, but it re-checks only the rows the reader returns, and the Parquet reader's
+ * row mask drops rows before that. So an adapted filter that is stricter than the original loses rows for good: an
+ * expression that cannot be answered for a file must be left unpushed rather than assumed true or false.
  */
 public final class FilterAdaptation {
 
@@ -97,6 +98,9 @@ public final class FilterAdaptation {
         List<Expression> adapted = new ArrayList<>(filterConjuncts.size());
         for (Expression conjunct : filterConjuncts) {
             Expression result = adaptExpression(conjunct, fileColumnNames, fileColumnTypes);
+            if (result == UNKNOWN_SENTINEL) {
+                continue; // nothing can be assumed about this conjunct for this file, so push none of it
+            }
             if (result == null) {
                 return List.of();
             }
@@ -112,6 +116,15 @@ public final class FilterAdaptation {
      * Used internally to distinguish TRUE (remove from AND) from null (FALSE, remove entire AND).
      */
     private static final Expression TRUE_SENTINEL = new Literal(Source.EMPTY, Boolean.TRUE, DataType.BOOLEAN);
+
+    /**
+     * An expression whose value for this file is neither known true nor known false, so no answer may be assumed for it
+     * in either direction. Distinct from {@link #TRUE_SENTINEL}, which an enclosing AND absorbs, and from {@code null},
+     * which an enclosing OR absorbs: absorbing an unknown arm makes the conjunct looser or stricter than the truth
+     * depending on how many negations enclose it, and the reader's row mask drops rows with no second chance. It
+     * therefore propagates through every connective, and the whole conjunct is left unpushed for this file.
+     */
+    private static final Expression UNKNOWN_SENTINEL = new Literal(Source.EMPTY, Boolean.TRUE, DataType.BOOLEAN);
 
     /**
      * Recursively adapts a single expression for the file's column set and types.
@@ -158,11 +171,14 @@ public final class FilterAdaptation {
         // FilterExec answers it.
         String mvColumn = mvFieldColumn(expr);
         if (mvColumn != null) {
-            return fileColumnNames.contains(mvColumn) && fileColumnTypes.containsKey(mvColumn) == false ? expr : TRUE_SENTINEL;
+            return fileColumnNames.contains(mvColumn) && fileColumnTypes.containsKey(mvColumn) == false ? expr : UNKNOWN_SENTINEL;
         }
         if (expr instanceof And and) {
             Expression left = adaptExpression(and.left(), fileColumnNames, fileColumnTypes);
             Expression right = adaptExpression(and.right(), fileColumnNames, fileColumnTypes);
+            if (left == UNKNOWN_SENTINEL || right == UNKNOWN_SENTINEL) {
+                return UNKNOWN_SENTINEL;
+            }
             if (left == null || right == null) {
                 return null;
             }
@@ -180,6 +196,9 @@ public final class FilterAdaptation {
         if (expr instanceof Or or) {
             Expression left = adaptExpression(or.left(), fileColumnNames, fileColumnTypes);
             Expression right = adaptExpression(or.right(), fileColumnNames, fileColumnTypes);
+            if (left == UNKNOWN_SENTINEL || right == UNKNOWN_SENTINEL) {
+                return UNKNOWN_SENTINEL;
+            }
             if (left == TRUE_SENTINEL || right == TRUE_SENTINEL) {
                 return TRUE_SENTINEL;
             }
@@ -199,6 +218,9 @@ public final class FilterAdaptation {
         }
         if (expr instanceof Not not) {
             Expression child = adaptExpression(not.field(), fileColumnNames, fileColumnTypes);
+            if (child == UNKNOWN_SENTINEL) {
+                return UNKNOWN_SENTINEL;
+            }
             if (child == null) {
                 return TRUE_SENTINEL; // NOT(unsatisfiable) → no constraint on this file
             }

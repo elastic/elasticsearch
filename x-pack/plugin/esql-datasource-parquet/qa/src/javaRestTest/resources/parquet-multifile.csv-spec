@@ -59,6 +59,24 @@ charlie      | 50
 dave         | 60
 ;
 
+// The same widened age under NOT and OR. A declined mv_ leaf is unknown for a file, not true: assuming true lets the
+// enclosing AND absorb it, and NOT of that pushes a predicate stricter than the filter, which the row mask applies with
+// no second chance. Every age is below the bound, so the negation is false for every row and only "zzz" would match --
+// no row does, and the query must return nothing rather than erroring or returning file B's rows alone.
+parquetUbnMvLessUnderNotAndOr
+required_capability: external_command
+required_capability: external_source_read_schema
+required_capability: fn_mv_less
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM employees_multifile_ubn_union
+| WHERE NOT (mv_less(age, 3000000000) AND name != "zzz")
+| KEEP name, age
+| SORT name ASC;
+
+name:keyword | age:long
+;
+
 parquetUbnAggregateWidenedColumn
 required_capability: external_command
 required_capability: external_source_read_schema

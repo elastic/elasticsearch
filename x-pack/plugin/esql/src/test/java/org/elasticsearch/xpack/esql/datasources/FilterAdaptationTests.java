@@ -284,11 +284,27 @@ public class FilterAdaptationTests extends ESTestCase {
                 List.of(),
                 FilterAdaptation.adaptFilterForFile(List.of(form), Set.of("other"), Map.of())
             );
-            // Under AND with an adaptable arm, only the mv_ leaf is dropped.
+            // A declined leaf is unknown for this file, neither true nor false, so nothing enclosing it may be pushed
+            // either. Absorbing it into an AND would make NOT(mv_ AND x) push NOT(x), which is stricter than the truth
+            // and loses rows: the row mask drops them before the retained FilterExec sees them.
+            Set<String> present = Set.of("v", "w");
+            Map<String, DataType> widened = Map.of("v", DataType.INTEGER);
             Expression and = new And(Source.EMPTY, form, gtLong("w", 3));
+            assertEquals(form + " under AND", List.of(), FilterAdaptation.adaptFilterForFile(List.of(and), present, widened));
             assertEquals(
+                form + " under NOT(AND(...))",
+                List.of(),
+                FilterAdaptation.adaptFilterForFile(List.of(new Not(Source.EMPTY, and)), present, widened)
+            );
+            assertEquals(
+                form + " under OR",
+                List.of(),
+                FilterAdaptation.adaptFilterForFile(List.of(new Or(Source.EMPTY, form, gtLong("w", 3))), present, widened)
+            );
+            assertEquals(
+                form + " beside an independent conjunct",
                 List.of(gtLong("w", 3)).toString(),
-                FilterAdaptation.adaptFilterForFile(List.of(and), Set.of("v", "w"), Map.of("v", DataType.INTEGER)).toString()
+                FilterAdaptation.adaptFilterForFile(List.of(and, gtLong("w", 3)), present, widened).toString()
             );
         }
     }

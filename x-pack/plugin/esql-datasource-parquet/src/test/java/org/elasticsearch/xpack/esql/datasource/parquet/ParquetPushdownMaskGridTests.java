@@ -50,6 +50,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.lessThan;
+
 /**
  * The row mask's one obligation, checked over a fixed grid rather than a random sample: it may keep rows the filter
  * rejects, since the retained FilterExec removes them, but it must never drop a row the filter keeps, and it must never
@@ -108,6 +110,7 @@ public class ParquetPushdownMaskGridTests extends ESTestCase {
 
     public void testMaskNeverDropsARowTheFilterKeeps() {
         int checked = 0;
+        int unevaluable = 0;
         List<String> failures = new ArrayList<>();
         for (Fixture fixture : FIXTURES) {
             Attribute x = new ReferenceAttribute(Source.EMPTY, "x", fixture.type());
@@ -133,7 +136,8 @@ public class ParquetPushdownMaskGridTests extends ESTestCase {
                     for (Expression expr : wrappers(leaf, x, fixture)) {
                         boolean[] truth = oracle(expr, page, layout);
                         if (truth == null) {
-                            continue; // not an expression the engine evaluates; nothing to hold the mask to
+                            unevaluable++; // the engine cannot evaluate it, so there is no answer to hold the mask to
+                            continue;
                         }
                         checked++;
                         String cell = fixture.type() + " " + describe(expr);
@@ -161,6 +165,9 @@ public class ParquetPushdownMaskGridTests extends ESTestCase {
             }
         }
         assertTrue("the grid evaluated too few cells to mean anything: " + checked, checked > 500);
+        // A cell the engine cannot evaluate proves nothing, so a grid that quietly stopped evaluating would still pass
+        // the count above. Hold the skipped share down instead of letting it drift.
+        assertThat("cells the engine could not evaluate", unevaluable, lessThan(checked / 2));
         assertTrue(failures.size() + " of " + checked + " cells failed:\n" + String.join("\n", failures), failures.isEmpty());
     }
 

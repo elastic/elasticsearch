@@ -2054,7 +2054,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 parentName,
                 attribute.qualifier(),
                 name,
-                new PotentiallyUnmappedKeywordEsField(leafName, false)
+                new PotentiallyUnmappedKeywordEsField(leafName)
             );
         }
 

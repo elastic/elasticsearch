@@ -38,7 +38,7 @@ public class ReplacePotentiallyUnmappedFieldWithMappedField extends Parameterize
                 boolean hasDocValues = searchStats.hasDocValues(fieldName);
                 // isIndexed and hasDocValues are AND-ed across shards (see SearchContextStats), so either being true proves the field is
                 // mapped everywhere here. We deliberately do not use exists(), which is OR-ed across shards.
-                if (potentiallyUnmapped.mappedInFieldCaps() && (searchStats.isIndexed(fieldName) || hasDocValues)) {
+                if (searchStats.isIndexed(fieldName) || hasDocValues) {
                     // The marker's normalized flag is always false; read the real value from the mapped type so that exact-match
                     // pushdown, which is unsafe on a normalized keyword, stays disabled when a normalizer is present.
                     boolean normalized = searchStats.fieldType(fieldName) instanceof KeywordFieldType keywordFieldType

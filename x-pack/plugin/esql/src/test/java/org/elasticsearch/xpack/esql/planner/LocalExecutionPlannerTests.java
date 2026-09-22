@@ -811,7 +811,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 new FieldAttribute(
                     Source.EMPTY,
                     "potentially_unmapped",
-                    new PotentiallyUnmappedKeywordEsField("potentially_unmapped", true)
+                    new PotentiallyUnmappedKeywordEsField("potentially_unmapped")
                 )
             ),
             MappedFieldType.FieldExtractPreference.NONE

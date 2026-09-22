@@ -184,7 +184,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             searchExecutionContext,
             AliasFilter.EMPTY
         );
-        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(defaultCtx, "resource.attributes.host.name", true);
+        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(defaultCtx, "resource.attributes.host.name");
 
         MappedFieldType fieldType = unmappedCtx.fieldType("resource.attributes.host.name");
         assertThat(
@@ -224,7 +224,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             searchExecutionContext,
             AliasFilter.EMPTY
         );
-        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(defaultCtx, "unmapped_kw", true);
+        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(defaultCtx, "unmapped_kw");
 
         BlockLoader blockLoader = unmappedCtx.blockLoader(
             "unmapped_kw",
@@ -338,24 +338,13 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         assertThat("exactly 2 fields survive", result.size(), equalTo(2));
     }
 
-    public void testFieldHiddenFromFieldCapsIgnoresLocalMapping() throws IOException {
-        var result = mappedKeywordLoader(false, true);
-        assertThat(result.loader(), instanceOf(UnmappedKeywordBlockLoader.class));
-    }
-
-    public void testFieldReportedByFieldCapsUsesLocalMapping() throws IOException {
-        var result = mappedKeywordLoader(true, true);
+    public void testPotentiallyUnmappedFieldUsesLocalMapping() throws IOException {
+        var result = mappedKeywordLoader(true);
         assertThat(result.loader(), instanceOf(BytesRefsFromOrdsBlockLoader.class));
     }
 
-    public void testFieldHiddenByFlsReturnsNullWhenReportedByFieldCaps() throws IOException {
-        var result = mappedKeywordLoader(true, false);
-
-        assertThat(result.loader(), equalTo(ConstantNull.INSTANCE));
-    }
-
-    public void testFieldHiddenByFlsReturnsNullWhenMissingFromFieldCaps() throws IOException {
-        var result = mappedKeywordLoader(false, false);
+    public void testFieldHiddenByFlsReturnsNull() throws IOException {
+        var result = mappedKeywordLoader(false);
 
         assertThat(result.loader(), equalTo(ConstantNull.INSTANCE));
     }
@@ -382,7 +371,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         return fieldInfo.buildLoader().build(driverContext, 0);
     }
 
-    private ValuesSourceReaderOperator.LoaderAndConverter mappedKeywordLoader(boolean mappedInFieldCaps, boolean fieldVisible)
+    private ValuesSourceReaderOperator.LoaderAndConverter mappedKeywordLoader(boolean fieldVisible)
         throws IOException {
         SearchExecutionContext context = createSearchExecutionContext(
             createMapperService(mapping(b -> b.startObject("hidden").field("type", "keyword").endObject())),
@@ -413,7 +402,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         var extract = new FieldExtractExec(
             Source.EMPTY,
             query,
-            List.of(new FieldAttribute(Source.EMPTY, "hidden", new PotentiallyUnmappedKeywordEsField("hidden", mappedInFieldCaps))),
+            List.of(new FieldAttribute(Source.EMPTY, "hidden", new PotentiallyUnmappedKeywordEsField("hidden"))),
             MappedFieldType.FieldExtractPreference.NONE
         );
 

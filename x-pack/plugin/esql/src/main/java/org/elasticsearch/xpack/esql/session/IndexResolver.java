@@ -627,7 +627,7 @@ public class IndexResolver {
             // OBJECT fields are containers for subfields, not leaf fields that get queried directly.
             // Wrapping them would break downstream code that doesn't expect OBJECT as a data type in InvalidMappedField.
             case OBJECT -> field;
-            case KEYWORD -> new PotentiallyUnmappedKeywordEsField(name, true);
+            case KEYWORD -> new PotentiallyUnmappedKeywordEsField(name);
             default -> {
                 if (field instanceof TypeConflictedField) {
                     yield useLegacyField

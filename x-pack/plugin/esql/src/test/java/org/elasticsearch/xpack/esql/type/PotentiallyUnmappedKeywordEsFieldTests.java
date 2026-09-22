@@ -29,20 +29,19 @@ import static org.hamcrest.Matchers.equalTo;
 public class PotentiallyUnmappedKeywordEsFieldTests extends AbstractEsFieldTypeTests<PotentiallyUnmappedKeywordEsField> {
     @Override
     protected PotentiallyUnmappedKeywordEsField createTestInstance() {
-        return new PotentiallyUnmappedKeywordEsField(randomAlphaOfLength(4), randomBoolean(), randomProperties(4));
+        return new PotentiallyUnmappedKeywordEsField(randomAlphaOfLength(4), randomProperties(4));
     }
 
     @Override
     protected PotentiallyUnmappedKeywordEsField mutateInstance(PotentiallyUnmappedKeywordEsField instance) {
         String name = instance.getName();
-        var mappedInFieldCaps = instance.mappedInFieldCaps();
         Map<String, EsField> properties = instance.getProperties();
-        switch (randomIntBetween(0, 2)) {
-            case 0 -> name = randomAlphaOfLength(name.length() + 1);
-            case 1 -> mappedInFieldCaps = !mappedInFieldCaps;
-            default -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
+        if (randomBoolean()) {
+            name = randomAlphaOfLength(name.length() + 1);
+        } else {
+            properties = randomValueOtherThan(properties, () -> randomProperties(4));
         }
-        return new PotentiallyUnmappedKeywordEsField(name, mappedInFieldCaps, properties);
+        return new PotentiallyUnmappedKeywordEsField(name, properties);
     }
 
     /**
@@ -51,7 +50,7 @@ public class PotentiallyUnmappedKeywordEsFieldTests extends AbstractEsFieldTypeT
      * round-trips on current nodes and is expanded to the full path for older ones.
      */
     public void testSerializesFullPathToOldNodes() throws IOException {
-        PotentiallyUnmappedKeywordEsField field = new PotentiallyUnmappedKeywordEsField("name", true);
+        PotentiallyUnmappedKeywordEsField field = new PotentiallyUnmappedKeywordEsField("name");
 
         assertThat(copy(field, TransportVersion.current()).getName(), equalTo("name"));
 
@@ -60,7 +59,6 @@ public class PotentiallyUnmappedKeywordEsFieldTests extends AbstractEsFieldTypeT
 
         PotentiallyUnmappedKeywordEsField multiField = new PotentiallyUnmappedKeywordEsField(
             "name",
-            true,
             Map.of("raw", randomKeywordEsField(0))
         );
         PotentiallyUnmappedKeywordEsField oldVersionMultiField = copy(multiField, old);

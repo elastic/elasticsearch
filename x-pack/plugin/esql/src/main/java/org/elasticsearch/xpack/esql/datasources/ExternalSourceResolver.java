@@ -2647,8 +2647,14 @@ public class ExternalSourceResolver {
         // every file — not the configuration whichever read happens to have stamped a file's cache entry. The
         // dataset-level promise is fulfilled by matching this value, so recording the entry's stamp instead let
         // another dataset's licensed counts fill this one's promise, and a file's physical count is not this
-        // read's count where this read is narrower than the file. An unrecorded path accepts either, so a value
-        // must be recorded for every path.
+        // read's count where this read is narrower than the file.
+        //
+        // An unrecorded path accepts either, and this records all of the paths or none of them: the anchor's own
+        // stamp is the value every path gets, so an anchor whose metadata carries no read configuration leaves
+        // the whole map empty and every path of that dataset falls back to the config-level check alone. That is
+        // the permissive direction, not the safe one, and it is a legitimate state rather than an error — a
+        // columnar reader harvests without stamping. Closing it means refusing the promise outright when the
+        // anchor has no stamp, which is a behaviour change on a rail this one does not otherwise touch.
         SourceMetadata anchorMeta = allMeta.isEmpty() ? null : allMeta.get(0);
         Map<String, Object> anchorFileMeta = anchorMeta == null ? null : anchorMeta.sourceMetadata();
         Object anchorShape = anchorFileMeta == null ? null : anchorFileMeta.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);

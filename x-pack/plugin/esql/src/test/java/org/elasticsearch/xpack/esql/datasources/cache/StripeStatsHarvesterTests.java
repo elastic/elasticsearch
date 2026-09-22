@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,6 +43,127 @@ public class StripeStatsHarvesterTests extends ESTestCase {
     private static final List<Attribute> SCHEMA = List.of(
         new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG, Nullability.TRUE, null, false)
     );
+
+    /**
+     * Drives the harvester with drops and returns, per emitted ordinal, whether that stripe carried the licence.
+     * {@code dropOffsets} are file byte offsets of lost rows; a negative entry stands for a drop this reader
+     * could not attribute, which is what {@code recordUnattributedDroppedRow} records.
+     */
+    private Map<Long, Boolean> licencesAfterDrops(long stripeSize, int recordCount, boolean policyPermits, long... dropOffsets) {
+        StripeStatsHarvester harvester = new StripeStatsHarvester(stripeSize, true);
+        for (int i = 0; i < recordCount; i++) {
+            harvester.getOrCreate(harvester.ordinalOf((long) i * RECORD_BYTES)).rows++;
+        }
+        for (long off : dropOffsets) {
+            if (off < 0) {
+                harvester.recordUnattributedDroppedRow();
+            } else {
+                harvester.recordDroppedRowAt(off);
+            }
+        }
+        String path = "memory://harvester-" + UUID.randomUUID();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (var handle = ExternalStatsCapture.bind(sink)) {
+            harvester.emit(
+                path,
+                0L,
+                (long) recordCount * RECORD_BYTES,
+                1000L,
+                "fp",
+                "config",
+                policyPermits,
+                SCHEMA,
+                Map.of(),
+                ExternalStats.BINDING_BY_POSITION
+            );
+        }
+        Map<Long, Boolean> licences = new HashMap<>();
+        for (Map<String, Object> m : sink.getOrDefault(path, List.of())) {
+            licences.put(
+                ((Number) m.get(ExternalStats.STRIPE_ORDINAL_KEY)).longValue(),
+                Boolean.TRUE.equals(m.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY))
+            );
+        }
+        return licences;
+    }
+
+    /**
+     * A lost row costs its own stripe the licence and no other. The whole point of attributing a drop to an
+     * offset is that the stripes either side of it still describe every row they hold, so a read of one of them
+     * may still be crossed with another read's measurements of the same stripe.
+     */
+    public void testALostRowCostsOnlyTheStripeItStartsIn() {
+        // 32-byte stripes at 8 bytes a record: 4 records per stripe. The drop is at byte 40, in stripe 1.
+        Map<Long, Boolean> licences = licencesAfterDrops(32L, 12, true, 40L);
+        assertEquals("three stripes are covered", Set.of(0L, 1L, 2L), licences.keySet());
+        assertTrue("stripe 0 lost nothing", licences.get(0L));
+        assertFalse("stripe 1 holds the lost row", licences.get(1L));
+        assertTrue("stripe 2 lost nothing", licences.get(2L));
+    }
+
+    /**
+     * A drop the reader cannot name an offset for taints the whole read. The alternative is licensing a stripe
+     * that may be the very one that lost the row, which is the wrong direction to guess in.
+     */
+    public void testAnUnattributedDropTaintsEveryStripe() {
+        Map<Long, Boolean> licences = licencesAfterDrops(32L, 12, true, -1L);
+        assertEquals(Set.of(0L, 1L, 2L), licences.keySet());
+        for (Map.Entry<Long, Boolean> e : licences.entrySet()) {
+            assertFalse("no stripe may be licensed after an unattributable loss: " + e.getKey(), e.getValue());
+        }
+    }
+
+    /**
+     * A negative offset is how {@code recordDroppedRowAt} is reached when the caller has no offset to give, so
+     * it must be as conservative as calling {@code recordUnattributedDroppedRow} outright rather than silently
+     * attributing the loss to stripe 0 — which is what {@code floorDiv} of a negative offset would do.
+     */
+    public void testANegativeOffsetIsNotAttributedToStripeZero() {
+        Map<Long, Boolean> licences = licencesAfterDrops(32L, 12, true, -5L);
+        for (Map.Entry<Long, Boolean> e : licences.entrySet()) {
+            assertFalse("a negative offset taints the read rather than charging stripe 0: " + e.getKey(), e.getValue());
+        }
+    }
+
+    /**
+     * Past the tracking cap the read is tainted throughout rather than growing the set without bound. Feeding
+     * one drop into each of more distinct stripes than the cap allows must leave nothing licensed, including
+     * the stripes whose drops were recorded before the cap was reached.
+     */
+    public void testBeyondTheTrackingCapTheWholeReadIsTainted() {
+        StripeStatsHarvester harvester = new StripeStatsHarvester(32L, true);
+        for (int i = 0; i < 12; i++) {
+            harvester.getOrCreate(harvester.ordinalOf((long) i * RECORD_BYTES)).rows++;
+        }
+        // One drop in each of 4097 distinct stripes: 4096 are tracked, and the next one tips the read.
+        for (long ordinal = 0; ordinal <= 4096L; ordinal++) {
+            harvester.recordDroppedRowAt(ordinal * 32L);
+        }
+        String path = "memory://harvester-" + UUID.randomUUID();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (var handle = ExternalStatsCapture.bind(sink)) {
+            harvester.emit(path, 0L, 96L, 1000L, "fp", "config", true, SCHEMA, Map.of(), ExternalStats.BINDING_BY_POSITION);
+        }
+        List<Map<String, Object>> raw = sink.getOrDefault(path, List.of());
+        assertFalse("the cover must still be emitted", raw.isEmpty());
+        for (Map<String, Object> m : raw) {
+            assertFalse(
+                "past the cap no stripe is licensed, including one whose drop was tracked",
+                m.containsKey(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)
+            );
+        }
+    }
+
+    /**
+     * The drop bookkeeping cannot grant a licence the policy withholds: with a policy that permits none, a
+     * clean read is still unlicensed.
+     */
+    public void testACleanReadIsStillUnlicensedWhenThePolicyForbidsIt() {
+        Map<Long, Boolean> licences = licencesAfterDrops(32L, 12, false);
+        for (Map.Entry<Long, Boolean> e : licences.entrySet()) {
+            assertFalse("the policy decides first: " + e.getKey(), e.getValue());
+        }
+    }
 
     /** A parsed view of one emitted stripe fragment. */
     private record Frag(long ordinal, long rows, long start, long end, boolean atStart, boolean atEnd, boolean eof) {}

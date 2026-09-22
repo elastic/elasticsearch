@@ -6274,6 +6274,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (totalFields > rowWidthLimit) {
                 // The structural error wins (see the direct walkers).
                 clearPendingErrors();
+                // Name the row's offset before reporting it, as every other drop site does. This one returns
+                // above the assignment further down, so without this the loss reaches the harvester with no
+                // offset and is charged to the whole read rather than to the stripe the row starts in.
+                droppedRowStartByte = rowStartBytes == null ? -1 : rowStartBytes[lineIdx];
                 onRowError(rowTooWideMessage(totalFields), null, line, true);
                 return false;
             }

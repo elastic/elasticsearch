@@ -42,8 +42,10 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
 
@@ -407,14 +409,12 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         List<Map<String, Object>> fragments = captureWithPolicy(bytes, 64L, new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 1.0, false));
         assertThat("the read must publish several stripes for this to say anything", fragments.size(), greaterThan(2));
 
-        long unlicensed = fragments.stream()
-            .filter(f -> f.containsKey(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY) == false)
-            .count();
-        assertEquals("exactly the stripe that lost the row loses its licence", 1L, unlicensed);
-        assertTrue(
-            "and every other stripe keeps it",
-            fragments.stream().filter(f -> f.containsKey(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)).count() == fragments.size()
-                - 1
+        // WHICH stripe, not how many: a count alone passes just as well if the loss is charged to the wrong
+        // ordinal, which is the misattribution this whole mechanism exists to avoid.
+        assertEquals(
+            "exactly the stripe the lost row starts in loses its licence, and only it",
+            Set.of(ordinalOfBadRow(20, 64L)),
+            unlicensedOrdinals(fragments)
         );
     }
 
@@ -439,10 +439,11 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             pinned
         );
         assertThat("the read must publish several stripes for this to say anything", fragments.size(), greaterThan(2));
-        long unlicensed = fragments.stream()
-            .filter(f -> f.containsKey(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY) == false)
-            .count();
-        assertEquals("exactly the stripe that lost the row loses its licence", 1L, unlicensed);
+        assertEquals(
+            "exactly the stripe the lost row starts in loses its licence, and only it",
+            Set.of(ordinalOfBadRow(20, 64L)),
+            unlicensedOrdinals(fragments)
+        );
     }
 
     /** A clean read of the same shape licenses every stripe, so the assertion above is about the loss. */
@@ -464,6 +465,30 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
                 f.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)
             );
         }
+    }
+
+    /**
+     * The stripe ordinal the fixture's bad row starts in, derived from the fixture rather than hard-coded, so a
+     * change to the row widths cannot leave the assertion pointing at the wrong stripe. Builds the same prefix
+     * the corpus builder does for rows before {@code badRow} and measures where that row begins.
+     */
+    private static long ordinalOfBadRow(int badRow, long stripeSize) {
+        StringBuilder prefix = new StringBuilder("id,n\n");
+        for (int i = 0; i < badRow; i++) {
+            prefix.append(i).append(',').append(Integer.toString(i * 10)).append('\n');
+        }
+        return Math.floorDiv((long) prefix.toString().getBytes(StandardCharsets.UTF_8).length, stripeSize);
+    }
+
+    /** Ordinals of every emitted fragment that did NOT carry the licence. */
+    private static Set<Long> unlicensedOrdinals(List<Map<String, Object>> fragments) {
+        Set<Long> out = new HashSet<>();
+        for (Map<String, Object> f : fragments) {
+            if (f.containsKey(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY) == false) {
+                out.add(((Number) f.get(ExternalStats.STRIPE_ORDINAL_KEY)).longValue());
+            }
+        }
+        return out;
     }
 
     private List<Map<String, Object>> captureWithPolicy(byte[] bytes, long stripeSize, ErrorPolicy policy) throws Exception {

@@ -513,10 +513,7 @@ public class AzureStorageProviderTests extends ESTestCase {
             Map.of("auth", "federated_identity", "tenant_id", "test-tenant", "client_id", "test-client")
         );
         AzureStorageProvider provider = new AzureStorageProvider(config, null, null);
-        TestConnectionNotSupportedException ex = expectThrows(
-            TestConnectionNotSupportedException.class,
-            provider::testConnection
-        );
+        TestConnectionNotSupportedException ex = expectThrows(TestConnectionNotSupportedException.class, provider::testConnection);
         assertThat(ex.getMessage(), containsString("federated_identity"));
     }
 }

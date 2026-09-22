@@ -1,0 +1,113 @@
+setup:
+  - do:
+      indices.create:
+        index: test-index-copy-to
+        body:
+          mappings:
+            properties:
+              vector_a:
+                type: dense_vector
+                element_type: float
+                dims: 3
+                copy_to: vector_b
+              vector_b:
+                type: dense_vector
+                element_type: float
+                dims: 3
+
+---
+"Dense vector fields cannot parse multiple array values":
+  - do:
+      catch: /Copy-to currently only works for value-type fields, not objects/
+      index:
+        index: test-index-copy-to
+        id: "1"
+        refresh: true
+        body:
+          vector_a: [ 1.0, 2.0, 3.0 ]
+          vector_b: [ 4.0, 5.0, 6.0 ]
+
+  - match: { status: 400 }
+
+---
+"Dense vector fields cannot parse multiple string-encoded values":
+  - requires:
+      cluster_features: [ "mapper.base64_dense_vectors" ]
+      reason: "string-encoded vector values require base64 vector support"
+
+  - do:
+      catch: /doesn't support indexing multiple values for the same field in the same document/
+      index:
+        index: test-index-copy-to
+        id: "1"
+        refresh: true
+        body:
+          # [ 1.0, 2.0, 3.0 ]
+          vector_a: "P4AAAEAAAABAQAAA"
+          # [ 4.0, 5.0, 6.0 ]
+          vector_b: "QIAAAECgAABAwAAA"
+
+  - match: { status: 400 }
+
+---
+"Directly assigned vector takes precedence over a copy_to source":
+  - skip:
+      features: [ "headers" ]
+
+  - requires:
+      cluster_features: [ "mapper.dense_vector.unified_value_formats" ]
+      reason: "multi-value handling at query time changed with unified value formats"
+
+  - do:
+      indices.create:
+        index: test-index-late-copy-to
+        body:
+          mappings:
+            properties:
+              vector_a:
+                type: dense_vector
+                element_type: float
+                dims: 3
+              vector_b:
+                type: dense_vector
+                element_type: float
+                dims: 3
+
+  - do:
+      index:
+        index: test-index-late-copy-to
+        id: "1"
+        refresh: true
+        body:
+          vector_a: [ 1.0, 2.0, 3.0 ]
+          vector_b: [ 4.0, 5.0, 6.0 ]
+
+  # Add a copy_to after indexing the doc. This is effectively a way to corrupt the index: if we were to re-index the
+  # doc, it would fail to parse. But since it is already indexed, the (now invalid) doc must be handled at query time.
+  - do:
+      indices.put_mapping:
+        index: test-index-late-copy-to
+        body:
+          properties:
+            vector_a:
+              type: dense_vector
+              element_type: float
+              dims: 3
+              copy_to: vector_b
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets floating-points as doubles
+        Content-Type: application/json
+      search:
+        index: test-index-late-copy-to
+        body:
+          _source: false
+          fields: [ vector_a, vector_b ]
+
+  - match: { hits.total.value: 1 }
+  # vector_b resolves to both source paths; the value assigned directly to it wins.
+  - match: { hits.hits.0.fields.vector_b: [ 4.0, 5.0, 6.0 ] }
+  - match: { hits.hits.0.ignored_field_values.vector_b: [ [ 1.0, 2.0, 3.0 ] ] }
+  # vector_a is only a copy_to source, so it resolves to its own path alone.
+  - match: { hits.hits.0.fields.vector_a: [ 1.0, 2.0, 3.0 ] }

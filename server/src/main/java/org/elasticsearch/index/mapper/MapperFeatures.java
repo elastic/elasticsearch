@@ -172,6 +172,7 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.dynamic_template.warn_on_duplicate_names"
     );
     public static final NodeFeature PUT_MAPPING_NO_TYPES_CHECK = new NodeFeature("indices.put_mapping.no_types_check");
+    public static final NodeFeature DENSE_VECTOR_UNIFIED_VALUE_FORMATS = new NodeFeature("mapper.dense_vector.unified_value_formats");
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -274,7 +275,8 @@ public class MapperFeatures implements FeatureSpecification {
             DOC_VALUES_ON_FAILURE,
             DISK_BBQ_STABLE_FORMAT_SELECTION,
             PUT_MAPPING_NO_TYPES_CHECK,
-            MAPPING_LIMIT_CHECKS_AT_PARSE_TIME
+            MAPPING_LIMIT_CHECKS_AT_PARSE_TIME,
+            DENSE_VECTOR_UNIFIED_VALUE_FORMATS
         );
     }
 }

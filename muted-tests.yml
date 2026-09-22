@@ -578,8 +578,6 @@ tests:
 - class: org.elasticsearch.index.shard.IndexShardIT
   method: testNodeWriteLoadsArePresent
   issue: https://github.com/elastic/elasticsearch/issues/159553
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/159560
 - class: org.elasticsearch.xpack.security.apikey.ApiKeyRestIT
   method: testGrantTargetCanUpdateApiKey
   issue: https://github.com/elastic/elasticsearch/issues/159567
@@ -713,3 +711,18 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/159951
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   issue: https://github.com/elastic/elasticsearch/issues/159953
+# #158528 changed non-indexed vector reconstruction. Mixed-version recovery can compare
+# encoded/rounded indexed vectors alongside non-indexed vectors still in their original form.
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: "test {p0=search.vectors/170_knn_search_hex_encoded_byte_vectors/Dynamic dimensions for hex-encoded string}"
+  issue: https://github.com/elastic/elasticsearch/issues/159560
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: "test {p0=search.vectors/200_dense_vector_docvalue_fields/dense_vector docvalues with bfloat16}"
+  issue: https://github.com/elastic/elasticsearch/issues/159560
+# Both tests index encoded vectors in their shared setup.
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: "test {p0=search.vectors/205_dense_vector_docvalue_fields_format/dense_vector docvalue_fields default array vs binary format}"
+  issue: https://github.com/elastic/elasticsearch/issues/159560
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: "test {p0=search.vectors/205_dense_vector_docvalue_fields_format/dense_vector docvalue_fields binary encoded source}"
+  issue: https://github.com/elastic/elasticsearch/issues/159560

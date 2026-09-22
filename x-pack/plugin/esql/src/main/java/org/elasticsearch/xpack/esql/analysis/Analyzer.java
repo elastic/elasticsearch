@@ -80,7 +80,6 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
-import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
@@ -105,8 +104,11 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.UnaryAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -590,11 +592,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * structures, and unwraps remaining {@code NamedSubquery} wrappers. See {@link ViewCompaction} for the rationale behind splitting
      * compaction across the analyzer boundary.
      */
-    private static class ViewCompactionPostIndexResolution extends Rule<LogicalPlan, LogicalPlan> {
+    private static class ViewCompactionPostIndexResolution extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
         @Override
-        public LogicalPlan apply(LogicalPlan plan) {
-            return ViewCompaction.postIndexResolution(plan);
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            return ViewCompaction.postIndexResolution(plan, context.preserveViewBoundaries());
         }
     }
 
@@ -684,11 +686,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * avoiding the need for source-specific logical plan nodes in core ESQL code.
      * <p>
      * Binds the user's {@code METADATA ...} clause. Every name in
-     * {@link MetadataAttribute#ATTRIBUTES_MAP} (standard names like {@code _id}/{@code _index}/...)
-     * and every name in {@link org.elasticsearch.xpack.esql.datasources.FileMetadataColumns#COLUMNS}
+     * {@link ExternalMetadataColumns#STANDARD_NAMES}
+     * ({@code _index}, {@code _score}, {@code _ignored}, ...) and every name in
+     * {@link FileMetadataColumns#COLUMNS}
      * ({@code _file.path}, {@code _file.name}, ...) becomes an {@link ExternalMetadataAttribute} of
-     * the registered type. Unknown names propagate as-is for the verifier to flag with the existing
-     * "Unknown column" diagnostic. Names already present in the source's natural schema are skipped
+     * the registered type. {@code _id}, {@code _version} and {@code _source} are among the standard
+     * names and bind to a column that is SQL NULL on every row, because a file holds no document
+     * identity, no document version and no stored source. Any other name is left unresolved for the
+     * verifier to flag. Names already present in the source's natural schema are skipped
      * — the source's own column wins.
      */
     private static class ResolveExternalRelations extends ParameterizedAnalyzerRule<UnresolvedExternalRelation, AnalyzerContext> {
@@ -711,14 +716,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             var metadata = resolvedSource.metadata();
-            // Partition columns are path-derived and appear in the schema as plain ReferenceAttributes (indistinguishable
-            // from data columns by type), so pass their names explicitly: _id.path pointing at a partition column must be
-            // rejected loudly (the reader stamps _id per row from a data column, not from a path-derived constant).
-            PartitionMetadata partitionMetadata = resolvedSource.fileList() != null ? resolvedSource.fileList().partitionMetadata() : null;
-            Set<String> partitionColumnNames = partitionMetadata != null && partitionMetadata.isEmpty() == false
-                ? partitionMetadata.partitionColumns().keySet()
-                : Set.of();
-            MetadataBindResult bindResult = bindMetadataFields(plan, metadata.schema(), partitionColumnNames);
+            MetadataBindResult bindResult = bindMetadataFields(plan, metadata.schema());
             ExternalRelation relation = new ExternalRelation(
                 plan.source(),
                 tablePath,
@@ -744,22 +742,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private record MetadataBindResult(List<Attribute> schema, List<? extends NamedExpression> unresolvedMetadata) {}
 
         /**
-         * Walks the user's METADATA clause. Names registered in
-         * {@link MetadataAttribute#ATTRIBUTES_MAP} or
-         * {@link org.elasticsearch.xpack.esql.datasources.FileMetadataColumns#COLUMNS} are bound
+         * Walks the user's METADATA clause. Names in
+         * {@link ExternalMetadataColumns#STANDARD_NAMES} or
+         * {@link FileMetadataColumns#COLUMNS} are bound
          * to an {@link ExternalMetadataAttribute} appended to the source's natural schema. Names
-         * registered in neither stay as {@code UnresolvedMetadataAttributeExpression} in the
-         * returned {@code unresolvedMetadata} list — the verifier picks them up via the relation's
-         * expression walk and fires its native {@code "Unresolved metadata pattern [...]"} error,
-         * matching the diagnostic indexed {@code FROM x METADATA _typo} produces. Names already
-         * present in the source's natural schema are skipped (the source's own column takes
-         * precedence).
+         * in neither are returned as {@code UnresolvedMetadataAttributeExpression} in the
+         * {@code unresolvedMetadata} list — the verifier picks them up via the relation's expression
+         * walk and fires its native {@code "Unresolved metadata pattern [...]"} error, matching the
+         * diagnostic indexed {@code FROM x METADATA _typo} produces. Names already present in the
+         * source's natural schema are skipped (the source's own column takes precedence).
          */
-        private static MetadataBindResult bindMetadataFields(
-            UnresolvedExternalRelation plan,
-            List<Attribute> baseSchema,
-            Set<String> partitionColumnNames
-        ) {
+        private static MetadataBindResult bindMetadataFields(UnresolvedExternalRelation plan, List<Attribute> baseSchema) {
             if (plan.metadataFields().isEmpty()) {
                 return new MetadataBindResult(baseSchema, List.of());
             }
@@ -777,50 +770,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (existing.contains(name)) {
                     continue;
                 }
-                // _id.path names the column the reader stamps _id from. If the dataset declares one but the resolved
-                // schema has no such DATA column — a typo, the files lost it, or it is a partition/virtual column the
-                // reader never materializes per row — reject the _id request loudly rather than returning silently-null
-                // ids. Fires only when _id is actually asked for — a bad _id.path on a query that never reads _id is
-                // moot, like any other unread column.
-                if (ExternalMetadataColumns.ID.equals(name)) {
-                    String idPath = declaredIdPath(plan);
-                    if (idPath != null) {
-                        Attribute idSource = null;
-                        for (Attribute a : baseSchema) {
-                            if (a.name().equals(idPath)) {
-                                idSource = a;
-                                break;
-                            }
-                        }
-                        if (idSource == null) {
-                            throw new IllegalArgumentException(
-                                "[_id] is declared to come from column ["
-                                    + idPath
-                                    + "] (mappings._id.path), but no such column exists in the dataset's schema"
-                            );
-                        }
-                        // A partition column is a path-derived constant surfaced as a plain ReferenceAttribute (not a
-                        // Virtual/ExternalMetadata attribute), so it slips the type checks above; the reader classifies
-                        // it in the partition branch and never stamps _id from it (silent null id). Reject it here.
-                        if (idSource instanceof VirtualAttribute
-                            || idSource instanceof ExternalMetadataAttribute
-                            || partitionColumnNames.contains(idPath)) {
-                            throw new IllegalArgumentException(
-                                "[_id] is declared to come from ["
-                                    + idPath
-                                    + "] (mappings._id.path), which is not a data column of the files; _id must come from a "
-                                    + "column the reader materializes per row"
-                            );
-                        }
-                    }
-                }
-                DataType type = MetadataAttribute.dataType(name);
+                // The standard metadata names a dataset answers. _id, _version and _source are among
+                // them and bind to an all-NULL column: a file holds no document identity, version or
+                // stored source. The _file.* family is the other half, resolved just below.
+                DataType type = ExternalMetadataColumns.STANDARD_NAMES.contains(name) ? MetadataAttribute.dataType(name) : null;
                 if (type == null) {
                     type = FileMetadataColumns.COLUMNS.get(name);
                 }
                 if (type == null) {
-                    // Unknown name — keep the unresolved expression so the verifier picks it up via
-                    // ExternalRelation#metadataFields() and fires its native unresolved-pattern error.
+                    // A name a dataset does not answer. Forwarded as-is: it already carries the message the
+                    // verifier reports through ExternalRelation#metadataFields(), and forwarding keeps _doc
+                    // (injected by TS_INFO / METRICS_INFO, never typed by the user) on its pass-through path.
                     if (unresolved == null) {
                         unresolved = new ArrayList<>();
                     }
@@ -836,12 +796,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Attribute> resolvedSchema = enriched == null ? baseSchema : List.copyOf(enriched);
             List<? extends NamedExpression> unresolvedList = unresolved == null ? List.of() : List.copyOf(unresolved);
             return new MetadataBindResult(resolvedSchema, unresolvedList);
-        }
-
-        /** The declared {@code mappings._id.path}, or {@code null} when the dataset does not set {@code _id} from a column. */
-        private static String declaredIdPath(UnresolvedExternalRelation plan) {
-            var mapping = plan.mapping();
-            return mapping != null && mapping.mappings() != null ? mapping.mappings().idPath() : null;
         }
 
         private String extractTablePath(Expression tablePath) {
@@ -1063,10 +1017,45 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             Failures failures = new Failures();
             plan.verify(failures);
+            verifyTimeBucketBounds(plan, failures);
             if (failures.hasFailures()) {
                 throw new VerificationException(failures);
             }
             return plan;
+        }
+
+        /**
+         * {@link TranslateTimeSeriesAggregate} calls {@code TBucket}/{@code TStep} {@code surrogate()}
+         * later in this batch, which requires timestamp bounds. Validate them here so missing bounds
+         * fail with a verification error instead of tripping the surrogate invariant.
+         */
+        private static void verifyTimeBucketBounds(TimeSeriesAggregate plan, Failures failures) {
+            Set<NameId> groupingIds = new HashSet<>();
+            for (Expression grouping : plan.groupings()) {
+                if (grouping instanceof NamedExpression named) {
+                    groupingIds.add(named.id());
+                }
+            }
+            plan.child().forEachExpressionUp(NamedExpression.class, e -> {
+                if (groupingIds.contains(e.id())) {
+                    verifyTimeBucketBounds(e, plan, failures);
+                }
+            });
+            for (Expression grouping : plan.groupings()) {
+                if (grouping instanceof NamedExpression named) {
+                    verifyTimeBucketBounds(named, plan, failures);
+                }
+            }
+        }
+
+        private static void verifyTimeBucketBounds(NamedExpression expression, TimeSeriesAggregate plan, Failures failures) {
+            for (Expression child : expression.children()) {
+                if (child instanceof TBucket tbucket && plan.timestamp() != null && plan.timestamp().semanticEquals(tbucket.timestamp())) {
+                    tbucket.postAnalysisVerification(failures);
+                } else if (child instanceof TStep tstep && plan.timestamp() != null && plan.timestamp().semanticEquals(tstep.timestamp())) {
+                    tstep.postAnalysisVerification(failures);
+                }
+            }
         }
     }
 
@@ -1908,7 +1897,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 newSubPlans.add(logicalPlan);
             }
 
-            if (changed == false) {
+            // A merge whose branches already line up still needs its own output populated. View resolution builds a ViewUnionAll
+            // with an empty output and relies on this rule to fill it in; when every branch is already a Project over exactly the
+            // merge columns (a view body ending in KEEP is the common case) no branch is rewritten, and returning early here would
+            // leave that empty output in place. MergePlan.expressionsResolved then fails on the size mismatch and everything above
+            // the merge stays unresolved — surfacing later as an UnresolvedException during optimization, because the request-filter
+            // rewriter marks the tree analyzed. Only return early once the output really is aligned with the branches.
+            if (changed == false && mergePlan.output().size() == outputUnion.size()) {
                 return mergePlan;
             }
 
@@ -4111,11 +4106,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Map<String, FieldAttribute> unionFields = new HashMap<>();
             Holder<Boolean> aborted = new Holder<>(Boolean.FALSE);
             var newPlan = plan.transformExpressionsOnly(AggregateFunction.class, aggFunc -> {
+                Expression field;
+                if (aggFunc instanceof UnaryAggregateFunction uaf) {
+                    field = uaf.field();
+                } else if (aggFunc instanceof TimeSeriesAggregateFunction tsaf) {
+                    field = tsaf.field();
+                } else {
+                    return aggFunc;
+                }
                 Expression child;
-                if (aggFunc.field() instanceof ToAggregateMetricDouble toAMD) {
+                if (field instanceof ToAggregateMetricDouble toAMD) {
                     child = tryToTransformFunction(aggFunc, toAMD.field(), aborted, unionFields, context);
                 } else {
-                    child = tryToTransformFunction(aggFunc, aggFunc.field(), aborted, unionFields, context);
+                    child = tryToTransformFunction(aggFunc, field, aborted, unionFields, context);
                 }
                 return child;
             }).transformExpressionsOnly(EsqlBinaryComparison.class, comparison -> {
@@ -4208,8 +4211,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (aggFunc instanceof AvgOverTime avgOT) {
                     return new Div(
                         aggFunc.source(),
-                        new SumOverTime(aggFunc.source(), field, aggFunc.filter(), aggFunc.window(), avgOT.timestamp()),
-                        new CountOverTime(aggFunc.source(), field, aggFunc.filter(), aggFunc.window(), avgOT.timestamp())
+                        new SumOverTime(aggFunc.source(), field, avgOT.timestamp(), aggFunc.filter(), aggFunc.window()),
+                        new CountOverTime(aggFunc.source(), field, avgOT.timestamp(), aggFunc.filter(), aggFunc.window())
                     );
                 }
 
@@ -4234,7 +4237,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return new Sum(aggFunc.source(), children.getFirst());
                 }
                 if (aggFunc instanceof CountOverTime cot) {
-                    return new SumOverTime(aggFunc.source(), children.getFirst(), aggFunc.filter(), aggFunc.window(), cot.timestamp());
+                    return new SumOverTime(aggFunc.source(), children.getFirst(), cot.timestamp(), aggFunc.filter(), aggFunc.window());
                 }
                 return aggFunc.replaceChildren(children);
             }
@@ -4358,10 +4361,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             plan.forEachUp(EsRelation.class, esRelation -> { indexMode.set(esRelation.indexMode()); });
             final boolean isTimeSeries = indexMode.get().isTsdb();
             return plan.transformExpressionsOnly(AggregateFunction.class, aggFunc -> {
+                Expression field;
+                if (aggFunc instanceof UnaryAggregateFunction uaf) {
+                    field = uaf.field();
+                } else if (aggFunc instanceof TimeSeriesAggregateFunction tsaf) {
+                    field = tsaf.field();
+                } else {
+                    return aggFunc;
+                }
                 if (ImplicitCastAggregateMetricDoubles.hasNativeSupport(aggFunc, isTimeSeries)) {
                     return aggFunc;
                 }
-                if (aggFunc.field() instanceof FieldAttribute fa && fa.field().getDataType() == AGGREGATE_METRIC_DOUBLE) {
+                if (field instanceof FieldAttribute fa && fa.field().getDataType() == AGGREGATE_METRIC_DOUBLE) {
                     Expression newField = FromAggregateMetricDouble.withMetric(
                         fa.source(),
                         fa,

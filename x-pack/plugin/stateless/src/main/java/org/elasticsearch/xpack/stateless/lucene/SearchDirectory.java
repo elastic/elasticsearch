@@ -85,7 +85,10 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     private final Map<PrimaryTermAndGeneration, RefCounted> generationalFilesTermAndGens;
 
     /**
-     * Term/generation of the latest updated commit if it contained at least one generational file.
+     * Holds the pin(s) for the BCC term/generation(s) referenced by the generational files of the latest updated commit, or
+     * {@code null} if that commit contained no generational file. It can now hold every first-seen BCC of the live generational
+     * files (see {@link #mergeMetadata}), not just a single one, and releases them all exactly once on the next commit update or
+     * on directory close.
      */
     private volatile Releasable lastAcquiredGenerationalFilesTermAndGen = null;
 
@@ -810,7 +813,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             //
             // Distinct BCC term/generations referenced by the generational files in this incoming metadata.
             //
-            // A fresh commit notification always references a single BCC since generation files are carried-over between BCC. But but PIT
+            // A fresh commit notification always references a single BCC since generation files are carried-over between BCC. But PIT
             // relocation metadata (see mergePITReaderMetadata) carries generational files accumulated across many BCCs over the PIT's
             // lifetime. We pin every one of them so that opening the relocated commit (which re-opens these files and acquires each file's
             // BCC term/generation, see acquireGenerationalFileTermAndGeneration) always finds them present in generationalFilesTermAndGens.

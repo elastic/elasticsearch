@@ -118,8 +118,8 @@ public class GroupingAggregatorImplementer {
     private final ExecutableElement combinePartitionMethod;
     /**
      * The element type of the partition values array used in {@link #combinePartition()}.
-     * Equals the third parameter type of {@link #combinePartitionMethod} if present,
-     * otherwise {@link AggregationState#declaredType()}.
+     * Non-null only when {@link #combinePartitionMethod} is non-null; inferred from its
+     * third parameter type.
      */
     private final TypeName partitionValueType;
 
@@ -161,11 +161,9 @@ public class GroupingAggregatorImplementer {
             requireName("combinePartition"),
             requireArgs(requireType(aggState.type()), requireType(TypeName.INT), requireAnyType("<partition value type>"))
         );
-        if (combinePartitionMethod != null) {
-            this.partitionValueType = TypeName.get(combinePartitionMethod.getParameters().get(2).asType());
-        } else {
-            this.partitionValueType = aggState.declaredType();
-        }
+        this.partitionValueType = combinePartitionMethod != null
+            ? TypeName.get(combinePartitionMethod.getParameters().get(2).asType())
+            : null;
         this.prepareEvaluateIntermediate = optionalStaticMethod(
             declarationType,
             requireType(GROUPING_AGGREGATOR_FUNCTION_PREPARED_FOR_EVALUATION),

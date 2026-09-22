@@ -522,6 +522,7 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
         final int numKeys = numKeys();
         BytesRefArray dict = bytesHash.getBytesRefs();
         final byte[] prefix = new byte[PACKED_PREFIX_LENGTH];
+        final BytesRef prefixBytes = new BytesRef(prefix);
         final long bytesHint = numKeys * (PACKED_PREFIX_LENGTH + (dict.size() > 0 ? dict.totalBytes() / dict.size() : 0));
         BytesRef scratch = new BytesRef();
         var out = new BytesRefArray(numKeys, blockFactory.bigArrays(), bytesHint);
@@ -532,7 +533,7 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
                 long key2 = longHash.getKey2(id);
                 LONG_HANDLE.set(prefix, 1, key1);
                 dict.get((int) key2, scratch);
-                out.append(prefix, scratch);
+                out.append(prefixBytes, scratch);
             }
             success = true;
             return out;
@@ -547,7 +548,7 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
         final int numKeys = numKeys();
         BytesRefArray dict = bytesHash.getBytesRefs();
         final byte[] prefix = new byte[PACKED_PREFIX_LENGTH];
-        final BytesRef prefixOnly = new BytesRef(prefix);
+        final BytesRef prefixBytes = new BytesRef(prefix);
         final long bytesHint = numKeys * (PACKED_PREFIX_LENGTH + (dict.size() > 0 ? dict.totalBytes() / dict.size() : 0));
         BytesRef scratch = new BytesRef();
         var out = new BytesRefArray(numKeys, blockFactory.bigArrays(), bytesHint);
@@ -567,10 +568,10 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
                 prefix[0] = flags;
                 LONG_HANDLE.set(prefix, 1, key1);
                 if (bytesNull) {
-                    out.append(prefixOnly);
+                    out.append(prefixBytes);
                 } else {
                     dict.get((int) (key2 & LongIntBlockHash.WIDEN), scratch);
-                    out.append(prefix, scratch);
+                    out.append(prefixBytes, scratch);
                 }
             }
             success = true;

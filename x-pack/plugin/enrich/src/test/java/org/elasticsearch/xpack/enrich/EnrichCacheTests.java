@@ -16,9 +16,12 @@ import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.smile.SmileXContent;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -27,8 +30,10 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class EnrichCacheTests extends ESTestCase {
 
@@ -229,6 +234,87 @@ public class EnrichCacheTests extends ESTestCase {
             assertThat(notifiedOfResultLatch.await(5, TimeUnit.SECONDS), equalTo(true));
             EnrichStatsAction.Response.CacheStats cacheStats = enrichCache.getStats(randomAlphaOfLength(10));
             assertThat(cacheStats.misses(), equalTo(++expectedMisses));
+        }
+    }
+
+    /**
+     * Verifies that byte arrays in enrich source documents are independently deep-copied on each cache access. Uses SMILE-encoded
+     * source documents so that binary fields survive the SearchHit#getSourceAsMap() round-trip as byte[], exercising the byte[]
+     * branch in EnrichCache#deepCopy through the full computeIfAbsent → toCacheValue pipeline.
+     */
+    public void testByteArraySourceIsolation() throws InterruptedException {
+        EnrichCache enrichCache = new EnrichCache(10);
+        ProjectId projectId = randomProjectIdOrDefault();
+
+        final byte[] originalBytes = { 1, 2, 3, 4, 5 };
+        Map<String, Object> sourceMap = new HashMap<>();
+        sourceMap.put("key1", "value1");
+        sourceMap.put("binary_field", originalBytes);
+
+        List<List<Map<?, ?>>> capturedResults = new ArrayList<>();
+
+        // First call: cache miss — source document is fetched and cached
+        {
+            CountDownLatch queriedDatabaseLatch = new CountDownLatch(1);
+            CountDownLatch notifiedOfResultLatch = new CountDownLatch(1);
+            enrichCache.computeIfAbsent(projectId, "policy1-1", "1", 1, listener -> {
+                SearchResponse searchResponse = convertToSearchResponseWithSmile(sourceMap);
+                listener.onResponse(searchResponse);
+                searchResponse.decRef();
+                queriedDatabaseLatch.countDown();
+            }, assertNoFailureListener(response -> {
+                capturedResults.add(response);
+                notifiedOfResultLatch.countDown();
+            }));
+            assertThat(queriedDatabaseLatch.await(5, TimeUnit.SECONDS), equalTo(true));
+            assertThat(notifiedOfResultLatch.await(5, TimeUnit.SECONDS), equalTo(true));
+        }
+
+        // Second call: cache hit — result must be a fresh deep copy, not shared with the first
+        {
+            CountDownLatch notifiedOfResultLatch = new CountDownLatch(1);
+            enrichCache.computeIfAbsent(projectId, "policy1-1", "1", 1, listener -> {
+                fail("Expected no call to the database because item should have been in the cache");
+            }, assertNoFailureListener(response -> {
+                capturedResults.add(response);
+                notifiedOfResultLatch.countDown();
+            }));
+            assertThat(notifiedOfResultLatch.await(5, TimeUnit.SECONDS), equalTo(true));
+        }
+
+        assertThat(capturedResults.size(), equalTo(2));
+        byte[] resultBytes1 = (byte[]) capturedResults.get(0).get(0).get("binary_field");
+        byte[] resultBytes2 = (byte[]) capturedResults.get(1).get(0).get("binary_field");
+
+        // Both results must have the correct values
+        assertArrayEquals(originalBytes, resultBytes1);
+        assertArrayEquals(originalBytes, resultBytes2);
+
+        // Each call returns a distinct copy; no result shares an instance with the original or each other
+        assertThat(resultBytes1, not(sameInstance(originalBytes)));
+        assertThat(resultBytes2, not(sameInstance(originalBytes)));
+        assertThat(resultBytes1, not(sameInstance(resultBytes2)));
+
+        // Mutating the first result must not corrupt the second
+        resultBytes1[0] = 99;
+        assertArrayEquals(originalBytes, resultBytes2);
+    }
+
+    private SearchResponse convertToSearchResponseWithSmile(Map<String, Object> sourceMap) {
+        try {
+            SearchHit hit = new SearchHit(0, "id").sourceRef(convertMapToSmile(sourceMap));
+            SearchHits hits = new SearchHits(new SearchHit[] { hit }, null, 0);
+            SearchResponse response = SearchResponseUtils.response(hits).shards(5, 4, 0).build();
+            hits.decRef();
+            return response;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private BytesReference convertMapToSmile(Map<String, ?> simpleMap) throws IOException {
+        try (XContentBuilder builder = SmileXContent.contentBuilder().map(simpleMap)) {
+            return BytesReference.bytes(builder);
         }
     }
 

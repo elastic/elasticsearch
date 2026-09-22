@@ -6826,7 +6826,11 @@ public class FileSplitProviderTests extends ESTestCase {
         // row and the file can be skipped unread. Before the forms were recognised here they fell through and the
         // file was opened and scanned for nothing.
         Set<String> present = Set.of("id", "other");
-        FieldAttribute region = new FieldAttribute(SRC, "region", new EsField("region", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+        FieldAttribute region = new FieldAttribute(
+            SRC,
+            "region",
+            new EsField("region", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
         Literal zoo = new Literal(SRC, new BytesRef("zoo"), DataType.KEYWORD);
         List<Expression> forms = List.of(
             new MvContains(SRC, region, zoo),
@@ -6839,7 +6843,11 @@ public class FileSplitProviderTests extends ESTestCase {
             assertTrue(form.toString(), FileSplitProvider.skipIfFilterOnMissingColumns(List.of(form), present));
         }
         // Control: the same forms over a column the file does have are not a reason to skip it.
-        FieldAttribute id = new FieldAttribute(SRC, "id", new EsField("id", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+        FieldAttribute id = new FieldAttribute(
+            SRC,
+            "id",
+            new EsField("id", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
         assertFalse(FileSplitProvider.skipIfFilterOnMissingColumns(List.of(new MvContains(SRC, id, zoo)), present));
     }
 

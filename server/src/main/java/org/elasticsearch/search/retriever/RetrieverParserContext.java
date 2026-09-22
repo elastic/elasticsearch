@@ -22,10 +22,6 @@ public class RetrieverParserContext {
     protected final Predicate<NodeFeature> clusterSupportsFeature;
     private final QueryParsingReservation queryParsingReservation;
 
-    public RetrieverParserContext(SearchUsage searchUsage, Predicate<NodeFeature> clusterSupportsFeature) {
-        this(searchUsage, clusterSupportsFeature, null);
-    }
-
     public RetrieverParserContext(
         SearchUsage searchUsage,
         Predicate<NodeFeature> clusterSupportsFeature,

@@ -84,7 +84,7 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
     protected RRFRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
         return (RRFRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
-            new RetrieverParserContext(new SearchUsage(), nf -> true)
+            new RetrieverParserContext(new SearchUsage(), nf -> true, null)
         );
     }
 

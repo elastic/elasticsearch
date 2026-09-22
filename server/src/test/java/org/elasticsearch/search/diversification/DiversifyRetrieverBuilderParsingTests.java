@@ -68,7 +68,7 @@ public class DiversifyRetrieverBuilderParsingTests extends AbstractXContentTestC
     protected DiversifyRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
         return (DiversifyRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
-            new RetrieverParserContext(new SearchUsage(), n -> true)
+            new RetrieverParserContext(new SearchUsage(), n -> true, null)
         );
     }
 

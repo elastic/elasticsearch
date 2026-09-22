@@ -55,7 +55,7 @@ public class RescorerRetrieverBuilderParsingTests extends AbstractXContentTestCa
     protected RescorerRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
         return (RescorerRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
-            new RetrieverParserContext(new SearchUsage(), n -> true)
+            new RetrieverParserContext(new SearchUsage(), n -> true, null)
         );
     }
 
@@ -79,7 +79,7 @@ public class RescorerRetrieverBuilderParsingTests extends AbstractXContentTestCa
 
     private RetrieverBuilder parseRetriever(String json) throws IOException {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            return RetrieverBuilder.parseTopLevelRetrieverBuilder(parser, new RetrieverParserContext(new SearchUsage(), n -> true));
+            return RetrieverBuilder.parseTopLevelRetrieverBuilder(parser, new RetrieverParserContext(new SearchUsage(), n -> true, null));
         }
     }
 

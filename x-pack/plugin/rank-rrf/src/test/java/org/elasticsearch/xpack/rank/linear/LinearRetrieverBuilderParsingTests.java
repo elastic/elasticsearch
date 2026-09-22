@@ -85,7 +85,7 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
     protected LinearRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
         return (LinearRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
-            new RetrieverParserContext(new SearchUsage(), n -> true)
+            new RetrieverParserContext(new SearchUsage(), n -> true, null)
         );
     }
 

@@ -91,7 +91,7 @@ public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<Kn
     protected KnnRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
         return (KnnRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
-            new RetrieverParserContext(new SearchUsage(), Predicates.never())
+            new RetrieverParserContext(new SearchUsage(), Predicates.never(), null)
         );
     }
 

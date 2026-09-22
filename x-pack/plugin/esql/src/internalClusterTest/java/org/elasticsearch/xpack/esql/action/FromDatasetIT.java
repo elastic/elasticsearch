@@ -5713,11 +5713,18 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows.get(2).get(idIdx).toString(), equalTo("row-c"));
         }
 
+        // METADATA _id survives KEEP * and stays null. The physical _id cells do not.
         try (var response = run(syncEsqlQueryRequest("FROM collision_id METADATA _id | KEEP * | SORT emp_no"), TIMEOUT)) {
             List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
-            assertThat(names, not(hasItem("_id")));
+            assertThat(names, hasItem("_id"));
             assertThat(names, hasItem("emp_no"));
             assertThat(names, hasItem("first_name"));
+            int idIdx = names.indexOf("_id");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (List<Object> row : rows) {
+                assertNull(row.get(idIdx));
+            }
         }
     }
 

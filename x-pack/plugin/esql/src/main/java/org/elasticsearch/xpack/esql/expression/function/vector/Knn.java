@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DenseVectorEsField;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -93,7 +94,7 @@ public class Knn extends SingleFieldFullTextFunction
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Knn.class)
         .ternaryConfig(Knn::new)
         // Snapshot-only, matching the pragma that enables KNN's runtime search in the first place.
-        .snapshotCapabilities("runtime_anywhere", "runtime_similarity_function")
+        .snapshotCapabilities("runtime_anywhere", "runtime_similarity_function", "mapped_non_indexed_field")
         .name("knn");
 
     private final Integer implicitK;
@@ -126,7 +127,8 @@ public class Knn extends SingleFieldFullTextFunction
         returnType = "boolean",
         briefSummary = "Finds the k nearest vectors to a query vector using a similarity metric.",
         description = "Finds the k nearest vectors to a query vector, as measured by a similarity metric. "
-            + "knn function finds nearest vectors through approximate search on indexed dense_vectors or semantic_text fields.",
+            + "The knn function uses approximate search for indexed dense_vector and semantic_text fields. "
+            + "For runtime expressions and non-indexed dense_vector fields, it evaluates similarity per row.",
         examples = { @Example(file = "knn-function", tag = "knn-function") },
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
@@ -289,7 +291,9 @@ public class Knn extends SingleFieldFullTextFunction
             // indices where the field is unmapped, so it is matched at runtime instead.
             return true;
         }
-        return false;
+        // Non-indexed dense_vectors are loaded into the compute pipeline and evaluated row by row. The coordinator must make this
+        // choice before physical planning so field extraction is inserted instead of translating this function to a Lucene query.
+        return fieldAttribute.field() instanceof DenseVectorEsField denseVectorField && denseVectorField.isIndexed() == false;
     }
 
     @Override

@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.core.type.CompactInvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
+import org.elasticsearch.xpack.esql.core.type.DenseVectorEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
@@ -65,6 +66,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
@@ -536,6 +538,7 @@ public class IndexResolver {
             type = UNSUPPORTED;
         }
         boolean aggregatable = first.isAggregatable();
+        boolean indexed = first.isSearchable();
         EsField.TimeSeriesFieldType timeSeriesFieldType = fieldsInfo.hasTimeSeriesAggregation()
             ? EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(first)
             : EsField.TimeSeriesFieldType.NONE;
@@ -560,6 +563,7 @@ public class IndexResolver {
             }
             for (IndexFieldCapabilities fc : rest) {
                 aggregatable &= fc.isAggregatable();
+                indexed &= fc.isSearchable();
             }
         }
 
@@ -576,6 +580,11 @@ public class IndexResolver {
         }
         if (type == DATETIME) {
             return DateEsField.dateEsField(name, new HashMap<>(), aggregatable, timeSeriesFieldType);
+        }
+        if (type == DENSE_VECTOR
+            && fieldsInfo.minTransportVersion() != null
+            && fieldsInfo.minTransportVersion().supports(DenseVectorEsField.ESQL_DENSE_VECTOR_FIELD_INDEXED)) {
+            return new DenseVectorEsField(name, new HashMap<>(), aggregatable, isAlias, timeSeriesFieldType, indexed);
         }
         if (type == UNSUPPORTED) {
             return unsupported(name, first);

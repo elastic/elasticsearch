@@ -394,6 +394,7 @@ public class CsvTestsDataLoader {
         new TestDataset("dense_vector_text"),
         new TestDataset("mv_text"),
         new TestDataset("dense_vector"),
+        new TestDataset("dense_vector_unindexed", "mapping-dense_vector-unindexed.json", "dense_vector.csv"),
         new TestDataset("dense_vector").withIndex("dense_vector_unmapped")
             .withDynamic("false")
             .withTypeMapping(removeFields("float_vector")),

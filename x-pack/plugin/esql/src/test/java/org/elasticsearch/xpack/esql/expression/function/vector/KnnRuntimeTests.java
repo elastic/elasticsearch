@@ -7,10 +7,22 @@
 
 package org.elasticsearch.xpack.esql.expression.function.vector;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DenseVectorEsField;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
@@ -23,6 +35,14 @@ import static org.hamcrest.Matchers.containsString;
 public class KnnRuntimeTests extends ESTestCase {
 
     private static final BlockFactory BLOCK_FACTORY = TestBlockFactory.getNonBreakingInstance();
+
+    public void testMappedUnindexedFieldUsesRuntimeSearch() {
+        QueryPragmas pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.KNN_RUNTIME_FIELD.getKey(), true).build());
+        Literal query = new Literal(Source.EMPTY, List.of(1.0f, 2.0f), DataType.DENSE_VECTOR);
+
+        assertTrue(knnForMappedField(false, query, pragmas).isRuntimeSearch());
+        assertFalse(knnForMappedField(true, query, pragmas).isRuntimeSearch());
+    }
 
     public void testRuntimeScoreForEveryMetric() {
         assertScore(VectorSimilarityMetric.COSINE, new float[] { 3.0f, 4.0f }, new float[] { 4.0f, 3.0f }, 2.0f, 1.96);
@@ -161,5 +181,10 @@ public class KnnRuntimeTests extends ESTestCase {
             }
             return builder.build();
         }
+    }
+
+    private static Knn knnForMappedField(boolean indexed, Literal query, QueryPragmas pragmas) {
+        DenseVectorEsField field = new DenseVectorEsField("vector", Map.of(), false, false, EsField.TimeSeriesFieldType.NONE, indexed);
+        return new Knn(Source.EMPTY, new FieldAttribute(Source.EMPTY, "vector", field), query, null, EsqlTestUtils.configuration(pragmas));
     }
 }

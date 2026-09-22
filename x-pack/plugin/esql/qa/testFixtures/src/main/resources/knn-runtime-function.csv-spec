@@ -16,6 +16,43 @@
 //   id=1 [0,64,0]     cosine = 0.0
 //   id=2 [0,0,64]     cosine = 0.0
 
+// A mapped dense_vector with index:false is loaded into the ES|QL execution pipeline and evaluated
+// with the same brute-force implementation as a runtime expression.
+knnMappedUnindexedField
+required_capability: knn_runtime_field
+required_capability: fn_knn_mapped_non_indexed_field
+pragma: knn_runtime_field=true
+
+FROM dense_vector_unindexed
+| WHERE knn(float_vector, [1, 2, 3], {"similarity": 0.9999})
+| KEEP id
+| LIMIT 10
+;
+
+id:long
+0
+;
+
+// The runtime path remains valid after a coordinator-side operator. This also verifies that field extraction
+// carries the mapped vector through the exchange instead of attempting to build a Lucene KNN query.
+knnMappedUnindexedFieldAfterLimit
+required_capability: knn_runtime_field
+required_capability: fn_knn_runtime_anywhere
+required_capability: fn_knn_mapped_non_indexed_field
+pragma: knn_runtime_field=true
+
+FROM dense_vector_unindexed
+| SORT id
+| LIMIT 2
+| WHERE knn(float_vector, [1, 2, 3], {"similarity": 0.9999})
+| KEEP id
+| LIMIT 10
+;
+
+id:long
+0
+;
+
 // Test 1: KNN on ROW data using to_dense_vector() on a hex string literal.
 // The hex string "400000" decodes to bytes [64,0,0], which is the only row and
 // has cosine similarity 1.0 with the query [64,0,0], so it passes the filter.

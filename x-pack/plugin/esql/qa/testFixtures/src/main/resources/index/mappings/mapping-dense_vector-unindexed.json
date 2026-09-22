@@ -1,0 +1,22 @@
+{
+  "properties": {
+    "id": {
+      "type": "long"
+    },
+    "float_vector": {
+      "type": "dense_vector",
+      "index": false
+    },
+    "byte_vector": {
+      "type": "dense_vector",
+      "element_type": "byte",
+      "index": false
+    },
+    "bit_vector": {
+      "type": "dense_vector",
+      "dims": 16,
+      "element_type": "bit",
+      "index": false
+    }
+  }
+}

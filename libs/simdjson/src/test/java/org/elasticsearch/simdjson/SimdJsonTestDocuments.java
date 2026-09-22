@@ -152,4 +152,50 @@ public final class SimdJsonTestDocuments {
         docs.add("{\"objArrLong\":[{\"a\":\"" + "a".repeat(200) + "\",\"b\":\"" + "b".repeat(120) + "\\n" + "b".repeat(60) + "\"}]}");
         return List.copyOf(docs);
     }
+
+    /**
+     * Malformed documents that both simdjson and Jackson/XContent are expected to reject, though
+     * not necessarily with the same message - unlike the number-specific cases in
+     * {@code SimdJsonJacksonComparisonTests} (leading zeros, empty fraction/exponent), which do
+     * compare message text and so aren't duplicated here. Grouped by RFC 8259 rule violated:
+     * unescaped control characters, unrecognized/incomplete escapes, structural grammar errors,
+     * and non-standard number tokens neither parser is configured to accept.
+     */
+    public static List<String> invalidDocumentsRejectedByBothParsers() {
+        List<String> docs = new ArrayList<>();
+        // tag::noformat
+        Collections.addAll(
+            docs,
+            // Unescaped control characters (RFC 8259: U+0000-U+001F must be escaped), in a
+            // string value and in a field name.
+            "{\"a\":\"x" + '\n' + "y\"}",
+            "{\"a\":\"x" + '\t' + "y\"}",
+            "{\"a\":\"x" + (char) 1 + "y\"}",
+            "{\"a" + (char) 1 + "b\":1}",
+            // Unrecognized or incomplete escapes.
+            """
+                {"a":"x\\qy"}""", """
+                {"a":"x\\u12"}""",
+            // Grammar errors: missing/extra/misplaced structural characters.
+            """
+                {"a" 1}""", """
+                {"a":1 "b":2}""", """
+                {"a":[1 2]}""", """
+                {"a":[,1]}""", """
+                {'a':1}""", """
+                {a:1}""", """
+                {"a":1,,"b":2}""", """
+                {"a":1:"b":2}""", """
+                {"a":[1,2}""",
+            // Non-standard number tokens (JsonReadFeature-gated in Jackson; simdjson has no
+            // equivalent opt-in).
+            """
+                {"a":NaN}""", """
+                {"a":Infinity}""", """
+                {"a":+1}""", """
+                {"a":0x1A}"""
+        );
+        // end::noformat
+        return List.copyOf(docs);
+    }
 }

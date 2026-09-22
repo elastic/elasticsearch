@@ -13,7 +13,6 @@ import org.elasticsearch.simdjson.internal.fieldnames.FrozenFieldNameTable;
 import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 
 import java.math.BigInteger;
-import java.util.Arrays;
 import java.util.List;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -657,43 +656,4 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         }
     }
 
-    private RecordingHandler walkAndRecord(String json, int paddingBytes) {
-        byte[] jsonBytes = json.getBytes(UTF_8);
-        int len = jsonBytes.length;
-        byte[] buffer = Arrays.copyOf(jsonBytes, len + paddingBytes);
-
-        SimdJsonParser parser = newParser(buffer.length);
-        parser.stage1(buffer, len);
-        parser.prepareDocumentWindow(0, len);
-
-        FrozenFieldNameTable parent = new FrozenFieldNameTable();
-        FrozenFieldNameTable.Child child = parent.makeChild();
-        SimdJsonDirectWalker walker = new SimdJsonDirectWalker(child);
-
-        RecordingHandler handler = new RecordingHandler();
-        walker.walkDocument(buffer, parser.bitIndexes(), handler);
-        return handler;
-    }
-
-    // Places the document at a non-zero start offset within a larger buffer, leaving the bytes
-    // before it zero-filled (as they would be for a preceding NDJSON document). No trailing
-    // padding is added: SimdJsonParser documents exact-length buffers as sufficient.
-    private RecordingHandler walkAndRecordAtOffset(String json, int offset) {
-        byte[] jsonBytes = json.getBytes(UTF_8);
-        int len = jsonBytes.length;
-        byte[] buffer = new byte[offset + len];
-        System.arraycopy(jsonBytes, 0, buffer, offset, len);
-
-        SimdJsonParser parser = newParser(buffer.length);
-        parser.stage1(buffer, offset, len);
-        parser.prepareDocumentWindow(offset, len);
-
-        FrozenFieldNameTable parent = new FrozenFieldNameTable();
-        FrozenFieldNameTable.Child child = parent.makeChild();
-        SimdJsonDirectWalker walker = new SimdJsonDirectWalker(child);
-
-        RecordingHandler handler = new RecordingHandler();
-        walker.walkDocument(buffer, parser.bitIndexes(), handler);
-        return handler;
-    }
 }

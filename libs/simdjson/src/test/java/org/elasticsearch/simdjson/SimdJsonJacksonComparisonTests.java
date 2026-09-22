@@ -315,6 +315,22 @@ public class SimdJsonJacksonComparisonTests extends SimdJsonTestCase {
         }
     }
 
+    // Malformed documents.
+    public void testKnownInvalidDocumentsRejectedByBothParsers() {
+        int[] paddingsAndOffsets = { 0, 1, 7, 15, 16, 17, 31, 32, 33, 63, 64, 65 };
+        for (String json : SimdJsonTestDocuments.invalidDocumentsRejectedByBothParsers()) {
+            expectThrows(XContentParseException.class, () -> walkWithJackson(json));
+            expectThrows(JsonParsingException.class, () -> walkJson(json));
+
+            for (int padding : paddingsAndOffsets) {
+                expectThrows(JsonParsingException.class, () -> walkAndRecord(json, padding));
+            }
+            for (int offset : paddingsAndOffsets) {
+                expectThrows(JsonParsingException.class, () -> walkAndRecordAtOffset(json, offset));
+            }
+        }
+    }
+
     // Both parsers require at least one digit after '.' and after 'e'/'E', and phrase the
     // rejection identically enough that the message can be compared directly (unlike
     // testTrailingGarbageOrMissingDigitsRejectedByBothParsers below).

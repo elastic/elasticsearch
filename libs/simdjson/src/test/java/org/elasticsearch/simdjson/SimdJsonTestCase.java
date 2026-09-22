@@ -17,6 +17,7 @@ import org.junit.Before;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -91,6 +92,55 @@ public abstract class SimdJsonTestCase extends ESTestCase {
             walker.walkDocument(buffer, parser, handler);
             return handler.events;
         }
+    }
+
+    /**
+     * Like {@link #walkJson(String)}, but with {@code paddingBytes} of extra zero-filled buffer
+     * capacity beyond the document itself (document window stays {@code [0, len)}). Padding of 0
+     * exercises {@code buffer.length == document.length} (e.g. the near-buffer-end fallbacks in
+     * {@link SimdJsonDirectWalker}); enough padding forces the regular hot paths instead - see
+     * that class's Javadoc on why both exist and need independent coverage.
+     */
+    protected RecordingHandler walkAndRecord(String json, int paddingBytes) {
+        byte[] jsonBytes = json.getBytes(UTF_8);
+        int len = jsonBytes.length;
+        byte[] buffer = Arrays.copyOf(jsonBytes, len + paddingBytes);
+
+        SimdJsonParser parser = newParser(buffer.length);
+        parser.stage1(buffer, len);
+        parser.prepareDocumentWindow(0, len);
+
+        FrozenFieldNameTable parent = new FrozenFieldNameTable();
+        FrozenFieldNameTable.Child child = parent.makeChild();
+        SimdJsonDirectWalker walker = new SimdJsonDirectWalker(child);
+
+        RecordingHandler handler = new RecordingHandler();
+        walker.walkDocument(buffer, parser.bitIndexes(), handler);
+        return handler;
+    }
+
+    /**
+     * Places the document at a non-zero start offset within a larger buffer, leaving the bytes
+     * before it zero-filled (as they would be for a preceding NDJSON document). No trailing
+     * padding is added: {@link SimdJsonParser} documents exact-length buffers as sufficient.
+     */
+    protected RecordingHandler walkAndRecordAtOffset(String json, int offset) {
+        byte[] jsonBytes = json.getBytes(UTF_8);
+        int len = jsonBytes.length;
+        byte[] buffer = new byte[offset + len];
+        System.arraycopy(jsonBytes, 0, buffer, offset, len);
+
+        SimdJsonParser parser = newParser(buffer.length);
+        parser.stage1(buffer, offset, len);
+        parser.prepareDocumentWindow(offset, len);
+
+        FrozenFieldNameTable parent = new FrozenFieldNameTable();
+        FrozenFieldNameTable.Child child = parent.makeChild();
+        SimdJsonDirectWalker walker = new SimdJsonDirectWalker(child);
+
+        RecordingHandler handler = new RecordingHandler();
+        walker.walkDocument(buffer, parser.bitIndexes(), handler);
+        return handler;
     }
 
     // ---- Recording handler (test-only JsonDocumentHandler) ----

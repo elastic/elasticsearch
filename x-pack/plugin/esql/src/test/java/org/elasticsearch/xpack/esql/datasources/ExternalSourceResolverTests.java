@@ -109,6 +109,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
@@ -4740,19 +4741,24 @@ public class ExternalSourceResolverTests extends ESTestCase {
         .build();
 
     /**
-     * A dataset whose files and settings have not changed must be answered from what was already resolved, without
-     * opening a single file — whatever other datasets have done to the shared per-file cache in the meantime, and
-     * whatever the query needs from it.
+     * Discovering the schema of a dataset whose files and settings have not changed must open no file — and must never
+     * open more than it does today.
      * <p>
      * Between the cold and the warm resolve, an unrelated 1,000-file dataset is resolved, which evicts this dataset's
-     * per-file entries from the slice every dataset shares. Today the warm resolve then re-opens the files it needs
-     * to answer the schema; that I/O is what a dataset-level entry in a slice of its own removes. Counting file opens
-     * rather than cache lookups is deliberate: a lookup that hits costs nothing, and it is the ones that miss and go
-     * to storage that the cache exists to avoid. Listing is not counted: a listing is how a resolve learns that the
-     * dataset has not changed.
+     * per-file entries from the slice every dataset shares. Today the warm resolve then re-opens the files it needs to
+     * answer the schema; that I/O is what a dataset-level entry in a slice of its own removes. Counting file opens
+     * rather than cache lookups is deliberate: a lookup that hits costs nothing, and it is the ones that miss and go to
+     * storage that a cache exists to avoid. Listing is not counted: a listing is how a resolve learns that the dataset
+     * has not changed.
      * <p>
-     * Covers every schema-resolution mode under every demand, iterating the production enums, so a new mode or a new
-     * demand inherits the contract.
+     * Two contracts, because this caches the schema and nothing else. Where discovery is the only reason a resolve
+     * opens a file, it must open none: every mode under {@code SCHEMA_DISCOVERY}, and {@code FIRST_FILE_WINS} reading
+     * rows, whose resolve reads the anchor and no more. Everywhere else the same pass reads every file for its
+     * STATISTICS, which are not cached and are built on the first read; there the contract is only that the warm
+     * resolve opens no more than the cold one did, so that a schema cache can never make those slower.
+     * <p>
+     * Covers every mode under every demand, iterating the production enums, so a new mode or a new demand inherits
+     * whichever contract fits it.
      */
     public void testWarmResolveOfAnUnchangedDatasetOpensNoFile() throws Exception {
         String glob = "s3://bucket/data/*.parquet";
@@ -4766,6 +4772,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
 
         Map<String, Integer> warmOpens = new TreeMap<>();
+        Map<String, Integer> coldOpens = new TreeMap<>();
         for (FormatReader.SchemaResolution strategy : FormatReader.SchemaResolution.values()) {
             for (ResolutionDemand demand : ResolutionDemand.values()) {
                 String cell = strategy + "/" + demand;
@@ -4779,7 +4786,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(CHURNED_CACHE)) {
                     ExternalSourceResolver resolver = createResolverWithCache(provider, schemasByPath, cacheService);
 
+                    int opensBeforeCold = provider.schemaCallCount.get();
                     ExternalSourceResolution cold = resolveUnder(resolver, glob, pathConfigs, demand);
+                    int opensBeforeChurn = provider.schemaCallCount.get() - opensBeforeCold;
 
                     long evictionsBeforeChurn = schemaCacheEvictions(cacheService);
                     resolveUnder(resolver, churnGlob, pathConfigs, ResolutionDemand.EAGER_STATS);
@@ -4792,6 +4801,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                     int opensBeforeWarm = provider.schemaCallCount.get();
                     ExternalSourceResolution warm = resolveUnder(resolver, glob, pathConfigs, demand);
                     warmOpens.put(cell, provider.schemaCallCount.get() - opensBeforeWarm);
+                    coldOpens.put(cell, opensBeforeChurn);
                     assertEquals(
                         "[" + cell + "] a served schema must equal the one the cold resolve produced",
                         describe(cold.resolvedSource(glob).metadata().schema()),
@@ -4801,9 +4811,31 @@ public class ExternalSourceResolverTests extends ESTestCase {
             }
         }
 
-        Map<String, Integer> noOpens = new TreeMap<>();
-        warmOpens.keySet().forEach(cell -> noOpens.put(cell, 0));
-        assertEquals("a warm resolve of an unchanged dataset must open no file; observed " + warmOpens, noOpens, warmOpens);
+        // The regression guard first, so it is exercised on every run rather than only once the contract below holds.
+        for (Map.Entry<String, Integer> cell : warmOpens.entrySet()) {
+            assertThat(
+                "[" + cell.getKey() + "] caching the schema must never make a resolve open more files than a cold one",
+                cell.getValue(),
+                lessThanOrEqualTo(coldOpens.get(cell.getKey()))
+            );
+        }
+
+        Map<String, Integer> schemaOnlyCells = new TreeMap<>();
+        Map<String, Integer> observedSchemaOnly = new TreeMap<>();
+        for (String cell : warmOpens.keySet()) {
+            boolean schemaIsTheOnlyReason = cell.endsWith("/" + ResolutionDemand.SCHEMA_DISCOVERY)
+                || cell.equals(FormatReader.SchemaResolution.FIRST_FILE_WINS + "/" + ResolutionDemand.ROWS);
+            if (schemaIsTheOnlyReason) {
+                schemaOnlyCells.put(cell, 0);
+                observedSchemaOnly.put(cell, warmOpens.get(cell));
+            }
+        }
+        assertEquals(
+            "where discovery is the only reason to open a file, a warm resolve of an unchanged dataset must open none; observed "
+                + warmOpens,
+            schemaOnlyCells,
+            observedSchemaOnly
+        );
     }
 
     /**

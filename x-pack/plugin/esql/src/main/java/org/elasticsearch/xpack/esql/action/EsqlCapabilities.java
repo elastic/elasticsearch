@@ -4073,6 +4073,14 @@ public class EsqlCapabilities {
         FIX_AGGS_MULTIPLE_INPUT_FIELDS,
 
         /**
+         * {@code KEEP *} retains a {@code _file.*} column named in the {@code METADATA} clause.
+         * Older coordinators omit those columns from star expansion, so a later reference fails
+         * verification with {@code Unknown column [_file.*]}. Tests that read the column after
+         * {@code KEEP *} gate on this capability.
+         */
+        EXTERNAL_SOURCE_KEEP_STAR_KEEPS_FILE_METADATA,
+
+        /**
          * Parquet LIKE-family predicates pushed as {@code Pushability.YES} (dropped from FilterExec) now
          * return an empty survivor mask — not the all-survive sentinel — when the predicate column is absent
          * from the per-file predicate block map. Under {@code union_by_name} a file that lacks the column

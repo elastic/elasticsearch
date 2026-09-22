@@ -37,6 +37,11 @@ class NativeLibraryBuildPluginFuncTest extends AbstractGradleInternalPluginFuncT
           hostCommand { outputDir -> ['sh', '-c', "mkdir -p \$outputDir.asFile/${PLATFORM} && echo built > \$outputDir.asFile/${PLATFORM}/libtest.so"] }
         }
         """
+        // libtest.so above is a placeholder, not a real ELF file, so the real objdump on the
+        // Linux CI host cannot parse it. Default to a stub that reports no version references,
+        // so tests unrelated to the ABI check itself do not depend on a real Linux binary.
+        // Tests exercising the check override this with their own scenario-specific stub.
+        fakeObjdump("")
     }
 
     def "builds from source on the host and substitutes the output directory"() {

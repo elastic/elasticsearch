@@ -15,21 +15,24 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotReq
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.MappedActionFilter;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
 
 /**
  * Emits a Warning response header and log message when a snapshot is requested and the cluster
- * contains data source credentials encrypted under the project encryption key (PEK). Those
- * credentials are excluded from snapshots until full snapshot/restore support for encrypted
- * credentials is available, and must be reconfigured after a restore.
+ * contains data encrypted under the project encryption key (PEK). That data is excluded from
+ * snapshots until full snapshot/restore support for PEK-encrypted data is available, and must
+ * be reconfigured after a restore.
  */
 class SnapshotEncryptedDataWarningFilter implements MappedActionFilter {
 
     static final String WARNING_MESSAGE =
-        "Encrypted data source credentials cannot be included in this snapshot and must be reconfigured after restore.";
+        "Encrypted credentials cannot be included in this snapshot and must be reconfigured after restore.";
 
     private static final Logger logger = LogManager.getLogger(SnapshotEncryptedDataWarningFilter.class);
 
@@ -67,11 +70,21 @@ class SnapshotEncryptedDataWarningFilter implements MappedActionFilter {
     }
 
     private void warnIfEncryptedDataPresent() {
-        var projectMetadata = projectResolver.getProjectState(clusterService.state()).metadata();
-        boolean hasEncryptedData = handlerRegistry.handlers().stream().anyMatch(h -> projectMetadata.custom(h.customName()) != null);
-        if (hasEncryptedData) {
-            logger.warn(WARNING_MESSAGE);
-            HeaderWarning.addWarning(WARNING_MESSAGE);
+        try {
+            var projectMetadata = projectResolver.getProjectState(clusterService.state()).metadata();
+            boolean hasEncryptedData = handlerRegistry.handlers().stream().anyMatch(h -> hasData(h, projectMetadata));
+            if (hasEncryptedData) {
+                logger.warn(WARNING_MESSAGE);
+                HeaderWarning.addWarning(WARNING_MESSAGE);
+            }
+        } catch (Exception e) {
+            logger.warn("Could not check for encrypted data before snapshot", e);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T extends Metadata.ProjectCustom> boolean hasData(EncryptedDataHandler<T> handler, ProjectMetadata projectMetadata) {
+        T current = (T) projectMetadata.custom(handler.customName());
+        return handler.hasData(current);
     }
 }

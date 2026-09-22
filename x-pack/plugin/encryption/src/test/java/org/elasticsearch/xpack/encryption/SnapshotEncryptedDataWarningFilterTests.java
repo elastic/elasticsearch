@@ -6,11 +6,14 @@
  */
 package org.elasticsearch.xpack.encryption;
 
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.support.ActionFilterChain;
+import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -18,6 +21,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -25,9 +29,13 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -64,12 +72,7 @@ public class SnapshotEncryptedDataWarningFilterTests extends ESTestCase {
                     chain(proceeded)
                 ),
                 SnapshotEncryptedDataWarningFilter.class,
-                new MockLog.UnseenEventExpectation(
-                    "no warning",
-                    SnapshotEncryptedDataWarningFilter.class.getName(),
-                    org.apache.logging.log4j.Level.WARN,
-                    "*"
-                )
+                new MockLog.UnseenEventExpectation("no warning", SnapshotEncryptedDataWarningFilter.class.getName(), Level.WARN, "*")
             );
             assertTrue("chain.proceed was not called", proceeded.get());
             assertThat(threadContext.getResponseHeaders(), not(hasKey("Warning")));
@@ -101,14 +104,14 @@ public class SnapshotEncryptedDataWarningFilterTests extends ESTestCase {
                 new MockLog.SeenEventExpectation(
                     "warning logged",
                     SnapshotEncryptedDataWarningFilter.class.getName(),
-                    org.apache.logging.log4j.Level.WARN,
-                    "*Encrypted data source credentials*"
+                    Level.WARN,
+                    "*Encrypted credentials*"
                 )
             );
             assertTrue("chain.proceed was not called", proceeded.get());
             Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
             assertThat(responseHeaders, hasKey("Warning"));
-            assertThat(responseHeaders.get("Warning").get(0), containsString("Encrypted data source credentials"));
+            assertThat(responseHeaders.get("Warning").get(0), containsString("Encrypted credentials"));
         } finally {
             HeaderWarning.removeThreadContext(threadContext);
         }
@@ -130,12 +133,48 @@ public class SnapshotEncryptedDataWarningFilterTests extends ESTestCase {
             MockLog.assertThatLogger(
                 () -> filter.apply(mock(Task.class), "action", request, ActionListener.noop(), chain(proceeded)),
                 SnapshotEncryptedDataWarningFilter.class,
-                new MockLog.UnseenEventExpectation(
-                    "no warning",
-                    SnapshotEncryptedDataWarningFilter.class.getName(),
-                    org.apache.logging.log4j.Level.WARN,
-                    "*"
-                )
+                new MockLog.UnseenEventExpectation("no warning", SnapshotEncryptedDataWarningFilter.class.getName(), Level.WARN, "*")
+            );
+            assertTrue("chain.proceed was not called", proceeded.get());
+            assertThat(threadContext.getResponseHeaders(), not(hasKey("Warning")));
+        } finally {
+            HeaderWarning.removeThreadContext(threadContext);
+        }
+    }
+
+    public void testNoWarningWhenHandlerReportsNoData() {
+        TestCustom custom = new TestCustom();
+        ClusterState state = stateWithCustom(custom);
+        ClusterService clusterService = mockClusterService(state);
+        // Handler overrides hasData to always return false, simulating an empty-but-present custom.
+        var registry = new EncryptedDataHandlerRegistry(List.of(new EncryptedDataHandler<TestCustom>() {
+            @Override
+            public String customName() {
+                return TestCustom.TYPE;
+            }
+
+            @Override
+            public boolean hasData(TestCustom current) {
+                return false;
+            }
+
+            @Override
+            public TestCustom reEncrypt(TestCustom current, EncryptionService encryptionService, String activeKeyId) {
+                return current;
+            }
+        }));
+        var filter = new SnapshotEncryptedDataWarningFilter(clusterService, DefaultProjectResolver.INSTANCE, registry);
+
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        HeaderWarning.setThreadContext(threadContext);
+        try {
+            AtomicBoolean proceeded = new AtomicBoolean();
+            filter.apply(
+                mock(Task.class),
+                "action",
+                new CreateSnapshotRequest(TimeValue.ZERO, "repo", "snap"),
+                ActionListener.noop(),
+                chain(proceeded)
             );
             assertTrue("chain.proceed was not called", proceeded.get());
             assertThat(threadContext.getResponseHeaders(), not(hasKey("Warning")));
@@ -206,9 +245,7 @@ public class SnapshotEncryptedDataWarningFilterTests extends ESTestCase {
         return (task, action, request, listener) -> proceeded.set(true);
     }
 
-    private static final class TestCustom extends org.elasticsearch.cluster.AbstractNamedDiffable<Metadata.ProjectCustom>
-        implements
-            Metadata.ProjectCustom {
+    private static final class TestCustom extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
 
         static final String TYPE = "test_encrypted_custom_for_snapshot_warning";
 
@@ -218,23 +255,21 @@ public class SnapshotEncryptedDataWarningFilterTests extends ESTestCase {
         }
 
         @Override
-        public org.elasticsearch.TransportVersion getMinimalSupportedVersion() {
-            return org.elasticsearch.TransportVersion.current();
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current();
         }
 
         @Override
-        public void writeTo(org.elasticsearch.common.io.stream.StreamOutput out) {}
+        public void writeTo(StreamOutput out) {}
 
         @Override
-        public java.util.EnumSet<Metadata.XContentContext> context() {
-            return java.util.EnumSet.of(Metadata.XContentContext.GATEWAY);
+        public EnumSet<Metadata.XContentContext> context() {
+            return EnumSet.of(Metadata.XContentContext.GATEWAY);
         }
 
         @Override
-        public java.util.Iterator<? extends org.elasticsearch.xcontent.ToXContent> toXContentChunked(
-            org.elasticsearch.xcontent.ToXContent.Params params
-        ) {
-            return java.util.Collections.emptyIterator();
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+            return Collections.emptyIterator();
         }
     }
 }

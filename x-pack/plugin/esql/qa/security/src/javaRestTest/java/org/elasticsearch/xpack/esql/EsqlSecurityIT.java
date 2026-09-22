@@ -623,7 +623,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testViewWildcardFiltersUnauthorized() throws Exception {
-        Response resp = runESQLCommand("user1", "FROM view-user* | STATS sum=sum(value)");
+        Response resp = runESQLCommand("user1", "SET wildcards_match_views=true; FROM view-user* | STATS sum=sum(value)");
         assertOK(resp);
         Map<String, Object> respMap = entityAsMap(resp);
         assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
@@ -713,7 +713,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     public void testViewDlsOnWildcardPattern() throws Exception {
         ResponseException resp = expectThrows(
             ResponseException.class,
-            () -> runESQLCommand("view_dls_user", "FROM view-user* | STATS sum=sum(value)")
+            () -> runESQLCommand("view_dls_user", "SET wildcards_match_views=true; FROM view-user* | STATS sum=sum(value)")
         );
         validateDlsFlsViewException(resp.getResponse(), "view-user1");
     }

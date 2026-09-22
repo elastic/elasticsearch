@@ -382,7 +382,7 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
                 containsString(
                     "a pattern that expands to multiple sources, [FROM airports*, (FROM employees)], cannot be combined with subqueries"
                 ),
-                () -> run("FROM airports*, (FROM employees)").close()
+                () -> run("SET wildcards_match_views=true; FROM airports*, (FROM employees)").close()
             );
         } finally {
             deleteViews("airports_view");
@@ -400,7 +400,7 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
             expectThrows(
                 VerificationException.class,
                 containsString("a pattern that expands to multiple sources, [FROM airports*], cannot be combined with subqueries"),
-                () -> run("FROM employees, (FROM airports*)").close()
+                () -> run("SET wildcards_match_views=true; FROM employees, (FROM airports*)").close()
             );
         } finally {
             deleteViews("airports_view");
@@ -418,7 +418,7 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
             expectThrows(
                 VerificationException.class,
                 containsString("a pattern that expands to multiple sources, [FROM airports*], cannot be combined with subqueries"),
-                () -> run("FROM (FROM airports*), (FROM employees)").close()
+                () -> run("SET wildcards_match_views=true; FROM (FROM airports*), (FROM employees)").close()
             );
         } finally {
             deleteViews("airports_view");
@@ -438,6 +438,7 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
      * no column-type conflicts that would fail verification before the nested-subquery check.
      */
     private void setupWildcardMatchingViewAndIndices() {
+        assumeTrue("Requires views pattern matching", EsqlCapabilities.Cap.VIEWS_MATCH_WILDCARDS.isEnabled());
         client().admin().indices().prepareCreate("airports").setMapping("id", "type=integer", "name", "type=keyword").get();
         client().prepareBulk()
             .add(new IndexRequest("airports").id("1").source("id", 1, "name", "a"))

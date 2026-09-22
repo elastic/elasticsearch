@@ -40,19 +40,23 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongFunction;
 
 /**
- * Coordinator-only, in-memory cache service for external source metadata. Maintains four independent caches:
+ * Coordinator-only, in-memory cache service for external source metadata. Maintains five independent caches:
  * <ul>
  *   <li>Per-file schema cache (~20% of budget) — schema + the per-file {@code _stats.*} overlay, keyed by
  *       {@code (path, mtime, config)}. No time expiry: a changed file has a new mtime, hence a new key.</li>
  *   <li>Dataset-aggregate cache (~2% of budget) — the memoized whole-dataset row count, keyed by the
  *       file-set fingerprint. No time expiry; kept separate so per-file churn cannot evict it.</li>
+ *   <li>Dataset-resolution cache (~5% of budget) — a dataset's whole resolution, so resolving the same dataset under
+ *       the same settings again opens no file. Keyed by what the result depends on: the files it was resolved from
+ *       and the settings that change what is read. No time expiry; kept separate for the same reason as the
+ *       aggregate — other datasets' per-file churn must not evict it, and that churn is exactly when it saves I/O.</li>
  *   <li>File-metadata cache (count-bounded, 30s TTL) — {@code {length, mtime}} per path, so a repeated
  *       resolve skips the stat. Like listing it is freshness-discovery (it holds the CURRENT mtime, which
  *       gates the identity-keyed caches above), so it keeps a short TTL.</li>
- *   <li>Listing cache (~78% of budget, 30s TTL) — the file set under a prefix, isolated by credential
+ *   <li>Listing cache (~73% of budget, 30s TTL) — the file set under a prefix, isolated by credential
  *       hash. Discovers file identity and has no per-file key to invalidate on, hence the TTL.</li>
  * </ul>
- * The identity-keyed caches (schema, dataset-aggregate) are bounded by weight + LRU, never by a clock — a
+ * The identity-keyed caches (schema, dataset-aggregate, dataset-resolution) are bounded by weight + LRU, never by a clock — a
  * timer would only discard still-valid, expensively harvested entries. The discovery caches (file-metadata,
  * listing) keep a short TTL because they hold current-mtime freshness with no identity key to key on.
  */
@@ -68,6 +72,13 @@ public class ExternalSourceCacheService implements Closeable {
      * fingerprint is a correct-or-miss identity key; only weight/LRU reclaims it.
      */
     private final Cache<SchemaCacheKey, SchemaCacheEntry> datasetAggregateCache;
+    /**
+     * A dataset's whole resolution, keyed by the files it was resolved from and the settings that change what is read.
+     * Its own slice, like the aggregate's: the entries it saves I/O on are exactly the ones other datasets' per-file
+     * churn would otherwise have evicted.
+     */
+    private final Cache<DatasetSchemaKey, DatasetResolution> datasetSchemaCache;
+    private final long datasetSchemaBudget;
     private final Cache<FileMetadataCacheKey, FileMetadata> fileMetadataCache;
     private final Cache<ListingCacheKey, FileList> listingCache;
     private final long maxTotalBytes;
@@ -140,6 +151,8 @@ public class ExternalSourceCacheService implements Closeable {
 
     private final LongAdder datasetAggregateHits = new LongAdder();
     private final LongAdder datasetAggregateMisses = new LongAdder();
+    private final LongAdder datasetSchemaHits = new LongAdder();
+    private final LongAdder datasetSchemaMisses = new LongAdder();
     private final LongAdder statsAggregateIncomplete = new LongAdder();
 
     public ExternalSourceCacheService(Settings settings) {
@@ -154,7 +167,11 @@ public class ExternalSourceCacheService implements Closeable {
         // exact size barely matters; what matters is that it is ITS OWN slice, immune to per-file churn).
         long schemaBudget = maxTotalBytes / 5;               // 20%
         long datasetAggregateBudget = maxTotalBytes / 50;    // 2%
-        long listingBudget = maxTotalBytes - schemaBudget - datasetAggregateBudget; // ~78%
+        // A resolution holds a schema and a few bytes per file, where the aggregate holds one number; sharing the
+        // aggregate's 2% would let one wide dataset flush every memoized row count. Carved from listing, which is
+        // bounded by its TTL and holds far more than it needs to.
+        this.datasetSchemaBudget = maxTotalBytes / 20;       // 5%
+        long listingBudget = maxTotalBytes - schemaBudget - datasetAggregateBudget - datasetSchemaBudget; // ~73%
 
         // No setExpireAfterWrite on schemaCache or datasetAggregateCache: both are identity-keyed (per-file by
         // mtime, dataset by file-set fingerprint), so a changed input already misses. A timer would only
@@ -168,6 +185,11 @@ public class ExternalSourceCacheService implements Closeable {
 
         this.datasetAggregateCache = CacheBuilder.<SchemaCacheKey, SchemaCacheEntry>builder()
             .setMaximumWeight(datasetAggregateBudget)
+            .weigher((key, value) -> value.estimatedBytes())
+            .build();
+
+        this.datasetSchemaCache = CacheBuilder.<DatasetSchemaKey, DatasetResolution>builder()
+            .setMaximumWeight(datasetSchemaBudget)
             .weigher((key, value) -> value.estimatedBytes())
             .build();
 
@@ -187,11 +209,12 @@ public class ExternalSourceCacheService implements Closeable {
             .build();
 
         logger.info(
-            "External source cache initialized: total=[{}], schema=[{}], datasetAggregate=[{}], listing=[{}], "
-                + "fileMetadataMaxEntries=[{}], listingTTL=[{}]",
+            "External source cache initialized: total=[{}], schema=[{}], datasetAggregate=[{}], datasetResolution=[{}], "
+                + "listing=[{}], fileMetadataMaxEntries=[{}], listingTTL=[{}]",
             totalBudget,
             ByteSizeValue.ofBytes(schemaBudget),
             ByteSizeValue.ofBytes(datasetAggregateBudget),
+            ByteSizeValue.ofBytes(datasetSchemaBudget),
             ByteSizeValue.ofBytes(listingBudget),
             FILE_METADATA_CACHE_MAX_ENTRIES,
             listingTtl
@@ -292,6 +315,42 @@ public class ExternalSourceCacheService implements Closeable {
             List.of()
         );
         datasetAggregateCache.put(key, entry);
+    }
+
+    /**
+     * The dataset's resolution under {@code key}, or {@code null} on a miss. {@code null} when disabled or when there is
+     * no key — a resolve the identity cannot key, which is not a miss either, so it is not counted as one.
+     */
+    @Nullable
+    public DatasetResolution getDatasetResolution(@Nullable DatasetSchemaKey key) {
+        if (enabled == false || key == null) {
+            return null;
+        }
+        DatasetResolution resolution = datasetSchemaCache.get(key);
+        (resolution == null ? datasetSchemaMisses : datasetSchemaHits).increment();
+        return resolution;
+    }
+
+    /**
+     * Caches {@code resolution} under {@code key}, unless it could never fit. The cache evicts from its tail until
+     * it is back under its weight, and a new entry goes in at the head: one heavier than the whole slice would push out
+     * every other dataset's entry before being evicted itself, on every cold resolve of that dataset. Refusing it
+     * costs that dataset its warm path and nobody else theirs.
+     */
+    public void putDatasetResolution(@Nullable DatasetSchemaKey key, DatasetResolution resolution) {
+        if (enabled == false || key == null) {
+            return;
+        }
+        long weight = resolution.estimatedBytes();
+        if (weight > datasetSchemaBudget) {
+            logger.debug(
+                "not caching a dataset resolution of [{}] bytes: it exceeds the whole [{}]-byte slice",
+                weight,
+                datasetSchemaBudget
+            );
+            return;
+        }
+        datasetSchemaCache.put(key, resolution);
     }
 
     /**
@@ -1523,6 +1582,7 @@ public class ExternalSourceCacheService implements Closeable {
     public void clearAll() {
         schemaCache.invalidateAll();
         datasetAggregateCache.invalidateAll();
+        datasetSchemaCache.invalidateAll();
         fileMetadataCache.invalidateAll();
         listingCache.invalidateAll();
         synchronized (pendingDatasetAggregates) {
@@ -1554,6 +1614,11 @@ public class ExternalSourceCacheService implements Closeable {
         stats.put("dataset_aggregate_cache.evictions", datasetAggregateCache.stats().getEvictions());
         stats.put("dataset_aggregate.hits", datasetAggregateHits.sum());
         stats.put("dataset_aggregate.misses", datasetAggregateMisses.sum());
+
+        stats.put("dataset_schema_cache.count", datasetSchemaCache.count());
+        stats.put("dataset_schema_cache.evictions", datasetSchemaCache.stats().getEvictions());
+        stats.put("dataset_schema.hits", datasetSchemaHits.sum());
+        stats.put("dataset_schema.misses", datasetSchemaMisses.sum());
         synchronized (pendingDatasetAggregates) {
             stats.put("dataset_aggregate.pending", pendingDatasetAggregates.size());
         }
@@ -1575,6 +1640,10 @@ public class ExternalSourceCacheService implements Closeable {
     // Visible for testing
     Cache<SchemaCacheKey, SchemaCacheEntry> datasetAggregateCache() {
         return datasetAggregateCache;
+    }
+
+    Cache<DatasetSchemaKey, DatasetResolution> datasetSchemaCache() {
+        return datasetSchemaCache;
     }
 
     // Visible for testing

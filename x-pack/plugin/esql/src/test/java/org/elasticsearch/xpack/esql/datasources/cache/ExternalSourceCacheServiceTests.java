@@ -18,8 +18,10 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.FileFingerprint;
 import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 import org.elasticsearch.xpack.esql.datasources.HivePartitionDetector;
+import org.elasticsearch.xpack.esql.datasources.InferredFrom;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
@@ -47,6 +49,134 @@ import static org.hamcrest.Matchers.lessThan;
 
 public class ExternalSourceCacheServiceTests extends ESTestCase {
     private static final Map<String, Object> HIVE_ON = Map.of();
+
+    private static SchemaCacheEntry schemaEntry(int columns) {
+        List<Attribute> schema = new ArrayList<>(columns);
+        for (int c = 0; c < columns; c++) {
+            schema.add(new ReferenceAttribute(Source.EMPTY, null, "column_" + c, DataType.LONG, Nullability.TRUE, null, false));
+        }
+        return SchemaCacheEntry.from(schema, "parquet", "s3://bucket/data/*.parquet", Map.of(), Map.of());
+    }
+
+    private static DatasetSchemaKey datasetKey(String name) {
+        return DatasetSchemaKey.of(
+            new InferredFrom.Anchor(FileFingerprint.of("s3://bucket/" + name + "/a.parquet", 5_000, 100)),
+            "parquet",
+            Map.of()
+        );
+    }
+
+    /** A resolution over {@code files} files, each with {@code columns}-wide statistics. */
+    private static DatasetResolution resolution(int files, int columns) {
+        Map<String, Object> statistics = new LinkedHashMap<>();
+        for (int c = 0; c < columns; c++) {
+            statistics.put("_stats.columns.column_" + c + ".null_count", 0L);
+        }
+        Map<FileFingerprint, DatasetResolution.FileFacts> facts = new LinkedHashMap<>();
+        for (int i = 0; i < files; i++) {
+            facts.put(
+                FileFingerprint.of("s3://bucket/data/part-" + i + ".parquet", 5_000, 100 + i),
+                new DatasetResolution.FileFacts(statistics, null)
+            );
+        }
+        return new DatasetResolution.FromAnchor(schemaEntry(columns), facts);
+    }
+
+    public void testDatasetResolutionRoundTripsAndCountsHitsAndMisses() {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            DatasetSchemaKey key = datasetKey("roundtrip");
+            assertNull(service.getDatasetResolution(key));
+            DatasetResolution resolution = resolution(3, 4);
+            service.putDatasetResolution(key, resolution);
+            assertSame(resolution, service.getDatasetResolution(key));
+
+            Map<String, Object> stats = service.usageStats();
+            assertEquals(1L, ((Number) stats.get("dataset_schema.misses")).longValue());
+            assertEquals(1L, ((Number) stats.get("dataset_schema.hits")).longValue());
+            assertEquals(1L, ((Number) stats.get("dataset_schema_cache.count")).longValue());
+        }
+    }
+
+    /** A resolve the identity cannot key is neither a hit nor a miss: counting it as a miss would hide real misses. */
+    public void testALookupWithNoKeyIsNotCounted() {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            assertNull(service.getDatasetResolution(null));
+            assertEquals(0L, ((Number) service.usageStats().get("dataset_schema.misses")).longValue());
+        }
+    }
+
+    /**
+     * Served attributes are built afresh on every serve, so no two queries share a {@code NameId}: the planner identifies
+     * columns by it, and one shared across plans would conflate their columns.
+     */
+    public void testEveryServeBuildsFreshAttributes() {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            DatasetSchemaKey key = datasetKey("nameids");
+            service.putDatasetResolution(key, resolution(2, 3));
+            SchemaCacheEntry anchor = ((DatasetResolution.FromAnchor) service.getDatasetResolution(key)).anchor();
+            List<Attribute> first = anchor.toAttributes();
+            List<Attribute> second = anchor.toAttributes();
+            for (int i = 0; i < first.size(); i++) {
+                assertEquals(first.get(i).name(), second.get(i).name());
+                assertNotEquals("column " + i + " must not share a NameId across serves", first.get(i).id(), second.get(i).id());
+            }
+        }
+    }
+
+    /**
+     * The guard exists because of how the cache evicts: from its tail, until back under weight, with a new entry at the
+     * head. An entry heavier than the whole slice would push out every other dataset's entry before being evicted
+     * itself. So refusing it must also leave the others resident — which is the part worth pinning.
+     */
+    public void testAResolutionHeavierThanTheWholeSliceIsRefusedAndEvictsNothing() {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            DatasetSchemaKey small = datasetKey("small");
+            service.putDatasetResolution(small, resolution(2, 3));
+
+            // defaultSettings is 10mb, so the slice is 512kb; at 20 columns a file weighs ~2kb, so 1,000 files overflow it.
+            DatasetResolution oversize = resolution(1_000, 20);
+            long slice = ByteSizeValue.parseBytesSizeValue("10mb", "test").getBytes() / 20;
+            assertThat("the fixture must actually exceed the slice", oversize.estimatedBytes(), greaterThan(slice));
+
+            DatasetSchemaKey big = datasetKey("big");
+            service.putDatasetResolution(big, oversize);
+            assertNull("an entry that can never fit is refused", service.getDatasetResolution(big));
+            assertNotNull("and refusing it evicts nothing", service.getDatasetResolution(small));
+        }
+    }
+
+    /** The slice is 5% of the budget: an entry just under it is kept, one just over it refused. */
+    public void testTheSliceIsFivePercentOfTheBudget() {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            long slice = ByteSizeValue.parseBytesSizeValue("10mb", "test").getBytes() / 20;
+            DatasetResolution under = null;
+            DatasetResolution over = null;
+            for (int files = 1; over == null; files += 1) {
+                DatasetResolution candidate = resolution(files, 20);
+                if (candidate.estimatedBytes() <= slice) {
+                    under = candidate;
+                } else {
+                    over = candidate;
+                }
+            }
+            assertNotNull(under);
+            service.putDatasetResolution(datasetKey("under"), under);
+            service.putDatasetResolution(datasetKey("over"), over);
+            assertNotNull("the largest entry that fits the 5% slice is kept", service.getDatasetResolution(datasetKey("under")));
+            assertNull("the smallest that does not is refused", service.getDatasetResolution(datasetKey("over")));
+        }
+    }
+
+    public void testDisablingTheCacheClearsDatasetResolutions() {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            DatasetSchemaKey key = datasetKey("cleared");
+            service.putDatasetResolution(key, resolution(2, 3));
+            service.setEnabled(false);
+            service.setEnabled(true);
+            assertNull(service.getDatasetResolution(key));
+            assertEquals(0L, ((Number) service.usageStats().get("dataset_schema_cache.count")).longValue());
+        }
+    }
 
     private static Settings defaultSettings() {
         return Settings.builder()

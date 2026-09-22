@@ -21,6 +21,7 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClusterService;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.Before;
 
@@ -41,6 +42,7 @@ public class MlInitializationServiceTests extends ESTestCase {
     private ClusterService clusterService;
     private Client client;
     private AdaptiveAllocationsScalerService adaptiveAllocationsScalerService;
+    private TrainedModelAssignmentClusterService trainedModelAssignmentClusterService;
     private MlAssignmentNotifier mlAssignmentNotifier;
 
     @Before
@@ -50,6 +52,7 @@ public class MlInitializationServiceTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         client = mock(Client.class);
         adaptiveAllocationsScalerService = mock(AdaptiveAllocationsScalerService.class);
+        trainedModelAssignmentClusterService = mock(TrainedModelAssignmentClusterService.class);
         mlAssignmentNotifier = mock(MlAssignmentNotifier.class);
 
         when(clusterService.getClusterName()).thenReturn(CLUSTER_NAME);
@@ -77,6 +80,7 @@ public class MlInitializationServiceTests extends ESTestCase {
             mock(AnomalyDetectionAuditor.class),
             client,
             adaptiveAllocationsScalerService,
+            trainedModelAssignmentClusterService,
             mlAssignmentNotifier,
             TestIndexNameExpressionResolver.newInstance(),
             true,
@@ -96,6 +100,7 @@ public class MlInitializationServiceTests extends ESTestCase {
             mock(AnomalyDetectionAuditor.class),
             client,
             adaptiveAllocationsScalerService,
+            trainedModelAssignmentClusterService,
             mlAssignmentNotifier,
             TestIndexNameExpressionResolver.newInstance(),
             true,
@@ -110,18 +115,22 @@ public class MlInitializationServiceTests extends ESTestCase {
     public void testNodeGoesFromMasterToNonMasterAndBack() {
         MlDailyMaintenanceService initialDailyMaintenanceService = mock(MlDailyMaintenanceService.class);
         AdaptiveAllocationsScalerService adaptiveAllocationsScalerService = mock(AdaptiveAllocationsScalerService.class);
+        TrainedModelAssignmentClusterService trainedModelAssignmentClusterService = mock(TrainedModelAssignmentClusterService.class);
 
         MlInitializationService initializationService = new MlInitializationService(
             client,
             threadPool,
             initialDailyMaintenanceService,
             adaptiveAllocationsScalerService,
+            trainedModelAssignmentClusterService,
             clusterService
         );
         initializationService.offMaster();
         verify(initialDailyMaintenanceService).stop();
+        verify(trainedModelAssignmentClusterService).stop();
 
         initializationService.onMaster();
         verify(initialDailyMaintenanceService).start();
+        verify(trainedModelAssignmentClusterService).start();
     }
 }

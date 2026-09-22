@@ -53,6 +53,7 @@ id:long | languages:long | langs:long
 // returns its value while the first returns null, so COUNT(*) = 2 and COUNT(spin_id) = 1.
 overlayDeclaredSampledOutColumnOnNdjson
 required_capability: dataset_in_from_command
+required_capability: fix_non_strict_overlay_sparse_cols
 dataset: sparse_spin_id_sampled_out: "{{sparse_spin_id}}" WITH {"schema_sample_size": 1, "mappings": {"dynamic": "true", "properties": {"spin_id": {"type": "keyword"}}}}
 
 FROM sparse_spin_id_sampled_out

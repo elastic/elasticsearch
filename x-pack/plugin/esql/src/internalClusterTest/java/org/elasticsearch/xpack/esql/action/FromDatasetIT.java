@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
@@ -5308,6 +5309,11 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _file.record_ref | SORT emp_no | LIMIT 10"), TIMEOUT)) {
             List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
             assertThat("_file.record_ref must surface without KEEP, got " + names, names, hasItem("_file.record_ref"));
+            assertThat(
+                "synthetic _rowPosition must stay out of the result, got " + names,
+                names,
+                not(hasItem(ColumnExtractor.ROW_POSITION_COLUMN))
+            );
             int refIdx = names.indexOf("_file.record_ref");
 
             List<List<Object>> rows = getValuesList(response);

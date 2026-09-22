@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
@@ -362,6 +363,27 @@ public class AnalyzerExternalTests extends ESTestCase {
         assertThat(names, not(hasItem("_file.path")));
         Attribute size = plan.output().stream().filter(a -> a.name().equals("_file.size")).findFirst().orElseThrow();
         assertThat(size, instanceOf(ExternalMetadataAttribute.class));
+    }
+
+    public void testKeepStarWithoutMetadataOmitsFileColumns() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var plan = analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " | KEEP *");
+        List<String> names = plan.output().stream().map(Attribute::name).toList();
+        for (String name : FileMetadataColumns.NAMES) {
+            assertThat(names, not(hasItem(name)));
+        }
+        assertThat(names, hasItem("emp_no"));
+    }
+
+    public void testDatasetOutputOmitsSyntheticAttributes() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var plan = analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _file.record_ref | KEEP *");
+        List<String> names = plan.output().stream().map(Attribute::name).toList();
+        assertThat(names, hasItem(FileMetadataColumns.RECORD_REF));
+        assertThat(names, not(hasItem(ColumnExtractor.ROW_POSITION_COLUMN)));
+        assertThat(plan.output().stream().filter(Attribute::synthetic).toList(), hasSize(0));
     }
 
     public void testKeepFilePatternMatchesOnlyBoundMetadata() {

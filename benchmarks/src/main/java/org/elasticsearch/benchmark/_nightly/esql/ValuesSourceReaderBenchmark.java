@@ -516,36 +516,7 @@ public class ValuesSourceReaderBenchmark {
             case "shuffled" -> setupShuffledPages(SegmentDocLayout.CONTIGUOUS);
             case "shuffled_sparse" -> setupShuffledPages(SegmentDocLayout.STRIDED);
             case "shuffled_small" -> setupSmallShuffledPages();
-            case "shuffled_singles" -> {
-                record ItrAndContext(PrimitiveIterator.OfInt itr, LeafReaderContext ctx) {}
-                List<ItrAndContext> docItrs = new ArrayList<>(reader.leaves().size());
-                for (LeafReaderContext ctx : reader.leaves()) {
-                    docItrs.add(new ItrAndContext(IntStream.range(0, ctx.reader().maxDoc()).iterator(), ctx));
-                }
-                while (docItrs.isEmpty() == false) {
-                    Iterator<ItrAndContext> itrItr = docItrs.iterator();
-                    while (itrItr.hasNext()) {
-                        ItrAndContext next = itrItr.next();
-                        if (false == next.itr.hasNext()) {
-                            itrItr.remove();
-                            continue;
-                        }
-                        int doc = next.itr.nextInt();
-                        trackExpectedDoc(next.ctx.docBase + doc);
-                        pages.add(
-                            new Page(
-                                new DocVector(
-                                    AlwaysReferencedIndexedByShardId.INSTANCE,
-                                    blockFactory.newConstantIntVector(0, 1),
-                                    blockFactory.newConstantIntVector(next.ctx.ord, 1),
-                                    blockFactory.newConstantIntVector(doc, 1),
-                                    DocVector.config().singleSegmentNonDecreasing(true)
-                                ).asBlock()
-                            )
-                        );
-                    }
-                }
-            }
+            case "shuffled_singles" -> setupSingleDocPages();
             default -> throw new IllegalArgumentException("unsupported layout [" + layout + "]");
         }
         if (selectedDocs.cardinality() != INDEX_SIZE) {
@@ -618,6 +589,37 @@ public class ValuesSourceReaderBenchmark {
             }
             assert pageSize > 0;
             addShuffledPage(docs, leafs, pageSize);
+        }
+    }
+
+    private void setupSingleDocPages() {
+        record ItrAndContext(PrimitiveIterator.OfInt itr, LeafReaderContext ctx) {}
+        List<ItrAndContext> docItrs = new ArrayList<>(reader.leaves().size());
+        for (LeafReaderContext ctx : reader.leaves()) {
+            docItrs.add(new ItrAndContext(IntStream.range(0, ctx.reader().maxDoc()).iterator(), ctx));
+        }
+        while (docItrs.isEmpty() == false) {
+            Iterator<ItrAndContext> itrItr = docItrs.iterator();
+            while (itrItr.hasNext()) {
+                ItrAndContext next = itrItr.next();
+                if (false == next.itr.hasNext()) {
+                    itrItr.remove();
+                    continue;
+                }
+                int doc = next.itr.nextInt();
+                trackExpectedDoc(next.ctx.docBase + doc);
+                pages.add(
+                    new Page(
+                        new DocVector(
+                            AlwaysReferencedIndexedByShardId.INSTANCE,
+                            blockFactory.newConstantIntVector(0, 1),
+                            blockFactory.newConstantIntVector(next.ctx.ord, 1),
+                            blockFactory.newConstantIntVector(doc, 1),
+                            DocVector.config().singleSegmentNonDecreasing(true)
+                        ).asBlock()
+                    )
+                );
+            }
         }
     }
 

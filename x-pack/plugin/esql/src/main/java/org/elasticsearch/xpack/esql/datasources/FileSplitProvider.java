@@ -2927,6 +2927,11 @@ public class FileSplitProvider implements SplitProvider {
         return false;
     }
 
+    /** Whether the operand is a literal that is not null, which is what makes a missing column answer false. */
+    private static boolean isNonNullLiteral(Expression e) {
+        return e instanceof Literal literal && literal.value() != null;
+    }
+
     /**
      * Extracts the single column name from a simple leaf predicate, or {@code null} for
      * compound/multi-column expressions that cannot be evaluated for file skipping.
@@ -2953,20 +2958,22 @@ public class FileSplitProvider implements SplitProvider {
         if (expr instanceof IsNotNull isNotNull) {
             return extractColumnName(isNotNull.field());
         }
-        // The multivalue comparison functions name their column the same way. A missing column is the empty set, so
-        // each of these is false for every row of a file that lacks it — the same answer Equals gives, and the reason
-        // such a file can be skipped unread rather than opened and scanned for nothing.
+        // The multivalue comparison functions name their column the same way, when their other operands are literals. A
+        // missing column is the empty set, so each of these is then false for every row of a file that lacks it — the
+        // same answer Equals gives, and the reason such a file can be skipped unread. The literal requirement is
+        // load-bearing for mv_contains: the empty set contains the empty set, so mv_contains(missing, b) is true on
+        // every row where b is null, and a column b can be.
         if (expr instanceof MvContains mvContains) {
-            return extractColumnName(mvContains.left());
+            return isNonNullLiteral(mvContains.right()) ? extractColumnName(mvContains.left()) : null;
         }
         if (expr instanceof MvIntersects mvIntersects) {
-            return extractColumnName(mvIntersects.left());
+            return isNonNullLiteral(mvIntersects.right()) ? extractColumnName(mvIntersects.left()) : null;
         }
         if (expr instanceof MvInRange mvInRange) {
-            return extractColumnName(mvInRange.field());
+            return isNonNullLiteral(mvInRange.lower()) && isNonNullLiteral(mvInRange.upper()) ? extractColumnName(mvInRange.field()) : null;
         }
         if (expr instanceof MvCompare mvCompare) {
-            return extractColumnName(mvCompare.field());
+            return isNonNullLiteral(mvCompare.bound()) ? extractColumnName(mvCompare.field()) : null;
         }
         return null;
     }

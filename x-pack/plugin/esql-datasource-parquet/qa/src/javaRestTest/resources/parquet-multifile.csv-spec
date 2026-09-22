@@ -38,6 +38,27 @@ charlie      | 50
 dave         | 60
 ;
 
+// A multivalue comparison over the widened age. File A holds age as int32, so the reader decodes it as an int block;
+// a long bound pushed into that file unadapted is read as an int, 3000000000 wraps negative, and file A's rows are
+// dropped. Every age is below the bound, so every row must come back.
+parquetUbnMvLessOnWidenedColumn
+required_capability: external_command
+required_capability: external_source_read_schema
+required_capability: fn_mv_less
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM employees_multifile_ubn_union
+| WHERE mv_less(age, 3000000000)
+| KEEP name, age
+| SORT name ASC;
+
+name:keyword | age:long
+alice        | 30
+bob          | 40
+charlie      | 50
+dave         | 60
+;
+
 parquetUbnAggregateWidenedColumn
 required_capability: external_command
 required_capability: external_source_read_schema

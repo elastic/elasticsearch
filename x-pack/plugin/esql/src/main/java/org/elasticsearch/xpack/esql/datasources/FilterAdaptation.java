@@ -15,6 +15,10 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -148,6 +152,14 @@ public final class FilterAdaptation {
             }
             return expr;
         }
+        // The multivalue comparison functions are not adapted the way comparisons are: the reader's row mask answers them
+        // by the file's block type, so a literal typed for the unified column would be compared as the wrong type. Where
+        // the column is absent or its type differs in this file, the leaf imposes no constraint here and the retained
+        // FilterExec answers it.
+        String mvColumn = mvFieldColumn(expr);
+        if (mvColumn != null) {
+            return fileColumnNames.contains(mvColumn) && fileColumnTypes.containsKey(mvColumn) == false ? expr : TRUE_SENTINEL;
+        }
         if (expr instanceof And and) {
             Expression left = adaptExpression(and.left(), fileColumnNames, fileColumnTypes);
             Expression right = adaptExpression(and.right(), fileColumnNames, fileColumnTypes);
@@ -199,6 +211,23 @@ public final class FilterAdaptation {
             return new Not(not.source(), child);
         }
         return expr;
+    }
+
+    /** The column an mv_ comparison function filters on, or {@code null} when {@code expr} is not one or names no column. */
+    private static String mvFieldColumn(Expression expr) {
+        if (expr instanceof MvContains mv) {
+            return extractColumnName(mv.left());
+        }
+        if (expr instanceof MvIntersects mv) {
+            return extractColumnName(mv.left());
+        }
+        if (expr instanceof MvInRange mv) {
+            return extractColumnName(mv.field());
+        }
+        if (expr instanceof MvCompare mv) {
+            return extractColumnName(mv.field());
+        }
+        return null;
     }
 
     /**

@@ -2791,6 +2791,20 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(underAnd.toString(), not(containsString("[zzz]")));
     }
 
+    public void testMvFormWithAColumnOperandUnderOrDoesNotThrow() {
+        // canConvert(And) accepts an AND when either arm converts, so mv_greater(n, m) nested in an AND under OR
+        // reaches the translation, which must decline a non-literal operand rather than throw.
+        MessageType schema = Types.buildMessage().required(INT64).named("n").required(INT64).named("m").named("test");
+        Expression mv = new MvGreater(Source.EMPTY, attr("n", DataType.LONG), attr("m", DataType.LONG));
+        assertNull(predicateFor(schema, mv));
+        Expression nested = new Or(
+            Source.EMPTY,
+            new And(Source.EMPTY, new GreaterThan(Source.EMPTY, attr("n", DataType.LONG), lit(5L, DataType.LONG), null), mv),
+            new Equals(Source.EMPTY, attr("n", DataType.LONG), lit(1L, DataType.LONG), null)
+        );
+        predicateFor(schema, nested);
+    }
+
     public void testListValuedBoundUnderAndDeclinesInsteadOfThrowing() {
         // canConvert(And) is an OR of its arms, so an And whose other arm converts carries a list-valued mv_ bound
         // past the canConvert-level decline and into both the statistics and the row paths. A user can write this

@@ -2522,6 +2522,60 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         );
     }
 
+    public void testMvFormsWithAColumnOperandDeclineInsteadOfThrowing() {
+        // A user can write mv_greater(x, y); nested in an AND under OR it reaches the reader, whose arms read only
+        // literal operands and must decline anything else rather than throw.
+        Map<String, Block> blocks = tenNullThirtyFortyFifty();
+        Attribute x = attr("x", DataType.LONG);
+        Attribute y = attr("y", DataType.LONG);
+        for (Expression mv : List.of(
+            new MvContains(Source.EMPTY, x, y),
+            new MvIntersects(Source.EMPTY, x, y),
+            new MvInRange(Source.EMPTY, x, y, lit(35L, DataType.LONG)),
+            new MvGreater(Source.EMPTY, x, y),
+            new MvLess(Source.EMPTY, x, y)
+        )) {
+            assertNull(mv + " must decline", new ParquetPushedExpressions(List.of(mv)).evaluateFilter(blocks, 5, new WordMask()));
+            Expression nested = new Or(
+                Source.EMPTY,
+                new And(Source.EMPTY, new Equals(Source.EMPTY, x, lit(30L, DataType.LONG), null), mv),
+                new Equals(Source.EMPTY, x, lit(10L, DataType.LONG), null)
+            );
+            new ParquetPushedExpressions(List.of(nested)).evaluateFilter(blocks, 5, new WordMask());
+        }
+    }
+
+    public void testMvFormsDeclineOnADoubleBlock() {
+        // The scalar arms order doubles with Double.compare; the mv_ functions use primitive operators, which equate
+        // -0.0 with 0.0 and never rank NaN. mv_contains(d, 0.0) is true on the -0.0 row, which the mask would drop.
+        Block block;
+        try (var builder = blockFactory.newDoubleBlockBuilder(3)) {
+            builder.appendDouble(-0.0);
+            builder.appendDouble(Double.NaN);
+            builder.appendDouble(1.0);
+            block = builder.build();
+        }
+        Map<String, Block> blocks = Map.of("d", block);
+        Attribute d = attr("d", DataType.DOUBLE);
+        for (Expression mv : List.of(
+            new MvContains(Source.EMPTY, d, lit(0.0, DataType.DOUBLE)),
+            new MvIntersects(Source.EMPTY, d, new Literal(Source.EMPTY, List.of(0.0), DataType.DOUBLE)),
+            new MvInRange(Source.EMPTY, d, lit(0.0, DataType.DOUBLE), lit(5.0, DataType.DOUBLE)),
+            new MvGreater(Source.EMPTY, d, lit(5.0, DataType.DOUBLE)),
+            new MvLess(Source.EMPTY, d, lit(0.0, DataType.DOUBLE))
+        )) {
+            assertNull(
+                mv + " must decline over a double block",
+                new ParquetPushedExpressions(List.of(mv)).evaluateFilter(blocks, 3, new WordMask())
+            );
+            assertNull(
+                "NOT " + mv + " must decline over a double block",
+                new ParquetPushedExpressions(List.of(new Not(Source.EMPTY, mv))).evaluateFilter(blocks, 3, new WordMask())
+            );
+        }
+        block.close();
+    }
+
     private void assertMask(Expression expr, int[] expected) {
         assertSurvivors(new ParquetPushedExpressions(List.of(expr)), tenNullThirtyFortyFifty(), 5, new WordMask(), expected);
     }

@@ -361,7 +361,7 @@ final class ParquetPushedExpressions {
         // evaluateExpression. All are collected by collectColumnNames, which also drives the dictionary and bloom
         // pre-warm.
         if (expr instanceof MvContains mvContains && mvContains.left() instanceof NamedExpression ne) {
-            Object value = literalValueOf(mvContains.right());
+            Object value = scalarBoundOf(mvContains.right());
             if (value == null || value instanceof List) {
                 return null; // a list-valued mv_contains is "contains all of these" — not the equality bound
             }
@@ -369,7 +369,7 @@ final class ParquetPushedExpressions {
         }
         if (expr instanceof MvIntersects mvIntersects && mvIntersects.left() instanceof NamedExpression ne) {
             // The value set arrives as ONE list-valued Literal, unlike In, which carries a list of literals.
-            Object value = literalValueOf(mvIntersects.right());
+            Object value = literalValueOrNull(mvIntersects.right());
             List<Object> rawValues = new ArrayList<>();
             if (value instanceof List<?> values) {
                 for (Object v : values) {
@@ -1614,7 +1614,7 @@ final class ParquetPushedExpressions {
         // comparison types, and its tvlNegate would drop those null rows, which is right for f == v and wrong here.
         if (expr instanceof MvContains mv) {
             Block block = singleValuedBlock(mv.left(), blocks);
-            Object value = block == null ? null : literalValueOf(mv.right());
+            Object value = block == null ? null : scalarBoundOf(mv.right());
             if (value == null || value instanceof List) {
                 return null; // a list-valued mv_contains is "contains all of these", not an equality
             }
@@ -1627,7 +1627,7 @@ final class ParquetPushedExpressions {
             }
             // One list-valued Literal, unlike In's list of literals. A null element can match nothing, and leaving it
             // in would give In its three-valued "null when unmatched", so it is dropped.
-            Object value = literalValueOf(mv.right());
+            Object value = literalValueOrNull(mv.right());
             List<Expression> literals = new ArrayList<>();
             if (value instanceof List<?> values) {
                 for (Object v : values) {
@@ -1821,21 +1821,19 @@ final class ParquetPushedExpressions {
     }
 
     /**
-     * Returns the single column block referenced by a value predicate so the generic {@code Not}
-     * handler can call {@link #tvlNegate} and avoid materialising MV rows unnecessarily.
-     * Returns {@code null} for position-level predicates ({@code IsNull}/{@code IsNotNull}) whose
-     * MV semantics are already correct without zeroing, and for compound sub-expressions where no
-     * single block dominates.
-     */
-    @Nullable
-    /**
-     * An mv_ form's bound as a single scalar, or {@code null} when it is null or list-valued. canConvert declines both,
-     * but canConvert(And) is an OR of its arms, so an And whose other arm converts carries such a bound past it — and a
-     * user can write that shape. Both paths therefore decline the bound themselves rather than cast a list to a Number.
+     * An mv_ form's operand as a single scalar, or {@code null} when it is not a literal, is null, or is list-valued.
+     * canConvert declines all three at the top level, but canConvert(And) is an OR of its arms, so an And whose other arm
+     * converts carries such an operand past it — and a user can write that shape, including a column as the operand.
+     * Both paths therefore decline the operand themselves rather than cast it or throw on it.
      */
     private static Object scalarBoundOf(Expression bound) {
-        Object value = literalValueOf(bound);
+        Object value = literalValueOrNull(bound);
         return value instanceof List ? null : value;
+    }
+
+    /** The value of a literal operand, or {@code null} for anything else; the mv_ arms decline on {@code null}. */
+    private static Object literalValueOrNull(Expression operand) {
+        return operand instanceof Literal literal ? literal.value() : null;
     }
 
     /**
@@ -1845,15 +1843,27 @@ final class ParquetPushedExpressions {
      * a column that cannot hold more. This check is load-bearing rather than defensive: resolveNestedPrimitive
      * declines a repeated column on the statistics path only, while canPush tests the ES|QL type and the reader maps a
      * LIST column to its element type, so a genuinely multivalued block does arrive here.
+     *
+     * <p>A double block declines too. The scalar arms order doubles with {@code Double.compare}, which separates
+     * {@code -0.0} from {@code 0.0} and ranks NaN above everything, while the mv_ functions compare with primitive
+     * operators, which do neither; the mask would drop a row the function keeps.
      */
     private static Block singleValuedBlock(Expression field, Map<String, Block> blocks) {
         if (field instanceof NamedExpression ne) {
             Block block = blocks.get(ne.name());
-            return block == null || block.mayHaveMultivaluedFields() ? null : block;
+            return block == null || block.mayHaveMultivaluedFields() || block instanceof DoubleBlock ? null : block;
         }
         return null;
     }
 
+    /**
+     * Returns the single column block referenced by a value predicate so the generic {@code Not}
+     * handler can call {@link #tvlNegate} and avoid materialising MV rows unnecessarily.
+     * Returns {@code null} for position-level predicates ({@code IsNull}/{@code IsNotNull}) whose
+     * MV semantics are already correct without zeroing, and for compound sub-expressions where no
+     * single block dominates.
+     */
+    @Nullable
     private static Block valueColumnBlockForNot(Expression inner, Map<String, Block> blocks) {
         if (inner instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression ne) {
             return blocks.get(ne.name());

@@ -6851,6 +6851,23 @@ public class FileSplitProviderTests extends ESTestCase {
         assertFalse(FileSplitProvider.skipIfFilterOnMissingColumns(List.of(new MvContains(SRC, id, zoo)), present));
     }
 
+    public void testMvContainsWithAColumnOperandKeepsAFileMissingTheField() {
+        // The empty set contains the empty set: mv_contains(missing, other) is true on every row where other is null,
+        // so a file lacking the field can still match and must be read.
+        Set<String> present = Set.of("id", "other");
+        FieldAttribute region = new FieldAttribute(
+            SRC,
+            "region",
+            new EsField("region", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        FieldAttribute other = new FieldAttribute(
+            SRC,
+            "other",
+            new EsField("other", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        assertFalse(FileSplitProvider.skipIfFilterOnMissingColumns(List.of(new MvContains(SRC, region, other)), present));
+    }
+
     public void testSignedZeroPartitionIsNotConfidentlyPruned() {
         // ES|QL's double evaluators compare primitives, where IEEE 754 equates -0.0 and 0.0, so every row of a d=-0.0
         // file satisfies d >= 0.0. The file layer has no retained filter: a confident FALSE here drops the file and

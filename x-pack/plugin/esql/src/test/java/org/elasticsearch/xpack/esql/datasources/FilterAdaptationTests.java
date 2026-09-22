@@ -14,6 +14,11 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -249,6 +254,44 @@ public class FilterAdaptationTests extends ESTestCase {
     }
 
     // -- helpers --
+
+    /**
+     * The mv_ forms reach the reader's row mask, which compares by the file's block type, so on a column this file
+     * lacks or holds in a different type they must impose no constraint here rather than pass through with a literal
+     * typed for the unified column. The retained FilterExec answers them.
+     */
+    public void testAdaptFilter_mvForms_dropOnAbsentOrWidenedColumn() {
+        List<Expression> forms = List.of(
+            new MvContains(Source.EMPTY, longFieldAttr("v"), longLiteral(5)),
+            new MvIntersects(Source.EMPTY, longFieldAttr("v"), new Literal(Source.EMPTY, List.of(5L, 7L), DataType.LONG)),
+            new MvInRange(Source.EMPTY, longFieldAttr("v"), longLiteral(1), longLiteral(9)),
+            new MvGreater(Source.EMPTY, longFieldAttr("v"), longLiteral(5)),
+            new MvLess(Source.EMPTY, longFieldAttr("v"), longLiteral(5))
+        );
+        for (Expression form : forms) {
+            assertEquals(
+                form + " on a matching column",
+                List.of(form),
+                FilterAdaptation.adaptFilterForFile(List.of(form), Set.of("v"), Map.of())
+            );
+            assertEquals(
+                form + " on a widened column",
+                List.of(),
+                FilterAdaptation.adaptFilterForFile(List.of(form), Set.of("v"), Map.of("v", DataType.INTEGER))
+            );
+            assertEquals(
+                form + " on an absent column",
+                List.of(),
+                FilterAdaptation.adaptFilterForFile(List.of(form), Set.of("other"), Map.of())
+            );
+            // Under AND with an adaptable arm, only the mv_ leaf is dropped.
+            Expression and = new And(Source.EMPTY, form, gtLong("w", 3));
+            assertEquals(
+                List.of(gtLong("w", 3)).toString(),
+                FilterAdaptation.adaptFilterForFile(List.of(and), Set.of("v", "w"), Map.of("v", DataType.INTEGER)).toString()
+            );
+        }
+    }
 
     private static FieldAttribute fieldAttr(String name) {
         return new FieldAttribute(SRC, name, new EsField(name, DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE));

@@ -116,6 +116,7 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
             indexDocs(indexName, 1);
             refresh(indexName);
             safeAwait(uploadStarted);
+            // The upload must be older than the 1 ms activation threshold, not merely started.
             assertBusy(() -> {
                 controller.runNow();
                 assertTrue(shard.indexingStats().getTotal().isThrottled());
@@ -136,8 +137,13 @@ public class UploadQueueControllerServiceIT extends AbstractStatelessPluginInteg
             releaseUpload.countDown();
             flush(indexName);
             assertFalse(bulkFuture.isDone());
-            controller.runNow();
-            assertFalse("Throttle must be removed once uploads drain", shard.indexingStats().getTotal().isThrottled());
+            assertBusy(() -> {
+                controller.runNow();
+                assertFalse(
+                    "Throttle must be removed once uploads drain and cooldown expires",
+                    shard.indexingStats().getTotal().isThrottled()
+                );
+            });
             assertFalse(safeGet(bulkFuture).hasFailures());
         } finally {
             // Release blocked work even if an assertion fails.

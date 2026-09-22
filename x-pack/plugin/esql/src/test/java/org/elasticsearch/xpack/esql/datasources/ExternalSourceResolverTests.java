@@ -87,6 +87,7 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
@@ -4723,112 +4724,129 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
     }
 
-    /**
-     * Lookups against the per-file schema store: hits AND misses. Counting hits alone would let a change that
-     * stops finding the entries — turning every hit into a miss and re-reading every footer — satisfy an
-     * assertion written to prove the opposite.
-     */
-    private static long schemaCacheLookups(ExternalSourceCacheService cacheService) {
-        Map<String, Object> stats = cacheService.usageStats();
-        return ((Number) stats.get("schema_cache.hits")).longValue() + ((Number) stats.get("schema_cache.misses")).longValue();
-    }
+    private static final int DATASET_FILES = 20;
+    private static final int CHURN_FILES = 1_000;
+    private static final int COLUMNS = 20;
 
     /**
-     * A dataset whose file set has not changed must not have its schema resolved again: the second resolve
-     * must answer from one dataset-level entry, doing no per-file work at all. Today every resolve rebuilds
-     * the result from per-file entries, so the per-file schema store is consulted once per file on the
-     * reconcile rails and 2N+1 times on first-file-wins with eager statistics (the anchor peek, the stats
-     * fan-out, and the per-path loop in {@code finishFirstFileWins}).
+     * A cache small enough that one other dataset's resolve pushes this dataset's per-file entries out of the shared
+     * per-file slice — which is what happens on a node serving many datasets — yet large enough that listings stay
+     * cached, so the only I/O a warm resolve could do is open files.
+     */
+    private static final Settings CHURNED_CACHE = Settings.builder()
+        .put("esql.external.cache.size", "2mb")
+        .put("esql.external.cache.enabled", true)
+        .put("esql.external.cache.listing.ttl", "30s")
+        .build();
+
+    /**
+     * A dataset whose files and settings have not changed must be answered from what was already resolved, without
+     * opening a single file — whatever other datasets have done to the shared per-file cache in the meantime, and
+     * whatever the query needs from it.
      * <p>
-     * Resolved under {@code SCHEMA_DISCOVERY} demand — the glob is named in {@code pathsReadingNoRows}, as
-     * {@code LIMIT 0} names it — because that is the only demand under which a cached SCHEMA is a pure win. The
-     * entry holds each file's schema and column mapping but not its statistics or native types, which it does not
-     * carry. Under {@code EAGER_STATS} the per-file gather must still run to fold statistics, so zero is
-     * unreachable. Under {@code ROWS} split planning reads each file's statistics and native types
-     * ({@code FileSplitProvider} passes both into every {@code ResolvedFile}), so serving an entry without them
-     * would withhold statistics and reopen footers. Under {@code SCHEMA_DISCOVERY} nothing reads them, and zero is
-     * the contract. Note that {@code pathsRequiringStats} must be EMPTY rather than null to reach it:
-     * {@code ResolutionDemand.of} reads null as eager on every path.
+     * Between the cold and the warm resolve, an unrelated 1,000-file dataset is resolved, which evicts this dataset's
+     * per-file entries from the slice every dataset shares. Today the warm resolve then re-opens the files it needs
+     * to answer the schema; that I/O is what a dataset-level entry in a slice of its own removes. Counting file opens
+     * rather than cache lookups is deliberate: a lookup that hits costs nothing, and it is the ones that miss and go
+     * to storage that the cache exists to avoid. Listing is not counted: a listing is how a resolve learns that the
+     * dataset has not changed.
+     * <p>
+     * Covers every schema-resolution mode under every demand, iterating the production enums, so a new mode or a new
+     * demand inherits the contract.
      */
-    public void testWarmMultiFileResolveDoesNoPerFileSchemaLookups() throws Exception {
-        Settings cacheSettings = Settings.builder()
-            .put("esql.external.cache.size", "10mb")
-            .put("esql.external.cache.enabled", true)
-            .put("esql.external.cache.listing.ttl", "30s")
-            .build();
+    public void testWarmResolveOfAnUnchangedDatasetOpensNoFile() throws Exception {
+        String glob = "s3://bucket/data/*.parquet";
+        String churnGlob = "s3://bucket/churn/*.parquet";
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        Map<String, List<StorageEntry>> listings = Map.of(
+            "s3://bucket/data/",
+            files("s3://bucket/data/", DATASET_FILES, schemasByPath),
+            "s3://bucket/churn/",
+            files("s3://bucket/churn/", CHURN_FILES, schemasByPath)
+        );
 
-        Map<FormatReader.SchemaResolution, Long> warmLookupsByStrategy = new LinkedHashMap<>();
-
+        Map<String, Integer> warmOpens = new TreeMap<>();
         for (FormatReader.SchemaResolution strategy : FormatReader.SchemaResolution.values()) {
-            List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
-            Map<String, List<Attribute>> schemasByPath = new HashMap<>();
-            schemasByPath.put("s3://bucket/data/a.parquet", schema);
-            schemasByPath.put("s3://bucket/data/b.parquet", schema);
-            schemasByPath.put("s3://bucket/data/c.parquet", schema);
-
-            List<StorageEntry> listing = List.of(
-                entry("s3://bucket/data/a.parquet", 100),
-                entry("s3://bucket/data/b.parquet", 200),
-                entry("s3://bucket/data/c.parquet", 300)
-            );
-
-            CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemasByPath);
-            Map<String, Map<String, Object>> pathConfigs = Map.of("s3://bucket/data/*.parquet", new HashMap<>(configFor(strategy)));
-
-            try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheSettings)) {
-                ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
-
-                PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
-                resolver.resolve(
-                    List.of("s3://bucket/data/*.parquet"),
-                    pathConfigs,
-                    null,
-                    null,
-                    Set.of(),
-                    Set.of("s3://bucket/data/*.parquet"),
-                    f1
+            for (ResolutionDemand demand : ResolutionDemand.values()) {
+                String cell = strategy + "/" + demand;
+                Map<String, Map<String, Object>> pathConfigs = Map.of(
+                    glob,
+                    new HashMap<>(configFor(strategy)),
+                    churnGlob,
+                    new HashMap<>(configFor(strategy))
                 );
-                ExternalSourceResolution cold = f1.actionGet();
-                assertNotNull("[" + strategy + "] first resolve must produce a source", cold.resolvedSource("s3://bucket/data/*.parquet"));
-                long lookupsAfterFirst = schemaCacheLookups(cacheService);
+                CountingStorageProvider provider = new CountingStorageProvider(listings, schemasByPath);
+                try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(CHURNED_CACHE)) {
+                    ExternalSourceResolver resolver = createResolverWithCache(provider, schemasByPath, cacheService);
 
-                PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
-                resolver.resolve(
-                    List.of("s3://bucket/data/*.parquet"),
-                    pathConfigs,
-                    null,
-                    null,
-                    Set.of(),
-                    Set.of("s3://bucket/data/*.parquet"),
-                    f2
-                );
-                ExternalSourceResolution warm = f2.actionGet();
-                assertNotNull("[" + strategy + "] second resolve must produce a source", warm.resolvedSource("s3://bucket/data/*.parquet"));
-                assertEquals(
-                    "[" + strategy + "] a served schema must equal the one the cold resolve produced",
-                    describe(cold.resolvedSource("s3://bucket/data/*.parquet").metadata().schema()),
-                    describe(warm.resolvedSource("s3://bucket/data/*.parquet").metadata().schema())
-                );
-                long lookupsAfterSecond = schemaCacheLookups(cacheService);
+                    ExternalSourceResolution cold = resolveUnder(resolver, glob, pathConfigs, demand);
 
-                warmLookupsByStrategy.put(strategy, lookupsAfterSecond - lookupsAfterFirst);
+                    long evictionsBeforeChurn = schemaCacheEvictions(cacheService);
+                    resolveUnder(resolver, churnGlob, pathConfigs, ResolutionDemand.EAGER_STATS);
+                    assertThat(
+                        "[" + cell + "] the fixture must reproduce eviction, or a warm resolve opens nothing whether cached or not",
+                        schemaCacheEvictions(cacheService),
+                        greaterThan(evictionsBeforeChurn)
+                    );
+
+                    int opensBeforeWarm = provider.schemaCallCount.get();
+                    ExternalSourceResolution warm = resolveUnder(resolver, glob, pathConfigs, demand);
+                    warmOpens.put(cell, provider.schemaCallCount.get() - opensBeforeWarm);
+                    assertEquals(
+                        "[" + cell + "] a served schema must equal the one the cold resolve produced",
+                        describe(cold.resolvedSource(glob).metadata().schema()),
+                        describe(warm.resolvedSource(glob).metadata().schema())
+                    );
+                }
             }
         }
 
-        assertEquals(
-            "a warm resolve of an unchanged 3-file set must not consult the per-file schema store at all "
-                + "(counting hits AND misses, so a regression that turns hits into misses cannot pass), observed "
-                + warmLookupsByStrategy,
-            Map.of(
-                FormatReader.SchemaResolution.FIRST_FILE_WINS,
-                0L,
-                FormatReader.SchemaResolution.STRICT,
-                0L,
-                FormatReader.SchemaResolution.UNION_BY_NAME,
-                0L
-            ),
-            warmLookupsByStrategy
-        );
+        Map<String, Integer> noOpens = new TreeMap<>();
+        warmOpens.keySet().forEach(cell -> noOpens.put(cell, 0));
+        assertEquals("a warm resolve of an unchanged dataset must open no file; observed " + warmOpens, noOpens, warmOpens);
+    }
+
+    /**
+     * Resolves {@code glob} under {@code demand}, as the planner would ask for it. Asserts the arguments really do
+     * produce that demand, since the three are told apart only by which of two sets is null, empty or names the glob.
+     */
+    private static ExternalSourceResolution resolveUnder(
+        ExternalSourceResolver resolver,
+        String glob,
+        Map<String, Map<String, Object>> pathConfigs,
+        ResolutionDemand demand
+    ) {
+        Set<String> pathsRequiringStats = switch (demand) {
+            case SCHEMA_DISCOVERY, ROWS -> Set.of();
+            case EAGER_STATS -> null;
+        };
+        Set<String> pathsReadingNoRows = switch (demand) {
+            case SCHEMA_DISCOVERY -> Set.of(glob);
+            case ROWS, EAGER_STATS -> null;
+        };
+        assertEquals(demand, ResolutionDemand.of(glob, pathsRequiringStats, pathsReadingNoRows));
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(glob), pathConfigs, null, null, pathsRequiringStats, pathsReadingNoRows, future);
+        return future.actionGet();
+    }
+
+    /** {@code count} files under {@code prefix}, each with the same {@link #COLUMNS}-column schema, registered in {@code schemasByPath}. */
+    private static List<StorageEntry> files(String prefix, int count, Map<String, List<Attribute>> schemasByPath) {
+        List<Attribute> schema = new ArrayList<>(COLUMNS);
+        for (int c = 0; c < COLUMNS; c++) {
+            schema.add(attr("column_" + c, c % 2 == 0 ? DataType.LONG : DataType.KEYWORD));
+        }
+        List<StorageEntry> entries = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            String path = String.format(Locale.ROOT, "%spart-%05d.parquet", prefix, i);
+            schemasByPath.put(path, schema);
+            entries.add(entry(path, 1_000 + i));
+        }
+        return entries;
+    }
+
+    private static long schemaCacheEvictions(ExternalSourceCacheService cacheService) {
+        return ((Number) cacheService.usageStats().get("schema_cache.evictions")).longValue();
     }
 
     /**

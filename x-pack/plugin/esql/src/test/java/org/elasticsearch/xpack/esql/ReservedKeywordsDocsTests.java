@@ -21,15 +21,19 @@ import org.junit.AfterClass;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
 
 /**
  * Generates reserved-keywords.md from the tokenizer (best-effort).
- * Add tokens to {@code TOKENS_WHITELIST} or {@code TOKENS_BLACKLIST} if needed.
+ * Every detected keyword must be in {@code KEYWORDS_BY_VERSION} under the version that introduced it
+ * ({@code null} if it has always been reserved, otherwise {@code 9.6+} and the like).
+ * A keyword the tokenizer misses must also be added to {@code TOKENS_WHITELIST}.
  */
 public class ReservedKeywordsDocsTests extends ESTestCase {
     private static final Pattern IDENTIFIER_SHAPED = Pattern.compile("[A-Za-z][A-Za-z0-9_]*");
@@ -38,13 +42,90 @@ public class ReservedKeywordsDocsTests extends ESTestCase {
      */
     private static final Pattern DEV_TOKEN = Pattern.compile("^DEV_");
     /**
-     * Extra keywords the tokenizer misses.
+     * Extra keywords the tokenizer misses. Also add each one to {@code KEYWORDS_BY_VERSION}.
      */
-    private static final Set<String> TOKENS_WHITELIST = Set.of();
+    private static final Set<String> TOKENS_WHITELIST = Set.of("TEST");
     /**
      * Tokens to omit from the generated list.
      */
     private static final Set<String> TOKENS_BLACKLIST = Set.of("UNKNOWN_CMD");
+    /**
+     * Keywords grouped by introduction version, in display order.
+     * {@code null} is unversioned.
+     */
+    private static final Map<String, Set<String>> KEYWORDS_BY_VERSION = new LinkedHashMap<>();
+
+    static {
+        KEYWORDS_BY_VERSION.put(
+            null,
+            Set.of(
+                "AND",
+                "AS",
+                "ASC",
+                "BY",
+                "CHANGE_POINT",
+                "COMPLETION",
+                "DEDUP",
+                "DESC",
+                "DISSECT",
+                "DROP",
+                "ENRICH",
+                "EVAL",
+                "FALSE",
+                "FIRST",
+                "FORK",
+                "FROM",
+                "FUSE",
+                "GROK",
+                "GROUP",
+                "HIGHLIGHT",
+                "IN",
+                "INFO",
+                "INLINE",
+                "INLINESTATS",
+                "IP_LOCATION",
+                "IS",
+                "JOIN",
+                "KEEP",
+                "KEY",
+                "LAST",
+                "LIKE",
+                "LIMIT",
+                "LOOKUP",
+                "METADATA",
+                "METRICS_INFO",
+                "MMR",
+                "MV_EXPAND",
+                "NOT",
+                "NULL",
+                "NULLS",
+                "ON",
+                "OR",
+                "PROMQL",
+                "REGISTERED_DOMAIN",
+                "RENAME",
+                "RERANK",
+                "RLIKE",
+                "ROW",
+                "SAMPLE",
+                "SCORE",
+                "SET",
+                "SHOW",
+                "SORT",
+                "STATS",
+                "TRUE",
+                "TS",
+                "TS_COLLAPSE",
+                "TS_INFO",
+                "URI_PARTS",
+                "USER_AGENT",
+                "USING",
+                "WHERE",
+                "WITH"
+            )
+        );
+        KEYWORDS_BY_VERSION.put("9.6+", Set.of("TEST"));
+    }
 
     public void testReservedKeywordsAreIdentifierShapedAndSorted() {
         List<String> keywords = reservedKeywords();
@@ -84,17 +165,39 @@ public class ReservedKeywordsDocsTests extends ESTestCase {
         }
     }
 
-    public void testRenderedSnippetIsCommaSeparatedBackticks() {
+    public void testDetectedKeywordsAreVersioned() {
+        Set<String> detected = new TreeSet<>(reservedKeywords());
+        Set<String> versioned = new TreeSet<>();
+        for (Set<String> group : KEYWORDS_BY_VERSION.values()) {
+            for (String keyword : group) {
+                assertTrue("keyword listed more than once: " + keyword, versioned.add(keyword.toUpperCase(Locale.ROOT)));
+            }
+        }
+        Set<String> missing = new TreeSet<>(detected);
+        missing.removeAll(versioned);
+        assertTrue(
+            "add to KEYWORDS_BY_VERSION with the version that introduced them"
+                + " (and TOKENS_WHITELIST if the tokenizer misses them): "
+                + missing,
+            missing.isEmpty()
+        );
+        Set<String> extra = new TreeSet<>(versioned);
+        extra.removeAll(detected);
+        assertTrue("not detected; add to TOKENS_WHITELIST or remove from KEYWORDS_BY_VERSION: " + extra, extra.isEmpty());
+    }
+
+    public void testRenderedSnippetGroupsKeywordsByVersion() {
         String rendered = renderSnippet();
         assertTrue(rendered.startsWith("% This is generated by ESQL's ReservedKeywordsDocsTests."));
+        assertTrue(rendered.contains("* {applies_to}`stack: ga` {applies_to}`serverless: ga`"));
+        assertTrue(rendered.contains("* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`"));
         assertTrue(rendered.contains("`IN`"));
         assertTrue(rendered.contains("`FROM`"));
         assertTrue(rendered.contains("`STATS`"));
-        int listStart = rendered.indexOf('`');
-        assertTrue(listStart >= 0);
-        String list = rendered.substring(listStart).strip();
-        assertTrue("expected a comma-separated list, got: " + list, list.contains(", "));
-        assertFalse("first version is a single inline list", list.contains("\n"));
+        assertTrue(rendered.contains("`TEST`"));
+        int unversioned = rendered.indexOf("{applies_to}`stack: ga`");
+        int versioned = rendered.indexOf("{applies_to}`stack: ga 9.6+`");
+        assertTrue(unversioned >= 0 && unversioned < versioned);
     }
 
     @AfterClass
@@ -129,16 +232,40 @@ public class ReservedKeywordsDocsTests extends ESTestCase {
         builder.append("% This is generated by ESQL's ")
             .append(ReservedKeywordsDocsTests.class.getSimpleName())
             .append(". Do not edit it. See docs/reference/query-languages/esql/README.md for how to regenerate it.\n\n");
-        List<String> keywords = reservedKeywords();
-        for (int i = 0; i < keywords.size(); i++) {
-            if (i > 0) {
-                builder.append(", ");
+        Set<String> detected = new TreeSet<>(reservedKeywords());
+        boolean any = false;
+        for (Map.Entry<String, Set<String>> entry : KEYWORDS_BY_VERSION.entrySet()) {
+            List<String> words = new ArrayList<>();
+            for (String keyword : entry.getValue()) {
+                String normalized = keyword.toUpperCase(Locale.ROOT);
+                if (detected.contains(normalized)) {
+                    words.add(normalized);
+                }
             }
-            builder.append('`').append(keywords.get(i).toUpperCase(Locale.ROOT)).append('`');
-
+            words.sort(null);
+            if (words.isEmpty()) {
+                continue;
+            }
+            if (any) {
+                builder.append('\n');
+            }
+            any = true;
+            builder.append("* ").append(appliesTo(entry.getKey())).append('\n');
+            builder.append("  ");
+            for (int i = 0; i < words.size(); i++) {
+                if (i > 0) {
+                    builder.append(", ");
+                }
+                builder.append('`').append(words.get(i)).append('`');
+            }
+            builder.append('\n');
         }
-        builder.append('\n');
         return builder.toString();
+    }
+
+    private static String appliesTo(String version) {
+        String stack = version == null ? "stack: ga" : "stack: ga " + version;
+        return "{applies_to}`" + stack + "` {applies_to}`serverless: ga`";
     }
 
     private static String keywordText(Vocabulary vocabulary, int tokenType, String symbolic) {

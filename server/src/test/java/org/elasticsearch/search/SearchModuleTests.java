@@ -168,7 +168,7 @@ public class SearchModuleTests extends ESTestCase {
             @Override
             public List<RescorerSpec<?>> getRescorers() {
                 return List.of(
-                    new RescorerSpec<>(QueryRescorerBuilder.NAME, QueryRescorerBuilder::new, QueryRescorerBuilder::fromXContent)
+                    new RescorerSpec<>(QueryRescorerBuilder.NAME, QueryRescorerBuilder::new, p -> QueryRescorerBuilder.fromXContent(p, null))
                 );
             }
         };

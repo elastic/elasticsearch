@@ -11,7 +11,6 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -219,19 +218,10 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
         PARSER = parser;
     }
 
-    public static HighlightBuilder fromXContent(XContentParser p) throws IOException {
-        return fromXContent(p, null);
-    }
-
     public static HighlightBuilder fromXContent(XContentParser p, QueryParsingReservation releasables) throws IOException {
         HighlightBuilder hb = new HighlightBuilder();
         PARSER.parse(p, hb, releasables);
-        if (hb.preTags() != null && hb.postTags() == null) {
-            throw new ParsingException(p.getTokenLocation(), "pre_tags are set but post_tags are not set");
-        }
-        if (hb.preTags() != null && hb.postTags() != null && (hb.preTags().length == 0 || hb.postTags().length == 0)) {
-            throw new ParsingException(p.getTokenLocation(), "pre_tags or post_tags must not be empty");
-        }
+        validatePrePostTags(hb, p);
         return hb;
     }
 
@@ -414,12 +404,7 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
             PARSER = (XContentParser p, QueryParsingReservation c, String name) -> {
                 Field field = new Field(name);
                 parser.parse(p, field, c);
-                if (field.preTags() != null && field.postTags() == null) {
-                    throw new ParsingException(p.getTokenLocation(), "pre_tags are set but post_tags are not set");
-                }
-                if (field.preTags() != null && field.postTags() != null && (field.preTags().length == 0 || field.postTags().length == 0)) {
-                    throw new ParsingException(p.getTokenLocation(), "pre_tags or post_tags must not be empty");
-                }
+                validatePrePostTags(field, p);
                 return field;
             };
         }

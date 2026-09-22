@@ -57,7 +57,7 @@ public class LearningToRankRescorerBuilderSerializationTests extends AbstractBWC
                 builder.endObject();
 
                 try (XContentParser parser = JsonXContent.jsonXContent.createParser(parserConfig(), Strings.toString(builder))) {
-                    ParsingException e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser, (r) -> {}));
+                    ParsingException e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser, (r) -> {}, null));
                     assertThat(e.getMessage(), equalTo("window_size is required for rescorer of type [learning_to_rank]"));
                 }
             }
@@ -177,7 +177,7 @@ public class LearningToRankRescorerBuilderSerializationTests extends AbstractBWC
 
     @Override
     protected LearningToRankRescorerBuilder doParseInstance(XContentParser parser) throws IOException {
-        return (LearningToRankRescorerBuilder) RescorerBuilder.parseFromXContent(parser, (r) -> {});
+        return (LearningToRankRescorerBuilder) RescorerBuilder.parseFromXContent(parser, (r) -> {}, null);
     }
 
     @Override

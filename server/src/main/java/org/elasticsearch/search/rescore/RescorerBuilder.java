@@ -73,10 +73,6 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
         return windowSize;
     }
 
-    public static RescorerBuilder<?> parseFromXContent(XContentParser parser, Consumer<String> rescorerNameConsumer) throws IOException {
-        return parseFromXContent(parser, rescorerNameConsumer, null);
-    }
-
     public static RescorerBuilder<?> parseFromXContent(
         XContentParser parser,
         Consumer<String> rescorerNameConsumer,

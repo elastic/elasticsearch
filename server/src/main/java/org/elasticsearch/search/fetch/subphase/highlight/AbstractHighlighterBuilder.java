@@ -11,6 +11,7 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.highlight.SimpleFragmenter;
 import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -650,11 +651,23 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
+     * Validates that pre_tags and post_tags are consistent. Call this after {@link ObjectParser#parse} to enforce
+     * the same rules for both {@link HighlightBuilder} and {@link HighlightBuilder.Field}.
+     */
+    static <HB extends AbstractHighlighterBuilder<HB>> void validatePrePostTags(HB hb, XContentParser p) {
+        if (hb.preTags() != null && hb.postTags() == null) {
+            throw new ParsingException(p.getTokenLocation(), "pre_tags are set but post_tags are not set");
+        }
+        if (hb.preTags() != null && hb.postTags() != null && (hb.preTags().length == 0 || hb.postTags().length == 0)) {
+            throw new ParsingException(p.getTokenLocation(), "pre_tags or post_tags must not be empty");
+        }
+    }
+
+    /**
      * Configures all highlight fields on {@code parser}. The context type is {@code QueryParsingReservation} (nullable):
      * when non-null the highlight_query is tracked for later release via the request circuit breaker;
-     * when null (e.g. from {@link HighlightBuilder#fromXContent(XContentParser)}) queries are parsed
+     * when null (e.g. aggregation contexts that have no reservation) queries are parsed
      * without holding charges, matching the pre-breaker behaviour.
-     * After calling {@link ObjectParser#parse}, callers must validate pre/post tags themselves.
      */
     static <HB extends AbstractHighlighterBuilder<HB>> void setupParser(ObjectParser<HB, QueryParsingReservation> parser) {
         parser.declareStringArray(fromList(String.class, HB::preTags), PRE_TAGS_FIELD);

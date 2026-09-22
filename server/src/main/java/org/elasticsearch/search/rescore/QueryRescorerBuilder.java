@@ -161,10 +161,6 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
         builder.endObject();
     }
 
-    public static QueryRescorerBuilder fromXContent(XContentParser parser) throws IOException {
-        return fromXContent(parser, null);
-    }
-
     public static QueryRescorerBuilder fromXContent(XContentParser parser, QueryParsingReservation releasables) throws IOException {
         InnerBuilder innerBuilder = QUERY_RESCORE_PARSER.parse(parser, new InnerBuilder(), releasables);
         return innerBuilder.build();

@@ -487,9 +487,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
   method: testContinuousEvents
   issue: https://github.com/elastic/elasticsearch/issues/153782
-- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
-  method: testBlobsNotDeletedDuringFailedRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/158959
 - class: org.elasticsearch.transport.ProxyConnectionStrategyTests
   method: testProxyStrategyWillOpenNewConnectionsOnDisconnect
   issue: https://github.com/elastic/elasticsearch/issues/159027
@@ -525,9 +522,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessResizeIT
   method: testCloneIndex
   issue: https://github.com/elastic/elasticsearch/issues/159214
-- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
-  method: testSearchWithRandomDisconnects
-  issue: https://github.com/elastic/elasticsearch/issues/157466
 - class: org.elasticsearch.swisshash.BytesRefSwissHashPartitionTests
   method: testPartitionPaged
   issue: https://github.com/elastic/elasticsearch/issues/159303
@@ -569,8 +563,6 @@ tests:
 - class: org.elasticsearch.index.shard.IndexShardIT
   method: testNodeWriteLoadsArePresent
   issue: https://github.com/elastic/elasticsearch/issues/159553
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/159560
 - class: org.elasticsearch.xpack.security.apikey.ApiKeyRestIT
   method: testGrantTargetCanUpdateApiKey
   issue: https://github.com/elastic/elasticsearch/issues/159567
@@ -652,6 +644,12 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {p0=search/400_synthetic_source/text with doc_values multi-value}"
   issue: https://github.com/elastic/elasticsearch/issues/159560
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: "test {p0=search/396_text_doc_values_multiterm_search/*}"
+  issue: https://github.com/elastic/elasticsearch/issues/159693
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: "test {p0=search/397_match_only_text_doc_values_multiterm_search/*}"
+  issue: https://github.com/elastic/elasticsearch/issues/159693
 - class: org.elasticsearch.xpack.logsdb.qa.BulkStoredSourceChallengeRestIT
   method: testEsqlTermsAggregationByMethod
   issue: https://github.com/elastic/elasticsearch/issues/159868
@@ -699,3 +697,17 @@ tests:
 - class: org.elasticsearch.upgrades.MLModelDeploymentsUpgradeIT
   method: testTrainedModelDeployment {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/159948
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
+  method: testSourceRelocationDuringReshard
+  issue: https://github.com/elastic/elasticsearch/issues/159951
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  issue: https://github.com/elastic/elasticsearch/issues/159953
+- class: org.elasticsearch.xpack.esql.action.ExternalDistributedNodeUnavailableIT
+  method: testNodeGoneFromClusterStateBetweenPlanningAndDispatchIsReassigned
+  issue: https://github.com/elastic/elasticsearch/issues/159977
+- class: org.elasticsearch.xpack.esql.action.ExternalDistributedNodeUnavailableIT
+  method: testUnreachableNodeAtDispatchIsNotASilentPartialAnswer
+  issue: https://github.com/elastic/elasticsearch/issues/159982
+- class: org.elasticsearch.xpack.esql.action.ExternalDistributedNodeUnavailableIT
+  method: testUnreachableNodeAtDispatchIsReassignedWhenPartialResultsDisallowed
+  issue: https://github.com/elastic/elasticsearch/issues/159983

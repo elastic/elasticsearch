@@ -12,21 +12,14 @@ package org.elasticsearch.common.util.concurrent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.telemetry.metric.LongHistogram;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.Queue;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.LongSupplier;
 
 /**
  * {@link AbstractThrottledTaskRunner} runs the enqueued tasks using the given executor, limiting the number of tasks that are submitted to
@@ -34,17 +27,6 @@ import java.util.function.LongSupplier;
  */
 public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
     private static final Logger logger = LogManager.getLogger(AbstractThrottledTaskRunner.class);
-
-    public static final String THROTTLED_TASK_RUNNER_METRIC_PREFIX = "es.throttled_task_runner.";
-    public static final String THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE = ".tasks.queue.size";
-    public static final String THROTTLED_TASK_RUNNER_METRIC_NAME_RUNNING = ".tasks.running.current";
-    public static final String THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE_TIME = ".tasks.queue_latency.histogram";
-
-    @Nullable
-    private final ConcurrentHashMap<T, Long> queuedNanosByTask;
-    private final LongHistogram queueLatencyMillisHistogram;
-
-    private final LongSupplier relativeTimeNanosProvider;
 
     private final String taskRunnerName;
     // The max number of tasks that this runner will schedule to concurrently run on the executor.
@@ -58,53 +40,11 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
     private final Executor executor;
 
     public AbstractThrottledTaskRunner(final String name, final int maxRunningTasks, final Executor executor, final Queue<T> taskQueue) {
-        this(name, maxRunningTasks, executor, taskQueue, MeterRegistry.NOOP, "no_metrics", () -> 0L);
-
-    }
-
-    /// Used to construct an **instrumented** throttled-task runner.
-    /// @param metricName is the throttled-task runner name to be used for metrics and must be a valid (i.e., see MetricValidator) name
-    /// @param relativeTimeNanosProvider used to compute the queueing latencies
-    public AbstractThrottledTaskRunner(
-        final String taskRunnerName,
-        final int maxRunningTasks,
-        final Executor executor,
-        final Queue<T> taskQueue,
-        final MeterRegistry meterRegistry,
-        final String metricName,
-        final LongSupplier relativeTimeNanosProvider
-    ) {
         assert maxRunningTasks > 0;
-        this.taskRunnerName = taskRunnerName;
+        this.taskRunnerName = name;
         this.maxRunningTasks = maxRunningTasks;
         this.executor = executor;
         this.tasks = taskQueue;
-
-        this.relativeTimeNanosProvider = relativeTimeNanosProvider;
-        if (meterRegistry != MeterRegistry.NOOP) {
-            this.queuedNanosByTask = new ConcurrentHashMap<>();
-        } else {
-            this.queuedNanosByTask = null;
-        }
-
-        final var prefix = THROTTLED_TASK_RUNNER_METRIC_PREFIX + metricName;
-        this.queueLatencyMillisHistogram = meterRegistry.registerLongHistogram(
-            prefix + THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE_TIME,
-            "time tasks spent in the queue for throttled task runner " + taskRunnerName,
-            "milliseconds"
-        );
-        meterRegistry.registerLongAsyncGauge(
-            prefix + THROTTLED_TASK_RUNNER_METRIC_NAME_QUEUE,
-            "number of tasks waiting in the queue for throttled task runner " + taskRunnerName,
-            "count",
-            () -> new LongWithAttributes(queuedTasks())
-        );
-        meterRegistry.registerLongAsyncGauge(
-            prefix + THROTTLED_TASK_RUNNER_METRIC_NAME_RUNNING,
-            "number of tasks currently running (i.e., submitted to the underlying executor) for throttled task runner " + taskRunnerName,
-            "count",
-            () -> new LongWithAttributes(runningTasks())
-        );
     }
 
     public String getTaskRunnerName() {
@@ -122,9 +62,6 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
      */
     public void enqueueTask(final T task) {
         logger.trace("[{}] enqueuing task {}", taskRunnerName, task);
-        if (queuedNanosByTask != null) {
-            queuedNanosByTask.put(task, relativeTimeNanosProvider.getAsLong());
-        }
         tasks.add(task);
         // Try to run a task since now there is at least one in the queue. If the maxRunningTasks is
         // reached, the task is just enqueued.
@@ -138,6 +75,11 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
     protected boolean isForceExecution(@SuppressWarnings("unused") /* TODO test this */ T task) {
         return false;
     }
+
+    /**
+     * Called on every task when we take it off the `tasks` queue.
+     */
+    protected void onDequeue(T task) {}
 
     private void pollAndSpawn() {
         // A pollAndSpawn attempts to run a new task. There could be many concurrent pollAndSpawn calls competing
@@ -158,13 +100,7 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
                 // non-empty queue and no workers!
                 if (tasks.peek() == null) break;
             } else {
-                final Long queueStartNanos = queuedNanosByTask != null ? queuedNanosByTask.remove(task) : null;
-                if (queueStartNanos != null) {
-                    queueLatencyMillisHistogram.record(
-                        TimeUnit.NANOSECONDS.toMillis(relativeTimeNanosProvider.getAsLong() - queueStartNanos)
-                    );
-                }
-
+                onDequeue(task);
                 final boolean isForceExecution = isForceExecution(task);
                 var runnable = new AbstractRunnable() {
                     private boolean rejected; // need not be volatile - if we're rejected then that happens-before calling onAfter
@@ -216,7 +152,6 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
                         return task.toString();
                     }
                 };
-
                 executor.execute(runnable);
                 runnable.callerLoopProceeded = true;
             }
@@ -250,15 +185,9 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
             protected void doRun() {
                 final AtomicBoolean isDone = new AtomicBoolean(true);
                 final Releasable ref = () -> isDone.set(true);
-                ActionListener<Releasable> task;
+                T task;
                 while ((task = tasks.poll()) != null) {
-                    final Long queueStartNanos = queuedNanosByTask != null ? queuedNanosByTask.remove(task) : null;
-                    if (queueStartNanos != null) {
-                        queueLatencyMillisHistogram.record(
-                            TimeUnit.NANOSECONDS.toMillis(relativeTimeNanosProvider.getAsLong() - queueStartNanos)
-                        );
-                    }
-
+                    onDequeue(task);
                     isDone.set(false);
                     try {
                         logger.trace("[{}] eagerly running task {}", taskRunnerName, task);

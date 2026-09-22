@@ -265,6 +265,7 @@ class RetryableStorageObject implements StorageObject {
         // A ResumingInputStream is our own wrapper; abort the live underlying stream so the provider's
         // Abortable fast-path applies to the real instance, not the wrapper (which the provider can't cast).
         if (stream instanceof ResumingInputStream resuming) {
+            resuming.aborted = true;
             delegate.abortStream(resuming.currentStream());
         } else {
             delegate.abortStream(stream);
@@ -467,7 +468,8 @@ class RetryableStorageObject implements StorageObject {
      * data-integrity error misclassified as transient simply re-trips and fails within the bounded budget.
      * <p>
      * Single-threaded by contract: one consumer reads one stream. Not {@code Abortable}; the enclosing
-     * {@link #abortStream} unwraps to abort the live underlying stream.
+     * {@link #abortStream} sets {@link #aborted} then unwraps to abort the live underlying stream so a
+     * typed transient abort cannot re-open a new GET.
      */
     private final class ResumingInputStream extends InputStream {
         private final long position;
@@ -475,6 +477,8 @@ class RetryableStorageObject implements StorageObject {
         // Volatile: the reader thread re-assigns this on resume while {@link #abortStream} reads it (via
         // currentStream()) from the operator/cancel thread, so the abort must see the live stream, not a stale ref.
         private volatile InputStream current;
+        /** Set by {@link #abortStream} before the inner abort; {@link #reopenOrThrow} must not {@code newStream}. */
+        private volatile boolean aborted;
         private long delivered = 0;
         /**
          * The provider's generation pin ({@link StorageObject#contentGeneration()}) as of the first open.
@@ -535,6 +539,9 @@ class RetryableStorageObject implements StorageObject {
         @Override
         public int read(byte[] b, int off, int len) throws IOException {
             while (true) {
+                if (aborted) {
+                    throw new IOException("read aborted");
+                }
                 final int n;
                 try {
                     n = current.read(b, off, len);
@@ -543,6 +550,9 @@ class RetryableStorageObject implements StorageObject {
                     // mid-read status fault as the unchecked ExternalUnavailableException. Both drive a resume.
                     reopenOrThrow(e);
                     continue;
+                }
+                if (aborted) {
+                    throw new IOException("read aborted");
                 }
                 if (n > 0) {
                     delivered += n;
@@ -621,6 +631,7 @@ class RetryableStorageObject implements StorageObject {
         }
 
         private void reopenOrThrow(Exception e) throws IOException {
+            throwIfAborted(e);
             if (belowProgressFloor) {
                 throw rethrow(e);
             }
@@ -645,10 +656,42 @@ class RetryableStorageObject implements StorageObject {
                 Thread.currentThread().interrupt();
                 throw new IOException("interrupted while waiting to resume read of " + delegate.path(), ie);
             }
+            throwIfAborted(e);
+            long resumeFrom = position + delivered;
+            // Re-open the undelivered tail THROUGH the open-retry loop, so a transient failure to re-open the
+            // range (not just to read it) is itself retried. A plain IOException inside execute is not
+            // retryable, so an abort mid-open does not burn the open-retry budget.
+            if (length == READ_TO_END) {
+                // Open-ended (to-EOF) mode: re-open [resumeFrom, end] as an open-ended range; the underlying
+                // stream's EOF marks completion. If the fault landed exactly at EOF, the provider answers the
+                // past-the-end open-ended read with an empty stream.
+                adoptResume(
+                    retryPolicy.execute(
+                        () -> openResume(resumeFrom, READ_TO_END),
+                        "newStream(resume-open)",
+                        delegate.path(),
+                        retryCounters::addRetry,
+                        storageTelemetry
+                    )
+                );
+            } else {
+                long remaining = length - delivered;
+                // If everything was delivered, an empty stream is EOF.
+                adoptResume(
+                    remaining > 0
+                        ? retryPolicy.execute(
+                            () -> openResume(resumeFrom, remaining),
+                            "newStream(resume)",
+                            delegate.path(),
+                            retryCounters::addRetry,
+                            storageTelemetry
+                        )
+                        : InputStream.nullInputStream()
+                );
+            }
             retryCounters.addRetry();
             failuresSinceProgress++;
             totalResumes++;
-            long resumeFrom = position + delivered;
             logger.debug(
                 "resuming read of [{}] from byte [{}] after transient fault (attempt [{}]): [{}]",
                 delegate.path(),
@@ -656,33 +699,28 @@ class RetryableStorageObject implements StorageObject {
                 failuresSinceProgress,
                 e.getMessage()
             );
-            // Re-open the undelivered tail THROUGH the open-retry loop, so a transient failure to re-open the
-            // range (not just to read it) is itself retried.
-            if (length == READ_TO_END) {
-                // Open-ended (to-EOF) mode: re-open [resumeFrom, end] as an open-ended range; the underlying
-                // stream's EOF marks completion. If the fault landed exactly at EOF, the provider answers the
-                // past-the-end open-ended read with an empty stream.
-                current = retryPolicy.execute(
-                    () -> delegate.newStream(resumeFrom, READ_TO_END),
-                    "newStream(resume-open)",
-                    delegate.path(),
-                    retryCounters::addRetry,
-                    storageTelemetry
-                );
-            } else {
-                long remaining = length - delivered;
-                // If everything was delivered, an empty stream is EOF.
-                current = remaining > 0
-                    ? retryPolicy.execute(
-                        () -> delegate.newStream(resumeFrom, remaining),
-                        "newStream(resume)",
-                        delegate.path(),
-                        retryCounters::addRetry,
-                        storageTelemetry
-                    )
-                    : InputStream.nullInputStream();
-            }
             ensureGenerationConsistent();
+        }
+
+        private InputStream openResume(long resumeFrom, long resumeLength) throws IOException {
+            if (aborted) {
+                throw new IOException("read aborted");
+            }
+            return delegate.newStream(resumeFrom, resumeLength);
+        }
+
+        private void adoptResume(InputStream opened) throws IOException {
+            current = opened;
+            if (aborted) {
+                delegate.abortStream(current);
+                throw new IOException("read aborted");
+            }
+        }
+
+        private void throwIfAborted(Exception cause) throws IOException {
+            if (aborted) {
+                throw rethrow(cause);
+            }
         }
 
         /**

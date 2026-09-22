@@ -18,7 +18,9 @@ import com.google.cloud.storage.StorageException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -30,17 +32,22 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -777,6 +784,122 @@ public class GcsStorageObjectTests extends ESTestCase {
         assertNotNull(error.get());
         assertTrue(error.get() instanceof IOException);
         assertTrue(error.get().getMessage().contains("External data object not found"));
+    }
+
+    public void testCancelInFlightClosesReadChannel() throws Exception {
+        ReadChannel mockReader = mock(ReadChannel.class);
+        when(mockStorage.reader(any(BlobId.class))).thenReturn(mockReader);
+        CountDownLatch inRead = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        CountDownLatch unblockedByClose = new CountDownLatch(1);
+        when(mockReader.read(any(ByteBuffer.class))).thenAnswer(invocation -> {
+            inRead.countDown();
+            if (release.await(5, TimeUnit.SECONDS) == false) {
+                throw new IOException("read was not unblocked by close");
+            }
+            unblockedByClose.countDown();
+            throw new ClosedChannelException();
+        });
+        doAnswer(invocation -> {
+            release.countDown();
+            return null;
+        }).when(mockReader).close();
+
+        GcsStorageObject obj = new GcsStorageObject(
+            mockStorage,
+            "my-bucket",
+            "data/file.parquet",
+            StoragePath.of("gs://my-bucket/data/file.parquet")
+        );
+        AtomicInteger closeCount = new AtomicInteger();
+        DirectBufferFactory trackingFactory = len -> new DirectReadBuffer(ByteBuffer.allocateDirect(len), closeCount::incrementAndGet);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        CountDownLatch listenerCalled = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        try {
+            Releasable cancel = obj.startReadBytesAsync(0, 10, trackingFactory, executor, new ActionListener<>() {
+                @Override
+                public void onResponse(DirectReadBuffer buffer) {
+                    fail("expected failure");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    error.set(e);
+                    listenerCalled.countDown();
+                }
+            });
+            assertTrue("read must park", inRead.await(5, TimeUnit.SECONDS));
+            cancel.close();
+            assertTrue("close must unblock read", unblockedByClose.await(5, TimeUnit.SECONDS));
+            assertTrue("listener must be notified on cancel", listenerCalled.await(5, TimeUnit.SECONDS));
+            assertThat(error.get(), instanceOf(TaskCancelledException.class));
+            verify(mockReader, atLeastOnce()).close();
+        } finally {
+            executor.shutdown();
+            try {
+                assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
+                assertEquals("buffer must be closed exactly once", 1, closeCount.get());
+            } finally {
+                terminate(executor);
+            }
+        }
+    }
+
+    public void testCancelClosesChannelWhenListenerThrows() throws Exception {
+        ReadChannel mockReader = mock(ReadChannel.class);
+        when(mockStorage.reader(any(BlobId.class))).thenReturn(mockReader);
+        CountDownLatch inRead = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        CountDownLatch unblockedByClose = new CountDownLatch(1);
+        when(mockReader.read(any(ByteBuffer.class))).thenAnswer(invocation -> {
+            inRead.countDown();
+            if (release.await(5, TimeUnit.SECONDS) == false) {
+                throw new IOException("read was not unblocked by close");
+            }
+            unblockedByClose.countDown();
+            throw new ClosedChannelException();
+        });
+        doAnswer(invocation -> {
+            release.countDown();
+            return null;
+        }).when(mockReader).close();
+
+        GcsStorageObject obj = new GcsStorageObject(
+            mockStorage,
+            "my-bucket",
+            "data/file.parquet",
+            StoragePath.of("gs://my-bucket/data/file.parquet")
+        );
+        AtomicInteger closeCount = new AtomicInteger();
+        DirectBufferFactory trackingFactory = len -> new DirectReadBuffer(ByteBuffer.allocateDirect(len), closeCount::incrementAndGet);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Releasable cancel = obj.startReadBytesAsync(0, 10, trackingFactory, executor, new ActionListener<>() {
+                @Override
+                public void onResponse(DirectReadBuffer buffer) {
+                    fail("expected failure");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new IllegalStateException("listener boom");
+                }
+            });
+            assertTrue("read must park", inRead.await(5, TimeUnit.SECONDS));
+            IllegalStateException thrown = expectThrows(IllegalStateException.class, cancel::close);
+            assertEquals("listener boom", thrown.getMessage());
+            assertTrue("close must still unblock read", unblockedByClose.await(5, TimeUnit.SECONDS));
+            verify(mockReader, atLeastOnce()).close();
+        } finally {
+            executor.shutdown();
+            try {
+                assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
+                assertEquals("buffer must be closed exactly once", 1, closeCount.get());
+            } finally {
+                terminate(executor);
+            }
+        }
     }
 
     public void testSupportsNativeAsyncReturnsTrue() {

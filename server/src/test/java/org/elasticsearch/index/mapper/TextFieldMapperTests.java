@@ -801,7 +801,10 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testColumnarSingleValueFormatViaColumnBatch() throws Exception {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        // The columns this reads back are the layout the ColumNAR codec replaces.
+        Settings settings = ColumnarCodecSettings.withoutCodec(
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+        ).build();
         MapperService mapperService = createMapperService(
             settings,
             fieldMapping(b -> b.field("type", "text").startObject("doc_values").field("multi_value", false).endObject())
@@ -858,7 +861,10 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testColumnarMultiValueFormatViaColumnBatch() throws Exception {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        // The columns this reads back are the layout the ColumNAR codec replaces.
+        Settings settings = ColumnarCodecSettings.withoutCodec(
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+        ).build();
         MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "text")));
 
         withColumnBatch(mapperService, "{\"field\":[\"a\",\"b\"]}", batch -> {

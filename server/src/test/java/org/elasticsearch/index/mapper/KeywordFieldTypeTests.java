@@ -114,12 +114,14 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermQueryWithSingleValueDocValues() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
-            .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
-            .build();
+        // The query this reads back belongs to the layout the ColumNAR codec replaces, so the index is written in it.
+        Settings settings = ColumnarCodecSettings.withoutCodec(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
+                .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
+        ).build();
         IndexSettings indexSettings = new IndexSettings(
             IndexMetadata.builder("index").settings(settings).numberOfShards(1).numberOfReplicas(0).build(),
             Settings.EMPTY

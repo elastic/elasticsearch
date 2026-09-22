@@ -40,6 +40,7 @@ import org.junit.Before;
 import org.junit.Rule;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -866,6 +867,59 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         }
     }
 
+    /** Memoized: the index under test is created once and its layout does not change while the test runs. */
+    private Boolean columnarCodecStoresDocValues;
+
+    /**
+     * The reader a strict columnar index's string values are read back through. The ColumNAR codec stores them as its own payload where
+     * the cluster writes it, and in the layout it replaces where it does not, so this asks the index rather than assuming either.
+     */
+    protected String columnarBytesReader() {
+        if (columnarCodecStoresDocValues == null) {
+            try {
+                columnarCodecStoresDocValues = fetchColumnarCodecStoresDocValues();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+        return columnarCodecStoresDocValues
+            ? "column_at_a_time:BytesRefsFromColumnarPayload"
+            : "column_at_a_time:BlockDocValuesReader.Bytes";
+    }
+
+    /**
+     * Whether the ColumNAR codec stores the doc values of the index under test, read from the index's own settings so that a build
+     * without the codec, and one where it is not the default, each answer for themselves.
+     */
+    private boolean fetchColumnarCodecStoresDocValues() throws IOException {
+        // One index per node carries the node's name, so every index of this mode is asked and the first answer taken: they are
+        // created alike, and the codec is settled for all of them by the same setting.
+        final Request request = new Request("GET", "/" + indexName(indexMode, null) + "*/_settings");
+        request.addParameter("include_defaults", "true");
+        final Map<String, Object> response = entityAsMap(client().performRequest(request));
+        for (Object perIndex : response.values()) {
+            if (perIndex instanceof Map<?, ?> index) {
+                final Object explicit = settingValue(index.get("settings"));
+                final Object byDefault = settingValue(index.get("defaults"));
+                final Object value = explicit != null ? explicit : byDefault;
+                if (value != null) {
+                    return Boolean.parseBoolean(value.toString());
+                }
+            }
+        }
+        return false;
+    }
+
+    /** {@code index.columnar_codec.enabled} out of one half of a settings response, or null where it names nothing. */
+    private static Object settingValue(Object settings) {
+        if (settings instanceof Map<?, ?> map
+            && map.get("index") instanceof Map<?, ?> index
+            && index.get("columnar_codec") instanceof Map<?, ?> codec) {
+            return codec.get("enabled");
+        }
+        return null;
+    }
+
     protected static String indexName(IndexMode mode, String nodeName) {
         String indexName = mode.toString();
         if (nodeName != null) {
@@ -1625,11 +1679,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case INTEGER, COUNTER_INTEGER, SHORT, BYTE -> useStoredLoader()
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Ints")
                 : matchesList().item("column_at_a_time:IntsFromDocValues.Singleton");
+            // An ip is not a string, so the ColumNAR codec does not store it and it keeps the layout it had.
             case IP -> useStoredLoader() ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Ips")
                 : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
                 : matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
             case KEYWORD -> useStoredLoader() ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
-                : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
+                : indexMode.isStrictColumnar() ? matchesList().item(columnarBytesReader())
                 : matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
             case LONG, COUNTER_LONG, UNSIGNED_LONG -> useStoredLoader()
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Longs")
@@ -1640,8 +1695,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
                     : matchesList().item("column_at_a_time:constant_nulls");
             case TDIGEST -> matchesList().item("column_at_a_time:BlockDocValuesReader.TDigest");
-            case TEXT -> indexMode.isStrictColumnar() || syntheticSourceByDefault()
-                ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
+            case TEXT -> indexMode.isStrictColumnar() ? matchesList().item(columnarBytesReader())
+                : syntheticSourceByDefault() ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
                 : matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes");
             case VERSION -> matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
             default -> matchesList();

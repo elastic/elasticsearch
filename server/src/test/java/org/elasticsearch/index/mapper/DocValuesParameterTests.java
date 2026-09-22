@@ -708,7 +708,10 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * being thrown out.
      */
     public void testOnFailureIgnoreAcceptsDocumentInsteadOfThrowing() throws Exception {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        // The fields this counts belong to the layout the ColumNAR codec replaces.
+        Settings settings = ColumnarCodecSettings.withoutCodec(
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+        ).build();
         DocumentMapper mapper = createMapperService(
             settings,
             fieldMapping(

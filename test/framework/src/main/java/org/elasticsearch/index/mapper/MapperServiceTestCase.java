@@ -186,8 +186,14 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return createMapperService(settings, mappings).documentMapper();
     }
 
+    /**
+     * A columnar index written in the layouts the ColumNAR codec replaces, which is what the callers here read back. A test that means
+     * the codec's own payload names it, through {@link ColumnarCodecSettings} or a setting of its own.
+     */
     protected final DocumentMapper createColumnarModeDocumentMapper(XContentBuilder mappings) throws IOException {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        Settings settings = ColumnarCodecSettings.withoutCodec(
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+        ).build();
         return createMapperService(settings, mappings).documentMapper();
     }
 

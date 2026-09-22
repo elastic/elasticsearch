@@ -306,7 +306,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             matchesList().item(min),
             // High-cardinality keyword stores values as ArrayOrderInlineNull binary doc values; MV_MIN pushes down into the matching
             // array-order reader, which skips inline nulls and computes the minimum over the non-null values.
-            matchesMap().entry("test:column_at_a_time:MvMinBytesRefsFromBinary.ArrayOrderInlineNull", 1)
+            matchesMap().entry(highCardinalityLoader("MinFromColumnarPayload", "MvMinBytesRefsFromBinary.ArrayOrderInlineNull"), 1)
         );
     }
 
@@ -442,7 +442,10 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             matchesList().item(max),
             // High-cardinality keyword stores values as ArrayOrderInlineNull binary doc values; MV_MAX pushes down into the matching
             // array-order reader, which skips inline nulls and computes the maximum over the non-null values.
-            matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromBinary.ArrayOrderInlineNull", 1)
+            matchesMap().entry(
+                highCardinalityLoader("MvMaxBytesRefsFromColumnarPayload", "MvMaxBytesRefsFromBinary.ArrayOrderInlineNull"),
+                1
+            )
         );
     }
 
@@ -455,7 +458,13 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             b -> b.startArray("test").value(value).nullValue().endArray(),
             "| EVAL test = LENGTH(test)",
             matchesList().item(value.length()),
-            matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.MultiValuedBinaryArrayOrderInlineNull", 1)
+            matchesMap().entry(
+                highCardinalityLoader(
+                    "Utf8CodePointsFromOrds.MultiValuedBinaryColumnarPayload",
+                    "Utf8CodePointsFromOrds.MultiValuedBinaryArrayOrderInlineNull"
+                ),
+                1
+            )
         );
     }
 
@@ -466,7 +475,13 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
             b -> b.startArray("test").value(value).nullValue().endArray(),
             "| EVAL test = BYTE_LENGTH(test)",
             matchesList().item(value.length()),
-            matchesMap().entry("test:column_at_a_time:ByteLengthFromBytesRef.MultiValuedBinaryArrayOrderInlineNull", 1)
+            matchesMap().entry(
+                highCardinalityLoader(
+                    "ByteLengthFromBytesRef.MultiValuedBinaryColumnarPayload",
+                    "ByteLengthFromBytesRef.MultiValuedBinaryArrayOrderInlineNull"
+                ),
+                1
+            )
         );
     }
 
@@ -1244,6 +1259,48 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         Consumer<List<String>> assertDataNodeSig
     ) throws IOException {
         test(mapping, doc, query, expectedValue, columnMatcher, expectedLoadersPerDriver, assertDataNodeSig, null, null);
+    }
+
+    /** Memoized: whether this cluster writes a strict columnar index's doc values with the ColumNAR codec. */
+    private static Boolean columnarCodecStoresDocValues;
+
+    /**
+     * The loader a high-cardinality keyword is read through, named for the layout the cluster writes: the ColumNAR codec stores these
+     * values as its own payload where it is written, and in the layout it replaces where it is not. The pushdown itself is the same
+     * either way, which is what these tests are about.
+     */
+    private String highCardinalityLoader(String columnarPayload, String arrayOrderInlineNull) throws IOException {
+        if (columnarCodecStoresDocValues == null) {
+            final String probe = "columnar_codec_probe";
+            final Request create = new Request("PUT", "/" + probe);
+            create.setJsonEntity("""
+                {"settings":{"index.mode":"columnar"},"mappings":{"properties":{"test":{"type":"keyword"}}}}""");
+            client().performRequest(create);
+            try {
+                final Request settings = new Request("GET", "/" + probe + "/_settings");
+                settings.addParameter("include_defaults", "true");
+                final Map<?, ?> response = entityAsMap(client().performRequest(settings));
+                final Map<?, ?> index = (Map<?, ?>) response.get(probe);
+                Object value = codecSetting(index.get("settings"));
+                if (value == null) {
+                    value = codecSetting(index.get("defaults"));
+                }
+                columnarCodecStoresDocValues = value != null && Boolean.parseBoolean(value.toString());
+            } finally {
+                client().performRequest(new Request("DELETE", "/" + probe));
+            }
+        }
+        return "test:column_at_a_time:" + (columnarCodecStoresDocValues ? columnarPayload : arrayOrderInlineNull);
+    }
+
+    /** {@code index.columnar_codec.enabled} out of one half of a settings response, or null where it names nothing. */
+    private static Object codecSetting(Object settings) {
+        if (settings instanceof Map<?, ?> map
+            && map.get("index") instanceof Map<?, ?> index
+            && index.get("columnar_codec") instanceof Map<?, ?> codec) {
+            return codec.get("enabled");
+        }
+        return null;
     }
 
     /**

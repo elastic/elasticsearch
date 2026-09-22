@@ -675,11 +675,13 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
      * rather than reconstructing source from doc values.
      */
     public void testColumnarStoredSourceReadsFromIgnoredSourceBlob() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
-            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
-            .build();
+        // The document this rebuilds carries its field in the layout the ColumNAR codec replaces.
+        Settings settings = ColumnarCodecSettings.withoutCodec(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+                .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+        ).build();
         MapperService mapperService = createMapperService(settings, mapping(b -> {
             b.startObject("kwd");
             b.field("type", "keyword");

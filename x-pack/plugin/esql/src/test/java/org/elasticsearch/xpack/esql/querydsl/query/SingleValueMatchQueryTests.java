@@ -37,6 +37,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.ColumnarCodecSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -211,7 +212,9 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         public Settings indexSettings() {
             // The HIGH-cardinality keyword setup relies on a strict-columnar index mode to default the field to binary doc values.
             return docValuesMode == DocValuesMode.DOC_VALUES_ONLY_HIGH_CARDINALITY
-                ? Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build()
+                // The values are written here in the ArrayOrderInlineNull layout, so the index is written in it too.
+                ? ColumnarCodecSettings.withoutCodec(Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()))
+                    .build()
                 : Settings.EMPTY;
         }
 

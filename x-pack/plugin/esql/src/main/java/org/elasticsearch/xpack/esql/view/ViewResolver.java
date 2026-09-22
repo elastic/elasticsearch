@@ -628,11 +628,10 @@ public class ViewResolver {
                         }
                     }
                 }
-                LogicalPlan built = subqueries.size() == 1
-                    ? subqueries.getFirst().plan()
-                    : buildPlanFromBranches(unresolvedRelation, subqueries, depth);
-
-                return built;
+                if (subqueries.size() == 1) {
+                    return subqueries.getFirst().plan();
+                }
+                return buildPlanFromBranches(unresolvedRelation, subqueries, depth);
             }).addListener(listener);
         }));
     }

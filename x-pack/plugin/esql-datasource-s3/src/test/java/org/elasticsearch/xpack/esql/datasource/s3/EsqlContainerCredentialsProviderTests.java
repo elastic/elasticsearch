@@ -14,6 +14,7 @@ import software.amazon.awssdk.core.exception.SdkClientException;
 
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
@@ -48,6 +49,7 @@ import static org.mockito.Mockito.mock;
 /**
  * Activation matrix and credential-exchange tests for {@link EsqlContainerCredentialsProvider}.
  */
+@SuppressForbidden(reason = "test fixture uses HttpServer to emulate the EKS Pod Identity credentials endpoint")
 public class EsqlContainerCredentialsProviderTests extends ESTestCase {
 
     private static final String TOKEN_CONTENTS = "test-pod-identity-token";
@@ -180,7 +182,6 @@ public class EsqlContainerCredentialsProviderTests extends ESTestCase {
         }
     }
 
-    @SuppressForbidden(reason = "test fixture uses HttpServer to emulate the EKS Pod Identity credentials endpoint")
     private void startCredentialsServer() throws IOException {
         credentialsServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         credentialsServer.createContext("/creds", exchange -> {
@@ -204,7 +205,7 @@ public class EsqlContainerCredentialsProviderTests extends ESTestCase {
 
     private String credentialsUri() {
         InetSocketAddress addr = credentialsServer.getAddress();
-        return "http://" + addr.getAddress().getHostAddress() + ":" + addr.getPort() + "/creds";
+        return "http://" + InetAddresses.toUriString(addr.getAddress()) + ":" + addr.getPort() + "/creds";
     }
 
     private Function<String, String> podIdentityEnv(String credentialsUri) {

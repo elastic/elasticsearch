@@ -593,3 +593,140 @@ book_no:keyword | publisher_dense_vector:dense_vector
 9801            | [54.0, 48.0, 57.0]
 9896            | [51.0, 56.0, 55.0]
 ;
+
+// DENSE_VECTOR generates a dense_vector column, and runtime KNN searches over that generated column.
+// The query vector is book 2924's own publisher embedding, so 2924 is the exact nearest match.
+dense vector command output feeds runtime knn filter
+required_capability: dense_vector_command
+required_capability: knn_runtime_field
+pragma: knn_runtime_field=true
+
+FROM books
+| WHERE book_no IN ("2924", "7381", "7670")
+| DENSE_VECTOR vec = publisher WITH { "inference_id" : "test_dense_inference" }
+| WHERE knn(vec, [45.0, 56.0, 48.0])
+| SORT book_no
+| KEEP book_no, vec
+;
+
+book_no:keyword | vec:dense_vector
+2924            | [45.0, 56.0, 48.0]
+7381            | [45.0, 53.0, 56.0]
+7670            | [45.0, 49.0, 55.0]
+;
+
+// Runtime KNN over a DENSE_VECTOR-generated column, ranking by _score. The query vector is book 2924's
+// own embedding, so 2924 scores highest and sorts first.
+dense vector command output feeds runtime knn with score
+required_capability: dense_vector_command
+required_capability: knn_runtime_field
+pragma: knn_runtime_field=true
+
+FROM books metadata _score
+| WHERE book_no IN ("2924", "7381", "7670")
+| DENSE_VECTOR vec = publisher WITH { "inference_id" : "test_dense_inference" }
+| WHERE knn(vec, [45.0, 56.0, 48.0])
+| SORT _score DESC, book_no
+| KEEP book_no
+| LIMIT 3
+;
+
+book_no:keyword
+2924
+7381
+7670
+;
+
+// A high similarity threshold on runtime KNN keeps only the row whose generated vector matches the query
+// vector exactly. The query vector is book 2924's publisher embedding, so only 2924 clears the threshold.
+dense vector command output feeds runtime knn with similarity threshold
+required_capability: dense_vector_command
+required_capability: knn_runtime_field
+pragma: knn_runtime_field=true
+
+FROM books
+| WHERE book_no IN ("2924", "7381", "7670")
+| DENSE_VECTOR vec = publisher WITH { "inference_id" : "test_dense_inference" }
+| WHERE knn(vec, [45.0, 56.0, 48.0], {"similarity": 0.999})
+| KEEP book_no
+;
+
+book_no:keyword
+2924
+;
+
+// The boost option scales the KNN _score. The query vector is book 2924's own embedding, so 2924 is the
+// exact match and takes the highest boosted score.
+dense vector command output feeds runtime knn with boost and score
+required_capability: dense_vector_command
+required_capability: knn_runtime_field
+pragma: knn_runtime_field=true
+
+FROM books metadata _score
+| WHERE book_no IN ("2924", "7381", "7670")
+| DENSE_VECTOR vec = publisher WITH { "inference_id" : "test_dense_inference" }
+| WHERE knn(vec, [45.0, 56.0, 48.0], {"boost": 2.0})
+| SORT _score DESC, book_no
+| KEEP book_no
+| LIMIT 1
+;
+
+book_no:keyword
+2924
+;
+
+// The suffix output-naming form produces a column named <field><suffix>; runtime KNN searches over that
+// generated column.
+dense vector command suffix output feeds runtime knn
+required_capability: dense_vector_command_v3
+required_capability: knn_runtime_field
+pragma: knn_runtime_field=true
+
+FROM books
+| WHERE book_no IN ("2924", "7381", "7670")
+| DENSE_VECTOR suffix = "_v" ON publisher WITH { "inference_id" : "test_dense_inference" }
+| WHERE knn(publisher_v, [45.0, 56.0, 48.0])
+| SORT book_no
+| KEEP book_no, publisher_v
+;
+
+book_no:keyword | publisher_v:dense_vector
+2924            | [45.0, 56.0, 48.0]
+7381            | [45.0, 53.0, 56.0]
+7670            | [45.0, 49.0, 55.0]
+;
+
+// With several fields embedded in one command, runtime KNN targets one specific generated column.
+dense vector command multi field output feeds runtime knn on one column
+required_capability: dense_vector_command
+required_capability: knn_runtime_field
+pragma: knn_runtime_field=true
+
+FROM books
+| WHERE book_no IN ("2924", "7381", "7670")
+| DENSE_VECTOR title, publisher WITH { "inference_id" : "test_dense_inference" }
+| WHERE knn(publisher_dense_vector, [45.0, 56.0, 48.0], {"similarity": 0.999})
+| KEEP book_no
+;
+
+book_no:keyword
+2924
+;
+
+// The EVAL then DENSE_VECTOR then KNN pipeline: a computed column is embedded, then searched by runtime KNN.
+dense vector command over an eval column feeds runtime knn
+required_capability: dense_vector_command
+required_capability: knn_runtime_field
+pragma: knn_runtime_field=true
+
+FROM books
+| WHERE book_no IN ("2924", "7381", "7670")
+| EVAL combined = publisher
+| DENSE_VECTOR vec = combined WITH { "inference_id" : "test_dense_inference" }
+| WHERE knn(vec, [45.0, 56.0, 48.0], {"similarity": 0.999})
+| KEEP book_no
+;
+
+book_no:keyword
+2924
+;

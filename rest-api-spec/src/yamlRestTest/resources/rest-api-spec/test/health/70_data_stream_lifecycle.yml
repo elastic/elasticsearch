@@ -1,6 +1,3 @@
-# Smoke tests for the data_stream_lifecycle health indicator. Yellow aggregation
-# across projects is covered by MultiProjectDataStreamLifecycleHealthIndicatorIT.
----
 "Green data stream lifecycle on a healthy cluster":
   - requires:
       cluster_features: "gte_v8.13.0"

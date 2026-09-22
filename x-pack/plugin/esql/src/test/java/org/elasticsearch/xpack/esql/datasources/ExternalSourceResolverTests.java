@@ -4061,6 +4061,65 @@ public class ExternalSourceResolverTests extends ESTestCase {
     // ===== Resolver + Cache integration =====
 
     /**
+     * The consumer-side half of the row-count licence, at the per-file gather rather than the aggregate.
+     * Under {@code first_file_wins} every part is read at the anchor's schema and bound by position, so a part
+     * holding a column the anchor has no slot for is a part whose rows this read does not all count. Another
+     * read of the same part can count them all and licenses its count as the file's physical one, which is what
+     * carries a foreign number into the per-file entry the two reads share. Serving that entry's statistics to
+     * this read is how a warm aggregate came to disagree with its own cold scan.
+     * <p>
+     * So the wider part's {@code FileSchemaInfo} must carry no statistics, while the anchor's still does — the
+     * refusal is per file, not a switch that takes the whole glob cold.
+     */
+    public void testFirstFileWinsServesNoStatisticsForAPartWiderThanTheAnchor() throws Exception {
+        String anchorPath = "s3://bucket/data/a.parquet";
+        String widerPath = "s3://bucket/data/b.parquet";
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put(anchorPath, List.of(attr("id", DataType.LONG)));
+        // The anchor binds [id] and nothing else, so [extra] is a column it cannot bind.
+        schemasByPath.put(widerPath, List.of(attr("id", DataType.LONG), attr("extra", DataType.KEYWORD)));
+        Map<String, Long> rowCountsByPath = Map.of(anchorPath, 11L, widerPath, 22L);
+
+        List<StorageEntry> listing = List.of(entry(anchorPath, 100), entry(widerPath, 200));
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemasByPath);
+
+        Settings settings = Settings.builder()
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
+            .build();
+        String glob = "s3://bucket/data/*.parquet";
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            ExternalSourceResolver resolver = createResolverWithReader(
+                provider,
+                new StubFormatReaderWithStats(schemasByPath, rowCountsByPath),
+                cacheService
+            );
+            Map<String, Map<String, Object>> pathConfigs = Map.of(
+                glob,
+                new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))
+            );
+            // Cold first, so the per-file entries exist and the warm resolve has something to be refused.
+            PlainActionFuture<ExternalSourceResolution> cold = new PlainActionFuture<>();
+            resolver.resolve(List.of(glob), pathConfigs, cold);
+            assertNotNull(cold.actionGet().resolvedSource(glob));
+
+            PlainActionFuture<ExternalSourceResolution> warm = new PlainActionFuture<>();
+            resolver.resolve(List.of(glob), pathConfigs, warm);
+            ExternalSourceResolution.ResolvedSource resolved = warm.actionGet().resolvedSource(glob);
+            assertNotNull(resolved);
+
+            SchemaReconciliation.FileSchemaInfo anchorInfo = resolved.schemaMap().get(StoragePath.of(anchorPath));
+            assertNotNull(anchorInfo);
+            assertNotNull("the anchor binds every column of its own file, so its statistics still serve", anchorInfo.statistics());
+
+            SchemaReconciliation.FileSchemaInfo widerInfo = resolved.schemaMap().get(StoragePath.of(widerPath));
+            assertNotNull(widerInfo);
+            assertNull("a part holding a column the anchor cannot bind must serve this dataset no statistics", widerInfo.statistics());
+        }
+    }
+
+    /**
      * Cacheable multi-file resolves must expose per-file footer statistics on {@code FileSchemaInfo}
      * for both the cold harvest and a warm schema-cache hit. The warm path reconstructs the typed
      * view from the cached flat {@code _stats.*} map so split discovery can still skip a second

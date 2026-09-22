@@ -693,7 +693,9 @@ public class ExternalSourceCacheService implements Closeable {
                 // A licensed count is the file's physical record count, which is not the same claim: a read whose
                 // schema is narrower than a file's rows drops them, so the file's number is larger than the number
                 // this dataset's own scan produces. Letting a licensed count stand in here served exactly that
-                // wrong answer — pinned by ExternalMultiFileWarmAggregateFoldIT's ragged-corpus guard.
+                // wrong answer — pinned by ExternalSourceCacheServiceTests#testStrictPromiseIsNotFulfilledByAnotherReadsLicensedCount
+                // and #testDatasetAggregateRefusesForeignShapedContributions. Not by the ragged-corpus IT, which
+                // stays green with this rule removed: that one is pinned by someFileIsWiderThanTheAnchor instead.
                 if (Objects.equals(contributionReadConfig, expectedReadConfig) == false) {
                     return null;
                 }

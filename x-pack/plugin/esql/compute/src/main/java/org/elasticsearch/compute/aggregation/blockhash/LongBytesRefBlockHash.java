@@ -516,7 +516,6 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
     private static final int PACKED_PREFIX_LENGTH = 1 + Long.BYTES;
     private static final byte BYTES_NULL = 1;
     private static final byte LONG_NULL = 2;
-    private static final BytesRef EMPTY_BYTES = new BytesRef(BytesRef.EMPTY_BYTES);
 
     BytesRefArray packKeysWithoutNulls(LongLongSwissHash longHash) {
         final int numKeys = numKeys();

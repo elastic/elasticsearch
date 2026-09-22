@@ -49,4 +49,28 @@ public interface StringColumnSource {
      * - so nothing is decoded to count.
      */
     int nonNullValues(BytesRef dst) throws IOException;
+
+    /**
+     * How many non-null values the document these values are positioned on holds.
+     *
+     * <p>Answered from what the column records — how many slots the document has, and which of them are
+     * null — so no value is decoded to count them.
+     */
+    int nonNullValueCount() throws IOException;
+
+    /**
+     * How many slots the document these values are positioned on holds, null slots included.
+     *
+     * <p>The bound on {@link #slotAt}: a slot at or past this belongs to the next document, which that method
+     * has no way to notice.
+     */
+    int slotCount() throws IOException;
+
+    /**
+     * The value in one slot of the document these values are positioned on, or {@code null} when that slot is null.
+     *
+     * <p>Handed over where the column holds it, so nothing is copied, which is what lets a caller read a document
+     * through rather than assemble it. The returned {@link BytesRef} is only valid until the next call.
+     */
+    BytesRef slotAt(int slot) throws IOException;
 }

@@ -1521,6 +1521,15 @@ TS k8s | STATS max_rate = max(rate(network.total_bytes_in)) BY bucket = bucket(@
 max_rate:double | bucket:datetime
 ;
 
+rateWithTBucketTargetCountAndLimitZero
+required_capability: fix_limit_zero_in_stats_by_all
+required_capability: tbucket_from_to
+required_capability: fix_ts_tbucket_missing_bounds
+TS k8s | STATS sum_rate = SUM(RATE(network.total_bytes_in)) BY bucket = TBUCKET(20, "2024-05-10T00:00:00Z", "2024-05-10T01:00:00Z") | LIMIT 0;
+
+sum_rate:double | bucket:datetime
+;
+
 tsRateWithWindowAndTBucketTargetCount
 required_capability: ts_command_v0
 required_capability: tbucket_from_to
@@ -1659,4 +1668,16 @@ cnt:long | metric_type:keyword | cluster:keyword
 3        | cost                | prod
 3        | cost                | qa
 3        | cost                | staging
+;
+
+// STATS with multiple input fields
+tsStatsWithMultipleInputFields
+required_capability: fix_aggs_multiple_input_fields
+
+TS k8s
+| STATS avg = WEIGHTED_AVG(network.bytes_in, network.cost)
+;
+
+avg:double
+616.5983606557377
 ;

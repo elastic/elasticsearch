@@ -36,7 +36,6 @@ import org.elasticsearch.core.Releasables;
  * An optimized block hash that receives two blocks: tsid and timestamp, which are sorted.
  * Since the incoming data is sorted, this block hash checks tsid ordinals to avoid redundant
  * hash lookups for consecutive positions with the same tsid and timestamp.
- * Delegates to a {@link BytesRefLongBlockHash} for the actual hashing.
  */
 public final class TimeSeriesBlockHash extends BlockHash {
 

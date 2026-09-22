@@ -1504,7 +1504,7 @@ on_failure sidecar of a denied field is not exposed under FLS (logsdb_columnar):
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: [ "mapper.doc_values.on_failure" ]
       reason: "._on_failure sidecar visibility under FLS requires both columnar index modes and the doc_values.on_failure feature flag"
 
@@ -1586,7 +1586,7 @@ on_failure sidecar follows an explicitly granted field under FLS (logsdb_columna
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: [ "mapper.doc_values.on_failure" ]
       reason: "._on_failure sidecar visibility under FLS requires both columnar index modes and the doc_values.on_failure feature flag"
 
@@ -1665,7 +1665,7 @@ on_failure sidecar of a denied field is not exposed under FLS (columnar):
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes ]
+          capabilities: [ columnar_index_modes, doc_values_on_failure ]
       cluster_features: [ "mapper.doc_values.on_failure" ]
       reason: "._on_failure sidecar visibility under FLS requires both columnar index modes and the doc_values.on_failure feature flag"
 

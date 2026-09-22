@@ -69,8 +69,8 @@ public class EsqlSecurityLogsdbColumnarIT extends EsqlSecurityIT {
     }
 
     /**
-     * Columnar types {@code partial} as {@code keyword}; sorting a keyword rather than a text field also flips which row {@code LIMIT 1}
-     * keeps.
+     * Columnar disables auto-text, so {@code partial} is a {@code keyword}; the sort order and the winning row are the same as the
+     * base class.
      */
     @Override
     public void testFieldLevelSecurityAllowPartial() throws Exception {
@@ -86,7 +86,7 @@ public class EsqlSecurityLogsdbColumnarIT extends EsqlSecurityIT {
                         matchesMap().entry("name", "value").entry("type", "double")
                     )
                 )
-                .entry("values", List.of(List.of("sales10.0", 10.0)))
+                .entry("values", List.of(List.of("engineering20.0", 20.0)))
         );
     }
 
@@ -230,7 +230,7 @@ public class EsqlSecurityLogsdbColumnarIT extends EsqlSecurityIT {
     public void testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll() throws Exception {
         assumeTrue(
             "Requires unmapped_fields=LOAD_ALL support",
-            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL.capabilityName()))
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.capabilityName()))
         );
         String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM " + INDEX_PARTIAL_MAPPING + " | SORT salary | LIMIT 10 | DROP @timestamp";
 

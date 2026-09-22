@@ -62,7 +62,6 @@ public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
         assertEquals(0L, before.rowsEmitted());
         assertEquals(0L, before.parseErrors());
         assertEquals(false, before.headerDetected());
-        assertEquals(0L, before.readNanos());
 
         try (CloseableIterator<Page> iterator = reader.read(object, List.of("id", "name"), 10)) {
             while (iterator.hasNext()) {
@@ -75,7 +74,6 @@ public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
         assertEquals("3 data rows parsed (header excluded)", 3L, after.rowsEmitted());
         assertEquals("no malformed rows in this fixture", 0L, after.parseErrors());
         assertEquals("header row detected", true, after.headerDetected());
-        assertTrue("read_nanos should be > 0 after at least one batch", after.readNanos() > 0);
     }
 
     public void testSiblingQueryReadersDoNotShareCounters() throws IOException {

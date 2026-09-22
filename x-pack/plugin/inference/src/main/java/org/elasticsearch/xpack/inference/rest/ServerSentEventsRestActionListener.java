@@ -35,7 +35,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.XContentFormattedException;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -155,8 +154,9 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
 
     private ChunkedToXContent errorChunk(Throwable t) {
         // if we've already formatted it, just return that format
-        if (ExceptionsHelper.unwrapCause(t) instanceof XContentFormattedException xContentFormattedException) {
-            return xContentFormattedException;
+        var formattedException = InferenceErrorFormat.formattedException(t);
+        if (formattedException != null) {
+            return formattedException;
         }
 
         // else, try to parse the format and return something that the ES client knows how to interpret

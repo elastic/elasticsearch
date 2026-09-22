@@ -14,16 +14,26 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -42,7 +52,63 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
 
     public void testRemoteWriteEndpointWithAuditRequestBodyLogging() throws Exception {
         enableAuditRequestBodyLogging();
-        sendAndAssertSuccess(simpleWriteRequest("audit_logged_metric"));
+        byte[] protobufBody = simpleWriteRequest("audit_logged_metric").toByteArray();
+        byte[] wireBody = snappyEncode(protobufBody);
+
+        Request request = new Request("POST", "/_prometheus/api/v1/write");
+        request.setEntity(new ByteArrayEntity(wireBody, ContentType.create("application/x-protobuf")));
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.CONTENT_ENCODING, "snappy").build());
+        addWriteAuth(request);
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(204));
+
+        String expectedRawBody = Base64.getEncoder().encodeToString(wireBody);
+        Map<String, Object> event = findAuthenticationSuccessEventWithRawBody("/_prometheus/api/v1/write", expectedRawBody);
+        assertThat(event, hasEntry("request.raw_body_content_type", "application/x-protobuf"));
+        assertThat(event, hasEntry("request.raw_body_content_encoding", "snappy"));
+        assertThat(event, not(hasKey("request.body")));
+    }
+
+    public void testRemoteWriteEndpointWithAuditRequestBodyLoggingWithoutContentEncoding() throws Exception {
+        enableAuditRequestBodyLogging();
+        // Uncompressed protobuf. Prometheus itself expects snappy so it will reject the body, but
+        // the audit event fires in the security interceptor before the handler runs.
+        byte[] protobufBody = simpleWriteRequest("audit_logged_metric_no_encoding").toByteArray();
+
+        Request request = new Request("POST", "/_prometheus/api/v1/write");
+        request.setEntity(new ByteArrayEntity(protobufBody, ContentType.create("application/x-protobuf")));
+        addWriteAuth(request);
+        try {
+            client().performRequest(request);
+        } catch (ResponseException ignored) {
+            // Prometheus handler response is irrelevant, we only care about what the audit trail recorded.
+        }
+
+        String expectedRawBody = Base64.getEncoder().encodeToString(protobufBody);
+        Map<String, Object> event = findAuthenticationSuccessEventWithRawBody("/_prometheus/api/v1/write", expectedRawBody);
+        assertThat(event, hasEntry("request.raw_body_content_type", "application/x-protobuf"));
+        assertThat(event, not(hasKey("request.raw_body_content_encoding")));
+        assertThat(event, not(hasKey("request.body")));
+    }
+
+    private Map<String, Object> findAuthenticationSuccessEventWithRawBody(String path, String expectedRawBody) throws Exception {
+        List<Map<String, Object>> matches = new ArrayList<>();
+        assertBusy(() -> {
+            matches.clear();
+            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                for (String line : Streams.readAllLines(auditLog)) {
+                    if (line.contains("authentication_success") == false) continue;
+                    Map<String, Object> event = XContentHelper.convertToMap(XContentType.JSON.xContent(), line, true);
+                    if ("authentication_success".equals(event.get("event.action"))
+                        && path.equals(event.get("url.path"))
+                        && expectedRawBody.equals(event.get("request.raw_body"))) {
+                        matches.add(event);
+                    }
+                }
+                assertThat("expected one authentication_success event with matching raw body for " + path, matches, hasSize(1));
+            }
+        }, 5, TimeUnit.SECONDS);
+        return matches.getFirst();
     }
 
     public void testRemoteWriteEndpointWithAuditRequestBodyLoggingRejectsOversizedSnappyBody() throws Exception {
@@ -313,7 +379,8 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
             {
               "persistent": {
                 "xpack.security.audit.enabled": true,
-                "xpack.security.audit.logfile.events.emit_request_body": true
+                "xpack.security.audit.logfile.events.emit_request_body": true,
+                "xpack.security.audit.logfile.events.include": ["authentication_success"]
               }
             }
             """);

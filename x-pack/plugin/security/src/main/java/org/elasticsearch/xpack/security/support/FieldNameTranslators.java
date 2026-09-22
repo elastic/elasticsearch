@@ -84,6 +84,14 @@ public final class FieldNameTranslators {
         )
     );
 
+    /**
+     * The stored principal is the whole {@code namespace/service} pair, so a namespace is selected with a prefix
+     * query on {@code username} and there are no separate namespace or service fields to translate.
+     */
+    public static final FieldNameTranslators SERVICE_ACCOUNT_FIELD_NAME_TRANSLATORS = new FieldNameTranslators(
+        List.of(idemFieldNameTranslator("username"), idemFieldNameTranslator("roles"), idemFieldNameTranslator("enabled"))
+    );
+
     private final List<FieldNameTranslator> fieldNameTranslators;
 
     private FieldNameTranslators(List<FieldNameTranslator> fieldNameTranslators) {

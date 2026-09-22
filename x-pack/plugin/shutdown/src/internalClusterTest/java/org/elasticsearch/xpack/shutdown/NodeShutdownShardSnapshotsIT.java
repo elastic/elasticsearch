@@ -38,8 +38,10 @@ public class NodeShutdownShardSnapshotsIT extends AbstractSnapshotIntegTestCase 
         internalCluster().startMasterOnlyNode();
         final String nodeForRemoval = internalCluster().startDataOnlyNode(
             Settings.builder()
-                // we block a snapshot thread and expect another shard snapshot to complete concurrently
-                .put("thread_pool.snapshot.max", 3)
+                // We're going to block some snapshot threads while snapshotting index1. How many depends on how many files are
+                // in the store, which depends on Lucene and isn't under our direct control. If we have too few, the index2 snapshot
+                // may also get blocked, and we can afford to be generous since this is a scaling executor.
+                .put("thread_pool.snapshot.max", 16)
                 .build()
         );
         ensureStableCluster(2);
@@ -80,6 +82,7 @@ public class NodeShutdownShardSnapshotsIT extends AbstractSnapshotIntegTestCase 
                     )
             )
         );
+        logger.info("--> index2 snapshot completed, marking node for removal");
         putShutdownForRemovalMetadata(nodeForRemoval, clusterService);
 
         // Observe 1 complete shard snapshot and 1 running one
@@ -99,6 +102,7 @@ public class NodeShutdownShardSnapshotsIT extends AbstractSnapshotIntegTestCase 
         }
 
         // Let pause progress
+        logger.info("--> unblocking snapshot thread to allow shard snapshot to pause");
         unblockNode(repoName, nodeForRemoval);
         safeAwait(
             ClusterServiceUtils.addTemporaryStateListener(

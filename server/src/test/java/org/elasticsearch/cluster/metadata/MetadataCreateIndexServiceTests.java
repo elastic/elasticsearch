@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -76,6 +77,7 @@ import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -697,6 +699,49 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             assertThat(executionException.getCause().getCause(), instanceOf(IllegalArgumentException.class));
             assertThat(executionException.getCause().getCause().getMessage(), containsString("no such project"));
         }));
+    }
+
+    public void testCreateIndexInProjectUnderDeletion() {
+        projectId = randomUniqueProjectId();
+        withTemporaryClusterService((clusterService, threadPool) -> {
+            MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                null,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                null,
+                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
+                threadPool,
+                null,
+                EmptySystemIndices.INSTANCE,
+                false,
+                new IndexSettingProviders(Set.of())
+            );
+            ClusterServiceUtils.setState(
+                clusterService,
+                ClusterState.builder(clusterService.state())
+                    .blocks(
+                        ClusterBlocks.builder(clusterService.state().blocks())
+                            .addProjectGlobalBlock(projectId, ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK)
+                    )
+            );
+
+            PlainActionFuture<ShardsAcknowledgedResponse> createIndexFuture = new PlainActionFuture<>();
+            checkerService.createIndex(
+                TimeValue.MAX_VALUE,
+                TimeValue.MAX_VALUE,
+                TimeValue.MAX_VALUE,
+                new CreateIndexClusterStateUpdateRequest("test cause", projectId, "test_index", "test_index"),
+                createIndexFuture
+            );
+
+            ExecutionException executionException = expectThrows(ExecutionException.class, createIndexFuture::get);
+            assertThat(executionException.getCause(), instanceOf(ClusterBlockException.class));
+            ClusterBlockException clusterBlockException = (ClusterBlockException) executionException.getCause();
+            assertTrue(clusterBlockException.blocks().contains(ProjectMetadata.PROJECT_UNDER_DELETION_BLOCK));
+            assertThat(clusterBlockException.status(), equalTo(RestStatus.NOT_FOUND));
+        });
     }
 
     private DiscoveryNode newNode(String nodeId) {

@@ -21,6 +21,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.CountingFilterInputStream;
@@ -28,10 +29,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -47,11 +51,13 @@ import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitTestUtils;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
+import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -62,6 +68,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -335,7 +342,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                         ),
                         new BlobFileRanges(getLastInternalLocation().getValue()),
                         BlobCacheMetrics.NOOP,
-                        System::currentTimeMillis
+                        System::currentTimeMillis,
+                        true
                     ),
                     null,
                     length,
@@ -398,6 +406,78 @@ public class CacheBlobReaderTests extends ESTestCase {
             assert false : e;
         }
         return 0; // cannot happen
+    }
+
+    public void testGetBytesByRangeThroughColdBlobCacheIndexInput() throws Exception {
+        final var primaryTerm = randomLongBetween(1L, 10L);
+        // Larger than Streams read buffer
+        final long minimumVbccSize = 8 * 1024 + 1;
+        try (
+            var node = new FakeVBCCStatelessNode(
+                this::newEnvironment,
+                this::newNodeEnvironment,
+                xContentRegistry(),
+                primaryTerm,
+                minimumVbccSize
+            ) {
+                @Override
+                protected StatelessSharedBlobCacheService createCacheService(
+                    NodeEnvironment nodeEnvironment,
+                    Settings settings,
+                    ThreadPool threadPool,
+                    MeterRegistry meterRegistry
+                ) {
+                    return new StatelessSharedBlobCacheService(
+                        nodeEnvironment,
+                        settings,
+                        threadPool,
+                        meterRegistry == null ? new BlobCacheMetrics(MeterRegistry.NOOP) : new BlobCacheMetrics(meterRegistry),
+                        clusterService,
+                        TestUtils.mockIndicesService(clusterService),
+                        new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                    ) {
+                        @Override
+                        public Executor getShardReadThreadPoolExecutor() {
+                            // Ensure Streams.copy and nested Streams.read called on same thread
+                            return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+                        }
+                    };
+                }
+            }
+        ) {
+            var vbcc = node.virtualBatchedCompoundCommit;
+            // uploadVirtualBatchedCompoundCommit() decRefs, keep the VBCC alive
+            vbcc.incRef();
+            final long vbccSize = vbcc.getTotalSizeInBytes();
+            assertThat(vbccSize, greaterThan(8 * 1024L));
+
+            final BytesStreamOutput expected = new BytesStreamOutput(Math.toIntExact(vbccSize));
+            vbcc.getBytesByRange(0, vbccSize, expected);
+
+            final BatchedCompoundCommit bcc = node.uploadVirtualBatchedCompoundCommit();
+
+            final Map<String, BlobFileRanges> blobFileRanges = new HashMap<>();
+            for (var entry : vbcc.getInternalLocations().entrySet()) {
+                blobFileRanges.put(entry.getKey(), new BlobFileRanges(entry.getValue()));
+            }
+            node.indexingDirectory.updateCommit(bcc.lastCompoundCommit().generation(), vbccSize, blobFileRanges.keySet(), blobFileRanges);
+
+            // Drop local map entries so PreferLocal falls through to BlobCacheIndexInput while VBCC stays open
+            for (String fileName : Set.copyOf(blobFileRanges.keySet())) {
+                try {
+                    node.indexingDirectory.deleteFile(fileName);
+                } catch (FileNotFoundException e) {
+                    // already gone
+                }
+            }
+            node.sharedCacheService.forceEvict(key -> true);
+
+            final int blobReadsBefore = node.getBlobReads();
+            final BytesStreamOutput actual = new BytesStreamOutput(Math.toIntExact(vbccSize));
+            vbcc.getBytesByRange(0, vbccSize, actual);
+            assertThat(node.getBlobReads(), greaterThan(blobReadsBefore));
+            assertArrayEquals(BytesReference.toBytes(expected.bytes()), BytesReference.toBytes(actual.bytes()));
+        }
     }
 
     public void testCacheBlobReaderFetchFromIndexingAndSwitchToBlobStore() throws Exception {
@@ -689,7 +769,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                 cacheBlobReader,
                 new BlobFileRanges(internalLocation.getValue()),
                 BlobCacheMetrics.NOOP,
-                System::currentTimeMillis
+                System::currentTimeMillis,
+                true
             );
             final long availableDataLength = BlobCacheUtils.toPageAlignedSize(vbccSize);
             try (var searchInput = new BlobCacheIndexInput("region", IOContext.DEFAULT, cacheFileReader, null, regionSize, 0)) {

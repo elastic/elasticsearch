@@ -129,14 +129,16 @@ public final class ExpectedRecall {
      * @return the cumulative probability that the rank is lower than the rank threshold
      */
     static double probabilityRankLessThanN(double[] rankDistances, double errorStd, int rankThreshold, double x) {
-        double mu = 0, stddevSq = 0;
+        double mu = 0;
+        double variance = 0;
         int limit = Math.min(RERANK_WINDOW_RANK_MULTIPLIER * rankThreshold, rankDistances.length);
         for (int i = 0; i < limit; i++) {
             double fx = normalCdf(x, rankDistances[i], errorStd);
             mu += fx;
-            stddevSq += fx * fx;
+            // variance of a sum of independent Bernoulli terms.
+            variance += fx * (1.0 - fx);
         }
-        double stddev = Math.sqrt(Math.max(1e-5, mu - stddevSq)); // avoid divide-by-zero
+        double stddev = Math.sqrt(Math.max(1e-5, variance)); // avoid divide-by-zero
         return normalCdf(rankThreshold, mu, stddev);
     }
 

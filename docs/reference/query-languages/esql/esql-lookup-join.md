@@ -40,7 +40,7 @@ Refer to [`LOOKUP JOIN`](/reference/query-languages/esql/commands/lookup-join.md
 The `LOOKUP JOIN` command adds fields from the lookup index as new columns to your results table based on matching values in the join field.
 
 The command requires two parameters:
-* The name of the lookup index (which must have the `lookup` [`index.mode setting`](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting))
+* The name of the lookup index (which must have the `lookup` [`index.mode setting`](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting)) {applies_to}`vectordb: unavailable`
 * The join condition. Can be one of the following:
    * A single field name
    * A comma-separated list of field names {applies_to}`stack: ga 9.2+`
@@ -77,9 +77,8 @@ FROM log-cluster-*:logs-* | LOOKUP JOIN hosts ON source.ip
 ```
 
 ### Cross-{{serverless-short}} project support
-
 ```{applies_to}
-serverless: preview
+serverless: ga
 ```
 
 `LOOKUP JOIN` is also supported in [cross-project search (CPS)](/reference/query-languages/esql/esql-cross-serverless-projects.md).
@@ -92,7 +91,7 @@ If the lookup index is missing from one or more linked projects, use [coordinato
 
 ```{applies_to}
 stack: preview 9.6+
-serverless: preview
+serverless: ga
 ```
 
 In cross-cluster or cross-project queries, you can prefix the index name with `_coordinator:` to run the lookup on the local cluster or origin project instead of on each remote cluster or linked project.
@@ -213,7 +212,7 @@ Refer to the examples section of the [`LOOKUP JOIN`](/reference/query-languages/
 
 ### Index configuration
 
-Indices used for lookups must be configured with the [`lookup` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting).
+Indices used for lookups must be configured with the [`lookup` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting). {applies_to}`vectordb: unavailable`
 
 ### Data type compatibility
 

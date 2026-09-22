@@ -1092,7 +1092,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                         StripeColumnScope.PROJECTED,
                         StreamingParallelParsingCoordinator.WarningSinks.NONE,
                         admission,
-                        new org.elasticsearch.common.breaker.NoopCircuitBreaker("test")
+                        new org.elasticsearch.common.breaker.NoopCircuitBreaker("test"),
+                        ExternalReadCounters.NOOP
                     )
                 );
             }
@@ -1182,7 +1183,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 StripeColumnScope.PROJECTED,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 StreamingSegmentatorAdmission.unbounded(),
-                breaker
+                breaker,
+                ExternalReadCounters.NOOP
             );
             expectThrows(CircuitBreakingException.class, () -> {
                 while (it.hasNext()) {
@@ -1235,7 +1237,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 StripeColumnScope.PROJECTED,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 StreamingSegmentatorAdmission.unbounded(),
-                breaker
+                breaker,
+                ExternalReadCounters.NOOP
             );
             while (it.hasNext()) {
                 it.next().releaseBlocks();

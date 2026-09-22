@@ -16,6 +16,7 @@ import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
@@ -46,11 +47,10 @@ import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopKnnCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.index.codec.vectors.ESBaseKnnVectorsFormatTestCase;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -79,6 +79,7 @@ import static org.elasticsearch.test.LambdaMatchers.transformedArrayItemsMatch;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -86,11 +87,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
-public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
-
-    static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
-    }
+public class ESNextDiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCase {
 
     @Override
     protected boolean supportsFloatVectorFallback() {
@@ -525,6 +522,119 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         writer.addDocument(doc);
     }
 
+    /**
+     * Exercises {@link ESNextDiskBBQVectorsFormat#validateSliceSort} directly. The writer test below covers the same
+     * branches end to end, but the reader calls this method too and no writer-produced segment can reach its failure
+     * paths, so this pins the logic both call sites share.
+     */
+    public void testValidateSliceSort() {
+        String sliceField = "_slice";
+
+        // no slice field configured: any sort, or none, is fine
+        ESNextDiskBBQVectorsFormat.validateSliceSort(null, null);
+        ESNextDiskBBQVectorsFormat.validateSliceSort(null, new Sort(new SortField("other", SortField.Type.LONG)));
+
+        SortField valid = new SortField(sliceField, SortField.Type.STRING);
+        valid.setMissingValue(SortField.STRING_LAST);
+        ESNextDiskBBQVectorsFormat.validateSliceSort(sliceField, new Sort(valid));
+        // trailing sort fields are allowed
+        ESNextDiskBBQVectorsFormat.validateSliceSort(sliceField, new Sort(valid, new SortField("other", SortField.Type.LONG)));
+
+        assertValidateSliceSortThrows(sliceField, null, "requires index sort");
+
+        SortField otherPrimary = new SortField("other", SortField.Type.STRING);
+        otherPrimary.setMissingValue(SortField.STRING_LAST);
+        assertValidateSliceSortThrows(sliceField, new Sort(otherPrimary, valid), "must be primary index sort");
+
+        assertValidateSliceSortThrows(sliceField, new Sort(new SortField(sliceField, SortField.Type.LONG)), "of type STRING");
+
+        SortField descending = new SortField(sliceField, SortField.Type.STRING, true);
+        descending.setMissingValue(SortField.STRING_LAST);
+        assertValidateSliceSortThrows(sliceField, new Sort(descending), "must be ascending");
+
+        assertValidateSliceSortThrows(sliceField, new Sort(new SortField(sliceField, SortField.Type.STRING)), "missing=LAST");
+
+        SortField missingFirst = new SortField(sliceField, SortField.Type.STRING);
+        missingFirst.setMissingValue(SortField.STRING_FIRST);
+        assertValidateSliceSortThrows(sliceField, new Sort(missingFirst), "missing=LAST");
+    }
+
+    private static void assertValidateSliceSortThrows(String sliceField, Sort sort, String message) {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> ESNextDiskBBQVectorsFormat.validateSliceSort(sliceField, sort)
+        );
+        assertThat(e.getMessage(), containsString(message));
+    }
+
+    /**
+     * A sliced format must refuse to write unless the primary index sort is the slice field, of type STRING,
+     * ascending, with missing values last. Sliced search assumes exactly that layout, so the writer rejects
+     * anything else up front rather than producing segments that would fail or return wrong results at query time.
+     */
+    public void testSlicedFormatRejectsInvalidIndexSort() throws IOException {
+        String sliceField = "_slice";
+        ESNextDiskBBQVectorsFormat slicedFormat = new ESNextDiskBBQVectorsFormat(128, 4, sliceField);
+
+        assertSliceSortRejected(slicedFormat, slicedVectorDoc(sliceField), null, "requires index sort");
+
+        SortField otherPrimary = new SortField("other", SortField.Type.STRING);
+        otherPrimary.setMissingValue(SortField.STRING_LAST);
+        assertSliceSortRejected(slicedFormat, slicedVectorDoc(sliceField), new Sort(otherPrimary), "must be primary index sort");
+
+        // Give the slice field numeric doc values here so Lucene's own sort/doc-values type check passes and ours is the one that fires.
+        Document numericSliceDoc = new Document();
+        numericSliceDoc.add(new NumericDocValuesField(sliceField, 0L));
+        numericSliceDoc.add(new KnnFloatVectorField("vector", randomVector(16), VectorSimilarityFunction.EUCLIDEAN));
+        assertSliceSortRejected(slicedFormat, numericSliceDoc, new Sort(new SortField(sliceField, SortField.Type.LONG)), "of type STRING");
+
+        SortField descending = new SortField(sliceField, SortField.Type.STRING, true);
+        descending.setMissingValue(SortField.STRING_LAST);
+        assertSliceSortRejected(slicedFormat, slicedVectorDoc(sliceField), new Sort(descending), "must be ascending");
+
+        assertSliceSortRejected(
+            slicedFormat,
+            slicedVectorDoc(sliceField),
+            new Sort(new SortField(sliceField, SortField.Type.STRING)),
+            "missing=LAST"
+        );
+
+        SortField missingFirst = new SortField(sliceField, SortField.Type.STRING);
+        missingFirst.setMissingValue(SortField.STRING_FIRST);
+        assertSliceSortRejected(slicedFormat, slicedVectorDoc(sliceField), new Sort(missingFirst), "missing=LAST");
+
+        // the valid configuration writes without complaint
+        SortField valid = new SortField(sliceField, SortField.Type.STRING);
+        valid.setMissingValue(SortField.STRING_LAST);
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        iwc.setIndexSort(new Sort(valid));
+        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(slicedFormat));
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
+            w.addDocument(slicedVectorDoc(sliceField));
+            w.commit();
+        }
+    }
+
+    private static void assertSliceSortRejected(ESNextDiskBBQVectorsFormat slicedFormat, Document doc, Sort sort, String message)
+        throws IOException {
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        if (sort != null) {
+            iwc.setIndexSort(sort);
+        }
+        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(slicedFormat));
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> w.addDocument(doc));
+            assertThat(e.getMessage(), containsString(message));
+        }
+    }
+
+    private static Document slicedVectorDoc(String sliceField) {
+        Document doc = new Document();
+        doc.add(SortedDocValuesField.indexedField(sliceField, new BytesRef("0")));
+        doc.add(new KnnFloatVectorField("vector", randomVector(16), VectorSimilarityFunction.EUCLIDEAN));
+        return doc;
+    }
+
     public void testSlicedIndexOneVectorPerSlice() throws IOException {
         String sliceField = "_slice";
         String vectorField = "vector";
@@ -543,8 +653,10 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
             random().nextInt(100, 1000),
             sliceField
         );
+        SortField sliceSortField = new SortField(sliceField, SortField.Type.STRING);
+        sliceSortField.setMissingValue(SortField.STRING_LAST);
         IndexWriterConfig iwc = newIndexWriterConfig();
-        iwc.setIndexSort(new Sort(new SortField(sliceField, SortField.Type.STRING)));
+        iwc.setIndexSort(new Sort(sliceSortField));
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(localFormat));
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
             for (int slice = 0; slice < slices; slice++) {
@@ -571,6 +683,77 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                     assertNotNull(centroidData);
                     assertThat(centroidData.numCentroids(), equalTo(1));
                     assertThat(centroidData.centroids().size(), equalTo(1));
+                }
+            }
+        }
+    }
+
+    /**
+     * A sliced segment produced by a single flush is not clustered per slice ({@code numSlices == 0}) and is
+     * searched over a doc id range. Plain Lucene {@link AcceptDocs} (as used by {@code CheckIndex}) carry no slice
+     * information and must fall back to the whole segment, while an {@link ESAcceptDocs} without a slice ordinal
+     * violates the reader contract and is rejected by assertion rather than silently searching a wrong range.
+     */
+    public void testSlicedFlushedSegmentWithoutSliceOrdinal() throws IOException {
+        String sliceField = "_slice";
+        String vectorField = "vector";
+        int numDocs = random().nextInt(10, 200);
+        int dimensions = random().nextInt(12, 500);
+        ESNextDiskBBQVectorsFormat localFormat = new ESNextDiskBBQVectorsFormat(
+            MIN_VECTORS_PER_CLUSTER,
+            MIN_CENTROIDS_PER_PARENT_CLUSTER,
+            sliceField
+        );
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        SortField sliceSortField = new SortField(sliceField, SortField.Type.STRING);
+        sliceSortField.setMissingValue(SortField.STRING_LAST);
+        iwc.setIndexSort(new Sort(sliceSortField));
+        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(localFormat));
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
+            for (int i = 0; i < numDocs; i++) {
+                Document doc = new Document();
+                doc.add(SortedDocValuesField.indexedField(sliceField, new BytesRef("" + random().nextInt(5))));
+                doc.add(new KnnFloatVectorField(vectorField, randomVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
+                w.addDocument(doc);
+            }
+            w.commit();
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                // newIndexWriterConfig() randomizes the flush policy, so there may be several flushed segments
+                for (LeafReaderContext context : reader.leaves()) {
+                    LeafReader leafReader = context.reader();
+                    KnnVectorsReader vectorReader = ((CodecReader) leafReader).getVectorReader();
+                    if (vectorReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                        vectorReader = fieldsReader.getFieldReader(vectorField);
+                    }
+                    assertThat(vectorReader, instanceOf(ESNextDiskBBQVectorsReader.class));
+                    // a flushed sliced segment is written as a single flat posting list, i.e. without per-slice centroids
+                    try (
+                        IVFVectorsReader.CentroidData<?> centroidData = ((ESNextDiskBBQVectorsReader) vectorReader).readCentroidData(
+                            vectorField
+                        )
+                    ) {
+                        assertThat(centroidData.numCentroids(), equalTo(1));
+                    }
+                    float[] vector = randomVector(dimensions);
+                    KnnCollector collector = new TopKnnCollector(leafReader.maxDoc(), Integer.MAX_VALUE);
+                    leafReader.searchNearestVectors(vectorField, vector, collector, AcceptDocs.fromLiveDocs(null, leafReader.maxDoc()));
+                    Set<Integer> docIds = new HashSet<>();
+                    for (ScoreDoc scoreDoc : collector.topDocs().scoreDocs) {
+                        docIds.add(scoreDoc.doc);
+                    }
+                    assertThat(docIds, hasSize(leafReader.maxDoc()));
+
+                    // Call getPostingVisitor directly via a package-private test helper, bypassing the
+                    // assertion in getNumberOfVectors, to test the fix in the numSlices==0 branch itself.
+                    // With the old dead null-guard (esAccept.sliceAcceptDocs() != null) this threw
+                    // NullPointerException; with the fix it throws AssertionError.
+                    ESNextDiskBBQVectorsReader esNextReader = (ESNextDiskBBQVectorsReader) vectorReader;
+                    AssertionError error = expectThrows(
+                        AssertionError.class,
+                        () -> esNextReader.getPostingVisitorForTest(vectorField, vector, new ESAcceptDocs.ESAcceptDocsAll())
+                    );
+                    assertThat(error.getMessage(), equalTo("sliced segment searched without a slice ordinal"));
                 }
             }
         }
@@ -634,8 +817,10 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         int[] docSlices = new int[numDocs];
         boolean[] docHasVector = new boolean[numDocs];
         boolean[] docFilterMatch = new boolean[numDocs];
+        SortField sliceSortField = new SortField(sliceField, SortField.Type.STRING);
+        sliceSortField.setMissingValue(SortField.STRING_LAST);
         IndexWriterConfig iwc = newIndexWriterConfig();
-        iwc.setIndexSort(new Sort(new SortField(sliceField, SortField.Type.STRING)));
+        iwc.setIndexSort(new Sort(sliceSortField));
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(localFormat));
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
             for (int i = 0; i < numDocs; i++) {

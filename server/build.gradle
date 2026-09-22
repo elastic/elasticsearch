@@ -44,7 +44,10 @@ dependencies {
   api project(":libs:exponential-histogram")
   implementation project(":libs:lucene-store")
   implementation project(":libs:simdvec")
-  implementation project(":libs:columnar")
+  implementation project(":libs:simdjson")
+  // On the api surface rather than implementation: FieldMapper#columnarStringOptions returns one of its
+  // types, so a mapper outside the server has to be able to name it.
+  api project(":libs:columnar")
   implementation project(":libs:entitlement")
 
   // lucene
@@ -76,6 +79,7 @@ dependencies {
 
   // access to native functions
   implementation project(':libs:native')
+  implementation project(':libs:zstd')
 
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
   api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"

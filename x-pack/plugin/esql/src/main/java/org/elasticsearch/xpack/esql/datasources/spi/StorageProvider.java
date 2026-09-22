@@ -39,6 +39,20 @@ public interface StorageProvider extends Closeable {
      */
     StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException;
 
+    /**
+     * Lists the immediate children of a directory-like prefix, distinguishing subdirectories from
+     * objects — for blob storage, a delimiter listing whose common prefixes are the subdirectories.
+     * This lets a partition-aware caller skip whole subtrees; see {@link StorageChildren}.
+     *
+     * <p>Returning {@code null} means "fall back to {@link #listObjects}", legitimate when the
+     * provider cannot enumerate directories (e.g. plain HTTP) or the directory holds more than
+     * {@code limit} children — the result is fully materialized, so implementations must stop rather
+     * than buffer without bound. Deliberately not a default method: forgetting to implement (or
+     * delegate) it would silently disable partition-pruned listing, so each implementation states
+     * its choice.
+     */
+    StorageChildren listChildren(StoragePath prefix, int limit) throws IOException;
+
     /** Checks if an object exists at the given path. */
     boolean exists(StoragePath path) throws IOException;
 

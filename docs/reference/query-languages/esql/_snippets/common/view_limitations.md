@@ -21,13 +21,13 @@ combination as long as there is never more than one branch point:
 
 #### Cross-cluster and serverless
 
-Views are supported in [Cross-cluster search](/reference/query-languages/esql/esql-cross-clusters.md) with some limitations:
+Views are supported in [cross-cluster search](/reference/query-languages/esql/esql-cross-clusters.md) with some limitations:
  * Remote views in CCS are not allowed (ie. `FROM cluster:view` will only
    match remote indexes with the name `view`. If a remote view is found,
    the query will fail).
  * If a remote index matches a local view name, the query will fail.
 
-Views are available in serverless and [Cross-project search](/reference/query-languages/esql/esql-cross-serverless-projects.md), but with some limitations:
+Views are available in serverless and [cross-project search](/reference/query-languages/esql/esql-cross-serverless-projects.md), but with some limitations:
 :::{include} ../common/cps_view_limitations.md
 :::
 

@@ -299,6 +299,46 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
         }
     }
 
+    /**
+     * Even if single-valued positions are written using
+     * {@code beginPositionEntry}/{@code endPositionEntry}, a dense block with no nulls
+     * should still build a vector.
+     */
+    public final void testSingleNonNullValues() throws IOException {
+        assumeTrue("type does not support dense vectors", supportsDenseVector());
+        List<List<V>> expected = denseExpectedValues(randomIntBetween(1, 512));
+        try (B block = buildBlockUsingPositionEntries(blockFactory(), expected)) {
+            assertThat(block.asVector(), notNullValue());
+            assertBlock(block, expected);
+            assertSerializationAtSupportedVersions(block, expected);
+        }
+    }
+
+    /**
+     * {@code beginPositionEntry} around a single value, with nulls, must not build a vector.
+     */
+    public final void testSingleWithNullValues() throws IOException {
+        int positionCount = randomIntBetween(1, 512);
+        List<List<V>> expected = new ArrayList<>(positionCount);
+        boolean hasNull = false;
+        for (int p = 0; p < positionCount; p++) {
+            if (randomBoolean()) {
+                expected.add(null);
+                hasNull = true;
+            } else {
+                expected.add(List.of(randomValue()));
+            }
+        }
+        if (hasNull == false) {
+            expected.set(randomIntBetween(0, positionCount - 1), null);
+        }
+        try (B block = buildBlockUsingPositionEntries(blockFactory(), expected)) {
+            assertThat(block.asVector(), nullValue());
+            assertBlock(block, expected);
+            assertSerializationAtSupportedVersions(block, expected);
+        }
+    }
+
     public final void testConstantBlockFactory() {
         assumeTrue("constant block factory unsupported", supportsConstantBlockFactory());
         V value = randomValue();
@@ -722,6 +762,25 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
     protected final B buildBlock(BlockFactory blockFactory, int estimatedSize, List<List<V>> expected) {
         try (BB builder = createBuilder(blockFactory, estimatedSize)) {
             appendValues(builder, expected);
+            B block = build(builder);
+            assertThat(block.blockFactory(), sameInstance(blockFactory));
+            return block;
+        }
+    }
+
+    /**
+     * Like {@link #buildBlock(BlockFactory, List)} but every non-null position is written with
+     * {@link #appendMultivalued}, including single-value positions.
+     */
+    private B buildBlockUsingPositionEntries(BlockFactory blockFactory, List<List<V>> expected) {
+        try (BB builder = createBuilder(blockFactory, expected.size())) {
+            for (List<V> values : expected) {
+                if (values == null) {
+                    appendNull(builder);
+                } else {
+                    appendMultivalued(builder, values);
+                }
+            }
             B block = build(builder);
             assertThat(block.blockFactory(), sameInstance(blockFactory));
             return block;

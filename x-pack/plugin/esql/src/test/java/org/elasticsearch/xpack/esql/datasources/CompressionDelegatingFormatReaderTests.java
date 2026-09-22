@@ -12,19 +12,30 @@ import net.jpountz.lz4.LZ4FrameOutputStream;
 import com.github.luben.zstd.ZstdOutputStream;
 
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasource.brotli.BrotliDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DecompressionCodec;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.lz4.Lz4DecompressionCodec;
+import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasource.snappy.SnappyDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
@@ -34,6 +45,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.hamcrest.Matchers;
+import org.junit.Before;
 import org.xerial.snappy.SnappyFramedOutputStream;
 
 import java.io.ByteArrayInputStream;
@@ -57,6 +70,13 @@ import static org.hamcrest.Matchers.instanceOf;
  * Unit tests for {@link CompressionDelegatingFormatReader}.
  */
 public class CompressionDelegatingFormatReaderTests extends ESTestCase {
+
+    private BlockFactory blockFactory;
+
+    @Before
+    public void setUpBlockFactory() {
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+    }
 
     private static final byte[] CSV_CONTENT = "a:keyword,b:integer\nfoo,1\nbar,2".getBytes(StandardCharsets.UTF_8);
 
@@ -94,6 +114,101 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
             assertArrayEquals("pre-compressed brotli blob is stale", CSV_CONTENT, decompressed.readAllBytes());
         }
         assertDelegatesMetadataAndRead(brotliCompressed, "file:///data.csv.br", codec);
+    }
+
+    /**
+     * Public #158214: gzip NDJSON {@code FROM x | LIMIT 5} closes the iterator after a few rows.
+     * That close must abort the raw GET rather than drain it.
+     */
+    public void testGzipNdJsonRowLimitCloseDoesNotDrain() throws IOException {
+        StringBuilder ndjson = new StringBuilder();
+        for (int i = 0; i < 200_000; i++) {
+            ndjson.append("{\"id\":").append(i).append(",\"name\":\"n_").append(i).append("\"}\n");
+        }
+        byte[] compressed = gzip(ndjson.toString().getBytes(StandardCharsets.UTF_8));
+        assertThat(compressed.length, Matchers.greaterThan(100_000));
+
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(compressed, tracking, StoragePath.of("s3://bucket/data.ndjson.gz"));
+
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, "name", DataType.KEYWORD)
+        );
+        FormatReader reader = new CompressionDelegatingFormatReader(
+            new NdJsonFormatReader(Settings.EMPTY, blockFactory, schema),
+            new GzipDecompressionCodec()
+        );
+        FormatReadContext context = FormatReadContext.builder()
+            .projectedColumns(List.of("id", "name"))
+            .batchSize(100)
+            .rowLimit(5)
+            .readSchema(schema)
+            .errorPolicy(ErrorPolicy.STRICT)
+            .build();
+
+        try (CloseableIterator<Page> it = reader.read(object, context)) {
+            assertTrue(it.hasNext());
+            Page page = it.next();
+            try {
+                assertThat(page.getPositionCount(), Matchers.greaterThan(0));
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+
+        assertTrue("gzip NDJSON LIMIT close must abort the raw GET", tracking.aborted.get());
+        assertThat(
+            "LIMIT close must not drain the gzip GET; consumed " + tracking.bytesConsumed.get() + " of " + compressed.length,
+            tracking.bytesConsumed.get(),
+            Matchers.lessThan((long) compressed.length / 2)
+        );
+    }
+
+    /**
+     * Same drain contract as NDJSON: CSV gzip iterator close after a small {@code rowLimit}
+     * must abort, not drain, the compressed GET.
+     */
+    public void testGzipCsvRowLimitCloseDoesNotDrain() throws IOException {
+        StringBuilder csv = new StringBuilder("id:long,name:keyword\n");
+        for (int i = 0; i < 200_000; i++) {
+            csv.append(i).append(",n_").append(i).append('\n');
+        }
+        byte[] compressed = gzip(csv.toString().getBytes(StandardCharsets.UTF_8));
+        assertThat(compressed.length, Matchers.greaterThan(100_000));
+
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(compressed, tracking, StoragePath.of("s3://bucket/data.csv.gz"));
+
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, "name", DataType.KEYWORD)
+        );
+        FormatReader reader = new CompressionDelegatingFormatReader(new CsvFormatReader(blockFactory), new GzipDecompressionCodec());
+        FormatReadContext context = FormatReadContext.builder()
+            .projectedColumns(List.of("id", "name"))
+            .batchSize(100)
+            .rowLimit(5)
+            .readSchema(schema)
+            .errorPolicy(ErrorPolicy.STRICT)
+            .build();
+
+        try (CloseableIterator<Page> it = reader.read(object, context)) {
+            assertTrue(it.hasNext());
+            Page page = it.next();
+            try {
+                assertThat(page.getPositionCount(), Matchers.greaterThan(0));
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+
+        assertTrue("gzip CSV LIMIT close must abort the raw GET", tracking.aborted.get());
+        assertThat(
+            "LIMIT close must not drain the gzip GET; consumed " + tracking.bytesConsumed.get() + " of " + compressed.length,
+            tracking.bytesConsumed.get(),
+            Matchers.lessThan((long) compressed.length / 2)
+        );
     }
 
     private void assertDelegatesMetadataAndRead(byte[] compressed, String path, DecompressionCodec codec) throws IOException {

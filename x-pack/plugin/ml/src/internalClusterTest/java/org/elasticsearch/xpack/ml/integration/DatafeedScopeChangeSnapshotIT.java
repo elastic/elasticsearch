@@ -8,18 +8,30 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
@@ -30,6 +42,8 @@ import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
+import org.elasticsearch.xpack.core.ml.annotations.Annotation;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -38,31 +52,46 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
+import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertCheckedResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
+import static org.mockito.Mockito.mock;
 
 public class DatafeedScopeChangeSnapshotIT extends MlSingleNodeTestCase {
 
+    private static final Date SCOPE_CHANGE_DATA_ANCHOR = new Date(1_700_000_000_000L);
+
     private JobResultsPersister jobResultsPersister;
+    private ResultsPersisterService resultsPersisterService;
+    private AnomalyDetectionAuditor auditor;
 
     @Override
     protected Settings nodeSettings() {
@@ -106,6 +135,8 @@ public class DatafeedScopeChangeSnapshotIT extends MlSingleNodeTestCase {
             clusterService,
             Settings.EMPTY
         );
+        this.resultsPersisterService = resultsPersisterService;
+        this.auditor = mock(AnomalyDetectionAuditor.class);
         jobResultsPersister = new JobResultsPersister(originSettingClient, resultsPersisterService);
         waitForMlTemplates();
     }
@@ -131,6 +162,7 @@ public class DatafeedScopeChangeSnapshotIT extends MlSingleNodeTestCase {
         String datafeedId = jobId + "-datafeed";
         String snapshotId = "rollback-snap";
         setupJobDatafeedAndSnapshot(jobId, datafeedId, ProjectRoutingResolver.LOCAL_ONLY, snapshotId);
+        waitForAnnotationsIndex();
 
         String newRouting = "_alias:prod-*";
         client().execute(
@@ -160,6 +192,61 @@ public class DatafeedScopeChangeSnapshotIT extends MlSingleNodeTestCase {
                 )
             )
         );
+
+        assertBusy(() -> {
+            List<Annotation> annotations = getAnnotationsForJob(jobId);
+            assertThat(annotations, hasSize(1));
+            Annotation routingChangeAnnotation = annotations.get(0);
+            assertThat(routingChangeAnnotation.getEvent(), equalTo(Annotation.Event.SEARCH_SCOPE_CHANGED));
+            assertThat(
+                routingChangeAnnotation.getAnnotation(),
+                equalTo(projectRoutingChangeMessage(ProjectRoutingResolver.LOCAL_ONLY, newRouting, true))
+            );
+            assertThat(routingChangeAnnotation.getTimestamp(), equalTo(SCOPE_CHANGE_DATA_ANCHOR));
+        });
+    }
+
+    private static String projectRoutingChangeMessage(String oldRouting, String newRouting, boolean rollbackSnapshotRetained) {
+        String base = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_PROJECT_ROUTING_CHANGED, oldRouting, newRouting);
+        if (rollbackSnapshotRetained) {
+            return base + Messages.JOB_AUDIT_DATAFEED_PROJECT_ROUTING_CHANGED_SNAPSHOT_RETAINED;
+        }
+        return base + Messages.JOB_AUDIT_DATAFEED_PROJECT_ROUTING_CHANGED_NO_SNAPSHOT;
+    }
+
+    private void waitForAnnotationsIndex() throws Exception {
+        assertBusy(() -> {
+            assertTrue(annotationsIndexExists(AnnotationIndex.LATEST_INDEX_NAME));
+            assertEquals(2, numberOfAnnotationsAliases());
+        });
+    }
+
+    private boolean annotationsIndexExists(String expectedName) {
+        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .setIndices(expectedName)
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
+            .get();
+        return Arrays.asList(getIndexResponse.getIndices()).contains(expectedName);
+    }
+
+    private int numberOfAnnotationsAliases() {
+        int count = 0;
+        GetAliasesResponse aliasesResponse = indicesAdmin().prepareGetAliases(
+            TEST_REQUEST_TIMEOUT,
+            AnnotationIndex.READ_ALIAS_NAME,
+            AnnotationIndex.WRITE_ALIAS_NAME,
+            AnnotationIndex.LATEST_INDEX_NAME
+        ).setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get();
+        Map<String, List<AliasMetadata>> aliases = aliasesResponse.getAliases();
+        if (aliases != null) {
+            for (var aliasList : aliases.values()) {
+                for (AliasMetadata aliasMetadata : aliasList) {
+                    assertThat("Annotations aliases should be hidden but are not: " + aliases, aliasMetadata.isHidden(), is(true));
+                }
+                count += aliasList.size();
+            }
+        }
+        return count;
     }
 
     private void setupJobDatafeedAndSnapshot(String jobId, String datafeedId, String projectRouting) throws Exception {
@@ -186,6 +273,11 @@ public class DatafeedScopeChangeSnapshotIT extends MlSingleNodeTestCase {
             new UpdateJobAction.Request(jobId, new JobUpdate.Builder(jobId).setModelSnapshotId(snapshotId).build())
         ).actionGet();
 
+        DataCounts dataCounts = new DataCounts(jobId);
+        dataCounts.setLatestRecordTimeStamp(SCOPE_CHANGE_DATA_ANCHOR);
+        JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client(), resultsPersisterService, auditor);
+        jobDataCountsPersister.persistDataCounts(jobId, dataCounts, true);
+
         DatafeedConfig datafeed = new DatafeedConfig.Builder(datafeedId, jobId).setIndices(List.of("logs-*"))
             .setProjectRouting(projectRouting)
             .build();
@@ -197,5 +289,34 @@ public class DatafeedScopeChangeSnapshotIT extends MlSingleNodeTestCase {
             UpdateDatafeedAction.INSTANCE,
             new UpdateDatafeedAction.Request(new DatafeedUpdate.Builder(datafeedId).setProjectRouting(newRouting).build())
         ).actionGet();
+    }
+
+    private List<Annotation> getAnnotationsForJob(String jobId) throws Exception {
+        try {
+            indicesAdmin().prepareRefresh(AnnotationIndex.READ_ALIAS_NAME).get();
+        } catch (IndexNotFoundException e) {
+            return List.of();
+        }
+        SearchRequest searchRequest = new SearchRequest(AnnotationIndex.READ_ALIAS_NAME).source(
+            new SearchSourceBuilder().query(QueryBuilders.termQuery("job_id", jobId)).size(10)
+        );
+        List<Annotation> annotations = new ArrayList<>();
+        assertCheckedResponse(client().search(searchRequest), searchResponse -> {
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                annotations.add(parseAnnotation(hit));
+            }
+        });
+        return annotations;
+    }
+
+    private Annotation parseAnnotation(SearchHit hit) {
+        try {
+            BytesReference source = hit.getSourceRef();
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+                return Annotation.fromXContent(parser, null);
+            }
+        } catch (IOException e) {
+            throw new AssertionError("failed to parse annotation", e);
+        }
     }
 }

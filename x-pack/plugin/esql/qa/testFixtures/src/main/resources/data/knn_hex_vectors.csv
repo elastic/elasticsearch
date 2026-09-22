@@ -1,0 +1,10 @@
+// Dataset for testing KNN() on runtime fields.
+// emb_hex: hex-encoded byte dense_vector (2 hex chars per byte).
+//   "400000" → bytes [0x40,0x00,0x00] = [64,0,0] → dense_vector [64.0,0.0,0.0]
+id:integer, label:keyword, emb_hex:keyword
+0, x,   400000
+1, y,   004000
+2, z,   000040
+3, xy,  2d2d00
+4, xz,  391d00
+5, xyz, 202727

@@ -362,6 +362,12 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
         return queryStringOptions;
     }
 
+    /** QSTR resolves the fields to search from the query string against the index, so it has no expression to search. */
+    @Override
+    public boolean supportsRuntimeSearch() {
+        return false;
+    }
+
     @Override
     protected TypeResolution resolveParams() {
         return resolveQuery().and(Options.resolve(options(), source(), SECOND, ALLOWED_OPTIONS));

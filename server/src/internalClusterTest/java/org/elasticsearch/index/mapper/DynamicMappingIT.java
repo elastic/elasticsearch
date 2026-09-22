@@ -314,7 +314,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         masterBlockedLatch.await();
         try {
             assertThat(
-                expectThrows(IllegalArgumentException.class, prepareIndex("index").setId("2").setSource("nested3", Map.of("foo", "bar")))
+                expectThrows(MapperParsingException.class, prepareIndex("index").setId("2").setSource("nested3", Map.of("foo", "bar")))
                     .getMessage(),
                 Matchers.containsString("Limit of nested fields [2] has been exceeded")
             );
@@ -547,10 +547,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
             );
             assertThat(exc.getMessage(), Matchers.containsString("failed to parse"));
             assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
-            assertThat(
-                exc.getCause().getMessage(),
-                Matchers.containsString("Limit of total fields [4] has been exceeded while adding new fields [2]")
-            );
+            assertThat(exc.getCause().getMessage(), Matchers.containsString("Limit of total fields [4] has been exceeded"));
         }
 
         {

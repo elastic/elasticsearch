@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class RecoveryMetricsCollectorTests extends ESTestCase {
 
-    public void testRecordsRecoveryGateMetrics() {
+    public void testRecoveryGateEventMetrics() {
         final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
         final RecoveryMetricsCollector collector = new RecoveryMetricsCollector(
             telemetryPlugin.getTelemetryProvider(Settings.EMPTY),
@@ -70,7 +70,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
     public void testCurrentRecoveryGateMetrics() {
         final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
         final var blockedState = new AtomicReference<BlockedState>();
-        final var relativeTimeMillis = new AtomicLong(randomFrom(0L, randomLongBetween(-60_000, -1), randomLongBetween(1, 60_000)));
+        final var relativeTimeMillis = new AtomicLong(randomLongBetween(-60_000, 60_000));
         try (
             var ignored = new RecoveryMetricsCollector(
                 telemetryPlugin.getTelemetryProvider(Settings.EMPTY),
@@ -92,8 +92,8 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
                 assertCurrentGateMetrics(telemetryPlugin, 1L, 2 * elapsed);
 
                 blockedState.set(null);
+                // Time spent unblocked must not contribute to the next block's duration.
                 relativeTimeMillis.addAndGet(randomLongBetween(1, 60_000));
-                // Do not collect between blocks: the next observation must still reflect only the new block.
             }
             assertCurrentGateMetrics(telemetryPlugin, 0L, 0L);
         }

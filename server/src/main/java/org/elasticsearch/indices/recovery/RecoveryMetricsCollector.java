@@ -73,14 +73,15 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
 
     private final LongCounter shardRecoveryDirectCancellationsMetric;
     private final LongHistogram shardRecoveryDirectCancellationsWorkTimeMetric;
-    private final LongAsyncGauge recoveryGateBlockedCurrentMetric;
     private final LongCounter recoveryGateBlockedMetric;
     private final LongHistogram recoveryGateBlockedDurationMetric;
+
+    private final LongAsyncGauge recoveryGateBlockedCurrentMetric;
     private final LongAsyncGauge recoveryGateBlockedCurrentDurationMetric;
 
     /// @param telemetryProvider telemetry provider
     /// @param blockedState supplies the current recovery blocked state, or null when unblocked
-    /// @param relativeTimeInMillis supplies relative time in milliseconds
+    /// @param relativeTimeInMillis supplies relative time in milliseconds; must use the same clock as [BlockedState#sinceRelativeMillis()]
     public RecoveryMetricsCollector(
         TelemetryProvider telemetryProvider,
         Supplier<BlockedState> blockedState,
@@ -154,16 +155,6 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
             "unit",
             () -> new LongWithAttributes(blockedState.get() == null ? 0L : 1L)
         );
-        recoveryGateBlockedMetric = meterRegistry.registerLongCounter(
-            RECOVERY_GATE_BLOCKED_TOTAL_METRIC,
-            "Number of times recovery dispatch entered the blocked state",
-            "unit"
-        );
-        recoveryGateBlockedDurationMetric = meterRegistry.registerLongHistogram(
-            RECOVERY_GATE_BLOCKED_DURATION_METRIC,
-            "Duration recovery dispatch remained blocked by recovery gates",
-            "ms"
-        );
         recoveryGateBlockedCurrentDurationMetric = meterRegistry.registerLongAsyncGauge(
             RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC,
             "Elapsed time recovery dispatch has been blocked by recovery gates, or zero when unblocked",
@@ -174,6 +165,16 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
                 assert blockedTimeMillis >= 0L;
                 return new LongWithAttributes(blockedTimeMillis);
             }
+        );
+        recoveryGateBlockedMetric = meterRegistry.registerLongCounter(
+            RECOVERY_GATE_BLOCKED_TOTAL_METRIC,
+            "Number of times recovery dispatch entered the blocked state",
+            "unit"
+        );
+        recoveryGateBlockedDurationMetric = meterRegistry.registerLongHistogram(
+            RECOVERY_GATE_BLOCKED_DURATION_METRIC,
+            "Duration recovery dispatch remained blocked by recovery gates",
+            "ms"
         );
     }
 

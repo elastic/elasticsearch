@@ -806,7 +806,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             return FormatNameResolver.datasetFormat(settings, resource, formatReaderRegistry);
         }
         if (formatConfigKeyResolver == null) {
-            throw new IllegalArgumentException(FormatNameResolver.ambiguousDatasetFormatMessage(resource));
+            throw new IllegalArgumentException(FormatNameResolver.ambiguousDatasetFormatMessage());
         }
         return FormatNameResolver.datasetFormat(settings, resource, candidate -> {
             String ext = FormatNameResolver.extractCleanExtension(candidate);

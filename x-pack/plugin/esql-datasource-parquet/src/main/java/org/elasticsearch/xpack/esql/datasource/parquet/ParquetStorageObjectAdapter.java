@@ -175,10 +175,8 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
      * The object name (filename only, not the full storage path). parquet-mr interpolates the {@code InputFile}
      * straight into user-facing failures — the "is not a Parquet file. Expected magic number at tail" message is
      * built as {@code this + " is not a Parquet file..."} — so without an override the reader reports
-     * {@code ParquetStorageObjectAdapter@6b19422}, an identity hash. The full storage path is intentionally omitted
-     * here: {@code ExternalSourceResolver.mapResolveFailure} wraps parse failures as a {@link
-     * org.elasticsearch.xpack.esql.datasources.ExternalFailures.LocatedException} that reinstates the path only
-     * for callers who hold {@code read_dataset_metadata}.
+     * {@code ParquetStorageObjectAdapter@6b19422}, an identity hash. The full storage path is intentionally omitted:
+     * only the object name (last path segment) is ever shown to any caller.
      */
     @Override
     public String toString() {

@@ -770,10 +770,7 @@ public class S3StorageProvider implements StorageProvider {
             if (unavailable != null) {
                 throw unavailable;
             }
-            throw new IOException(
-                "Failed to list children in the configured path: " + S3FailureDetail.of(e),
-                e
-            );
+            throw new IOException("Failed to list children in the configured path: " + S3FailureDetail.of(e), e);
         }
         return new StorageChildren(files, directories);
     }
@@ -1050,10 +1047,7 @@ public class S3StorageProvider implements StorageProvider {
                 continuationToken = response.nextContinuationToken();
                 hasMorePages = response.isTruncated();
             } catch (Exception e) {
-                ExternalCredentialsExpiredException expired = S3FailureDetail.expired(
-                    e,
-                    "listing objects in the configured path"
-                );
+                ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "listing objects in the configured path");
                 if (expired != null) {
                     throw expired;
                 }

@@ -1438,7 +1438,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM logs_noext_strict | LIMIT 1"), TIMEOUT).close());
         assertThat(e.getMessage(), not(containsString("NullPointerException")));
-        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage(noExt.toUri().toString())));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage()));
     }
 
     /**
@@ -6093,9 +6093,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // The query must fail — the _SUCCESS marker is included in the listing and causes a CSV
         // parse error. Path info is redacted in non-security test clusters, so we only verify
         // that an exception is thrown (not the specific message).
-        expectThrows(Exception.class, () -> {
-            try (var ignored = run(syncEsqlQueryRequest("FROM logs_no_exclusions | LIMIT 5"), TIMEOUT)) {}
-        });
+        expectThrows(
+            Exception.class,
+            () -> { try (var ignored = run(syncEsqlQueryRequest("FROM logs_no_exclusions | LIMIT 5"), TIMEOUT)) {} }
+        );
     }
 
     private static PutDatasetAction.Request putDatasetRequest(

@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
-import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.FileMetadataCacheKey;
@@ -3668,7 +3667,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
 
         assertEquals("an unreadable extension is a client error, not a server fault", RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
-        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage("s3://bucket/vpcflow/*")));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage()));
         assertThat(e.getMessage(), not(containsString("WITH")));
         assertThat(e.getMessage(), not(containsString("plugin is installed")));
     }
@@ -3687,7 +3686,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
 
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
-        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage("s3://bucket/vpcflow/*")));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage()));
     }
 
     /**
@@ -3885,7 +3884,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Exception e = expectThrows(Exception.class, () -> resolveSingleFile("s3://bucket/dump/archive.gz", schemasByPath));
 
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
-        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage("s3://bucket/dump/archive.gz")));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage()));
         assertThat(e.getMessage(), not(containsString("s3://bucket")));
     }
 
@@ -3898,10 +3897,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         Exception e = expectThrows(Exception.class, () -> resolveSingleFile("s3://bucket/dump/2026.07.26.data.xyz", schemasByPath));
 
-        assertThat(
-            e.getMessage(),
-            containsString(FormatNameResolver.ambiguousDatasetFormatMessage("s3://bucket/dump/2026.07.26.data.xyz"))
-        );
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage()));
     }
 
     /**
@@ -3941,7 +3937,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
 
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
-        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage("s3://bucket/vpcflow/*")));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage()));
     }
 
     /**
@@ -3970,7 +3966,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Exception e = expectThrows(Exception.class, () -> resolveSingleFile("s3://bucket/vpcflow/a.log.gz", schemasByPath));
 
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
-        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage("s3://bucket/vpcflow/a.log.gz")));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage()));
         assertThat(e.getMessage(), not(containsString("plugin is installed")));
     }
 
@@ -3993,7 +3989,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertThat(
             "must fail with the dataset-format error, not an Iceberg metadata error",
             e.getMessage(),
-            containsString(FormatNameResolver.ambiguousDatasetFormatMessage(path))
+            containsString(FormatNameResolver.ambiguousDatasetFormatMessage())
         );
     }
 
@@ -4006,7 +4002,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         Exception e = expectThrows(Exception.class, () -> resolveSingleFile("s3://bucket/data/events.avro", schemasByPath));
 
-        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage("s3://bucket/data/events.avro")));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage()));
     }
 
     /**

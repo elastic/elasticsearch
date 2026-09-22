@@ -81,7 +81,7 @@ public final class ExternalFailures {
      */
     private static final Set<String> MALFORMED_DATA_EXCEPTIONS = Set.of("org.apache.parquet.io.ParquetDecodingException");
 
-    /** Depth bound for {@link #isMalformedDataException} and {@link #rootCause} walks. Real chains here are 2-4 deep; this only stops a pathological one. */
+    /** Depth bound for cause-chain walks. Real chains are 2-4 deep; this only stops a pathological one. */
     private static final int MAX_CAUSE_DEPTH = 12;
 
     /**

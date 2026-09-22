@@ -4687,7 +4687,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> reader.metadata(storageObject));
         // The object name (filename) is interpolated by parquet-mr into the error; the full storage
-        // path is intentionally absent so mapResolveFailure can control visibility via LocatedException.
+        // path is intentionally absent — only the object name is ever shown.
         assertThat(ex.getMessage(), containsString("obj.parquet"));
         assertThat(ex.getMessage(), not(containsString("https://host")));
     }

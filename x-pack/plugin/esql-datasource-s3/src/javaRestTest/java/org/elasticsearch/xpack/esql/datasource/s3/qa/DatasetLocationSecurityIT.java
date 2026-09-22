@@ -139,8 +139,7 @@ public class DatasetLocationSecurityIT extends ESRestTestCase {
         // Garbage bytes that will fail ORC tail parsing (no valid PostScript or magic).
         s3HttpFixture.seedBlob(
             GARBAGE_ORC,
-            "this is plain text pretending to be an orc file, repeated to give it some length.\n".repeat(8)
-                .getBytes(StandardCharsets.UTF_8)
+            "this is plain text pretending to be an orc file, repeated to give it some length.\n".repeat(8).getBytes(StandardCharsets.UTF_8)
         );
     }
 
@@ -193,15 +192,10 @@ public class DatasetLocationSecurityIT extends ESRestTestCase {
         // ── Failing shapes: neither user must see the bucket name ────────────────────────────────
 
         for (String dataset : List.of("ds_loc_denied_single", "ds_loc_denied_glob", "ds_loc_wrong_format", "ds_loc_bad_orc")) {
-            for (String[] userAndPass : new String[][] {
-                { "ds-loc-reader", "reader" },
-                { "ds-loc-metadata-reader", "metadata_reader" } }) {
+            for (String[] userAndPass : new String[][] { { "ds-loc-reader", "reader" }, { "ds-loc-metadata-reader", "metadata_reader" } }) {
                 String user = userAndPass[0];
                 String label = userAndPass[1];
-                ResponseException error = expectThrows(
-                    ResponseException.class,
-                    () -> runEsqlAs(user, "FROM " + dataset + " | LIMIT 5")
-                );
+                ResponseException error = expectThrows(ResponseException.class, () -> runEsqlAs(user, "FROM " + dataset + " | LIMIT 5"));
                 for (String text : allErrorText(entityAsMap(error.getResponse()))) {
                     assertThat(label + " must not see bucket name in error for [" + dataset + "]", text, not(containsString(BUCKET)));
                 }
@@ -210,9 +204,7 @@ public class DatasetLocationSecurityIT extends ESRestTestCase {
 
         // ── Profile plan strings: neither user sees the bucket name ──────────────────────────────
 
-        for (String[] userAndPass : new String[][] {
-            { "ds-loc-reader", "reader" },
-            { "ds-loc-metadata-reader", "metadata_reader" } }) {
+        for (String[] userAndPass : new String[][] { { "ds-loc-reader", "reader" }, { "ds-loc-metadata-reader", "metadata_reader" } }) {
             String user = userAndPass[0];
             String label = userAndPass[1];
             Map<String, Object> profileResp = runEsqlWithProfileAs(user, "FROM ds_loc_good | LIMIT 5");

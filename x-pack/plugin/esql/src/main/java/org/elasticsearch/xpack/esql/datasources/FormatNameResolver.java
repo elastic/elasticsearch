@@ -206,7 +206,7 @@ public final class FormatNameResolver {
             }
         }
         if (implied.size() != 1) {
-            throw new IllegalArgumentException(ambiguousDatasetFormatMessage(resource, implied));
+            throw new IllegalArgumentException(ambiguousDatasetFormatMessage(implied));
         }
         return implied.iterator().next();
     }
@@ -238,16 +238,14 @@ public final class FormatNameResolver {
         }
     }
 
-    // resource is intentionally not embedded in the message — it is a storage path and would leak
-    // the storage location to the caller.
-    public static String ambiguousDatasetFormatMessage(String resource) {
+    public static String ambiguousDatasetFormatMessage() {
         return "Cannot determine a single format for the dataset resource; "
             + "set the dataset's [format] setting, or split mixed formats into separate datasets.";
     }
 
-    static String ambiguousDatasetFormatMessage(String resource, Set<String> implied) {
+    static String ambiguousDatasetFormatMessage(Set<String> implied) {
         if (implied == null || implied.isEmpty()) {
-            return ambiguousDatasetFormatMessage(resource);
+            return ambiguousDatasetFormatMessage();
         }
         return "Cannot determine a single format for the dataset resource: implied formats "
             + implied

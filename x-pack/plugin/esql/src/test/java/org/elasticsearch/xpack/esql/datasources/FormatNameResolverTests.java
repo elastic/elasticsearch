@@ -319,7 +319,7 @@ public class FormatNameResolverTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> FormatNameResolver.datasetFormat(null, resource, registry)
             );
-            assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage(resource)));
+            assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage()));
         }
     }
 

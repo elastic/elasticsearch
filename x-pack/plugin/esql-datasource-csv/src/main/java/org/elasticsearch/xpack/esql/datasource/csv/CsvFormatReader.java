@@ -1175,7 +1175,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
         for (String name : headerNames) {
             if (seen.add(name) == false) {
                 throw new IllegalArgumentException(
-                    "the header of [" + object.path().objectName() + "] has duplicate column name [" + name + "]; declared columns cannot bind by name"
+                    "the header of ["
+                        + object.path().objectName()
+                        + "] has duplicate column name ["
+                        + name
+                        + "]; declared columns cannot bind by name"
                 );
             }
         }

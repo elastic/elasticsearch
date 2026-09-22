@@ -619,7 +619,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     /// Not thread-safe. All access must be performed while holding the enclosing [ThrottlingRecoveryService] instance lock.
     private static class RecoveriesThrottle {
 
-        /// The node's max heap, used for the heap-based effective limit.
+        /// The node's max heap, used to compute the heap-based throttling limit.
         private final ByteSizeValue maxHeapBytes;
 
         /// The maximum number of concurrent recoveries on this node (excluding peer recoveries for which this node is the source).

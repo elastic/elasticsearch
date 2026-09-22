@@ -546,7 +546,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var taskQueue = new DeterministicTaskQueue();
         // 2 GB heap, ratio 1.5 -> ceil(2 * 1.5) = 3 concurrent recoveries
         final var heapBytes = ByteSizeValue.ofGb(2);
-        final var clusterService = newClusterServiceWithHeapSetting(
+        final var clusterService = newClusterService(
             Settings.builder()
                 .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
                 .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 1.5)
@@ -590,7 +590,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var taskQueue = new DeterministicTaskQueue();
         // 2 GB heap, ratio 10 -> heap-based ceiling = 20, but max_concurrent_incoming_recoveries=3 wins
         final var heapBytes = ByteSizeValue.ofGb(2);
-        final var clusterService = newClusterServiceWithHeapSetting(
+        final var clusterService = newClusterService(
             Settings.builder()
                 .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 3)
                 .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 10.0)
@@ -634,7 +634,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var taskQueue = new DeterministicTaskQueue();
         // 2 GB heap, ratio 0.5 -> ceil(2 * 0.5) = 1 concurrent recovery initially
         final var heapBytes = ByteSizeValue.ofGb(2);
-        final var clusterService = newClusterServiceWithHeapSetting(
+        final var clusterService = newClusterService(
             Settings.builder()
                 .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
                 .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 0.5)
@@ -681,6 +681,49 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(started.get(), equalTo(4));
         taskQueue.runAllTasks();
         assertThat(started.get(), equalTo(6));
+        assertThat(service.currentQueueSize(), equalTo(0));
+        service.close();
+    }
+
+    public void testHeapBasedLimitRoundsUp() {
+        final var taskQueue = new DeterministicTaskQueue();
+        // 1 GB heap, ratio 1.5 -> ceil(1 * 1.5) = ceil(1.5) = 2
+        final var clusterService = newClusterService(
+            Settings.builder()
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
+                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 1.5)
+                .build()
+        );
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
+            clusterService,
+            RecoverySchedulingListener.NOOP,
+            monitorWithNoGates(taskQueue.getThreadPool()),
+            ByteSizeValue.ofGb(1)
+        );
+        service.start();
+        final Set<RecoveryListener> runningRecoveries = new HashSet<>();
+
+        for (int i = 0; i < 3; i++) {
+            service.enqueue(
+                ProjectId.DEFAULT,
+                noopRecoveryListener(),
+                mockIndexShard(newUnassignedRecoveryState(), UUIDs.randomBase64UUID(), stats),
+                newIndexMetadata(),
+                runningRecoveries::add
+            );
+        }
+        taskQueue.runAllRunnableTasks();
+        assertThat("ceil(1GB * 1.5) = 2, not 1", runningRecoveries.size(), equalTo(2));
+
+        final var initialListeners = Set.copyOf(runningRecoveries);
+        runningRecoveries.clear();
+        initialListeners.forEach(listener -> listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY));
+        taskQueue.runAllRunnableTasks();
+        assertThat(runningRecoveries.size(), equalTo(1));
+        runningRecoveries.forEach(listener -> listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY));
+        taskQueue.runAllRunnableTasks();
         assertThat(service.currentQueueSize(), equalTo(0));
         service.close();
     }
@@ -1884,20 +1927,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     }
 
     private static ClusterService newClusterService(Settings settings) {
-        ClusterService clusterService = mock(ClusterService.class);
-        ClusterSettings clusterSettings = new ClusterSettings(
-            settings,
-            Set.of(
-                INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING,
-                INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING
-            )
-        );
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        when(clusterService.localNode()).thenReturn(localNode);
-        return clusterService;
-    }
-
-    private static ClusterService newClusterServiceWithHeapSetting(Settings settings) {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(
             settings,

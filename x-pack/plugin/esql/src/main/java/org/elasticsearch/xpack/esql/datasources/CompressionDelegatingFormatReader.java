@@ -80,18 +80,6 @@ final class CompressionDelegatingFormatReader implements FormatReader {
         return new Configured<>(wrapped, configured.consumedKeys());
     }
 
-    /**
-     * The inner reader's, unchanged. Decompression restores the same bytes whatever the codec, so the wrapper
-     * contributes nothing to what is inferred: {@code a.csv} and {@code a.csv.gz} of the same content infer
-     * the same schema under the same settings. Forwarding rather than declaring empty — an empty set here
-     * would claim the text settings underneath cannot change the schema, which is the under-declaration this
-     * SPI method exists to prevent.
-     */
-    @Override
-    public Set<String> schemaAffectingKeys() {
-        return inner.schemaAffectingKeys();
-    }
-
     @Override
     public List<String> configWarnings() {
         return inner.configWarnings();

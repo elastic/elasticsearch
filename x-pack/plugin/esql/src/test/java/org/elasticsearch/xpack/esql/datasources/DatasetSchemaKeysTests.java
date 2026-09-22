@@ -16,21 +16,16 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
- * The key a dataset's inferred schema is cached under must change exactly when the schema could, and not otherwise:
- * a key too narrow serves one dataset another's schema, and one too wide only misses.
+ * The key a dataset's resolution is cached under must change whenever something the cached result depends on
+ * changes — the files, or a setting that changes what is read — and not otherwise.
  */
 public class DatasetSchemaKeysTests extends ESTestCase {
 
     private static final String BASE = "s3://bucket/data/";
-    /** A text reader's declaration: its settings reach inference, and so does its error policy. */
-    private static final Set<String> TEXT_READER_KEYS = Set.of("delimiter", "quote", "null_value", "error_mode", "max_errors");
-    /** A footer reader's declaration: nothing configurable reaches a schema read from the file's own footer. */
-    private static final Set<String> FOOTER_READER_KEYS = Set.of();
 
     private static FileList listing(String... names) {
         return GlobExpander.fileListOf(
@@ -39,50 +34,38 @@ public class DatasetSchemaKeysTests extends ESTestCase {
         );
     }
 
-    private static DatasetSchemaKey key(SchemaBreadth breadth, FileList listing, Set<String> readerKeys, Map<String, Object> config) {
-        return DatasetSchemaKeys.of(breadth, listing, "csv", readerKeys, config);
+    private static DatasetSchemaKey key(SchemaBreadth breadth, FileList listing, Map<String, Object> config) {
+        return DatasetSchemaKeys.of(breadth, listing, "csv", config);
     }
 
-    public void testUnionByNameAndStrictOverTheSameFilesAreDifferentSchemas() {
+    public void testUnionByNameAndStrictOverTheSameFilesAreDifferentResults() {
         FileList files = listing("a.csv", "b.csv");
         assertNotEquals(
-            key(SchemaBreadth.EVERY_FILE, files, TEXT_READER_KEYS, Map.of("schema_resolution", "union_by_name")),
-            key(SchemaBreadth.EVERY_FILE, files, TEXT_READER_KEYS, Map.of("schema_resolution", "strict"))
-        );
-    }
-
-    /** The over-keying the shared per-file list carries: a footer format's key must not vary with text settings. */
-    public void testAFooterFormatKeyIgnoresTextSettings() {
-        FileList files = listing("a.parquet", "b.parquet");
-        assertEquals(
-            key(SchemaBreadth.EVERY_FILE, files, FOOTER_READER_KEYS, Map.of("delimiter", ",")),
-            key(SchemaBreadth.EVERY_FILE, files, FOOTER_READER_KEYS, Map.of("delimiter", "|"))
-        );
-    }
-
-    public void testATextFormatKeyFollowsItsDeclaredSettings() {
-        FileList files = listing("a.csv", "b.csv");
-        assertNotEquals(
-            "the error budget reaches CSV inference",
-            key(SchemaBreadth.EVERY_FILE, files, TEXT_READER_KEYS, Map.of("max_errors", "1")),
-            key(SchemaBreadth.EVERY_FILE, files, TEXT_READER_KEYS, Map.of("max_errors", "1000"))
-        );
-        assertEquals(
-            "a setting the reader did not declare cannot reach the key",
-            key(SchemaBreadth.EVERY_FILE, files, TEXT_READER_KEYS, Map.of("target_split_size", "1mb")),
-            key(SchemaBreadth.EVERY_FILE, files, TEXT_READER_KEYS, Map.of("target_split_size", "64mb"))
+            key(SchemaBreadth.EVERY_FILE, files, Map.of("schema_resolution", "union_by_name")),
+            key(SchemaBreadth.EVERY_FILE, files, Map.of("schema_resolution", "strict"))
         );
     }
 
     /**
-     * Under first_file_wins the listing order only decides which file is the anchor, and the anchor's own identity is
-     * already in the key; so the order settings cannot change the cached schema and must not split the cache.
+     * Why the settings come from the per-file cache's identity and not from what reaches schema inference: the entry
+     * carries statistics too. The error mode decides whether a row that fails to parse is dropped, which changes a
+     * row count without changing a single column of the schema — so a key made only of schema-affecting settings
+     * would serve one error mode's counts to another.
      */
-    public void testFirstFileWinsKeyIsIndependentOfTheOrderSettings() {
+    public void testASettingThatChangesWhatIsReadButNotTheSchemaStillMisses() {
+        FileList files = listing("a.ndjson", "b.ndjson");
+        assertNotEquals(
+            key(SchemaBreadth.EVERY_FILE, files, Map.of("error_mode", "skip_row")),
+            key(SchemaBreadth.EVERY_FILE, files, Map.of("error_mode", "null_field"))
+        );
+    }
+
+    public void testASettingThatChangesNothingReadCannotSplitTheCache() {
         FileList files = listing("a.csv", "b.csv");
         assertEquals(
-            key(SchemaBreadth.ONE_FILE, files, TEXT_READER_KEYS, Map.of("file_sort_by", "name", "file_order", "asc")),
-            key(SchemaBreadth.ONE_FILE, files, TEXT_READER_KEYS, Map.of("file_sort_by", "modified", "file_order", "desc"))
+            "split sizing shapes how files are read, not what is read from them",
+            key(SchemaBreadth.EVERY_FILE, files, Map.of("target_split_size", "1mb")),
+            key(SchemaBreadth.EVERY_FILE, files, Map.of("target_split_size", "64mb"))
         );
     }
 
@@ -90,7 +73,6 @@ public class DatasetSchemaKeysTests extends ESTestCase {
         DatasetSchemaKey key = key(
             SchemaBreadth.EVERY_FILE,
             listing("a.csv", "b.csv"),
-            TEXT_READER_KEYS,
             Map.of("delimiter", ",", "access_key", "AKIA...", "secret_key", "shh", "auth", "anonymous")
         );
         assertEquals(Map.of("delimiter", ","), key.schemaSettings());
@@ -100,8 +82,8 @@ public class DatasetSchemaKeysTests extends ESTestCase {
         FileList files = listing("a.csv", "b.csv");
         assertNotEquals(
             "one path on two endpoints is two files",
-            key(SchemaBreadth.EVERY_FILE, files, TEXT_READER_KEYS, Map.of("endpoint", "https://s3.amazonaws.com")),
-            key(SchemaBreadth.EVERY_FILE, files, TEXT_READER_KEYS, Map.of("endpoint", "http://minio:9000"))
+            key(SchemaBreadth.EVERY_FILE, files, Map.of("endpoint", "https://s3.amazonaws.com")),
+            key(SchemaBreadth.EVERY_FILE, files, Map.of("endpoint", "http://minio:9000"))
         );
     }
 
@@ -115,14 +97,11 @@ public class DatasetSchemaKeysTests extends ESTestCase {
         Map<String, Object> oneOddDelimiter = Map.of("delimiter", ",,quote=x");
         assertEquals("the rendered forms collide", render(commaDelimited), render(oneOddDelimiter));
         FileList files = listing("a.csv", "b.csv");
-        assertNotEquals(
-            key(SchemaBreadth.EVERY_FILE, files, TEXT_READER_KEYS, commaDelimited),
-            key(SchemaBreadth.EVERY_FILE, files, TEXT_READER_KEYS, oneOddDelimiter)
-        );
+        assertNotEquals(key(SchemaBreadth.EVERY_FILE, files, commaDelimited), key(SchemaBreadth.EVERY_FILE, files, oneOddDelimiter));
     }
 
     public void testDeclarationProducesNoKey() {
-        assertNull(key(SchemaBreadth.DECLARATION, listing("a.csv", "b.csv"), TEXT_READER_KEYS, Map.of()));
+        assertNull(key(SchemaBreadth.DECLARATION, listing("a.csv", "b.csv"), Map.of()));
     }
 
     private static String render(Map<String, Object> config) {

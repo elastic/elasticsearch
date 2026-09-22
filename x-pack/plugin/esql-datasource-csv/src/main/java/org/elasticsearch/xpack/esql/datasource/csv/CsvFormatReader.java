@@ -113,8 +113,6 @@ import java.util.OptionalLong;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * CSV/TSV format reader for external datasources.
@@ -439,24 +437,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         CONFIG_SCHEMA_SAMPLE_SIZE,
         CONFIG_SKIP_ROWS
     );
-
-    /**
-     * Every recognised key reaches inference — the delimiter, quote, escape and mode decide where a field
-     * begins, {@code header_row} and {@code column_prefix} decide the column NAMES, {@code null_value} and
-     * {@code trim_spaces} decide whether a cell counts as evidence, {@code datetime_format} decides whether a
-     * column is a date, and {@code comment}, {@code skip_rows} and {@code schema_sample_size} decide which
-     * rows are sampled at all.
-     * <p>
-     * Plus the three {@link ErrorPolicy} keys, which this reader does NOT list in {@link #RECOGNIZED_KEYS}
-     * because it does not parse them — and must still declare, because {@code collectSampleRows} takes the
-     * policy: a malformed row inside the sampling window is skipped under a lenient mode and throws via
-     * {@code failFastSamplingError} under {@code fail_fast}, and the budget is charged during sampling, so
-     * {@code error_mode} and the budget pair change both what is inferred and whether inference succeeds.
-     */
-    static final Set<String> SCHEMA_AFFECTING_KEYS = Stream.concat(
-        RECOGNIZED_KEYS.stream(),
-        Stream.of(ErrorPolicy.CONFIG_ERROR_MODE, ErrorPolicy.CONFIG_MAX_ERRORS, ErrorPolicy.CONFIG_MAX_ERROR_RATIO)
-    ).collect(Collectors.toUnmodifiableSet());
 
     private final BlockFactory blockFactory;
     private final CsvMapper sharedCsvMapper;
@@ -1297,11 +1277,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
             parsedOptions.configWarnings()
         );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
-    }
-
-    @Override
-    public Set<String> schemaAffectingKeys() {
-        return SCHEMA_AFFECTING_KEYS;
     }
 
     @Override

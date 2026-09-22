@@ -4965,11 +4965,6 @@ public class FileSplitProviderTests extends ESTestCase {
             }
 
             @Override
-            public Set<String> schemaAffectingKeys() {
-                return Set.of();
-            }
-
-            @Override
             public List<SplitRange> discoverSplitRanges(StorageObject object) {
                 return perFileRanges.get(callCount++);
             }
@@ -5098,11 +5093,6 @@ public class FileSplitProviderTests extends ESTestCase {
             }
 
             @Override
-            public Set<String> schemaAffectingKeys() {
-                return Set.of();
-            }
-
-            @Override
             public List<SplitRange> discoverSplitRanges(StorageObject object) throws IOException {
                 return List.of(new SplitRange(0, object.length()));
             }
@@ -5207,11 +5197,6 @@ public class FileSplitProviderTests extends ESTestCase {
             @Override
             public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
                 return Configured.empty(this);
-            }
-
-            @Override
-            public Set<String> schemaAffectingKeys() {
-                return Set.of();
             }
 
             @Override
@@ -5336,11 +5321,6 @@ public class FileSplitProviderTests extends ESTestCase {
             @Override
             public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
                 return Configured.empty(this);
-            }
-
-            @Override
-            public Set<String> schemaAffectingKeys() {
-                return Set.of();
             }
 
             @Override

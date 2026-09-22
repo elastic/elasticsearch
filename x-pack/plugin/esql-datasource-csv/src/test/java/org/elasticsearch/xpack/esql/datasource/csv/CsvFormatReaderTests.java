@@ -73,7 +73,6 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasItem;
 
 public class CsvFormatReaderTests extends ESTestCase {
 
@@ -6803,61 +6802,6 @@ public class CsvFormatReaderTests extends ESTestCase {
      * client error (HTTP 400), with the row index, capped excerpt, and the hint pointing at
      * skip_row. Same exception type and message shape the data-row path uses.
      */
-    /**
-     * CSV's schema inference consumes the {@link ErrorPolicy}, so the policy's keys must be in
-     * {@link CsvFormatReader#SCHEMA_AFFECTING_KEYS} — a cache of resolved schemas is keyed on that set, and a key
-     * missing from it lets two configurations that infer differently share one cached schema.
-     * <p>
-     * A containment check against a known list cannot catch this: an empty declaration passes it. What catches it
-     * is the behaviour. Over the same bytes, varying ONE key at a time, inference must do something different;
-     * and wherever it does, that key must be declared. Both halves are asserted, so the test fails if a key is
-     * dropped from the declaration, and also if a change makes the key stop mattering — in which case the
-     * declaration is over-keying and can be narrowed.
-     * <p>
-     * The input is the one {@link #testSamplingFailFastThrowsClientErrorWithHint} already relies on: every line
-     * carries an unclosed quote, so every sampled row fails to parse. {@code fail_fast} throws on the first;
-     * {@code skip_row} spends the budget instead, and the budget's size decides whether sampling stops on the
-     * budget or on consecutive failures.
-     */
-    public void testErrorPolicyKeysReachSchemaInferenceSoTheyMustBeDeclared() {
-        StringBuilder csv = new StringBuilder();
-        for (int i = 0; i < CsvFormatReader.MAX_CONSECUTIVE_SAMPLING_FAILURES + 4; i++) {
-            csv.append(i).append(",\"unterminated\n");
-        }
-        String bytes = csv.toString();
-
-        String failFast = inferenceOutcome(bytes, Map.of("header_row", false, "multi_value_syntax", "NONE", "error_mode", "fail_fast"));
-        String skipRow = inferenceOutcome(bytes, Map.of("header_row", false, "multi_value_syntax", "NONE", "error_mode", "skip_row"));
-        assertNotEquals("error_mode alone must change what schema inference does over these bytes", failFast, skipRow);
-        assertThat(CsvFormatReader.SCHEMA_AFFECTING_KEYS, hasItem(ErrorPolicy.CONFIG_ERROR_MODE));
-
-        String tightBudget = inferenceOutcome(
-            bytes,
-            Map.of("header_row", false, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", "1")
-        );
-        String looseBudget = inferenceOutcome(
-            bytes,
-            Map.of("header_row", false, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", "1000000")
-        );
-        assertNotEquals("max_errors alone must change what schema inference does over these bytes", tightBudget, looseBudget);
-        assertThat(CsvFormatReader.SCHEMA_AFFECTING_KEYS, hasItem(ErrorPolicy.CONFIG_MAX_ERRORS));
-    }
-
-    /**
-     * What inferring {@code csv}'s schema under {@code config} does: {@code "ok"}, or the exception it throws.
-     * Inference only, through {@code metadata} — the same entry point a resolve uses — so nothing past the sample
-     * is read.
-     */
-    private String inferenceOutcome(String csv, Map<String, Object> config) {
-        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(config);
-        try {
-            reader.metadata(createStorageObject(csv));
-            return "ok";
-        } catch (Exception e) {
-            return e.getClass().getSimpleName() + ": " + e.getMessage();
-        }
-    }
-
     public void testSamplingFailFastThrowsClientErrorWithHint() {
         // Every line is malformed (unclosed quote at end). FAIL_FAST throws on row 1.
         StringBuilder csv = new StringBuilder();

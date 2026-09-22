@@ -100,10 +100,13 @@ public final class ExternalSourceSettings {
      * floor, so gzip/zstd still has a parser thread when {@code M / B} would be 2.
      */
     static int memoryBoundConcurrency(long heapBytes, long requestBreakerLimitBytes) {
+        return Math.max(BLOB_STORE_CONCURRENCY_FLOOR, memorySlots(heapBytes, requestBreakerLimitBytes));
+    }
+
+    private static int memorySlots(long heapBytes, long requestBreakerLimitBytes) {
         long memoryBudget = Math.min(heapBytes / BLOB_STORE_MEMORY_HEAP_DIVISOR, requestBreakerLimitBytes / 2);
         long memorySlots = Math.max(0L, memoryBudget / BLOB_STORE_GET_SIZE_BYTES);
-        int slots = (int) Math.min(Integer.MAX_VALUE, memorySlots);
-        return Math.max(BLOB_STORE_CONCURRENCY_FLOOR, slots);
+        return (int) Math.min(Integer.MAX_VALUE, memorySlots);
     }
 
     /**
@@ -126,10 +129,35 @@ public final class ExternalSourceSettings {
 
     // visible for testing
     static int blobStoreConcurrency(int configured, long heapBytes, long requestBreakerLimitBytes) {
+        return effectivePermits(configured, memoryBoundConcurrency(heapBytes, requestBreakerLimitBytes));
+    }
+
+    private static int effectivePermits(int configured, int memoryBound) {
         if (configured == 0) {
             return 0;
         }
-        return Math.min(configured, memoryBoundConcurrency(heapBytes, requestBreakerLimitBytes));
+        return Math.min(configured, memoryBound);
+    }
+
+    static BlobStoreConcurrency blobStoreConcurrencyInfo(Settings settings) {
+        return blobStoreConcurrencyInfo(
+            MAX_CONCURRENT_REQUESTS.get(settings),
+            JvmInfo.jvmInfo().getMem().getHeapMax().getBytes(),
+            HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes()
+        );
+    }
+
+    // visible for testing
+    static BlobStoreConcurrency blobStoreConcurrencyInfo(int configured, long heapBytes, long requestBreakerLimitBytes) {
+        int slots = memorySlots(heapBytes, requestBreakerLimitBytes);
+        int memoryBound = Math.max(BLOB_STORE_CONCURRENCY_FLOOR, slots);
+        int effective = effectivePermits(configured, memoryBound);
+        if (effective == 0) {
+            return new BlobStoreConcurrency(0, false);
+        }
+        int ceiling = Math.min(memoryBound, MAX_CONCURRENT_REQUESTS_UPPER_BOUND);
+        boolean parseFloorBinds = slots < BLOB_STORE_CONCURRENCY_FLOOR && effective == ceiling;
+        return new BlobStoreConcurrency(effective, effective < ceiling, parseFloorBinds);
     }
 
     /**
@@ -148,6 +176,8 @@ public final class ExternalSourceSettings {
         int concurrency = blobStoreConcurrency(settings);
         return concurrency > 0 ? concurrency : defaultBlobStoreConcurrency(settings);
     }
+
+    static final int MAX_CONCURRENT_REQUESTS_UPPER_BOUND = 500;
 
     /**
      * The single external-read concurrency knob, per scheme, per node. It sizes both the per-scheme permit semaphore
@@ -174,9 +204,22 @@ public final class ExternalSourceSettings {
         "esql.external.max_concurrent_requests",
         s -> Integer.toString(defaultBlobStoreConcurrency(s)),
         0,
-        500,
+        MAX_CONCURRENT_REQUESTS_UPPER_BOUND,
         Setting.Property.NodeScope
     );
+
+    /**
+     * Effective per-scheme blob-store permit count for this node, whether a higher
+     * {@link #MAX_CONCURRENT_REQUESTS} value in the node's configuration would raise that count after a
+     * restart, and whether the parse-floor is the binding constraint: raw memory slots sit below
+     * {@link #BLOB_STORE_CONCURRENCY_FLOOR}, so the setting cannot raise the limit. Zero permits is
+     * unraisable because there is no timeout path.
+     */
+    record BlobStoreConcurrency(int permits, boolean settingCanRaiseLimit, boolean parseFloorBinds) {
+        BlobStoreConcurrency(int permits, boolean settingCanRaiseLimit) {
+            this(permits, settingCanRaiseLimit, false);
+        }
+    }
 
     /**
      * Upper bound on how many stream-only-compressed (gzip/zstd) segmentators may occupy the

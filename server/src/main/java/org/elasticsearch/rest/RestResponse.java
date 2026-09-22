@@ -281,10 +281,6 @@ public final class RestResponse implements Releasable {
      * The result of walking a cause chain: the throwable that ended it, and the deepest throwable on it that is scoped to an
      * index. These are usually different, because the failure that ended the chain is typically a plain exception carrying no
      * index while the shard it happened on is recorded further up.
-     *
-     * @param deepest      the last throwable on the chain, or the throwable itself when it has no cause
-     * @param indexScoped  the deepest throwable on the chain carrying an index, or {@code null} if the failure is not
-     *                     attributable to one
      */
     record CauseChain(Throwable deepest, @Nullable ElasticsearchException indexScoped) {}
 
@@ -365,8 +361,7 @@ public final class RestResponse implements Releasable {
 
         @Override
         public String getFormattedMessage() {
-            // NOTE: MapMessage renders every field here, which would change the console log line for every REST error; the JSON
-            // layouts ask for the JSON format through formatTo(String[], StringBuilder) instead and are unaffected
+            // NOTE: MapMessage renders every field here, which would change the console log line for every REST error
             return ParameterizedMessage.format(getMessagePattern(), getArguments());
         }
 

@@ -632,7 +632,6 @@ public class RestResponseTests extends ESTestCase {
         // NOTE: guessFirstRootCause returns on the first shard failure, so the remaining failures reach error.stack_trace only
         assertEquals(IllegalStateException.class.getName(), fields.get("elasticsearch.error.root_cause.type"));
         assertEquals("engine is closed", fields.get("elasticsearch.error.root_cause.message"));
-        // NOTE: the cause chain carries no index here, so both are read from the first ShardSearchFailure
         assertEquals("my-index", fields.get("elasticsearch.error.index"));
         assertEquals(0, fields.get("elasticsearch.error.shard"));
     }

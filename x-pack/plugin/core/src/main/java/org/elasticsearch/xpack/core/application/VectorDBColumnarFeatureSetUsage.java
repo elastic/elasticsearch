@@ -16,13 +16,18 @@ import org.elasticsearch.xpack.core.XPackField;
 import java.io.IOException;
 import java.util.Objects;
 
-public final class VectorDBDocumentFeatureSetUsage extends XPackFeatureUsage {
-    public static final TransportVersion VECTORDB_DOCUMENT_USAGE = TransportVersion.fromName("vectordb_document_usage");
+/**
+ * The {@code vectordb_columnar} section of the {@code _xpack/usage} response: how many indices use that index mode and
+ * how many documents they hold. Values are produced by
+ * {@link org.elasticsearch.xpack.core.action.VectorDBColumnarUsageTransportAction VectorDBColumnarUsageTransportAction}.
+ */
+public final class VectorDBColumnarFeatureSetUsage extends XPackFeatureUsage {
+    public static final TransportVersion VECTORDB_COLUMNAR_USAGE = TransportVersion.fromName("vectordb_columnar_usage");
 
     private final int indicesCount;
     private final long numDocs;
 
-    public VectorDBDocumentFeatureSetUsage(StreamInput input) throws IOException {
+    public VectorDBColumnarFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
         indicesCount = input.readVInt();
         numDocs = input.readVLong();
@@ -35,15 +40,23 @@ public final class VectorDBDocumentFeatureSetUsage extends XPackFeatureUsage {
         out.writeVLong(numDocs);
     }
 
-    public VectorDBDocumentFeatureSetUsage(boolean available, boolean enabled, int indicesCount, long numDocs) {
-        super(XPackField.VECTORDB_DOCUMENT, available, enabled);
+    public VectorDBColumnarFeatureSetUsage(boolean available, boolean enabled, int indicesCount, long numDocs) {
+        super(XPackField.VECTORDB_COLUMNAR, available, enabled);
         this.indicesCount = Math.max(0, indicesCount);
         this.numDocs = Math.max(0L, numDocs);
     }
 
+    public int indicesCount() {
+        return indicesCount;
+    }
+
+    public long numDocs() {
+        return numDocs;
+    }
+
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return VECTORDB_DOCUMENT_USAGE;
+        return VECTORDB_COLUMNAR_USAGE;
     }
 
     @Override
@@ -66,7 +79,7 @@ public final class VectorDBDocumentFeatureSetUsage extends XPackFeatureUsage {
         if (getClass() != obj.getClass()) {
             return false;
         }
-        VectorDBDocumentFeatureSetUsage other = (VectorDBDocumentFeatureSetUsage) obj;
+        VectorDBColumnarFeatureSetUsage other = (VectorDBColumnarFeatureSetUsage) obj;
         return Objects.equals(available, other.available)
             && Objects.equals(enabled, other.enabled)
             && Objects.equals(indicesCount, other.indicesCount)

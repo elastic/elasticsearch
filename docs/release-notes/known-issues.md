@@ -207,14 +207,17 @@ This issue will be fixed in a future patch release (see [PR #126990](https://git
 
   The [fix](https://github.com/elastic/elasticsearch/pull/127921) is included in 9.0.2. Upgrade to 9.0.4 or later.
 
-  If you cannot upgrade immediately, temporarily disable MGLRU on affected Ubuntu 24.04 hosts:
+  If you cannot upgrade immediately, temporarily turn off MGLRU on affected Ubuntu 24.04 hosts:
 
   ```bash
   sudo sh -c 'echo n > /sys/kernel/mm/lru_gen/enabled'
   ```
 
-  After you upgrade, re-enable MGLRU:
+  After you upgrade, turn on MGLRU:
 
   ```bash
   sudo sh -c 'echo y > /sys/kernel/mm/lru_gen/enabled'
   ```
+
+  Turning off MGLRU is only a temporary workaround.
+  Turn it on after you upgrade {{es}} because it provides memory management benefits for other workloads.

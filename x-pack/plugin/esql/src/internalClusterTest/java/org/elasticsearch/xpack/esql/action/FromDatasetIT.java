@@ -5113,9 +5113,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         List<String> sources = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
             String index = "fork_cap_idx" + i;
-            assertAcked(
-                client().admin().indices().prepareCreate(index).setMapping("emp_no", "type=integer", "first_name", "type=keyword")
-            );
+            assertAcked(client().admin().indices().prepareCreate(index).setMapping("emp_no", "type=integer", "first_name", "type=keyword"));
             prepareIndex(index).setSource(Map.of("emp_no", 1, "first_name", "Idx")).get();
             sources.add(index);
         }

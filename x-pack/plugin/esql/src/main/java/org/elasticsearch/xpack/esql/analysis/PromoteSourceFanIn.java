@@ -80,17 +80,18 @@ public final class PromoteSourceFanIn extends Rule<LogicalPlan, LogicalPlan> {
 
     private static boolean isPromotable(LogicalPlan plan) {
         LogicalPlan current = plan;
-        boolean sawPipeline = false;
+        // A Project may wrap a bare relation. Any other unary is promotable only over a fan-in.
+        boolean sawNonProjectUnary = false;
         while (isSourcePipelineUnary(current)) {
             if (current instanceof Project == false) {
-                sawPipeline = true;
+                sawNonProjectUnary = true;
             }
             current = ((UnaryPlan) current).child();
         }
         if (current instanceof SourceFanInUnionAll) {
             return true;
         }
-        if (sawPipeline) {
+        if (sawNonProjectUnary) {
             return false;
         }
         return current instanceof ExternalRelation || current instanceof EsRelation;

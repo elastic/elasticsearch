@@ -392,9 +392,9 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         withExclusiveFileLock(wrapperSeedLock, () -> {
             File sourceWrapperDistributionDir = new File(sourceGradleUserHome, wrapperDistributionPath);
             File existingWrapperDistributionDir = new File(uniqueGradleUserHome, wrapperDistributionPath);
-            File wrapperDistributionSeedSource = isReadyWrapperDistribution(sourceWrapperDistributionDir)
-                ? sourceWrapperDistributionDir
-                : isReadyWrapperDistribution(existingWrapperDistributionDir) ? existingWrapperDistributionDir : null;
+            File wrapperDistributionSeedSource = isReadyWrapperDistribution(sourceWrapperDistributionDir) ? sourceWrapperDistributionDir
+                : isReadyWrapperDistribution(existingWrapperDistributionDir) ? existingWrapperDistributionDir
+                : null;
             File stagingGradleUserHome = new File(
                 uniqueGradleUserHome.getParentFile(),
                 uniqueGradleUserHome.getName() + ".tmp-" + UUID.randomUUID()

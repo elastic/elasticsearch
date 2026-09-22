@@ -72,8 +72,10 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.create("test-node"));
         final var clusterSettings = new ClusterSettings(
-            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build(),
-            Set.of(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING)
+            Settings.builder()
+                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+                .build(),
+            Set.of(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING)
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         throttlingRecoveryService = new ThrottlingRecoveryService(

@@ -10,25 +10,18 @@
 package org.elasticsearch.indices.recovery;
 
 public enum FailureStrategy {
-    RETRY(false, true),
-    ABORT(false, false),
-    FAIL_SILENT(false, false),
-    FAIL_SEND(true, false);
+    RETRY(false),
+    ABORT(false),
+    FAIL_SILENT(false),
+    FAIL_SEND(true);
 
     private final boolean notifyMaster;
-    private final boolean retryOnDataNode;
 
-    FailureStrategy(boolean notifyMaster, boolean retryOnDataNode) {
-        assert !retryOnDataNode || !notifyMaster : "Should never retry on data node AND notify master";
+    FailureStrategy(boolean notifyMaster) {
         this.notifyMaster = notifyMaster;
-        this.retryOnDataNode = retryOnDataNode;
     }
 
     public boolean notifyMaster() {
         return notifyMaster;
-    }
-
-    public boolean retryOnDataNode() {
-        return retryOnDataNode;
     }
 }

@@ -4023,6 +4023,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             return new BlockSourceReader.DenseVectorBlockLoader(
                 new DenseVectorSourceValueFetcher(
+                    name(),
                     blContext.sourcePaths(name()),
                     blContext.indexSettings().getIgnoredSourceFormat(),
                     element.elementType(),

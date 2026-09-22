@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.Strings.format;
 
@@ -34,6 +35,7 @@ import static org.elasticsearch.common.Strings.format;
 class DenseVectorSourceValueFetcher extends SourceValueFetcher {
     private static final Logger logger = LogManager.getLogger(DenseVectorSourceValueFetcher.class);
 
+    private final String fieldName;
     private final Set<String> sourcePaths;
     private final ElementType elementType;
     private final int dims;
@@ -47,6 +49,7 @@ class DenseVectorSourceValueFetcher extends SourceValueFetcher {
         VectorFormat format
     ) {
         this(
+            fieldName,
             context.isSourceEnabled() ? context.sourcePath(fieldName) : Set.of(),
             context.getIndexSettings().getIgnoredSourceFormat(),
             elementType,
@@ -56,6 +59,7 @@ class DenseVectorSourceValueFetcher extends SourceValueFetcher {
     }
 
     DenseVectorSourceValueFetcher(
+        String fieldName,
         Set<String> sourcePaths,
         IgnoredSourceFormat ignoredSourceFormat,
         ElementType elementType,
@@ -63,6 +67,7 @@ class DenseVectorSourceValueFetcher extends SourceValueFetcher {
         VectorFormat format
     ) {
         super(sourcePaths, null, ignoredSourceFormat);
+        this.fieldName = fieldName;
         this.sourcePaths = sourcePaths;
         this.elementType = elementType;
         this.dims = dims;
@@ -71,30 +76,64 @@ class DenseVectorSourceValueFetcher extends SourceValueFetcher {
 
     @Override
     public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) {
+        // A dense_vector holds exactly one vector, so only one value is returned. Additional values are
+        // only reachable when this field is the target of a copy_to; the value assigned directly to the
+        // field wins over a copied one, and the rest are reported as ignored.
         List<Object> values = null;
+        String winningPath = null;
+        Object winningValue = null;
         for (var path : sourcePaths) {
             Object sourceValue = source.extractValue(path, null);
             if (sourceValue == null) {
                 continue;
             }
+
+            if (values != null && path.equals(fieldName) == false) {
+                ignore(
+                    ignoredValues,
+                    sourceValue,
+                    path,
+                    new IllegalStateException("a dense_vector holds a single value and one has already been found"),
+                    true
+                );
+                continue;
+            }
+
             try {
-                if (values != null) {
-                    // A dense_vector holds exactly one vector, so the first value found wins. A further
-                    // value is only reachable when this field is the target of a copy_to.
-                    throw new IllegalStateException("a dense_vector holds a single vector and one has already been found");
-                }
-                values = switch (format) {
+                List<Object> parsed = switch (format) {
                     case ARRAY -> arrayValues(sourceValue);
                     case BINARY -> binaryValues(sourceValue);
                 };
+                if (values != null) {
+                    ignore(
+                        ignoredValues,
+                        winningValue,
+                        winningPath,
+                        new IllegalStateException("a dense_vector holds a single value and one has already been found"),
+                        true
+                    );
+                }
+                values = parsed;
+                winningPath = path;
+                winningValue = sourceValue;
             } catch (Exception e) {
                 // if parsing fails here then it would have failed at index time
                 // as well, meaning that we must be ignoring malformed values.
-                ignoredValues.add(sourceValue);
-                logger.debug(() -> format("ignoring dense vector value from source path [%s]", path), e);
+                ignore(ignoredValues, sourceValue, path, e, false);
             }
         }
         return values == null ? List.of() : values;
+    }
+
+    private static void ignore(List<Object> ignoredValues, Object value, String path, Exception reason, boolean logAsWarning) {
+        final Supplier<String> messageSupplier = () -> format("ignoring dense vector value from source path [%s]", path);
+
+        ignoredValues.add(value);
+        if (logAsWarning) {
+            logger.warn(messageSupplier, reason);
+        } else {
+            logger.debug(messageSupplier, reason);
+        }
     }
 
     /**

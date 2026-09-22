@@ -31,6 +31,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -471,6 +472,219 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(service.currentQueueSize(), equalTo(0));
     }
 
+    public void testDecreasingMaxConcurrentRecoveriesDefersQueueWithoutCancellingRunningTasks() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var clusterService = newClusterService(3);
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
+        final var started = new AtomicInteger();
+        final var done = new AtomicInteger();
+
+        // Delay completion until we explicitly trigger time jump
+        final long initialTime = taskQueue.getCurrentTimeMillis();
+        AtomicInteger ordinal = new AtomicInteger(0);
+        for (int i = 0; i < 6; i++) {
+            service.enqueue(
+                ProjectId.DEFAULT,
+                onRecoveryDoneListener(done::incrementAndGet),
+                mockIndexShard(newRecoveryState(), UUIDs.randomBase64UUID(), stats),
+                newIndexMetadata(),
+                schedulingListener -> {
+                    started.incrementAndGet();
+                    taskQueue.scheduleAt(
+                        initialTime + 100 + ordinal.getAndIncrement(),
+                        () -> schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+                    );
+                }
+            );
+        }
+
+        taskQueue.runAllRunnableTasks();
+        assertThat(started.get(), equalTo(3));
+        assertThat(done.get(), equalTo(0));
+
+        // Lower limit to 1
+        clusterService.getClusterSettings()
+            .applySettings(Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1).build());
+
+        // Complete one task, should not start more (still have 2 running)
+        taskQueue.advanceTime();
+        taskQueue.runAllRunnableTasks();
+        assertThat(started.get(), equalTo(3));
+        assertThat(done.get(), equalTo(1));
+
+        // Complete second, should not start more (still have 1 running)
+        taskQueue.advanceTime();
+        taskQueue.runAllRunnableTasks();
+        assertThat(started.get(), equalTo(3));
+        assertThat(done.get(), equalTo(2));
+
+        // Complete third, now we're at 0 running, so should start the 4th
+        taskQueue.advanceTime();
+        taskQueue.runAllRunnableTasks();
+        assertThat(started.get(), equalTo(4));
+        assertThat(done.get(), equalTo(3));
+
+        // Complete remaining
+        taskQueue.runAllTasks();
+        assertThat(started.get(), equalTo(6));
+        assertThat(done.get(), equalTo(6));
+        assertThat(service.currentQueueSize(), equalTo(0));
+    }
+
+    public void testHeapBasedLimitRejectsZero() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.get(
+                Settings.builder()
+                    .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 0.0)
+                    .build()
+            )
+        );
+    }
+
+    public void testHeapBasedLimitThrottlesRecoveries() {
+        final var taskQueue = new DeterministicTaskQueue();
+        // 2 GB heap, ratio 1.5 -> ceil(2 * 1.5) = 3 concurrent recoveries
+        final var heapBytes = ByteSizeValue.ofGb(2);
+        final var clusterService = newClusterServiceWithHeapSetting(
+            Settings.builder()
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
+                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 1.5)
+                .build()
+        );
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
+            clusterService,
+            RecoverySchedulingListener.NOOP,
+            monitorWithNoGates(taskQueue.getThreadPool()),
+            heapBytes
+        );
+        service.start();
+        final var started = new AtomicInteger();
+
+        for (int i = 0; i < 6; i++) {
+            service.enqueue(
+                ProjectId.DEFAULT,
+                noopRecoveryListener(),
+                mockIndexShard(newRecoveryState(), UUIDs.randomBase64UUID(), stats),
+                newIndexMetadata(),
+                listener -> {
+                    started.incrementAndGet();
+                    taskQueue.scheduleAt(
+                        taskQueue.getCurrentTimeMillis() + 100,
+                        () -> listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+                    );
+                }
+            );
+        }
+
+        taskQueue.runAllRunnableTasks();
+        assertThat("heap-based limit: ceil(2GB * 1.5) should only allow 3 slots", started.get(), equalTo(3));
+        taskQueue.runAllTasks();
+        assertThat(started.get(), equalTo(6));
+        service.close();
+    }
+
+    public void testHeapBasedLimitDeferredToMaxConcurrentLimit() {
+        final var taskQueue = new DeterministicTaskQueue();
+        // 2 GB heap, ratio 10 -> heap-based ceiling = 20, but max_concurrent_incoming_recoveries=3 wins
+        final var heapBytes = ByteSizeValue.ofGb(2);
+        final var clusterService = newClusterServiceWithHeapSetting(
+            Settings.builder()
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 3)
+                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 10.0)
+                .build()
+        );
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
+            clusterService,
+            RecoverySchedulingListener.NOOP,
+            monitorWithNoGates(taskQueue.getThreadPool()),
+            heapBytes
+        );
+        service.start();
+        final var started = new AtomicInteger();
+
+        for (int i = 0; i < 6; i++) {
+            service.enqueue(
+                ProjectId.DEFAULT,
+                noopRecoveryListener(),
+                mockIndexShard(newRecoveryState(), UUIDs.randomBase64UUID(), stats),
+                newIndexMetadata(),
+                listener -> {
+                    started.incrementAndGet();
+                    taskQueue.scheduleAt(
+                        taskQueue.getCurrentTimeMillis() + 100,
+                        () -> listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+                    );
+                }
+            );
+        }
+
+        taskQueue.runAllRunnableTasks();
+        assertThat("max_concurrent_incoming_recoveries=3 should only allow 3 recoveries", started.get(), equalTo(3));
+        taskQueue.runAllTasks();
+        assertThat(started.get(), equalTo(6));
+        service.close();
+    }
+
+    public void testIncreasingHeapBasedLimitStartsPendingTasks() {
+        final var taskQueue = new DeterministicTaskQueue();
+        // 2 GB heap, ratio 0.5 -> ceil(2 * 0.5) = 1 concurrent recovery initially
+        final var heapBytes = ByteSizeValue.ofGb(2);
+        final var clusterService = newClusterServiceWithHeapSetting(
+            Settings.builder()
+                .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
+                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 0.5)
+                .build()
+        );
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
+            clusterService,
+            RecoverySchedulingListener.NOOP,
+            monitorWithNoGates(taskQueue.getThreadPool()),
+            heapBytes
+        );
+        service.start();
+        final var started = new AtomicInteger();
+
+        for (int i = 0; i < 6; i++) {
+            service.enqueue(
+                ProjectId.DEFAULT,
+                new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED),
+                mockIndexShard(newRecoveryState(), UUIDs.randomBase64UUID(), stats),
+                newIndexMetadata(),
+                listener -> {
+                    started.incrementAndGet();
+                    taskQueue.scheduleAt(
+                        taskQueue.getCurrentTimeMillis() + 100,
+                        () -> listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+                    );
+                }
+            );
+        }
+
+        taskQueue.runAllRunnableTasks();
+        assertThat("heap-based limit: ceil(2GB * 0.5) should only allow 1 slot", started.get(), equalTo(1));
+
+        // Increase ratio so effective limit becomes ceil(2 * 2.0) = 4
+        clusterService.getClusterSettings()
+            .applySettings(
+                Settings.builder()
+                    .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 2.0)
+                    .build()
+            );
+        taskQueue.runAllRunnableTasks();
+        assertThat(started.get(), equalTo(4));
+        taskQueue.runAllTasks();
+        assertThat(started.get(), equalTo(6));
+        assertThat(service.currentQueueSize(), equalTo(0));
+        service.close();
+    }
+
     public void testRelocationRecoveriesMaxProportionRejectsZero() {
         for (final var zeroValue : List.of("0", "0%")) {
             expectThrows(
@@ -593,65 +807,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(runningRecoveries.size(), equalTo(1));
         runningRecoveries.forEach(listener -> listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY));
         taskQueue.runAllRunnableTasks();
-        assertThat(service.currentQueueSize(), equalTo(0));
-    }
-
-    public void testDecreasingMaxConcurrentRecoveriesDefersQueueWithoutCancellingRunningTasks() {
-        final var taskQueue = new DeterministicTaskQueue();
-        final var clusterService = newClusterService(3);
-        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
-        final var started = new AtomicInteger();
-        final var done = new AtomicInteger();
-
-        // Delay completion until we explicitly trigger time jump
-        final long initialTime = taskQueue.getCurrentTimeMillis();
-        AtomicInteger ordinal = new AtomicInteger(0);
-        for (int i = 0; i < 6; i++) {
-            service.enqueue(
-                ProjectId.DEFAULT,
-                onRecoveryDoneListener(done::incrementAndGet),
-                mockIndexShard(newRecoveryState(), UUIDs.randomBase64UUID(), stats),
-                newIndexMetadata(),
-                schedulingListener -> {
-                    started.incrementAndGet();
-                    taskQueue.scheduleAt(
-                        initialTime + 100 + ordinal.getAndIncrement(),
-                        () -> schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
-                    );
-                }
-            );
-        }
-
-        taskQueue.runAllRunnableTasks();
-        assertThat(started.get(), equalTo(3));
-        assertThat(done.get(), equalTo(0));
-
-        // Lower limit to 1
-        clusterService.getClusterSettings()
-            .applySettings(Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1).build());
-
-        // Complete one task, should not start more (still have 2 running)
-        taskQueue.advanceTime();
-        taskQueue.runAllRunnableTasks();
-        assertThat(started.get(), equalTo(3));
-        assertThat(done.get(), equalTo(1));
-
-        // Complete second, should not start more (still have 1 running)
-        taskQueue.advanceTime();
-        taskQueue.runAllRunnableTasks();
-        assertThat(started.get(), equalTo(3));
-        assertThat(done.get(), equalTo(2));
-
-        // Complete third, now we're at 0 running, so should start the 4th
-        taskQueue.advanceTime();
-        taskQueue.runAllRunnableTasks();
-        assertThat(started.get(), equalTo(4));
-        assertThat(done.get(), equalTo(3));
-
-        // Complete remaining
-        taskQueue.runAllTasks();
-        assertThat(started.get(), equalTo(6));
-        assertThat(done.get(), equalTo(6));
         assertThat(service.currentQueueSize(), equalTo(0));
     }
 
@@ -1428,7 +1583,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             DefaultProjectResolver.INSTANCE,
             newClusterService(Integer.MAX_VALUE), // plenty of slots, so only the gate can hold recoveries back
             RecoverySchedulingListener.NOOP,
-            new RecoveryGateMonitor(() -> List.of(gate), taskQueue.getThreadPool(), clusterSettingsWithGatesEnabled())
+            new RecoveryGateMonitor(() -> List.of(gate), taskQueue.getThreadPool(), clusterSettingsWithGatesEnabled()),
+            ByteSizeValue.ofBytes(Long.MAX_VALUE)
         );
         service.start();
 
@@ -1494,7 +1650,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             DefaultProjectResolver.INSTANCE,
             newClusterService(Integer.MAX_VALUE),
             RecoverySchedulingListener.NOOP,
-            monitorWithNoGates(taskQueue.getThreadPool())
+            monitorWithNoGates(taskQueue.getThreadPool()),
+            ByteSizeValue.ofBytes(Long.MAX_VALUE)
         );
         service.start();
         final var started = new AtomicInteger();
@@ -1549,7 +1706,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             DefaultProjectResolver.INSTANCE,
             newClusterService(Integer.MAX_VALUE), // plenty of slots, so only the gate can hold recoveries back
             listener,
-            recoveryGateMonitor
+            recoveryGateMonitor,
+            ByteSizeValue.ofBytes(Long.MAX_VALUE)
         );
         service.start();
 
@@ -1617,7 +1775,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             DefaultProjectResolver.INSTANCE,
             newClusterService(Integer.MAX_VALUE), // plenty of slots, so only the gate can hold recoveries back
             listener,
-            new RecoveryGateMonitor(() -> List.of(gate), taskQueue.getThreadPool(), clusterSettings)
+            new RecoveryGateMonitor(() -> List.of(gate), taskQueue.getThreadPool(), clusterSettings),
+            ByteSizeValue.ofBytes(Long.MAX_VALUE)
         );
         service.start();
 
@@ -1667,7 +1826,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             DefaultProjectResolver.INSTANCE,
             newClusterService(randomBoolean() ? Integer.MAX_VALUE : between(1, 5)),
             RecoverySchedulingListener.NOOP,
-            new RecoveryGateMonitor(() -> List.of(gate), threadPool, clusterSettingsWithGatesEnabled())
+            new RecoveryGateMonitor(() -> List.of(gate), threadPool, clusterSettingsWithGatesEnabled()),
+            ByteSizeValue.ofBytes(Long.MAX_VALUE)
         );
         service.start();
 
@@ -1737,6 +1897,21 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         return clusterService;
     }
 
+    private static ClusterService newClusterServiceWithHeapSetting(Settings settings) {
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            Set.of(
+                INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING,
+                INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING,
+                ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING
+            )
+        );
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        when(clusterService.localNode()).thenReturn(localNode);
+        return clusterService;
+    }
+
     private static ThrottlingRecoveryService newStartedService(
         ThreadPool threadPool,
         ProjectResolver projectResolver,
@@ -1747,7 +1922,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             projectResolver,
             clusterService,
             RecoverySchedulingListener.NOOP,
-            monitorWithNoGates(threadPool)
+            monitorWithNoGates(threadPool),
+            ByteSizeValue.ofBytes(Long.MAX_VALUE)
         );
         service.start();
         return service;

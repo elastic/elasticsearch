@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -70,6 +71,12 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     /// Controls the max number of concurrent recoveries allowed on this data node. Excludes peer recoveries for which this
     /// node is the source, see [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING].
     /// Includes both recoveries of unassigned shards and relocations.
+    ///
+    /// Note that the effective max concurrent recoveries also takes into account the below heap setting throttle
+    /// [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING]. The effective max concurrent recoveries
+    /// is then `min(max_concurrent_incoming_recoveries, ceil(heapGb * max_concurrent_incoming_recoveries_per_heap_gb))`.
+    /// See [RecoveriesThrottle].
+    ///
     /// See also [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING] which imposes an additional
     /// throttle on relocations only.
     ///
@@ -82,10 +89,33 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         Setting.Property.NodeScope
     );
 
-    /// Controls the max proportion of [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING] that may be used for
-    /// relocation recoveries. Accepts values like `0.5` or `"50%"`. Must be strictly positive: 0 is disallowed (consistent
-    /// with the minimum of 1 on [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING]).
-    /// The effective limit is `ceil(max_concurrent_incoming_recoveries * proportion)`.
+    /// Controls the heap-based limit on concurrent incoming recoveries. Excludes peer recoveries for which this
+    /// node is the source, see [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING].
+    /// Includes both recoveries of unassigned shards and relocations. Must be strictly positive: 0 is disallowed
+    /// (consistent with the minimum of the other recovery throttle settings in [ThrottlingRecoveryService]).
+    ///
+    /// Note that the effective max concurrent recoveries also takes into account the above static throttle
+    /// [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING]. The effective max concurrent recoveries
+    /// is then `min(max_concurrent_incoming_recoveries, ceil(heapGb * max_concurrent_incoming_recoveries_per_heap_gb))`.
+    /// See [RecoveriesThrottle].
+    ///
+    /// See also [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING] which imposes an additional
+    /// throttle on relocations only.
+    ///
+    public static final Setting<Double> INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING = Setting.doubleSetting(
+        "indices.recovery.max_concurrent_incoming_recoveries_per_heap_gb",
+        Double.MAX_VALUE,
+        Double.MIN_VALUE,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /// Controls the max proportion of the max allowed concurrent recoveries count that may be used for relocation recoveries.
+    /// The max allowed concurrent recovery count is derived from [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING]
+    /// and [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING]. See [RecoveriesThrottle].
+    ///
+    /// Accepts values like `0.5` or `"50%"`. Must be strictly positive: 0 is disallowed (consistent with the minimum of
+    /// the other recovery throttle settings in [ThrottlingRecoveryService]).
     ///
     public static final Setting<RatioValue> INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING = Setting.ratioSetting(
         "indices.recovery.incoming_recoveries_max_relocation_proportion",
@@ -105,7 +135,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     private final RecoveryGateMonitor recoveryGateMonitor;
     private final AtomicReference<BlockedState> blockedState = new AtomicReference<>();
 
-    private final RecoveriesThrottle recoveriesThrottle = new RecoveriesThrottle();
+    private final RecoveriesThrottle recoveriesThrottle;
 
     private static final Comparator<PendingRecovery> RECOVERY_ORDERING =
         // Order first by the recovery priority in the recovery state, then by using PriorityComparator on the index metadata:
@@ -124,7 +154,8 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         ProjectResolver projectResolver,
         ClusterService clusterService,
         RecoverySchedulingListener schedulingListener,
-        RecoveryGateMonitor recoveryGateMonitor
+        RecoveryGateMonitor recoveryGateMonitor,
+        ByteSizeValue maxHeapBytes
     ) {
         this.executor = threadPool.generic();
         this.threadContext = threadPool.getThreadContext();
@@ -133,6 +164,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         this.schedulingListener = schedulingListener;
         this.clusterService = clusterService;
         this.recoveryGateMonitor = recoveryGateMonitor;
+        this.recoveriesThrottle = new RecoveriesThrottle(maxHeapBytes);
     }
 
     @Override
@@ -144,6 +176,11 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             .initializeAndWatchIfRegistered(
                 INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING,
                 this::setRelocationRecoveriesMaxProportion
+            );
+        clusterService.getClusterSettings()
+            .initializeAndWatchIfRegistered(
+                INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING,
+                this::setMaxConcurrentIncomingRecoveriesPerHeapGb
             );
     }
 
@@ -497,21 +534,22 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     }
 
     private void setMaxConcurrentRecoveries(int newMax) {
-        final int previousLimit;
-        synchronized (this) {
-            previousLimit = recoveriesThrottle.maxConcurrentRecoveries;
-            recoveriesThrottle.maxConcurrentRecoveries = newMax;
-        }
-        if (previousLimit < newMax && lifecycle.started() /* calls before start can (must) be ignored */) {
+        recoveriesThrottle.setMaxConcurrentRecoveries(newMax);
+        if (lifecycle.started() /* calls before start can (must) be ignored */) {
             fillSlots();
         }
     }
 
     private void setRelocationRecoveriesMaxProportion(RatioValue newProportion) {
-        synchronized (this) {
-            recoveriesThrottle.relocationRecoveriesMaxProportion = newProportion.getAsRatio();
-        }
+        recoveriesThrottle.setRelocationRecoveriesMaxProportion(newProportion.getAsRatio());
         if (lifecycle.started()) {
+            fillSlots();
+        }
+    }
+
+    private void setMaxConcurrentIncomingRecoveriesPerHeapGb(double newRatio) {
+        recoveriesThrottle.setMaxConcurrentIncomingRecoveriesPerHeapGb(newRatio);
+        if (lifecycle.started() /* calls before start can (must) be ignored */) {
             fillSlots();
         }
     }
@@ -572,23 +610,60 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     }
 
     /// Helper class which manages throttling the number of running recoveries.
+    /// Not thread-safe. All access must be performed while holding the enclosing [ThrottlingRecoveryService] instance lock.
     private static class RecoveriesThrottle {
 
+        /// The node's max heap, used for the heap-based effective limit.
+        private final ByteSizeValue maxHeapBytes;
         /// The maximum number of concurrent recoveries on this node (excluding peer recoveries for which this node is the source).
         /// See [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING].
         private int maxConcurrentRecoveries;
-        /// The maximum proportion of maxConcurrentRecoveries slots that may be used for relocation recoveries.
+        /// The maximum proportion of [#maxConcurrentRecoveries] slots that may be used for relocation recoveries.
         /// See [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING].
         private double relocationRecoveriesMaxProportion;
-        /// The number of concurrent recoveries currently running, including recoveries from unassigned + relocations.
+        /// The heap-scaled ratio: `ceil(heapGb * ratio)` forms the heap-based limit. Combined with [#maxConcurrentRecoveries]
+        /// via `min(...)` to yield [#effectiveMaxConcurrentRecoveries].
+        /// See [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING].
+        private double maxConcurrentRecoveriesPerHeapGb = Double.MAX_VALUE;
+        /// The number of concurrent recoveries currently running, including recoveries from unassigned + relocations. Must
+        /// not exceed [#effectiveMaxConcurrentRecoveries].
         private int runningRecoveries = 0;
         /// The number of concurrent relocation recoveries currently running.
         private int runningRelocationRecoveries = 0;
 
-        /// Returns the effective max concurrent relocation recoveries, derived from [#maxConcurrentRecoveries] and
-        /// [#relocationRecoveriesMaxProportion].
-        int effectiveMaxConcurrentRelocationRecoveries() {
-            return (int) Math.ceil(maxConcurrentRecoveries * relocationRecoveriesMaxProportion);
+        RecoveriesThrottle(ByteSizeValue maxHeapBytes) {
+            this.maxHeapBytes = maxHeapBytes;
+        }
+
+        /// Sets [#maxConcurrentRecoveries] and recomputes [#effectiveMaxConcurrentRecoveries].
+        void setMaxConcurrentRecoveries(int newMax) {
+            maxConcurrentRecoveries = newMax;
+        }
+
+        /// Sets [#relocationRecoveriesMaxProportion].
+        void setRelocationRecoveriesMaxProportion(double newProportion) {
+            relocationRecoveriesMaxProportion = newProportion;
+        }
+
+        /// Sets [#maxConcurrentRecoveriesPerHeapGb] and recomputes [#effectiveMaxConcurrentRecoveries].
+        void setMaxConcurrentIncomingRecoveriesPerHeapGb(double newRatio) {
+            maxConcurrentRecoveriesPerHeapGb = newRatio;
+        }
+
+        /// Returns the effective max concurrent relocation recoveries, derived from the provided effectiveMaxConcurrentRecoveries
+        /// and [#relocationRecoveriesMaxProportion].
+        int effectiveMaxConcurrentRelocationRecoveries(int effectiveMaxConcurrentRecoveries) {
+            return (int) Math.ceil(effectiveMaxConcurrentRecoveries * relocationRecoveriesMaxProportion);
+        }
+
+        /// Computes the effective max concurrent recoveries, derived from [#maxConcurrentRecoveries] and
+        /// [#maxConcurrentRecoveriesPerHeapGb].
+        private int effectiveMaxConcurrentRecoveries() {
+            if (maxConcurrentRecoveriesPerHeapGb >= Double.MAX_VALUE || maxHeapBytes.getBytes() <= 0) {
+                return maxConcurrentRecoveries;
+            }
+            int heapBasedMax = (int) Math.ceil(maxHeapBytes.getGbFrac() * maxConcurrentRecoveriesPerHeapGb);
+            return Math.min(maxConcurrentRecoveries, heapBasedMax);
         }
 
         void incrementRunning(PendingRecovery recoveryNowRunning) {
@@ -608,8 +683,10 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         }
 
         boolean shouldStartNextPendingRecovery(PendingRecovery nextPendingRecovery) {
-            return runningRecoveries < maxConcurrentRecoveries
-                && (nextPendingRecovery.isUnassigned() || (runningRelocationRecoveries < effectiveMaxConcurrentRelocationRecoveries()));
+            final int maxRecoveries = effectiveMaxConcurrentRecoveries();
+            return runningRecoveries < maxRecoveries
+                && (nextPendingRecovery.isUnassigned()
+                    || (runningRelocationRecoveries < effectiveMaxConcurrentRelocationRecoveries(maxRecoveries)));
         }
     }
 

@@ -94,6 +94,16 @@ public class EncryptedDataHandlerProviderSpiIT extends ESRestTestCase {
     }
 
     /**
+     * Registers the shared fs snapshot repository. Idempotent: safe to call from multiple tests because
+     * {@code preserveClusterUponCompletion} keeps the repo registered across tests.
+     */
+    private void ensureRepo() throws Exception {
+        var putRepo = new Request("PUT", "/_snapshot/test-repo");
+        putRepo.setJsonEntity("{\"type\":\"fs\",\"settings\":{\"location\":\"" + repoDirectory.getRoot().getPath() + "\"}}");
+        assertOK(client().performRequest(putRepo));
+    }
+
+    /**
      * Verifies that the snapshot Warning header is emitted when the cluster has encrypted data in project state.
      * The test handler's reEncrypt seeds a TestEncryptedBlob on the first rotation, so the Warning fires once the
      * coordinator has run at least once.
@@ -105,11 +115,9 @@ public class EncryptedDataHandlerProviderSpiIT extends ESRestTestCase {
             assertThat(assertOKAndCreateObjectPath(response).<Integer>evaluate("invocations"), greaterThan(0));
         }, 30, TimeUnit.SECONDS);
 
-        var putRepo = new Request("PUT", "/_snapshot/test-repo");
-        putRepo.setJsonEntity("{\"type\":\"fs\",\"settings\":{\"location\":\"" + repoDirectory.getRoot().getPath() + "\"}}");
-        assertOK(client().performRequest(putRepo));
+        ensureRepo();
 
-        var snapshotRequest = new Request("PUT", "/_snapshot/test-repo/snap");
+        var snapshotRequest = new Request("PUT", "/_snapshot/test-repo/snap-with-global-state");
         snapshotRequest.addParameter("wait_for_completion", "true");
         snapshotRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> false).build());
         var response = client().performRequest(snapshotRequest);
@@ -119,7 +127,7 @@ public class EncryptedDataHandlerProviderSpiIT extends ESRestTestCase {
             .map(Header::getValue)
             .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
             .toList();
-        assertThat(warningValues, hasItem(containsString("Encrypted data source credentials")));
+        assertThat(warningValues, hasItem(containsString("Encrypted credentials")));
     }
 
     public void testNoSnapshotWarningWhenIncludeGlobalStateFalse() throws Exception {
@@ -128,11 +136,9 @@ public class EncryptedDataHandlerProviderSpiIT extends ESRestTestCase {
             assertThat(assertOKAndCreateObjectPath(response).<Integer>evaluate("invocations"), greaterThan(0));
         }, 30, TimeUnit.SECONDS);
 
-        var putRepo = new Request("PUT", "/_snapshot/test-repo-no-global-state");
-        putRepo.setJsonEntity("{\"type\":\"fs\",\"settings\":{\"location\":\"" + repoDirectory.getRoot().getPath() + "\"}}");
-        assertOK(client().performRequest(putRepo));
+        ensureRepo();
 
-        var snapshotRequest = new Request("PUT", "/_snapshot/test-repo-no-global-state/snap");
+        var snapshotRequest = new Request("PUT", "/_snapshot/test-repo/snap-no-global-state");
         snapshotRequest.addParameter("wait_for_completion", "true");
         snapshotRequest.setJsonEntity("{\"include_global_state\":false}");
         var response = client().performRequest(snapshotRequest);
@@ -142,6 +148,6 @@ public class EncryptedDataHandlerProviderSpiIT extends ESRestTestCase {
             .map(Header::getValue)
             .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
             .toList();
-        assertThat(warningValues, not(hasItem(containsString("Encrypted data source credentials"))));
+        assertThat(warningValues, not(hasItem(containsString("Encrypted credentials"))));
     }
 }

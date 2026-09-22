@@ -64,6 +64,7 @@ public final class XPackUsageFeatureAction {
     public static final ActionType<XPackUsageFeatureResponse> ENTERPRISE_SEARCH = xpackUsageFeatureAction(XPackField.ENTERPRISE_SEARCH);
     public static final ActionType<XPackUsageFeatureResponse> UNIVERSAL_PROFILING = xpackUsageFeatureAction(XPackField.UNIVERSAL_PROFILING);
     public static final ActionType<XPackUsageFeatureResponse> LOGSDB = xpackUsageFeatureAction(XPackField.LOGSDB);
+    public static final ActionType<XPackUsageFeatureResponse> LOGSDB_COLUMNAR = xpackUsageFeatureAction(XPackField.LOGSDB_COLUMNAR);
     public static final ActionType<XPackUsageFeatureResponse> GPU_VECTOR_INDEXING = xpackUsageFeatureAction(XPackField.GPU_VECTOR_INDEXING);
     public static final ActionType<XPackUsageFeatureResponse> LOGGING = xpackUsageFeatureAction(XPackField.LOGGING);
     public static final ActionType<XPackUsageFeatureResponse> VECTORDB_DOCUMENT = xpackUsageFeatureAction(XPackField.VECTORDB_DOCUMENT);
@@ -98,6 +99,7 @@ public final class XPackUsageFeatureAction {
         ENTERPRISE_SEARCH,
         UNIVERSAL_PROFILING,
         LOGSDB,
+        LOGSDB_COLUMNAR,
         TIME_SERIES_DATA_STREAMS,
         GPU_VECTOR_INDEXING,
         LOGGING,

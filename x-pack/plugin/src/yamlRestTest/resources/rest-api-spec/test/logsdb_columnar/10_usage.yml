@@ -1,0 +1,235 @@
+---
+"logsdb_columnar usage":
+  - requires:
+      cluster_features: ["logsdb_columnar.usage"]
+      reason: "logsdb_columnar usage tracking requires the logsdb_columnar.usage feature"
+
+  - do: {xpack.usage: {}}
+  - match: { logsdb_columnar.available: true }
+  - match: { logsdb_columnar.enabled: false }
+  - match: { logsdb_columnar.indices_count: 0 }
+  - match: { logsdb_columnar.indices_with_synthetic_source: 0 }
+  - match: { logsdb_columnar.num_docs: 0 }
+  - match: { logsdb_columnar.size_in_bytes: 0 }
+  - match: { logsdb_columnar.data_streams_count: 0 }
+  - match: { logsdb_columnar.data_streams_managed_by_ilm: 0 }
+  - match: { logsdb_columnar.data_streams_managed_by_dlm: 0 }
+
+  - do:
+      indices.create:
+        index: test1
+        body:
+          settings:
+            index:
+              mode: logsdb_columnar
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+  - do:
+      bulk:
+        index: test1
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:30:00Z", "host.name": "foo" }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:31:00Z", "host.name": "bar" }
+
+  - do: {xpack.usage: {}}
+  - match: { logsdb_columnar.available: true }
+  - match: { logsdb_columnar.enabled: false }
+  - match: { logsdb_columnar.indices_count: 1 }
+  - match: { logsdb_columnar.indices_with_synthetic_source: 1 }
+  - match: { logsdb_columnar.num_docs: 2 }
+  - gt:    { logsdb_columnar.size_in_bytes: 0 }
+
+  # A plain standard-mode index must not affect logsdb_columnar counters
+  - do:
+      indices.create:
+        index: test_standard
+  - do:
+      bulk:
+        index: test_standard
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:32:00Z", "host.name": "baz" }
+
+  - do: {xpack.usage: {}}
+  - match: { logsdb_columnar.indices_count: 1 }
+  - match: { logsdb_columnar.num_docs: 2 }
+
+  # A logsdb index must not affect logsdb_columnar counters, and vice versa
+  - do:
+      indices.create:
+        index: test_logsdb
+        body:
+          settings:
+            index:
+              mode: logsdb
+  - do:
+      bulk:
+        index: test_logsdb
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:33:00Z", "host.name": "qux" }
+
+  - do: {xpack.usage: {}}
+  - match: { logsdb_columnar.indices_count: 1 }
+  - match: { logsdb_columnar.num_docs: 2 }
+  - match: { logsdb.indices_count: 1 }
+
+  # A logsdb_columnar index with columnar_stored source mode counts against indices_count
+  # but not indices_with_synthetic_source
+  - do:
+      indices.create:
+        index: test2
+        body:
+          settings:
+            index:
+              mode: logsdb_columnar
+              mapping.source.mode: columnar_stored
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+  - do:
+      bulk:
+        index: test2
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:34:00Z", "host.name": "foobar" }
+
+  - do: {xpack.usage: {}}
+  - match: { logsdb_columnar.indices_count: 2 }
+  - match: { logsdb_columnar.indices_with_synthetic_source: 1 }
+  - match: { logsdb_columnar.num_docs: 3 }
+  - gt:    { logsdb_columnar.size_in_bytes: 0 }
+
+  # Enabling cluster.logsdb_columnar.enabled must be reflected in the enabled flag
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster.logsdb_columnar.enabled: true
+
+  - do: {xpack.usage: {}}
+  - match: { logsdb_columnar.enabled: true }
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster.logsdb_columnar.enabled: null
+
+---
+"logsdb_columnar data stream lifecycle classification":
+  - requires:
+      cluster_features: ["logsdb_columnar.usage"]
+      reason: "logsdb_columnar usage tracking requires the logsdb_columnar.usage feature"
+      test_runner_features: allowed_warnings
+
+  # Create a DLM-managed logsdb_columnar data stream
+  - do:
+      allowed_warnings:
+        - "index template [columnar-dlm-template] has index patterns [columnar-dlm-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [columnar-dlm-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: columnar-dlm-template
+        body:
+          index_patterns: ["columnar-dlm-*"]
+          data_stream: {}
+          template:
+            settings:
+              index.mode: logsdb_columnar
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+            lifecycle:
+              data_retention: 10d
+
+  - do:
+      indices.create_data_stream:
+        name: columnar-dlm-stream
+
+  # Create an ILM-managed logsdb_columnar data stream
+  - do:
+      ilm.put_lifecycle:
+        policy: columnar-ilm-policy
+        body:
+          policy:
+            phases:
+              hot:
+                min_age: "0ms"
+                actions: {}
+
+  - do:
+      allowed_warnings:
+        - "index template [columnar-ilm-template] has index patterns [columnar-ilm-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [columnar-ilm-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: columnar-ilm-template
+        body:
+          index_patterns: ["columnar-ilm-*"]
+          data_stream: {}
+          template:
+            settings:
+              index.mode: logsdb_columnar
+              index.lifecycle.name: columnar-ilm-policy
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+
+  - do:
+      indices.create_data_stream:
+        name: columnar-ilm-stream
+
+  # Create an unmanaged logsdb_columnar data stream
+  - do:
+      allowed_warnings:
+        - "index template [columnar-unmanaged-template] has index patterns [columnar-unmanaged-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [columnar-unmanaged-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: columnar-unmanaged-template
+        body:
+          index_patterns: ["columnar-unmanaged-*"]
+          data_stream: {}
+          template:
+            settings:
+              index.mode: logsdb_columnar
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+
+  - do:
+      indices.create_data_stream:
+        name: columnar-unmanaged-stream
+
+  - do: {xpack.usage: {}}
+  - match: { logsdb_columnar.data_streams_count: 3 }
+  - match: { logsdb_columnar.data_streams_managed_by_ilm: 1 }
+  - match: { logsdb_columnar.data_streams_managed_by_dlm: 1 }
+  # Each data stream contributes one backing index to indices_count
+  - gte: { logsdb_columnar.indices_count: 3 }
+
+  - do:
+      indices.delete_data_stream:
+        name: columnar-dlm-stream
+  - do:
+      indices.delete_data_stream:
+        name: columnar-ilm-stream
+  - do:
+      indices.delete_data_stream:
+        name: columnar-unmanaged-stream
+
+  - do: {xpack.usage: {}}
+  - match: { logsdb_columnar.data_streams_count: 0 }
+  - match: { logsdb_columnar.data_streams_managed_by_ilm: 0 }
+  - match: { logsdb_columnar.data_streams_managed_by_dlm: 0 }

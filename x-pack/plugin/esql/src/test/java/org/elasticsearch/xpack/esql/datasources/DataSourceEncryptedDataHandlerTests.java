@@ -41,6 +41,16 @@ public class DataSourceEncryptedDataHandlerTests extends ESTestCase {
         assertEquals(DataSourceMetadata.TYPE, handler.customName());
     }
 
+    public void testHasDataReturnsFalseForNullAndEmpty() {
+        assertFalse(handler.hasData(null));
+        assertFalse(handler.hasData(DataSourceMetadata.EMPTY));
+    }
+
+    public void testHasDataReturnsTrueWhenDataSourcesPresent() {
+        DataSource ds = new DataSource("s3", "s3", null, Map.of());
+        assertTrue(handler.hasData(new DataSourceMetadata(Map.of("s3", ds))));
+    }
+
     public void testNullAndEmptyAreReturnedAsIs() {
         assertNull(handler.reEncrypt(null, SERVICE, ACTIVE_KEY));
         DataSourceMetadata empty = DataSourceMetadata.EMPTY;

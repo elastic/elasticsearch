@@ -22,6 +22,8 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.InferenceServiceFeatures;
+import org.elasticsearch.inference.configuration.NonStreamingChatFeature;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -225,6 +227,7 @@ public class Ai21Service extends SenderService<Ai21Model> {
                     .setName(SERVICE_NAME)
                     .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
+                    .setFeatures(InferenceServiceFeatures.of(NonStreamingChatFeature.SUPPORTED_INSTANCE))
                     .build();
             }
         );

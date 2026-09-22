@@ -152,4 +152,17 @@ public interface DataSourcePlugin {
     default Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
         return Map.of();
     }
+
+    /**
+     * Names of credential (secret) settings this plugin's data source type accepts on a PUT request.
+     * Used by the REST layer to filter these values from the security audit log body.
+     * <p>
+     * This method is called unconditionally at startup — do not gate it on feature flags. A plugin that
+     * is disabled at runtime may still have its type submitted in a request body, and SecurityRestFilter
+     * wraps the request (filtering the body) before the handler can reject an unknown type. Omitting names
+     * here when the plugin is disabled would leave those credential fields unfiltered.
+     */
+    default Set<String> datasourceSecretSettingNames() {
+        return Set.of();
+    }
 }

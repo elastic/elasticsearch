@@ -331,11 +331,10 @@ public class Aggregate extends UnaryPlan
     }
 
     private void checkMultipleScoreAggregations(Failures failures) {
-        Holder<Boolean> hasScoringAggs = new Holder<>();
         forEachExpression(FilteredExpression.class, fe -> {
             if (fe.delegate() instanceof AggregateFunction aggregateFunction) {
-                if (aggregateFunction.field() instanceof MetadataAttribute metadataAttribute) {
-                    if (MetadataAttribute.SCORE.equals(metadataAttribute.name())) {
+                for (Expression field : aggregateFunction.fields()) {
+                    if (field instanceof MetadataAttribute metadataAttribute && MetadataAttribute.SCORE.equals(metadataAttribute.name())) {
                         if (fe.filter().anyMatch(e -> e instanceof FullTextFunction)) {
                             failures.add(fail(fe, "cannot use _score aggregations with a WHERE filter in a STATS command"));
                         }
@@ -471,7 +470,7 @@ public class Aggregate extends UnaryPlan
                     failures.add(fail(f, "nested aggregations [{}] not allowed inside other aggregations [{}]", f, af));
                 }
             });
-            checkNested.accept(af.field());
+            af.fields().forEach(checkNested);
             af.parameters().forEach(checkNested);
         } else if (e instanceof GroupingFunction gf) {
             // optimizer will later unroll expressions with aggs and non-aggs with a grouping function into an EVAL, but that will no longer

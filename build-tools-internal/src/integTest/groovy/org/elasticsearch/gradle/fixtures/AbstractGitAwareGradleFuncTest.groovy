@@ -16,6 +16,13 @@ import org.apache.commons.io.FileUtils
 import org.gradle.testkit.runner.GradleRunner
 import org.gradle.util.GradleVersion
 
+import java.io.FileFilter
+import java.nio.channels.FileChannel
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.nio.file.StandardOpenOption
+import java.util.UUID
+
 abstract class AbstractGitAwareGradleFuncTest extends AbstractGradleInternalPluginFuncTest {
 
     private static final String WRAPPER_DISTS_RELATIVE_PATH = "wrapper/dists"
@@ -78,13 +85,52 @@ abstract class AbstractGitAwareGradleFuncTest extends AbstractGradleInternalPlug
         }
         String currentWrapperDistributionDirName = "gradle-${GradleVersion.current().version}-bin"
         File testKitWrapperDistributionDir = new File(testKitDirPath, WRAPPER_DISTS_RELATIVE_PATH + "/" + currentWrapperDistributionDirName)
-        if (testKitWrapperDistributionDir.exists()) {
+        if (isReadyWrapperDistribution(testKitWrapperDistributionDir)) {
             return
         }
         File gradleUserHome = resolveGradleUserHome()
         File localWrapperDistributionDir = new File(gradleUserHome, "${WRAPPER_DISTS_RELATIVE_PATH}/${currentWrapperDistributionDirName}")
-        if (localWrapperDistributionDir.exists()) {
-            FileUtils.copyDirectory(localWrapperDistributionDir, testKitWrapperDistributionDir)
+        if (isReadyWrapperDistribution(localWrapperDistributionDir) == false) {
+            return
+        }
+        File wrapperSeedLock = new File(testKitWrapperDistributionDir.parentFile, currentWrapperDistributionDirName + ".seed.lock")
+        withExclusiveFileLock(wrapperSeedLock) {
+            if (isReadyWrapperDistribution(testKitWrapperDistributionDir)) {
+                return
+            }
+            if (testKitWrapperDistributionDir.exists()) {
+                FileUtils.deleteDirectory(testKitWrapperDistributionDir)
+            }
+            File stagingDir = new File(testKitWrapperDistributionDir.parentFile, testKitWrapperDistributionDir.name + ".tmp-" + UUID.randomUUID())
+            FileUtils.deleteQuietly(stagingDir)
+            FileUtils.copyDirectory(localWrapperDistributionDir, stagingDir)
+            Files.move(stagingDir.toPath(), testKitWrapperDistributionDir.toPath(), StandardCopyOption.ATOMIC_MOVE)
+        }
+    }
+
+    private static boolean isReadyWrapperDistribution(File wrapperDistributionDir) {
+        if (wrapperDistributionDir.isDirectory() == false) {
+            return false
+        }
+        String extractedGradleDirName = wrapperDistributionDir.name.endsWith("-bin")
+            ? wrapperDistributionDir.name.substring(0, wrapperDistributionDir.name.length() - "-bin".length())
+            : wrapperDistributionDir.name
+        File[] hashDirs = wrapperDistributionDir.listFiles({ File file -> file.isDirectory() } as FileFilter)
+        if (hashDirs == null || hashDirs.length == 0) {
+            return false
+        }
+        return hashDirs.any { hashDir ->
+            new File(hashDir, wrapperDistributionDir.name + ".zip.ok").isFile()
+                && new File(hashDir, extractedGradleDirName + "/bin/gradle").isFile()
+        }
+    }
+
+    private static void withExclusiveFileLock(File lockFile, Closure<?> action) {
+        lockFile.parentFile.mkdirs()
+        try (FileChannel channel = FileChannel.open(lockFile.toPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE)) {
+            channel.lock().withCloseable {
+                action.call()
+            }
         }
     }
 

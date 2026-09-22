@@ -45,14 +45,19 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
@@ -224,20 +229,10 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             task.doLast(t -> {
                 File uniqueGradleUserHome = new File(gradleUserHome.getAbsolutePath() + "-" + projectName);
                 File wrapperDistributionDir = new File(uniqueGradleUserHome, wrapperDistributionPath);
-                if (wrapperDistributionDir.exists()) {
+                if (isReadyWrapperDistribution(wrapperDistributionDir)) {
                     return;
                 }
-                fileSystemOperations.copy(copy -> {
-                    copy.into(uniqueGradleUserHome);
-                    copy.from(gradleUserHome, copySpec -> {
-                        copySpec.include("gradle.properties");
-                        copySpec.include("init.d/*");
-                    });
-                });
-                fileSystemOperations.copy(copy -> {
-                    copy.into(new File(uniqueGradleUserHome, WRAPPER_DISTS_RELATIVE_PATH));
-                    copy.from(new File(gradleUserHome, wrapperDistributionPath));
-                });
+                seedUniqueGradleUserHome(fileSystemOperations, gradleUserHome, uniqueGradleUserHome, wrapperDistributionPath);
             });
         });
 
@@ -404,6 +399,79 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
     private static String currentWrapperDistributionDirName(Project project) {
         return "gradle-" + project.getGradle().getGradleVersion() + "-bin";
+    }
+
+    private static void seedUniqueGradleUserHome(
+        FileSystemOperations fileSystemOperations,
+        File sourceGradleUserHome,
+        File uniqueGradleUserHome,
+        String wrapperDistributionPath
+    ) {
+        File wrapperSeedLock = new File(uniqueGradleUserHome.getParentFile(), uniqueGradleUserHome.getName() + ".seed.lock");
+        withExclusiveFileLock(wrapperSeedLock, () -> {
+            File wrapperDistributionDir = new File(uniqueGradleUserHome, wrapperDistributionPath);
+            if (isReadyWrapperDistribution(wrapperDistributionDir)) {
+                return;
+            }
+            File stagingGradleUserHome = new File(
+                uniqueGradleUserHome.getParentFile(),
+                uniqueGradleUserHome.getName() + ".tmp-" + UUID.randomUUID()
+            );
+            fileSystemOperations.delete(delete -> delete.delete(stagingGradleUserHome));
+            fileSystemOperations.copy(copy -> {
+                copy.into(stagingGradleUserHome);
+                copy.from(sourceGradleUserHome, copySpec -> {
+                    copySpec.include("gradle.properties");
+                    copySpec.include("init.d/*");
+                });
+            });
+            File sourceWrapperDistributionDir = new File(sourceGradleUserHome, wrapperDistributionPath);
+            if (isReadyWrapperDistribution(sourceWrapperDistributionDir)) {
+                fileSystemOperations.copy(copy -> {
+                    copy.into(new File(stagingGradleUserHome, WRAPPER_DISTS_RELATIVE_PATH));
+                    copy.from(sourceWrapperDistributionDir);
+                });
+            }
+            if (uniqueGradleUserHome.exists()) {
+                fileSystemOperations.delete(delete -> delete.delete(uniqueGradleUserHome));
+            }
+            Files.move(stagingGradleUserHome.toPath(), uniqueGradleUserHome.toPath(), StandardCopyOption.ATOMIC_MOVE);
+        });
+    }
+
+    private static boolean isReadyWrapperDistribution(File wrapperDistributionDir) {
+        if (wrapperDistributionDir.isDirectory() == false) {
+            return false;
+        }
+        String distributionDirName = wrapperDistributionDir.getName();
+        String extractedGradleDirName = distributionDirName.endsWith("-bin")
+            ? distributionDirName.substring(0, distributionDirName.length() - "-bin".length())
+            : distributionDirName;
+        File[] hashDirs = wrapperDistributionDir.listFiles(File::isDirectory);
+        if (hashDirs == null || hashDirs.length == 0) {
+            return false;
+        }
+        for (File hashDir : hashDirs) {
+            if (new File(hashDir, distributionDirName + ".zip.ok").isFile() && new File(hashDir, extractedGradleDirName + "/bin/gradle").isFile()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void withExclusiveFileLock(File lockFile, CheckedRunnable action) {
+        lockFile.getParentFile().mkdirs();
+        try (FileChannel channel = FileChannel.open(lockFile.toPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+            FileLock ignored = channel.lock()) {
+            action.run();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to seed Gradle wrapper cache under " + lockFile.getParent(), e);
+        }
+    }
+
+    @FunctionalInterface
+    private interface CheckedRunnable {
+        void run() throws IOException;
     }
 
     private static List<DistributionProject> resolveArchiveProjects(File checkoutDir, Version bwcVersion) {

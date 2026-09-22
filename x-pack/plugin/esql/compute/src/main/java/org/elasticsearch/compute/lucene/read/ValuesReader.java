@@ -185,14 +185,8 @@ public abstract class ValuesReader implements ReleasableIterator<Block[]> {
                 sourceLoader != null ? sourceLoader.leaf(ctx, null) : null
             );
             if (false == storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
-                operator.trackStoredFields(storedFieldsSpec, usesSequentialStoredFieldsReader(docsInLeaf));
+                operator.trackStoredFields(storedFieldsSpec, StoredFieldLoader.shouldUseSequentialReader(docsInLeaf));
             }
-        }
-
-        private boolean usesSequentialStoredFieldsReader(int[] docsInLeaf) {
-            return docsInLeaf != null
-                && docsInLeaf.length > 10
-                && docsInLeaf[docsInLeaf.length - 1] - docsInLeaf[0] == docsInLeaf.length - 1;
         }
 
         void convertAndAccumulate() {

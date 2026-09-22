@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
@@ -64,11 +65,15 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.AbstractList;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -76,6 +81,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -121,6 +128,48 @@ import java.util.function.BooleanSupplier;
 public class FileSplitProvider implements SplitProvider {
 
     private static final Logger LOGGER = LogManager.getLogger(FileSplitProvider.class);
+
+    /**
+     * In-flight {@link FileTask} shells for this provider. One discovery runs at a time.
+     * Released when the planning slot completes. Test-only; not a liveness GC signal.
+     */
+    private final AtomicInteger liveFileTasks = new AtomicInteger();
+    private final AtomicInteger peakLiveFileTasks = new AtomicInteger();
+
+    /** Test hook. Resets the in-flight {@link FileTask} window counters. */
+    void resetLiveFileTasks() {
+        liveFileTasks.set(0);
+        peakLiveFileTasks.set(0);
+    }
+
+    /** Test hook. Highest simultaneous {@link FileTask} count since {@link #resetLiveFileTasks()}. */
+    int peakLiveFileTasks() {
+        return peakLiveFileTasks.get();
+    }
+
+    /** Test hook. {@link FileTask} shells whose planning slot has not completed. */
+    int liveFileTasks() {
+        return liveFileTasks.get();
+    }
+
+    /**
+     * Test hook. Concurrency argument of the last miss-planning {@link #gatherAsync} call.
+     * Zero until that call. One discovery runs at a time.
+     */
+    private volatile int planningGatherConcurrency;
+
+    int planningGatherConcurrency() {
+        return planningGatherConcurrency;
+    }
+
+    private void trackFileTaskCreated() {
+        int now = liveFileTasks.incrementAndGet();
+        peakLiveFileTasks.accumulateAndGet(now, Math::max);
+    }
+
+    private void releaseFileTask() {
+        liveFileTasks.decrementAndGet();
+    }
 
     // 64 MB — 2x the maximum compression block target (DEFAULT_MACRO_SPLIT_TARGET) to keep
     // memory pressure low while still enabling meaningful cross-node parallelism.
@@ -360,12 +409,11 @@ public class FileSplitProvider implements SplitProvider {
         try {
             throwIfCancelled(context);
 
-            FileTaskBatch batch = buildFileTasks(context, requestedStrideBytes);
-            List<FileTask> tasks = batch.tasks();
+            SurvivorBatch batch = buildSurvivors(context, requestedStrideBytes);
             int certifiedSkips = batch.certifiedSkips();
             long probedFileBytes = batch.probedFileBytes();
 
-            if (tasks.isEmpty()) {
+            if (batch.size() == 0) {
                 // Exhaustive only when every file was dropped by a certified row-count-preserving skip.
                 // An unresolved or already-empty file list is not a prune (fileCount == 0). A skip that
                 // is not counted above leaves certifiedSkips < fileCount and falls back to a full read.
@@ -396,20 +444,21 @@ public class FileSplitProvider implements SplitProvider {
             // Only single split discovery is performed on each FileSplitProvider at a time
             splitDiscoveryCpuNanos.set(0L);
             List<PlanResult> planResults;
+            int survivorCount = batch.size();
             try {
-                if (executor != null && tasks.size() > 1) {
-                    planResults = BoundedParallelGather.gather(tasks, task -> {
+                if (executor != null && survivorCount > 1) {
+                    planResults = BoundedParallelGather.gather(slotList(survivorCount), slot -> {
                         long cpuStart = ThreadCpuTimer.currentNanos();
                         try {
-                            return processFileForSplits(task, hoistedProvider, strideBytes, isCancelled);
+                            return planSurvivor(batch, slot, hoistedProvider, strideBytes, isCancelled);
                         } finally {
                             if (cpuStart >= 0) splitDiscoveryCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(cpuStart));
                         }
                     }, splitDiscoveryConcurrency(), executor);
                 } else {
-                    planResults = new ArrayList<>(tasks.size());
-                    for (FileTask task : tasks) {
-                        planResults.add(processFileForSplits(task, hoistedProvider, strideBytes, isCancelled));
+                    planResults = new ArrayList<>(survivorCount);
+                    for (int slot = 0; slot < survivorCount; slot++) {
+                        planResults.add(planSurvivor(batch, slot, hoistedProvider, strideBytes, isCancelled));
                     }
                 }
             } catch (Exception e) {
@@ -430,9 +479,9 @@ public class FileSplitProvider implements SplitProvider {
             // or has been probed.
             List<ExternalSplit> splits = splitsFromPlanResults(planResults, probedOutcomes, probeWindowBytes);
 
-            // Each surviving task produces at least one split, so the task count is the number of
+            // Each surviving file produces at least one split, so the survivor count is the number of
             // distinct files that are actually scanned after coordinator-side pruning.
-            return new SplitDiscoveryResult(splits, tasks.size(), false, splitDiscoveryCpuNanos.get());
+            return new SplitDiscoveryResult(splits, survivorCount, false, splitDiscoveryCpuNanos.get());
         } finally {
             StorageProviderCache.closeLease(sharedProvider);
         }
@@ -474,9 +523,8 @@ public class FileSplitProvider implements SplitProvider {
         try {
             sharedProvider = hoistSharedProvider(fileList, config);
             throwIfCancelled(context);
-            FileTaskBatch batch = buildFileTasks(context, requestedStrideBytes);
-            List<FileTask> tasks = batch.tasks();
-            if (tasks.isEmpty()) {
+            SurvivorBatch batch = buildSurvivors(context, requestedStrideBytes);
+            if (batch.size() == 0) {
                 boolean exhaustivelyPruned = fileList.fileCount() > 0 && batch.certifiedSkips() == fileList.fileCount();
                 listener.onResponse(new SplitDiscoveryResult(List.of(), 0, exhaustivelyPruned, 0L));
                 return;
@@ -493,7 +541,7 @@ public class FileSplitProvider implements SplitProvider {
                 () -> StorageProviderCache.closeLease(hoistedProvider)
             );
             gatherSkippingCachedFooters(
-                tasks,
+                batch,
                 hoistedProvider,
                 strideBytes,
                 isCancelled,
@@ -511,7 +559,7 @@ public class FileSplitProvider implements SplitProvider {
                                     return;
                                 }
                                 List<ExternalSplit> splits = splitsFromPlanResults(planResults, probedOutcomes, probeWindowBytes);
-                                completion.onResponse(new SplitDiscoveryResult(splits, tasks.size(), false, splitDiscoveryCpuNanos.get()));
+                                completion.onResponse(new SplitDiscoveryResult(splits, batch.size(), false, splitDiscoveryCpuNanos.get()));
                             } catch (Exception e) {
                                 completion.onFailure(ExternalFailures.surface(e, "Failed to discover splits"));
                             }
@@ -537,12 +585,70 @@ public class FileSplitProvider implements SplitProvider {
         return null;
     }
 
-    private record FileTaskBatch(List<FileTask> tasks, int certifiedSkips, long probedFileBytes) {}
+    /**
+     * Phase-1 survivors: file-list indices and one frozen partition map each. Shared query state
+     * stays on the batch. {@link FileTask} shells are built later, only for a slot that is planning.
+     */
+    private record SurvivorBatch(
+        int[] fileIndices,
+        List<Map<String, Object>> partitionValues,
+        int certifiedSkips,
+        long probedFileBytes,
+        SplitDiscoveryContext context,
+        Map<String, DataType> reconciledTypes,
+        Map<ColumnMapping, ColumnMapping> mappingCache,
+        boolean anchorPinnedFirstFileWins,
+        ExternalSchema fileBackedQuerySchema
+    ) {
+        int size() {
+            return fileIndices.length;
+        }
+    }
 
     /**
-     * Phase 1: sequential in-memory filter. No object-store IO.
+     * Per-file stamp used to emit a cache-hit split without allocating a {@link FileTask}.
      */
-    private FileTaskBatch buildFileTasks(SplitDiscoveryContext context, long requestedStrideBytes) {
+    private record ResolvedFile(
+        StoragePath filePath,
+        long fileLength,
+        @Nullable String format,
+        Map<String, Object> config,
+        Map<String, Object> partitionValues,
+        @Nullable ColumnMapping columnMapping,
+        @Nullable List<Attribute> readSchema,
+        @Nullable Map<String, DataType> reconciledTypes,
+        int maxRecordBytes,
+        DeclaredReadSpec declaredReadSpec,
+        @Nullable Map<String, DataType> inferredFileTypes,
+        @Nullable SourceStatistics statistics,
+        @Nullable Map<String, Object> foldedSourceMetadata,
+        boolean unknownNativeTypes
+    ) {
+        private FileTask toTask() {
+            return new FileTask(
+                filePath,
+                fileLength,
+                format,
+                config,
+                partitionValues,
+                columnMapping,
+                readSchema,
+                reconciledTypes,
+                maxRecordBytes,
+                declaredReadSpec,
+                inferredFileTypes,
+                statistics,
+                foldedSourceMetadata,
+                unknownNativeTypes
+            );
+        }
+    }
+
+    /**
+     * Phase 1: sequential in-memory filter. No object-store IO. Each survivor keeps one unmodifiable
+     * partition map (hive values copied by reference, {@code _file.*} written in place). No {@link FileTask}.
+     */
+    private SurvivorBatch buildSurvivors(SplitDiscoveryContext context, long requestedStrideBytes) {
         FileList fileList = context.fileList();
         PartitionMetadata partitionInfo = context.partitionInfo();
         Map<String, Object> config = context.config();
@@ -558,9 +664,15 @@ public class FileSplitProvider implements SplitProvider {
         );
         Set<String> metadataColumnNames = context.metadataColumnNames();
 
+        int fileCount = fileList.fileCount();
         int certifiedSkips = 0;
         long probedFileBytes = 0;
-        List<FileTask> tasks = new ArrayList<>(fileList.fileCount());
+        int[] fileIndices = new int[fileCount];
+        ArrayList<Map<String, Object>> partitionValues = new ArrayList<>(fileCount);
+        // One directory BytesRef per distinct parent for this query. Discarded with the batch builder;
+        // the refs stay reachable from the frozen maps. Full path URIs are not interned.
+        Map<String, BytesRef> directoryIntern = new HashMap<>();
+        int survivors = 0;
         // Unified schema is query-wide. One unmodifiable map is shared by every file; the
         // concurrent split path only reads it.
         Map<String, DataType> reconciledTypes = unifiedSchema == null ? null : Map.copyOf(attributesToTypeMap(unifiedSchema.attributes()));
@@ -568,23 +680,25 @@ public class FileSplitProvider implements SplitProvider {
         // per-file constants only when a hint names one of them.
         boolean overlayPerFileConstants = filterHints.isEmpty() == false
             && hintsReferencePerFileConstants(filterHints, metadataColumnNames);
-        for (int i = 0; i < fileList.fileCount(); i++) {
+        for (int i = 0; i < fileCount; i++) {
             StoragePath filePath = fileList.path(i);
 
-            Map<String, Object> partitionValues = new HashMap<>();
+            Map<String, Object> values = new LinkedHashMap<>();
             if (partitionInfo != null && partitionInfo.isEmpty() == false) {
                 Map<String, Object> filePartitions = partitionInfo.filePartitionValues().get(filePath);
                 if (filePartitions != null) {
-                    partitionValues.putAll(filePartitions);
+                    // Copy references only. Do not mutate the listing map.
+                    values.putAll(filePartitions);
                 }
             }
-            partitionValues.putAll(FileMetadataColumns.extractValues(fileList, i));
+            long modifiedMillis = fileList.lastModifiedMillis(i);
+            Instant modified = modifiedMillis == 0L ? null : Instant.ofEpochMilli(modifiedMillis);
+            FileMetadataColumns.putValues(values, filePath, fileList.size(i), modified, directoryIntern);
+            Map<String, Object> frozen = Collections.unmodifiableMap(values);
             SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo.get(filePath);
 
             if (filterHints.isEmpty() == false) {
-                Map<String, Object> filterValues = overlayPerFileConstants
-                    ? discoveryFilterValues(partitionValues, metadataColumnNames)
-                    : partitionValues;
+                Map<String, Object> filterValues = overlayPerFileConstants ? discoveryFilterValues(frozen, metadataColumnNames) : frozen;
                 if (filterValues.isEmpty() == false && matchesPartitionFilters(filterValues, filterHints) == false) {
                     certifiedSkips++;
                     continue;
@@ -604,58 +718,131 @@ public class FileSplitProvider implements SplitProvider {
                 }
             }
 
-            String objectName = filePath.objectName();
-            String format = null;
-            if (objectName != null) {
-                int lastDot = objectName.lastIndexOf('.');
-                if (lastDot >= 0 && lastDot < objectName.length() - 1) {
-                    format = objectName.substring(lastDot);
-                }
-            }
-
             long fileLength = fileList.size(i);
-            if (fileLength > requestedStrideBytes && isNewlineMacroSplitCandidateExtension(format)) {
+            if (fileLength > requestedStrideBytes && isNewlineMacroSplitCandidateExtension(extensionFormat(filePath))) {
                 probedFileBytes += fileLength;
             }
 
-            ColumnMapping columnMapping = null;
-            List<Attribute> readSchema = null;
-            Map<String, DataType> inferredFileTypes = null;
-            SourceStatistics fileStatistics = null;
-            if (fileSchemaInfo != null) {
-                inferredFileTypes = fileSchemaInfo.inferredTypes();
-                fileStatistics = fileSchemaInfo.statistics();
-                ColumnMapping mapping = fileSchemaInfo.mapping();
-                if (mapping != null && unifiedSchema != null && fileBackedQuerySchema.isEmpty() == false) {
-                    mapping = mapping.pruneToPerFileQuery(unifiedSchema, fileSchemaInfo.fileSchema(), fileBackedQuerySchema);
-                }
-                if (mapping != null && mapping.isIdentity() == false) {
-                    columnMapping = mappingCache.computeIfAbsent(mapping, k -> k);
-                }
-                readSchema = fileSchemaInfo.fileSchema().attributes();
-            }
-            boolean unknownNativeTypes = ExternalSourceResolver.nativeTypesUnknown(fileSchemaInfo, anchorPinnedFirstFileWins);
-
-            tasks.add(
-                new FileTask(
-                    filePath,
-                    fileLength,
-                    format,
-                    config,
-                    partitionValues,
-                    columnMapping,
-                    readSchema,
-                    reconciledTypes,
-                    context.maxRecordBytes(),
-                    context.declaredReadSpec(),
-                    inferredFileTypes,
-                    fileStatistics,
-                    context.metadata() == null ? null : context.metadata().sourceMetadata(),
-                    unknownNativeTypes
-                )
-            );
+            fileIndices[survivors++] = i;
+            partitionValues.add(frozen);
         }
-        return new FileTaskBatch(tasks, certifiedSkips, probedFileBytes);
+        if (survivors != fileCount) {
+            fileIndices = Arrays.copyOf(fileIndices, survivors);
+        }
+        partitionValues.trimToSize();
+        return new SurvivorBatch(
+            fileIndices,
+            partitionValues,
+            certifiedSkips,
+            probedFileBytes,
+            context,
+            reconciledTypes,
+            mappingCache,
+            anchorPinnedFirstFileWins,
+            fileBackedQuerySchema
+        );
+    }
+
+    @Nullable
+    private static String extensionFormat(StoragePath filePath) {
+        String objectName = filePath.objectName();
+        if (objectName == null) {
+            return null;
+        }
+        int lastDot = objectName.lastIndexOf('.');
+        if (lastDot >= 0 && lastDot < objectName.length() - 1) {
+            return objectName.substring(lastDot);
+        }
+        return null;
+    }
+
+    /** Survivor slots {@code 0 .. count-1}. Boxing happens when a slot is read, not as a {@link FileTask} list. */
+    private static List<Integer> slotList(int count) {
+        return new AbstractList<>() {
+            @Override
+            public int size() {
+                return count;
+            }
+
+            @Override
+            public Integer get(int index) {
+                return index;
+            }
+        };
+    }
+
+    private FileTask openFileTask(SurvivorBatch batch, int slot) {
+        FileTask task = resolveSurvivor(batch, slot).toTask();
+        trackFileTaskCreated();
+        return task;
+    }
+
+    /**
+     * Builds a {@link FileTask} for one survivor slot, plans it, and drops the shell when planning returns.
+     * Cancellation is checked before the shell exists and again before any read.
+     */
+    private PlanResult planSurvivor(
+        SurvivorBatch batch,
+        int slot,
+        @Nullable StorageProvider hoistedProvider,
+        long strideBytes,
+        BooleanSupplier isCancelled
+    ) throws IOException {
+        if (isCancelled.getAsBoolean()) {
+            throw new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE);
+        }
+        FileTask task = openFileTask(batch, slot);
+        try {
+            if (isCancelled.getAsBoolean()) {
+                throw new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE);
+            }
+            return processFileForSplits(task, hoistedProvider, strideBytes, isCancelled);
+        } finally {
+            releaseFileTask();
+        }
+    }
+
+    private ResolvedFile resolveSurvivor(SurvivorBatch batch, int slot) {
+        SplitDiscoveryContext context = batch.context();
+        FileList fileList = context.fileList();
+        int fileIndex = batch.fileIndices()[slot];
+        StoragePath filePath = fileList.path(fileIndex);
+        long fileLength = fileList.size(fileIndex);
+        SchemaReconciliation.FileSchemaInfo fileSchemaInfo = context.schemaMap().get(filePath);
+        ColumnMapping columnMapping = null;
+        List<Attribute> readSchema = null;
+        Map<String, DataType> inferredFileTypes = null;
+        SourceStatistics fileStatistics = null;
+        ExternalSchema unifiedSchema = context.unifiedSchema();
+        if (fileSchemaInfo != null) {
+            inferredFileTypes = fileSchemaInfo.inferredTypes();
+            fileStatistics = fileSchemaInfo.statistics();
+            ColumnMapping mapping = fileSchemaInfo.mapping();
+            if (mapping != null && unifiedSchema != null && batch.fileBackedQuerySchema().isEmpty() == false) {
+                mapping = mapping.pruneToPerFileQuery(unifiedSchema, fileSchemaInfo.fileSchema(), batch.fileBackedQuerySchema());
+            }
+            if (mapping != null && mapping.isIdentity() == false) {
+                columnMapping = batch.mappingCache().computeIfAbsent(mapping, k -> k);
+            }
+            readSchema = fileSchemaInfo.fileSchema().attributes();
+        }
+        boolean unknownNativeTypes = ExternalSourceResolver.nativeTypesUnknown(fileSchemaInfo, batch.anchorPinnedFirstFileWins());
+        return new ResolvedFile(
+            filePath,
+            fileLength,
+            extensionFormat(filePath),
+            context.config(),
+            batch.partitionValues().get(slot),
+            columnMapping,
+            readSchema,
+            batch.reconciledTypes(),
+            context.maxRecordBytes(),
+            context.declaredReadSpec(),
+            inferredFileTypes,
+            fileStatistics,
+            context.metadata() == null ? null : context.metadata().sourceMetadata(),
+            unknownNativeTypes
+        );
     }
 
     private static void warnIfStrideWidened(long requestedStrideBytes, long strideBytes, int maxSplitProbes, long probedFileBytes) {
@@ -784,10 +971,12 @@ public class FileSplitProvider implements SplitProvider {
      * Phase-2 fan-out: parsed-footer cache hits skip {@link ThrottledIterator} so they do not occupy
      * GET permits. Misses (and formats with no cache) keep the existing throttled {@code readBytesAsync}
      * path. The cache partition is CPU-only (hash lookups, no I/O) and runs inline on the caller —
-     * the same thread that previously ran {@link #gatherAsync} directly.
+     * the same thread that previously ran {@link #gatherAsync} directly. Hits emit splits from path,
+     * length, and config. Misses are survivor-slot indices; a {@link FileTask} exists only while its
+     * throttle slot is in flight.
      */
     private void gatherSkippingCachedFooters(
-        List<FileTask> tasks,
+        SurvivorBatch batch,
         @Nullable StorageProvider hoistedProvider,
         long strideBytes,
         BooleanSupplier isCancelled,
@@ -795,54 +984,76 @@ public class FileSplitProvider implements SplitProvider {
         ActionListener<List<PlanResult>> listener
     ) {
         try {
-            int n = tasks.size();
+            int n = batch.size();
             PlanResult[] slots = new PlanResult[n];
-            List<FileTask> misses = new ArrayList<>();
-            List<Integer> missAt = new ArrayList<>();
+            int[] missSlots = new int[n];
+            int[] missCount = new int[1];
+            FileList fileList = batch.context().fileList();
+            Map<String, Object> config = batch.context().config();
             runRecordingDiscoveryCpu(() -> {
                 for (int i = 0; i < n; i++) {
                     if (isCancelled.getAsBoolean()) {
                         throw new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE);
                     }
-                    FileTask task = tasks.get(i);
-                    List<SplitRange> cached = peekCachedSplitRanges(task, hoistedProvider);
+                    int fileIndex = batch.fileIndices()[i];
+                    StoragePath path = fileList.path(fileIndex);
+                    long length = fileList.size(fileIndex);
+                    List<SplitRange> cached = peekCachedSplitRanges(path, length, config, hoistedProvider);
                     if (cached != null) {
-                        if (cached.isEmpty()) {
-                            slots[i] = new PlanResult.Splits(
-                                List.of(
-                                    wholeFileSplit(
-                                        task.filePath(),
-                                        task.fileLength(),
-                                        task.format(),
-                                        task.config(),
-                                        task.partitionValues(),
-                                        task.columnMapping(),
-                                        task.readSchema()
-                                    )
-                                )
-                            );
-                        } else {
-                            slots[i] = planResultFromCachedRanges(task, cached);
-                        }
+                        slots[i] = planResultFromCachedRanges(resolveSurvivor(batch, i), cached);
                     } else {
-                        misses.add(task);
-                        missAt.add(i);
+                        missSlots[missCount[0]++] = i;
                     }
                 }
             });
-            if (misses.isEmpty()) {
+            int misses = missCount[0];
+            if (misses == 0) {
                 listener.onResponse(List.of(slots));
                 return;
             }
-            gatherAsync(misses, (FileTask task, ActionListener<PlanResult> itemListener) -> {
-                try {
-                    fanOut.execute(() -> processFileForSplitsAsync(task, hoistedProvider, strideBytes, isCancelled, fanOut, itemListener));
-                } catch (Exception e) {
-                    itemListener.onFailure(e);
+            int[] missed = Arrays.copyOf(missSlots, misses);
+            int gatherConcurrency = planningDiscoveryConcurrency(batch, missed, hoistedProvider);
+            planningGatherConcurrency = gatherConcurrency;
+            gatherAsync(slotList(misses), (Integer ordinal, ActionListener<PlanResult> itemListener) -> {
+                if (isCancelled.getAsBoolean()) {
+                    itemListener.onFailure(new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE));
+                    return;
                 }
-            }, planningDiscoveryConcurrency(misses, hoistedProvider), fanOut, ActionListener.wrap(missResults -> {
+                FileTask task = openFileTask(batch, missed[ordinal]);
+                // Release the shell before the throttle permit is returned, and only once if execute
+                // both runs the item and then surfaces an exception.
+                AtomicBoolean notified = new AtomicBoolean();
+                ActionListener<PlanResult> released = new ActionListener<>() {
+                    private void finish(Runnable notify) {
+                        if (notified.compareAndSet(false, true) == false) {
+                            return;
+                        }
+                        releaseFileTask();
+                        notify.run();
+                    }
+
+                    @Override
+                    public void onResponse(PlanResult result) {
+                        finish(() -> itemListener.onResponse(result));
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        finish(() -> itemListener.onFailure(e));
+                    }
+                };
+                try {
+                    if (isCancelled.getAsBoolean()) {
+                        released.onFailure(new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE));
+                        return;
+                    }
+                    fanOut.execute(() -> processFileForSplitsAsync(task, hoistedProvider, strideBytes, isCancelled, fanOut, released));
+                } catch (Exception e) {
+                    released.onFailure(e);
+                }
+            }, gatherConcurrency, fanOut, ActionListener.wrap(missResults -> {
                 for (int j = 0; j < missResults.size(); j++) {
-                    slots[missAt.get(j)] = missResults.get(j);
+                    slots[missed[j]] = missResults.get(j);
                 }
                 listener.onResponse(List.of(slots));
             }, listener::onFailure));
@@ -853,50 +1064,72 @@ public class FileSplitProvider implements SplitProvider {
 
     /**
      * Listing-seeded {@link StorageObject#length()} plus {@link RangeAwareFormatReader#cachedSplitRanges}.
-     * Any failure is a miss so the throttled path can surface it.
+     * CPU-only: {@code cachedSplitRanges} must not read. Any failure is a miss so the throttled path can surface it.
      */
     @Nullable
-    private List<SplitRange> peekCachedSplitRanges(FileTask task, @Nullable StorageProvider hoistedProvider) {
+    private List<SplitRange> peekCachedSplitRanges(
+        StoragePath path,
+        long length,
+        Map<String, Object> config,
+        @Nullable StorageProvider hoistedProvider
+    ) {
         try {
-            FormatReader reader = resolveConfiguredReader(task.filePath(), task.config());
+            FormatReader reader = resolveConfiguredReader(path, config);
             if (reader instanceof RangeAwareFormatReader rangeReader) {
-                StorageProvider provider = resolveProvider(task.filePath(), task.config(), hoistedProvider);
-                StorageObject object = provider.newObject(task.filePath(), task.fileLength());
+                StorageProvider provider = resolveProvider(path, config, hoistedProvider);
+                StorageObject object = provider.newObject(path, length);
                 return rangeReader.cachedSplitRanges(object);
             }
             return null;
         } catch (Exception e) {
             LOGGER.debug(
-                () -> Strings.format(
-                    "Footer cache peek failed for [%s]; falling back to throttled discovery",
-                    task.filePath().objectName()
-                ),
+                () -> Strings.format("Footer cache peek failed for [%s]; falling back to throttled discovery", path.objectName()),
                 e
             );
             return null;
         }
     }
 
-    private PlanResult planResultFromCachedRanges(FileTask task, List<SplitRange> ranges) {
+    private PlanResult planResultFromCachedRanges(ResolvedFile file, List<SplitRange> ranges) {
+        if (ranges.isEmpty()) {
+            return new PlanResult.Splits(
+                List.of(
+                    wholeFileSplit(
+                        file.filePath(),
+                        file.fileLength(),
+                        file.format(),
+                        file.config(),
+                        file.partitionValues(),
+                        file.columnMapping(),
+                        file.readSchema()
+                    )
+                )
+            );
+        }
         List<ExternalSplit> splits = new ArrayList<>(ranges.size());
         addRangeAwareSplits(
-            task.filePath(),
-            task.fileLength(),
-            task.format(),
-            task.config(),
-            task.partitionValues(),
-            task.columnMapping(),
-            task.readSchema(),
-            task.reconciledTypes(),
-            task.declaredReadSpec(),
-            task.inferredFileTypes(),
+            file.filePath(),
+            file.fileLength(),
+            file.format(),
+            file.config(),
+            file.partitionValues(),
+            file.columnMapping(),
+            file.readSchema(),
+            file.reconciledTypes(),
+            file.declaredReadSpec(),
+            file.inferredFileTypes(),
             ranges,
             splits,
-            task.foldedSourceMetadata(),
-            implicitNullsFor(task),
-            task.unknownNativeTypes()
+            file.foldedSourceMetadata(),
+            implicitNullsFor(file),
+            file.unknownNativeTypes()
         );
         return new PlanResult.Splits(splits);
+    }
+
+    private boolean implicitNullsFor(ResolvedFile file) {
+        FormatReader reader = resolveConfiguredReader(file.filePath(), file.config());
+        return reader != null && implicitNullsFor(reader);
     }
 
     /**
@@ -1383,7 +1616,7 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Planning {@link #gatherAsync} concurrency: when every file is Parquet
+     * Planning {@link #gatherAsync} concurrency: when every miss is Parquet
      * ({@link FormatNameResolver#resolveFormatName} equals {@link FormatNameResolver#FORMAT_PARQUET},
      * so {@code .parq} counts) and
      * {@link StorageObject#readBytesAsyncReleasesExecutor()} on one peeked
@@ -1391,26 +1624,31 @@ public class FileSplitProvider implements SplitProvider {
      * {@link ExternalSourceSettings#externalIoThreads} (never 0). Otherwise
      * {@link #splitDiscoveryConcurrency()}. A null {@code formatRegistry} or any
      * {@code newObject} / resolve failure is conservative (16).
+     * Samples survivor indices, not a {@link FileTask} list.
      * Probes and sync {@link BoundedParallelGather} keep {@link #splitDiscoveryConcurrency()}.
      */
-    private int planningDiscoveryConcurrency(List<FileTask> tasks, @Nullable StorageProvider hoistedProvider) {
+    private int planningDiscoveryConcurrency(SurvivorBatch batch, int[] missSlots, @Nullable StorageProvider hoistedProvider) {
         if (formatRegistry == null) {
             return splitDiscoveryConcurrency();
         }
         try {
+            FileList fileList = batch.context().fileList();
+            Map<String, Object> config = batch.context().config();
             Set<String> seenSchemes = new HashSet<>();
-            for (FileTask task : tasks) {
+            for (int slot : missSlots) {
+                int fileIndex = batch.fileIndices()[slot];
+                StoragePath path = fileList.path(fileIndex);
                 if (FormatNameResolver.FORMAT_PARQUET.equals(
-                    FormatNameResolver.resolveFormatName(task.config(), task.filePath().objectName(), formatRegistry)
+                    FormatNameResolver.resolveFormatName(config, path.objectName(), formatRegistry)
                 ) == false) {
                     return splitDiscoveryConcurrency();
                 }
-                String scheme = task.filePath().scheme();
+                String scheme = path.scheme();
                 if (seenSchemes.add(scheme) == false) {
                     continue;
                 }
-                StorageProvider provider = resolveProvider(task.filePath(), task.config(), hoistedProvider);
-                StorageObject object = provider.newObject(task.filePath(), task.fileLength());
+                StorageProvider provider = resolveProvider(path, config, hoistedProvider);
+                StorageObject object = provider.newObject(path, fileList.size(fileIndex));
                 if (object.readBytesAsyncReleasesExecutor() == false) {
                     return splitDiscoveryConcurrency();
                 }
@@ -2861,7 +3099,7 @@ public class FileSplitProvider implements SplitProvider {
     /**
      * Hive partitions and {@code _file.*} listing values plus the engine-materialised per-file
      * constants (the all-null standard names). Used only for discovery filter evaluation; the
-     * {@link FileTask} carries hive + {@code _file.*} only.
+     * The survivor's frozen partition map carries hive + {@code _file.*} only.
      * Only names bound as metadata in the relation's output receive constants, matching the
      * reader. Data columns retain their physical values or missing-column null-fill.
      */

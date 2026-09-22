@@ -11,14 +11,21 @@ package org.elasticsearch.common.util;
 
 import org.elasticsearch.common.Strings;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.file.Path;
+import java.time.ZonedDateTime;
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -172,6 +179,104 @@ public class CollectionUtils {
             }
             throw new IllegalArgumentException(sb.toString());
         }
+    }
+
+    /**
+     * Options that control the behavior of {@link #deepCopy(Object)}.
+     */
+    public enum DeepCopyOption {
+        /**
+         * Wrap copied {@link Map}, {@link List}, and {@link Set} instances in their
+         * {@link Collections#unmodifiableMap unmodifiable} counterparts.
+         */
+        UNMODIFIABLE(1),
+        /**
+         * Use insertion-order-preserving maps ({@link LinkedHashMap}) when copying {@link Map} instances.
+         */
+        ORDERED_MAPS(2);
+
+        private final int mask;
+
+        DeepCopyOption(int mask) {
+            this.mask = mask;
+        }
+    }
+
+    /**
+     * Returns a deep copy of {@code value}. Handles {@link Map}, {@link List}, {@link Set},
+     * {@code byte[]}, {@code double[]}, {@code double[][]}, {@link Date}, and all immutable scalar
+     * types produced by JSON parsing ({@link String}, {@link Boolean}, {@link Integer}, {@link Long},
+     * {@link Float}, {@link Double}, {@link BigInteger}, {@link BigDecimal}, {@link Byte},
+     * {@link Short}, {@link Character}, {@link ZonedDateTime}). Throws {@link IllegalArgumentException}
+     * for any other type.
+     */
+    public static <T> T deepCopy(T value) {
+        return deepCopyInternal(value, 0);
+    }
+
+    /** @see #deepCopy(Object) */
+    public static <T> T deepCopy(T value, DeepCopyOption a) {
+        return deepCopyInternal(value, a.mask);
+    }
+
+    /** @see #deepCopy(Object) */
+    public static <T> T deepCopy(T value, DeepCopyOption a, DeepCopyOption b) {
+        return deepCopyInternal(value, a.mask | b.mask);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T deepCopyInternal(T value, int options) {
+        if (value instanceof Map<?, ?> mapValue) {
+            Map<Object, Object> copy = (options & DeepCopyOption.ORDERED_MAPS.mask) != 0
+                ? LinkedHashMap.newLinkedHashMap(mapValue.size())
+                : HashMap.newHashMap(mapValue.size());
+            for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
+                copy.put(entry.getKey(), deepCopyInternal(entry.getValue(), options));
+            }
+            return (T) ((options & DeepCopyOption.UNMODIFIABLE.mask) != 0 ? Collections.unmodifiableMap(copy) : copy);
+        } else if (value instanceof List<?> listValue) {
+            List<Object> copy = new ArrayList<>(listValue.size());
+            for (Object item : listValue) {
+                copy.add(deepCopyInternal(item, options));
+            }
+            return (T) ((options & DeepCopyOption.UNMODIFIABLE.mask) != 0 ? Collections.unmodifiableList(copy) : copy);
+        } else if (value instanceof Set<?> setValue) {
+            Set<Object> copy = HashSet.newHashSet(setValue.size());
+            for (Object item : setValue) {
+                copy.add(deepCopyInternal(item, options));
+            }
+            return (T) ((options & DeepCopyOption.UNMODIFIABLE.mask) != 0 ? Collections.unmodifiableSet(copy) : copy);
+        } else if (value instanceof byte[] bytes) {
+            return (T) Arrays.copyOf(bytes, bytes.length);
+        } else if (value instanceof double[][] doubles) {
+            double[][] result = new double[doubles.length][];
+            for (int i = 0; i < doubles.length; i++) {
+                result[i] = Arrays.copyOf(doubles[i], doubles[i].length);
+            }
+            return (T) result;
+        } else if (value instanceof double[] doubles) {
+            return (T) Arrays.copyOf(doubles, doubles.length);
+        } else if (value == null
+            || value instanceof String
+            || value instanceof Character
+            || value instanceof Boolean
+            || value instanceof Byte
+            || value instanceof Short
+            || value instanceof Integer
+            || value instanceof Long
+            || value instanceof Float
+            || value instanceof Double
+            || value instanceof BigInteger
+            || value instanceof BigDecimal
+            || value instanceof ZonedDateTime) {
+                // n.b. java.util.concurrent.atomic types (AtomicInteger etc.), and some other Number subclasses are mutable,
+                // so we enumerate the immutable Number subclasses explicitly above rather than using instanceof Number
+                return value;
+            } else if (value instanceof Date date) {
+                return (T) date.clone();
+            } else {
+                throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
+            }
     }
 
     private static class RotatedList<T> extends AbstractList<T> implements RandomAccess {

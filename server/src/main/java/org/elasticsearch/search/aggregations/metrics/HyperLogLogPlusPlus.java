@@ -183,28 +183,11 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     @Override
     public void collect(long bucket, long hash) {
         final long state = bucket < hllBuckets.size() ? hllBuckets.get(bucket) : 0L;
-        switch (Mode.of(state)) {
-            case EMPTY -> {
-                final int encoded = AbstractLinearCounting.encodeHash(hash, precision());
-                hllBuckets = bigArrays.grow(hllBuckets, bucket + 1);
-                hllBuckets.set(bucket, Mode.LC_SINGLE.bits(encoded));
-            }
-            case LC_SINGLE -> {
-                assert bucket < hllBuckets.size() : "LC_SINGLE bucket must already be in hllBuckets";
-                final int encoded = AbstractLinearCounting.encodeHash(hash, precision());
-                final int prevEncoded = (int) (payload(state));
-                if (encoded == prevEncoded) return;
-                lc.addEncoded(bucket, prevEncoded);
-                final int newSize = lc.addEncoded(bucket, encoded);
-                hllBuckets.set(bucket, Mode.LC_HASH.bits());
-                assert newSize <= lc.threshold : "two elements cannot exceed LC threshold";
-            }
-            case LC_HASH -> {
-                final int newSize = lc.collect(bucket, hash);
-                if (newSize > lc.threshold) upgradeToHll(bucket);
-            }
-            case HLL -> hll.collect(payload(state), hash);
+        if (Mode.of(state) == Mode.HLL) {
+            hll.collect(payload(state), hash);
+            return;
         }
+        addEncodedToLcWithState(bucket, state, AbstractLinearCounting.encodeHash(hash, precision()));
     }
 
     @Override
@@ -237,9 +220,13 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         return hllOrd;
     }
 
-    /** Adds a pre-encoded hash to a bucket, handling all mode transitions including LC_SINGLE. */
     private void addEncodedToLc(long bucket, int encoded) {
         final long state = bucket < hllBuckets.size() ? hllBuckets.get(bucket) : 0L;
+        addEncodedToLcWithState(bucket, state, encoded);
+    }
+
+    /** Shared core for LC-mode insertions; state must already be read by the caller. HLL is a no-op. */
+    private void addEncodedToLcWithState(long bucket, long state, int encoded) {
         switch (Mode.of(state)) {
             case EMPTY -> {
                 hllBuckets = bigArrays.grow(hllBuckets, bucket + 1);
@@ -259,7 +246,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
                 if (newSize > lc.threshold) upgradeToHll(bucket);
             }
             case HLL -> {
-            } // caller should not route here
+            } // caller handles HLL before routing here
         }
     }
 
@@ -270,29 +257,14 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         final boolean algorithm = in.readBoolean();
         if (algorithm == LINEAR_COUNTING && getAlgorithm(bucket) == LINEAR_COUNTING) {
             final int length = Math.toIntExact(in.readVLong());
-            final long bytesUsed = (long) length * Integer.BYTES;
-            breaker.addEstimateBytesAndMaybeBreak(bytesUsed, "merge linear counting");
-            try {
-                int[] values = new int[length];
-                for (int i = 0; i < length; i++) {
-                    values[i] = in.readInt();
-                }
-                int i = 0;
-                while (i < length) {
-                    final long state = bucket < hllBuckets.size() ? hllBuckets.get(bucket) : 0L;
-                    if (Mode.of(state) == Mode.HLL) break;
-                    addEncodedToLc(bucket, values[i++]);
-                }
-                // drain remaining into HLL if upgraded
+            for (int i = 0; i < length; i++) {
+                final int encoded = in.readInt();
                 final long state = bucket < hllBuckets.size() ? hllBuckets.get(bucket) : 0L;
                 if (Mode.of(state) == Mode.HLL) {
-                    final long hllOrd = payload(state);
-                    while (i < length) {
-                        hll.collectEncoded(hllOrd, values[i++]);
-                    }
+                    hll.collectEncoded(payload(state), encoded);
+                } else {
+                    addEncodedToLcWithState(bucket, state, encoded);
                 }
-            } finally {
-                breaker.addWithoutBreaking(-bytesUsed);
             }
             return;
         }

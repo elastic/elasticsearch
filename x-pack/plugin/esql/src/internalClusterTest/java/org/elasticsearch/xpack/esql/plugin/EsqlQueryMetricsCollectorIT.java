@@ -389,8 +389,8 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
      * Q_N.read_nanos ≈ N * Q_1.read_nanos. After the fix, each query calls {@code freshCounters()}
      * and gets an isolated counter instance.
      *
-     * <p>The assertion {@code Q_5 < 3 * Q_1} catches the geometric growth from accumulation
-     * (Q_5 ≈ 5 * Q_1) while tolerating normal timing variance (up to 3×).
+     * <p>The assertion {@code Q_10 < 5 * Q_1} catches the geometric growth from accumulation
+     * (Q_10 ≈ 10 * Q_1) while tolerating normal timing variance (up to 5×).
      */
     public void testParquetReadNanosIsolatedBetweenQueries() throws Exception {
         assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
@@ -403,13 +403,13 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * Runs {@code query} five times and asserts that {@code read_cpu_nanos} is positive on each run
-     * and does not grow by more than 3× from the first to the fifth query (which would indicate
+     * Runs {@code query} ten times and asserts that {@code read_cpu_nanos} is positive on each run
+     * and does not grow by more than 5× from the first to the last query (which would indicate
      * counter accumulation across queries). Also verifies that the registry singleton for
      * {@code readerName} has zero counters after the runs.
      */
     private void assertCounterIsolatedBetweenQueries(String query, String readerName) throws Exception {
-        int numQueries = 5;
+        int numQueries = 10;
         long[] readNanos = new long[numQueries];
         long[] readCpuNanos = new long[numQueries];
         for (int i = 0; i < numQueries; i++) {
@@ -428,17 +428,19 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
     }
 
     private static void assertIsolated(String metric, long[] values, int numQueries) {
-        long maxAllowed = values[0] * 3;
+        long maxAllowed = values[0] * 5;
         assertTrue(
-            "Q_5."
+            "Q_"
+                + numQueries
+                + "."
                 + metric
                 + "="
                 + values[numQueries - 1]
-                + " must be < 3 * Q_1."
+                + " must be < 5 * Q_1."
                 + metric
                 + "="
                 + values[0]
-                + "; a value >= 3x indicates counter accumulation across queries",
+                + "; a value >= 5x indicates counter accumulation across queries",
             values[numQueries - 1] < maxAllowed
         );
     }

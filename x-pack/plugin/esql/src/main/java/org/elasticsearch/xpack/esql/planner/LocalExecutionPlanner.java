@@ -2319,7 +2319,6 @@ public class LocalExecutionPlanner {
             .maxConcurrentOpenSegments(context.queryPragmas().maxConcurrentOpenSegments())
             .maxRecordBytes(Math.toIntExact(context.queryPragmas().maxRecordSize().getBytes()))
             .parallelism(instanceCount)
-            .datasetName(externalSource.datasetName())
             .deferredExtraction(externalSource.deferredExtraction())
             .build();
 
@@ -2565,7 +2564,7 @@ public class LocalExecutionPlanner {
 
         PhysicalOperation withOperator = source.with(
             new SparklineGenerateEmptyBucketsOperator.Factory(
-                sparkline.values().size(),
+                sparkline.values().stream().map(value -> PlannerUtils.toElementType(value.dataType())).toArray(ElementType[]::new),
                 sparkline.dateBucketRounding(),
                 sparkline.minDate(),
                 sparkline.maxDate()

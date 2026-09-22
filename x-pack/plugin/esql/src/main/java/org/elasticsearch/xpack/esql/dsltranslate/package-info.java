@@ -8,8 +8,8 @@
 /**
  * Translates a Query DSL {@link org.elasticsearch.index.query.QueryBuilder} tree into an ES|QL
  * {@link org.elasticsearch.xpack.esql.core.expression.Expression} that means what the DSL means, so a request's
- * out-of-band {@code filter} can be applied to sources that have no Lucene scan of their own — external datasets today,
- * views tomorrow.
+ * out-of-band {@code filter} can be applied to sources that have no Lucene scan of their own — external datasets and the
+ * output of logical views.
  *
  * <h2>Why this exists</h2>
  * An ES|QL request may carry a Query DSL {@code filter} beside the query text. On an index it is pushed into the scan.
@@ -33,10 +33,15 @@
  *     missing field &rarr; {@link org.elasticsearch.xpack.esql.core.expression.Literal#NULL}). It decides nothing about
  *     datasets, indices or views — reaching a new boundary is a change of the predicate, not of the mechanism.</li>
  *     <li>{@link org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter} — the dataset <em>policy</em> over
- *     that mechanism: it targets external leaves, and gates the rewrite. It is fail-closed: an unsupported clause fails
- *     the whole query with a 400 naming the construct, rather than silently applying a widened superset. It is feature-flagged
- *     (on in snapshot builds, excluded from release) and version-gated, because
- *     the translated predicate can contain expressions older nodes cannot deserialize.</li>
+ *     that mechanism: it targets external leaves, and gates the rewrite. An unsupported clause never fails the query:
+ *     the translatable conjuncts are applied and the rest are dropped with a warning naming each one, so a dropped
+ *     clause widens what matches rather than narrowing it. It is version-gated, because the translated predicate can
+ *     contain expressions older nodes cannot deserialize.</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter} — the view <em>policy</em> over
+ *     that same mechanism: it targets the output boundary of each logical view subplan (the view-branch children of
+ *     {@link org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll} nodes), so the filter applies to the view's
+ *     <em>output</em> rather than being pushed into the view's source indices. It shares the dataset rewriter's version
+ *     gate and its drop-with-warning policy, naming the view each skipped construct was meant for.</li>
  * </ul>
  *
  * <h2>Two invariants the whole thing rests on</h2>

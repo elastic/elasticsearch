@@ -1,0 +1,184 @@
+// The PromQL tests of `k8s-timeseries-count-over-time.csv-spec` over `index=k8s`, run on `prometheus-k8s`: the same samples in the Prometheus
+// remote-write layout (one document per sample, `labels.*` dimensions including `__name__`, one
+// `metrics.<name>` field per metric). Queries are identical up to the index name; `_timeseries` carries
+// the labels under `labels`, with `__name__` where Prometheus keeps the metric name. Keep in sync with the
+// source file.
+
+count_over_time_of_long_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s step=10m bytes_in=(sum by (cluster) (count_over_time(network.bytes_in[10m])))
+| SORT bytes_in DESC, cluster, step | LIMIT 10;
+
+bytes_in:double | step:datetime            | cluster:keyword
+40.0            | 2024-05-10T00:20:00.000Z | qa
+37.0            | 2024-05-10T00:10:00.000Z | qa
+32.0            | 2024-05-10T00:20:00.000Z | prod
+24.0            | 2024-05-10T00:10:00.000Z | staging
+24.0            | 2024-05-10T00:20:00.000Z | staging
+23.0            | 2024-05-10T00:10:00.000Z | prod
+9.0             | 2024-05-10T00:30:00.000Z | staging
+6.0             | 2024-05-10T00:30:00.000Z | prod
+5.0             | 2024-05-10T00:30:00.000Z | qa
+;
+
+count_over_time_with_window_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: time_series_window_v1
+required_capability: fix_time_series_window_backward
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s step=2m bytes_in=(sum by (cluster) (count_over_time(network.bytes_in[10m])))
+| SORT step, cluster | LIMIT 20;
+
+bytes_in:double | step:datetime            | cluster:keyword
+4.0             | 2024-05-10T00:02:00.000Z | prod
+2.0             | 2024-05-10T00:02:00.000Z | qa
+2.0             | 2024-05-10T00:02:00.000Z | staging
+8.0             | 2024-05-10T00:04:00.000Z | prod
+7.0             | 2024-05-10T00:04:00.000Z | qa
+9.0             | 2024-05-10T00:04:00.000Z | staging
+12.0            | 2024-05-10T00:06:00.000Z | prod
+16.0            | 2024-05-10T00:06:00.000Z | qa
+9.0             | 2024-05-10T00:06:00.000Z | staging
+14.0            | 2024-05-10T00:08:00.000Z | prod
+27.0            | 2024-05-10T00:08:00.000Z | qa
+14.0            | 2024-05-10T00:08:00.000Z | staging
+23.0            | 2024-05-10T00:10:00.000Z | prod
+37.0            | 2024-05-10T00:10:00.000Z | qa
+24.0            | 2024-05-10T00:10:00.000Z | staging
+21.0            | 2024-05-10T00:12:00.000Z | prod
+43.0            | 2024-05-10T00:12:00.000Z | qa
+24.0            | 2024-05-10T00:12:00.000Z | staging
+22.0            | 2024-05-10T00:14:00.000Z | prod
+42.0            | 2024-05-10T00:14:00.000Z | qa
+;
+
+count_over_time_of_integer_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s step=10m clients=(avg by (cluster) (count_over_time(network.eth0.currently_connected_clients[10m])))
+| SORT step, cluster | LIMIT 10;
+
+clients:double     | step:datetime            | cluster:keyword
+7.666666666666667  | 2024-05-10T00:10:00.000Z | prod
+12.333333333333334 | 2024-05-10T00:10:00.000Z | qa
+8.0                | 2024-05-10T00:10:00.000Z | staging
+10.666666666666666 | 2024-05-10T00:20:00.000Z | prod
+13.333333333333334 | 2024-05-10T00:20:00.000Z | qa
+8.0                | 2024-05-10T00:20:00.000Z | staging
+3.0                | 2024-05-10T00:30:00.000Z | prod
+1.6666666666666667 | 2024-05-10T00:30:00.000Z | qa
+3.0                | 2024-05-10T00:30:00.000Z | staging
+;
+
+count_over_time_with_filtering_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s step=10m tx=(sum by (cluster) (count_over_time(network.bytes_in{pod!="three"}[10m])))
+| SORT step, cluster | LIMIT 10;
+
+tx:double | step:datetime            | cluster:keyword
+13.0      | 2024-05-10T00:10:00.000Z | prod
+26.0      | 2024-05-10T00:10:00.000Z | qa
+16.0      | 2024-05-10T00:10:00.000Z | staging
+20.0      | 2024-05-10T00:20:00.000Z | prod
+28.0      | 2024-05-10T00:20:00.000Z | qa
+12.0      | 2024-05-10T00:20:00.000Z | staging
+6.0       | 2024-05-10T00:30:00.000Z | prod
+4.0       | 2024-05-10T00:30:00.000Z | qa
+5.0       | 2024-05-10T00:30:00.000Z | staging
+;
+
+eval_on_count_over_time_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s step=10m bytes=(sum by (pod) (count_over_time(network.bytes_in[10m])))
+| EVAL kb = bytes / 1000.0
+| SORT step, pod | LIMIT 10;
+
+bytes:double | step:datetime            | pod:keyword | kb:double
+27.0         | 2024-05-10T00:10:00.000Z | one         | 0.027
+29.0         | 2024-05-10T00:10:00.000Z | three       | 0.029
+28.0         | 2024-05-10T00:10:00.000Z | two         | 0.028
+30.0         | 2024-05-10T00:20:00.000Z | one         | 0.03
+36.0         | 2024-05-10T00:20:00.000Z | three       | 0.036
+30.0         | 2024-05-10T00:20:00.000Z | two         | 0.03
+8.0          | 2024-05-10T00:30:00.000Z | one         | 0.008
+5.0          | 2024-05-10T00:30:00.000Z | three       | 0.005
+7.0          | 2024-05-10T00:30:00.000Z | two         | 0.007
+;
+
+count_over_time_multi_values_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s step=1m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:09:00.000Z" events=(avg by (pod) (count_over_time(events_received[1m])))
+| SORT events, pod, step | LIMIT 10;
+
+events:double | step:datetime            | pod:keyword
+1.0           | 2024-05-10T00:02:00.000Z | one
+1.0           | 2024-05-10T00:05:00.000Z | one
+1.0           | 2024-05-10T00:02:00.000Z | three
+1.0           | 2024-05-10T00:03:00.000Z | three
+1.0           | 2024-05-10T00:01:00.000Z | two
+1.0           | 2024-05-10T00:02:00.000Z | two
+1.0           | 2024-05-10T00:08:00.000Z | two
+1.5           | 2024-05-10T00:04:00.000Z | one
+1.5           | 2024-05-10T00:01:00.000Z | three
+1.5           | 2024-05-10T00:06:00.000Z | three
+;
+
+// In the remote-write layout a missing sample is no document at all, so windows without samples yield no row, as in Prometheus; the k8s original has documents with a null field and reports 0.
+count_over_time_null_values_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s step=1m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:14:00.000Z" events=(sum by (pod) (count_over_time(events_received[1m])))
+| SORT events, pod, step | LIMIT 10;
+
+events:double | step:datetime            | pod:keyword
+1.0           | 2024-05-10T00:12:00.000Z | one
+1.0           | 2024-05-10T00:12:00.000Z | three
+1.0           | 2024-05-10T00:11:00.000Z | two
+1.0           | 2024-05-10T00:12:00.000Z | two
+2.0           | 2024-05-10T00:11:00.000Z | one
+3.0           | 2024-05-10T00:14:00.000Z | one
+3.0           | 2024-05-10T00:13:00.000Z | three
+3.0           | 2024-05-10T00:14:00.000Z | three
+3.0           | 2024-05-10T00:13:00.000Z | two
+10.0          | 2024-05-10T00:10:00.000Z | two
+;
+
+count_over_time_all_value_types_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s step=10m events=(sum by (pod) (count_over_time(events_received[10m])))
+| SORT events, pod, step | LIMIT 10;
+
+events:double | step:datetime            | pod:keyword
+4.0           | 2024-05-10T00:30:00.000Z | one
+7.0           | 2024-05-10T00:30:00.000Z | three
+13.0          | 2024-05-10T00:30:00.000Z | two
+23.0          | 2024-05-10T00:20:00.000Z | one
+34.0          | 2024-05-10T00:20:00.000Z | two
+36.0          | 2024-05-10T00:20:00.000Z | three
+53.0          | 2024-05-10T00:10:00.000Z | one
+53.0          | 2024-05-10T00:10:00.000Z | three
+53.0          | 2024-05-10T00:10:00.000Z | two
+;

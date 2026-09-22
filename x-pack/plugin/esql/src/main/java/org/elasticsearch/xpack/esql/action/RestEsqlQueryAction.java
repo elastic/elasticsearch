@@ -138,11 +138,6 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         if (partialResults != null) {
             esqlRequest.allowPartialResults(partialResults);
         }
-        final Boolean partialDslFilter = request.paramAsBoolean("allow_partial_dsl_filter", null);
-        if (partialDslFilter != null) {
-            esqlRequest.allowPartialDslFilter(partialDslFilter);
-        }
-
         final int resolvedBatchSize = batchSize;
         LOGGER.debug("Beginning streaming execution of ESQL query.\nQuery string: [{}]", esqlRequest.queryDescription());
 
@@ -166,10 +161,6 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         final Boolean partialResults = request.paramAsBoolean("allow_partial_results", null);
         if (partialResults != null) {
             esqlRequest.allowPartialResults(partialResults);
-        }
-        final Boolean partialDslFilter = request.paramAsBoolean("allow_partial_dsl_filter", null);
-        if (partialDslFilter != null) {
-            esqlRequest.allowPartialDslFilter(partialDslFilter);
         }
         LOGGER.debug("Beginning execution of ESQL query.\nQuery string: [{}]", esqlRequest.queryDescription());
 

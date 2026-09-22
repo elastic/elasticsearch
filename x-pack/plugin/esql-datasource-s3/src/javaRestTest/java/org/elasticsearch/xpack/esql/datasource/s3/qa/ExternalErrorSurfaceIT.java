@@ -25,6 +25,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -89,6 +90,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
 
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
+        .setting(S3FixtureUtils.ALLOWED_ENDPOINT_HOSTS_SETTING, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
@@ -262,7 +264,6 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("row with more fields than the header", 400),
         entry("declared column of an undeclarable type", 400),
         entry("unknown key inside the mappings block", 400),
-        entry("_id.path points at a column that is not declared", 400),
         entry("two declared columns resolving to one physical column", 400),
         entry("date format declared on a non-date column", 400),
         entry("strict declaration with no columns", 400),
@@ -289,6 +290,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("put s3 data source with anonymous auth plus credentials", 400),
         entry("put s3 data source with an access key and no secret key", 400),
         entry("put s3 data source with a malformed endpoint", 400),
+        entry("put s3 data source with an endpoint that is not an AWS host", 400),
         entry("get an unknown data source", 404),
         entry("delete an unknown data source", 404),
         entry("delete a data source that still has datasets", 409),
@@ -336,7 +338,6 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("row with more fields than the header", "external_client_exception"),
         entry("declared column of an undeclarable type", "illegal_argument_exception"),
         entry("unknown key inside the mappings block", "x_content_parse_exception"),
-        entry("_id.path points at a column that is not declared", "illegal_argument_exception"),
         entry("two declared columns resolving to one physical column", "illegal_argument_exception"),
         entry("date format declared on a non-date column", "illegal_argument_exception"),
         entry("strict declaration with no columns", "illegal_argument_exception"),
@@ -363,6 +364,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("put s3 data source with anonymous auth plus credentials", "validation_exception"),
         entry("put s3 data source with an access key and no secret key", "validation_exception"),
         entry("put s3 data source with a malformed endpoint", "validation_exception"),
+        entry("put s3 data source with an endpoint that is not an AWS host", "validation_exception"),
         entry("get an unknown data source", "resource_not_found_exception"),
         entry("delete an unknown data source", "resource_not_found_exception"),
         entry("delete a data source that still has datasets", "status_exception"),
@@ -775,18 +777,6 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         );
         crudProbe(
             "declared_mapping",
-            "_id.path points at a column that is not declared",
-            "name the missing column",
-            () -> putDataset(
-                "bad_idpath_ds",
-                "good_ds",
-                s3(GOOD_CSV),
-                null,
-                Map.of("dynamic", "false", "properties", Map.of("id", Map.of("type", "long")), "_id", Map.of("path", "nonexistent_column"))
-            )
-        );
-        crudProbe(
-            "declared_mapping",
             "two declared columns resolving to one physical column",
             "name both logical columns and the physical one they collide on",
             () -> putDataset(
@@ -983,6 +973,15 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
             () -> putDataSource(
                 "bad_endpoint_ds",
                 Map.of("access_key", "k", "secret_key", "s", "region", "us-east-1", "endpoint", "not a url")
+            )
+        );
+        crudProbe(
+            "data_source_crud",
+            "put s3 data source with an endpoint that is not an AWS host",
+            "name the setting and say the host is not a supported AWS S3 endpoint",
+            () -> putDataSource(
+                "foreign_endpoint_ds",
+                Map.of("access_key", "k", "secret_key", "s", "region", "us-east-1", "endpoint", "https://storage.example.com")
             )
         );
         crudProbe(

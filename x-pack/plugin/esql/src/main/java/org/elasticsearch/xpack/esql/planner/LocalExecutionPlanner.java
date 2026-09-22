@@ -166,6 +166,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
@@ -631,8 +632,13 @@ public class LocalExecutionPlanner {
         // The request shape follows the endpoint's task type: a text_embedding endpoint takes a text embedding request; an
         // embedding endpoint takes an embedding request carrying the typed input. Both warn, null the row, and continue on a
         // per-row inference failure.
-        // A single batch size applies to every per-field operator this command builds.
-        int batchSize = inferenceService.inferenceSettings().denseVectorBatchSize();
+        // A single batch size applies to every per-field operator this command builds. A built-in default endpoint rejects a
+        // batch larger than its own input cap, so the configured size is clamped to that cap when one of those endpoints serves
+        // the query.
+        int batchSize = Math.min(
+            inferenceService.inferenceSettings().denseVectorBatchSize(),
+            DenseVector.builtInEndpointBatchCap(inferenceId)
+        );
         PhysicalOperation operation = source;
         for (int i = 0; i < fields.size(); i++) {
             ExpressionEvaluator.Factory inputEvaluatorFactory = EvalMapper.toEvaluator(

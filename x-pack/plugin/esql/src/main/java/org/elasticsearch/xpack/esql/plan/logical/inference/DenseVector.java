@@ -120,6 +120,34 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
      */
     public static final List<String> DEFAULT_INFERENCE_ID_CANDIDATES = List.of(EIS_JINA_V5_INFERENCE_ID, DEFAULT_INFERENCE_ID);
 
+    /**
+     * Per-request input cap of {@link #EIS_JINA_V5_INFERENCE_ID}. The Elastic Inference Service dense text-embedding endpoint
+     * rejects a request carrying more than this many inputs. The value repeats the inference plugin's own limit
+     * ({@code ElasticInferenceService.DEFAULT_DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE}), which is private and on a module not on
+     * this module's compile classpath.
+     */
+    public static final int EIS_JINA_V5_MAX_BATCH_SIZE = 16;
+
+    /**
+     * Per-request input cap of {@link #DEFAULT_INFERENCE_ID}. The value repeats the inference plugin's own limit
+     * ({@code ElasticsearchInternalService.EMBEDDING_MAX_BATCH_SIZE}), which is on a module not on this module's compile
+     * classpath.
+     */
+    public static final int DEFAULT_INFERENCE_ID_MAX_BATCH_SIZE = 10;
+
+    /**
+     * The per-request input cap of a built-in default endpoint, or {@link Integer#MAX_VALUE} for any other endpoint. The command
+     * embeds rows in batches, and a batch larger than the endpoint's cap is rejected; a user-named endpoint carries no cap known
+     * here, so it is left unbounded and the inference service splits an over-sized batch itself.
+     */
+    public static int builtInEndpointBatchCap(String inferenceId) {
+        return switch (inferenceId) {
+            case EIS_JINA_V5_INFERENCE_ID -> EIS_JINA_V5_MAX_BATCH_SIZE;
+            case DEFAULT_INFERENCE_ID -> DEFAULT_INFERENCE_ID_MAX_BATCH_SIZE;
+            default -> Integer.MAX_VALUE;
+        };
+    }
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "DenseVector",

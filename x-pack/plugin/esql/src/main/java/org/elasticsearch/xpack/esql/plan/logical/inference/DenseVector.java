@@ -539,7 +539,8 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
 
     @Override
     public boolean isFoldable() {
-        return fields.stream().allMatch(Expression::foldable);
+        // DENSE_VECTOR embeds column values, which differ per row and are never foldable; there is nothing to compute once.
+        return false;
     }
 
     @Override

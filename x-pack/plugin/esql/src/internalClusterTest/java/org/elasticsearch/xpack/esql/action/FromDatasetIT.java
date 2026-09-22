@@ -55,7 +55,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -81,6 +80,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -3593,6 +3593,89 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
+     * Declared-type twin of {@link #testScalingDifferentialOverAnnotatedSortColumns} for the INT32 case: an
+     * {@code INT32 DECIMAL(9,2)} column declared as {@code integer} routes through the {@code case INT} arm of
+     * {@code rawValueFromStats} / {@code rawValueFromPageIndex}. That arm does not check
+     * {@code sortColumnAnnotationScales}, so it passes the raw unscaled integer (100..2099) to the threshold
+     * comparator instead of declining. The decoded bound is a whole-number integer (1..20), and 100 &gt; 1, so
+     * the comparator decides every row group is dominated and skips the rows holding the true minimum. The fix makes
+     * the arm yield {@code null} when the annotation rescales, preventing the skip.
+     *
+     * <p>The file is four columns wide so that {@code InsertExternalFieldExtraction} defers enough columns to engage
+     * the threshold rail; projecting fewer keeps the scan narrow and the threshold is never published.
+     */
+    public void testScalingDifferentialOverDeclaredIntegerDecimalSortColumn() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        // Raw unscaled integers 100..2099; with DECIMAL(9,2) annotation, decode divides by 100, giving 1.00..20.99.
+        // Declared integer: the double is cast to int (floor), yielding 1..20. Ascending values so the true minimum
+        // (1) lives in the first row groups — a unit-blind threshold still skips them because raw 100 > decoded 1.
+        int rowCount = 2000;
+        Path file = writeDecimalInt32Fixture("decimal_int32_sort", rowCount);
+
+        // Undeclared: amt infers as double (DECIMAL annotation), DOUBLE arm is correct, used as control.
+        registerDecimalInt32Dataset("decimal_int_inferred_ds", file, null);
+        // Declared: amt is integer, routes through the INT arm where the bug lives.
+        registerDecimalInt32Dataset("decimal_int_declared_ds", file, "integer");
+
+        // Ground truth: unsorted scan of the declared dataset (no sort, no filter — no pruning).
+        List<Integer> truth = new ArrayList<>();
+        try (var response = run(syncEsqlQueryRequest("FROM decimal_int_declared_ds | KEEP amt | LIMIT 5000"), TIMEOUT)) {
+            for (List<Object> row : getValuesList(response)) {
+                truth.add(((Number) row.get(0)).intValue());
+            }
+        }
+        assertThat("ground truth must see every row", truth, hasSize(rowCount));
+        int min = truth.stream().mapToInt(Integer::intValue).min().getAsInt();
+        int max = truth.stream().mapToInt(Integer::intValue).max().getAsInt();
+
+        // Control ground truth: unsorted scan of the inferred (double) dataset, used for SORT probes below.
+        List<Double> inferredTruth = new ArrayList<>();
+        try (var response = run(syncEsqlQueryRequest("FROM decimal_int_inferred_ds | KEEP amt | LIMIT 5000"), TIMEOUT)) {
+            for (List<Object> row : getValuesList(response)) {
+                inferredTruth.add(((Number) row.get(0)).doubleValue());
+            }
+        }
+        assertThat("inferred ground truth must see every row", inferredTruth, hasSize(rowCount));
+        double inferredMin = inferredTruth.stream().mapToDouble(Double::doubleValue).min().getAsDouble();
+        double inferredMax = inferredTruth.stream().mapToDouble(Double::doubleValue).max().getAsDouble();
+
+        // Control: undeclared DOUBLE arm is unaffected; verify COUNT and both sort directions are correct.
+        assertQ("undeclared [double] STATS COUNT", "FROM decimal_int_inferred_ds | STATS c = COUNT(amt)", (long) rowCount);
+        assertQ(
+            "undeclared [double] SORT ASC LIMIT 1 (wide)",
+            "FROM decimal_int_inferred_ds | SORT amt ASC | LIMIT 1 | KEEP amt, id, pri, msg",
+            inferredMin
+        );
+        assertQ(
+            "undeclared [double] SORT DESC LIMIT 1 (wide)",
+            "FROM decimal_int_inferred_ds | SORT amt DESC | LIMIT 1 | KEEP amt, id, pri, msg",
+            inferredMax
+        );
+
+        // Declared integer: the INT arm must decline to compare a rescaled raw stat against the decoded bound.
+        List<String> failures = new ArrayList<>();
+        record Probe(String what, String query, Object expected) {}
+        List<Probe> probes = List.of(
+            new Probe("SORT ASC LIMIT 1 (wide)", "FROM decimal_int_declared_ds | SORT amt ASC | LIMIT 1 | KEEP amt, id, pri, msg", min),
+            new Probe("SORT DESC LIMIT 1 (wide)", "FROM decimal_int_declared_ds | SORT amt DESC | LIMIT 1 | KEEP amt, id, pri, msg", max),
+            new Probe("STATS COUNT", "FROM decimal_int_declared_ds | STATS c = COUNT(amt)", (long) rowCount)
+        );
+        for (Probe probe : probes) {
+            try (var response = run(syncEsqlQueryRequest(probe.query()), TIMEOUT)) {
+                List<List<Object>> rows = getValuesList(response);
+                Object actual = rows.isEmpty() ? null : rows.get(0).get(0);
+                if (Objects.equals(probe.expected(), actual) == false) {
+                    failures.add(
+                        "[" + probe.what() + "] expected " + probe.expected() + " but got " + actual + "  (query: " + probe.query() + ")"
+                    );
+                }
+            }
+        }
+        assertTrue("the engine disagreed with fully-decoded ground truth:\n  " + String.join("\n  ", failures), failures.isEmpty());
+    }
+
+    /**
      * Wide, multi-row-group {@code UINT_64} differential: ground truth comes from an unpruned
      * scan; filter pushdown, TopN threshold pruning (ASC and DESC), and stats-answered MIN/MAX must all agree with
      * it across the 2^63 boundary. The fixture is 4 columns wide (so the TopN deferred-extraction threshold rail
@@ -3909,6 +3992,74 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         Path tempFile = createTempDir().resolve(name + ".parquet");
         Files.write(tempFile, baos.toByteArray());
         return tempFile;
+    }
+
+    /**
+     * Four-column {@code DECIMAL(9,2)} fixture for {@link #testScalingDifferentialOverDeclaredIntegerDecimalSortColumn}.
+     * Raw unscaled integers {@code 100..100+rowCount-1}, stored as {@code INT32} with a {@code DECIMAL(9,2)} annotation.
+     * Four columns are required so {@code InsertExternalFieldExtraction} defers enough to engage the threshold rail.
+     * Very small row groups (256 bytes) ensure there are always later groups for a unit-blind threshold to wrongly skip.
+     */
+    private Path writeDecimalInt32Fixture(String name, int rowCount) throws IOException {
+        MessageType schema = MessageTypeParser.parseMessageType(
+            "message decimal_int32 {"
+                + " required int32 amt (DECIMAL(9,2));"
+                + " required int64 id;"
+                + " required int32 pri;"
+                + " required binary msg (UTF8);"
+                + " }"
+        );
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withRowGroupSize(256L)
+                .withPageSize(64)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (int i = 0; i < rowCount; i++) {
+                Group g = factory.newGroup();
+                g.add("amt", 100 + i);
+                g.add("id", (long) i);
+                g.add("pri", i);
+                g.add("msg", "m" + i);
+                writer.write(g);
+            }
+        }
+        Path tempFile = createTempDir().resolve(name + ".parquet");
+        Files.write(tempFile, baos.toByteArray());
+        return tempFile;
+    }
+
+    /**
+     * Registers a dataset over the DECIMAL INT32 fixture. When {@code amtType} is non-null, declares {@code amt}
+     * as that type with {@code dynamic:true}; when null, registers with no declared mapping (fully inferred).
+     */
+    private void registerDecimalInt32Dataset(String dataset, Path file, @Nullable String amtType) throws Exception {
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        DatasetMapping mapping = null;
+        if (amtType != null) {
+            properties.put("amt", new DatasetFieldMapping(amtType, null));
+            mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        }
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    dataset,
+                    "local_ds",
+                    file.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
     }
 
     /**
@@ -5037,8 +5188,18 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
         registerDataset("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
 
-        // employees + employees_alt = 3 + 2 = 5
+        // Off (the default): the wildcard reaches neither dataset. Every part of the pattern carries a
+        // wildcard, so no concrete index was requested and the query is an empty success rather than an error.
         try (var response = run(syncEsqlQueryRequest("FROM employees* | STATS c = COUNT(*)"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(0L));
+        }
+
+        // On: employees + employees_alt = 3 + 2 = 5
+        try (
+            var response = run(syncEsqlQueryRequest("SET wildcards_match_datasets = true; FROM employees* | STATS c = COUNT(*)"), TIMEOUT)
+        ) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
             assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(5L));
@@ -5050,39 +5211,58 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
         registerDataset("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
 
-        // employees* matches both, exclusion of employees_alt leaves only employees (3 rows)
-        try (var response = run(syncEsqlQueryRequest("FROM employees*,-employees_alt | STATS c = COUNT(*)"), TIMEOUT)) {
+        // Off (the default): the wildcard reaches neither dataset. Unlike the bare-wildcard case, the
+        // exclusion carries no wildcard of its own, so a concrete index counts as requested and a pattern
+        // matching nothing is fatal rather than empty.
+        Exception e = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest("FROM employees*,-employees_alt | STATS c = COUNT(*)"), TIMEOUT).close()
+        );
+        assertThat(e.getMessage(), containsString("Unknown index [employees*,-employees_alt]"));
+
+        // On: employees* matches both, exclusion of employees_alt leaves only employees (3 rows)
+        try (
+            var response = run(
+                syncEsqlQueryRequest("SET wildcards_match_datasets = true; FROM employees*,-employees_alt | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
             assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(3L));
         }
     }
 
-    public void testFromDatasetIndexMetadataReturnsDatasetName() throws Exception {
-        // Standard metadata fields are accepted on datasets. For the FROM <dataset> path, _index
-        // resolves to the user-facing dataset name (not the underlying resource path) for every
-        // row, matching the "_index is the dataset name" contract.
+    public void testFromDatasetNameMetadataReturnsDatasetNameAndIndexIsNull() throws Exception {
+        // Standard metadata fields are accepted on datasets. _index names an index and a dataset is not
+        // one, so it binds and answers SQL NULL; _name is the column that resolves to the user-facing
+        // dataset name (not the underlying resource path) for every row.
         registerDataSource("local_ds", Map.of());
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
-        // METADATA surfaces _index with no KEEP; it resolves to the dataset name.
-        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _index | SORT emp_no | LIMIT 10"), TIMEOUT)) {
+        // METADATA surfaces both with no KEEP.
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _index, _name | SORT emp_no | LIMIT 10"), TIMEOUT)) {
             List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
             assertThat("_index must surface without KEEP; got " + names, names, hasItem("_index"));
-            int idx = names.indexOf("_index");
+            assertThat("_name must surface without KEEP; got " + names, names, hasItem("_name"));
+            int indexIdx = names.indexOf("_index");
+            int nameIdx = names.indexOf("_name");
 
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
             for (List<Object> row : rows) {
-                assertThat(row.get(idx).toString(), equalTo("employees"));
+                assertThat("_index is null on a dataset", row.get(indexIdx), nullValue());
+                assertThat(row.get(nameIdx).toString(), equalTo("employees"));
             }
         }
     }
 
     public void testHivePartitionClaimingReservedNameIsRenamedAndSpecWins() throws Exception {
         // Standard metadata names are dedicated: a Hive layout claiming /_index=.../ cannot
-        // redefine METADATA _index. End-to-end pin for the rename: _index carries the dataset
-        // name for every row, while the layout's value stays queryable under _partition._index.
+        // redefine METADATA _index. End-to-end pin for the rename: _index keeps the engine's own
+        // answer for every row — SQL NULL on a dataset — while the layout's value stays queryable
+        // under _partition._index. NULL winning is the point: not even the only value on offer can
+        // claim a reserved name.
         Path root = createTempDir();
         Path alpha = Files.createDirectories(root.resolve("_index=alpha"));
         Files.writeString(alpha.resolve("part1.csv"), "emp_no:integer,first_name:keyword\n1,Alice\n2,Bob\n");
@@ -5105,7 +5285,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows, hasSize(3));
             String[] expectedPartition = { "alpha", "alpha", "beta" };
             for (int i = 0; i < rows.size(); i++) {
-                assertThat("spec-defined _index must carry the dataset name", rows.get(i).get(indexIdx).toString(), equalTo("events_hive"));
+                assertThat("the engine's _index must win over the layout's", rows.get(i).get(indexIdx), nullValue());
                 assertThat(
                     "layout value stays queryable under the rename",
                     rows.get(i).get(partitionIdx).toString(),
@@ -5115,77 +5295,71 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testFromDatasetIdMetadataIsOpaqueAndRecordRefCarriesByteOffset() throws Exception {
-        // End-to-end proof of the _id composition path on a non-Parquet format (CSV). The CSV reader
-        // emits each record's file-global byte offset on the _rowPosition channel (splitStartByte +
-        // bytes consumed up to the record's first character), matching NDJSON's shape so the value
-        // is identical regardless of split layout. The raw token stays observable through
-        // _file.record_ref; _id itself is the opaque (location, mtime, token) hash via
-        // ExternalRowIdentity — fixed 32-char base64url, no path leak. The fixture writes
-        // "emp_no:integer,first_name:keyword\n1,Alice\n2,Bob\n3,Carol\n", so the three sorted rows
-        // sit at byte offsets 34, 42, 48 (header 34 bytes; "1,Alice\n" 8 bytes; "2,Bob\n" 6 bytes).
+    public void testFromDatasetRecordRefCarriesByteOffset() throws Exception {
+        // The CSV reader emits each record's file-global byte offset on the _rowPosition channel
+        // (splitStartByte + bytes consumed up to the record's first character), matching NDJSON's shape so the
+        // value is identical regardless of split layout. _file.record_ref surfaces that raw token. The fixture
+        // writes "emp_no:integer,first_name:keyword\n1,Alice\n2,Bob\n3,Carol\n", so the three sorted rows sit
+        // at byte offsets 34, 42, 48 (header 34 bytes; "1,Alice\n" 8 bytes; "2,Bob\n" 6 bytes).
         registerDataSource("local_ds", Map.of());
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
-        // No KEEP: METADATA _id, _file.record_ref surfaces both on their own; columns found by name.
-        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _id, _file.record_ref | SORT emp_no | LIMIT 10"), TIMEOUT)) {
+        // No KEEP: METADATA _file.record_ref surfaces on its own; the column is found by name.
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _file.record_ref | SORT emp_no | LIMIT 10"), TIMEOUT)) {
             List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
-            assertThat("_id must surface without KEEP, got " + names, names, hasItem("_id"));
             assertThat("_file.record_ref must surface without KEEP, got " + names, names, hasItem("_file.record_ref"));
-            int idIdx = names.indexOf("_id");
             int refIdx = names.indexOf("_file.record_ref");
 
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
 
             long[] expectedOffsets = { 34, 42, 48 };
-            Set<String> distinctIds = new HashSet<>();
             for (int i = 0; i < rows.size(); i++) {
-                String id = rows.get(i).get(idIdx).toString();
-                assertTrue("rendered _id [" + id + "] must be fixed-length base64url", id.matches("[A-Za-z0-9_-]{32}"));
-                assertThat("storage location must not leak into _id [" + id + "]", id, not(containsString("employees")));
-                distinctIds.add(id);
                 assertThat(
                     "file-global byte offset for row " + i,
                     ((Number) rows.get(i).get(refIdx)).longValue(),
                     equalTo(expectedOffsets[i])
                 );
             }
-            assertThat("all _id values are distinct", distinctIds, hasSize(3));
         }
     }
 
     public void testFromDatasetStandardMetadataNeverFails() throws Exception {
-        // Standing contract: every standard metadata name is accepted, returning a value or SQL NULL,
-        // but never an error. _index carries the dataset name; _version carries the file mtime; the
-        // rest (no relevance scoring, no per-row _ignored, etc.) come back as NULL columns. None may
-        // be dropped and none may crash the query.
+        // Standing contract: every metadata name a dataset can answer returns a value or SQL NULL, never an
+        // error. All nine come back as NULL columns. Pinned per format in
+        // AbstractExternalMetadataMatrixIT#testAllStandardMetadataColumnsPinned.
         registerDataSource("local_ds", Map.of());
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
         // _tier (DataTierFieldMapper.NAME) is snapshot-only in MetadataAttribute.ATTRIBUTES_MAP;
-        // omit it so the query is valid in non-snapshot builds. _score, _tsid, _size, _ignored,
-        // _index_mode have no value on external rows and must render as NULL columns rather than
-        // being dropped or erroring.
-        String query = "FROM employees METADATA _index, _version, _ignored, _index_mode, _tsid, _size, _score "
+        // omit it so the query is valid in non-snapshot builds. Every other standard name has no
+        // value on an external row and must render as a NULL column rather than being dropped or
+        // erroring — a file carries no document identity, version or stored source either, and no
+        // scorer is wired over an external relation, so nothing populates _score.
+        String query = "FROM employees METADATA _index, _id, _version, _source, _ignored, _index_mode, _tsid, _size, _score "
             + "| SORT emp_no "
-            + "| KEEP emp_no, _index, _version, _ignored, _index_mode, _tsid, _size, _score "
+            + "| KEEP emp_no, _index, _id, _version, _source, _ignored, _index_mode, _tsid, _size, _score "
             + "| LIMIT 10";
 
         try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
             List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
-            assertThat(names, equalTo(List.of("emp_no", "_index", "_version", "_ignored", "_index_mode", "_tsid", "_size", "_score")));
+            assertThat(
+                names,
+                equalTo(List.of("emp_no", "_index", "_id", "_version", "_source", "_ignored", "_index_mode", "_tsid", "_size", "_score"))
+            );
 
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
             for (List<Object> row : rows) {
-                assertThat("_index is the dataset name", row.get(1).toString(), equalTo("employees"));
-                // _ignored, _index_mode, _tsid, _size, _score have no external value: NULL.
-                assertThat("_ignored is null on external rows", row.get(3), org.hamcrest.Matchers.nullValue());
-                assertThat("_index_mode is null on external rows", row.get(4), org.hamcrest.Matchers.nullValue());
-                assertThat("_tsid is null on external rows", row.get(5), org.hamcrest.Matchers.nullValue());
-                assertThat("_size is null on external rows", row.get(6), org.hamcrest.Matchers.nullValue());
-                assertThat("_score is null on external rows", row.get(7), org.hamcrest.Matchers.nullValue());
+                assertThat("_index is null on external rows", row.get(1), nullValue());
+                assertThat("_id is null on external rows", row.get(2), nullValue());
+                assertThat("_version is null on external rows", row.get(3), nullValue());
+                assertThat("_source is null on external rows", row.get(4), nullValue());
+                assertThat("_ignored is null on external rows", row.get(5), nullValue());
+                assertThat("_index_mode is null on external rows", row.get(6), nullValue());
+                assertThat("_tsid is null on external rows", row.get(7), nullValue());
+                assertThat("_size is null on external rows", row.get(8), nullValue());
+                assertThat("_score is null on external rows", row.get(9), nullValue());
             }
         }
     }
@@ -5199,8 +5373,15 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         registerDataSource("local_ds", Map.of());
         registerDataset("logs_dataset", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
-        // logs_* expands to logs_index (empty) + logs_dataset (3 rows) = 3 total
+        // Off (the default): logs_* reaches logs_index only, which is empty.
         try (var response = run(syncEsqlQueryRequest("FROM logs_* | STATS c = COUNT(*)"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(0L));
+        }
+
+        // On: logs_* expands to logs_index (empty) + logs_dataset (3 rows) = 3 total
+        try (var response = run(syncEsqlQueryRequest("SET wildcards_match_datasets = true; FROM logs_* | STATS c = COUNT(*)"), TIMEOUT)) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
             assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(3L));
@@ -5498,169 +5679,40 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    /**
-     * A dataset that declares {@code mappings._id.path = first_name} stamps each row's {@code _id} from the
-     * {@code first_name} column's value. Asserted three ways against the same dataset: (1) {@code _id} equals the
-     * column's value when the id column IS projected via {@code KEEP}; (2) {@code _id} still equals the column's value
-     * when the id column is NOT projected (the reader pins it into its projection, then the top-level Project drops it
-     * from the user's output); (3) a query WITHOUT {@code METADATA _id} returns the plain rows unchanged (the synthetic
-     * path is untouched).
-     */
-    public void testIdFromColumn() throws Exception {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-
-        // Non-strict declaration whose only knob is _id.path = first_name (a keyword column). The columns keep their
-        // inferred names/types; _id is stamped from first_name's value.
-        DatasetMapping mapping = new DatasetMapping(
-            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, new LinkedHashMap<>(), "first_name")
+    public void testMetadataIdWinsOverPhysicalColumn() throws Exception {
+        Path fixture = createTempFile("collision-id-", ".csv");
+        Files.writeString(
+            fixture,
+            String.join("\n", "_id:keyword,emp_no:integer,first_name:keyword", "row-a,1,Alice", "row-b,2,Bob", "row-c,3,Carol") + "\n"
         );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("collision_id", "local_ds", fixture.toUri().toString(), Map.of("format", "csv"));
 
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                new PutDatasetAction.Request(
-                    TIMEOUT,
-                    TIMEOUT,
-                    "employees_id_from_col",
-                    "local_ds",
-                    csvFixture.toUri().toString(),
-                    null,
-                    new HashMap<>(Map.of("format", "csv")),
-                    mapping
-                )
-            )
-        );
-
-        // (1) _id equals first_name when the id column IS projected.
-        try (
-            var response = run(
-                syncEsqlQueryRequest("FROM employees_id_from_col METADATA _id | KEEP _id, first_name | SORT first_name | LIMIT 10"),
-                TIMEOUT
-            )
-        ) {
-            List<? extends ColumnInfo> columns = response.columns();
-            int idIdx = columns.stream().map(ColumnInfo::name).toList().indexOf("_id");
-            int nameIdx = columns.stream().map(ColumnInfo::name).toList().indexOf("first_name");
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(3));
-            for (List<Object> row : rows) {
-                assertThat("_id is stamped from the first_name column", row.get(idIdx), equalTo(row.get(nameIdx)));
-            }
-            assertThat(rows.get(0).get(nameIdx).toString(), equalTo("Alice"));
-        }
-
-        // (2) _id STILL equals first_name when the id column is NOT projected — the reader pins first_name into its
-        // read projection, and the top-level Project drops it from the user's output.
-        try (
-            var response = run(
-                syncEsqlQueryRequest("FROM employees_id_from_col METADATA _id | KEEP _id, emp_no | SORT emp_no | LIMIT 10"),
-                TIMEOUT
-            )
-        ) {
-            List<? extends ColumnInfo> columns = response.columns();
-            assertThat(columns.stream().map(ColumnInfo::name).toList(), equalTo(List.of("_id", "emp_no")));
-            int idIdx = columns.stream().map(ColumnInfo::name).toList().indexOf("_id");
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(3));
-            // emp_no 1,2,3 map to Alice,Bob,Carol per the fixture.
-            assertThat(rows.get(0).get(idIdx).toString(), equalTo("Alice"));
-            assertThat(rows.get(1).get(idIdx).toString(), equalTo("Bob"));
-            assertThat(rows.get(2).get(idIdx).toString(), equalTo("Carol"));
-        }
-
-        // (3) WITHOUT METADATA _id the plain rows come back unchanged — the synthetic-_id machinery never runs.
-        try (var response = run(syncEsqlQueryRequest("FROM employees_id_from_col | SORT emp_no | LIMIT 10"), TIMEOUT)) {
-            List<? extends ColumnInfo> columns = response.columns();
-            assertThat(columns.stream().map(ColumnInfo::name).toList(), equalTo(List.of("emp_no", "first_name")));
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(3));
-            assertThat(rows.get(0).get(0), equalTo(1));
-            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
-            assertThat(rows.get(2).get(0), equalTo(3));
-            assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
-        }
-    }
-
-    public void testIdFromRenamedColumn() throws Exception {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        // The id-source is a LOGICAL name: declare uid as a rename of the physical first_name column and point
-        // _id.path at the logical uid. The whole chain (pin, projection, reader translation, stamp) must stay in
-        // logical space — _id equals the renamed column's values.
-        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("uid", new DatasetFieldMapping("keyword", "first_name"));
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties, "uid"));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                new PutDatasetAction.Request(
-                    TIMEOUT,
-                    TIMEOUT,
-                    "employees_id_renamed",
-                    "local_ds",
-                    csvFixture.toUri().toString(),
-                    null,
-                    new HashMap<>(Map.of("format", "csv")),
-                    mapping
-                )
-            )
-        );
-        try (
-            var response = run(
-                syncEsqlQueryRequest("FROM employees_id_renamed METADATA _id | KEEP _id, uid | SORT uid | LIMIT 10"),
-                TIMEOUT
-            )
-        ) {
+        try (var response = run(syncEsqlQueryRequest("FROM collision_id METADATA _id | KEEP _id, emp_no | SORT emp_no"), TIMEOUT)) {
             List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
             int idIdx = names.indexOf("_id");
-            int uidIdx = names.indexOf("uid");
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
             for (List<Object> row : rows) {
-                assertThat("_id is stamped from the renamed column", row.get(idIdx), equalTo(row.get(uidIdx)));
+                assertNull(row.get(idIdx));
             }
-            assertThat(rows.get(0).get(uidIdx).toString(), equalTo("Alice"));
         }
-    }
 
-    public void testIdPathOnPartitionColumnRejected() throws Exception {
-        // _id.path naming a partition column is rejected loudly: a partition value is a path-derived constant surfaced
-        // as a plain data-looking column, but the reader classifies it in the partition branch and never stamps _id from
-        // it — pointing _id there would silently yield null ids for every row.
-        Path root = createTempDir();
-        Path east = Files.createDirectories(root.resolve("region=east"));
-        Files.writeString(east.resolve("part1.csv"), "emp_no:integer,first_name:keyword\n1,Alice\n2,Bob\n");
+        try (var response = run(syncEsqlQueryRequest("FROM collision_id | KEEP _id, emp_no | SORT emp_no"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            int idIdx = names.indexOf("_id");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.get(0).get(idIdx).toString(), equalTo("row-a"));
+            assertThat(rows.get(1).get(idIdx).toString(), equalTo("row-b"));
+            assertThat(rows.get(2).get(idIdx).toString(), equalTo("row-c"));
+        }
 
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
-        props.put("emp_no", new DatasetFieldMapping("integer", null));
-        props.put("first_name", new DatasetFieldMapping("keyword", null));
-        // Non-strict, _id.path = region (the partition key). PUT accepts (non-strict defers the id-column existence
-        // check); the reject fires at query time when _id is actually requested.
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, props, "region"));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                new PutDatasetAction.Request(
-                    TIMEOUT,
-                    TIMEOUT,
-                    "logs_id_partition",
-                    "local_ds",
-                    root.toUri() + "**/*.csv",
-                    null,
-                    new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
-                    mapping
-                )
-            )
-        );
-
-        Exception e = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM logs_id_partition METADATA _id | KEEP _id | LIMIT 1"), TIMEOUT).close()
-        );
-        assertThat(e.getMessage(), containsString("[_id]"));
-        assertThat(e.getMessage(), containsString("region"));
-        // Pin the partition branch specifically, not the sibling "no such column exists" reject (both embed [_id]+path).
-        assertThat(e.getMessage(), containsString("not a data column"));
+        try (var response = run(syncEsqlQueryRequest("FROM collision_id METADATA _id | KEEP * | SORT emp_no"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat(names, not(hasItem("_id")));
+            assertThat(names, hasItem("emp_no"));
+            assertThat(names, hasItem("first_name"));
+        }
     }
 
     /**
@@ -5850,49 +5902,13 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat(e.getMessage(), containsString("collides with a partition column"));
     }
 
-    public void testIdFromMissingColumnRejectedOnlyWhenIdRequested() throws Exception {
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        // Non-strict declaration whose _id.path names a column that exists in NO file — a typo, or the files lost it.
-        // PUT accepts it (non-strict defers the existence check to query time; the files may not exist yet at PUT).
-        DatasetMapping mapping = new DatasetMapping(
-            new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, new LinkedHashMap<>(), "no_such_column")
-        );
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                new PutDatasetAction.Request(
-                    TIMEOUT,
-                    TIMEOUT,
-                    "employees_id_bad_path",
-                    "local_ds",
-                    csvFixture.toUri().toString(),
-                    null,
-                    new HashMap<>(Map.of("format", "csv")),
-                    mapping
-                )
-            )
-        );
-
-        // Asking for _id fails loudly at analysis — never a silently-null id column.
-        Exception e = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM employees_id_bad_path METADATA _id | KEEP _id, emp_no | LIMIT 5"), TIMEOUT).close()
-        );
-        assertThat(e.getMessage(), containsString("no_such_column"));
-        assertThat(e.getMessage(), containsString("_id"));
-
-        // Not asking for _id is moot — the bad _id.path is like any other unread column; the query works.
-        try (var response = run(syncEsqlQueryRequest("FROM employees_id_bad_path | SORT emp_no | LIMIT 5"), TIMEOUT)) {
-            assertThat(getValuesList(response), hasSize(3));
-        }
-    }
-
     public void testFromMixedIndexAndDatasetMetadataBindsOnBothHalves() throws Exception {
         // METADATA on a heterogeneous FROM must bind on BOTH branches and strip neither. The plan-global metadata
         // strip in Analyzer.planWithoutSyntheticAttributes fires only on the legacy EXTERNAL command's nameless leaf
         // (an ExternalRelation whose datasetName() == null — the gate added in #149796); a FROM <dataset> leaf always
         // carries a dataset name and the index leaf is a regular relation, so neither half matches the gate. This
-        // asserts the dataset's _index survives the union (resolving to the dataset name) alongside the index's own.
+        // asserts that _index and _id both bind on both halves — the index's own value on one, SQL NULL on the other,
+        // since a dataset is neither an index nor a document store.
         assertAcked(
             client().admin().indices().prepareCreate("metadata_idx").setMapping("emp_no", "type=integer", "first_name", "type=keyword")
         );
@@ -5903,29 +5919,40 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
 
         // 3 dataset rows (emp_no 1,2,3) + 1 index row (emp_no 100); SORT makes the per-row _index assertion deterministic.
-        // No explicit KEEP _index: METADATA surfaces unconditionally on the FROM path, so a regression that broadened the
-        // strip gate to fire when a FROM <dataset> leaf is present would drop _index from the union output entirely and
-        // fail hasItem("_index"). An explicit KEEP _index would mask exactly that regression — it lands in Analyzer's
+        // No explicit KEEP: METADATA surfaces unconditionally on the FROM path, so a regression that broadened the
+        // strip gate to fire when a FROM <dataset> leaf is present would drop the metadata columns from the union output
+        // entirely and fail hasItem. An explicit KEEP would mask exactly that regression — it lands in Analyzer's
         // explicitlyKept set and is never stripped.
-        try (var response = run(syncEsqlQueryRequest("FROM metadata_idx, employees METADATA _index | SORT emp_no | LIMIT 10"), TIMEOUT)) {
+        //
+        // _id rides along because it is the name that carries a value on one half and SQL NULL on the other: a
+        // refusal on the dataset half would make a mixed FROM depend on which sources it names.
+        try (
+            var response = run(syncEsqlQueryRequest("FROM metadata_idx, employees METADATA _index, _id | SORT emp_no | LIMIT 10"), TIMEOUT)
+        ) {
             List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
             assertThat("_index must bind on the heterogeneous union; got " + names, names, hasItem("_index"));
+            assertThat("_id must bind on the heterogeneous union; got " + names, names, hasItem("_id"));
             int indexCol = names.indexOf("_index");
+            int idCol = names.indexOf("_id");
             int empNoCol = names.indexOf("emp_no");
 
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(4));
             // Dataset rows (emp_no 1,2,3) sort ahead of the index row (100). The dataset half is not stripped: its rows
-            // carry _index = the dataset name; the index row carries its own _index. emp_no is asserted per row so the
-            // ordering this relies on stays self-evident if the fixtures ever change.
+            // carry a null _index, the index row carries its own. emp_no is asserted per row so the ordering this
+            // relies on stays self-evident if the fixtures ever change.
             assertThat(((Number) rows.get(0).get(empNoCol)).intValue(), equalTo(1));
-            assertThat(rows.get(0).get(indexCol).toString(), equalTo("employees"));
+            assertThat("dataset row is not an index", rows.get(0).get(indexCol), nullValue());
+            assertThat("dataset row carries no document identity", rows.get(0).get(idCol), nullValue());
             assertThat(((Number) rows.get(1).get(empNoCol)).intValue(), equalTo(2));
-            assertThat(rows.get(1).get(indexCol).toString(), equalTo("employees"));
+            assertThat("dataset row is not an index", rows.get(1).get(indexCol), nullValue());
+            assertThat("dataset row carries no document identity", rows.get(1).get(idCol), nullValue());
             assertThat(((Number) rows.get(2).get(empNoCol)).intValue(), equalTo(3));
-            assertThat(rows.get(2).get(indexCol).toString(), equalTo("employees"));
+            assertThat("dataset row is not an index", rows.get(2).get(indexCol), nullValue());
+            assertThat("dataset row carries no document identity", rows.get(2).get(idCol), nullValue());
             assertThat(((Number) rows.get(3).get(empNoCol)).intValue(), equalTo(100));
             assertThat(rows.get(3).get(indexCol).toString(), equalTo("metadata_idx"));
+            assertThat("index row keeps its document identity", rows.get(3).get(idCol), notNullValue());
         }
     }
 
@@ -5935,7 +5962,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         while (cause != null && (cause.getMessage() == null || cause.getMessage().contains(fragment) == false)) {
             cause = cause.getCause();
         }
-        assertThat("error chain should contain message fragment [" + fragment + "]", cause, org.hamcrest.Matchers.notNullValue());
+        assertThat("error chain should contain message fragment [" + fragment + "]", cause, notNullValue());
     }
 
     private static PutViewAction.Request putViewRequest(String name, String query) {

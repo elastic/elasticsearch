@@ -162,7 +162,7 @@ public class PruneEmptyMergeBranchesTests extends AbstractLogicalPlanOptimizerTe
         children.put("name_a", keptA);
         children.put("name_empty", emptyBranch);
         children.put("name_b", keptB);
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, children, List.of());
+        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, children, children.keySet(), List.of());
 
         LogicalPlan result = new PruneEmptyMergeBranches().apply(vua);
 
@@ -187,7 +187,7 @@ public class PruneEmptyMergeBranchesTests extends AbstractLogicalPlanOptimizerTe
         LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
         children.put("name_a", a);
         children.put("name_b", b);
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, children, List.of());
+        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, children, children.keySet(), List.of());
 
         // Bypass PruneEmptyMergeBranches's all-empty pre-check by calling pruneEmptyBranches
         // directly — this is the contract the analyzer's PruneEmptyUnionAllBranch and
@@ -212,7 +212,7 @@ public class PruneEmptyMergeBranchesTests extends AbstractLogicalPlanOptimizerTe
         LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
         children.put("name_kept", kept);
         children.put("name_empty", emptyBranch);
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, children, List.of());
+        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, children, children.keySet(), List.of());
 
         LogicalPlan result = new PruneEmptyMergeBranches().apply(vua);
 

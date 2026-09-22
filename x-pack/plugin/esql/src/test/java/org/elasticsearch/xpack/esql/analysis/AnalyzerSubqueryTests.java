@@ -1757,7 +1757,9 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
             TEST_PARSER.parseQuery(query),
             projectMetadata,
-            TestIndexNameExpressionResolver.newInstance()
+            TestIndexNameExpressionResolver.newInstance(),
+            // These cases name their datasets exactly, which reaches them at the wildcards_match_datasets default.
+            false
         );
         ExternalSourceResolution resolution = new ExternalSourceResolution(
             Map.of(

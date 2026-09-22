@@ -4072,6 +4072,17 @@ public class EsqlCapabilities {
          */
         FIX_AGGS_MULTIPLE_INPUT_FIELDS,
 
+        /**
+         * Parquet LIKE-family predicates pushed as {@code Pushability.YES} (dropped from FilterExec) now
+         * return an empty survivor mask — not the all-survive sentinel — when the predicate column is absent
+         * from the per-file predicate block map. Under {@code union_by_name} a file that lacks the column
+         * null-fills it above the reader; no pattern matches null, so zero rows must survive. Also fixes a
+         * second route: {@code readerForMapping} no longer discards YES conjuncts when the per-file filter
+         * adaptation empties the list (e.g. when a co-conjunct references a column widened via a one-way cast).
+         * See elastic/esql-planning#2052.
+         */
+        EXTERNAL_PARQUET_LIKE_MISSING_COLUMN_REJECTS_ROWS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

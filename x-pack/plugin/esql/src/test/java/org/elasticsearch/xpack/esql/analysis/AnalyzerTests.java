@@ -6702,7 +6702,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     /**
      * An implicit HIGHLIGHT does not copy a WHERE or mapping analyzer into WITH options.
-     * Mixed leaf analyzers are rejected by verification, not patched by synthesizing WITH.
+     * Mixed leaf analyzers remain query-side and are accepted without synthesizing WITH.
      */
     public void testHighlightNeverSynthesizesLeafAnalyzerIntoOptions() {
         assumeHighlightImplicitQueryAndFieldsEnabled();

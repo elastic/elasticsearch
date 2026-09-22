@@ -3768,7 +3768,7 @@ public class EsqlCapabilities {
 
         /**
          * HIGHLIGHT tokenizes each mapped text field with its index analyzer, and each TO_TEXT column with its
-         * declared analyzer. Query leaf analyzers, WITH, and those values analyzers must name one analyzer.
+         * declared analyzer. Query leaf analyzers shape only their own query terms, while WITH overrides every field's values analyzer.
          */
         HIGHLIGHT_MAPPING_ANALYZER,
 

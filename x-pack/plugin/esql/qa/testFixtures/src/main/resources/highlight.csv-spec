@@ -1991,7 +1991,7 @@ The Lord of the <em>Rings</em> | Tolkien wrote about <em>rings</em>
 ;
 
 
-# An implicit query's MATCH analyzer must match HIGHLIGHT WITH on a standard-mapped field.
+# An implicit query's MATCH analyzer remains query-side while HIGHLIGHT WITH controls values analysis.
 # Mapping english + MATCH english without WITH is highlightMappingAnalyzerStemsWithoutWith.
 highlightUniformAnalyzerFromImplicitWhere
 required_capability: highlight_implicit_query_and_fields

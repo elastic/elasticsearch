@@ -122,6 +122,67 @@ public class HexEncodedByteVectorRecoveryTests extends EngineTestCase {
     }
 
     /**
+     * Verifies the exact production failure scenario: a "mixed-format" op where only the indexed
+     * vector field was patched from the KNN index (as a signed integer array) while the non-indexed
+     * field remained in its original hex-string form. In a mixed-version cluster, the primary
+     * (running new code) produces this mixed source via replication, while recovery from an old
+     * primary sends both fields as hex strings. Both clause 1 and clause 2 of the asserter fail
+     * for this case; only the third clause (comparing both synthesized forms) succeeds.
+     */
+    public void testTranslogOperationAsserterAcceptsMixedAndHexAsEquivalent() throws IOException {
+        ParsedDocument doc = mapperService.documentMapper()
+            .parse(
+                new SourceToParse(
+                    "1",
+                    new BytesArray("{\"my_vector_byte\":\"807f0a\",\"my_vector_byte_indexed\":\"807f0a\"}"),
+                    XContentType.JSON
+                )
+            );
+        Engine.IndexResult primaryResult = engine.index(indexForDoc(doc));
+        long seqNo = primaryResult.getSeqNo();
+        long version = primaryResult.getVersion();
+        long term = primaryResult.getTerm();
+
+        // Simulates the op from replication from a new primary that patched only the indexed field
+        // (the non-indexed field stayed as hex). This is the prvOp in the assertion failure.
+        Translog.Index mixedOp = new Translog.Index(
+            "1",
+            seqNo,
+            term,
+            version,
+            new BytesArray("{\"my_vector_byte\":\"807f0a\",\"my_vector_byte_indexed\":[-128,127,10]}"),
+            null,
+            -1
+        );
+
+        // Simulates the op from recovery from an old primary where both fields are hex strings.
+        // This is the newOp in the assertion failure.
+        Translog.Index allHexOp = new Translog.Index(
+            "1",
+            seqNo,
+            term,
+            version,
+            new BytesArray("{\"my_vector_byte\":\"807f0a\",\"my_vector_byte_indexed\":\"807f0a\"}"),
+            null,
+            -1
+        );
+
+        // Without clause 3 (synthesized1 == synthesized2), both clause 1 and clause 2 fail for
+        // this case: clause 1 compares synthesized(mixedOp) with allHexOp (not equal), and clause
+        // 2 compares mixedOp with synthesized(allHexOp) (not equal because my_vector_byte differs
+        // between hex and array forms in o1). Clause 3 normalises both to array form and matches.
+        TranslogOperationAsserter asserter = TranslogOperationAsserter.withEngineConfig(engine.config());
+        assertTrue(
+            "TranslogOperationAsserter must accept a mixed-format op (hex non-indexed, array indexed) "
+                + "against an all-hex op as equivalent; mixed source: "
+                + mixedOp.source().utf8ToString()
+                + " all-hex source: "
+                + allHexOp.source().utf8ToString(),
+            asserter.assertSameIndexOperation(mixedOp, allHexOp)
+        );
+    }
+
+    /**
      * Directly verifies that {@code TranslogOperationAsserter} treats a hex-encoded byte vector
      * source and an integer-array-encoded byte vector source as equivalent for the same sequence
      * number, which is the condition that caused {@code TranslogWriter.assertNoSeqNumberConflict}

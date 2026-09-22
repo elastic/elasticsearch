@@ -733,7 +733,6 @@ public enum IndexMode {
     /**
      * Strict columnar index mode optimized for indexing and searching {@code dense_vector} fields.
      */
-    // TODO: report usage in _xpack/usage, like vectordb_document
     VECTORDB_COLUMNAR("vectordb_columnar") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {

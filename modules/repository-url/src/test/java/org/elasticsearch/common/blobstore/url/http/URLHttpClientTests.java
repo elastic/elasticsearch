@@ -239,10 +239,7 @@ public class URLHttpClientTests extends ESTestCase {
                 }
             });
 
-            final URLHttpClientException urlHttpClientException = expectThrows(
-                URLHttpClientException.class,
-                () -> executeRequest(path)
-            );
+            final URLHttpClientException urlHttpClientException = expectThrows(URLHttpClientException.class, () -> executeRequest(path));
 
             assertThat(urlHttpClientException.getMessage(), is(createErrorMessage(errorCode, "")));
             assertThat(urlHttpClientException.getStatusCode(), equalTo(errorCode));

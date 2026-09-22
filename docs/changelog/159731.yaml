@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 159731
+summary: Fix block leak in `readBatchSparse` fast path when `skipRows` trips CBE
+type: bug

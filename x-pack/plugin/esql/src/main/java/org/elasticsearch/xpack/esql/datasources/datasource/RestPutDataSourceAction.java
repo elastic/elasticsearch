@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.datasource;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
@@ -20,11 +21,18 @@ import org.elasticsearch.xpack.esql.datasources.EsqlDataSourcesCapabilities;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 @ServerlessScope(Scope.PUBLIC)
-public class RestPutDataSourceAction extends BaseRestHandler {
+public class RestPutDataSourceAction extends BaseRestHandler implements RestRequestFilter {
+
+    private final Set<String> filteredFields;
+
+    public RestPutDataSourceAction(Set<String> secretSettingNames) {
+        this.filteredFields = secretSettingNames.stream().map(name -> "settings." + name).collect(Collectors.toUnmodifiableSet());
+    }
 
     @Override
     public List<Route> routes() {
@@ -39,7 +47,7 @@ public class RestPutDataSourceAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String name = request.param("name");
-        try (XContentParser parser = request.contentOrSourceParamParser()) {
+        try (XContentParser parser = request.contentParser()) {
             PutDataSourceAction.Request req = PutDataSourceAction.Request.fromXContent(
                 parser,
                 RestUtils.getMasterNodeTimeout(request),
@@ -51,7 +59,16 @@ public class RestPutDataSourceAction extends BaseRestHandler {
     }
 
     @Override
+    public Set<String> getFilteredFields() {
+        return filteredFields;
+    }
+
+    @Override
     public Set<String> supportedCapabilities() {
-        return Set.of(EsqlDataSourcesCapabilities.DATA_SOURCES, EsqlDataSourcesCapabilities.DATA_SOURCES_SERVERLESS_SCOPE);
+        return Set.of(
+            EsqlDataSourcesCapabilities.DATA_SOURCES,
+            EsqlDataSourcesCapabilities.DATA_SOURCES_SERVERLESS_SCOPE,
+            EsqlDataSourcesCapabilities.DATASET_REGION
+        );
     }
 }

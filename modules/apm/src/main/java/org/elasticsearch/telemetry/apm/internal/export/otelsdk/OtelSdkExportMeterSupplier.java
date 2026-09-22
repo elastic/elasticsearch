@@ -31,14 +31,15 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.TrustEverythingConfig;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
+import org.elasticsearch.telemetry.apm.internal.metrics.spi.MetricReaderProvider;
 
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
@@ -48,13 +49,12 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import javax.net.ssl.X509TrustManager;
 
-import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
+import static java.util.Objects.requireNonNull;
 
 /**
  * A {@link MeterSupplier} that supplies meters that export telemetry using the OTel SDK.
  *
  * @see OtelSdkSettings
- * @see org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportMeterSupplier
  */
 public class OtelSdkExportMeterSupplier implements MeterSupplier {
 
@@ -68,18 +68,22 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
 
     private final Settings settings;
     private final Path diskBufferPath;
+    @Nullable
+    private final MetricReaderProvider metricReaderProvider;
     private volatile OTelMetricsResources resources;
     private final Object mutex = new Object();
 
-    public OtelSdkExportMeterSupplier(Settings settings, Path diskBufferPath) {
+    public OtelSdkExportMeterSupplier(Settings settings, Path diskBufferPath, @Nullable MetricReaderProvider metricReaderProvider) {
         this.settings = settings;
         this.diskBufferPath = diskBufferPath;
+        this.metricReaderProvider = metricReaderProvider;
     }
 
     /** For testing: pre-initializes resources so tests can inject readable providers. */
     OtelSdkExportMeterSupplier(Settings settings, Path diskBufferPath, OTelMetricsResources testResources) {
         this.settings = settings;
         this.diskBufferPath = diskBufferPath;
+        this.metricReaderProvider = null;
         this.resources = testResources;
     }
 
@@ -146,6 +150,13 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
             .setResource(OtelSdkResource.get(settings))
             .registerMetricReader(reader, instrumentType -> METRIC_CARDINALITY_LIMIT);
         registerDisabledMetricViews(builder, settings);
+
+        if (metricReaderProvider != null) {
+            builder.registerMetricReader(
+                requireNonNull(metricReaderProvider.getMetricReader(), "MetricReaderProvider must return a non-null MetricReader instance")
+            );
+        }
+
         return builder.build();
     }
 
@@ -225,10 +236,7 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
             if (resources == null) {
                 String endpoint = OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.get(settings);
                 if (endpoint == null || endpoint.isEmpty()) {
-                    logger.warn(
-                        "{}=true but [telemetry.export.endpoint] is not configured; OTel SDK metrics export is disabled",
-                        OTEL_METRICS_ENABLED_SYSTEM_PROPERTY
-                    );
+                    logger.warn("[telemetry.export.endpoint] is not configured; metrics export is disabled");
                     return MeterProvider.noop();
                 }
                 resources = createMeteringResources();
@@ -254,7 +262,7 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     ) implements AutoCloseable {
 
         OTelMetricsResources {
-            Objects.requireNonNull(meterProvider, "meterProvider");
+            requireNonNull(meterProvider, "meterProvider");
         }
 
         @Override

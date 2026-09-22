@@ -9,6 +9,7 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.esql-csv-spec-tests'
+apply plugin: 'elasticsearch.esql-datasource-bwc'
 apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
@@ -61,7 +62,7 @@ tasks.register('syncCsvIcebergFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')
   duplicatesStrategy = DuplicatesStrategy.FAIL
   from(testFixturesProject.file('src/main/resources/data')) {
-    include 'employees.csv', 'web_logs.csv', 'books.csv', 'apps.csv', 'mv_sample.csv', 'employees_no_mv.csv'
+    include 'employees.csv', 'web_logs.csv', 'books.csv', 'apps.csv', 'mv_sample.csv', 'employees_no_mv.csv', 'skip_rows_sessions.csv'
   }
   into file("${csvIcebergFixtureRoot}/iceberg-fixtures/standalone")
 }
@@ -206,6 +207,34 @@ tasks.register('generateStandaloneTsvFixtures') {
   dependsOn generateStandaloneTsvTasks
 }
 
+// BOM fixture files carry a raw UTF-8 byte-order mark (EF BB BF) that text-resource handling
+// would mangle, so they are generated here rather than checked in as source files.
+// The task must run after syncCsvIcebergFixtures: Sync deletes anything not in its source set,
+// so files written before Sync would be removed. Running after avoids that.
+tasks.register('generateBomCsvFixtures') {
+  dependsOn 'syncCsvIcebergFixtures'
+  def standaloneDir = file("${csvIcebergFixtureRoot}/iceberg-fixtures/standalone")
+  outputs.files(
+    new File(standaloneDir, 'bom_headerless.csv'),
+    new File(standaloneDir, 'bom_comment.csv')
+  )
+  doLast {
+    standaloneDir.mkdirs()
+    byte[] bom = [(byte) 0xEF, (byte) 0xBB, (byte) 0xBF]
+
+    // Headerless: BOM + 3 data rows; col0 must infer INTEGER, not KEYWORD.
+    new File(standaloneDir, 'bom_headerless.csv').withOutputStream { out ->
+      out.write(bom)
+      out.write('1,alpha\n2,beta\n3,gamma\n'.getBytes('UTF-8'))
+    }
+    // Comment-first: BOM + comment line + typed header + 3 data rows.
+    new File(standaloneDir, 'bom_comment.csv').withOutputStream { out ->
+      out.write(bom)
+      out.write('// exported by tool\nid:integer,name:keyword\n1,alpha\n2,beta\n3,gamma\n'.getBytes('UTF-8'))
+    }
+  }
+}
+
 tasks.named("forbiddenPatterns").configure {
   exclude '**/*.tsv'
 }
@@ -216,11 +245,11 @@ sourceSets.javaRestTest.resources {
 }
 
 tasks.named('processJavaRestTestResources').configure {
-  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures', 'syncCsvIcebergMultifileTypeDriftFixtures', 'generateStandaloneTsvFixtures', 'generateMultifileCsvSplit_employees'
+  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures', 'syncCsvIcebergMultifileTypeDriftFixtures', 'generateStandaloneTsvFixtures', 'generateMultifileCsvSplit_employees', 'generateBomCsvFixtures'
 }
 
 tasks.named('javaRestTest') {
-  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures', 'syncCsvIcebergMultifileTypeDriftFixtures', 'generateStandaloneTsvFixtures', 'generateMultifileCsvSplit_employees'
+  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures', 'syncCsvIcebergMultifileTypeDriftFixtures', 'generateStandaloneTsvFixtures', 'generateMultifileCsvSplit_employees', 'generateBomCsvFixtures'
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
   enabled = buildParams.snapshotBuild
@@ -258,7 +287,8 @@ sourceSets.csvSpecTest.resources {
 }
 tasks.named('processCsvSpecTestResources').configure {
   dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures',
-    'syncCsvIcebergMultifileTypeDriftFixtures', 'generateStandaloneTsvFixtures', 'generateMultifileCsvSplit_employees'
+    'syncCsvIcebergMultifileTypeDriftFixtures', 'generateStandaloneTsvFixtures', 'generateMultifileCsvSplit_employees',
+    'generateBomCsvFixtures'
 }
 
 // Runs the four csv-spec ITs in their own JVM, separate from javaRestTest. All four extend
@@ -266,7 +296,8 @@ tasks.named('processCsvSpecTestResources').configure {
 // abstract-class level — INGEST fires exactly once for the entire suite.
 def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
   dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures',
-    'syncCsvIcebergMultifileTypeDriftFixtures', 'generateStandaloneTsvFixtures', 'generateMultifileCsvSplit_employees'
+    'syncCsvIcebergMultifileTypeDriftFixtures', 'generateStandaloneTsvFixtures', 'generateMultifileCsvSplit_employees',
+    'generateBomCsvFixtures'
   dependsOn generateEsqlSpecTests
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
@@ -278,3 +309,14 @@ def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
 }
 
 tasks.named('check').configure { dependsOn csvSpecTests }
+
+esqlDataSourceBwc {
+  minimumVersion '9.5.0'
+  classFilter 'org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT'
+  classFilter 'org.elasticsearch.xpack.esql.qa.csv.CsvCompressedFormatSpecIT'
+  classFilter 'org.elasticsearch.xpack.esql.qa.csv.TsvFormatSpecIT'
+  classFilter 'org.elasticsearch.xpack.esql.qa.csv.TsvCompressedFormatSpecIT'
+  coordinators 'old', 'current'
+  systemProperty 'tests.rest.client_timeout', '60'
+  systemProperty 'tests.rest.socket_timeout', '60'
+}

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
+import org.elasticsearch.xpack.esql.datasources.PartitionValueMatcher;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector;
@@ -456,6 +457,10 @@ public final class GlobExpander {
             if (matched.isEmpty()) {
                 return FileList.EMPTY;
             }
+            matched = withoutFoldersOutsideClosedRange(matched, hints, partitionConfig);
+            if (matched.isEmpty()) {
+                return FileList.EMPTY;
+            }
             fileOrder.apply(matched);
             List<String> notices = new ArrayList<>();
             PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig, notices::add);
@@ -595,6 +600,11 @@ public final class GlobExpander {
         if (matched.isEmpty()) {
             // FileList.EMPTY is a shared sentinel and cannot carry per-listing warnings. Litter-only
             // prefixes still need the exclusion text on a cacheable empty listing.
+            return listingWarnings.isEmpty() ? FileList.EMPTY : new GenericFileList(List.of(), pattern, null, listingWarnings);
+        }
+
+        matched = withoutFoldersOutsideClosedRange(matched, hints, partitionConfig);
+        if (matched.isEmpty()) {
             return listingWarnings.isEmpty() ? FileList.EMPTY : new GenericFileList(List.of(), pattern, null, listingWarnings);
         }
 
@@ -960,7 +970,12 @@ public final class GlobExpander {
                 // the identity or a filtered query poisons the cache. Eligibility is judged on the EFFECTIVE
                 // pattern — a keyed data/year=*/** rewrites to data/year=2024/** and the walk prunes under that
                 // prefix. Provider support cannot be known at key time; over-inclusion merely fragments, safely.
-                walkShapeEligible(effectivePattern, partitionConfig) ? encodedHints(partitionPruningHints(hints)) : List.of(),
+                // A closed range does not rewrite the glob (a brace of the integer literals would drop in-range
+                // spellings such as 2.5 and narrow the detected type). It still changes which files the flat
+                // listing keeps, so on a pattern the walk does not already key, those hints join the identity.
+                walkShapeEligible(effectivePattern, partitionConfig)
+                    ? encodedHints(partitionPruningHints(hints))
+                    : encodedHints(closedRangeFilterHints(hints, partitionConfig)),
                 exclusionConfig,
                 fileOrder
             );
@@ -1397,22 +1412,31 @@ public final class GlobExpander {
                 byColumn.putIfAbsent(hint.columnName(), hint);
             }
         }
-        synthesizeClosedRangeHints(hints, byColumn);
         return byColumn;
     }
 
-    // distance == 30 is 31 values, so day >= 1 AND day <= 31 rewrites and day >= 1 AND day <= 32 does not.
-    private static final int MAX_RANGE_BRACE_SPAN = 30;
+    // A closed integral range is not spelled as a brace. The brace is the integer literals, so rating >= 1 AND
+    // rating <= 3 would drop rating=2.5 and then type the column INTEGER. The listing keeps the original glob
+    // (one listObjects, same prefix) and drops a folder only when PartitionValueMatcher excludes it.
 
-    // The brace is a superset. NOT_EQUALS stays in the row filter, and a column that already has EQUALS or IN keeps
-    // that hint. Spellings are the IN set (6 and 06). An empty match still re-lists through expandGlobWithRewriteFallback,
-    // same prefix: that retry is what keeps an unemitted spelling (month=6.0) from becoming silent zero rows when
-    // nothing else matched.
-
-    static void synthesizeClosedRangeHints(List<PartitionFilterHint> hints, Map<String, PartitionFilterHint> byColumn) {
+    private static List<PartitionFilterHint> closedRangeFilterHints(
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig
+    ) {
+        if (hints == null || hints.isEmpty() || partitionConfig == null) {
+            return List.of();
+        }
+        boolean hive = walkableStrategy(partitionConfig);
+        boolean template = PartitionConfig.Strategy.TEMPLATE == partitionConfig.strategy()
+            && partitionConfig.pathTemplate() != null
+            && TemplatePartitionDetector.parseTemplateColumns(partitionConfig.pathTemplate()).isEmpty() == false;
+        if (hive == false && template == false) {
+            return List.of();
+        }
+        Map<String, PartitionFilterHint> alreadyConcrete = indexRewritableHints(hints);
         Map<String, List<PartitionFilterHint>> rangesByColumn = null;
         for (PartitionFilterHint hint : hints) {
-            if (byColumn.containsKey(hint.columnName()) || rangeOperator(hint.operator()) == false) {
+            if (alreadyConcrete.containsKey(hint.columnName()) || rangeOperator(hint.operator()) == false) {
                 continue;
             }
             if (rangesByColumn == null) {
@@ -1426,14 +1450,15 @@ public final class GlobExpander {
             columnHints.add(hint);
         }
         if (rangesByColumn == null) {
-            return;
+            return List.of();
         }
-        for (Map.Entry<String, List<PartitionFilterHint>> entry : rangesByColumn.entrySet()) {
-            PartitionFilterHint synthesized = closedRangeInHint(entry.getKey(), entry.getValue());
-            if (synthesized != null) {
-                byColumn.put(entry.getKey(), synthesized);
+        List<PartitionFilterHint> filterHints = new ArrayList<>();
+        for (List<PartitionFilterHint> columnHints : rangesByColumn.values()) {
+            if (integralClosedSpan(columnHints)) {
+                filterHints.addAll(columnHints);
             }
         }
+        return filterHints;
     }
 
     private static boolean rangeOperator(Operator operator) {
@@ -1443,7 +1468,7 @@ public final class GlobExpander {
         };
     }
 
-    private static PartitionFilterHint closedRangeInHint(String column, List<PartitionFilterHint> bounds) {
+    private static boolean integralClosedSpan(List<PartitionFilterHint> bounds) {
         boolean hasLower = false;
         boolean hasUpper = false;
         long lower = 0;
@@ -1451,7 +1476,7 @@ public final class GlobExpander {
         for (PartitionFilterHint hint : bounds) {
             List<Object> values = hint.values();
             if (values.size() != 1 || integralBound(values.get(0)) == false) {
-                return null;
+                return false;
             }
             long value = ((Number) values.get(0)).longValue();
             switch (hint.operator()) {
@@ -1461,7 +1486,7 @@ public final class GlobExpander {
                 }
                 case GREATER_THAN -> {
                     if (value == Long.MAX_VALUE) {
-                        return null;
+                        return false;
                     }
                     long inclusive = value + 1;
                     lower = hasLower ? Math.max(lower, inclusive) : inclusive;
@@ -1473,7 +1498,7 @@ public final class GlobExpander {
                 }
                 case LESS_THAN -> {
                     if (value == Long.MIN_VALUE) {
-                        return null;
+                        return false;
                     }
                     long inclusive = value - 1;
                     upper = hasUpper ? Math.min(upper, inclusive) : inclusive;
@@ -1483,26 +1508,91 @@ public final class GlobExpander {
             }
         }
         if (hasLower == false || hasUpper == false || upper < lower) {
-            return null;
+            return false;
         }
-        long distance = upper - lower;
-        // distance < 0 is long subtraction overflow: upper > lower, but the span does not fit in a long.
-        if (distance < 0 || distance == 0 || distance > MAX_RANGE_BRACE_SPAN) {
-            return null;
-        }
-        List<Object> enumerated = new ArrayList<>((int) distance + 1);
-        for (long v = lower;;) {
-            enumerated.add(Long.valueOf(v));
-            if (v == upper) {
-                break;
-            }
-            v++;
-        }
-        return new PartitionFilterHint(column, Operator.IN, enumerated);
+        // upper >= lower, so a negative distance is long subtraction overflow.
+        return upper - lower >= 0;
     }
 
     private static boolean integralBound(Object value) {
         return value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long;
+    }
+
+    private static List<StorageEntry> withoutFoldersOutsideClosedRange(
+        List<StorageEntry> matched,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig
+    ) {
+        List<PartitionFilterHint> rangeHints = closedRangeFilterHints(hints, partitionConfig);
+        if (rangeHints.isEmpty()) {
+            return matched;
+        }
+        Map<String, List<PartitionFilterHint>> byColumn = Maps.newHashMapWithExpectedSize(rangeHints.size());
+        for (PartitionFilterHint hint : rangeHints) {
+            List<PartitionFilterHint> columnHints = byColumn.get(hint.columnName());
+            if (columnHints == null) {
+                columnHints = new ArrayList<>();
+                byColumn.put(hint.columnName(), columnHints);
+            }
+            columnHints.add(hint);
+        }
+        boolean hive = walkableStrategy(partitionConfig);
+        String template = hive ? null : partitionConfig.pathTemplate();
+        boolean[] drop = new boolean[matched.size()];
+        for (Map.Entry<String, List<PartitionFilterHint>> entry : byColumn.entrySet()) {
+            String column = entry.getKey();
+            List<String> values = new ArrayList<>();
+            int[] indexes = new int[matched.size()];
+            int present = 0;
+            for (int i = 0; i < matched.size(); i++) {
+                FoundValue found = hive
+                    ? hivePartitionValue(matched.get(i).path(), column)
+                    : templatePartitionValue(matched.get(i).path(), column, template);
+                if (found == null) {
+                    continue;
+                }
+                indexes[present] = i;
+                values.add(found.value);
+                present++;
+            }
+            if (present == 0) {
+                continue;
+            }
+            boolean[] keep = PartitionValueMatcher.matchesFolders(values, entry.getValue());
+            for (int i = 0; i < present; i++) {
+                if (keep[i] == false) {
+                    drop[indexes[i]] = true;
+                }
+            }
+        }
+        List<StorageEntry> kept = new ArrayList<>(matched.size());
+        for (int i = 0; i < matched.size(); i++) {
+            if (drop[i] == false) {
+                kept.add(matched.get(i));
+            }
+        }
+        return kept;
+    }
+
+    // null when this file has no partition value for the column. The Hive default partition is a found null.
+    private record FoundValue(@Nullable String value) {}
+
+    @Nullable
+    private static FoundValue hivePartitionValue(StoragePath path, String column) {
+        String[] segments = path.path().split("/");
+        for (String segment : segments) {
+            String key = PartitionValueMatcher.folderKey(segment);
+            if (column.equals(key)) {
+                return new FoundValue(PartitionValueMatcher.folderValue(segment));
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    private static FoundValue templatePartitionValue(StoragePath path, String column, String template) {
+        String value = TemplatePartitionDetector.columnValue(path.path(), column, template);
+        return value == null ? null : new FoundValue(value);
     }
 
     private static String rewriteSegment(String segment, Map<String, PartitionFilterHint> rewritableHints) {

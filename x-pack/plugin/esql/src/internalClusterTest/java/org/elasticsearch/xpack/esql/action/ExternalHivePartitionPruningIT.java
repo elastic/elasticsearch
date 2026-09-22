@@ -483,6 +483,26 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
         assertThat(cityIds(dataset, "WHERE city IN (\"New York\", \"Paris\")"), equalTo(List.of(1L, 2L)));
     }
 
+    /**
+     * An empty-string partition value, written as the folder {@code k=} by DuckDB and pyarrow, must leave {@code k}
+     * a queryable partition column: {@code k=/f.csv} holds id 1, {@code k=x/f.csv} id 2.
+     */
+    public void testEmptyPartitionValueFolderKeepsTheColumn() throws Exception {
+        Path root = createTempDir().resolve("csv_empty_value");
+        String[] folders = { "k=", "k=x" };
+        for (int i = 0; i < folders.length; i++) {
+            Path dir = root.resolve(folders[i]);
+            Files.createDirectories(dir);
+            Files.writeString(dir.resolve("f.csv"), "id\n" + (i + 1) + "\n", StandardCharsets.UTF_8);
+        }
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/**/*.csv";
+        String dataset = registerDataset("csv_empty_value", glob, Map.of("partition_detection", "hive"));
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | WHERE k == \"x\" | KEEP id"))) {
+            assertThat(getValuesList(response).stream().map(row -> ((Number) row.get(0)).longValue()).toList(), equalTo(List.of(2L)));
+        }
+    }
+
     private List<Long> cityIds(String dataset, String filterClause) {
         try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | " + filterClause + " | KEEP id | SORT id ASC"))) {
             return getValuesList(response).stream().map(row -> ((Number) row.get(0)).longValue()).toList();

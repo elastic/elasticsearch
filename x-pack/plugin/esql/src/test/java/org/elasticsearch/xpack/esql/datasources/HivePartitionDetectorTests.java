@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class HivePartitionDetectorTests extends ESTestCase {
 
@@ -367,6 +368,30 @@ public class HivePartitionDetectorTests extends ESTestCase {
         List<StorageEntry> files = List.of(entry("s3://bucket/data/file.parquet"));
         PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
         assertTrue(result.isEmpty());
+    }
+
+    /**
+     * DuckDB ({@code COPY ... PARTITION_BY}) and pyarrow ({@code write_dataset}, hive flavor) write an empty-string
+     * partition value as the folder {@code k=}, and both DuckDB and ClickHouse read it back as the empty string. One
+     * such folder must not make the whole listing unpartitioned.
+     */
+    public void testEmptyValueFolderIsAPartitionValue() {
+        List<StorageEntry> files = List.of(entry("s3://bucket/data/k=/f1.csv"), entry("s3://bucket/data/k=x/f2.csv"));
+
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
+
+        assertFalse("an empty-value folder must not disable partition detection", result.isEmpty());
+        assertEquals(Set.of("k"), result.partitionColumns().keySet());
+        assertEquals("x", result.filePartitionValues().get(StoragePath.of("s3://bucket/data/k=x/f2.csv")).get("k"));
+    }
+
+    /** The same folder one level down must not take the sibling key {@code year} with it. */
+    public void testEmptyValueFolderDoesNotDropOtherPartitionColumns() {
+        List<StorageEntry> files = List.of(entry("s3://bucket/data/year=2024/k=/f1.csv"), entry("s3://bucket/data/year=2024/k=x/f2.csv"));
+
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
+
+        assertEquals(Set.of("year", "k"), result.partitionColumns().keySet());
     }
 
     public void testMultiplePartitionLevels() {

@@ -226,26 +226,28 @@ public class CollectionUtils {
 
     @SuppressWarnings("unchecked")
     private static <T> T deepCopyInternal(T value, int options) {
+        final boolean unmodifiable = (options & DeepCopyOption.UNMODIFIABLE.mask) != 0;
+        final boolean orderedMaps = (options & DeepCopyOption.ORDERED_MAPS.mask) != 0;
         if (value instanceof Map<?, ?> mapValue) {
-            Map<Object, Object> copy = (options & DeepCopyOption.ORDERED_MAPS.mask) != 0
+            Map<Object, Object> copy = orderedMaps
                 ? LinkedHashMap.newLinkedHashMap(mapValue.size())
                 : HashMap.newHashMap(mapValue.size());
             for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
                 copy.put(entry.getKey(), deepCopyInternal(entry.getValue(), options));
             }
-            return (T) ((options & DeepCopyOption.UNMODIFIABLE.mask) != 0 ? Collections.unmodifiableMap(copy) : copy);
+            return (T) (unmodifiable ? Collections.unmodifiableMap(copy) : copy);
         } else if (value instanceof List<?> listValue) {
             List<Object> copy = new ArrayList<>(listValue.size());
             for (Object item : listValue) {
                 copy.add(deepCopyInternal(item, options));
             }
-            return (T) ((options & DeepCopyOption.UNMODIFIABLE.mask) != 0 ? Collections.unmodifiableList(copy) : copy);
+            return (T) (unmodifiable ? Collections.unmodifiableList(copy) : copy);
         } else if (value instanceof Set<?> setValue) {
             Set<Object> copy = HashSet.newHashSet(setValue.size());
             for (Object item : setValue) {
                 copy.add(deepCopyInternal(item, options));
             }
-            return (T) ((options & DeepCopyOption.UNMODIFIABLE.mask) != 0 ? Collections.unmodifiableSet(copy) : copy);
+            return (T) (unmodifiable ? Collections.unmodifiableSet(copy) : copy);
         } else if (value instanceof byte[] bytes) {
             return (T) Arrays.copyOf(bytes, bytes.length);
         } else if (value instanceof double[][] doubles) {

@@ -50,6 +50,8 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
 
     static final String PARTITION_LABEL = "BytesRefArrayState#partition";
 
+    private static final boolean[] EMPTY_SEEN = new boolean[0];
+
     private final BigArrays bigArrays;
     private final CircuitBreaker breaker;
     private final String breakerLabel;
@@ -535,10 +537,13 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
 
     boolean[] partitionSeen(GroupingAggregatorFunction.PartitionedState source, int partition) {
         if (source instanceof FlatBytesRefPartitionedState flat) {
-            return flat.seen == null ? null : flat.seen[partition];
+            if (flat.seen == null) return null;
+            // An empty partition never had ensureSeenCapacity called, so its slot may still be null.
+            return flat.seen[partition] != null ? flat.seen[partition] : EMPTY_SEEN;
         }
         final PagedBytesRefPartitionedState paged = (PagedBytesRefPartitionedState) source;
-        return paged.seen == null ? null : paged.seen[partition];
+        if (paged.seen == null) return null;
+        return paged.seen[partition] != null ? paged.seen[partition] : EMPTY_SEEN;
     }
 
     void appendPartition(BytesRefSequence src, int firstId, int length) {

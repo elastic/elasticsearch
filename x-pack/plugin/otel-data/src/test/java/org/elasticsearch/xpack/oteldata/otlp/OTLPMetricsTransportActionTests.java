@@ -16,6 +16,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -30,12 +31,15 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.oteldata.OTelPlugin;
+import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
+import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 import org.mockito.ArgumentCaptor;
 
 import java.util.ArrayList;
@@ -66,7 +70,10 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
 
     private OTLPMetricsTransportAction createMetricsAction(Settings settings) {
         ClusterService clusterService = mock(ClusterService.class);
-        clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING));
+        clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING, BatchIndexingEnabled.BATCH_INDEXING)
+        );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         ProjectMetadata projectMetadata = ProjectMetadata.builder(ProjectId.DEFAULT).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
@@ -79,6 +86,7 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
             mock(ThreadPool.class),
             client,
             clusterService,
+            BigArrays.NON_RECYCLING_INSTANCE,
             settings
         );
     }
@@ -215,6 +223,25 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
         assertNotEquals(firstExemplarRequest.tsid(), secondExemplarRequest.tsid());
     }
 
+    public void testBatchIndexingGateForExemplars() throws Exception {
+        Exemplar exemplar = OtlpUtils.createLongExemplar(1_000_000L, 42L);
+        Metric metricWithExemplar = OtlpUtils.createGaugeMetric(
+            "test.metric",
+            "",
+            List.of(OtlpUtils.createDoubleDataPoint(2_000_000L, 0, List.of(), List.of(exemplar)))
+        );
+        List<DataPointGroupingContext.DataPointGroup> groupsWithExemplars = collectGroups(
+            ExportMetricsServiceRequest.parseFrom(createMetricsRequest(metricWithExemplar).getRequest().streamInput())
+        );
+        List<DataPointGroupingContext.DataPointGroup> groupsWithoutExemplars = collectGroups(
+            ExportMetricsServiceRequest.parseFrom(createMetricsRequest(createMetric()).getRequest().streamInput())
+        );
+
+        assertFalse(OTLPMetricsTransportAction.canUseBatchIndexing(true, groupsWithExemplars));
+        assertTrue(OTLPMetricsTransportAction.canUseBatchIndexing(true, groupsWithoutExemplars));
+        assertTrue(OTLPMetricsTransportAction.canUseBatchIndexing(false, groupsWithExemplars));
+    }
+
     public void testAttributeFanoutReturns413() {
         Settings settings = Settings.builder()
             .put(HttpTransportSettings.SETTING_HTTP_MAX_PROTOBUF_CONTENT_LENGTH.getKey(), "1kb")
@@ -252,6 +279,106 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
         assertThat(ExceptionsHelper.status(exception.getValue()), equalTo(RestStatus.REQUEST_ENTITY_TOO_LARGE));
         assertThat(exception.getValue().getMessage(), containsString("expanded content would exceed limit"));
         verify(client, never()).execute(any(), any(), any());
+    }
+
+    /**
+     * A data-point group whose resource carries an ARRAY attribute must be rejected by
+     * {@link OTLPMetricsTransportAction#isEscfEligible} so the transport action falls back to doc-mode.
+     * This test exercises the transport-action gate directly (not just {@code buildMetricRow}).
+     */
+    public void testIsEscfEligibleFalseForArrayResourceAttribute() throws Exception {
+        ExportMetricsServiceRequest request = ExportMetricsServiceRequest.newBuilder()
+            .addResourceMetrics(
+                OtlpUtils.createResourceMetrics(
+                    List.of(keyValue("service.name", "svc"), keyValue("tags", "a", "b")), // ARRAY attribute
+                    List.of(
+                        OtlpUtils.createScopeMetrics(
+                            "s",
+                            "1",
+                            List.of(OtlpUtils.createGaugeMetric("cpu", "1", List.of(OtlpUtils.createDoubleDataPoint(0))))
+                        )
+                    )
+                )
+            )
+            .build();
+
+        List<DataPointGroupingContext.DataPointGroup> groups = collectGroups(request);
+        assertFalse("array resource attribute must make group ineligible", OTLPMetricsTransportAction.isEscfEligible(groups));
+    }
+
+    /**
+     * A data-point group whose attribute list contains a duplicate key must be rejected by
+     * {@link OTLPMetricsTransportAction#isEscfEligible}. Without this check, the duplicate would
+     * reach {@code EscfRowBuffer} as an {@code IllegalArgumentException} and surface as a 500.
+     */
+    public void testIsEscfEligibleFalseForDuplicateDataPointAttributeKey() throws Exception {
+        ExportMetricsServiceRequest request = ExportMetricsServiceRequest.newBuilder()
+            .addResourceMetrics(
+                OtlpUtils.createResourceMetrics(
+                    List.of(keyValue("service.name", "svc")),
+                    List.of(
+                        OtlpUtils.createScopeMetrics(
+                            "s",
+                            "1",
+                            List.of(
+                                OtlpUtils.createGaugeMetric(
+                                    "cpu",
+                                    "1",
+                                    List.of(
+                                        OtlpUtils.createDoubleDataPoint(
+                                            0,
+                                            0,
+                                            List.of(keyValue("env", "prod"), keyValue("env", "staging")) // duplicate key
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+            .build();
+
+        List<DataPointGroupingContext.DataPointGroup> groups = collectGroups(request);
+        assertFalse("duplicate data-point attribute key must make group ineligible", OTLPMetricsTransportAction.isEscfEligible(groups));
+    }
+
+    /** Scalar-only groups with unique keys must remain eligible. */
+    public void testIsEscfEligibleTrueForScalarAttributes() throws Exception {
+        ExportMetricsServiceRequest request = ExportMetricsServiceRequest.newBuilder()
+            .addResourceMetrics(
+                OtlpUtils.createResourceMetrics(
+                    List.of(keyValue("service.name", "svc"), keyValue("host.name", "h1")),
+                    List.of(
+                        OtlpUtils.createScopeMetrics(
+                            "s",
+                            "1",
+                            List.of(
+                                OtlpUtils.createGaugeMetric(
+                                    "cpu",
+                                    "1",
+                                    List.of(OtlpUtils.createDoubleDataPoint(0, 0, List.of(keyValue("env", "prod"))))
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+            .build();
+
+        List<DataPointGroupingContext.DataPointGroup> groups = collectGroups(request);
+        assertTrue("scalar unique-key group must be eligible", OTLPMetricsTransportAction.isEscfEligible(groups));
+    }
+
+    private static List<DataPointGroupingContext.DataPointGroup> collectGroups(ExportMetricsServiceRequest request) throws Exception {
+        DataPointGroupingContext ctx = new DataPointGroupingContext(
+            new BufferedByteStringAccessor(),
+            MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
+        );
+        ctx.groupDataPoints(request);
+        List<DataPointGroupingContext.DataPointGroup> groups = new ArrayList<>();
+        ctx.consume(groups::add);
+        return groups;
     }
 
     // --- helpers ---

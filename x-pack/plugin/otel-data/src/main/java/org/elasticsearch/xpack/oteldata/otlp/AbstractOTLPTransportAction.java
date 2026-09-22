@@ -63,6 +63,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         try {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             ProcessingContext context = prepareBulkRequest(request, bulkRequestBuilder);
+
             if (bulkRequestBuilder.numberOfActions() == 0) {
                 if (context.getIgnoredItems() == 0) {
                     listener.onResponse(new OTLPActionResponse(BytesArray.EMPTY));
@@ -141,8 +142,11 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
             return "";
         }
 
-        default boolean isExemplarDocument(int bulkItemPosition) {
-            return false;
+        /**
+         * Returns whether the bulk item represents a primary document for the exported telemetry signal.
+         */
+        default boolean isPrimaryTelemetryDoc(int bulkItemPosition) {
+            return true;
         }
 
         /**
@@ -183,11 +187,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         return updatedTotal;
     }
 
-    private void handlePartialSuccess(
-        BulkResponse bulkItemResponses,
-        ProcessingContext context,
-        ActionListener<OTLPActionResponse> listener
-    ) {
+    private void handlePartialSuccess(BulkResponse bulkResponse, ProcessingContext context, ActionListener<OTLPActionResponse> listener) {
         // index -> status -> failure group
         Map<String, Map<RestStatus, FailureGroup>> failureGroups = new HashMap<>();
         int failureStoreRedirects = 0;
@@ -199,7 +199,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         RestStatus status = RestStatus.OK;
         int failures = 0;
         int failedBulkItems = 0;
-        BulkItemResponse[] bulkItems = bulkItemResponses.getItems();
+        BulkItemResponse[] bulkItems = bulkResponse.getItems();
         for (int i = 0; i < bulkItems.length; i++) {
             BulkItemResponse bulkItemResponse = bulkItems[i];
             BulkItemResponse.Failure failure = bulkItemResponse.getFailure();
@@ -220,11 +220,11 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
                 failureGroup.failureCount().incrementAndGet();
             } else if (isFailureStoreRedirect(bulkItemResponse)) {
                 failedBulkItems++;
-                if (context.isExemplarDocument(i)) {
-                    exemplarFailureStoreRedirects++;
-                } else {
+                if (context.isPrimaryTelemetryDoc(i)) {
                     failures++;
                     failureStoreRedirects++;
+                } else {
+                    exemplarFailureStoreRedirects++;
                 }
             }
         }

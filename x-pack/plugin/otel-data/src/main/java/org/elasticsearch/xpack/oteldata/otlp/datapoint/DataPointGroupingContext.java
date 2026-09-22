@@ -162,8 +162,8 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
     }
 
     @Override
-    public boolean isExemplarDocument(int bulkItemPosition) {
-        return exemplarDocumentPositions.contains(bulkItemPosition);
+    public boolean isPrimaryTelemetryDoc(int bulkItemPosition) {
+        return exemplarDocumentPositions.contains(bulkItemPosition) == false;
     }
 
     @Override

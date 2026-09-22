@@ -29,8 +29,10 @@ import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
+import java.lang.foreign.MemorySegment;
 import java.nio.ByteOrder;
 
+import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static jdk.incubator.vector.VectorOperators.ADD;
 import static jdk.incubator.vector.VectorOperators.AND;
 import static jdk.incubator.vector.VectorOperators.ASHR;
@@ -261,6 +263,44 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         }
         for (; i < end; i++) {
             v[i] *= scale;
+        }
+        return normSq;
+    }
+
+    @Override
+    public float l2NormalizeFloat(MemorySegment v, int offsetBytes, int lengthBytes) {
+        // compute dot product of v with itself
+        int vectorEnd = offsetBytes + FLOAT_SPECIES.loopBound(lengthBytes / Float.BYTES);
+        int end = offsetBytes + lengthBytes;
+
+        FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
+        int i = offsetBytes;
+        for (; i < vectorEnd; i += FLOAT_SPECIES.vectorByteSize()) {
+            FloatVector vec = FloatVector.fromMemorySegment(FLOAT_SPECIES, v, i, ByteOrder.nativeOrder());
+            acc = fma(vec, vec, acc);
+        }
+
+        float normSq = acc.reduceLanes(ADD);
+        for (; i < end; i += Float.BYTES) {
+            float val = v.get(JAVA_FLOAT, i);
+            normSq = fma(val, val, normSq);
+        }
+
+        if (normSq == 0f) {
+            return 0;
+        }
+
+        // then apply normalization factor
+        float scale = (float) (1.0 / Math.sqrt(normSq));
+        FloatVector scaleVec = FloatVector.broadcast(FLOAT_SPECIES, scale);
+
+        i = offsetBytes;
+        for (; i < vectorEnd; i += FLOAT_SPECIES.vectorByteSize()) {
+            FloatVector vec = FloatVector.fromMemorySegment(FLOAT_SPECIES, v, i, ByteOrder.nativeOrder());
+            vec.mul(scaleVec).intoMemorySegment(v, i, ByteOrder.nativeOrder());
+        }
+        for (; i < end; i += Float.BYTES) {
+            v.set(JAVA_FLOAT, i, v.get(JAVA_FLOAT, i) * scale);
         }
         return normSq;
     }

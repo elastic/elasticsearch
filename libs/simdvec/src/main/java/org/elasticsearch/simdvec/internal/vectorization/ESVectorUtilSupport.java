@@ -14,6 +14,7 @@ import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
+import java.lang.foreign.MemorySegment;
 import java.nio.ByteOrder;
 
 public interface ESVectorUtilSupport {
@@ -40,6 +41,12 @@ public interface ESVectorUtilSupport {
      * @return the squared normalization factor
      */
     float l2Normalize(float[] v, int offset, int length);
+
+    /**
+     * L2-normalizes the floats in {@code v[offset:offsetBytes + lengthBytes)} in place. A zero prefix is a no-op.
+     * @return the squared normalization factor
+     */
+    float l2NormalizeFloat(MemorySegment v, int offsetBytes, int lengthBytes);
 
     /** Returns the sum of squared differences of the two vectors. */
     float squareDistance(float[] a, float[] b);

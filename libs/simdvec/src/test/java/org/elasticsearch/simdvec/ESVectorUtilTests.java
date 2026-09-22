@@ -16,6 +16,7 @@ import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 
+import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.ShortBuffer;
@@ -474,6 +475,21 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         defaultedProvider.getVectorUtilSupport().l2Normalize(expected, offset, length);
         panamaProvider.getVectorUtilSupport().l2Normalize(panama, offset, length);
         ESVectorUtil.l2Normalize(util, offset, length);
+        assertArrayEquals(expected, panama, 1e-5f);
+        assertArrayEquals(expected, util, 1e-5f);
+    }
+
+    public void testL2NormalizeFloatRangeDefaultEqualsPanama() {
+        int vectorSize = randomIntBetween(64, 2048);
+        int offset = randomIntBetween(0, vectorSize - 1);
+        int length = randomIntBetween(1, vectorSize - offset);
+        float[] expected = randomFloatVector(vectorSize);
+        float[] panama = expected.clone();
+        float[] util = expected.clone();
+        defaultedProvider.getVectorUtilSupport()
+            .l2NormalizeFloat(MemorySegment.ofArray(expected), offset * Float.BYTES, length * Float.BYTES);
+        panamaProvider.getVectorUtilSupport().l2NormalizeFloat(MemorySegment.ofArray(panama), offset * Float.BYTES, length * Float.BYTES);
+        ESVectorUtil.l2NormalizeFloat(MemorySegment.ofArray(util), offset * Float.BYTES, length * Float.BYTES);
         assertArrayEquals(expected, panama, 1e-5f);
         assertArrayEquals(expected, util, 1e-5f);
     }

@@ -199,7 +199,8 @@ final class AshUtils {
 
         // V = A^T U, computed transposed as V^T = U^T A (k x n) so that each vector occupies a
         // row and the normalization runs over contiguous data.
-        float[] vT = ESVectorUtil.matrixMultiply(uT, a, k, m, n);
+        float[] vT = new float[k * n];
+        ESVectorUtil.matrixMultiply(uT, a, k, m, n, vT);
         for (int j = 0; j < k; j++) {
             ESVectorUtil.l2Normalize(vT, j * n, n);
         }

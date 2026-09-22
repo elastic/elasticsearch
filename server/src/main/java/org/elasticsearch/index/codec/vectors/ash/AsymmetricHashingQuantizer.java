@@ -248,7 +248,8 @@ public final class AsymmetricHashingQuantizer {
         float[] p = AshUtils.topKRightSingularVectors(xTraining, nTraining, originalDim, nDims, seed);
 
         // Project training data: X_ld = xTraining @ P (nTraining x nDims)
-        float[] xLd = ESVectorUtil.matrixMultiply(xTraining, p, nTraining, originalDim, nDims);
+        float[] xLd = new float[nTraining * nDims];
+        ESVectorUtil.matrixMultiply(xTraining, p, nTraining, originalDim, nDims, xLd);
 
         // Pre-transpose X_ld so that X_ld^T @ X_enc can use sequential memory access
         float[] xLdT = ESVectorUtil.transposeMatrix(xLd, nTraining, nDims);
@@ -288,7 +289,9 @@ public final class AsymmetricHashingQuantizer {
         }
 
         // W = P @ R (originalDim x nDims)
-        return ESVectorUtil.matrixMultiply(p, r, originalDim, nDims, nDims);
+        float[] w = new float[originalDim * nDims];
+        ESVectorUtil.matrixMultiply(p, r, originalDim, nDims, nDims, w);
+        return w;
     }
 
     private float[] randomOrthogonal(int originalDim, int nDims) {

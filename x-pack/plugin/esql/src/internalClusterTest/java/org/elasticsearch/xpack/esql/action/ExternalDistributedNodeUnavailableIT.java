@@ -28,7 +28,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
@@ -69,16 +71,19 @@ public class ExternalDistributedNodeUnavailableIT extends AbstractExternalDataSo
     }
 
     public void testNodeGoneFromClusterStateBetweenPlanningAndDispatchIsReassigned() throws Exception {
-        internalCluster().ensureAtLeastNumDataNodes(3);
-        String coordinator = internalCluster().getRandomNodeName();
-        // Resolution walks this list in order. Stalling getConnection on the first remote worker
-        // pauses after that worker's lookup and before every later remote worker. The coordinator's
-        // own getConnection is local and cannot be stalled.
-        List<DiscoveryNode> eligible = eligibleWorkers(coordinator);
+        // Both workers are started here rather than picked from the shared cluster. A node this test
+        // started is never one of InternalTestCluster's shared nodes, so stopping it cannot trip the
+        // "only master eligible shared node" guard, and a data-only node is never the master, so
+        // holding up its connection cannot hold up cluster-state publication.
+        List<String> workers = internalCluster().startDataOnlyNodes(2);
+        String coordinator = dataNodeOutside(workers);
+        // Resolution walks the assignment map in eligible-node order, so stalling getConnection on
+        // whichever worker comes first pauses it before the other worker is looked up — the window
+        // this test needs. The coordinator's own getConnection is local and cannot be stalled.
         DiscoveryNode stall = null;
         DiscoveryNode unreachable = null;
-        for (DiscoveryNode node : eligible) {
-            if (node.getName().equals(coordinator)) {
+        for (DiscoveryNode node : eligibleWorkers(coordinator)) {
+            if (workers.contains(node.getName()) == false) {
                 continue;
             }
             if (stall == null) {
@@ -97,41 +102,57 @@ public class ExternalDistributedNodeUnavailableIT extends AbstractExternalDataSo
         }
 
         String unreachableId = unreachable.getId();
-        CyclicBarrier gap = new CyclicBarrier(2);
+        // A one-shot handshake rather than a CyclicBarrier. Any coordinator-to-stall-node
+        // getConnection runs this behavior, not only the dispatch lookup this test means to pause,
+        // so a two-party barrier can rendezvous with the wrong caller and leave the dispatch thread
+        // parked on one nobody else reaches. Only the first caller waits; the rest pass through.
+        CountDownLatch dispatchReachedStall = new CountDownLatch(1);
+        CountDownLatch releaseDispatch = new CountDownLatch(1);
+        AtomicBoolean stallArmed = new AtomicBoolean(true);
         var coordinatorTransport = MockTransportService.getInstance(coordinator);
         var stallAddress = internalCluster().getInstance(TransportService.class, stall.getName()).boundAddress().publishAddress();
         coordinatorTransport.addGetConnectionBehavior(stallAddress, (connectionManager, node) -> {
-            try {
-                safeAwait(gap);
-                safeAwait(gap);
-            } catch (AssertionError e) {
-                // safeAwait fails the test thread with AssertionError. On this search thread that
-                // error would skip the query listener, so surface it as a query failure instead.
-                throw new IllegalStateException(e);
+            if (stallArmed.compareAndSet(true, false)) {
+                dispatchReachedStall.countDown();
+                try {
+                    // Deliberately not safeAwait: it signals failure with an AssertionError, which is
+                    // not an Exception, so the dispatcher's catch would miss it and kill the query
+                    // instead of reassigning the splits this test is about.
+                    if (releaseDispatch.await(TIMEOUT.millis(), TimeUnit.MILLISECONDS) == false) {
+                        throw new IllegalStateException("dispatch stall was never released");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(e);
+                }
             }
             return connectionManager.getConnection(node);
         });
         var faulted = request(scan.query, false);
         faulted.allowPartialResults(true);
         ActionFuture<EsqlQueryResponse> future = client(coordinator).execute(EsqlQueryAction.INSTANCE, faulted);
-        boolean released = false;
+        boolean stopped = false;
         try {
-            safeAwait(gap);
+            // TIMEOUT rather than the 10s safeAwait default: on a loaded CI worker the query can
+            // need longer than that just to reach dispatch, and failing here abandons it mid-flight,
+            // leaking its exchange sinks and breaker usage into the next test on this shared cluster.
+            safeAwait(dispatchReachedStall, TIMEOUT);
             assertThat(internalCluster().clusterService(coordinator).state().nodes().get(unreachableId), notNullValue());
             assertTrue(internalCluster().stopNode(unreachable.getName()));
             awaitClusterState(coordinator, state -> state.nodes().get(unreachableId) == null);
-            safeAwait(gap);
-            released = true;
-            try (var response = future.actionGet(TIMEOUT)) {
-                assertThat(response.isPartial(), equalTo(false));
-                assertThat(getValuesList(response), equalTo(List.of(List.of(ROWS, ID_SUM))));
-            }
+            stopped = true;
         } finally {
+            // Unconditional: a dispatch thread parked on the stall must never outlive the test,
+            // or the whole suite hangs until its timeout rather than reporting this test's failure.
+            releaseDispatch.countDown();
             coordinatorTransport.clearAllRules();
-            if (released == false) {
-                gap.reset();
+            if (stopped == false) {
                 drainQuery(future);
             }
+        }
+        try (var response = future.actionGet(TIMEOUT)) {
+            assertThat(response.isPartial(), equalTo(false));
+            assertThat(getValuesList(response), equalTo(List.of(List.of(ROWS, ID_SUM))));
         }
     }
 
@@ -162,9 +183,18 @@ public class ExternalDistributedNodeUnavailableIT extends AbstractExternalDataSo
     }
 
     private DistributedScan distributedScan(String datasetName) throws Exception {
-        internalCluster().ensureAtLeastNumDataNodes(2);
-        List<String> dataNodes = Arrays.stream(internalCluster().getNodeNames()).filter(n -> isDataNode(n)).toList();
-        return scanOn(datasetName, dataNodes.get(0), dataNodes.get(1));
+        // A node started here is never the master, so refusing the coordinator's connection to it
+        // cannot stall cluster-state publication and destabilize the rest of the suite.
+        String unreachable = internalCluster().startDataOnlyNode();
+        return scanOn(datasetName, dataNodeOutside(List.of(unreachable)), unreachable);
+    }
+
+    /** A data node this test did not start, to act as coordinator. */
+    private static String dataNodeOutside(Collection<String> exclude) {
+        return Arrays.stream(internalCluster().getNodeNames())
+            .filter(name -> isDataNode(name) && exclude.contains(name) == false)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no data node outside " + exclude));
     }
 
     private DistributedScan scanOn(String datasetName, String coordinator, String unreachable) throws Exception {

@@ -1,0 +1,63 @@
+// Tests for the .ml-anomalies view.
+
+Get anomalies
+required_capability: ml_anomalies
+
+FROM .ml-anomalies
+| WHERE job_id == "response_code_rates"
+| WHERE is_interim == false
+| STATS max_score = MAX(score)
+        WHERE result_type == "record"
+  BY timestamp = BUCKET(timestamp, 600s)
+| WHERE max_score > 0
+| SORT max_score DESC NULLS LAST
+;
+
+max_score:double | timestamp:datetime
+95.68498         | 2026-08-29T10:00:00.000Z
+3.556297         | 2026-08-26T09:00:00.000Z
+;
+
+
+Get influencers
+required_capability: ml_anomalies
+
+FROM .ml-anomalies
+| WHERE is_interim == false
+| STATS 
+        max_score = MAX(score)
+        WHERE result_type == "record",
+
+        influencers = TOP(score, 3, "DESC", JSON_STRING(
+            "score", score,
+            "field_name", influencer_field_name,
+            "field_value", influencer_field_value
+        ))
+        WHERE result_type == "influencer" AND score >= 75,
+
+        records = TOP(score, 3, "DESC", JSON_STRING(
+            "score", score,
+            "function", function,
+            "over_field_name", over_field_name,
+            "over_field_value", over_field_value
+        ))
+        WHERE result_type == "record" AND score >= 0
+
+  BY job_id, timestamp = BUCKET(timestamp, 600s)
+  
+| WHERE max_score > 0
+| SORT job_id, max_score DESC NULLS LAST
+| KEEP job_id, timestamp, max_score, influencers, records
+| LIMIT 10
+;
+
+job_id:keyword      | timestamp:datetime       | max_score:double   | influencers:keyword                                                                | records:keyword
+response_code_rates | 2026-08-29T10:00:00.000Z | 95.68498           | "{""score"":95.68498,""field_name"":""response.keyword"",""field_value"":""200""}" | "{""score"":95.68498,""function"":""count"",""over_field_name"":null,""over_field_value"":null}"
+response_code_rates | 2026-08-26T09:00:00.000Z | 3.556297           | null                                                                               | "{""score"":3.556297,""function"":""count"",""over_field_name"":null,""over_field_value"":null}"
+url_scanning        | 2026-09-01T14:00:00.000Z | 24.458955144035542 | null                                                                               | "{""score"":24.458955144035542,""function"":""high_distinct_count"",""over_field_name"":""clientip"",""over_field_value"":""41.77.243.255""}"
+url_scanning        | 2026-09-02T14:00:00.000Z | 23.803571012326362 | null                                                                               | "{""score"":23.803571012326362,""function"":""high_distinct_count"",""over_field_name"":""clientip"",""over_field_value"":""58.248.231.197""}"
+url_scanning        | 2026-08-31T11:00:00.000Z | 23.796553378079878 | null                                                                               | "{""score"":23.796553378079878,""function"":""high_distinct_count"",""over_field_name"":""clientip"",""over_field_value"":""37.68.248.33""}"
+url_scanning        | 2026-09-01T16:00:00.000Z | 23.515772944470832 | null                                                                               | "[{""score"":23.515772944470832\,""function"":""high_distinct_count""\,""over_field_name"":""clientip""\,""over_field_value"":""32.120.62.176""}, {""score"":23.515772944470832\,""function"":""high_distinct_count""\,""over_field_name"":""clientip""\,""over_field_value"":""158.41.235.38""}]"
+url_scanning        | 2026-08-28T12:00:00.000Z | 21.454576921446016 | null                                                                               | "{""score"":21.454576921446016,""function"":""high_distinct_count"",""over_field_name"":""clientip"",""over_field_value"":""85.210.168.78""}"
+url_scanning        | 2026-08-28T16:00:00.000Z | 21.41863844202983  | null                                                                               | "{""score"":21.41863844202983,""function"":""high_distinct_count"",""over_field_name"":""clientip"",""over_field_value"":""236.1.118.161""}"
+;

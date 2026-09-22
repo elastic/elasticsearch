@@ -80,7 +80,7 @@ public class CrossClusterEsqlRCS1UnavailableRemotesIT extends AbstractRemoteClus
         // other than a 200-OK.
 
         configureRemoteCluster("my_remote_cluster", fulfillingCluster, true, randomBoolean(), randomBoolean());
-        String query = "FROM *,my_remote_cluster:* | LIMIT 10";
+        String query = "FROM *,-.ml-anomalies,my_remote_cluster:*,my_remote_cluster:-.ml-anomalies | LIMIT 10";
         Response response = client().performRequest(esqlRequest(query));
 
         Map<String, Object> map = responseAsMap(response);
@@ -124,7 +124,7 @@ public class CrossClusterEsqlRCS1UnavailableRemotesIT extends AbstractRemoteClus
             fulfillingCluster.stop(true);
 
             // A simple query that targets our remote cluster.
-            String query = "FROM *,my_remote_cluster:* | LIMIT 10";
+            String query = "FROM *,-.ml-anomalies,my_remote_cluster:*,my_remote_cluster:-.ml-anomalies | LIMIT 10";
             Response response = client().performRequest(esqlRequest(query));
 
             Map<String, Object> map = responseAsMap(response);
@@ -177,7 +177,7 @@ public class CrossClusterEsqlRCS1UnavailableRemotesIT extends AbstractRemoteClus
             fulfillingCluster.stop(true);
 
             // A simple query that targets our remote cluster.
-            String query = "FROM *,my_remote_cluster:* | LIMIT 10";
+            String query = "FROM *,-.ml-anomalies,my_remote_cluster:*,my_remote_cluster:-.ml-anomalies | LIMIT 10";
             ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(esqlRequest(query)));
             assertThat(
                 ex.getMessage(),

@@ -84,7 +84,7 @@ public class WildcardsMatchDatasetsRestIT extends ESRestTestCase {
         // The default: the wildcard means index-likes, so the registered datasets neither contribute branches nor are
         // read. The query returns what FROM logs-000001 returns. KEEP pins the projection because the dynamic mapping
         // gives `message` a `.keyword` sub-field, and the explicit LIMIT keeps the default-limit warning off the wire.
-        Map<String, Object> response = query("FROM * | KEEP message | LIMIT 10");
+        Map<String, Object> response = query("FROM *,-.ml-anomalies | KEEP message | LIMIT 10");
 
         @SuppressWarnings("unchecked")
         List<List<Object>> values = (List<List<Object>>) response.get("values");

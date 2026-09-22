@@ -11,7 +11,10 @@ import org.elasticsearch.Build;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
@@ -118,6 +121,101 @@ public class ViewRestTests extends AbstractViewTestCase {
 
         assertThat(response.getViews(), hasSize(1));
         assertNull(response.getViews().iterator().next().description());
+    }
+
+    public void testSystemViewIsBootstrappedOnStartup() throws Exception {
+        // SystemViewsCreator runs as a master-only cluster-state listener, so the built-in view materializes shortly
+        // after the node forms its (single-node) cluster. Wait for it rather than assuming it is instantly present.
+        awaitSystemView(systemViewName());
+    }
+
+    public void testSystemViewCannotBeUpdated() {
+        // The guard is purely name-based, so it rejects regardless of whether the bootstrap has run yet.
+        final String systemView = systemViewName();
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(
+                PutViewAction.INSTANCE,
+                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(systemView, "FROM blah"))
+            ).actionGet(TEST_REQUEST_TIMEOUT)
+        );
+        assertThat(error.getMessage(), equalTo("system view [" + systemView + "] cannot be updated"));
+    }
+
+    public void testSystemViewCannotBeDeletedByName() throws Exception {
+        final String systemView = systemViewName();
+        // The delete path resolves names against cluster state first, so the view must exist to reach the guard.
+        awaitSystemView(systemView);
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(
+                DeleteViewAction.INSTANCE,
+                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { systemView })
+            ).actionGet(TEST_REQUEST_TIMEOUT)
+        );
+        assertThat(error.getMessage(), equalTo("system view [" + systemView + "] cannot be deleted"));
+    }
+
+    public void testSystemViewCannotBeDeletedByWildcard() throws Exception {
+        final String systemView = systemViewName();
+        awaitSystemView(systemView);
+        // A wildcard (or _all) that merely sweeps in the system view is a no-op for that view: it is skipped rather than
+        // deleted, and the request succeeds instead of failing, so bulk deletes of user views keep working. Deleting the
+        // system view still requires targeting it explicitly by name (see testSystemViewCannotBeDeletedByName).
+        assertAcked(
+            client().execute(
+                DeleteViewAction.INSTANCE,
+                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { ".ml-*" })
+            ).actionGet(TEST_REQUEST_TIMEOUT)
+        );
+        // The built-in view survives the wildcard delete.
+        awaitSystemView(systemView);
+    }
+
+    public void testConflictingUserViewWithSystemNameCanBeDeleted() throws Exception {
+        final String systemView = systemViewName();
+        awaitSystemView(systemView);
+        // Replace the managed system view with a same-named user-defined view that has a different query, bypassing the
+        // put guard the same way the bootstrap does. On the resulting cluster state change the bootstrap detects the
+        // conflict, logs an error and leaves the view untouched (it never overwrites a conflicting user view), so the
+        // user-defined query stays in place until we delete it below.
+        ViewService viewService = getInstanceFromNode(ViewService.class);
+        PlainActionFuture<AcknowledgedResponse> injected = new PlainActionFuture<>();
+        viewService.putView(
+            ProjectId.DEFAULT,
+            new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(systemView, "FROM conflicting | WHERE x == 1")),
+            injected
+        );
+        injected.actionGet(TEST_REQUEST_TIMEOUT);
+        // Because its query differs from the built-in definition it is not the managed system view, so an explicit
+        // delete by name is allowed (this is how a naming conflict with a pre-existing user view is resolved).
+        assertAcked(
+            client().execute(
+                DeleteViewAction.INSTANCE,
+                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { systemView })
+            ).actionGet(TEST_REQUEST_TIMEOUT)
+        );
+        // Once the conflicting view is gone the bootstrap recreates the built-in system view with its managed query.
+        awaitSystemView(systemView);
+    }
+
+    private static String systemViewName() {
+        return SystemViews.VIEWS.keySet().iterator().next();
+    }
+
+    private void awaitSystemView(String systemView) throws Exception {
+        assertBusy(() -> {
+            GetViewAction.Request getRequest = new GetViewAction.Request(TEST_REQUEST_TIMEOUT);
+            getRequest.indices(systemView);
+            final GetViewAction.Response response;
+            try {
+                response = client().execute(GetViewAction.INSTANCE, getRequest).actionGet(TEST_REQUEST_TIMEOUT);
+            } catch (ResourceNotFoundException e) {
+                throw new AssertionError("system view [" + systemView + "] not created yet", e);
+            }
+            assertThat(response.getViews(), hasSize(1));
+            assertThat(response.getViews().iterator().next().name(), equalTo(systemView));
+        });
     }
 
     public void testGetViewByMissingNameReturnsCleanNotFound() {

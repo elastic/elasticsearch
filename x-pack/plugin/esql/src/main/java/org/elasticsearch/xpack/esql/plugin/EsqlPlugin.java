@@ -157,6 +157,7 @@ import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.esql.view.RestDeleteViewAction;
 import org.elasticsearch.xpack.esql.view.RestGetViewAction;
 import org.elasticsearch.xpack.esql.view.RestPutViewAction;
+import org.elasticsearch.xpack.esql.view.SystemViews;
 import org.elasticsearch.xpack.esql.view.TransportDeleteViewAction;
 import org.elasticsearch.xpack.esql.view.TransportGetViewAction;
 import org.elasticsearch.xpack.esql.view.TransportPutViewAction;
@@ -587,6 +588,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             }
         };
 
+        ViewService viewService = new ViewService(services.clusterService(), parser);
+        SystemViews systemViews = new SystemViews(services.clusterService(), services.threadPool(), viewService);
         DataSourceService dataSourceService = new DataSourceService(
             services.clusterService(),
             crudValidators,
@@ -635,7 +638,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.client(),
                 services.crossProjectModeDecider()
             ),
-            new ViewService(services.clusterService(), parser),
+            viewService,
+            systemViews,
             dataSourceService,
             new DatasetService(services.clusterService(), crudValidators, dataSourceModule.externalSourceMetrics()),
             inventoryCounters,
@@ -828,7 +832,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return List.of(
-            new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(ViewMetadata.TYPE), ViewMetadata::fromXContent),
             new NamedXContentRegistry.Entry(
                 Metadata.ProjectCustom.class,
                 new ParseField(DataSourceMetadata.TYPE),

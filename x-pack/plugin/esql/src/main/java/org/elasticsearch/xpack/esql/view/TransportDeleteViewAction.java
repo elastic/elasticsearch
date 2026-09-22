@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -25,7 +26,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class TransportDeleteViewAction extends AcknowledgedTransportMasterNodeProjectAction<DeleteViewAction.Request> {
 
@@ -84,7 +89,30 @@ public class TransportDeleteViewAction extends AcknowledgedTransportMasterNodePr
             listener.onResponse(AcknowledgedResponse.TRUE);
             return;
         }
-        viewService.deleteViews(state.projectId(), request.masterNodeTimeout(), request.ackTimeout(), viewNames, listener);
+        // The built-in system view can never be deleted: targeting it explicitly by name is a hard error, and when it is
+        // merely swept in by a wildcard or _all we skip it silently so bulk deletions of user views keep working. However,
+        // a view that only shares the system name but has a different (user-defined) query is not the managed system view;
+        // it is allowed to be deleted so a naming conflict with a pre-existing user view can be resolved.
+        Set<String> explicitlyRequested = new HashSet<>(Arrays.asList(request.views()));
+        List<String> viewsToDelete = new ArrayList<>(viewNames.size());
+        for (String name : viewNames) {
+            if (SystemViews.isSystemView(name)) {
+                View existing = viewService.get(state.projectId(), name);
+                if (SystemViews.isSystemView(name, existing != null ? existing.query() : null)) {
+                    if (explicitlyRequested.contains(name)) {
+                        listener.onFailure(new IllegalArgumentException("system view [" + name + "] cannot be deleted"));
+                        return;
+                    }
+                    continue;
+                }
+            }
+            viewsToDelete.add(name);
+        }
+        if (viewsToDelete.isEmpty()) {
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return;
+        }
+        viewService.deleteViews(state.projectId(), request.masterNodeTimeout(), request.ackTimeout(), viewsToDelete, listener);
     }
 
     @Override

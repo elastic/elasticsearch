@@ -367,7 +367,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
         expectThrows(
             Exception.class,
             containsString("index [logs] has no active shard copy"),
-            () -> run("from * | KEEP timestamp,message")
+            () -> run("from *,-.ml-anomalies | KEEP timestamp,message")
         );
         try (EsqlQueryResponse resp = run(syncEsqlQueryRequest("from events,logs | KEEP timestamp,message").allowPartialResults(true))) {
             assertTrue(resp.isPartial());

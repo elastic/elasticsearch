@@ -324,29 +324,15 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
         shapes.put("regexp accepting empty", QueryBuilders.regexpQuery("kw", "[a-z]*"));
         shapes.put("fuzzy", QueryBuilders.fuzzyQuery("kw", "alpxa"));
         shapes.put("term ci", QueryBuilders.termQuery("kw", "ALPHA").caseInsensitive(true));
+        // The codec keeps a document's null slots in its payload, so this asks what the document holds rather than whether it has doc
+        // values; documents 3 ("null") and 4 ("[null]") hold nothing either way.
+        shapes.put("exists", QueryBuilders.existsQuery("kw"));
 
         for (var shape : shapes.entrySet()) {
             final List<String> columnar = hits(withCodec, shape.getValue());
             final List<String> plain = hits(withoutCodec, shape.getValue());
             assertEquals(shape.getKey(), plain, columnar);
         }
-
-        // exists is the one shape that deliberately does not agree. The codec writes a payload for an explicit null,
-        // which is what keeps an all-null array distinct from an absent field, so such a document has the field where
-        // under the format it replaces it does not. Documents 3 ("null") and 4 ("[null]") are the difference; the
-        // empty array of document 11 writes nothing either way and is absent from both.
-        final List<String> existsColumnar = hits(withCodec, QueryBuilders.existsQuery("kw"));
-        final List<String> existsPlain = hits(withoutCodec, QueryBuilders.existsQuery("kw"));
-        assertFalse("an explicit null is not present without the codec", existsPlain.contains("3"));
-        assertFalse("nor is an all-null array", existsPlain.contains("4"));
-        assertTrue("but it is with it", existsColumnar.contains("3"));
-        assertTrue("and so is an all-null array", existsColumnar.contains("4"));
-        assertFalse("an empty array is absent either way", existsColumnar.contains("11") || existsPlain.contains("11"));
-        final List<String> expected = new ArrayList<>(existsPlain);
-        expected.add("3");
-        expected.add("4");
-        expected.sort(String::compareTo);
-        assertEquals("and nothing else differs", expected, existsColumnar);
     }
 
     /** The ids a query matches, in order, so a disagreement names the documents rather than just a count. */

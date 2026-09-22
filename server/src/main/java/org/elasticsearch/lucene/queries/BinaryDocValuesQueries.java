@@ -39,6 +39,12 @@ public interface BinaryDocValuesQueries {
             : ScanningBinaryDocValuesQueries.forFormat(format);
     }
 
+    /**
+     * Documents holding the field: one holding an array holds it, however many of that array's elements are null. Which doc values say
+     * so depends on the layout, since not all of them write the values themselves for a document whose elements are all null.
+     */
+    Query exists(String field);
+
     /** Documents holding exactly {@code term}. */
     Query term(String field, BytesRef term);
 

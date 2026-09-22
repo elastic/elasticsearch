@@ -39,6 +39,7 @@ import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -916,6 +917,15 @@ public final class KeywordFieldMapper extends FieldMapper {
             return BinaryDocValuesQueries.forFormat(binaryFormat());
         }
 
+        /** A document holding an array holds the field, which its doc values say; see {@link MultiValuedBinaryDocValuesField}. */
+        @Override
+        public Query existsQuery(SearchExecutionContext context) {
+            if (usesBinaryDocValues()) {
+                return binaryQueries().exists(name());
+            }
+            return super.existsQuery(context);
+        }
+
         @Override
         public boolean isSearchable() {
             return indexType.hasTerms() || hasDocValues();
@@ -1531,6 +1541,15 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final DocValuesFieldFactory dvFactory;
     private final String indexOptions;
     private final FieldType fieldType;
+
+    /** What a document holding no value writes this field as, so its schema matches the field's; null where the field is not indexed. */
+    private final IndexableFieldType postingsShim;
+
+    /** The same, for the batch path, which writes the postings and the payload as two columns. */
+    private final IndexableFieldType postingsOnlyShim;
+
+    /** Whether this field lives in a strict columnar index; see {@link MultiValuedBinaryDocValuesField#recordsNullSlot}. */
+    private final boolean strictColumnar;
     private final String normalizerName;
     private final boolean normalizerSkipStoreOriginalValue;
     private final boolean splitQueriesOnWhitespace;
@@ -1566,6 +1585,9 @@ public final class KeywordFieldMapper extends FieldMapper {
         );
         this.indexOptions = builder.indexOptions.getValue();
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
+        this.postingsShim = ColumnarBinaryDocValuesField.postingsShimFor(this.fieldType);
+        this.strictColumnar = builder.indexSettings.getMode().isStrictColumnar();
+        this.postingsOnlyShim = ColumnarBinaryDocValuesField.postingsOnlyShimFor(this.fieldType);
         this.normalizerName = builder.normalizer.getValue();
         this.normalizerSkipStoreOriginalValue = builder.normalizerSkipStoreOriginalValue.getValue();
         this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
@@ -1595,9 +1617,9 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     public void recordEmptyArrayInOrder(LuceneDocument doc) {
-        if (fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD) {
-            ColumnarBinaryDocValuesField.recordEmptyArray(doc, fieldType().name());
-        } else {
+        // An empty array holds no element, so a strict columnar index writes nothing for it; see
+        // MultiValuedBinaryDocValuesField#recordsNullSlot.
+        if (strictColumnar == false) {
             super.recordEmptyArrayInOrder(doc);
         }
     }
@@ -1808,6 +1830,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             int lastValueLength = 0;
             // True when the current doc has at least one non-null slot; gates binary dv blob emission.
             boolean hasNonNull = false;
+            // The documents that turn out to hold no value, which carry the field's index options; null while there are none.
+            FixedBitSet valueless = null;
 
             while (true) {
                 final int nextDoc = cursor.nextDoc();
@@ -1817,6 +1841,14 @@ public final class KeywordFieldMapper extends FieldMapper {
                     if (binaryDvs != null && docSlotCount > 0) {
                         // TODO: considering appending slots straight into the column builder's stream.
                         if (columnar) {
+                            if (hasNonNull == false && postingsOnlyShim != null) {
+                                // A document holding no value carries the field's index options so its schema matches the field's;
+                                // see ColumnarPostingsShimColumn.
+                                if (valueless == null) {
+                                    valueless = new FixedBitSet(docCount);
+                                }
+                                valueless.set(currentDoc);
+                            }
                             // An all-null document is a payload like any other, which is why no companion count
                             // column is emitted alongside.
                             final BytesRef blob = payload.build();
@@ -1851,6 +1883,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                         binaryValue = nullValueBytes;
                         // Fall through to normal value processing below.
                     } else {
+                        if (source.isNull(currentDoc)) {
+                            continue;
+                        }
                         if (binaryDvs != null) {
                             if (columnar) {
                                 payload.appendSlot(null);
@@ -1915,6 +1950,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
             if (binaryDvs != null && binaryDvs.isEmpty() == false) {
                 addOwnedBinaryColumn(ctx, binaryDvs, docCount, fieldType().name(), CustomDocValuesField.TYPE);
+            }
+            if (valueless != null) {
+                ctx.addColumn(new ColumnarPostingsShimColumn(fieldType().name(), postingsOnlyShim, valueless, docCount));
             }
             // A columnar field's payload carries its own count, so it emits no companion column at all.
             if (columnar == false && dvCounts != null && dvCounts.isEmpty() == false) {
@@ -2119,9 +2157,14 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (fieldType().storesArrayOrderInline()) {
             // In-order path: non-null values are recorded in indexValue (in document order); here we record null slots so their position
             // is preserved. Values that tripped ignore_above (indexed == false, value != null) record no slot, matching the offsets path.
-            if (indexed == false && value == null) {
+            // Only an array's null takes a slot in a strict columnar index; see MultiValuedBinaryDocValuesField#recordsNullSlot.
+            if (indexed == false && value == null && MultiValuedBinaryDocValuesField.recordsNullSlot(context)) {
                 switch (fieldType().diskFormat()) {
-                    case BINARY_COLUMNAR_PAYLOAD -> ColumnarBinaryDocValuesField.recordNull(context.doc(), fieldType().name());
+                    case BINARY_COLUMNAR_PAYLOAD -> ColumnarBinaryDocValuesField.recordNull(
+                        context.doc(),
+                        fieldType().name(),
+                        postingsShim
+                    );
                     case BINARY_ARRAY_ORDER_INLINE_NULL -> MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(
                         context.doc(),
                         fieldType().name()
@@ -2134,7 +2177,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         } else if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (indexed) {
                 context.getOffSetContext().recordOffset(offsetsFieldName, value.bytes());
-            } else if (value == null) {
+            } else if (value == null && MultiValuedBinaryDocValuesField.recordsNullSlot(context)) {
                 context.getOffSetContext().recordNull(offsetsFieldName);
             }
         }
@@ -2230,9 +2273,15 @@ public final class KeywordFieldMapper extends FieldMapper {
                     // is how this format is read back, whatever the field asked for; see SortableBinaryDocValues.
                     final MultiValuedBinaryDocValuesField.ValueOrdering ordering = MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED;
                     if (context.isPartOfArray() == false) {
-                        ColumnarBinaryDocValuesField.recordSingleValue(context.doc(), fieldType().name(), binaryValue, ordering);
+                        ColumnarBinaryDocValuesField.recordSingleValue(
+                            context.doc(),
+                            fieldType().name(),
+                            binaryValue,
+                            ordering,
+                            postingsShim
+                        );
                     } else {
-                        ColumnarBinaryDocValuesField.recordValue(context.doc(), fieldType().name(), binaryValue, ordering);
+                        ColumnarBinaryDocValuesField.recordValue(context.doc(), fieldType().name(), binaryValue, ordering, postingsShim);
                     }
                 }
                 case BINARY_ARRAY_ORDER_INLINE_NULL -> {

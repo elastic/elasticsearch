@@ -14,9 +14,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -40,13 +42,37 @@ public abstract class AbstractColumnarArrayOrderSyntheticSourceTestCase extends 
      */
     protected abstract String fieldTypeName();
 
-    protected MapperService columnarMapperService() throws IOException {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+    /** Each of the layouts this build writes a columnar index in: the ColumNAR codec's payload, and the layouts it replaces. */
+    protected List<Boolean> layouts() {
+        return ColumnarCodecSettings.AVAILABLE ? List.of(false, true) : List.of(false);
+    }
+
+    protected MapperService columnarMapperService(boolean codec) throws IOException {
+        final Settings settings = ColumnarCodecSettings.name(
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()),
+            codec
+        ).build();
         return createMapperService(settings, mapping(b -> b.startObject("field").field("type", fieldTypeName()).endObject()));
+    }
+
+    /** The layouts the ColumNAR codec replaces, for the tests here that read one of their readers back rather than a document. */
+    protected MapperService columnarMapperService() throws IOException {
+        return columnarMapperService(false);
     }
 
     protected DocumentMapper columnarMapper() throws IOException {
         return columnarMapperService().documentMapper();
+    }
+
+    /**
+     * Round-trips {@code doc} through every layout this build writes and requires them to agree on {@code expected}: what a document
+     * holds is the field's meaning rather than the layout's, so an array's null survives in each of them while a scalar null and an
+     * empty array are an absence of value in each of them.
+     */
+    protected void assertSourceInEveryLayout(String expected, CheckedConsumer<XContentBuilder, IOException> doc) throws IOException {
+        for (boolean codec : layouts()) {
+            assertEquals("codec=" + codec, expected, syntheticSource(columnarMapperService(codec).documentMapper(), doc));
+        }
     }
 
     public void testOffsetsFieldNotUsed() throws IOException {
@@ -57,9 +83,8 @@ public abstract class AbstractColumnarArrayOrderSyntheticSourceTestCase extends 
     }
 
     public void testOrderAndDuplicatesPreserved() throws IOException {
-        var mapper = columnarMapper();
-        assertEquals("""
-            {"field":["b","a","a","c"]}""", syntheticSource(mapper, b -> b.array("field", "b", "a", "a", "c")));
+        assertSourceInEveryLayout("""
+            {"field":["b","a","a","c"]}""", b -> b.array("field", "b", "a", "a", "c"));
     }
 
     public void testSingleValueCollapsesToScalar() throws IOException {
@@ -71,39 +96,31 @@ public abstract class AbstractColumnarArrayOrderSyntheticSourceTestCase extends 
     }
 
     public void testInterleavedNullsPreserved() throws IOException {
-        var mapper = columnarMapper();
-        assertEquals(
-            """
-                {"field":["a",null,"b"]}""",
-            syntheticSource(mapper, b -> { b.startArray("field").value("a").nullValue().value("b").endArray(); })
-        );
+        assertSourceInEveryLayout("""
+            {"field":["a",null,"b"]}""", b -> b.startArray("field").value("a").nullValue().value("b").endArray());
     }
 
     public void testAllNullArray() throws IOException {
-        var mapper = columnarMapper();
-        assertEquals("""
-            {"field":[null,null]}""", syntheticSource(mapper, b -> b.startArray("field").nullValue().nullValue().endArray()));
+        assertSourceInEveryLayout("""
+            {"field":[null,null]}""", b -> b.startArray("field").nullValue().nullValue().endArray());
     }
 
     public void testLoneNull() throws IOException {
-        var mapper = columnarMapper();
-        assertEquals("""
-            {"field":[null]}""", syntheticSource(mapper, b -> b.startArray("field").nullValue().endArray()));
+        assertSourceInEveryLayout("""
+            {"field":[null]}""", b -> b.startArray("field").nullValue().endArray());
     }
 
     /**
-     * A scalar {@code null} (written via {@code b.nullField("field")}) must produce the same result as a
-     * single-element null array — both write one null slot via
-     * {@code MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull}, so synthetic source renders
-     * the field as {@code [null]}, not as absent.
+     * A scalar {@code null} (written via {@code b.nullField("field")}) holds no array element, so a strict columnar index records no
+     * slot for it and the field reads back as absent — as it does outside one. A null inside an array keeps its slot, which
+     * {@link #testLoneNull()} pins.
      */
-    public void testScalarNullRendersAsArray() throws IOException {
-        var mapper = columnarMapper();
-        assertEquals("""
-            {"field":[null]}""", syntheticSource(mapper, b -> b.nullField("field")));
+    public void testScalarNullIsAbsent() throws IOException {
+        assertSourceInEveryLayout("{}", b -> b.nullField("field"));
     }
 
     public void testEmptyArray() throws IOException {
+        assertSourceInEveryLayout("{}", b -> b.startArray("field").endArray());
         var mapper = columnarMapper();
         // An empty array has no values to store in a doc-value column and isn't field-owned, so columnar drops it
         // (lossy) rather than keeping a generic _ignored_source marker. The field is therefore absent from _source.

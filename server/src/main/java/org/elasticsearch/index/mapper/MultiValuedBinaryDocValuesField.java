@@ -35,6 +35,23 @@ import java.util.TreeSet;
  */
 public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesField {
 
+    /**
+     * Whether a {@code null} read at this point takes a slot of its own.
+     *
+     * <p>In a <b>strict columnar</b> index a document holds a string field when it holds an array of it, its elements null or not: an
+     * array of nothing but nulls is held, while an empty array and a scalar {@code null} are an absence of value and write nothing at
+     * all. Null slots exist to rebuild an array as it was written, nulls in place, which is why only an array's null takes one. Every
+     * layout below follows that rule, and {@code exists} reads it back from whichever doc values record a document's elements.
+     *
+     * <p>Outside a strict columnar index nothing changes: a null is recorded where it always was.
+     */
+    public static boolean recordsNullSlot(DocumentParserContext context) {
+        // The array has to be the field's own. A null inside an array of objects ({@code "obj": [{"f": null}, {"f": "a"}]}) is that
+        // object's scalar null, and a strict columnar index flattens objects away, so it reads back exactly as a document whose object
+        // held no {@code f} at all — which is what an absence of value is.
+        return context.indexSettings().getMode().isStrictColumnar() == false || context.isImmediateParentAnArray();
+    }
+
     // vints are unlike normal ints in that they may require 5 bytes instead of 4
     // see BytesStreamOutput.writeVInt()
     public static final int VINT_MAX_BYTES = 5;

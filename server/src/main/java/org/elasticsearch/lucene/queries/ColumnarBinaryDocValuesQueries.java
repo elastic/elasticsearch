@@ -10,6 +10,7 @@
 package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -49,6 +50,13 @@ final class ColumnarBinaryDocValuesQueries implements BinaryDocValuesQueries {
     private static final ScanBudget BUDGET = ContextIndexSearcher::checkBinaryDvDecodeBreaker;
 
     private ColumnarBinaryDocValuesQueries() {}
+
+    @Override
+    public Query exists(String field) {
+        // The payload carries a document's slots whether or not any of them holds a value, and a document holding no element writes
+        // none, so holding the payload is holding the field.
+        return new FieldExistsQuery(field);
+    }
 
     @Override
     public Query term(String field, BytesRef term) {

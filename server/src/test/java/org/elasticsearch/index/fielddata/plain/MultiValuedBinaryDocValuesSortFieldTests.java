@@ -426,9 +426,8 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
             ColumnarBinaryDocValuesField.recordNull(allNull, "name");
             w.addDocument(allNull);
 
-            LuceneDocument emptyArray = new LuceneDocument();
-            ColumnarBinaryDocValuesField.recordEmptyArray(emptyArray, "name");
-            w.addDocument(emptyArray);
+            // An empty array writes nothing, as a field that is absent does.
+            w.addDocument(new LuceneDocument());
 
             try (DirectoryReader reader = DirectoryReader.open(w)) {
                 LeafReader leaf = getOnlyLeafReader(reader);
@@ -503,9 +502,6 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
             for (String[] slots : docs) {
                 final LuceneDocument doc = new LuceneDocument();
                 if (slots != null) {
-                    if (slots.length == 0) {
-                        ColumnarBinaryDocValuesField.recordEmptyArray(doc, "name");
-                    }
                     for (String slot : slots) {
                         if (slot == null) {
                             ColumnarBinaryDocValuesField.recordNull(doc, "name");

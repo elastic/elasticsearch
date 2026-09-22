@@ -14,6 +14,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCase;
+import org.elasticsearch.index.mapper.ColumnarCodecSettings;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 
@@ -77,11 +78,13 @@ public class MatchOnlyTextFieldMapperColumnarCompatibilityTests extends Abstract
         );
     }
 
+    /** A columnar index in the layouts the ColumNAR codec replaces; the scenarios that mean the codec name it themselves. */
     private static Settings columnarSettings() {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        return ColumnarCodecSettings.withoutCodec(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+        ).build();
     }
 
     public void testSingleValue() throws IOException {

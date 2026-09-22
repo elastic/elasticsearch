@@ -38,7 +38,11 @@ public abstract class AbstractColumnarArrayOrderFieldDataTestCase extends Mapper
     protected abstract String fieldTypeName();
 
     private MapperService columnarMapperService() throws IOException {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        // Fielddata over the ColumNAR codec's payload hands values over in array order and has tests of its own; this reads back the
+        // layouts the codec replaces, which sort within a document.
+        Settings settings = ColumnarCodecSettings.withoutCodec(
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+        ).build();
         return createMapperService(settings, mapping(b -> b.startObject("field").field("type", fieldTypeName()).endObject()));
     }
 

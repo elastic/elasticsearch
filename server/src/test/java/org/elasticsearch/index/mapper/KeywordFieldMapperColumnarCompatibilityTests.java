@@ -61,11 +61,41 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         super.assertFieldSetsEqual(expected, actual, message);
     }
 
+    /** A columnar index in the layouts the ColumNAR codec replaces; the scenarios that mean the codec name it themselves. */
     private static Settings columnarSettings() {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        return ColumnarCodecSettings.withoutCodec(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+        ).build();
+    }
+
+    /**
+     * The shapes that hold no value, written by a field that is indexed as well as stored. Under the ColumNAR codec such a document
+     * carries the field's index options beside its payload so that Lucene sees the schema the field is indexed with, which the row path
+     * writes as one field and the batch path as two columns; see {@code ColumnarBinaryDocValuesField}.
+     */
+    public void testColumnarCodecValuelessDocumentsOnAnIndexedField() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("index", true).endObject()),
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
+                .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+                .build(),
+            batch(
+                "valueless documents on an indexed field",
+                1L,
+                doc("d1", 1L, "{\"f\":null}"),
+                doc("d2", 2L, "{\"f\":[null]}"),
+                doc("d3", 3L, "{\"f\":[null,null]}"),
+                doc("d4", 4L, "{\"f\":[]}"),
+                doc("d5", 5L, "{\"f\":[\"alpha\",null,\"beta\"]}"),
+                doc("d6", 6L, "{}"),
+                doc("d7", 7L, "{\"f\":\"gamma\"}")
+            )
+        );
     }
 
     public void testSingleValue() throws IOException {

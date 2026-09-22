@@ -72,12 +72,13 @@ public class ColumnarBinaryDocValuesFieldTests extends ESTestCase {
         assertNoCounts(doc);
     }
 
-    /** An empty array is a count of zero and nothing after it. */
-    public void testEmptyArrayIsACountOfZero() throws IOException {
+    /** A null slot is held like any other: it is what tells an array holding a null from a field that is absent. */
+    public void testANullSlotIsHeld() throws IOException {
         final LuceneDocument doc = new LuceneDocument();
-        ColumnarBinaryDocValuesField.recordEmptyArray(doc, FIELD);
-        assertSlots(doc, List.of());
-        assertEquals("the empty payload", StringBinaryPayload.EMPTY, doc.getField(FIELD).binaryValue());
+        ColumnarBinaryDocValuesField.recordNull(doc, FIELD);
+        final List<BytesRef> expected = new ArrayList<>();
+        expected.add(null);
+        assertSlots(doc, expected);
         assertNoCounts(doc);
     }
 

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.column.BinaryColumn;
 import org.apache.lucene.document.column.BytesRefValuesCursor;
@@ -19,6 +20,8 @@ import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.LongValuesCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.document.column.TokenStreamColumn;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
@@ -360,6 +363,14 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                         perDoc.get(doc).add(new FieldDescriptor(name, ft, null, BytesRef.deepCopyOf(cursor.nextValue())));
                     }
                 }
+            } else if (column instanceof ColumnarPostingsShimColumn shim) {
+                // Inverted-index-only, and holding no value to compare. Which documents carry the field's index options is part of what
+                // the document holds, though: the row path carries them on the field holding the doc values, which is described as its
+                // two halves, so the half this column stands for is described here.
+                final ObjectTupleCursor<TokenStream> cursor = shim.tuples();
+                for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                    perDoc.get(doc).add(new FieldDescriptor(name, ft, null, null));
+                }
             } else if (column instanceof TokenStreamColumn) {
                 // inverted-index-only; no doc values to compare
             } else {
@@ -464,9 +475,38 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
     private static List<FieldDescriptor> toDescriptors(List<IndexableField> fields) {
         final List<FieldDescriptor> descriptors = new ArrayList<>(fields.size());
         for (IndexableField field : fields) {
-            descriptors.add(descriptor(field));
+            final FieldDescriptor descriptor = descriptor(field);
+            // A document holding no value carries its field's index options beside the doc values, so that Lucene sees the schema the
+            // field is indexed with. The row path carries both on one field and the batch path on two columns, which is one document
+            // either way, so what a document holds is described contribution by contribution rather than by the fields carrying them.
+            if (field instanceof ColumnarBinaryDocValuesField && field.fieldType().indexOptions() != IndexOptions.NONE) {
+                descriptors.add(onlyDocValues(descriptor));
+                descriptors.add(onlyPostings(descriptor));
+            } else {
+                descriptors.add(descriptor);
+            }
         }
         return descriptors;
+    }
+
+    /**
+     * The doc values {@code descriptor} carries, as a field holding nothing else would have them: norms belong to the postings the other
+     * half describes, and a field holding only doc values omits them.
+     */
+    private static FieldDescriptor onlyDocValues(FieldDescriptor descriptor) {
+        final FieldType type = new FieldType(descriptor.fieldType());
+        type.setIndexOptions(IndexOptions.NONE);
+        type.setOmitNorms(true);
+        type.freeze();
+        return new FieldDescriptor(descriptor.name(), type, descriptor.longValue(), descriptor.bytesValue());
+    }
+
+    /** The index options {@code descriptor} carries, as a field holding nothing else would have them. A token stream carries no value. */
+    private static FieldDescriptor onlyPostings(FieldDescriptor descriptor) {
+        final FieldType type = new FieldType(descriptor.fieldType());
+        type.setDocValuesType(DocValuesType.NONE);
+        type.freeze();
+        return new FieldDescriptor(descriptor.name(), type, null, null);
     }
 
     private static List<FieldDescriptor> sorted(List<FieldDescriptor> descriptors) {

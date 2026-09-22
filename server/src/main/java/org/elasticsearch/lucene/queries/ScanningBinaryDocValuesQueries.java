@@ -9,12 +9,14 @@
 
 package org.elasticsearch.lucene.queries;
 
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -53,6 +55,16 @@ final class ScanningBinaryDocValuesQueries implements BinaryDocValuesQueries {
 
     private ScanningBinaryDocValuesQueries(BinaryDocValuesFormat format) {
         this.format = Objects.requireNonNull(format);
+    }
+
+    @Override
+    public Query exists(String field) {
+        // A document whose array holds nothing but nulls writes its slot count and no values, so under the layout that keeps array order
+        // inline — which only a strict columnar index writes — the count is what says the document holds the field. Every other layout
+        // writes nothing at all for such a document, so holding its values is holding the field.
+        return format == BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL
+            ? new FieldExistsQuery(field + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX)
+            : new FieldExistsQuery(field);
     }
 
     @Override

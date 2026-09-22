@@ -93,6 +93,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.BinaryDocValuesQueries;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -351,6 +352,15 @@ public class WildcardFieldMapper extends FieldMapper {
         /** Which framing a reader of this field's binary doc values has to decode. */
         private BinaryDocValuesFormat binaryFormat() {
             return arrayOrderBinaryDocValues ? BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL : BinaryDocValuesFormat.SEPARATE_COUNT;
+        }
+
+        /** A document holding an array holds the field, which its doc values say; see {@link MultiValuedBinaryDocValuesField}. */
+        @Override
+        public Query existsQuery(SearchExecutionContext context) {
+            if (usesArrayOrderBinaryDocValues()) {
+                return BinaryDocValuesQueries.forFormat(binaryFormat()).exists(name());
+            }
+            return super.existsQuery(context);
         }
 
         @Override
@@ -1208,7 +1218,7 @@ public class WildcardFieldMapper extends FieldMapper {
             } else {
                 createFields(value, parseDoc, fields);
             }
-        } else if (fieldType().usesArrayOrderBinaryDocValues()) {
+        } else if (fieldType().usesArrayOrderBinaryDocValues() && MultiValuedBinaryDocValuesField.recordsNullSlot(context)) {
             // In-order path: preserve the null's position. A value that tripped ignore_above (value != null) records no slot,
             // matching the legacy sort-and-dedup path where ignored values are simply dropped.
             MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(parseDoc, fieldType().name());
@@ -1343,8 +1353,10 @@ public class WildcardFieldMapper extends FieldMapper {
                     if (nullValueBytes != null) {
                         binaryValue = nullValueBytes;
                     } else {
-                        pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, null);
-                        docSlotCount++;
+                        if (source.isNull(currentDoc) == false) {
+                            pos = MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.appendSlot(docBlob, pos, null);
+                            docSlotCount++;
+                        }
                         continue;
                     }
                 }

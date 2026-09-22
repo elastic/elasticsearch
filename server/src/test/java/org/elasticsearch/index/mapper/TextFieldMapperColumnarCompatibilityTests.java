@@ -28,11 +28,13 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
 
     private static final String FIELD = "f";
 
+    /** A columnar index in the layouts the ColumNAR codec replaces; the scenarios that mean the codec name it themselves. */
     private static Settings columnarSettings() {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        return ColumnarCodecSettings.withoutCodec(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+        ).build();
     }
 
     /** Index settings with the codec on, so the field's doc values are written as its payload. */

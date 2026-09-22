@@ -19,6 +19,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
@@ -37,6 +38,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
@@ -85,6 +87,7 @@ import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
 import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 import org.elasticsearch.index.mapper.ColumnarPayloadBinaryDocValuesSyntheticFieldLoaderLayer;
+import org.elasticsearch.index.mapper.ColumnarPostingsShimColumn;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.CustomDocValuesField;
 import org.elasticsearch.index.mapper.DocValuesFieldFactory;
@@ -424,6 +427,15 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         /** The queries this field answers from its doc values, chosen by how those doc values are framed. */
         private BinaryDocValuesQueries binaryQueries() {
             return BinaryDocValuesQueries.forFormat(binaryFormat());
+        }
+
+        /** A document holding an array holds the field, which its doc values say; see {@link MultiValuedBinaryDocValuesField}. */
+        @Override
+        public Query existsQuery(SearchExecutionContext context) {
+            if (usesBinaryDocValues()) {
+                return binaryQueries().exists(name());
+            }
+            return super.existsQuery(context);
         }
 
         /** How this field's binary doc values are framed, and so which decoder reads them back. */
@@ -1130,6 +1142,15 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     private final NamedAnalyzer indexAnalyzer;
     private final int positionIncrementGap;
     private final FieldType fieldType;
+
+    /** What a document holding no value writes this field as, so its schema matches the field's; null where the field is not indexed. */
+    private final IndexableFieldType postingsShim;
+
+    /** The same, for the batch path, which writes the postings and the payload as two columns. */
+    private final IndexableFieldType postingsOnlyShim;
+
+    /** Whether this field lives in a strict columnar index; see {@link MultiValuedBinaryDocValuesField#recordsNullSlot}. */
+    private final boolean strictColumnar;
     private final boolean storedFieldInBinaryFormat;
     private final boolean usesBinaryDocValuesForFallbackFields;
     private final FieldMapper.DocValuesParameter.Values docValuesParameters;
@@ -1161,6 +1182,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         // match_only_text does not use doc values skippers
         this.dvFactory = new DocValuesFieldFactory(this.docValuesParameters.multiValue(), false, this.indexCreatedVersion);
         this.indexed = builder.indexed.get();
+        // The field type keeps its index options whether or not the field is indexed, so the shim follows what is actually written.
+        this.postingsShim = this.indexed ? ColumnarBinaryDocValuesField.postingsShimFor(this.fieldType) : null;
+        this.strictColumnar = builder.indexSettings.getMode().isStrictColumnar();
+        this.postingsOnlyShim = this.indexed ? ColumnarBinaryDocValuesField.postingsOnlyShimFor(this.fieldType) : null;
         this.indexSettings = builder.indexSettings;
         this.offsetsFieldName = builder.offsetsFieldName;
     }
@@ -1177,9 +1202,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     @Override
     public void recordEmptyArrayInOrder(LuceneDocument doc) {
-        if (fieldType().usesColumnarPayload()) {
-            ColumnarBinaryDocValuesField.recordEmptyArray(doc, fieldType().name());
-        } else {
+        // An empty array holds no element, so a strict columnar index writes nothing for it; see
+        // MultiValuedBinaryDocValuesField#recordsNullSlot.
+        if (strictColumnar == false) {
             super.recordEmptyArrayInOrder(doc);
         }
     }
@@ -1289,6 +1314,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             int lastValueLength = 0;
             // True when the current doc has at least one non-null slot; gates binary dv blob emission.
             boolean hasNonNull = false;
+            // The documents that turn out to hold no value, which carry the field's index options; null while there are none.
+            FixedBitSet valueless = null;
 
             while (true) {
                 final int nextDoc = cursor.nextDoc();
@@ -1297,6 +1324,14 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     // ArrayOrderInlineNull.recordNull) but no blob.
                     if (binaryDvs != null && docSlotCount > 0) {
                         if (columnar) {
+                            if (hasNonNull == false && postingsOnlyShim != null) {
+                                // A document holding no value carries the field's index options so its schema matches the field's;
+                                // see ColumnarPostingsShimColumn.
+                                if (valueless == null) {
+                                    valueless = new FixedBitSet(docCount);
+                                }
+                                valueless.set(currentDoc);
+                            }
                             // An all-null document is a payload like any other, which is why no companion count
                             // column is emitted alongside.
                             final BytesRef blob = payload.build();
@@ -1324,6 +1359,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 // match_only_text has no null_value: an explicit JSON null records a null slot only, mirroring the
                 // row path's textOrNull() == null check.
                 if (value == null) {
+                    if (source.isNull(currentDoc)) {
+                        continue;
+                    }
                     if (binaryDvs != null) {
                         if (columnar) {
                             payload.appendSlot(null);
@@ -1361,6 +1399,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             if (binaryDvs != null && binaryDvs.isEmpty() == false) {
                 final EscfColumnData binaryDvData = binaryDvs.finish(docCount);
                 ctx.addColumn(LuceneBinaryColumn.of(binaryDvData, fieldType().name(), CustomDocValuesField.TYPE), binaryDvData);
+            }
+            if (valueless != null) {
+                ctx.addColumn(new ColumnarPostingsShimColumn(fieldType().name(), postingsOnlyShim, valueless, docCount));
             }
             if (dvCounts != null && dvCounts.isEmpty() == false) {
                 final EscfColumnData dvCountData = dvCounts.finish(docCount);
@@ -1431,12 +1472,15 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         if (value == null) {
             // Record the null slot so synthetic source can rebuild the array with its nulls in the original positions (columnar mode).
-            if (fieldType().usesColumnarPayload()) {
-                ColumnarBinaryDocValuesField.recordNull(context.doc(), fieldType().name());
-            } else if (fieldType().usesArrayOrderBinaryDocValues()) {
-                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
-            } else if (recordOffsets) {
-                context.getOffSetContext().recordNull(offsetsFieldName);
+            // Only an array's null takes a slot in a strict columnar index; see MultiValuedBinaryDocValuesField#recordsNullSlot.
+            if (MultiValuedBinaryDocValuesField.recordsNullSlot(context)) {
+                if (fieldType().usesColumnarPayload()) {
+                    ColumnarBinaryDocValuesField.recordNull(context.doc(), fieldType().name(), postingsShim);
+                } else if (fieldType().usesArrayOrderBinaryDocValues()) {
+                    MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
+                } else if (recordOffsets) {
+                    context.getOffSetContext().recordNull(offsetsFieldName);
+                }
             }
             return;
         }
@@ -1458,14 +1502,16 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                         context.doc(),
                         fieldType().name(),
                         binaryValue,
-                        MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED
+                        MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED,
+                        postingsShim
                     );
                 } else {
                     ColumnarBinaryDocValuesField.recordValue(
                         context.doc(),
                         fieldType().name(),
                         binaryValue,
-                        MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED
+                        MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED,
+                        postingsShim
                     );
                 }
             } else if (fieldType().usesArrayOrderBinaryDocValues()) {

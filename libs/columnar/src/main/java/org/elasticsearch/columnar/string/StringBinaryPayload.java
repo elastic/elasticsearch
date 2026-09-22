@@ -31,9 +31,12 @@ import java.util.Collection;
  * one value that is the whole blob. Biasing a slot's length by one leaves {@code 0} free to mean {@code null},
  * which keeps an inline null distinguishable from an empty string.
  *
- * <p>Slots are never reordered. Because the count is carried, a document with no slots at all
- * ({@code [vint 0]}, an empty array) and one whose slots are all null are both expressible, so the format
- * needs no companion field to describe any shape a document can take.
+ * <p>Slots are never reordered. A null slot is carried for one reason: an array holding a null reads back as the array it was written
+ * as, nulls in place, which is what synthetic source rebuilds from. A field written as a scalar {@code null} holds no array element and
+ * so records no slot at all, and reads back as a field that is absent.
+ *
+ * <p>Because the count is carried, a document with no slots at all ({@code [vint 0]}, an empty array) and one whose slots are all null
+ * are both expressible, so the format needs no companion field to describe any shape a document can take.
  *
  * <p>This is the format both sides of the codec speak: the mapper writes it, the column is built from it at
  * flush, and {@link ColumnarStringBinaryDocValues#binaryValue} rebuilds it from the stored slots on read.

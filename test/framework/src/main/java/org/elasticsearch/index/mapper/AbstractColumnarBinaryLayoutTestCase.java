@@ -221,6 +221,58 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
     }
 
     /**
+     * A document holds the field when it holds an array of it, its elements null or not: an array of nothing but nulls is held, while an
+     * empty array and a scalar {@code null} hold nothing and write nothing at all. Every layout answers the same, each from whatever it
+     * writes for such a document: the codec's payload holds the slots itself, and the layout it replaces keeps their count.
+     */
+    public void testExistsHoldsTheDocumentsHoldingTheField() throws IOException {
+        forEachLayoutIndex(false, (layout, mapperService, reader, documents) -> {
+            final List<Integer> expected = new ArrayList<>();
+            for (int doc = 0; doc < documents.size(); doc++) {
+                if (documents.get(doc).isEmpty() == false) {
+                    expected.add(doc);
+                }
+            }
+            final IndexSearcher searcher = new IndexSearcher(reader);
+            final List<Integer> actual = new ArrayList<>();
+            for (ScoreDoc hit : searcher.search(
+                mapperService.fieldType(FIELD).existsQuery(createSearchExecutionContext(mapperService, searcher)),
+                Math.max(1, documents.size())
+            ).scoreDocs) {
+                actual.add(hit.doc);
+            }
+            Collections.sort(actual);
+            assertEquals(layout + " exists", expected, actual);
+        });
+    }
+
+    /**
+     * A document holding no value is indexed beside documents that do, where the field is indexed. Lucene compares a document's schema
+     * for a field against the field's own and rejects one that indexes it differently, so a document holding only the payload would be
+     * refused; see {@code ColumnarBinaryDocValuesField}. The documents are read back to show the shim adds no value of its own.
+     */
+    public void testDocumentsHoldingNoValueAreIndexedBesideValues() throws IOException {
+        forEachLayoutIndex(true, (layout, mapperService, reader, documents) -> {
+            final SortableBinaryDocValues values = mapperService.fieldType(FIELD)
+                .fielddataBuilder(FieldDataContext.noRuntimeFields("test", "test"))
+                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+                .load(reader.leaves().get(0))
+                .getBytesValues();
+            for (int doc = 0; doc < documents.size(); doc++) {
+                final List<String> actual = new ArrayList<>();
+                if (values.advanceExact(doc)) {
+                    final int count = values.docValueCount();
+                    for (int i = 0; i < count; i++) {
+                        actual.add(values.nextValue().utf8ToString());
+                    }
+                }
+                Collections.sort(actual);
+                assertEquals(layout + " doc " + doc, storedValues(documents, doc), actual);
+            }
+        });
+    }
+
+    /**
      * The values a phrase is confirmed against are read through the layout they were written in. Getting that wrong
      * does not fail: the phrase matches nothing, and so do phrase prefix and intervals, which read them the same way.
      */

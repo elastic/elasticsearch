@@ -523,11 +523,6 @@ public class Security extends Plugin
         "security-auditing",
         License.OperationMode.GOLD
     );
-    public static final LicensedFeature.Momentary TOKEN_SERVICE_FEATURE = LicensedFeature.momentary(
-        null,
-        "security-token-service",
-        License.OperationMode.STANDARD
-    );
 
     private static final String REALMS_FEATURE_FAMILY = "security-realms";
     // Builtin realms (file/native) realms are Basic licensed, so don't need to be checked or tracked
@@ -854,7 +849,6 @@ public class Security extends Plugin
             settings,
             Clock.systemUTC(),
             client,
-            getLicenseState(),
             securityContext.get(),
             systemIndices.getMainIndexManager(),
             systemIndices.getTokenIndexManager(),

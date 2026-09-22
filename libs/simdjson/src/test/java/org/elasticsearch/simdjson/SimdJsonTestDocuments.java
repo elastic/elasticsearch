@@ -78,6 +78,9 @@ public final class SimdJsonTestDocuments {
                 {"n":9}""", """
                 {"n":-5}""", """
                 {"n":-0}""", """
+                {"n":0.5}""", """
+                {"n":0e5}""", """
+                {"n":0E056}""", """
                 {"n":10}""", """
                 {"n":99}""", """
                 {"n":-99}""", """
@@ -111,12 +114,41 @@ public final class SimdJsonTestDocuments {
                 {"d":-1e400}""", """
                 {"d":5e-324}""", """
                 {"d":2.2250738585072013e-308}""", """
-                {"d":100000000000000000000.000000}"""
+                {"d":100000000000000000000.000000}""",
+                // String shapes: every standard single-char escape, \\u-escaped and raw
+                // (unescaped) multi-byte UTF-8, empty strings, an escape that isn't the last
+                // thing in the buffer, and string elements in arrays / objects nested in arrays.
+                """
+                {"tab":"a\\tb"}""", """
+                {"cr":"a\\rb"}""", """
+                {"bs":"a\\bb"}""", """
+                {"ff":"a\\fb"}""", """
+                {"fslash":"a\\/b"}""", """
+                {"bslash":"a\\\\b"}""", """
+                {"u2byte":"\\u00E9"}""", """
+                {"u3byte":"\\u4E16"}""", """
+                {"surrogate":"\\uD83D\\uDE00"}""", """
+                {"raw2byte":"café"}""", """
+                {"raw3byte":"世界"}""", """
+                {"rawEmoji":"😀"}""", """
+                {"empty":""}""", """
+                {"first":"x\\ny","second":2}""", """
+                {"strs":["a","bb","ccc"]}""", """
+                {"strsEsc":["a\\nb","c\\td","plain"]}""", """
+                {"objInArr":[{"a":"x\\ny","b":"z"}]}""", """
+                {"objInArrEscName":[{"x\\"y":"a\\nb"}]}"""
         );
         // end::noformat
         for (int nameLen = 1; nameLen <= 20; nameLen++) {
             docs.add("{\"" + "x".repeat(nameLen) + "\":1}");
         }
+
+        // Long strings (200+ bytes) for real vectorization coverage.
+        docs.add("{\"pre\":1,\"long\":\"" + "a".repeat(200) + "\",\"post\":2}");
+        docs.add("{\"longEsc\":\"" + "a".repeat(150) + "\\n" + "a".repeat(50) + "\"}");
+        docs.add("{\"longRaw\":\"" + "a".repeat(150) + "café" + "a".repeat(50) + "\"}");
+        docs.add("{\"arrLong\":[\"" + "a".repeat(200) + "\",\"" + "b".repeat(100) + "\\t" + "c".repeat(80) + "\"]}");
+        docs.add("{\"objArrLong\":[{\"a\":\"" + "a".repeat(200) + "\",\"b\":\"" + "b".repeat(120) + "\\n" + "b".repeat(60) + "\"}]}");
         return List.copyOf(docs);
     }
 }

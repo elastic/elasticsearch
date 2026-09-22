@@ -1251,7 +1251,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         if (field != null) {
             doc.add(field);
             // SeparateCount format stores the value count in a companion numeric doc values field (".counts").
-            // It must be copied alongside the main binary field for MultiValuedSortedBinaryDocValues to decode values.
+            // It must be copied alongside the main binary field for MultiValuedSortableBinaryDocValues to decode values.
             if (field instanceof MultiValuedBinaryDocValuesField.SeparateCount separateCount) {
                 doc.add(separateCount.countField());
             } else {

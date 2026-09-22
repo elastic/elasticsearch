@@ -145,8 +145,8 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
         if (OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled()) {
             IndexRequest exemplarRequest = (IndexRequest) requests.get(1);
             assertThat(exemplarRequest.index(), equalTo("exemplars-generic.otel-default"));
-            assertThat(exemplarRequest.getDynamicTemplates(), equalTo(Map.of("metrics.test.metric", "exemplar_value_long")));
-            assertThat(exemplarRequest.getDynamicTemplateParams(), equalTo(Map.of("metrics.test.metric", Map.of("unit", "ms"))));
+            assertThat(exemplarRequest.getDynamicTemplates(), equalTo(Map.of()));
+            assertThat(exemplarRequest.getDynamicTemplateParams(), equalTo(Map.of()));
         }
     }
 

@@ -10,9 +10,6 @@ package org.elasticsearch.xpack.oteldata.otlp.docbuilder;
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.metrics.v1.Exemplar;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
@@ -21,7 +18,6 @@ import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -29,52 +25,38 @@ import java.util.concurrent.TimeUnit;
  */
 public class ExemplarDocumentBuilder extends OtelTsdbDocumentBuilder {
 
+    public static final String METRIC_NAME_FIELD = "metric_name";
+    public static final String VALUE_FIELD = "value";
+
     public ExemplarDocumentBuilder(BufferedByteStringAccessor byteStringAccessor) {
         super(byteStringAccessor);
     }
 
     /**
-     * Builds one exemplar document and returns the TSID shared with its grouped parent metric document.
+     * Builds one exemplar document.
      */
-    public BytesRef buildExemplarDocument(
+    public void buildExemplarDocument(
         XContentBuilder builder,
         DataPointGroupingContext.DataPointGroup dataPointGroup,
         DataPoint dataPoint,
         Exemplar exemplar,
-        TargetIndex targetIndex,
-        Map<String, String> dynamicTemplates,
-        Map<String, Map<String, String>> dynamicTemplateParams,
-        IndexVersion indexVersion
+        TargetIndex targetIndex
     ) throws IOException {
         builder.startObject();
         builder.field("@timestamp", TimeUnit.NANOSECONDS.toMillis(exemplar.getTimeUnixNano()));
-        String metricNameHash = dataPointGroup.getMetricNameHash(hasher, dataPoint.getMetricName());
-        buildDimensionFields(builder, dataPointGroup, targetIndex, metricNameHash);
+        buildDimensionFields(builder, dataPointGroup, targetIndex);
+        builder.field(METRIC_NAME_FIELD, dataPoint.getMetricName());
         buildFilteredAttributes(builder, exemplar.getFilteredAttributesList());
         addHexFieldIfNotEmpty(builder, "trace_id", exemplar.getTraceId());
         addHexFieldIfNotEmpty(builder, "span_id", exemplar.getSpanId());
 
-        String metricFieldPath = "metrics." + dataPoint.getMetricName();
-        builder.startObject("metrics");
-        builder.field(dataPoint.getMetricName());
+        builder.field(VALUE_FIELD);
         switch (exemplar.getValueCase()) {
-            case AS_DOUBLE -> {
-                builder.value(exemplar.getAsDouble());
-                dynamicTemplates.put(metricFieldPath, "exemplar_value_double");
-            }
-            case AS_INT -> {
-                builder.value(exemplar.getAsInt());
-                dynamicTemplates.put(metricFieldPath, "exemplar_value_long");
-            }
+            case AS_DOUBLE -> builder.value(exemplar.getAsDouble());
+            case AS_INT -> builder.value(exemplar.getAsInt());
             case VALUE_NOT_SET -> throw new IllegalArgumentException("exemplar has no value");
         }
         builder.endObject();
-        if (Strings.hasLength(dataPointGroup.unit())) {
-            dynamicTemplateParams.put(metricFieldPath, Map.of(UNIT_FIELD, dataPointGroup.unit()));
-        }
-        builder.endObject();
-
-        return buildTsid(dataPointGroup, metricNameHash, indexVersion);
     }
 
     private void buildFilteredAttributes(XContentBuilder builder, List<KeyValue> filteredAttributes) throws IOException {

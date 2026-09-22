@@ -26,7 +26,9 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.oteldata.otlp.AbstractOTLPTransportAction;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.ExemplarDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MetricDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 import org.elasticsearch.xpack.oteldata.otlp.tsid.DataPointTsidFunnel;
 import org.elasticsearch.xpack.oteldata.otlp.tsid.ResourceTsidFunnel;
@@ -303,9 +305,7 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
         private final Set<String> metricNames = new HashSet<>();
         private final List<DataPoint> dataPoints = new ArrayList<>();
         private final TargetIndex targetIndex;
-        private final Map<String, TsidBuilder> tsidBuildersByMetricNamesHash = new HashMap<>();
         private String metricNamesHash;
-        private boolean buildTsidCalled = false;
 
         public DataPointGroup(
             Resource resource,
@@ -349,28 +349,24 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
         }
 
         /**
-         * Computes the metric names hash for a single metric.
+         * Builds the metric document TSID using the hash of its grouped metric names.
          */
-        public String getMetricNameHash(BufferedMurmur3Hasher hasher, String metricName) {
-            hasher.reset();
-            hasher.addString(metricName);
-            return Integer.toHexString(hasher.digestHash().hashCode());
+        public BytesRef buildMetricTsid(String metricNamesHash, IndexVersion indexVersion) {
+            TsidBuilder finalTsidBuilder = new TsidBuilder(tsidBuilder.size() + 1).addAll(tsidBuilder)
+                .addStringDimension(MetricDocumentBuilder.METRIC_NAMES_HASH_FIELD, metricNamesHash);
+            return finalTsidBuilder.buildTsid(indexVersion);
         }
 
         /**
-         * Builds a TSID using the supplied metric names hash in addition to the shared data point dimensions.
+         * Builds an exemplar document TSID using its metric name.
          */
-        public BytesRef buildTsid(String metricNamesHash, IndexVersion indexVersion) {
-            buildTsidCalled = true;
-            TsidBuilder finalTsidBuilder = tsidBuildersByMetricNamesHash.computeIfAbsent(
-                metricNamesHash,
-                hash -> new TsidBuilder(tsidBuilder.size() + 1).addAll(tsidBuilder).addStringDimension("_metric_names_hash", hash)
-            );
+        public BytesRef buildExemplarTsid(String metricName, IndexVersion indexVersion) {
+            TsidBuilder finalTsidBuilder = new TsidBuilder(tsidBuilder.size() + 1).addAll(tsidBuilder)
+                .addStringDimension(ExemplarDocumentBuilder.METRIC_NAME_FIELD, metricName);
             return finalTsidBuilder.buildTsid(indexVersion);
         }
 
         public boolean addDataPoint(Set<String> ignoredDataPointMessages, DataPoint dataPoint) {
-            assert buildTsidCalled == false : "cannot add a data point after a TSID has been built";
             metricNamesHash = null; // reset the hash when adding a new data point
             if (metricNames.add(dataPoint.getMetricName()) == false) {
                 ignoredDataPointMessages.add(

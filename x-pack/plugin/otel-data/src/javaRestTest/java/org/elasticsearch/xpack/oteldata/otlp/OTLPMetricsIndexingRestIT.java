@@ -286,7 +286,6 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         ObjectPath exemplarSearch = search("exemplars-generic.otel-default");
         assertThat(metricSearch.evaluate("hits.total.value"), equalTo(1));
         assertThat(exemplarSearch.evaluate("hits.total.value"), equalTo(1));
-        Map<String, Object> metricSource = metricSearch.evaluate("hits.hits.0._source");
         Map<String, Object> exemplarSource = exemplarSearch.evaluate("hits.hits.0._source");
         assertThat(evaluate(exemplarSource, "data_stream.type"), equalTo("exemplars"));
         assertThat(evaluate(exemplarSource, "resource.attributes.service\\.name"), equalTo("checkout-service"));
@@ -295,12 +294,14 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         assertThat(evaluate(exemplarSource, "filtered_attributes.thread\\.id"), equalTo(42));
         assertThat(evaluate(exemplarSource, "trace_id"), equalTo("00112233445566778899aabbccddeeff"));
         assertThat(evaluate(exemplarSource, "span_id"), equalTo("0011223344556677"));
-        assertThat(ObjectPath.<Number>evaluate(exemplarSource, "metrics.request\\.duration").doubleValue(), closeTo(0.42, 0.000001));
-        assertThat(evaluate(exemplarSource, "_metric_names_hash"), equalTo(evaluate(metricSource, "_metric_names_hash")));
+        assertThat(evaluate(exemplarSource, "metric_name"), equalTo("request.duration"));
+        assertThat(ObjectPath.<Number>evaluate(exemplarSource, "value").doubleValue(), closeTo(0.42, 0.000001));
+        assertThat(evaluate(exemplarSource, "_metric_names_hash"), nullValue());
 
-        Map<String, Object> exemplarMetrics = evaluate(getMapping("exemplars-generic.otel-default"), "properties.metrics.properties");
-        assertThat(evaluate(exemplarMetrics, "request\\.duration.type"), equalTo("double"));
-        assertThat(evaluate(exemplarMetrics, "request\\.duration.time_series_metric"), nullValue());
+        Map<String, Object> exemplarMapping = evaluate(getMapping("exemplars-generic.otel-default"), "properties");
+        assertThat(evaluate(exemplarMapping, "metric_name.type"), equalTo("keyword"));
+        assertThat(evaluate(exemplarMapping, "metric_name.time_series_dimension"), equalTo(true));
+        assertThat(evaluate(exemplarMapping, "value.type"), equalTo("double"));
     }
 
     public void testCounterTemporality() throws Exception {

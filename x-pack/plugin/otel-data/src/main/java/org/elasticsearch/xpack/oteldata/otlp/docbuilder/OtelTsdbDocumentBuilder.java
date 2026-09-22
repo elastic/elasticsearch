@@ -9,11 +9,9 @@ package org.elasticsearch.xpack.oteldata.otlp.docbuilder;
 
 import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
@@ -22,7 +20,7 @@ import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 import java.io.IOException;
 
 /**
- * Keeps the shared dimension fields and TSID construction identical for metric and exemplar documents.
+ * Builds the dimension fields shared by metric and exemplar documents.
  */
 public abstract class OtelTsdbDocumentBuilder extends OTelDocumentBuilder {
 
@@ -38,8 +36,7 @@ public abstract class OtelTsdbDocumentBuilder extends OTelDocumentBuilder {
     protected void buildDimensionFields(
         XContentBuilder builder,
         DataPointGroupingContext.DataPointGroup dataPointGroup,
-        TargetIndex targetIndex,
-        String metricNamesHash
+        TargetIndex targetIndex
     ) throws IOException {
         // Metric dimensions intentionally skip merging paired *.geo.location.lat/.lon into a [lon, lat] array:
         // The *.geo.location dynamic template doesn't apply because geo_point isn't a supported dimension type.
@@ -55,15 +52,6 @@ public abstract class OtelTsdbDocumentBuilder extends OTelDocumentBuilder {
         if (temporality != null) {
             builder.field(TEMPORALITY_FIELD, temporality);
         }
-        builder.field("_metric_names_hash", metricNamesHash);
-    }
-
-    protected BytesRef buildTsid(
-        DataPointGroupingContext.DataPointGroup dataPointGroup,
-        String metricNamesHash,
-        IndexVersion indexVersion
-    ) {
-        return dataPointGroup.buildTsid(metricNamesHash, indexVersion);
     }
 
     /**

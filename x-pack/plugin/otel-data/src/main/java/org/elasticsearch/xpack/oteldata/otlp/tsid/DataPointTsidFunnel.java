@@ -17,8 +17,7 @@ import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 public class DataPointTsidFunnel implements TsidFunnel<DataPoint> {
 
-    // for "unit", "temporality", and "_metric_names_hash" that will be added in
-    // DataPointGroup once the group is complete
+    // for "unit", "temporality", and the _metric_names_hash / metric_name added once the group is complete
     private static final int EXTRA_DIMENSIONS_SIZE = 3;
     private final BufferedByteStringAccessor byteStringAccessor;
 

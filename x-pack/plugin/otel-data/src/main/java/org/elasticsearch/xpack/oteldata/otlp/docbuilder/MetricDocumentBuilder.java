@@ -26,6 +26,8 @@ import java.util.concurrent.TimeUnit;
  */
 public class MetricDocumentBuilder extends OtelTsdbDocumentBuilder {
 
+    public static final String METRIC_NAMES_HASH_FIELD = "_metric_names_hash";
+
     private final MappingHints defaultMappingHints;
     private final ExponentialHistogramConverter.BucketBuffer scratch = new ExponentialHistogramConverter.BucketBuffer();
 
@@ -48,7 +50,8 @@ public class MetricDocumentBuilder extends OtelTsdbDocumentBuilder {
             builder.field("start_timestamp", TimeUnit.NANOSECONDS.toMillis(dataPointGroup.getStartTimestampUnixNano()));
         }
         String metricNamesHash = dataPointGroup.getMetricNamesHash(hasher);
-        buildDimensionFields(builder, dataPointGroup, dataPointGroup.targetIndex(), metricNamesHash);
+        buildDimensionFields(builder, dataPointGroup, dataPointGroup.targetIndex());
+        builder.field(METRIC_NAMES_HASH_FIELD, metricNamesHash);
 
         long docCount = 0;
         builder.startObject("metrics");
@@ -75,7 +78,7 @@ public class MetricDocumentBuilder extends OtelTsdbDocumentBuilder {
             builder.field("_doc_count", docCount);
         }
         builder.endObject();
-        return buildTsid(dataPointGroup, metricNamesHash, indexVersion);
+        return dataPointGroup.buildMetricTsid(metricNamesHash, indexVersion);
     }
 
 }

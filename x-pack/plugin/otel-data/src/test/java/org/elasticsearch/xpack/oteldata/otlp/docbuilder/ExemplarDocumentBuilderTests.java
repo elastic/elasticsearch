@@ -32,7 +32,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -43,7 +42,7 @@ import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createLongDataPoin
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createLongExemplar;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValue;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ExemplarDocumentBuilderTests extends ESTestCase {
 
@@ -68,20 +67,9 @@ public class ExemplarDocumentBuilderTests extends ESTestCase {
         );
         DataPointGroupingContext.DataPointGroup group = group(metric);
         DataPoint dataPoint = group.dataPoints().getFirst();
-        Map<String, String> dynamicTemplates = new HashMap<>();
-        Map<String, Map<String, String>> dynamicTemplateParams = new HashMap<>();
 
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            exemplarDocumentBuilder.buildExemplarDocument(
-                builder,
-                group,
-                dataPoint,
-                exemplar,
-                group.targetIndex().exemplarsTarget(),
-                dynamicTemplates,
-                dynamicTemplateParams,
-                INDEX_VERSION
-            );
+            exemplarDocumentBuilder.buildExemplarDocument(builder, group, dataPoint, exemplar, group.targetIndex().exemplarsTarget());
             ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
             assertThat(doc.evaluate("@timestamp"), equalTo(1234));
             assertThat(doc.evaluate("data_stream.type"), equalTo("exemplars"));
@@ -93,10 +81,10 @@ public class ExemplarDocumentBuilderTests extends ESTestCase {
             assertThat(doc.evaluate("filtered_attributes.thread\\.id"), equalTo(42));
             assertThat(doc.evaluate("trace_id"), equalTo(traceId));
             assertThat(doc.evaluate("span_id"), equalTo(spanId));
-            assertThat(doc.evaluate("metrics.request\\.duration"), equalTo(0.42));
+            assertThat(doc.evaluate("metric_name"), equalTo("request.duration"));
+            assertThat(doc.evaluate("value"), equalTo(0.42));
+            assertThat(doc.evaluate("_metric_names_hash"), nullValue());
         }
-        assertThat(dynamicTemplates, hasEntry("metrics.request.duration", "exemplar_value_double"));
-        assertThat(dynamicTemplateParams, hasEntry("metrics.request.duration", Map.of("unit", "s")));
     }
 
     public void testExemplarsUseMetricSpecificTsid() throws Exception {
@@ -117,43 +105,26 @@ public class ExemplarDocumentBuilderTests extends ESTestCase {
         DataPointGroupingContext.DataPointGroup group = group(metrics);
         MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor, MappingHints.DEFAULT_TDIGEST);
         BytesRef metricTsid;
-        String metricNamesHash;
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             metricTsid = metricDocumentBuilder.buildMetricDocument(builder, group, new HashMap<>(), new HashMap<>(), INDEX_VERSION);
-            ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-            metricNamesHash = doc.evaluate("_metric_names_hash");
         }
 
         Set<BytesRef> exemplarTsids = new HashSet<>();
-        Set<String> exemplarMetricNamesHashes = new HashSet<>();
+        Set<String> exemplarMetricNames = new HashSet<>();
         for (DataPoint dataPoint : group.dataPoints()) {
             Exemplar exemplar = dataPoint.getExemplars().getFirst();
-            Map<String, String> dynamicTemplates = new HashMap<>();
+            BytesRef exemplarTsid = group.buildExemplarTsid(dataPoint.getMetricName(), INDEX_VERSION);
             try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-                BytesRef exemplarTsid = exemplarDocumentBuilder.buildExemplarDocument(
-                    builder,
-                    group,
-                    dataPoint,
-                    exemplar,
-                    group.targetIndex().exemplarsTarget(),
-                    dynamicTemplates,
-                    new HashMap<>(),
-                    INDEX_VERSION
-                );
+                exemplarDocumentBuilder.buildExemplarDocument(builder, group, dataPoint, exemplar, group.targetIndex().exemplarsTarget());
                 assertNotEquals(metricTsid, exemplarTsid);
                 assertTrue(exemplarTsids.add(exemplarTsid));
                 ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-                String exemplarMetricNamesHash = doc.evaluate("_metric_names_hash");
-                assertNotEquals(metricNamesHash, exemplarMetricNamesHash);
-                assertTrue(exemplarMetricNamesHashes.add(exemplarMetricNamesHash));
+                assertThat(doc.evaluate("_metric_names_hash"), nullValue());
+                assertTrue(exemplarMetricNames.add(doc.evaluate("metric_name")));
             }
-            String expectedTemplate = exemplar.getValueCase() == Exemplar.ValueCase.AS_INT
-                ? "exemplar_value_long"
-                : "exemplar_value_double";
-            assertThat(dynamicTemplates, hasEntry("metrics." + dataPoint.getMetricName(), expectedTemplate));
         }
         assertThat(exemplarTsids.size(), equalTo(2));
-        assertThat(exemplarMetricNamesHashes.size(), equalTo(2));
+        assertThat(exemplarMetricNames, equalTo(Set.of("request.duration", "request.size")));
     }
 
     private DataPointGroupingContext.DataPointGroup group(Metric metric) throws IOException {

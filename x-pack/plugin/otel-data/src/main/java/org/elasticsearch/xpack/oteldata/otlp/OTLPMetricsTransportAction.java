@@ -203,44 +203,32 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         if (targetIndex == null) {
             return;
         }
+        String dataStreamName = targetIndex.index();
+        IndexVersion indexVersion = indexVersions.computeIfAbsent(dataStreamName, name -> resolveIndexVersion(projectMetadata, name));
         for (DataPoint dataPoint : dataPointGroup.dataPoints()) {
+            if (dataPoint.getExemplars().isEmpty() == false) {
+                continue;
+            }
+            BytesRef tsid = dataPointGroup.buildExemplarTsid(dataPoint.getMetricName(), indexVersion);
             for (var exemplar : dataPoint.getExemplars()) {
                 if (exemplar.getValueCase() == Exemplar.ValueCase.VALUE_NOT_SET) {
                     continue;
                 }
+                ExemplarIdentity identity = new ExemplarIdentity(
+                    targetIndex.index(),
+                    tsid,
+                    TimeUnit.NANOSECONDS.toMillis(exemplar.getTimeUnixNano())
+                );
+                if (exemplarIdentities.add(identity) == false) {
+                    context.recordDuplicateExemplar();
+                    continue;
+                }
                 try (XContentBuilder xContentBuilder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
-                    Map<String, String> dynamicTemplates = new HashMap<>();
-                    Map<String, Map<String, String>> dynamicTemplateParams = new HashMap<>();
-                    String dataStreamName = targetIndex.index();
-                    IndexVersion indexVersion = indexVersions.computeIfAbsent(
-                        dataStreamName,
-                        name -> resolveIndexVersion(projectMetadata, name)
-                    );
-                    BytesRef tsid = exemplarDocumentBuilder.buildExemplarDocument(
-                        xContentBuilder,
-                        dataPointGroup,
-                        dataPoint,
-                        exemplar,
-                        targetIndex,
-                        dynamicTemplates,
-                        dynamicTemplateParams,
-                        indexVersion
-                    );
-                    ExemplarIdentity identity = new ExemplarIdentity(
-                        targetIndex.index(),
-                        tsid,
-                        TimeUnit.NANOSECONDS.toMillis(exemplar.getTimeUnixNano())
-                    );
-                    if (exemplarIdentities.add(identity) == false) {
-                        context.recordDuplicateExemplar();
-                        continue;
-                    }
+                    exemplarDocumentBuilder.buildExemplarDocument(xContentBuilder, dataPointGroup, dataPoint, exemplar, targetIndex);
                     var indexRequest = new IndexRequest(targetIndex.index()).opType(DocWriteRequest.OpType.CREATE)
                         .setRequireDataStream(true)
                         .source(xContentBuilder)
-                        .setIncludeSourceOnError(false)
-                        .setDynamicTemplates(dynamicTemplates)
-                        .setDynamicTemplateParams(dynamicTemplateParams);
+                        .setIncludeSourceOnError(false);
                     if (indexVersion.onOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)) {
                         indexRequest.tsid(tsid);
                     }

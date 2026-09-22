@@ -1502,6 +1502,21 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_INLINE_STATS_PRUNING,
 
         /**
+         * Fix for {@code ResolveUnionTypesInUnionAll} incorrectly pushing a type-conversion function into {@code UnionAll} branches
+         * when an {@code Aggregate} (STATS) sits between the conversion and the {@code UnionAll}. Grouping keys preserve their
+         * identifiers through an aggregation, so the name-and-id match used to collect push-down candidates falsely matched
+         * conversions that read aggregate output rather than union branch columns. The synthetic pushed-down reference was then
+         * unreachable from the consumer, causing {@code PlanConsistencyChecker} to throw {@code IllegalStateException}.
+         * esql-planning#1987
+         */
+        SUBQUERY_IN_FROM_COMMAND_FIX_CONVERT_GROUP_KEY,
+
+        /**
+         * Support nested non-correlated subqueries in the FROM command.
+         */
+        NESTED_SUBQUERY_IN_FROM_COMMAND(Build.current().isSnapshot()),
+
+        /**
          * Support IN non-correlated subqueries in WHERE command.
          */
         WHERE_IN_SUBQUERY,
@@ -3779,6 +3794,16 @@ public class EsqlCapabilities {
         METADATA_SLICE(SliceIndexing.SLICE_FEATURE_FLAG),
 
         /**
+         * Support for the {@code _class} and {@code _name} metadata fields: {@code _class} is the kind
+         * of relation the row came from and {@code _name} is that relation's own name. Enables
+         * {@code FROM <relation> METADATA _class, _name} on an index and on a dataset. A view answers
+         * neither: referencing either column on a query that names one fails with
+         * {@code Unknown column}, unless the view resolves to its own branch alongside another source,
+         * where they bind and the view's rows answer NULL.
+         */
+        METADATA_CLASS_AND_NAME,
+
+        /**
          * Support LAST and LATEST aggregation on the same extended field types as FIRST and EARLIEST
          * (version, unsigned_long, spatial, spatial-grid, dense_vector, exponential_histogram, tdigest,
          * flattened).
@@ -3995,10 +4020,19 @@ public class EsqlCapabilities {
          * happens to hold. The empty string is produced only for a {@code keyword}/{@code text} column of a
          * strictly declared schema ({@code mappings} with {@code dynamic: false}), and setting {@code null_value}
          * to the empty string forces {@code null} there too. Supersedes {@link #EXTERNAL_CSV_EMPTY_STRING_NOT_NULL}.
-         * Gates the csv-spec tests that assert this, since it changes results for an ordinary inferred read:
-         * a pre-change node still answers {@code ""} for a blank cell in a column that sampled as a string.
+         * Superseded by {@link #EXTERNAL_CSV_BLANK_CELL_EMPTY_STRING_UNLESS_NULL_TOKEN}, which removes the
+         * inferred-vs-declared distinction: a blank string cell reads {@code ""} regardless of schema provenance.
+         * No longer referenced by any spec.
          */
-        EXTERNAL_CSV_BLANK_CELL_NULL_UNLESS_DECLARED,
+        EXTERNAL_CSV_BLANK_CELL_NULL_UNLESS_DECLARED(false),
+
+        /**
+         * A blank cell in an external CSV/TSV datasource reads as {@code ""} on a {@code keyword}/{@code text}
+         * column and as {@code null} on every other type, identically for inferred and declared reads.
+         * The only way to get {@code null} for a blank string cell is to set {@code null_value: ""}.
+         * Supersedes {@link #EXTERNAL_CSV_BLANK_CELL_NULL_UNLESS_DECLARED}.
+         */
+        EXTERNAL_CSV_BLANK_CELL_EMPTY_STRING_UNLESS_NULL_TOKEN,
 
         /**
          * Materialize more aggregate inputs into a synthetic pre-agg eval.
@@ -4009,6 +4043,16 @@ public class EsqlCapabilities {
          * and <a href="https://github.com/elastic/elasticsearch/issues/158659">#158659</a>.
          */
         AGGS_MORE_INPUTS_VIA_EVAL,
+
+        /**
+         * Bugfixes for edge cases of aggregation functions with multiple input fields. See:
+         * <a href="https://github.com/elastic/elasticsearch/issues/158821">#158821</a>,
+         * <a href="https://github.com/elastic/elasticsearch/issues/158827">#158827</a>,
+         * <a href="https://github.com/elastic/elasticsearch/issues/158918">#158918</a>,
+         * <a href="https://github.com/elastic/elasticsearch/issues/159029">#159029</a>,
+         * <a href="https://github.com/elastic/elasticsearch/issues/159033">#159033</a>.
+         */
+        FIX_AGGS_MULTIPLE_INPUT_FIELDS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

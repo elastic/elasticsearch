@@ -48,7 +48,7 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
         try (var view = createView("test-view", "FROM view-index")) {
             try (var response = run(syncEsqlQueryRequest("FROM test-*"))) {
                 assertOk(response);
-                assertResultConcreteIndices(response, "test-index"); // no views by default
+                assertResultConcreteIndices(response, "view-index", "test-index");
             }
         }
     }

@@ -602,6 +602,29 @@ public class RestResponseTests extends ESTestCase {
         assertFalse(lastLoggedFields().containsKey("elasticsearch.rest.handler"));
     }
 
+    public void testSuppressedLoggingWithTwoDifferentShardFailures() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+        final ShardSearchFailure[] failures = new ShardSearchFailure[] {
+            new ShardSearchFailure(
+                new IllegalStateException("engine is closed"),
+                new SearchShardTarget("node-0", new ShardId("my-index", "uuid", 0), null)
+            ),
+            new ShardSearchFailure(
+                new IllegalArgumentException("bad argument"),
+                new SearchShardTarget("node-1", new ShardId("my-index", "uuid", 1), null)
+            ) };
+
+        new RestResponse(channel, new SearchPhaseExecutionException("query", "all shards failed", failures));
+
+        final Map<String, ?> fields = lastLoggedFields();
+        // NOTE: guessFirstRootCause returns on the first shard failure, so the remaining failures reach error.stack_trace only
+        assertEquals(IllegalStateException.class.getName(), fields.get("elasticsearch.error.root_cause.type"));
+        assertEquals("engine is closed", fields.get("elasticsearch.error.root_cause.message"));
+        // NOTE: the cause chain carries no index here, so both are read from the first ShardSearchFailure
+        assertEquals("my-index", fields.get("elasticsearch.error.index"));
+        assertEquals(0, fields.get("elasticsearch.error.shard"));
+    }
+
     private Map<String, ?> lastLoggedFields() {
         final LogEvent logEvent = appender.getLastEventAndReset();
         assertThat(logEvent.getMessage(), instanceOf(MapMessage.class));

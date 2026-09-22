@@ -15,6 +15,8 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -167,6 +169,15 @@ public final class RestResponse implements Releasable {
                     message.field("elasticsearch.error.index", causes.indexScoped().getIndex().getName());
                     if (causes.indexScoped().getShardId() != null) {
                         message.field("elasticsearch.error.shard", causes.indexScoped().getShardId().getId());
+                    }
+                } else if (e instanceof SearchPhaseExecutionException searchFailure && searchFailure.shardFailures().length > 0) {
+                    // NOTE: a shard failure records where it happened on the ShardSearchFailure rather than on the exception it
+                    // wraps, so the cause chain carries no index. The first entry is used because getCause resolves to the first
+                    // shard failure as well
+                    final ShardSearchFailure shardFailure = searchFailure.shardFailures()[0];
+                    if (shardFailure.index() != null) {
+                        message.field("elasticsearch.error.index", shardFailure.index());
+                        message.field("elasticsearch.error.shard", shardFailure.shardId());
                     }
                 }
                 return message;

@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
@@ -27,6 +26,7 @@ import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
@@ -264,8 +264,8 @@ public class AnalyzerExternalTests extends ESTestCase {
 
     /**
      * {@code _file.name} resolves to an {@link ExternalMetadataAttribute} with type KEYWORD when requested via
-     * {@code METADATA} — external metadata columns are request-driven, not auto-attached.
-     * Verified via the {@link ExternalRelation} output (the plan's top-level output strips virtual columns by design).
+     * {@code METADATA}. External metadata columns are request-driven, not auto-attached. Verified via the
+     * {@link ExternalRelation} leaf output.
      */
     public void testFileMetadataResolvesToExternalMetadataAttribute() {
         assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
@@ -338,24 +338,86 @@ public class AnalyzerExternalTests extends ESTestCase {
         );
     }
 
-    /**
-     * {@code KEEP *} does not include virtual columns ({@code _file.*}), even when they are requested via
-     * {@code METADATA}.
-     */
-    public void testFileMetadataExcludedFromStar() {
+    public void testMetadataBoundColumnsSurviveKeepStar() {
         assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
 
-        var plan = analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " " + ALL_FILE_METADATA_CLAUSE + " | KEEP *");
-        for (Attribute attr : plan.output()) {
-            assertFalse("Virtual attribute " + attr.name() + " should not appear in KEEP * output", attr instanceof VirtualAttribute);
-        }
-        assertEquals(employeesSchema().size(), plan.output().size());
+        var plan = analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _id, _file.path | KEEP *");
+        List<String> names = plan.output().stream().map(Attribute::name).toList();
+        assertThat(names, hasItem("_id"));
+        assertThat(names, hasItem("_file.path"));
+        assertThat(names, hasItem("emp_no"));
+        Attribute id = plan.output().stream().filter(a -> a.name().equals("_id")).findFirst().orElseThrow();
+        Attribute path = plan.output().stream().filter(a -> a.name().equals("_file.path")).findFirst().orElseThrow();
+        assertThat(id, instanceOf(ExternalMetadataAttribute.class));
+        assertThat(path, instanceOf(ExternalMetadataAttribute.class));
     }
 
-    /**
-     * Explicit {@code KEEP _file.path} surfaces the virtual column in the final plan output —
-     * naming a virtual column by KEEP is the one way it reaches the result.
-     */
+    public void testKeepStarDoesNotInventUnboundMetadata() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var plan = analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _file.size | KEEP *");
+        List<String> names = plan.output().stream().map(Attribute::name).toList();
+        assertThat(names, hasItem("_file.size"));
+        assertThat(names, hasItem("emp_no"));
+        assertThat(names, not(hasItem("_file.name")));
+        assertThat(names, not(hasItem("_file.path")));
+        Attribute size = plan.output().stream().filter(a -> a.name().equals("_file.size")).findFirst().orElseThrow();
+        assertThat(size, instanceOf(ExternalMetadataAttribute.class));
+    }
+
+    public void testKeepStarWithoutMetadataOmitsFileColumns() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var plan = analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " | KEEP *");
+        List<String> names = plan.output().stream().map(Attribute::name).toList();
+        for (String name : FileMetadataColumns.NAMES) {
+            assertThat(names, not(hasItem(name)));
+        }
+        assertThat(names, hasItem("emp_no"));
+    }
+
+    public void testDatasetOutputOmitsSyntheticAttributes() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var plan = analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _file.record_ref | KEEP *");
+        List<String> names = plan.output().stream().map(Attribute::name).toList();
+        assertThat(names, hasItem(FileMetadataColumns.RECORD_REF));
+        assertThat(names, not(hasItem(ColumnExtractor.ROW_POSITION_COLUMN)));
+        assertThat(plan.output().stream().filter(Attribute::synthetic).toList(), hasSize(0));
+    }
+
+    public void testKeepFilePatternMatchesOnlyBoundMetadata() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var plan = analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _file.size | KEEP _file*");
+        List<String> names = plan.output().stream().map(Attribute::name).toList();
+        assertEquals(List.of("_file.size"), names);
+        assertThat(plan.output().getFirst(), instanceOf(ExternalMetadataAttribute.class));
+    }
+
+    public void testMetadataIdSurfacesWithoutKeep() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var plan = analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _id");
+        List<String> names = plan.output().stream().map(Attribute::name).toList();
+        assertThat(names, hasItem("_id"));
+        Attribute id = plan.output().stream().filter(a -> a.name().equals("_id")).findFirst().orElseThrow();
+        assertThat(id, instanceOf(ExternalMetadataAttribute.class));
+    }
+
+    public void testKeepStarWithExplicitNameKeepsMetadata() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        for (String keep : List.of("KEEP *, emp_no", "KEEP emp_no, *")) {
+            var plan = analyzeDataset(external(), S3_PATH, "FROM " + DATASET_NAME + " METADATA _id | " + keep);
+            List<String> names = plan.output().stream().map(Attribute::name).toList();
+            assertThat(keep + " columns: " + names, names, hasItem("_id"));
+            assertThat(keep + " columns: " + names, names, hasItem("emp_no"));
+            Attribute id = plan.output().stream().filter(a -> a.name().equals("_id")).findFirst().orElseThrow();
+            assertThat(keep + " _id type", id, instanceOf(ExternalMetadataAttribute.class));
+        }
+    }
+
     public void testKeepFileMetadataByNameSurfaces() {
         assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
 
@@ -382,7 +444,6 @@ public class AnalyzerExternalTests extends ESTestCase {
 
     /**
      * {@code KEEP _file*} pattern resolves every {@code _file.*} column requested via {@code METADATA}.
-     * Verified by piping into STATS (since the final plan output strips virtual columns).
      */
     public void testFileMetadataExplicitPatternMatches() {
         assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
@@ -616,7 +677,7 @@ public class AnalyzerExternalTests extends ESTestCase {
     /**
      * Returns the {@link ExternalRelation} leaf's output from an analyzed plan. The leaf's output
      * carries every name bound by {@code ResolveExternalRelations}, which is the binding contract
-     * under test — the plan's top-level output may strip virtual attributes by design.
+     * under test.
      */
     private static List<Attribute> externalLeafOutput(LogicalPlan analyzed) {
         var leaves = new ArrayList<ExternalRelation>();

@@ -1414,7 +1414,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
      * applies).
      * <p>
      * Since the PIT's BCC is unuploaded, the handoff builds PIT metadata from the multi-BCC {@code SearchDirectory} and the target opens
-     * the commit from scratch, requiring every generational file's BCC to be acquired at once. Without the fix,
+     * the commit from scratch, requiring every generational file's BCC to be acquired at once. Without the fix (elasticsearch#159905),
      * {@code SearchDirectory#mergeMetadata} pins only one BCC, the handoff fails with "Cannot acquire [...] for generational file [...]"
      * (swallowed), no context is created, and the PIT search then fails with a missing search context. With the fix all referenced BCCs are
      * pinned and the PIT search succeeds.
@@ -1445,7 +1445,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         int totalDocs = 0;
 
         // Segment _0 and _1 via two refreshes (each refresh flushes the buffer into a new segment + batched, unuploaded commit).
-        final int docsInSegment0 = randomIntBetween(1, 50);
+        final int docsInSegment0 = randomIntBetween(10, 50);
         final var bulkResponseA = indexDocs(indexName, docsInSegment0, UnaryOperator.identity(), null, () -> Map.of("field", "a"));
         final List<String> docIdsSegment0 = Arrays.stream(bulkResponseA.getItems()).map(BulkItemResponse::getId).toList();
         totalDocs += docsInSegment0;

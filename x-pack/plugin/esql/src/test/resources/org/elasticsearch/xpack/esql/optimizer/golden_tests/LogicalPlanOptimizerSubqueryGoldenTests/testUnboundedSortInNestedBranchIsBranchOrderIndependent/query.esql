@@ -1,0 +1,5 @@
+FROM (FROM (FROM employees | LIMIT 10),
+           (FROM employees | SORT emp_no)
+     ),
+     (FROM languages)
+| STATS c = COUNT(*)

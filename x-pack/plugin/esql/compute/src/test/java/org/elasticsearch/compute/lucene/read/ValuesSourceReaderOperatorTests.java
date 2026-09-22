@@ -1750,18 +1750,35 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         );
     }
 
-    public void testManyReaderUsesSequentialStoredFields() throws IOException {
-        int docCount = between(2, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY - 1);
+    public void testManyReaderUsesRandomStoredFieldsForSmallDenseRange() throws IOException {
+        testManyReaderStoredFields(IntStream.range(0, between(2, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY)).toArray(), false);
+    }
+
+    public void testManyReaderUsesSequentialStoredFieldsForDenseRange() throws IOException {
+        testManyReaderStoredFields(
+            IntStream.range(0, between(ValuesFromSingleReader.SEQUENTIAL_BOUNDARY + 1, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY * 2))
+                .toArray(),
+            true
+        );
+    }
+
+    public void testManyReaderUsesRandomStoredFieldsForSparseRange() throws IOException {
+        int count = between(ValuesFromSingleReader.SEQUENTIAL_BOUNDARY + 1, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY * 2);
+        testManyReaderStoredFields(IntStream.range(0, count).map(i -> i * 2).toArray(), false);
+    }
+
+    private void testManyReaderStoredFields(int[] selectedDocIds, boolean sequential) throws IOException {
+        int docCount = selectedDocIds[selectedDocIds.length - 1] + 1;
         initIndex(docCount, docCount);
         reader = ElasticsearchDirectoryReader.wrap((DirectoryReader) reader, new ShardId("index", "_na_", 0));
         assertThat(reader.leaves(), hasSize(1));
         assertThat(reader.leaves().getFirst().reader(), instanceOf(SequentialStoredFieldsLeafReader.class));
 
-        List<Integer> docIds = IntStream.range(0, docCount).boxed().collect(Collectors.toList());
+        List<Integer> docIds = IntStream.of(selectedDocIds).boxed().collect(Collectors.toList());
         Randomness.shuffle(docIds);
         DriverContext driverContext = driverContext();
         DocVector docVector;
-        try (DocVector.FixedBuilder builder = DocVector.newFixedBuilder(driverContext.blockFactory(), docCount)) {
+        try (DocVector.FixedBuilder builder = DocVector.newFixedBuilder(driverContext.blockFactory(), selectedDocIds.length)) {
             for (int docId : docIds) {
                 builder.append(0, 0, docId);
             }
@@ -1788,7 +1805,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     randomBoolean(),
                     0,
                     randomDoubleBetween(0.1, 10.0, true),
-                    docSequenceBytesRefFieldThreshold(),
+                    Integer.MAX_VALUE,
                     () -> 0L
                 )
             );
@@ -1805,7 +1822,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             matchesMap().entry("key:column_at_a_time:IntsFromDocValues.Singleton", 1)
                 .entry("stored_text:column_at_a_time:null", 1)
                 .entry("stored_text:row_stride:BlockStoredFieldsReader.Bytes", 1)
-                .entry("stored_fields[requires_source:false, fields:1, sequential: true]", 1)
+                .entry("stored_fields[requires_source:false, fields:1, sequential: " + sequential + "]", 1)
         );
         assertDriverContext(driverContext);
     }

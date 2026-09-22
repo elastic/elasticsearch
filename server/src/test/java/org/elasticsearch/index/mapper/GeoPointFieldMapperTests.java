@@ -10,24 +10,41 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.document.column.Column;
+import org.apache.lucene.document.column.ColumnBatch;
+import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.geo.GeoEncodingUtils;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.ScriptFactory;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -49,6 +66,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class GeoPointFieldMapperTests extends MapperTestCase {
 
@@ -754,5 +772,130 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean supportsDocValuesSkippers() {
         return false;
+    }
+
+    /**
+     * Verifies that the object-form ({@code {"field":{"lat":…,"lon":…}}}) geo_point produces exactly
+     * one SORTED_NUMERIC column with the expected packed long and the correct Lucene field type when
+     * indexed via {@link GeoPointFieldMapper#mapColumnGroupBatch}.
+     */
+    public void testColumnarGroupBatchObjectForm() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "geo_point")));
+
+        double lat = 51.5;
+        double lon = -0.1;
+        withGroupColumnBatch(mapperService, "field", "{\"field\":{\"lat\":" + lat + ",\"lon\":" + lon + "}}", batch -> {
+            Column column = null;
+            int matchCount = 0;
+            for (Column c : batch.columns()) {
+                if ("field".equals(c.name())) {
+                    column = c;
+                    matchCount++;
+                }
+            }
+            assertEquals("must emit exactly one column for field", 1, matchCount);
+            assertNotNull(column);
+            assertThat(
+                "field type must be sameInstance(GEO_POINT_DOC_VALUES_FIELD_TYPE)",
+                column.fieldType(),
+                sameInstance(GeoPointFieldMapper.GEO_POINT_DOC_VALUES_FIELD_TYPE)
+            );
+            assertEquals("doc values type must be SORTED_NUMERIC", DocValuesType.SORTED_NUMERIC, column.fieldType().docValuesType());
+
+            var luceneColumn = (LongColumn) column;
+            var cursor = luceneColumn.tuples();
+            assertEquals(0, cursor.nextDoc());
+            long expectedPacked = (((long) GeoEncodingUtils.encodeLatitude(lat)) << 32) | (GeoEncodingUtils.encodeLongitude(lon)
+                & 0xFFFFFFFFL);
+            assertEquals("packed long must encode lat/lon identically to LatLonPointWithDocValues", expectedPacked, cursor.longValue());
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, cursor.nextDoc());
+        });
+    }
+
+    /**
+     * Multiple documents in one batch: verifies that the dense path emits the right packed longs for
+     * every document.
+     */
+    public void testColumnarGroupBatchMultipleDocs() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "geo_point")));
+
+        double[] lats = { 51.5, 48.9, 35.7 };
+        double[] lons = { -0.1, 2.3, 139.7 };
+        String[] sources = {
+            "{\"field\":{\"lat\":" + lats[0] + ",\"lon\":" + lons[0] + "}}",
+            "{\"field\":{\"lat\":" + lats[1] + ",\"lon\":" + lons[1] + "}}",
+            "{\"field\":{\"lat\":" + lats[2] + ",\"lon\":" + lons[2] + "}}" };
+        withGroupColumnBatch(mapperService, "field", sources, batch -> {
+            Column column = null;
+            for (Column c : batch.columns()) {
+                if ("field".equals(c.name())) {
+                    column = c;
+                }
+            }
+            assertNotNull("must emit a column for field", column);
+            var cursor = ((LongColumn) column).tuples();
+            for (int i = 0; i < lats.length; i++) {
+                assertEquals(i, cursor.nextDoc());
+                long expected = (((long) GeoEncodingUtils.encodeLatitude(lats[i])) << 32) | (GeoEncodingUtils.encodeLongitude(lons[i])
+                    & 0xFFFFFFFFL);
+                assertEquals("wrong packed long for doc " + i, expected, cursor.longValue());
+            }
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, cursor.nextDoc());
+        });
+    }
+
+    /**
+     * Drives the geo_point group mapper over a single-document ESCF batch encoded from each of
+     * {@code sources}, collects the emitted {@link ColumnBatch}, and passes it to {@code assertions}.
+     *
+     * <p>The helper locates ESCF columns whose path starts with {@code field + "."}, derives the
+     * relative key from the suffix, and dispatches {@link GeoPointFieldMapper#mapColumnGroupBatch}
+     * exactly as {@link ShardBatchMapper} would for a group mapper.
+     */
+    private void withGroupColumnBatch(
+        MapperService mapperService,
+        String field,
+        String source,
+        CheckedConsumer<ColumnBatch, Exception> assertions
+    ) throws Exception {
+        withGroupColumnBatch(mapperService, field, new String[] { source }, assertions);
+    }
+
+    private void withGroupColumnBatch(
+        MapperService mapperService,
+        String field,
+        String[] sources,
+        CheckedConsumer<ColumnBatch, Exception> assertions
+    ) throws Exception {
+        List<BytesReference> sourceList = Stream.of(sources).map(s -> (BytesReference) new BytesArray(s)).toList();
+        IndexRequest[] requests = new IndexRequest[sources.length];
+        for (int i = 0; i < sources.length; i++) {
+            requests[i] = new IndexRequest("index").id("doc" + i).source(new BytesArray(sources[i]), XContentType.JSON);
+        }
+        try (
+            BatchMappingContext ctx = new BatchMappingContext(
+                EngineTestCase.initFromRequests(requests),
+                mapperService.mappingLookup(),
+                mapperService.getIndexSettings(),
+                new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
+            );
+            EscfBatch escfBatch = EscfEncoder.encode(sourceList, XContentType.JSON)
+        ) {
+            var mapper = (GeoPointFieldMapper) mapperService.mappingLookup().getMapper(field);
+            String prefix = field + ".";
+            List<EscfColumn> cols = new ArrayList<>();
+            List<String> keys = new ArrayList<>();
+            for (int i = 0; i < escfBatch.columnCount(); i++) {
+                String path = escfBatch.schema().getFullPath(i);
+                if (path.startsWith(prefix)) {
+                    cols.add(escfBatch.column(i));
+                    keys.add(path.substring(prefix.length()));
+                }
+            }
+            mapper.mapColumnGroupBatch(ctx, cols.toArray(EscfColumn[]::new), keys.toArray(String[]::new));
+            assertions.accept(ctx.columns().toColumnBatch());
+        }
     }
 }

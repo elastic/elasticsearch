@@ -21,6 +21,7 @@ import org.elasticsearch.index.mapper.ColumnGroupResolver;
 import org.elasticsearch.index.mapper.ColumnGroupResolver.ColumnGroupLookup;
 import org.elasticsearch.index.mapper.ColumnGroupResolver.ColumnGroupResolution;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -36,6 +37,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolveTestCase {
@@ -207,6 +209,25 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
             b.field("type", "keyword");
             b.startObject("fields");
             b.startObject("lower").field("type", "keyword").endObject();
+            // binary has no columnar support: it disqualifies the keyword parent.
+            b.startObject("raw").field("type", "binary").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        assertNull(ShardBatchMapper.resolveMappers(schemaOf("host"), ms.mappingLookup(), indexSettings));
+    }
+
+    /**
+     * A group mapper used as a multi-field sub-mapper is rejected: {@code FieldMapper#supportsColumnarParse}
+     * requires {@code builderParams.multiFields.mappers.length == 0} for any mapper that returns
+     * {@code true} from {@link org.elasticsearch.index.mapper.FieldMapper#resolvesColumnGroup}. This pin
+     * covers the geo_point case now that it is a group mapper.
+     */
+    public void testGroupMapperMultiFieldSubMapperFallsBack() throws IOException {
+        MapperService ms = columnarMapperService(mapping(b -> {
+            b.startObject("host");
+            b.field("type", "keyword");
+            b.startObject("fields");
             b.startObject("geo").field("type", "geo_point").endObject();
             b.endObject();
             b.endObject();
@@ -951,5 +972,163 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
                 ShardBatchMapper.resolveMappers(batch, ms.mappingLookup(), standardSettings)
             );
         }
+    }
+
+    /**
+     * Object-form geo_points produce two dotted sub-leaves ({@code loc.lat}, {@code loc.lon}) that
+     * resolve to the {@code geo_point} group mapper rather than causing a Conflict.
+     */
+    public void testGeoPointObjectFormatIsSupported() throws IOException {
+        MapperService ms = columnarMapperService(mapping(b -> b.startObject("loc").field("type", "geo_point").endObject()));
+        SourceSchema schema = schemaOfJson("{\"loc\":{\"lat\":51.5,\"lon\":-0.1}}");
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
+        assertNotNull("geo_point object-form should resolve on the columnar path", resolution);
+        int latLeaf = schema.findLeaf("lat", schema.findNonLeaf("loc", 0));
+        int lonLeaf = schema.findLeaf("lon", schema.findNonLeaf("loc", 0));
+        assertNull("loc.lat should be owned by the group", resolution.columnMappers()[latLeaf]);
+        assertNull("loc.lon should be owned by the group", resolution.columnMappers()[lonLeaf]);
+        assertEquals(1, resolution.columnGroups().length);
+        assertThat(resolution.columnGroups()[0].mapper().fullPath(), equalTo("loc"));
+    }
+
+    /**
+     * The dotted spelling {@code {"loc.lat":…,"loc.lon":…}} (literal dots in source keys) is treated
+     * by the ESCF encoder as two root-level leaves with full paths {@code loc.lat} and {@code loc.lon}.
+     * The resolver's ancestor walk must still find the {@code geo_point} group mapper.
+     */
+    public void testGeoPointDottedSpellingResolvesToGroup() throws IOException {
+        MapperService ms = columnarMapperService(mapping(b -> b.startObject("loc").field("type", "geo_point").endObject()));
+        SourceSchema schema = schemaOfJson("{\"loc.lat\":51.5,\"loc.lon\":-0.1}");
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
+        assertNotNull("geo_point dotted spelling should resolve to the group", resolution);
+        assertEquals(1, resolution.columnGroups().length);
+        assertArrayEquals(new String[] { "lat", "lon" }, resolution.columnGroups()[0].relativeKeys());
+    }
+
+    /** A geo_point with multi-fields cannot use the columnar path (group mapper requires no multi-fields). */
+    public void testGeoPointWithMultiFieldFallsBack() throws IOException {
+        MapperService ms = columnarMapperService(mapping(b -> {
+            b.startObject("loc");
+            b.field("type", "geo_point");
+            b.startObject("fields").startObject("hash").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }));
+        SourceSchema schema = schemaOfJson("{\"loc\":{\"lat\":51.5,\"lon\":-0.1}}");
+        assertNull(
+            "geo_point with multi-fields cannot use the columnar fast path",
+            ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings)
+        );
+    }
+
+    /** A geo_point with {@code index: true} has BKD points enabled; the columnar path falls back. */
+    public void testGeoPointWithIndexTrueFallsBack() throws IOException {
+        MapperService ms = columnarMapperService(
+            mapping(b -> { b.startObject("loc").field("type", "geo_point").field("index", true).endObject(); })
+        );
+        SourceSchema schema = schemaOfJson("{\"loc\":{\"lat\":51.5,\"lon\":-0.1}}");
+        assertNull(
+            "geo_point with index=true (BKD points) cannot use the columnar fast path",
+            ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings)
+        );
+    }
+
+    /** A geo_point with {@code store: true} falls back because no stored-field column is emitted. */
+    public void testGeoPointWithStoreTrueFallsBack() throws IOException {
+        MapperService ms = createMapperService(
+            mapping(b -> { b.startObject("loc").field("type", "geo_point").field("store", true).endObject(); })
+        );
+        var mapper = (GeoPointFieldMapper) ms.mappingLookup().getMapper("loc");
+        assertFalse("geo_point with store=true must not support the columnar fast path", mapper.supportsColumnarParse(indexSettings));
+    }
+
+    /** A geo_point with a configured {@code null_value} falls back (silence would drop the point). */
+    public void testGeoPointWithNullValueFallsBack() throws IOException {
+        MapperService ms = columnarMapperService(mapping(b -> {
+            b.startObject("loc").field("type", "geo_point").field("null_value", "0,0").endObject();
+        }));
+        SourceSchema schema = schemaOfJson("{\"loc\":{\"lat\":51.5,\"lon\":-0.1}}");
+        assertNull(
+            "geo_point with null_value falls back (null rows must index the configured point)",
+            ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings)
+        );
+    }
+
+    /**
+     * A geo_point declared as a TSDB {@code time_series_metric: position} is supported: its
+     * {@code index} parameter defaults to {@code false} and {@code doc_values} is required.
+     * <p>
+     * We verify {@link GeoPointFieldMapper#supportsColumnarParse} directly rather than going through
+     * {@link ShardBatchMapper#resolveMappers} because TSDB metadata mappers (e.g. {@code _tsid}) may
+     * not support the columnar path, which would cause {@code resolveMappers} to return {@code null}
+     * for reasons unrelated to the geo_point mapper itself.
+     */
+    public void testGeoPointPositionMetricIsSupported() throws IOException {
+        Settings tsdbSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+            .build();
+        MapperService ms = createMapperService(tsdbSettings, mapping(b -> {
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("loc").field("type", "geo_point").field("time_series_metric", "position").endObject();
+        }));
+        var mapper = (GeoPointFieldMapper) ms.mappingLookup().getMapper("loc");
+        assertTrue(
+            "geo_point with time_series_metric=position should support the columnar path in TSDB mode",
+            mapper.supportsColumnarParse(ms.getIndexSettings())
+        );
+    }
+
+    /** A null leaf at the field's own path (e.g. {@code {"loc":null}}) uses the leaf mapper, not the group. */
+    public void testGeoPointLeafAtOwnPathUsesLeafMapper() throws IOException {
+        MapperService ms = columnarMapperService(mapping(b -> b.startObject("loc").field("type", "geo_point").endObject()));
+        SourceSchema schema = schemaOfJson("{\"loc\":null}");
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
+        assertNotNull(resolution);
+        assertThat(
+            "a null leaf at geo_point's own path should use the leaf mapper",
+            resolution.columnMappers()[schema.findLeaf("loc", 0)],
+            instanceOf(GeoPointFieldMapper.class)
+        );
+        assertEquals("no group should be created for an own-path leaf", 0, resolution.columnGroups().length);
+    }
+
+    /** A batch mixing a null own-path leaf and object-form sub-leaves produces both a leaf mapper and a group. */
+    public void testGeoPointOwnPathLeafAndGroupCoexist() throws IOException {
+        MapperService ms = columnarMapperService(mapping(b -> b.startObject("loc").field("type", "geo_point").endObject()));
+        SourceSchema schema = schemaOfJson("{\"loc\":null}", "{\"loc\":{\"lat\":51.5,\"lon\":-0.1}}");
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
+        assertNotNull(resolution);
+        assertThat(resolution.columnMappers()[schema.findLeaf("loc", 0)], instanceOf(GeoPointFieldMapper.class));
+        assertEquals(1, resolution.columnGroups().length);
+        assertThat(resolution.columnGroups()[0].mapper().fullPath(), equalTo("loc"));
+    }
+
+    /** Two independently declared geo_point fields produce two separate groups. */
+    public void testTwoGeoPointFieldsProduceTwoGroups() throws IOException {
+        MapperService ms = columnarMapperService(mapping(b -> {
+            b.startObject("src").field("type", "geo_point").endObject();
+            b.startObject("dst").field("type", "geo_point").endObject();
+        }));
+        SourceSchema schema = schemaOfJson("{\"src\":{\"lat\":51.5,\"lon\":-0.1},\"dst\":{\"lat\":48.9,\"lon\":2.3}}");
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
+        assertNotNull(resolution);
+        assertEquals(2, resolution.columnGroups().length);
+        assertEquals("src", resolution.columnGroups()[0].mapper().fullPath());
+        assertEquals("dst", resolution.columnGroups()[1].mapper().fullPath());
+    }
+
+    /**
+     * Aliasing ({@code {"loc":{"lat":1,"lon":2},"loc.lat":3}}) produces a duplicate {@code lat}
+     * relative key in the group. Resolution succeeds — group mappers are exempt from the per-leaf
+     * dedupe check — but {@link org.elasticsearch.index.mapper.GeoPointFieldMapper#mapColumnGroupBatch}
+     * throws {@link UnsupportedOperationException} at map time, causing a clean fallback.
+     */
+    public void testGeoPointAliasedKeysResolveButTriggerMapTimeFallback() throws IOException {
+        MapperService ms = columnarMapperService(mapping(b -> b.startObject("loc").field("type", "geo_point").endObject()));
+        SourceSchema schema = schemaOfJson("{\"loc\":{\"lat\":51.5,\"lon\":-0.1},\"loc.lat\":52.0}");
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
+        assertNotNull("resolution should succeed; the duplicate-key check fires at map time", resolution);
+        assertEquals(1, resolution.columnGroups().length);
+        assertArrayEquals(new String[] { "lat", "lon", "lat" }, resolution.columnGroups()[0].relativeKeys());
     }
 }

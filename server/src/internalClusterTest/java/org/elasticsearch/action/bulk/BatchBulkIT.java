@@ -2785,6 +2785,187 @@ public class BatchBulkIT extends ESIntegTestCase {
         assumeTrue("columnar codec is disabled for [" + index + "]", IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.get(created));
     }
 
+    /**
+     * End-to-end test for columnar batch indexing of object-form geo_points. Bulk-indexes several
+     * points into a {@link IndexMode#COLUMNAR} index, then asserts that {@code geo_bounding_box}
+     * and {@code geo_distance} queries return the expected hits.
+     * <p>
+     * The field is left at its strict-columnar defaults ({@code index: false}, {@code doc_values: true}),
+     * so queries fall through to the doc-values path ({@code LatLonDocValuesField.newSlowGeometryQuery})
+     * — confirming that the packed-long encoding matches what the row path produces.
+     */
+    public void testColumnarGeoPointBatchMode() throws IOException {
+        final String index = "test-columnar-geo-point";
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("name").field("type", "keyword").endObject();
+                    // geo_point without index=true: the columnar path emits a SORTED_NUMERIC DV column.
+                    mapping.startObject("loc").field("type", "geo_point").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        final String coordinatingNode = findCoordinatingNode();
+
+        // Index a handful of well-known cities using object-form geo_points.
+        final BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(
+            new IndexRequest(index).id("london")
+                .source("{\"name\":\"London\",\"loc\":{\"lat\":51.5074,\"lon\":-0.1278}}", XContentType.JSON)
+                .opType(DocWriteRequest.OpType.CREATE)
+        );
+        bulkRequest.add(
+            new IndexRequest(index).id("paris")
+                .source("{\"name\":\"Paris\",\"loc\":{\"lat\":48.8566,\"lon\":2.3522}}", XContentType.JSON)
+                .opType(DocWriteRequest.OpType.CREATE)
+        );
+        bulkRequest.add(
+            new IndexRequest(index).id("tokyo")
+                .source("{\"name\":\"Tokyo\",\"loc\":{\"lat\":35.6762,\"lon\":139.6503}}", XContentType.JSON)
+                .opType(DocWriteRequest.OpType.CREATE)
+        );
+        // One doc with the field absent — verifies sparse-column handling.
+        bulkRequest.add(
+            new IndexRequest(index).id("unknown").source("{\"name\":\"Unknown\"}", XContentType.JSON).opType(DocWriteRequest.OpType.CREATE)
+        );
+
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        try (var mockLog = MockLog.capture(ShardBatchIndexer.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "geo_point batch indexed on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+
+            final BulkResponse response = client(coordinatingNode).bulk(bulkRequest).actionGet();
+            assertNoFailures(response);
+            assertThat(response.getItems().length, equalTo(4));
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
+        }
+
+        refresh(index);
+
+        // geo_bounding_box over Europe: London and Paris, but not Tokyo or unknown.
+        assertResponse(
+            prepareSearch(index).setQuery(
+                new org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder("loc").setCorners(55.0, 10.0, 45.0, -5.0)
+            ).setSize(10),
+            searchResponse -> {
+                assertNoFailures(searchResponse);
+                final long hits = searchResponse.getHits().getTotalHits().value();
+                assertThat("expected London and Paris within the bounding box", hits, equalTo(2L));
+            }
+        );
+
+        // geo_distance: points within 200 km of Paris — only Paris itself.
+        assertResponse(
+            prepareSearch(index).setQuery(
+                new org.elasticsearch.index.query.GeoDistanceQueryBuilder("loc").point(48.8566, 2.3522).distance("200km")
+            ).setSize(10),
+            searchResponse -> {
+                assertNoFailures(searchResponse);
+                assertThat("expected only Paris within 200 km", searchResponse.getHits().getTotalHits().value(), equalTo(1L));
+                assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("paris"));
+            }
+        );
+    }
+
+    /**
+     * Regression test for the columnar-column overlap hazard: a mixed bulk request containing both
+     * object-form ({@code {"loc":{…}}}) and string-form ({@code {"loc":"lat,lon"}}) geo_points in the
+     * same batch must not produce a hard Lucene failure. The batch falls back to the row path and all
+     * documents are indexed correctly.
+     */
+    public void testColumnarGeoPointMixedShapesFallBackCleanly() throws IOException {
+        final String index = "test-columnar-geo-point-mixed";
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("loc").field("type", "geo_point").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        final String coordinatingNode = findCoordinatingNode();
+
+        final BulkRequest bulkRequest = new BulkRequest();
+        // Object form — encodes as loc.lat / loc.lon sub-leaves: goes to mapColumnGroupBatch.
+        bulkRequest.add(
+            new IndexRequest(index).id("obj")
+                .source("{\"loc\":{\"lat\":51.5074,\"lon\":-0.1278}}", XContentType.JSON)
+                .opType(DocWriteRequest.OpType.CREATE)
+        );
+        // String form — encodes as a STRING leaf at loc: goes to doMapColumnBatch, which throws UOE.
+        // That causes the entire batch to fall back; both docs end up indexed by the row path.
+        bulkRequest.add(
+            new IndexRequest(index).id("str")
+                .source("{\"loc\":\"48.8566,2.3522\"}", XContentType.JSON)
+                .opType(DocWriteRequest.OpType.CREATE)
+        );
+
+        final BulkResponse response = client(coordinatingNode).bulk(bulkRequest).actionGet();
+        assertNoFailures(response);
+        assertThat(response.getItems().length, equalTo(2));
+
+        refresh(index);
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(0).setTrackTotalHits(true), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertThat("both docs should be indexed after fallback", searchResponse.getHits().getTotalHits().value(), equalTo(2L));
+        });
+    }
+
     private static BulkRequest bulkOf(String index, Map<String, String> sources) {
         final BulkRequest request = new BulkRequest();
         sources.forEach(

@@ -21,11 +21,16 @@ import org.elasticsearch.xpack.esql.core.QlException;
  * <ul>
  *     <li>{@link ExternalClientException} &rarr; 400, the request pointed us at something we cannot
  *     read or decode (bad/unsupported input, missing object).</li>
+ *     <li>{@link ExternalCredentialsExpiredException} &rarr; 400, session or temporary credentials
+ *     used to read the store have expired or been rejected; refresh and re-run.</li>
  *     <li>{@link ExternalServerException} &rarr; 500, a bug or broken invariant in our own reading
  *     code.</li>
  *     <li>{@link ExternalUnavailableException} &rarr; 503, a retryable back-pressure /
  *     temporarily-unavailable condition (a remote-store transport failure, or a node-local admission
  *     condition such as permit exhaustion).</li>
+ *     <li>{@link ExternalObjectChangedException} &rarr; 503, the object was rewritten mid-query so a
+ *     resume would splice generations. Query-level retryable, but not retried as a storage resume
+ *     (the generation pin will keep failing until the query restarts).</li>
  * </ul>
  * Subtypes extend {@link QlException} (rather than {@code QlClientException}/{@code QlServerException})
  * so they can share this single umbrella while each pinning its own status.

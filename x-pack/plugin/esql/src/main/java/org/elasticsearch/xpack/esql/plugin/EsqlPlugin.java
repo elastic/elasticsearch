@@ -169,11 +169,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -364,6 +366,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     /** Closed by {@link #close()} on node shutdown to release S3/Azure workload-identity resources. */
     private volatile DataSourceModule dataSourceModule;
 
+    /** Names of credential (secret) settings across all registered data source providers, for audit-log filtering. */
+    private volatile Set<String> dataSourceSecretSettingNames = Set.of();
+
     @Override
     public void close() throws IOException {
         IOUtils.close(dataSourceModule);
@@ -503,10 +508,18 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             );
 
         ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings);
+        AtomicInteger maxDiscoveredFiles = new AtomicInteger();
+        AtomicInteger maxGlobExpansion = new AtomicInteger();
+        AtomicInteger maxListedObjects = new AtomicInteger();
+        var clusterSettings = services.clusterService().getClusterSettings();
+        // initializeAndWatchIfRegistered seeds from node settings when federation is unregistered (the keys
+        // are not in ClusterSettings then) and watches cluster state when they are. Resolver reads these
+        // at expand time; clusterService.getSettings() is the yml snapshot and would ignore persistent updates.
+        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_DISCOVERED_FILES, maxDiscoveredFiles::set);
+        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_GLOB_EXPANSION, maxGlobExpansion::set);
+        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_LISTED_OBJECTS, maxListedObjects::set);
         if (federationRegistered) {
-            services.clusterService()
-                .getClusterSettings()
-                .addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheService::setEnabled);
+            clusterSettings.addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheService::setEnabled);
         }
 
         // Build the format metadata the dataset CRUD validator uses to (a) accept format-specific
@@ -516,28 +529,26 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // FormatReaderRegistry. Iterate ALL FormatSpec declarations (including formats with no extra
         // config keys, e.g. orc) so every registered format is a valid "format" value.
         //
-        // NOTE: FormatReaderRegistry.registerExtension uses a plain put (last writer wins) for the
-        // extension→reader mapping at runtime. Here we fail on conflicts so an inconsistency surfaces
-        // early at startup; FormatReaderRegistry should be aligned to also reject duplicates.
+        // NOTE: Cross-extension conflicts are caught earlier — DataSourceModule's constructor calls
+        // FormatReaderRegistry.claimExtension for every spec, which throws on the first duplicate.
         // DataSourceCapabilities.build (above) already throws on a duplicate format NAME, so divergent
         // config keys for one format name cannot arise and need no separate check here.
         Map<String, Set<String>> formatToConfigKeys = new HashMap<>();
         Map<String, String> extToFormat = new HashMap<>();
+        Map<String, FormatSpec.FormatConfigValidator> formatToValidator = new HashMap<>();
         for (DataSourcePlugin p : allDataSourcePlugins) {
             for (FormatSpec spec : p.formatSpecs()) {
                 String format = spec.format().toLowerCase(Locale.ROOT);
                 formatToConfigKeys.put(format, spec.configKeys());
+                if (spec.configValidator() != null) {
+                    formatToValidator.put(format, spec.configValidator());
+                }
                 for (String ext : spec.extensions()) {
                     String normalized = ext.toLowerCase(Locale.ROOT);
                     if (normalized.startsWith(".") == false) {
                         normalized = "." + normalized;
                     }
-                    String existing = extToFormat.putIfAbsent(normalized, format);
-                    if (existing != null && existing.equals(format) == false) {
-                        throw new IllegalStateException(
-                            "conflicting formats for extension [" + normalized + "]: [" + existing + "] vs [" + format + "]"
-                        );
-                    }
+                    extToFormat.putIfAbsent(normalized, format);
                 }
             }
         }
@@ -546,7 +557,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // map's key set, so the two sources cannot diverge.
         FileDataSourceValidator.FormatConfigKeyResolver formatKeyResolver = formatToConfigKeys.isEmpty()
             ? null
-            : FileDataSourceValidator.FormatConfigKeyResolver.of(formatToConfigKeys, extToFormat);
+            : FileDataSourceValidator.FormatConfigKeyResolver.of(formatToConfigKeys, extToFormat, formatToValidator);
 
         Map<String, DataSourceValidator> crudValidators = new HashMap<>();
         for (DataSourcePlugin p : allDataSourcePlugins) {
@@ -566,6 +577,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 }
             });
         }
+        Set<String> secretNames = new HashSet<>();
+        allDataSourcePlugins.forEach(p -> secretNames.addAll(p.datasourceSecretSettingNames()));
+        this.dataSourceSecretSettingNames = Set.copyOf(secretNames);
 
         QueryMetricsListener collector = metricsCollectors.isEmpty() ? QueryMetricsListener.NOOP : metrics -> {
             for (var c : metricsCollectors) {
@@ -577,7 +591,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.clusterService(),
             crudValidators,
             encryptionService,
-            dataSourceModule.externalSourceMetrics()
+            dataSourceModule.externalSourceMetrics(),
+            services.threadPool().executor(ThreadPool.Names.GENERIC)
         );
         DataSourceInventoryCounters inventoryCounters = new DataSourceInventoryCounters(dataSourceService, dataSourceModule);
         DataSourceInventoryMetrics inventoryMetrics = new DataSourceInventoryMetrics(
@@ -599,7 +614,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 PromqlFunctionRegistry.INSTANCE,
                 parser,
                 cacheService,
-                services.indicesService().getAnalysis()
+                services.indicesService().getAnalysis(),
+                maxDiscoveredFiles::get,
+                maxGlobExpansion::get,
+                maxListedObjects::get
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),
@@ -670,6 +688,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
                 EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
                 EsqlFlags.ESQL_REMOTE_FETCH_TOPN,
+                RemoteFetchService.MAX_WORKERS_SETTING,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,
@@ -746,7 +765,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // not available the routes are unregistered, so PUT/GET/DELETE of data sources and datasets return the
         // framework's standard "no handler found for uri" (400), as if the feature never existed.
         if (Federation.isAvailable(restHandlersServices.settings())) {
-            handlers.add(new RestPutDataSourceAction());
+            handlers.add(new RestPutDataSourceAction(dataSourceSecretSettingNames));
             handlers.add(new RestGetDataSourceAction());
             handlers.add(new RestDeleteDataSourceAction());
             handlers.add(new RestPutDatasetAction());

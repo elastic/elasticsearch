@@ -77,9 +77,10 @@ public final class InternalSettingsPlugin extends Plugin {
             IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING,
             FsService.ALWAYS_REFRESH_SETTING,
             PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
-            ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING,
-            ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RELOCATION_RECOVERIES_SETTING,
+            ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING,
+            ThrottlingRecoveryService.INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING,
             RecoveryDirectCancellationService.ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING,
+            RecoveryDirectCancellationService.ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOTS_SETTING,
             RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING,
             RecoveryGateMonitor.RECHECK_INTERVAL_SETTING
         );

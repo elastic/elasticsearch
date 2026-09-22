@@ -267,9 +267,9 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         metrics.recordQuery(ExternalSourceMetrics.OUTCOME_CANCELLED, 10L, false);
         metrics.recordQuery(ExternalSourceMetrics.OUTCOME_SUCCESS, 50L, true);
         metrics.recordTimeToFirstRow(30L, "s3", "parquet");
-        metrics.recordDiscovery(20L, 3L, 4096L, "s3");
+        metrics.recordDiscovery(20L, 3L, 4096L, "s3", FormatReader.SchemaResolution.STRICT, false);
         metrics.recordDiscoveryFailure();
-        metrics.recordParse(100L, 40L, "gcs", "csv");
+        metrics.recordParse(100L, 40L, 28L, "gcs", "csv");
         metrics.recordSplitsScanned(2L, "s3", "parquet");
         metrics.recordPoolRejected();
         metrics.recordBreakerTripped();

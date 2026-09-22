@@ -19,6 +19,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.FormatVersion;
+import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 import org.elasticsearch.test.ESTestCase;
@@ -128,10 +129,70 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         final DictionaryPolicy policy,
         final ColumnCheck check
     ) throws IOException {
+        withColumn(
+            docSlots,
+            blockSize,
+            chunkCodec,
+            targetChunkBytes,
+            policy,
+            StringColumnOptions.DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
+            check
+        );
+    }
+
+    /** As above, fixing the block a column's ordinals take when they are stored compressed. */
+    protected void withColumn(
+        final BytesRef[][] docSlots,
+        final int blockSize,
+        final ChunkCodec chunkCodec,
+        final int targetChunkBytes,
+        final DictionaryPolicy policy,
+        final int compressedOrdinalBlockSize,
+        final ColumnCheck check
+    ) throws IOException {
+        withColumn(
+            docSlots,
+            blockSize,
+            chunkCodec,
+            targetChunkBytes,
+            policy,
+            compressedOrdinalBlockSize,
+            StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
+            check
+        );
+    }
+
+    /** As above, fixing the block a column's slot counts are kept in, so a test can put a boundary where it wants one. */
+    protected void withColumn(
+        final BytesRef[][] docSlots,
+        final int blockSize,
+        final ChunkCodec chunkCodec,
+        final int targetChunkBytes,
+        final DictionaryPolicy policy,
+        final int compressedOrdinalBlockSize,
+        final int slotCountsBlockSize,
+        final ColumnCheck check
+    ) throws IOException {
+        // A test that names a byte target is naming how small a chunk should be, not that it must be cut by
+        // bytes alone, so the value bound is randomized under it.
+        final StringColumnOptions.Sizes sizes = new StringColumnOptions.Sizes(
+            blockSize,
+            randomChunkBounds(targetChunkBytes),
+            randomChunkBounds(targetChunkBytes),
+            StringColumnOptions.DEFAULT_PACKED_ORDINAL_BLOCK_SIZE,
+            compressedOrdinalBlockSize,
+            StringColumnOptions.DEFAULT_ESCAPE_RANK_BLOCK_SIZE,
+            slotCountsBlockSize
+        );
+        withColumn(docSlots, new StringColumnOptions(policy, chunkCodec, sizes), check);
+    }
+
+    /** As above, with every choice named at once, for a test that cares about one the overloads do not reach. */
+    protected void withColumn(final BytesRef[][] docSlots, final StringColumnOptions options, final ColumnCheck check) throws IOException {
         final byte[] segmentId = new byte[16];
         random().nextBytes(segmentId);
         try (Directory dir = newDirectory()) {
-            final StringColumnMetadata metadata = writeColumn(dir, segmentId, docSlots, blockSize, chunkCodec, targetChunkBytes, policy);
+            final StringColumnMetadata metadata = writeColumn(dir, segmentId, docSlots, options);
             try (IndexInput data = openData(dir, segmentId)) {
                 check.check(metadata, StringColumnReader.open(metadata, data));
             }
@@ -180,6 +241,17 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
     protected static StringColumnMetadata.Plain plainOf(StringColumnMetadata metadata) {
         assertTrue("expected a plain column, got " + metadata.layout(), metadata instanceof StringColumnMetadata.Plain);
         return (StringColumnMetadata.Plain) metadata;
+    }
+
+    /**
+     * What closes a chunk of {@code targetChunkBytes}: that byte target alone, or a value bound under it.
+     * The value bounds include ones no block size divides, so a chunk closes at the first boundary past the
+     * bound rather than on it.
+     */
+    protected static ChunkBounds randomChunkBounds(int targetChunkBytes) {
+        return randomBoolean()
+            ? ChunkBounds.ofBytes(targetChunkBytes)
+            : new ChunkBounds(targetChunkBytes, randomFrom(1, 100, 128, 200, 1024));
     }
 
     /** Verbatim or compressed; a value must read back the same either way. */
@@ -247,10 +319,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         final Directory dir,
         final byte[] segmentId,
         final BytesRef[][] docSlots,
-        final int blockSize,
-        final ChunkCodec chunkCodec,
-        final int targetChunkBytes,
-        final DictionaryPolicy policy
+        final StringColumnOptions options
     ) throws IOException {
         final StringColumnMetadata written;
         try (IndexOutput out = dir.createOutput(DATA_FILE, IOContext.DEFAULT)) {
@@ -261,10 +330,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
                 numValues(docSlots),
                 numNullSlots(docSlots),
                 () -> cursor(docSlots),
-                blockSize,
-                chunkCodec,
-                targetChunkBytes,
-                policy,
+                options,
                 null,
                 dir,
                 IOContext.DEFAULT,

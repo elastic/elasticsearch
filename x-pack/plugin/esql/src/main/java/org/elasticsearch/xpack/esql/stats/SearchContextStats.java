@@ -414,14 +414,24 @@ public class SearchContextStats implements SearchStats {
             }
             // else: neither points nor skippers → cannot prove single-valuedness; tester stays null
         } else if (fieldType instanceof KeywordFieldType keywordFieldType) {
-            // NOTE: Terms cannot prove value cardinality for these keyword storage shapes.
-            if (canUseKeywordTermsForDocValueCountEquality(keywordFieldType) == false) {
+            if (keywordFieldType.usesMultivaluedBinaryDocValues()) {
+                // The binary multivalued format can store duplicate values per document (e.g. ["A", "A", "B"]).
+                // The terms index deduplicates per document, resulting in a lower sum doc freq than actually is.
                 return false;
             }
-            tester = lr -> {
-                Terms terms = lr.terms(name);
-                return terms == null || terms.getSumDocFreq() == terms.getDocCount();
-            };
+
+            if (keywordFieldType.indexType().hasDocValuesSkipper()) {
+                tester = lr -> {
+                    DocValuesSkipper skipper = lr.getDocValuesSkipper(name);
+                    return skipper == null || skipper.maxValueCount() == 1;
+                };
+            } else if (keywordFieldType.indexType().hasTerms()) {
+                tester = lr -> {
+                    Terms terms = lr.terms(name);
+                    return terms == null || terms.getSumDocFreq() == terms.getDocCount();
+                };
+            }
+            // else: cannot prove single-valuedness; tester stays null
         }
 
         if (tester != null) {
@@ -437,10 +447,6 @@ public class SearchContextStats implements SearchStats {
 
         // unsupported type - default to MV
         return false;
-    }
-
-    private static boolean canUseKeywordTermsForDocValueCountEquality(KeywordFieldType fieldType) {
-        return fieldType.usesMultivaluedBinaryDocValues() == false && fieldType.indexType().hasTerms();
     }
 
     @Override

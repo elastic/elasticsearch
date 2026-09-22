@@ -36,7 +36,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatVectorQuery;
 
 import java.io.IOException;
@@ -61,9 +61,9 @@ public class IvfKnnNestedFilterSingleValueWarningsTests extends ComputeTestCase 
         when(fieldData.getFieldName()).thenReturn(fieldName);
         LeafFieldData leafFieldData = mock(LeafFieldData.class);
         when(fieldData.load(any())).thenReturn(leafFieldData);
-        SortedBinaryDocValues sortedBinaryDocValues = mock(SortedBinaryDocValues.class);
+        SortableBinaryDocValues sortedBinaryDocValues = mock(SortableBinaryDocValues.class);
         when(leafFieldData.getBytesValues()).thenReturn(sortedBinaryDocValues);
-        when(sortedBinaryDocValues.getValueMode()).thenReturn(SortedBinaryDocValues.ValueMode.MULTI_VALUED);
+        when(sortedBinaryDocValues.getValueMode()).thenReturn(SortableBinaryDocValues.ValueMode.MULTI_VALUED);
         try {
             when(sortedBinaryDocValues.advanceExact(anyInt())).thenReturn(true);
         } catch (IOException e) {

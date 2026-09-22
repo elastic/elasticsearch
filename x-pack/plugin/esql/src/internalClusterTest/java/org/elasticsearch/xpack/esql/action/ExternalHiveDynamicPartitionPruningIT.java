@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -97,11 +98,56 @@ public class ExternalHiveDynamicPartitionPruningIT extends AbstractExternalDataS
         assertPrune(dataset, "WHERE year IN (FROM wanted_years | KEEP year)", TOTAL_FILES, idsWhere(y -> y == 2024 || y == 2025));
     }
 
+    /**
+     * {@code testSemiBothYearsScansAll} lists both folder years, so that IN list drops nothing.
+     * A second value that matches no folder must still drop {@code year=2024}.
+     */
+    public void testSemiPartialInListPrunes() throws Exception {
+        String dataset = registerTree("csv_semi_partial");
+        createYearIndex("wanted_years", 2025, 2099);
+
+        assertPrune(dataset, "WHERE year IN (FROM wanted_years | KEEP year)", 4, idsWhere(y -> y == 2025));
+    }
+
     public void testAntiPrune() throws Exception {
         String dataset = registerTree("csv_anti");
         createYearIndex("wanted_years", 2025);
 
         assertPrune(dataset, "WHERE year NOT IN (FROM wanted_years | KEEP year)", 4, idsWhere(y -> y == 2024));
+    }
+
+    /**
+     * Every right value is NULL. SEMI short-circuits to an empty {@code LocalRelation}
+     * ({@link org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin#buildShortCircuitPlan}),
+     * same observable as empty IN: no Hive scan.
+     */
+    public void testSemiNullRightIsEmpty() throws Exception {
+        String dataset = registerTree("csv_semi_null");
+        createIntegerFieldIndex("wanted_years", "year", true);
+
+        assertPrune(dataset, "WHERE year IN (FROM wanted_years | KEEP year)", 0, List.of());
+    }
+
+    /**
+     * Any NULL on the right makes {@code NOT IN} unknown for every left row, even when a non-null year is
+     * also present. ANTI short-circuits to empty; it must not return the 2024 complement of 2025.
+     */
+    public void testAntiNullRightIsEmpty() throws Exception {
+        String dataset = registerTree("csv_anti_null");
+        createIntegerFieldIndex("wanted_years", "year", true, 2025);
+
+        assertPrune(dataset, "WHERE year NOT IN (FROM wanted_years | KEEP year)", 0, List.of());
+    }
+
+    /**
+     * Folders are {@code month=06}. The index supplies integer {@code 6}. The padded spelling must still
+     * match and drop {@code month=01}.
+     */
+    public void testMonthIntegerMatchesZeroPaddedFolder() throws Exception {
+        String dataset = registerTree("csv_month_pad");
+        createIntegerFieldIndex("wanted_months", "month", 6);
+
+        assertPrune(dataset, "WHERE month IN (FROM wanted_months | KEEP month)", 4, idsWhere((y, m, d) -> m == 6));
     }
 
     /**
@@ -185,11 +231,11 @@ public class ExternalHiveDynamicPartitionPruningIT extends AbstractExternalDataS
                 );
             } else {
                 // Inverse of ExternalHivePartitionPruningIT.testZeroMatchPruneReadsNothing: L1 exhaustive
-                // prune still starts a scan operator with 0 splits. Empty SEMI replaces the left with
-                // LocalRelation, so no Hive scan runs at all.
-                assertThat("empty SEMI replaces the left with LocalRelation; no Hive scan node", externalScanNodeNames(response), empty());
+                // prune still starts a scan operator with 0 splits. Empty SEMI and a NULL short-circuit
+                // replace the left with LocalRelation, so no Hive scan runs at all.
+                assertThat("left replaced by LocalRelation; no Hive scan node", externalScanNodeNames(response), empty());
                 assertThat(
-                    "empty SEMI must not start an external scan (that would be L1 exhaustive prune)",
+                    "LocalRelation must not start an external scan (that would be L1 exhaustive prune)",
                     externalScanStatuses(response),
                     empty()
                 );
@@ -210,19 +256,27 @@ public class ExternalHiveDynamicPartitionPruningIT extends AbstractExternalDataS
     }
 
     private void createYearIndex(String name, int... years) {
-        assertAcked(client().admin().indices().prepareCreate(name).setMapping("year", "type=integer"));
-        createdIndices.add(name);
-        for (int year : years) {
-            client().prepareIndex(name).setSource("year", year).get();
-        }
-        client().admin().indices().prepareRefresh(name).get();
-        ensureGreen(name);
+        createIntegerFieldIndex(name, "year", years);
     }
 
     private void createIdIndex(String name, int id) {
-        assertAcked(client().admin().indices().prepareCreate(name).setMapping("id", "type=integer"));
+        createIntegerFieldIndex(name, "id", id);
+    }
+
+    private void createIntegerFieldIndex(String name, String field, int... values) {
+        createIntegerFieldIndex(name, field, false, values);
+    }
+
+    /** {@code includeNull} indexes one document whose field is JSON null, so the subquery yields NULL. */
+    private void createIntegerFieldIndex(String name, String field, boolean includeNull, int... values) {
+        assertAcked(client().admin().indices().prepareCreate(name).setMapping(field, "type=integer"));
         createdIndices.add(name);
-        client().prepareIndex(name).setSource("id", id).get();
+        for (int value : values) {
+            client().prepareIndex(name).setSource(field, value).get();
+        }
+        if (includeNull) {
+            client().prepareIndex(name).setSource("{\"" + field + "\":null}", XContentType.JSON).get();
+        }
         client().admin().indices().prepareRefresh(name).get();
         ensureGreen(name);
     }

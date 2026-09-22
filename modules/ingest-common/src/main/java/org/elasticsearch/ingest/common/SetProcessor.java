@@ -10,6 +10,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -84,7 +85,7 @@ public final class SetProcessor extends AbstractProcessor {
         if (overrideEnabled || document.hasField(path) == false || document.getFieldValue(path, Object.class) == null) {
             if (copyFrom != null) {
                 Object fieldValue = document.getFieldValue(copyFrom, Object.class, ignoreEmptyValue);
-                document.setFieldValue(path, IngestDocument.deepCopy(fieldValue), ignoreEmptyValue);
+                document.setFieldValue(path, CollectionUtils.deepCopy(fieldValue), ignoreEmptyValue);
             } else {
                 document.setFieldValue(path, value, ignoreEmptyValue);
             }

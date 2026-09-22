@@ -35,6 +35,7 @@ import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SimpleVectorTileFormatter;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.escf.EscfColumn;
@@ -496,18 +497,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                     "geo_point longitude [" + lon + "] is out of range or non-finite for [" + fullPath() + "]"
                 );
             }
-            int latEncoded = GeoEncodingUtils.encodeLatitude(lat);
-            int lonEncoded = GeoEncodingUtils.encodeLongitude(lon);
-            long packed = (((long) latEncoded) << 32) | (lonEncoded & 0xFFFFFFFFL);
-            int base = row * 8;
-            values[base] = (byte) (packed);
-            values[base + 1] = (byte) (packed >> 8);
-            values[base + 2] = (byte) (packed >> 16);
-            values[base + 3] = (byte) (packed >> 24);
-            values[base + 4] = (byte) (packed >> 32);
-            values[base + 5] = (byte) (packed >> 40);
-            values[base + 6] = (byte) (packed >> 48);
-            values[base + 7] = (byte) (packed >> 56);
+            long packed = packLatLon(lat, lon);
+            ByteUtils.writeLongLE(packed, values, row * 8);
             if (validity != null) {
                 validity.set(row);
             }
@@ -543,6 +534,10 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
     }
 
+    /**
+     * Lazily allocates a {@link FixedBitSet} validity mask and backfills all rows before {@code row}
+     * as present (bit set). Called on the first absent-or-null row in the batch.
+     */
     private static FixedBitSet initValidity(FixedBitSet validity, int docCount, int row) {
         if (validity == null) {
             validity = new FixedBitSet(docCount);
@@ -559,6 +554,21 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
     private static double readCoordinate(EscfColumn col, int row) {
         return col.kind() == EscfColumnKind.LONG ? col.getLongValue(row) : col.getDoubleValue(row);
+    }
+
+    /**
+     * Packs a lat/lon pair into the single {@code long} Lucene uses for geo_point doc values:
+     * quantized latitude in the high 32 bits, quantized longitude in the low 32 bits. Must stay
+     * bit-identical to {@code LatLonPointWithDocValues}, since every geo_point reader
+     * ({@code geo_bounding_box}, {@code geo_distance}, ES|QL, {@code docvalue_fields}) decodes
+     * this layout.
+     * <p>
+     * The {@code & 0xFFFFFFFFL} mask is required, not cosmetic: {@link GeoEncodingUtils#encodeLongitude}
+     * returns a signed {@code int} and western longitudes are negative, so implicit widening would
+     * sign-extend (e.g. {@code -1} → {@code 0xFFFF_FFFF_FFFF_FFFF}) and corrupt the latitude half.
+     */
+    private static long packLatLon(double lat, double lon) {
+        return (((long) GeoEncodingUtils.encodeLatitude(lat)) << 32) | (GeoEncodingUtils.encodeLongitude(lon) & 0xFFFFFFFFL);
     }
 
     private static boolean allPresentRowsAreNull(EscfColumn column) {

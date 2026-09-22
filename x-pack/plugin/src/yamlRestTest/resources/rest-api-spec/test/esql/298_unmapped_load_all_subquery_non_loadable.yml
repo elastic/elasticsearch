@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_subqueries, optional_fields_load_all_non_loadable_nulls_and_warns, subquery_in_from_command, aggregate_metric_double_v0, support_partial_results ]
+          capabilities: [ optional_fields_load_all_subqueries, subquery_in_from_command, aggregate_metric_double_v0, support_partial_results ]
       reason: 'a type with no implicit conversion from KEYWORD cannot be rebuilt from _source, so a sibling branch carrying a value null-fills and warns'
 
   - do:

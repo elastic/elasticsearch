@@ -1588,7 +1588,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     public void testLoadAllSubqueryMappedConflictStaysUnsupported() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         TestAnalyzer a = sampleDataAndSampleDataStr();
         for (String query : List.of(
             "FROM (FROM sample_data_str), (FROM sample_data)",
@@ -1645,10 +1644,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     public void testLoadAllSubqueryNonLoadableWarns() {
-        assumeTrue(
-            "Requires OPTIONAL_FIELDS_LOAD_ALL_NON_LOADABLE_NULLS_AND_WARNS",
-            EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_NON_LOADABLE_NULLS_AND_WARNS.isEnabled()
-        );
         var mapped = new EsIndex(
             "idx1",
             Map.of("tx", aggregateMetricDoubleField("tx")),

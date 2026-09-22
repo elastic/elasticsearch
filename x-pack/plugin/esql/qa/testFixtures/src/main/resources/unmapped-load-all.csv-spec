@@ -1987,7 +1987,6 @@ nonexistent-1  | null             | "{""doc_id"":""nonexistent-1""}"
 
 loadAllSubqueryMappedTextNullsOnSiblingWithSourceValue
 required_capability: optional_fields_load_all_subqueries
-required_capability: optional_fields_load_all_non_loadable_nulls_and_warns
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -2094,7 +2093,6 @@ null
 
 loadAllSubqueryMappedAmdNullsOnUnmappedSiblingWithSourceValue
 required_capability: optional_fields_load_all_subqueries
-required_capability: optional_fields_load_all_non_loadable_nulls_and_warns
 required_capability: subquery_in_from_command
 required_capability: aggregate_metric_double_v0
 
@@ -2114,7 +2112,6 @@ k8s_unmapped    | null
 // EVAL so the filter is not Lucene-pushed: the unmapped sibling's integer _source is still read, then dropped.
 loadAllSubqueryMappedAmdNullsOnUnmappedSiblingLateFilter
 required_capability: optional_fields_load_all_subqueries
-required_capability: optional_fields_load_all_non_loadable_nulls_and_warns
 required_capability: subquery_in_from_command
 required_capability: aggregate_metric_double_v0
 
@@ -4294,7 +4291,6 @@ dense_vector_unmapped | 0    | null
 
 loadAllSubqueryDenseVectorWarnsAndNulls
 required_capability: optional_fields_load_all_subqueries
-required_capability: optional_fields_load_all_non_loadable_nulls_and_warns
 required_capability: optional_fields_fix_partially_unmapped_dense_vector
 required_capability: subquery_in_from_command
 

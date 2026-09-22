@@ -25,6 +25,8 @@ import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayDeque;
@@ -1140,6 +1142,8 @@ public final class IngestDocument {
             || value instanceof Long
             || value instanceof Float
             || value instanceof Double
+            || value instanceof BigInteger
+            || value instanceof BigDecimal
             || value instanceof Boolean
             || value instanceof ZonedDateTime) {
                 return value;

@@ -32,6 +32,7 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
 
@@ -114,11 +115,13 @@ public abstract class PartitionedGroupingAggregatorFunctionTestCase extends Grou
         return pages;
     }
 
-    record Key(long longKey, int intKey) implements Comparable<Key> {
+    record Key(Long longKey, Integer intKey) implements Comparable<Key> {
+        private static final Comparator<Key> COMPARATOR = Comparator.comparing(Key::longKey, Comparator.nullsFirst(Long::compare))
+            .thenComparing(Key::intKey, Comparator.nullsFirst(Integer::compare));
+
         @Override
         public int compareTo(Key other) {
-            int compareLong = Long.compare(longKey, other.longKey);
-            return compareLong != 0 ? compareLong : Integer.compare(intKey, other.intKey);
+            return COMPARATOR.compare(this, other);
         }
     }
 
@@ -182,7 +185,8 @@ public abstract class PartitionedGroupingAggregatorFunctionTestCase extends Grou
                 IntBlock intKeys = page.getBlock(1);
                 Block valueBlock = page.getBlock(2);
                 for (int p = 0; p < page.getPositionCount(); p++) {
-                    rows.add(new AggResult(new Key(longKeys.getLong(p), intKeys.getInt(p)), BlockUtils.toJavaObject(valueBlock, p)));
+                    Key key = new Key(longKeys.isNull(p) ? null : longKeys.getLong(p), intKeys.isNull(p) ? null : intKeys.getInt(p));
+                    rows.add(new AggResult(key, BlockUtils.toJavaObject(valueBlock, p)));
                 }
             }
             return rows.stream().sorted().toList();

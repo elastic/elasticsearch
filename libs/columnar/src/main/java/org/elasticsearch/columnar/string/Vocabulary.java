@@ -51,7 +51,7 @@ public final class Vocabulary {
      * @param terms          the surveyed terms, addressed by id
      * @param sortedIds      the kept ids in term order, so an ordinal comparison is a term comparison
      * @param ordinalOfId    an ordinal per surveyed id, or {@link #DROPPED} for one that was not kept
-     * @param coverage       the share of the column's values these terms account for, as a lower bound
+     * @param coverage       the share of the column's raw bytes these terms account for, as a lower bound
      * @param dictionaryBytes the term bytes the kept terms occupy
      * @param columnBytes    the value bytes the whole column occupies
      * @param counts         how often each id was seen, as a lower bound, or null when unknown
@@ -113,13 +113,8 @@ public final class Vocabulary {
     /**
      * Surveys {@code values}, returning the terms worth a dictionary entry, or null when the column holds
      * nothing worth naming.
-     *
-     * @param numNonNullValues the slots a term could account for, which is every slot but the null ones. A
-     *                         null is named by a reserved ordinal rather than by a dictionary entry, so
-     *                         counting it here would hold a column's nulls against a dictionary that covers
-     *                         every value it actually has.
      */
-    public static Terms survey(StringColumnValues values, DictionaryPolicy policy, long numNonNullValues) throws IOException {
+    public static Terms survey(StringColumnValues values, DictionaryPolicy policy) throws IOException {
         final BytesRefHash terms = new BytesRefHash(new ByteBlockPool(new ByteBlockPool.DirectTrackingAllocator(Counter.newCounter())));
         int[] counts = new int[64];
         long tableBytes = 0;
@@ -141,7 +136,9 @@ public final class Vocabulary {
                     // displace a real term — on the strength of values that are not empty strings.
                     continue;
                 }
-                columnBytes += value.length;
+                // NOTE: empty strings occupy an ordinal slot and a plain-path entry, so they count
+                // as one virtual byte to keep the denominator positive and the metric meaningful.
+                columnBytes += Math.max(1, value.length);
                 if (hasPrevious && previous.get().bytesEquals(value)) {
                     if (previousId != ABSENT) {
                         counts[previousId]++;
@@ -193,18 +190,17 @@ public final class Vocabulary {
         // Indexed by id, so a term the survey saw but did not keep is told apart from ordinal zero.
         final int[] ordinalOfId = new int[terms.size()];
         Arrays.fill(ordinalOfId, DROPPED);
-        long covered = 0;
+        long coveredBytes = 0;
         long keptBytes = 0;
         final BytesRef scratch = new BytesRef();
         for (int ordinal = 0; ordinal < sortedIds.length; ordinal++) {
             final int id = sortedIds[ordinal];
             ordinalOfId[id] = ordinal;
-            covered += counts[id];
             terms.get(id, scratch);
+            coveredBytes += (long) counts[id] * Math.max(1, scratch.length);
             keptBytes += scratch.length;
         }
-        final double coverage = numNonNullValues == 0 ? 0.0 : (double) covered / numNonNullValues;
-        return new Terms(terms, sortedIds, ordinalOfId, coverage, keptBytes, columnBytes, counts);
+        return new Terms(terms, sortedIds, ordinalOfId, (double) coveredBytes / columnBytes, keptBytes, columnBytes, counts);
     }
 
     /**

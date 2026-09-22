@@ -175,6 +175,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
+        ESNextDiskBBQVectorsFormat.validateSliceSort(sliceField, state.segmentInfo.getIndexSort());
         return new ESNextDiskASHVectorsWriter(
             state,
             rawVectorFormat.getName(),
@@ -194,6 +195,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
+        ESNextDiskBBQVectorsFormat.validateSliceSort(sliceField, state.segmentInfo.getIndexSort());
         return new ESNextDiskASHVectorsReader(state, (f, dio) -> {
             var format = supportedFormats.get(f);
             if (format == null) return null;

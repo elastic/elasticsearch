@@ -13,7 +13,6 @@ import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
@@ -40,22 +39,16 @@ public final class MonotonicWriter implements Closeable {
         public static final Table NONE = new Table(0, 0, new byte[0]);
     }
 
-    private final Directory directory;
-    private final IOContext context;
     private final ByteBuffersDataOutput metaBuffer = new ByteBuffersDataOutput();
     private final IndexOutput metaOut;
-    private final IndexOutput dataTemp;
-    private final String tempName;
+    private final StagedBytes staged;
     private final DirectMonotonicWriter writer;
-    private boolean dataClosed = false;
+    private boolean finished = false;
 
     public MonotonicWriter(Directory directory, IOContext context, String prefix, long numValues) throws IOException {
-        this.directory = directory;
-        this.context = context;
         this.metaOut = new ByteBuffersIndexOutput(metaBuffer, "monotonic-meta", "monotonic-meta");
-        this.dataTemp = directory.createTempOutput(prefix, "columnar-monotonic", context);
-        this.tempName = dataTemp.getName();
-        this.writer = DirectMonotonicWriter.getInstance(metaOut, dataTemp, numValues, BLOCK_SHIFT);
+        this.staged = new StagedBytes(directory, context, prefix, "columnar-monotonic");
+        this.writer = DirectMonotonicWriter.getInstance(metaOut, staged.output(), numValues, BLOCK_SHIFT);
     }
 
     public void add(long value) throws IOException {
@@ -66,23 +59,19 @@ public final class MonotonicWriter implements Closeable {
     public Table finish(IndexOutput data) throws IOException {
         writer.finish();
         metaOut.close();
-        dataTemp.close();
-        dataClosed = true;
-        long dataOffset = data.getFilePointer();
-        try (IndexInput in = directory.openInput(tempName, context)) {
-            data.copyBytes(in, in.length());
-        }
+        finished = true;
+        final long dataOffset = staged.copyInto(data);
         return new Table(dataOffset, data.getFilePointer() - dataOffset, metaBuffer.toArrayCopy());
     }
 
     @Override
     public void close() throws IOException {
         try {
-            if (dataClosed == false) {
-                IOUtils.closeWhileHandlingException(metaOut, dataTemp);
+            if (finished == false) {
+                IOUtils.closeWhileHandlingException(metaOut);
             }
         } finally {
-            IOUtils.deleteFilesIgnoringExceptions(directory, tempName);
+            staged.close();
         }
     }
 }

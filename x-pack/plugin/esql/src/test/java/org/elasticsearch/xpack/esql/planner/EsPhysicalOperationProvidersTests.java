@@ -52,7 +52,6 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
@@ -64,6 +63,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -72,7 +72,6 @@ import java.util.function.BiFunction;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 
 public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
 
@@ -236,12 +235,6 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             ByteSizeValue.ofKb(100),
             ByteSizeValue.ofKb(300)
         );
-        // Gated on OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE: a release build must still dispatch KeywordFieldType's own loaders, so
-        // there is no source-path spec to assert there. Without this branch the test fails under -Dbuild.snapshot=false.
-        if (EsqlCapabilities.Cap.OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE.isEnabled() == false) {
-            assertThat(blockLoader, not(instanceOf(UnmappedKeywordBlockLoader.class)));
-            return;
-        }
         assertThat(blockLoader, instanceOf(UnmappedKeywordBlockLoader.class));
         assertThat(
             "unmapped keyword loader must filter _source to its own path rather than request the whole document",
@@ -343,6 +336,27 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         assertThat("other_field must be excluded", result.containsKey("other_field"), equalTo(false));
         assertThat("embedding must be excluded", result.containsKey("embedding"), equalTo(false));
         assertThat("exactly 2 fields survive", result.size(), equalTo(2));
+    }
+
+    public void testBuildSourceFilterWithTooComplexPatternsThrowsIllegalArgument() throws IOException {
+        var indexSettings = Settings.builder().put("index.mapping.exclude_source_vectors", true).build();
+        var mapperService = createMapperService(indexSettings, mapping(b -> {
+            b.startObject("text_field").field("type", "text").endObject();
+            b.startObject("embedding").field("type", "dense_vector").field("dims", 3).endObject();
+        }));
+        var searchExecutionContext = createSearchExecutionContext(mapperService, null);
+
+        Set<String> complexPaths = new HashSet<>();
+        for (int i = 0; i < 50; i++) {
+            complexPaths.add("*" + randomAlphaOfLength(10) + "*");
+        }
+
+        var mappingLookup = searchExecutionContext.getMappingLookup();
+        var idxSettings = searchExecutionContext.getIndexSettings();
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> EsPhysicalOperationProviders.DefaultShardContext.buildSourceFilter(complexPaths, mappingLookup, idxSettings)
+        );
     }
 
     private ValuesSourceReaderOperator.LoaderAndConverter temporalityLoader(EsPhysicalOperationProviders provider) {

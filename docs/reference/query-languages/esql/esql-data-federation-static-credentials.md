@@ -136,7 +136,6 @@ PUT /_query/data_source/prod_s3_static
 {
   "type": "s3",
   "settings": {
-    "region": "eu-north-1",
     "auth": "static_credentials",
     "access_key": "<AWS_ACCESS_KEY_ID>", <1>
     "secret_key": "<AWS_SECRET_ACCESS_KEY>"
@@ -155,7 +154,6 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_static" \
   -d '{
   "type": "s3",
   "settings": {
-    "region": "eu-north-1",
     "auth": "static_credentials",
     "access_key": "<AWS_ACCESS_KEY_ID>",
     "secret_key": "<AWS_SECRET_ACCESS_KEY>"

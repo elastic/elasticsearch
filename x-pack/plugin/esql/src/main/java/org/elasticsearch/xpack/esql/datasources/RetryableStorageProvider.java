@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -87,6 +88,12 @@ class RetryableStorageProvider implements StorageProvider {
         RetryPolicy policy = policyFor(prefix);
         StorageIterator iterator = policy.execute(() -> delegate.listObjects(prefix, recursive), "listObjects", prefix);
         return new RetryableStorageIterator(iterator, policy, prefix);
+    }
+
+    @Override
+    public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
+        // Fully materialized by the delegate, so the whole call retries as one unit — no iterator to wrap.
+        return policyFor(prefix).execute(() -> delegate.listChildren(prefix, limit), "listChildren", prefix);
     }
 
     @Override

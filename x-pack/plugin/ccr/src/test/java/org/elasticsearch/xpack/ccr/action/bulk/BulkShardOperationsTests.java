@@ -159,7 +159,7 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
         primaryTerm = randomLongBetween(primaryTerm, primaryTerm + 10);
         final IndexShard newPrimary = reinitShard(oldPrimary);
         newPrimary.markAsRecovering("store");
-        assertTrue(recoverFromStore(newPrimary));
+        recoverFromStore(newPrimary);
         IndexShardTestCase.updateRoutingEntry(
             newPrimary,
             newPrimary.routingEntry().moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)

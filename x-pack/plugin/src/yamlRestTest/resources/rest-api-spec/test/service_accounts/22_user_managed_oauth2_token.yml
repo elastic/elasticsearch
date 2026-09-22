@@ -1,0 +1,308 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_security/service/{namespace}/{service}
+          capabilities: [user_managed_service_accounts]
+      test_runner_features: capabilities
+      reason: "User-managed service accounts are unavailable in multi-project clusters"
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "umsa_oauth2_monitor"
+        body: >
+          {
+            "cluster": ["monitor"]
+          }
+
+---
+teardown:
+  - do:
+      security.delete_service_token:
+        namespace: apps
+        service: oauth2_worker
+        name: exchange-token
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: elastic
+        service: fleet-server
+        name: builtin-exchange-token
+        ignore: 404
+
+  - do:
+      security.delete_user_managed_service_account:
+        namespace: apps
+        service: oauth2_worker
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: apps
+        service: oauth2_self_minter
+        name: self-mint-token
+        ignore: 404
+
+  - do:
+      security.delete_user_managed_service_account:
+        namespace: apps
+        service: oauth2_self_minter
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "umsa_oauth2_monitor"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "umsa_oauth2_manage_token"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "umsa_oauth2_broker"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "umsa_oauth2_broker"
+        ignore: 404
+
+---
+"Test a manage_token broker can exchange a user-managed service account token but the account cannot":
+  - do:
+      security.put_role:
+        name: "umsa_oauth2_broker"
+        body:
+          cluster: ["manage_token"]
+
+  - do:
+      security.put_user:
+        username: "umsa_oauth2_broker"
+        body:
+          password: "x-pack-test-password"
+          roles: ["umsa_oauth2_broker"]
+
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: oauth2_worker
+        body: >
+          {
+            "roles": ["umsa_oauth2_monitor"],
+            "enabled": true
+          }
+  - match: { created: true }
+
+  - do:
+      security.create_service_token:
+        namespace: apps
+        service: oauth2_worker
+        name: exchange-token
+  - is_true: created
+  - set: { "token.value": service_account_token }
+
+  # The credential authenticates, but the account has no token-minting authority.
+  - do:
+      headers:
+        Authorization: Bearer ${service_account_token}
+      security.authenticate: {}
+  - match: { username: "apps/oauth2_worker" }
+  - match: { roles: ["umsa_oauth2_monitor"] }
+
+  - do:
+      headers:
+        Authorization: Bearer ${service_account_token}
+      security.has_privileges:
+        user: null
+        body:
+          cluster: ["manage_token"]
+  - match: { "cluster.manage_token": false }
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: Bearer ${service_account_token}
+      security.get_token:
+        body:
+          grant_type: "_user_managed_service_account"
+          service_account_token: "${service_account_token}"
+  - match: { error.type: "security_exception" }
+
+  # The independently authenticated broker can exchange the same credential for a token representing the account.
+  - do:
+      headers:
+        Authorization: "Basic dW1zYV9vYXV0aDJfYnJva2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # umsa_oauth2_broker
+      security.get_token:
+        body:
+          grant_type: "_user_managed_service_account"
+          service_account_token: "${service_account_token}"
+  - match: { type: "Bearer" }
+  - is_true: access_token
+  - is_false: refresh_token
+  - match: { authentication.username: "apps/oauth2_worker" }
+  - set: { access_token: umsa_access_token }
+
+  - do:
+      headers:
+        Authorization: Bearer ${umsa_access_token}
+      security.authenticate: {}
+  - match: { username: "apps/oauth2_worker" }
+  - match: { roles: ["umsa_oauth2_monitor"] }
+  - match: { metadata._user_managed_service_account: true }
+  - match: { authentication_type: "token" }
+
+  - do:
+      headers:
+        Authorization: Bearer ${umsa_access_token}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["monitor", "manage_own_api_key", "manage_token"]
+          }
+  - match: { "cluster.monitor": true }
+  - match: { "cluster.manage_own_api_key": false }
+  - match: { "cluster.manage_token": false }
+
+  # Disabling the account is picked up on the next exchange because the credential is re-authenticated each time
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: oauth2_worker
+        body: >
+          {
+            "roles": ["umsa_oauth2_monitor"],
+            "enabled": false
+          }
+  - match: { created: false }
+
+  - do:
+      catch: unauthorized
+      headers:
+        Authorization: "Basic dW1zYV9vYXV0aDJfYnJva2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # umsa_oauth2_broker
+      security.get_token:
+        body:
+          grant_type: "_user_managed_service_account"
+          service_account_token: "${service_account_token}"
+
+  # Disabling the account does not revoke access tokens already issued; those follow the standard token service
+  # lifetime and can be invalidated like any other access token
+  - do:
+      headers:
+        Authorization: Bearer ${umsa_access_token}
+      security.authenticate: {}
+  - match: { username: "apps/oauth2_worker" }
+
+  - do:
+      security.invalidate_token:
+        body:
+          token: "${umsa_access_token}"
+  - match: { invalidated_tokens: 1 }
+  - match: { previously_invalidated_tokens: 0 }
+  - match: { error_count: 0 }
+
+  - do:
+      catch: unauthorized
+      headers:
+        Authorization: Bearer ${umsa_access_token}
+      security.authenticate: {}
+
+---
+"Test a user-managed service account with manage_token cannot mint its own token with client_credentials":
+  - do:
+      security.put_role:
+        name: "umsa_oauth2_manage_token"
+        body:
+          cluster: ["manage_token"]
+
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: oauth2_self_minter
+        body: >
+          {
+            "roles": ["umsa_oauth2_manage_token"],
+            "enabled": true
+          }
+  - match: { created: true }
+
+  - do:
+      security.create_service_token:
+        namespace: apps
+        service: oauth2_self_minter
+        name: self-mint-token
+  - is_true: created
+  - set: { "token.value": self_minter_token }
+
+  # The account holds manage_token, so authorization passes; the rejection comes from the long-standing rule that service
+  # accounts may not create OAuth2 tokens for themselves. That is a client error (400), not an RFC 6749 token error.
+  - do:
+      headers:
+        Authorization: Bearer ${self_minter_token}
+      security.has_privileges:
+        user: null
+        body:
+          cluster: ["manage_token"]
+  - match: { "cluster.manage_token": true }
+
+  - do:
+      catch: bad_request
+      headers:
+        Authorization: Bearer ${self_minter_token}
+      security.get_token:
+        body:
+          grant_type: "client_credentials"
+  - match: { error.type: "security_exception" }
+  - match: { error.reason: "OAuth2 token creation is not supported for service accounts" }
+
+---
+"Test the user-managed service account grant rejects built-in service account tokens":
+  - do:
+      security.create_service_token:
+        namespace: elastic
+        service: fleet-server
+        name: builtin-exchange-token
+  - is_true: created
+  - set: { "token.value": builtin_service_account_token }
+
+  - do:
+      catch: bad_request
+      security.get_token:
+        body:
+          grant_type: "_user_managed_service_account"
+          service_account_token: "${builtin_service_account_token}"
+  - match: { error: "invalid_grant" }
+  - match: { error_description: "service_account_token must belong to a user-managed service account" }
+
+---
+"Test the user-managed service account grant rejects malformed tokens":
+  - do:
+      catch: bad_request
+      security.get_token:
+        body:
+          grant_type: "_user_managed_service_account"
+          service_account_token: "obviously-not-a-service-account-token"
+  - match: { error: "invalid_grant" }
+  - match: { error_description: "service_account_token is not a valid service account token" }
+
+---
+"Test the user-managed service account grant requires a service_account_token":
+  - do:
+      catch: bad_request
+      security.get_token:
+        body:
+          grant_type: "_user_managed_service_account"
+  - match: { error: "invalid_request" }

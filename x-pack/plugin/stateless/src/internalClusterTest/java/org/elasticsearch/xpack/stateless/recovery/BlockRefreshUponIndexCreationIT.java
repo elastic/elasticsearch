@@ -310,6 +310,9 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessPluginInte
         }
 
         ensureGreen(indices.toArray(new String[] {}));
+        // Trigger a new commit now that every search shard is assigned, so shards whose recovery may have raced and
+        // missed the last notification catch up. See: https://github.com/elastic/elasticsearch/issues/150492
+        assertNoFailures(safeGet(indexDocsWithRefreshPolicy(indices, 10, WriteRequest.RefreshPolicy.IMMEDIATE)));
 
         concurrentBulkFutures.forEach(bulkFuture -> assertNoFailures(safeGet(bulkFuture)));
         concurrentRefreshFutures.forEach(refreshFuture -> assertNoFailures(safeGet(refreshFuture)));

@@ -71,26 +71,62 @@ public class ExtendedDistributionPropertyTests extends ESTestCase {
 
         ExternalDistributionPlan plan = WeightedRoundRobinStrategy.assignByWeight(splits, nodes);
 
-        long totalSize = 0;
+        long totalCost = 0;
         long maxNodeLoad = 0;
+        long largest = 0;
         for (ExternalSplit split : splits) {
-            totalSize += split.estimatedSizeInBytes();
+            long cost = SplitCoalescer.claimCost(split);
+            totalCost += cost;
+            largest = Math.max(largest, cost);
         }
         for (List<ExternalSplit> nodeSplits : plan.nodeAssignments().values()) {
             long nodeLoad = 0;
             for (ExternalSplit split : nodeSplits) {
-                nodeLoad += split.estimatedSizeInBytes();
+                nodeLoad += SplitCoalescer.claimCost(split);
             }
             maxNodeLoad = Math.max(maxNodeLoad, nodeLoad);
         }
 
-        long idealLoad = totalSize / nodeCount;
-        long largestSplit = splits.stream().mapToLong(ExternalSplit::estimatedSizeInBytes).max().orElse(0);
-        // LPT guarantees max load <= idealLoad + largestSplit
-        assertTrue(
-            "Max node load " + maxNodeLoad + " exceeds LPT bound " + (idealLoad + largestSplit),
-            maxNodeLoad <= idealLoad + largestSplit
-        );
+        long idealLoad = totalCost / nodeCount;
+        // LPT guarantees max load <= idealLoad + largest item
+        assertTrue("Max node load " + maxNodeLoad + " exceeds LPT bound " + (idealLoad + largest), maxNodeLoad <= idealLoad + largest);
+    }
+
+    public void testWeightedLoadBalancingWithCoalescedGroups() {
+        int groupCount = between(10, 80);
+        int nodeCount = between(2, 8);
+        List<ExternalSplit> splits = new ArrayList<>();
+        splits.add(createSizedSplit(0, 128L * 1024 * 1024));
+        for (int g = 1; g <= groupCount; g++) {
+            int leaves = between(2, SplitCoalescer.DEFAULT_MAX_FILES_PER_GROUP);
+            List<ExternalSplit> children = new ArrayList<>(leaves);
+            for (int i = 0; i < leaves; i++) {
+                children.add(createSizedSplit(g * 1000 + i, 1024));
+            }
+            splits.add(new CoalescedSplit("parquet", children));
+        }
+        List<DiscoveryNode> nodes = createNodeList(nodeCount);
+
+        ExternalDistributionPlan plan = WeightedRoundRobinStrategy.assignByWeight(splits, nodes);
+
+        long totalCost = 0;
+        long maxNodeLoad = 0;
+        long largest = 0;
+        for (ExternalSplit split : splits) {
+            long cost = SplitCoalescer.claimCost(split);
+            totalCost += cost;
+            largest = Math.max(largest, cost);
+        }
+        for (List<ExternalSplit> nodeSplits : plan.nodeAssignments().values()) {
+            long nodeLoad = 0;
+            for (ExternalSplit split : nodeSplits) {
+                nodeLoad += SplitCoalescer.claimCost(split);
+            }
+            maxNodeLoad = Math.max(maxNodeLoad, nodeLoad);
+        }
+
+        long idealLoad = totalCost / nodeCount;
+        assertTrue("Max node load " + maxNodeLoad + " exceeds LPT bound " + (idealLoad + largest), maxNodeLoad <= idealLoad + largest);
     }
 
     public void testWeightedIsDeterministic() {

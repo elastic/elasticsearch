@@ -48,6 +48,18 @@ final class EscfArrayColumn extends EscfColumn {
         return EscfColumnKind.ARRAY;
     }
 
+    @Override
+    public boolean hasMultiValueDoc() {
+        final int[] offs = rowOffsets.ints;
+        final int base = rowOffsets.offset;
+        for (int d = 0; d < docCount; d++) {
+            if (offs[base + d + 1] - offs[base + d] > 1) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Returns the element (child) column kind, so callers can decide whether the array values are
      * directly usable as byte-strings (kind == {@link EscfColumnKind#STRING}) without iterating.

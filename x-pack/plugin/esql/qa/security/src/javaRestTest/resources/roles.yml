@@ -81,6 +81,20 @@ user3:
           }
         }
 
+remote_fetch_dls_fls:
+  cluster: []
+  indices:
+    - names: [ 'index' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ value, org ]
+      query: '{"term":{"org":"sales"}}'
+    - names: [ 'indexpartial' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ value ]
+      query: '{"term":{"org":"sales"}}'
+
 # Passes global.data_source authorize for shared IT datasource; no create_dataset on security_it_ds_* — for PUT dataset denied on index priv.
 user_dataset_authorize_only:
   cluster: []
@@ -471,6 +485,18 @@ ds_dataset_query_fls:
       privileges: [ 'read' ]
       field_security:
         grant: [ 'value' ]
+
+# Plain read on one dataset name, and a DLS-carrying read on a wildcard that matches a different dataset. With
+# wildcards_match_datasets off the wildcard reaches no dataset, so the DLS grant must not reject the query: the request
+# should reach the exactly-named dataset only. See testMixedExactAndDlsWildcardIsNotRejectedWhenWildcardsMatchDatasetsOff.
+ds_dataset_query_ok_plus_dls:
+  cluster: []
+  indices:
+    - names: [ 'security_it_ds_ok_*' ]
+      privileges: [ 'read' ]
+    - names: [ 'security_it_ds_dls_*' ]
+      privileges: [ 'read' ]
+      query: '{"match_all": {}}'
 
 # read on security_it_ds_keep_* only — used to test partial wildcard authorization and an explicitly-unauthorized
 # dataset (security_it_ds_drop_*) in the same FROM.

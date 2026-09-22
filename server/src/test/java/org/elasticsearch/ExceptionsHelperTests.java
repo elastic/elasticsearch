@@ -19,7 +19,6 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
@@ -33,7 +32,6 @@ import static org.elasticsearch.ExceptionsHelper.maybeError;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
-import static org.hamcrest.CoreMatchers.sameInstance;
 
 public class ExceptionsHelperTests extends ESTestCase {
 
@@ -223,51 +221,6 @@ public class ExceptionsHelperTests extends ESTestCase {
         e1.initCause(e2);
         ExceptionsHelper.unwrap(e1, IOException.class);
         ExceptionsHelper.unwrapCorruption(e1);
-    }
-
-    public void testWalkCauseChain() {
-        final RuntimeException root = new RuntimeException("root");
-        assertThat(ExceptionsHelper.walkCauseChain(root).deepest(), sameInstance(root));
-        assertNull(ExceptionsHelper.walkCauseChain(root).indexScoped());
-
-        Throwable wrapped = root;
-        for (int i = 0; i < randomIntBetween(1, 32); i++) {
-            wrapped = new RuntimeException("wrapper", wrapped);
-        }
-        assertThat(ExceptionsHelper.walkCauseChain(wrapped).deepest(), sameInstance(root));
-    }
-
-    public void testWalkCauseChainIgnoresSuppressed() {
-        final RuntimeException root = new RuntimeException("root");
-        final RuntimeException outer = new RuntimeException("outer", root);
-        outer.addSuppressed(new ShardNotFoundException(new ShardId("suppressed-index", "uuid", 7)));
-
-        final ExceptionsHelper.CauseChain chain = ExceptionsHelper.walkCauseChain(outer);
-
-        assertThat(chain.deepest(), sameInstance(root));
-        assertNull(chain.indexScoped());
-    }
-
-    public void testWalkCauseChainOfCycle() {
-        final RuntimeException e1 = new RuntimeException();
-        final RuntimeException e2 = new RuntimeException(e1);
-        e1.initCause(e2);
-        assertThat(ExceptionsHelper.walkCauseChain(e1).deepest(), sameInstance(e2));
-        assertThat(ExceptionsHelper.walkCauseChain(e2).deepest(), sameInstance(e1));
-    }
-
-    public void testWalkCauseChainFindsDeepestIndexScopedCause() {
-        final ShardNotFoundException deep = new ShardNotFoundException(
-            new ShardId("deep-index", "uuid", 3),
-            "no such shard",
-            new IllegalStateException("engine is closed")
-        );
-        final ShardNotFoundException shallow = new ShardNotFoundException(new ShardId("shallow-index", "uuid", 0), "no such shard", deep);
-
-        final ExceptionsHelper.CauseChain chain = ExceptionsHelper.walkCauseChain(new RuntimeException("outer", shallow));
-
-        assertThat(chain.deepest(), instanceOf(IllegalStateException.class));
-        assertThat(chain.indexScoped(), sameInstance(deep));
     }
 
     public void testLimitedStackTrace() {

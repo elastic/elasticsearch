@@ -67,6 +67,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class RestResponseTests extends ESTestCase {
 
@@ -715,6 +716,51 @@ public class RestResponseTests extends ESTestCase {
             assertEquals(3, fields.get("elasticsearch.error.shard"));
             assertFalse(fields.containsKey("elasticsearch.rest.handler"));
         }
+    }
+
+    public void testWalkCauseChain() {
+        final RuntimeException root = new RuntimeException("root");
+        assertThat(RestResponse.walkCauseChain(root).deepest(), sameInstance(root));
+        assertNull(RestResponse.walkCauseChain(root).indexScoped());
+
+        Throwable wrapped = root;
+        for (int i = 0; i < randomIntBetween(1, 32); i++) {
+            wrapped = new RuntimeException("wrapper", wrapped);
+        }
+        assertThat(RestResponse.walkCauseChain(wrapped).deepest(), sameInstance(root));
+    }
+
+    public void testWalkCauseChainIgnoresSuppressed() {
+        final RuntimeException root = new RuntimeException("root");
+        final RuntimeException outer = new RuntimeException("outer", root);
+        outer.addSuppressed(new ShardNotFoundException(new ShardId("suppressed-index", "uuid", 7)));
+
+        final RestResponse.CauseChain chain = RestResponse.walkCauseChain(outer);
+
+        assertThat(chain.deepest(), sameInstance(root));
+        assertNull(chain.indexScoped());
+    }
+
+    public void testWalkCauseChainOfCycle() {
+        final RuntimeException e1 = new RuntimeException();
+        final RuntimeException e2 = new RuntimeException(e1);
+        e1.initCause(e2);
+        assertThat(RestResponse.walkCauseChain(e1).deepest(), sameInstance(e2));
+        assertThat(RestResponse.walkCauseChain(e2).deepest(), sameInstance(e1));
+    }
+
+    public void testWalkCauseChainFindsDeepestIndexScopedCause() {
+        final ShardNotFoundException deep = new ShardNotFoundException(
+            new ShardId("deep-index", "uuid", 3),
+            "no such shard",
+            new IllegalStateException("engine is closed")
+        );
+        final ShardNotFoundException shallow = new ShardNotFoundException(new ShardId("shallow-index", "uuid", 0), "no such shard", deep);
+
+        final RestResponse.CauseChain chain = RestResponse.walkCauseChain(new RuntimeException("outer", shallow));
+
+        assertThat(chain.deepest(), instanceOf(IllegalStateException.class));
+        assertThat(chain.indexScoped(), sameInstance(deep));
     }
 
     private Map<String, ?> lastLoggedFields() {

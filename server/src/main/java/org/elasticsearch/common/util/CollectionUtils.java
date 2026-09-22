@@ -209,8 +209,9 @@ public class CollectionUtils {
      * {@code byte[]}, {@code double[]}, {@code double[][]}, {@link Date}, and all immutable scalar
      * types produced by JSON parsing ({@link String}, {@link Boolean}, {@link Integer}, {@link Long},
      * {@link Float}, {@link Double}, {@link BigInteger}, {@link BigDecimal}, {@link Byte},
-     * {@link Short}, {@link Character}, {@link ZonedDateTime}). Throws {@link IllegalArgumentException}
-     * for any other type.
+     * {@link Short}, {@link Character}, {@link ZonedDateTime}). For any other type, asserts at
+     * development time (when assertions are enabled) and returns the value by reference at runtime,
+     * so callers on data paths are not broken by an unexpected type.
      */
     public static <T> T deepCopy(T value) {
         return deepCopyInternal(value, 0);
@@ -286,7 +287,11 @@ public class CollectionUtils {
             } else if (value instanceof Date date) {
                 return (T) date.clone();
             } else {
-                throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
+                // If this list of expected value types ends up not being exhaustive, we want to know
+                // at development time, but it is better to pass the value through at runtime rather
+                // than blow up on users.
+                assert false : "unexpected value type [" + value.getClass() + "]";
+                return value;
             }
     }
 

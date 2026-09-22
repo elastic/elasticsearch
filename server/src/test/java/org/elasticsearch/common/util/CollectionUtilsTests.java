@@ -918,15 +918,17 @@ public class CollectionUtilsTests extends ESTestCase {
         expectThrows(UnsupportedOperationException.class, () -> copy.put("x", "y"));
     }
 
-    public void testDeepCopyUnknownTypeThrows() {
-        var e = expectThrows(IllegalArgumentException.class, () -> deepCopy(new Object()));
+    public void testDeepCopyUnknownTypeAssertsInDev() {
+        // Tests run with assertions enabled (-ea), so assert false fires as AssertionError.
+        // In production (no -ea) the value would be passed through by reference.
+        var e = expectThrows(AssertionError.class, () -> deepCopy(new Object()));
         assertThat(e.getMessage(), equalTo("unexpected value type [class java.lang.Object]"));
     }
 
-    public void testDeepCopyUnknownTypeNestedInMapThrows() {
+    public void testDeepCopyUnknownTypeNestedInMapAssertsInDev() {
         Map<String, Object> map = new HashMap<>();
         map.put("bad", new Object());
-        expectThrows(IllegalArgumentException.class, () -> deepCopy(map));
+        expectThrows(AssertionError.class, () -> deepCopy(map));
     }
 
     public void testDeepCopy() {

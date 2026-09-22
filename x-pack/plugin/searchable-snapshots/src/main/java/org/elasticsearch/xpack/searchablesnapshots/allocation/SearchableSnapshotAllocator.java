@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -386,6 +387,19 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             return new AsyncShardFetch.FetchResult<>(shardId, Collections.emptyMap(), Collections.emptySet());
         }
 
+        // debugDecision is true on the explain path and false on the allocation
+        // We do not want to trigger any new fetches if we're only explaining
+        if (allocation.debugDecision()) {
+            final AsyncCacheStatusFetch fetch = asyncFetchStore.get(shardId);
+            if (fetch == null) {
+                return new AsyncShardFetch.FetchResult<>(shardId, null, Collections.emptySet());
+            }
+            return fetch.peekData(shardId, allocation.nodes());
+        }
+
+        // Allocation should run only on the master thread
+        assert MasterService.assertMasterUpdateOrTestThread();
+
         final SnapshotId snapshotId = new SnapshotId(
             SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexSettings),
             SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings)
@@ -515,6 +529,22 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
         synchronized int numberOfInFlightFetches() {
             return fetchingDataNodes.size();
+        }
+
+        /**
+         * Snapshot of the current fetch state for this shard, without starting new fetches or mutating fetch state.
+         * If a fetch is still in flight, or cache data has not yet been fetched from every current data node, the result has no data.
+         */
+        synchronized AsyncShardFetch.FetchResult<NodeCacheFilesMetadata> peekData(ShardId shardId, DiscoveryNodes nodes) {
+            if (fetchingDataNodes.isEmpty() == false) {
+                return new AsyncShardFetch.FetchResult<>(shardId, null, Collections.emptySet());
+            }
+            for (DiscoveryNode node : nodes.getDataNodes().values()) {
+                if (data.containsKey(node) == false) {
+                    return new AsyncShardFetch.FetchResult<>(shardId, null, Collections.emptySet());
+                }
+            }
+            return new AsyncShardFetch.FetchResult<>(shardId, Map.copyOf(data), Collections.emptySet());
         }
     }
 

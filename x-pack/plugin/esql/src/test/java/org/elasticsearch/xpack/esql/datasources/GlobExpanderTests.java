@@ -3575,6 +3575,39 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * The backstop in {@code expand} must decline the bound under the same conditions as
+     * {@code ExternalSourceResolver.listingBoundFor}, including a {@code _file.*} hint. That hint prunes no
+     * folder, so it is not a partition-pruning hint, but it selects the anchor - and this entry point is
+     * reachable without the resolver, so a direct caller must not be able to bound past it.
+     */
+    public void testBoundIsDeclinedForAFileMetadataHint() throws IOException {
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < 1005; i++) {
+            listing.add(entry(String.format(Locale.ROOT, "s3://bucket/data/f-%04d.parquet", i), 100));
+        }
+        var fileHint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            FileMetadataColumns.NAME,
+            PartitionFilterHintExtractor.Operator.EQUALS,
+            List.of("f-1004.parquet")
+        );
+        CountingStubProvider provider = new CountingStubProvider(listing);
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/data/" + "**/*.parquet",
+            provider,
+            List.of(fileHint),
+            HIVE_ON,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            1000
+        );
+
+        assertFalse("a _file.* hint must decline the bound, as listingBoundFor does", result.isTruncated());
+        assertEquals("the whole glob must be listed so the hint can select its file", 1005, provider.keysPulled());
+    }
+
+    /**
      * The one user-visible way a bounded answer is narrower than an unbounded one: a partition column's type
      * comes from the values seen, so a column that is integral within the bound and non-numeric beyond it types
      * differently. The unbounded expansion over the same listing is the control.

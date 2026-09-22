@@ -205,11 +205,13 @@ public final class GlobExpander {
         PartitionConfig partitionConfig = PartitionConfig.fromConfig(config);
         ExclusionConfig.NameFilter nameFilter = ExclusionConfig.fromConfig(config).compile();
         FileOrderConfig fileOrder = FileOrderConfig.forListing(config);
-        // A backstop for direct callers, not the decision: the resolver declines the bound for both of these
+        // A backstop for direct callers, not the decision: the resolver declines the bound for all of these
         // first, because it must decide before choosing whether to bypass the listing cache. Repeated here
-        // because this class is reachable without the resolver, and a bound honoured under either condition
-        // would pick a different anchor than the unbounded listing.
-        boolean prefixOfTheWholeGlob = fileOrder.equals(FileOrderConfig.DEFAULT) && hasPartitionPruningHints(hints) == false;
+        // because this class is reachable without the resolver, and a bound honoured under any of them would
+        // pick a different anchor than the unbounded listing. Any hint counts, not only a pruning one: a
+        // _file.* hint prunes no folder but selects the anchor, so it must match ExternalSourceResolver's
+        // listingBoundFor. The two conditions are stated in both places and must not drift apart.
+        boolean prefixOfTheWholeGlob = fileOrder.equals(FileOrderConfig.DEFAULT) && (hints == null || hints.isEmpty());
         int effectiveBound = prefixOfTheWholeGlob ? listingBound : Integer.MAX_VALUE;
         // A comma list is several globs; a key budget has no single meaning across them, so it resolves unbounded.
         return isTopLevelCommaList(path)

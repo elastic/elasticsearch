@@ -5685,6 +5685,42 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    public void testMetadataIdWinsOverPhysicalColumn() throws Exception {
+        Path fixture = createTempFile("collision-id-", ".csv");
+        Files.writeString(
+            fixture,
+            String.join("\n", "_id:keyword,emp_no:integer,first_name:keyword", "row-a,1,Alice", "row-b,2,Bob", "row-c,3,Carol") + "\n"
+        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("collision_id", "local_ds", fixture.toUri().toString(), Map.of("format", "csv"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM collision_id METADATA _id | KEEP _id, emp_no | SORT emp_no"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            int idIdx = names.indexOf("_id");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (List<Object> row : rows) {
+                assertNull(row.get(idIdx));
+            }
+        }
+
+        try (var response = run(syncEsqlQueryRequest("FROM collision_id | KEEP _id, emp_no | SORT emp_no"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            int idIdx = names.indexOf("_id");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.get(0).get(idIdx).toString(), equalTo("row-a"));
+            assertThat(rows.get(1).get(idIdx).toString(), equalTo("row-b"));
+            assertThat(rows.get(2).get(idIdx).toString(), equalTo("row-c"));
+        }
+
+        try (var response = run(syncEsqlQueryRequest("FROM collision_id METADATA _id | KEEP * | SORT emp_no"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat(names, not(hasItem("_id")));
+            assertThat(names, hasItem("emp_no"));
+            assertThat(names, hasItem("first_name"));
+        }
+    }
+
     /**
      * The declared-schema face of the partition-detection settings defect. A declared column colliding with a path-derived
      * partition key is rejected ({@link #testNonStrictPartitionKeyCollisionRejected}), and on main

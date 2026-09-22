@@ -118,7 +118,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         /**
          * Default block size for multi-block uploads.
          */
-        private static final ByteSizeValue DEFAULT_BLOCK_SIZE = ByteSizeValue.ofBytes(
+        static final ByteSizeValue DEFAULT_BLOCK_SIZE = ByteSizeValue.ofBytes(
             Math.max(
                 ByteSizeUnit.MB.toBytes(5),
                 Math.min(MAX_BLOCK_SIZE.getBytes(), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 20)

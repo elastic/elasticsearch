@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 159901
-summary: Pin IN-subquery Hive partition pruning
-type: enhancement

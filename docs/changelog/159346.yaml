@@ -1,5 +1,0 @@
-area: Recovery
-issues: []
-pr: 159346
-summary: Fix prewarm prioritization
-type: bug

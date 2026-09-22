@@ -4019,7 +4019,7 @@ public class EsqlCapabilities {
          * inferred-vs-declared distinction: a blank string cell reads {@code ""} regardless of schema provenance.
          * No longer referenced by any spec.
          */
-        EXTERNAL_CSV_BLANK_CELL_NULL_UNLESS_DECLARED,
+        EXTERNAL_CSV_BLANK_CELL_NULL_UNLESS_DECLARED(false),
 
         /**
          * A blank cell in an external CSV/TSV datasource reads as {@code ""} on a {@code keyword}/{@code text}

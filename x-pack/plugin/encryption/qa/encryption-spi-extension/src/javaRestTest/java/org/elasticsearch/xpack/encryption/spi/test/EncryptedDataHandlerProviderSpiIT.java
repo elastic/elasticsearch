@@ -77,8 +77,8 @@ public class EncryptedDataHandlerProviderSpiIT extends ESRestTestCase {
     /**
      * The KeyRotationCoordinator submits a begin-project-encryption-key-rotation cluster-state task every ~1 s while the cluster is
      * alive. ESRestTestCase#waitForClusterStateUpdatesToFinish uses assertBusy with exponential-backoff polling that consistently misses
-     * the ~200 ms clean windows between successive tasks, causing spurious teardown failures. This test creates no persistent cluster
-     * state, so skipping the wipe is safe.
+     * the ~200 ms clean windows between successive tasks, causing spurious teardown failures. The snapshot repository registered by
+     * {@link #ensureRepo()} is intentionally left in place — it is idempotent across tests and harmless to leave registered.
      */
     @Override
     protected boolean preserveClusterUponCompletion() {

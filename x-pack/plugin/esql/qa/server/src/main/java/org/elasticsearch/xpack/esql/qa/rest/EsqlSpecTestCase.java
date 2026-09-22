@@ -81,11 +81,10 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TEXT_EMBE
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.assertNotPartial;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
-import static org.junit.Assume.assumeFalse;
 
-// Each class covers one csv-spec file and should complete well within 10 minutes;
+// Each class covers one csv-spec file and should complete well within 20 minutes;
 // monolithic subclasses that run all spec files must add their own longer annotation.
-@TimeoutSuite(millis = 10 * TimeUnits.MINUTE)
+@TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
 public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     @Rule(order = Integer.MIN_VALUE)

@@ -154,6 +154,24 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         Loggers.removeAppender(testLogger1, appender);
     }
 
+    public void testIsSignificantMemoryChange() {
+        // No prior value: any positive observation is significant.
+        assertTrue(TrainedModelAssignmentClusterService.isSignificantMemoryChange(null, 1_000L));
+        assertTrue(TrainedModelAssignmentClusterService.isSignificantMemoryChange(0L, 1_000L));
+
+        // A non-positive observation is never worth writing back.
+        assertFalse(TrainedModelAssignmentClusterService.isSignificantMemoryChange(1_000L, 0L));
+        assertFalse(TrainedModelAssignmentClusterService.isSignificantMemoryChange(null, 0L));
+
+        // Below the 10% threshold: not significant.
+        assertFalse(TrainedModelAssignmentClusterService.isSignificantMemoryChange(1_000L, 1_050L));
+        assertFalse(TrainedModelAssignmentClusterService.isSignificantMemoryChange(1_000L, 950L));
+
+        // Above the 10% threshold in either direction: significant.
+        assertTrue(TrainedModelAssignmentClusterService.isSignificantMemoryChange(1_000L, 1_200L));
+        assertTrue(TrainedModelAssignmentClusterService.isSignificantMemoryChange(1_000L, 800L));
+    }
+
     public void testLogMlNodeHeterogeneity_GivenZeroOrOneArchitectures_ThenNothing() throws InterruptedException {
         Set<String> architecturesSet = new HashSet<>(randomList(0, 1, () -> randomAlphaOfLength(10)));
 

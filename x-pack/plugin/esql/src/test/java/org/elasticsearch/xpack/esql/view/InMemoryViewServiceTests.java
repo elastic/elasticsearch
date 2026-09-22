@@ -580,6 +580,11 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(replaceViews(query("FROM view*"), false), matchesPlan(query("FROM view*")));
         // exact name — still matched regardless of the setting
         assertThat(replaceViews(query("FROM view1"), false), matchesPlan(query("FROM emp1")));
+        // cluster-alias wildcard with concrete index expression — the `*` is a project selector, not an
+        // index wildcard, so the pattern is not filtered and reaches the view resolver. In a non-CPS context
+        // (this test), no view matches `*:view1` (remote pattern), so the relation is returned unchanged.
+        // In CPS mode the resolver would create a REQUIRED shadow for the linked-project lookup.
+        assertThat(replaceViews(query("FROM *:view1"), false), matchesPlan(query("FROM *:view1")));
     }
 
     public void testMixedViewAndIndexMergedUnresolvedRelation() {

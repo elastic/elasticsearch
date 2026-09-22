@@ -523,10 +523,15 @@ public class ViewResolver {
             }
         }
 
-        // When wildcards_match_views is off, only exact view names reach the resolver.
+        // When wildcards_match_views is off, only patterns with a concrete index expression (no wildcard in the local part)
+        // reach the resolver. A cluster-alias wildcard like `*:my-data` is still concrete from the view-matching
+        // perspective — the `*` is a project selector, not an index pattern wildcard — so we split off the cluster
+        // alias before checking for wildcard characters.
         String[] viewPatterns = wildcardsMatchViews
             ? patterns
-            : Arrays.stream(patterns).filter(p -> Regex.isSimpleMatchPattern(p) == false).toArray(String[]::new);
+            : Arrays.stream(patterns)
+                .filter(p -> Regex.isSimpleMatchPattern(RemoteClusterAware.splitIndexName(p).indexExpression()) == false)
+                .toArray(String[]::new);
         if (viewPatterns.length == 0) {
             listener.onResponse(unresolvedRelation);
             return;

@@ -59,7 +59,9 @@ public class KnnRuntimeFunctionIT extends AbstractEsqlIntegTestCase {
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(
             error.getMessage(),
-            containsString("[KNN] cannot operate on provided query vector; Cosine similarity does not support (query) vectors with zero magnitude.")
+            containsString(
+                "[KNN] cannot operate on provided query vector; Cosine similarity does not support (query) vectors with zero magnitude."
+            )
         );
     }
 }

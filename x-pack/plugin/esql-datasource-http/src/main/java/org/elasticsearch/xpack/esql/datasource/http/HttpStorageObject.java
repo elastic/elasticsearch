@@ -12,7 +12,10 @@ import org.apache.http.HttpStatus;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -34,10 +37,12 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Map;
 import java.util.OptionalLong;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -315,19 +320,6 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
 
     // === ASYNC API (native implementation using HttpClient.sendAsync) ===
 
-    /**
-     * Async byte read using HttpClient.sendAsync() for native non-blocking I/O.
-     * <p>
-     * This implementation uses Java's built-in async HTTP client to avoid blocking
-     * threads during I/O. The executor parameter is ignored since HttpClient manages
-     * its own thread pool for async operations (configured at client creation time).
-     *
-     * @param position the starting byte position
-     * @param length the number of bytes to read
-     * @param factory produces the destination {@link DirectReadBuffer} for the response body
-     * @param executor executor (unused - HttpClient uses executor configured at creation)
-     * @param listener callback for the result or failure
-     */
     @Override
     public void readBytesAsync(
         long position,
@@ -336,55 +328,145 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
+        startReadBytesAsync(position, length, factory, executor, listener);
+    }
+
+    /**
+     * Native {@code HttpClient.sendAsync} range GET. The returned handle cancels that future so a
+     * sibling abort drops the in-flight request instead of waiting for {@code requestTimeout}.
+     * The executor is unused: {@code HttpClient} uses the pool configured at construction.
+     */
+    @Override
+    public Releasable startReadBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
         if (position < 0) {
             listener.onFailure(new IllegalArgumentException("position must be non-negative, got: " + position));
-            return;
+            return () -> {};
         }
         if (length < 0) {
             listener.onFailure(new IllegalArgumentException("length must be non-negative, got: " + length));
-            return;
+            return () -> {};
         }
         if (length > Integer.MAX_VALUE) {
             listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
-            return;
+            return () -> {};
         }
 
         HttpRequest request = buildRangeRequest(position, length);
-
         long startNanos = System.nanoTime();
-        onReadComplete(
-            client.sendAsync(request, DirectByteBufferBodyHandlers.ofRangeRead(position, (int) length, factory, path)),
-            (response, throwable) -> {
-                if (throwable != null) {
+        AsyncReadHandle handle = new AsyncReadHandle(listener, startNanos);
+        CompletableFuture<HttpResponse<DirectReadBuffer>> future = client.sendAsync(
+            request,
+            DirectByteBufferBodyHandlers.ofRangeRead(position, (int) length, factory, path)
+        );
+        handle.register(future);
+        onReadComplete(future, (response, throwable) -> {
+            if (handle.isCancelled()) {
+                closeBodyQuietly(response);
+                handle.notifyCancelled();
+                return;
+            }
+            if (throwable != null) {
+                if (handle.tryCompleteListener()) {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
                     listener.onFailure(mapAsyncSendFailure(throwable));
-                    return;
                 }
+                return;
+            }
 
-                int statusCode = response.statusCode();
-                // The DirectByteBufferBodyHandlers.ofRangeRead handler already performs the range
-                // slicing internally for both 206 (server-side range) and 200 (full body) responses,
-                // returning a DirectReadBuffer scoped to the requested window.
-                if (statusCode == HttpStatus.SC_PARTIAL_CONTENT || statusCode == HttpStatus.SC_OK) {
-                    try {
-                        observeHeaders(response.headers(), position, true);
-                    } catch (ExternalObjectChangedException e) {
-                        counters.addRequest(System.nanoTime() - startNanos, 0L);
-                        response.body().close();
-                        listener.onFailure(e);
-                        return;
-                    }
-                    deliverRead(listener, response.body(), startNanos);
-                } else {
+            int statusCode = response.statusCode();
+            // The DirectByteBufferBodyHandlers.ofRangeRead handler already performs the range
+            // slicing internally for both 206 (server-side range) and 200 (full body) responses,
+            // returning a DirectReadBuffer scoped to the requested window.
+            if (statusCode == HttpStatus.SC_PARTIAL_CONTENT || statusCode == HttpStatus.SC_OK) {
+                try {
+                    observeHeaders(response.headers(), position, true);
+                } catch (ExternalObjectChangedException e) {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
                     response.body().close();
+                    if (handle.tryCompleteListener()) {
+                        listener.onFailure(e);
+                    }
+                    return;
+                }
+                if (handle.tryCompleteListener()) {
+                    deliverRead(listener, response.body(), startNanos);
+                } else {
+                    response.body().close();
+                }
+            } else {
+                counters.addRequest(System.nanoTime() - startNanos, 0L);
+                response.body().close();
+                if (handle.tryCompleteListener()) {
                     long retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(
                         response.headers().firstValue("retry-after").orElse(null)
                     );
                     listener.onFailure(mapReadFailure("Range request failed for", statusCode, null, retryAfterMs));
                 }
             }
-        );
+        });
+        return handle::cancel;
+    }
+
+    private static void closeBodyQuietly(HttpResponse<DirectReadBuffer> response) {
+        if (response == null || response.body() == null) {
+            return;
+        }
+        try {
+            response.body().close();
+        } catch (RuntimeException ignored) {
+            // Cancel already owns the listener; a close fault must not hide TaskCancelledException.
+        }
+    }
+
+    /**
+     * Cancellation handle for one {@code sendAsync} GET. {@link #cancel} aborts the JDK future and
+     * claims the listener immediately so notify does not wait on the client completing the future.
+     */
+    private final class AsyncReadHandle {
+        private volatile boolean cancelled;
+        private final AtomicBoolean listenerDone = new AtomicBoolean();
+        private final AtomicReference<CompletableFuture<?>> inFlight = new AtomicReference<>();
+        private final ActionListener<DirectReadBuffer> listener;
+        private final long startNanos;
+
+        AsyncReadHandle(ActionListener<DirectReadBuffer> listener, long startNanos) {
+            this.listener = listener;
+            this.startNanos = startNanos;
+        }
+
+        void register(CompletableFuture<?> future) {
+            inFlight.set(future);
+            if (cancelled) {
+                FutureUtils.cancel(future);
+            }
+        }
+
+        boolean tryCompleteListener() {
+            return listenerDone.compareAndSet(false, true);
+        }
+
+        void notifyCancelled() {
+            if (tryCompleteListener()) {
+                counters.addRequest(System.nanoTime() - startNanos, 0L);
+                listener.onFailure(new TaskCancelledException("read cancelled"));
+            }
+        }
+
+        void cancel() {
+            cancelled = true;
+            FutureUtils.cancel(inFlight.get());
+            notifyCancelled();
+        }
+
+        boolean isCancelled() {
+            return cancelled;
+        }
     }
 
     /**

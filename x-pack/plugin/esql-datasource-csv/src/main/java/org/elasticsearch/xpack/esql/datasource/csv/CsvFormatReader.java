@@ -293,24 +293,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Whether this read carries the user's word that its string columns are strings, which is what earns a blank
-     * cell the empty string rather than {@code null} (see {@link CsvBatchIterator#emptyCellIsEmptyString}).
-     * All three inputs are known before the first row: the binding and the options are the reader's, and the
-     * schema is the one the split pinned.
-     *
-     * @param blankStringCellIsEmptyString the read was told a blank string cell holds the empty string
-     * @param preResolvedSchema         that schema, pinned on the read context; a declaration always arrives with one
-     * @param options                   consulted for {@code null_value}, which when set to the blank overrides the above
-     */
-    private static boolean blankStringSemantics(
-        boolean blankStringCellIsEmptyString,
-        @Nullable List<Attribute> preResolvedSchema,
-        CsvFormatOptions options
-    ) {
-        return blankStringCellIsEmptyString && preResolvedSchema != null && "".equals(options.nullValue()) == false;
-    }
-
-    /**
      * Reused {@link DateFormatter} that delegates to ES's hand-rolled
      * {@code Iso8601DateTimeParser}: covers the {@code YYYY-MM-DDTHH:MM:SS[.fff][Z|+HH:MM]} family
      * (plus date-only inputs like {@code YYYY-MM-DD}) without the {@link DateTimeFormatter}
@@ -1713,9 +1695,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // A configured null_value installs a Jackson null token; an unset one (the default) must not, or the
         // empty-vs-null decision could no longer be made per column in tryConvertValue / presentEmptyCell —
         // Jackson would collapse empty to null before the value is ever seen, hiding present-empty string cells
-        // on declared string columns. Note that the empty string IS a configurable token here (nullValue is
+        // on string columns. Note that the empty string IS a configurable token here (nullValue is
         // null when unset, precisely so it stays distinguishable from ""), and naming it is how a user asks for
-        // a blank cell to be null even on a declared string column.
+        // a blank cell to be null even on any string column.
         if (options.nullValue() != null) {
             schema = schema.withNullValue(options.nullValue());
         }
@@ -3398,18 +3380,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
         @Nullable
         private final String nullValueStr;
         /**
-         * Whether a present-but-empty cell on a {@code KEYWORD}/{@code TEXT} column reads as the empty string
-         * rather than {@code null}. True when this read was told so ({@link CsvFormatReader#blankStringCellIsEmptyString},
-         * which a {@code dynamic: false} declaration sets), it holds a pinned schema, and {@code null_value} does not
-         * already name the blank — {@code null_value: ""} is how to opt back out of it. Independent of
-         * {@link CsvFormatReader#bindsByName}: binding decides which field a column reads, this decides what an empty
-         * one holds.
-         * <p>All three inputs are known before the first row, so the flag is decided once. It pairs the instruction
-         * with a pinned schema because a declaration always arrives with one.
-         * <p>False otherwise, where the alternative would make a blank cell's meaning depend on what the REST of its
-         * column holds — the same bytes reading {@code ""} in a column that sampled as keyword and {@code null} in one
-         * that sampled as long, with nothing the user could set to align them. Blank is then {@code null} on every
-         * column, whatever its type.
+         * True when a blank string cell earns {@code ""} rather than {@code null}: set when {@code null_value}
+         * is NOT the empty string (its default is absent, which is also not {@code ""}). Setting
+         * {@code null_value: ""} is the one opt-out: it names the blank as the null token and forces
+         * {@code null} even on string columns. Any other {@code null_value} (or none at all) leaves this true.
+         * <p>Applies identically for inferred and declared reads — the schema provenance is not an input.
+         * The flag is decided once before any row is read.
          */
         private final boolean emptyCellIsEmptyString;
         private final DateFormatter datetimeFormatter;
@@ -3718,7 +3694,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.hasCommentFilter = options.commentPrefix().isEmpty() == false;
             this.hasCustomNullValue = options.nullValue() != null;
             this.nullValueStr = options.nullValue();
-            this.emptyCellIsEmptyString = blankStringSemantics(blankStringCellIsEmptyString, preResolvedSchema, options);
+            this.emptyCellIsEmptyString = "".equals(options.nullValue()) == false;
             this.datetimeFormatter = options.datetimeFormatter();
             this.bracketMultiValues = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS;
             this.sourceLocation = sourceLocation;
@@ -5699,10 +5675,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         /**
          * Stages a present-but-empty field on the direct-to-block path, applying the same rule as
-         * {@link #presentEmptyCell}: the empty string only on a DECLARED {@code KEYWORD}/{@code TEXT} column,
-         * {@code null} otherwise. Kept as a separate method (rather than staging what {@code presentEmptyCell}
-         * returns) so this path stays off the boxed {@code rowBuffer}. A MISSING field (row shorter than the
-         * schema) is always {@code null} and is handled by the trailing null-fill, not this method.
+         * {@link #presentEmptyCell}: the empty string on a {@code KEYWORD}/{@code TEXT} column unless
+         * {@code null_value: ""} opted out, {@code null} otherwise. Kept as a separate method (rather than
+         * staging what {@code presentEmptyCell} returns) so this path stays off the boxed {@code rowBuffer}.
+         * A MISSING field (row shorter than the schema) is always {@code null} and is handled by the trailing
+         * null-fill, not this method.
          * <p>The gate lives here rather than at the call sites because an empty span reaches this method
          * unconditionally — {@link #emitPlainField} checks {@code len == 0} BEFORE it compares against a
          * configured null marker, so a {@code null_value} of {@code ""} would never be seen otherwise.
@@ -5768,8 +5745,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // only shrinks the range, so len here is always within the cap and needs no re-check.
             int len = end - start;
             // Null classification mirrors tryConvertValue: a present-but-empty field is handed to
-            // stagePresentEmptyValue, which applies the emptyCellIsEmptyString rule (the empty string only on
-            // a DECLARED string column, null everywhere else); the literal "null" (any case) is a null marker
+            // stagePresentEmptyValue, which applies the emptyCellIsEmptyString rule (the empty string on any
+            // string column unless null_value: "" opts out, null everywhere else); the literal "null" (any case) is a null marker
             // only for non-string columns, since KEYWORD/TEXT must be able to hold the string "null"; the
             // configured null marker always becomes null.
             // The empty branch is tested FIRST, so the configured marker below never sees a blank -- with
@@ -6429,10 +6406,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         /**
-         * Value for a cell that is present in the row but has empty text: {@code null}, except on a DECLARED
-         * {@code KEYWORD}/{@code TEXT} column, which holds the empty string — see
-         * {@link #emptyCellIsEmptyString} for why the two cases differ. A MISSING field (row shorter than the
-         * schema) is always {@code null} and is handled by the callers, independent of this method.
+         * Value for a cell that is present in the row but has empty text: the empty string on a
+         * {@code KEYWORD}/{@code TEXT} column (unless {@code null_value: ""} opted out), {@code null} on every
+         * other type. Applies identically for inferred and declared reads — see {@link #emptyCellIsEmptyString}.
+         * A MISSING field (row shorter than the schema) is always {@code null} and is handled by the callers,
+         * independent of this method.
          * <p>An empty ELEMENT of a bracket cell takes {@link CsvFormatReader#presentEmptyElement} instead.
          */
         private Object presentEmptyCell(DataType dataType) {

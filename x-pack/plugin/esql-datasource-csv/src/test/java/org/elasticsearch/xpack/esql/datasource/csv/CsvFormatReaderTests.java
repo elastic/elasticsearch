@@ -589,9 +589,10 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertFalse(page.getBlock(1).isNull(0));
             assertFalse(page.getBlock(2).isNull(0));
 
-            // Second row: name is blank on an INFERRED column -> null (see the empty-vs-null section below)
+            // Second row: name is blank on a string column -> "" (see the empty-vs-null section below)
             assertFalse(page.getBlock(0).isNull(1));
-            assertTrue(page.getBlock(1).isNull(1));
+            assertFalse(page.getBlock(1).isNull(1));
+            assertEquals(new BytesRef(""), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
             assertFalse(page.getBlock(2).isNull(1));
 
             // Third row: score is a present empty double -> null (no empty representation for numerics)
@@ -1668,9 +1669,9 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
             assertEquals(2, page.getPositionCount());
-            // Both blank cells read null here: the schema is inferred, and an inferred keyword column is
-            // not a request for string semantics (see the empty-vs-null section for the declared arm).
-            assertTrue(page.getBlock(1).isNull(0));
+            // Blank keyword cell reads "" (empty string); blank double cell reads null (no empty representation).
+            assertFalse(page.getBlock(1).isNull(0));
+            assertEquals(new BytesRef(""), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
             assertTrue(page.getBlock(2).isNull(1));
         }
     }
@@ -8258,8 +8259,8 @@ public class CsvFormatReaderTests extends ESTestCase {
             Page page = iterator.next();
             assertEquals(2, page.getPositionCount());
             assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
-            // Interior blank cell on an inferred keyword column reads as null.
-            assertTrue(page.getBlock(1).isNull(0));
+            // Interior blank cell on a keyword column reads as "".
+            assertEquals(new BytesRef(""), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
             assertEquals(30, ((IntBlock) page.getBlock(2)).getInt(0));
             assertEquals(2L, ((LongBlock) page.getBlock(0)).getLong(1));
             assertEquals(new BytesRef("Bob"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
@@ -8276,20 +8277,18 @@ public class CsvFormatReaderTests extends ESTestCase {
     // block value so a regression in any single case is visible.
     //
     // Semantics:
-    // - A PRESENT but empty cell reads as null, EXCEPT on a KEYWORD/TEXT column whose type the user
-    // DECLARED (dataset mappings, i.e. declaredProvenanceBinding), where it reads as the empty string "".
-    // Nulling it on an inferred column is what keeps a blank cell's meaning independent of the other rows
-    // of its column: it must not read "" merely because the column happened to sample as a string.
+    // - A PRESENT but empty cell reads as "" on a KEYWORD/TEXT column (inferred or declared), and as
+    // null on every other type (which has no empty representation). The only way to get null for a blank
+    // string cell is null_value: "" -- that names the blank as the null token.
     // - A MISSING cell (row shorter than the schema) reads as null on every type.
     // - The literal token "null" maps to null only on non-string columns; a KEYWORD/TEXT column holds it
     // as the string "null". A custom null_value token maps to null; empty IP/VERSION cells map to null.
-    // A present-but-empty ELEMENT inside a bracket multi-value cell keeps the older per-type rule
-    // regardless of provenance (empty string on KEYWORD/TEXT, kept in the list; null, and dropped from
-    // the list, otherwise) -- nulling it would change the cell's cardinality, not just a value.
+    // A present-but-empty ELEMENT inside a bracket multi-value cell keeps the same per-type rule
+    // regardless of provenance (empty string on KEYWORD/TEXT; null, dropped from the list, otherwise) --
+    // nulling it would change the cell's cardinality, not just a value.
     //
-    // Most tests below read through withFirstPageDeclaredSchema, i.e. the declared arm: the fixtures'
-    // `name:type` headers are re-read as the declaration, which is what a dataset registered with mappings
-    // does. The inferred arm has its own tests, asserting null on the same bytes.
+    // Most tests below read through withFirstPageDeclaredSchema (declared arm) or withFirstPage (inferred
+    // arm). Both arms now give the same answer for blank string cells: "".
     // -----------------------------------------------------------------------------------------------
 
     /**
@@ -8308,8 +8307,8 @@ public class CsvFormatReaderTests extends ESTestCase {
      * Reads {@code csv} with the given reader on the DECLARED arm and runs {@code asserts} against the first
      * page (all columns projected). The declaration is the file's own schema read back through
      * {@link FormatReader#metadata}, then pinned with DECLARED provenance — the same shape a dataset
-     * registered with explicit mappings produces, and the only arm on which a blank {@code keyword}/{@code text}
-     * cell reads as the empty string.
+     * registered with explicit mappings produces. A blank {@code keyword}/{@code text} cell reads as {@code ""}
+     * on both the declared and inferred arms, identically.
      */
     private void withFirstPageDeclaredSchema(FormatReader reader, String csv, Consumer<Page> asserts) throws IOException {
         StorageObject object = createStorageObject(csv);
@@ -8425,7 +8424,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * type, so the value no longer depends on the rest of the column ({@code phrase} samples as a string here,
      * but that must not be what decides a blank cell's meaning).
      */
-    public void testEmptyVsNull_inferredBlankIsNullWhereverItSits() throws IOException {
+    public void testEmptyVsNull_inferredBlankIsEmptyStringWhereverItSits() throws IOException {
         withFirstPage(new CsvFormatReader(blockFactory), """
             id:long,phrase:keyword,n:integer
             1,apple,10
@@ -8434,7 +8433,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             """, page -> {
             assertEquals(3, page.getPositionCount());
             assertKeyword(page, 1, 0, "apple");
-            assertBlockNull(page, 1, 1); // interior blank, inferred column -> null
+            assertKeyword(page, 1, 1, ""); // interior blank, inferred string column -> ""
             assertKeyword(page, 1, 2, "banana");
         });
         withFirstPage(new CsvFormatReader(blockFactory), """
@@ -8444,7 +8443,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             3,30,banana
             """, page -> {
             assertEquals(3, page.getPositionCount());
-            assertBlockNull(page, 2, 1); // trailing blank -> null
+            assertKeyword(page, 2, 1, ""); // trailing blank -> ""
         });
         withFirstPage(new CsvFormatReader(blockFactory), """
             phrase:keyword,id:long
@@ -8453,7 +8452,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             banana,3
             """, page -> {
             assertEquals(3, page.getPositionCount());
-            assertBlockNull(page, 0, 1); // leading blank -> null
+            assertKeyword(page, 0, 1, ""); // leading blank -> ""
         });
         withFirstPage(new CsvFormatReader(blockFactory), """
             id:long,phrase:keyword,n:integer
@@ -8462,29 +8461,24 @@ public class CsvFormatReaderTests extends ESTestCase {
             3,banana,30
             """, page -> {
             assertEquals(3, page.getPositionCount());
-            // A quoted empty cell is not spared either: it carries no more information than a bare blank,
-            // and telling the two apart is not something every read path can do (Jackson's tokenizer hands
-            // both over as an empty token), so they must not answer differently.
-            assertBlockNull(page, 1, 1);
+            // A quoted empty cell is identical to a bare blank: both arrive as an empty token on every path
+            // and must answer the same way.
+            assertKeyword(page, 1, 1, "");
         });
     }
 
     /**
-     * A blank cell means the same thing in a column that sampled as a long as in one that sampled as a
-     * keyword. This is the reading the issue asks for: nothing about the OTHER rows of a column may change
-     * what a blank cell in it reads as.
+     * A blank cell in a non-string column reads null regardless of schema provenance. A blank cell in a
+     * string column reads {@code ""}. The rule has two inputs: whether the column is a string type, and
+     * whether {@code null_value: ""} opted it out.
      */
-    public void testEmptyVsNull_inferredBlankMeansTheSameWhateverTheInferredType() throws IOException {
-        // The issue's own repro: two files differing only in row 1, which is what makes column b infer LONG in
-        // one and KEYWORD in the other. Row 2's blank must not notice.
-        for (String otherRow : List.of("10", "xx")) {
-            withFirstPage(new CsvFormatReader(blockFactory), "a,b\n1," + otherRow + "\n2,\n", page -> {
-                assertEquals(2, page.getPositionCount());
-                assertBlockNull(page, 1, 1);
-            });
-        }
-        // The same property within one file: a blank in a column that sampled as a long and a blank in one that
-        // sampled as a keyword answer alike.
+    public void testEmptyVsNull_blankNonStringColumnIsNull() throws IOException {
+        withFirstPage(new CsvFormatReader(blockFactory), "a,b\n1,10\n2,\n", page -> {
+            assertEquals(2, page.getPositionCount());
+            assertBlockNull(page, 1, 1); // inferred long -> null
+        });
+        // The same property within one file: a blank in a long column and a blank in a keyword column answer
+        // differently because the type is the deciding factor.
         withFirstPage(new CsvFormatReader(blockFactory), """
             numeric,stringy
             1,xx
@@ -8492,17 +8486,17 @@ public class CsvFormatReaderTests extends ESTestCase {
             2,yy
             """, page -> {
             assertEquals(3, page.getPositionCount());
-            assertBlockNull(page, 0, 1); // inferred long
-            assertBlockNull(page, 1, 1); // inferred keyword -- same answer
+            assertBlockNull(page, 0, 1); // inferred long -> null
+            assertKeyword(page, 1, 1, ""); // inferred keyword -> ""
         });
     }
 
     /**
-     * A column that is blank in every row infers as keyword and still reads null, not the empty string. The
-     * inferred type is asserted as well: it is the arm that would produce {@code ""} if the gate were wrong,
-     * so a test that only checked for null would keep passing if inference ever moved the column to NULL.
+     * A column that is blank in every row infers as keyword. Each blank cell reads {@code ""} because the
+     * column is a string type and {@code null_value} is not {@code ""}. The inferred type is asserted as well:
+     * it is the arm that determines whether the result is {@code ""} or {@code null}.
      */
-    public void testEmptyVsNull_inferredAllBlankColumnIsNull() throws IOException {
+    public void testEmptyVsNull_inferredAllBlankColumnIsEmptyString() throws IOException {
         String csv = """
             a,b
             1,
@@ -8513,8 +8507,8 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(DataType.KEYWORD, schema.get(1).dataType());
         withFirstPage(reader, csv, page -> {
             assertEquals(2, page.getPositionCount());
-            assertBlockNull(page, 1, 0);
-            assertBlockNull(page, 1, 1);
+            assertKeyword(page, 1, 0, "");
+            assertKeyword(page, 1, 1, "");
         });
     }
 
@@ -8602,12 +8596,12 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Under {@code trim_spaces} a whitespace-only cell trims to empty and then reads as null on an inferred
+     * Under {@code trim_spaces} a whitespace-only cell trims to empty and then reads as {@code ""} on a string
      * column, exactly like a bare blank. That is consistent rather than incidental: the schema inferrer trims
      * before typing, so a whitespace-only cell contributes no type evidence either. It is also the shape the
      * column-aligned csv/tsv fixtures have -- the external spec suites read them with {@code trim_spaces}.
      */
-    public void testEmptyVsNull_inferredWhitespaceOnlyUnderTrimSpacesIsNull() throws IOException {
+    public void testEmptyVsNull_inferredWhitespaceOnlyUnderTrimSpacesIsEmptyString() throws IOException {
         FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("trim_spaces", true));
         withFirstPage(reader, """
             id:long,phrase:keyword,n:integer
@@ -8616,7 +8610,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             3,banana,30
             """, page -> {
             assertEquals(3, page.getPositionCount());
-            assertBlockNull(page, 1, 1);
+            assertKeyword(page, 1, 1, "");
         });
     }
 
@@ -8659,6 +8653,8 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     public void testEmptyVsNull_emptyUnderCustomNullValue_defaultPath() throws IOException {
         FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("null_value", "N/A"));
+        // A null_value naming some OTHER token leaves the empty string alone on both declared and inferred reads;
+        // only null_value: "" turns it into null.
         withFirstPageDeclaredSchema(reader, """
             id:long,phrase:keyword,n:integer
             1,apple,10
@@ -8666,9 +8662,90 @@ public class CsvFormatReaderTests extends ESTestCase {
             3,banana,30
             """, page -> {
             assertEquals(3, page.getPositionCount());
-            // A null_value naming some OTHER token leaves the declared string column's empty string alone;
-            // only null_value: "" turns it into null.
             assertKeyword(page, 1, 1, "");
+        });
+        withFirstPage(reader, """
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,,20
+            3,banana,30
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 1, 1, ""); // inferred twin: same result
+        });
+    }
+
+    /**
+     * A blank string cell reads {@code ""} on all three dialect modes ({@code quoted}, {@code escaped},
+     * {@code plain}) and on both inferred and declared schema provenances. The rule has no quoting-awareness
+     * and no declaration dependency.
+     */
+    public void testEmptyVsNull_blankStringCellAllModesInferredAndDeclared() throws IOException {
+        String csv = "id:long,phrase:keyword,n:integer\n1,apple,10\n2,,20\n3,banana,30\n";
+        for (String mode : List.of("quoted", "escaped", "plain")) {
+            FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("mode", mode));
+            withFirstPage(reader, csv, page -> assertKeyword(page, 1, 1, "")); // inferred
+            withFirstPageDeclaredSchema(reader, csv, page -> assertKeyword(page, 1, 1, "")); // declared
+        }
+    }
+
+    /**
+     * A blank cell in a non-string column reads {@code null} on all three modes and both provenances.
+     */
+    public void testEmptyVsNull_blankNumericCellIsNullAllModes() throws IOException {
+        String csv = "id:long,score:double,phrase:keyword\n1,1.5,a\n2,,b\n3,3.5,c\n";
+        for (String mode : List.of("quoted", "escaped", "plain")) {
+            FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("mode", mode));
+            withFirstPage(reader, csv, page -> assertBlockNull(page, 1, 1)); // inferred
+            withFirstPageDeclaredSchema(reader, csv, page -> assertBlockNull(page, 1, 1)); // declared
+        }
+    }
+
+    /**
+     * {@code null_value: ""} forces a blank string cell to {@code null} on all three modes and both
+     * provenances. This is the only opt-out from the {@code ""} default.
+     */
+    public void testEmptyVsNull_blankStringUnderEmptyNullValueIsNullAllModes() throws IOException {
+        String csv = "id:long,phrase:keyword,n:integer\n1,apple,10\n2,,20\n3,banana,30\n";
+        for (String mode : List.of("quoted", "escaped", "plain")) {
+            FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("mode", mode, "null_value", ""));
+            withFirstPage(reader, csv, page -> assertBlockNull(page, 1, 1)); // inferred
+            withFirstPageDeclaredSchema(reader, csv, page -> assertBlockNull(page, 1, 1)); // declared
+        }
+    }
+
+    /**
+     * A present-but-blank cell and a genuinely missing cell (short row) answer differently: a blank
+     * reads {@code ""} on a string column, while a missing field is always {@code null}.
+     */
+    public void testEmptyVsNull_blankPresentDiffersFromMissingFieldInferred_defaultPath() throws IOException {
+        withFirstPage(new CsvFormatReader(blockFactory), """
+            id:long,n:integer,phrase:keyword
+            1,10,apple
+            2,20,
+            3,30
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 2, 0, "apple");
+            assertKeyword(page, 2, 1, ""); // present blank -> ""
+            assertBlockNull(page, 2, 2); // missing (short row) -> null
+        });
+    }
+
+    /**
+     * Same as {@link #testEmptyVsNull_blankPresentDiffersFromMissingFieldInferred_defaultPath} but on the
+     * direct-to-block path: both walkers must agree.
+     */
+    public void testEmptyVsNull_blankPresentDiffersFromMissingFieldInferred_directPath() throws IOException {
+        withFirstPageDirectInferred("""
+            id:long,n:integer,phrase:keyword
+            1,10,apple
+            2,20,
+            3,30
+            """, List.of("id", "n", "phrase"), page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 2, 1, ""); // present blank -> ""
+            assertBlockNull(page, 2, 2); // missing -> null
         });
     }
 
@@ -8690,21 +8767,20 @@ public class CsvFormatReaderTests extends ESTestCase {
         });
     }
 
-    /** The TSV twin of the inferred rule: a blank tab-separated cell is null on an inferred column. */
-    public void testEmptyVsNull_inferredBlankIsNull_tsvPlain() throws IOException {
+    /** TSV inferred read: a blank tab-separated cell on a string column reads {@code ""}. */
+    public void testEmptyVsNull_inferredBlankIsEmptyString_tsvPlain() throws IOException {
         FormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
         withFirstPage(reader, "id:long\tphrase:keyword\tn:integer\n1\tapple\t10\n2\t\t20\n3\tbanana\t30\n", page -> {
             assertEquals(3, page.getPositionCount());
-            assertBlockNull(page, 1, 1);
+            assertKeyword(page, 1, 1, "");
         });
     }
 
     // --- Direct-to-block path (multi_value_syntax=none, projected read with per-column stats) ---
     // These force the optimized direct decoders (emitPlainField / splitAndConvertQuoted) by supplying a
     // FormatReadContext with a projected, non-ALL stats scope on a direct-block-enabled reader. The
-    // present-empty rule must match the Jackson and bracket paths on both arms: the empty string only on a
-    // declared KEYWORD/TEXT column, null on an inferred one and on every other type, and null for a
-    // genuinely missing (short-row) field.
+    // present-empty rule must match the Jackson and bracket paths: "" on a KEYWORD/TEXT column (inferred or
+    // declared), null on every other type, and null for a genuinely missing (short-row) field.
 
     /**
      * Reads {@code csv} on the direct-to-block path with the file's own schema pinned as a DECLARED one — the
@@ -8714,7 +8790,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         withFirstPageDirect(csv, projected, true, asserts);
     }
 
-    /** Reads {@code csv} on the direct-to-block path with no declaration, where a blank cell is null. */
+    /** Reads {@code csv} on the direct-to-block path with no declaration (inferred schema). */
     private void withFirstPageDirectInferred(String csv, List<String> projected, Consumer<Page> asserts) throws IOException {
         withFirstPageDirect(csv, projected, false, asserts);
     }
@@ -8752,8 +8828,8 @@ public class CsvFormatReaderTests extends ESTestCase {
         });
     }
 
-    /** The direct walkers apply the inferred rule too: same bytes, no declaration, blank reads null. */
-    public void testEmptyVsNull_inferredBlankIsNull_directPath() throws IOException {
+    /** The direct walkers apply the same rule: same bytes, no declaration, blank string reads {@code ""}. */
+    public void testEmptyVsNull_inferredBlankIsEmptyString_directPath() throws IOException {
         withFirstPageDirectInferred("""
             id:long,phrase:keyword,n:integer
             1,apple,10
@@ -8762,7 +8838,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             """, List.of("id", "phrase", "n"), page -> {
             assertEquals(3, page.getPositionCount());
             assertKeyword(page, 1, 0, "apple");
-            assertBlockNull(page, 1, 1);
+            assertKeyword(page, 1, 1, "");
             assertKeyword(page, 1, 2, "banana");
         });
     }
@@ -8858,8 +8934,8 @@ public class CsvFormatReaderTests extends ESTestCase {
         });
     }
 
-    /** The fused bracket walker follows the inferred rule as well: an undeclared blank cell is null. */
-    public void testEmptyVsNull_inferredBlankIsNull_fusedBrackets() throws IOException {
+    /** The fused bracket walker follows the same rule: blank string cell reads {@code ""}. */
+    public void testEmptyVsNull_inferredBlankIsEmptyString_fusedBrackets() throws IOException {
         FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
         withFirstPage(reader, """
             id:long,phrase:keyword,n:integer
@@ -8868,7 +8944,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             3,banana,30
             """, page -> {
             assertEquals(3, page.getPositionCount());
-            assertBlockNull(page, 1, 1);
+            assertKeyword(page, 1, 1, "");
         });
     }
 
@@ -8876,9 +8952,8 @@ public class CsvFormatReaderTests extends ESTestCase {
         // With multi_value_syntax=brackets + an inferred (plain) schema, the rows BEYOND the inference
         // sample are read via the split-then-convert route (splitCommaDelimiterBracketAwareFields ->
         // convertRowInPlace), not the fused walker. schema_sample_size=2 keeps rows 3 and 4 on that
-        // route. Both bracket routes must agree: on this INFERRED schema an interior empty and a trailing
-        // empty cell read as null -- and, in particular, they must not depend on whether the row fell
-        // inside the inference sample.
+        // route. Both bracket routes must agree: blank string cells read "" regardless of whether the row
+        // fell inside the inference sample.
         FormatReader reader = new CsvFormatReader(blockFactory).withConfig(
             Map.of("multi_value_syntax", "brackets", "schema_sample_size", "2")
         );
@@ -8890,15 +8965,15 @@ public class CsvFormatReaderTests extends ESTestCase {
             4,banana,
             """, page -> {
             assertEquals(4, page.getPositionCount());
-            assertBlockNull(page, 1, 2); // interior empty (row beyond sample) -> null
-            assertBlockNull(page, 2, 3); // trailing empty (row beyond sample) -> null
+            assertKeyword(page, 1, 2, ""); // interior empty (row beyond sample) -> ""
+            assertKeyword(page, 2, 3, ""); // trailing empty (row beyond sample) -> ""
         });
     }
 
     public void testEmptyVsNull_quotedEmptyString_bracketsSplitThenConvertRoute() throws IOException {
         // Route C (rows beyond the inference sample under brackets + inferred schema, read via
-        // splitCommaDelimiterBracketAwareFields). A quoted empty `""` field yields no text; on this
-        // inferred schema it reads as null, matching the fused walker and the Jackson path -- and it must
+        // splitCommaDelimiterBracketAwareFields). A quoted empty `""` field yields no text; on a string
+        // column it reads as "", matching the fused walker and the Jackson path -- and it must
         // still produce a ROW, not collapse into a missing field. schema_sample_size=1 pushes row 2 onto
         // the split-then-convert route.
         FormatReader reader = new CsvFormatReader(blockFactory).withConfig(
@@ -8911,7 +8986,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             """, page -> {
             assertEquals(2, page.getPositionCount());
             assertKeyword(page, 0, 0, "apple");
-            assertBlockNull(page, 0, 1); // quoted empty on the split route -> null
+            assertKeyword(page, 0, 1, ""); // quoted empty on the split route -> ""
         });
     }
 

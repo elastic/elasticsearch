@@ -25,7 +25,8 @@ import static org.hamcrest.Matchers.not;
 
 public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests {
 
-    private final DataSourceValidator validator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"));
+    private final DataSourceValidator validator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+        .withDatasourceCheck((config, errors) -> S3EndpointCheck.validate((S3Configuration) config, hostAndPort -> false, errors));
 
     @Override
     protected DataSourceValidator validator() {
@@ -721,5 +722,56 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             ValidationException.class,
             () -> formatAwareValidator.validateDataset(Map.of(), "s3://test", Map.of("format", "auto", "delimiter", "|"))
         );
+    }
+    // --- Endpoint host validation ---
+
+    public void testValidateDatasourceRejectsHttpEndpoint() {
+        // A host rule rests on the certificate presented for that name, so plain http is refused even when
+        // the host itself would be permitted.
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDatasource(Map.of("endpoint", "http://s3.us-east-1.amazonaws.com", "auth", "anonymous"))
+        );
+        assertThat(e.getMessage(), containsString("must use https"));
+    }
+
+    public void testValidateDatasourceRejectsThirdPartyEndpoint() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDatasource(Map.of("endpoint", "https://s3-proxy.example.com:9000", "auth", "anonymous"))
+        );
+        assertThat(e.getMessage(), containsString("endpoint [https://s3-proxy.example.com:9000]"));
+        assertThat(e.getMessage(), containsString("not a supported AWS S3 endpoint"));
+    }
+
+    public void testValidateDatasourceAcceptsAwsS3Endpoint() {
+        var result = validator.validateDatasource(Map.of("endpoint", "https://s3.us-east-1.amazonaws.com", "auth", "anonymous"));
+        assertEquals("https://s3.us-east-1.amazonaws.com", result.get("endpoint").nonSecretValue());
+    }
+
+    private static DataSourceValidator federatedValidator() {
+        return new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n")).withFederatedIdentityEnabled(
+            () -> true
+        ).withDatasourceCheck((config, errors) -> S3EndpointCheck.validate((S3Configuration) config, hostAndPort -> false, errors));
+    }
+
+    public void testValidateDatasourceRejectsThirdPartyStsEndpoint() {
+        // sts_endpoint receives the node's own OIDC token as the whole credential, so a host outside AWS
+        // is a credential disclosure rather than a misrouted read.
+        var e = expectThrows(
+            ValidationException.class,
+            () -> federatedValidator().validateDatasource(
+                Map.of("role_arn", "arn:aws:iam::123456789012:role/example", "sts_endpoint", "https://attacker.example.com")
+            )
+        );
+        assertThat(e.getMessage(), containsString("sts_endpoint [https://attacker.example.com]"));
+        assertThat(e.getMessage(), containsString("not a supported AWS STS endpoint"));
+    }
+
+    public void testValidateDatasourceAcceptsValidStsEndpoint() {
+        var result = federatedValidator().validateDatasource(
+            Map.of("role_arn", "arn:aws:iam::123456789012:role/example", "sts_endpoint", "https://sts.us-east-1.amazonaws.com")
+        );
+        assertEquals("https://sts.us-east-1.amazonaws.com", result.get("sts_endpoint").nonSecretValue());
     }
 }

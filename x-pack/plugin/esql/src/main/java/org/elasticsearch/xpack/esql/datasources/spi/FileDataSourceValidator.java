@@ -22,6 +22,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 
@@ -118,13 +119,15 @@ public class FileDataSourceValidator implements DataSourceValidator {
     private final Set<String> compressionExtensions;
     private final BooleanSupplier managedIdentityEnabled;
     private final BooleanSupplier federatedIdentityEnabled;
+    /** Per-type settings policy, run on a PUT only. A no-op unless the plugin supplies one. */
+    private final BiConsumer<DataSourceConfiguration, ValidationException> datasourceCheck;
 
     public FileDataSourceValidator(
         String type,
         BiFunction<Map<String, Object>, Set<String>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes
     ) {
-        this(type, configFactory, supportedSchemes, null, Set.of(), () -> false, () -> false);
+        this(type, configFactory, supportedSchemes, null, Set.of(), () -> false, () -> false, (c, e) -> {});
     }
 
     private FileDataSourceValidator(
@@ -134,7 +137,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
         @Nullable FormatConfigKeyResolver formatConfigKeyResolver,
         Set<String> compressionExtensions,
         BooleanSupplier managedIdentityEnabled,
-        BooleanSupplier federatedIdentityEnabled
+        BooleanSupplier federatedIdentityEnabled,
+        BiConsumer<DataSourceConfiguration, ValidationException> datasourceCheck
     ) {
         this.type = type;
         this.configFactory = configFactory;
@@ -143,6 +147,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         this.compressionExtensions = compressionExtensions;
         this.managedIdentityEnabled = managedIdentityEnabled;
         this.federatedIdentityEnabled = federatedIdentityEnabled;
+        this.datasourceCheck = datasourceCheck;
     }
 
     /**
@@ -163,7 +168,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
             resolver,
             compressionExtensions,
             managedIdentityEnabled,
-            federatedIdentityEnabled
+            federatedIdentityEnabled,
+            datasourceCheck
         );
     }
 
@@ -182,7 +188,8 @@ public class FileDataSourceValidator implements DataSourceValidator {
             formatConfigKeyResolver,
             compressionExtensions,
             supplier,
-            federatedIdentityEnabled
+            federatedIdentityEnabled,
+            datasourceCheck
         );
     }
 
@@ -199,7 +206,25 @@ public class FileDataSourceValidator implements DataSourceValidator {
             formatConfigKeyResolver,
             compressionExtensions,
             managedIdentityEnabled,
-            supplier
+            supplier,
+            datasourceCheck
+        );
+    }
+
+    /**
+     * Runs {@code check} against the parsed configuration on a PUT. The same rule in {@code validateSettings}
+     * would run inside the constructor and so refuse a stored configuration on every read.
+     */
+    public FileDataSourceValidator withDatasourceCheck(BiConsumer<DataSourceConfiguration, ValidationException> check) {
+        return new FileDataSourceValidator(
+            type,
+            configFactory,
+            supportedSchemes,
+            formatConfigKeyResolver,
+            compressionExtensions,
+            managedIdentityEnabled,
+            federatedIdentityEnabled,
+            check
         );
     }
 
@@ -224,6 +249,11 @@ public class FileDataSourceValidator implements DataSourceValidator {
         }
         if (isFederatedIdentityUsed(config) && federatedIdentityEnabled.getAsBoolean() == false) {
             throw new ValidationException().addValidationError(FEDERATED_IDENTITY_DISABLED_MESSAGE);
+        }
+        if (config != null) {
+            ValidationException errors = new ValidationException();
+            datasourceCheck.accept(config, errors);
+            errors.throwIfValidationErrorsExist();
         }
         return config != null ? config.toStoredSettings() : Map.of();
     }

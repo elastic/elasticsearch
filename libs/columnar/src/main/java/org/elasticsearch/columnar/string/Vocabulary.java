@@ -111,96 +111,139 @@ public final class Vocabulary {
     }
 
     /**
+     * A push-style Misra-Gries accumulator: the caller feeds values one at a time and calls
+     * {@link #finish()} when done. Equivalent to the pull-loop in {@link #survey}, but decoupled from
+     * the cursor so the same walk can serve two purposes at once (e.g. writing a presence structure while
+     * accumulating the vocabulary).
+     */
+    static final class Surveyor {
+
+        private final DictionaryPolicy policy;
+        private final BytesRefHash terms;
+        private int[] counts;
+        private long tableBytes;
+        private long columnBytes;
+        // A column that arrives in term order repeats each value in a run, so the term a value takes is
+        // almost always the one before it. Comparing against that costs a length check and settles it
+        // without a hash probe; only a run boundary pays for one.
+        private final BytesRefBuilder previous;
+        private int previousId;
+        private boolean hasPrevious;
+
+        private Surveyor(DictionaryPolicy policy) {
+            this.policy = policy;
+            this.terms = new BytesRefHash(new ByteBlockPool(new ByteBlockPool.DirectTrackingAllocator(Counter.newCounter())));
+            this.counts = new int[64];
+            this.tableBytes = 0;
+            this.columnBytes = 0;
+            this.previous = new BytesRefBuilder();
+            this.previousId = ABSENT;
+            this.hasPrevious = false;
+        }
+
+        /**
+         * Offers one slot's value. A null slot is ignored — it is named by an ordinal of its own and its
+         * bytes are not bytes the column would otherwise store.
+         */
+        void accept(BytesRef value) {
+            if (value == null) {
+                // A null is named by an ordinal of its own, so it is not a term worth a dictionary entry
+                // and its bytes are not bytes the column would otherwise store. Counting it would credit
+                // the empty term with occurrences it does not have, and could win it an entry — or
+                // displace a real term — on the strength of values that are not empty strings.
+                return;
+            }
+            // NOTE: empty strings occupy an ordinal slot and a plain-path entry, so they count
+            // as one virtual byte to keep the denominator positive and the metric meaningful.
+            columnBytes += Math.max(1, value.length);
+            if (hasPrevious && previous.get().bytesEquals(value)) {
+                if (previousId != ABSENT) {
+                    counts[previousId]++;
+                }
+                return;
+            }
+            int id = terms.find(value);
+            if (id < 0) {
+                if (tableBytes + value.length > policy.maxBytes()) {
+                    if (terms.size() > 0) {
+                        final long[] freed = { 0 };
+                        counts = evictLeastFrequent(terms, counts, freed);
+                        tableBytes -= freed[0];
+                    }
+                    if (tableBytes + value.length > policy.maxBytes()) {
+                        // Nothing could be displaced: either every term held occurs at least as often as
+                        // this one, or the table is empty and the value alone is larger than the bound.
+                        // Remembered as absent, so the rest of its run is turned away as cheaply.
+                        previous.copyBytes(value);
+                        previousId = ABSENT;
+                        hasPrevious = true;
+                        return;
+                    }
+                }
+                id = terms.add(value);
+                if (id < 0) {
+                    id = -1 - id;
+                }
+                counts = ArrayUtil.grow(counts, id + 1);
+                tableBytes += value.length;
+            }
+            counts[id]++;
+            // Copied only here, so a run costs one copy rather than one per value.
+            previous.copyBytes(value);
+            previousId = id;
+            hasPrevious = true;
+        }
+
+        /**
+         * Returns the terms worth a dictionary entry, or null when the column holds nothing worth naming.
+         * Must be called exactly once, after all values have been {@link #accept accepted}.
+         */
+        Terms finish() {
+            if (terms.size() == 0) {
+                return null;
+            }
+            // The pass admits every term that fits, which on a column with a long tail spends the budget on
+            // terms seen once. Keeping only the most frequent leaves a dictionary that costs a fraction of
+            // what it describes; the terms dropped here escape.
+            final int[] sortedIds = keepMostFrequent(terms, counts, policy.budgetFor(columnBytes));
+            if (sortedIds.length == 0) {
+                return null;
+            }
+            // Indexed by id, so a term the survey saw but did not keep is told apart from ordinal zero.
+            final int[] ordinalOfId = new int[terms.size()];
+            Arrays.fill(ordinalOfId, DROPPED);
+            long coveredBytes = 0;
+            long keptBytes = 0;
+            final BytesRef scratch = new BytesRef();
+            for (int ordinal = 0; ordinal < sortedIds.length; ordinal++) {
+                final int id = sortedIds[ordinal];
+                ordinalOfId[id] = ordinal;
+                terms.get(id, scratch);
+                coveredBytes += (long) counts[id] * Math.max(1, scratch.length);
+                keptBytes += scratch.length;
+            }
+            return new Terms(terms, sortedIds, ordinalOfId, (double) coveredBytes / columnBytes, keptBytes, columnBytes, counts);
+        }
+    }
+
+    /** Returns a fresh {@link Surveyor} governed by {@code policy}. */
+    static Surveyor surveyor(DictionaryPolicy policy) {
+        return new Surveyor(policy);
+    }
+
+    /**
      * Surveys {@code values}, returning the terms worth a dictionary entry, or null when the column holds
      * nothing worth naming.
      */
     public static Terms survey(StringColumnValues values, DictionaryPolicy policy) throws IOException {
-        final BytesRefHash terms = new BytesRefHash(new ByteBlockPool(new ByteBlockPool.DirectTrackingAllocator(Counter.newCounter())));
-        int[] counts = new int[64];
-        long tableBytes = 0;
-        long columnBytes = 0;
-        // A column that arrives in term order repeats each value in a run, so the term a value takes is
-        // almost always the one before it. Comparing against that costs a length check and settles it
-        // without a hash probe; only a run boundary pays for one.
-        final BytesRefBuilder previous = new BytesRefBuilder();
-        int previousId = ABSENT;
-        boolean hasPrevious = false;
+        final Surveyor surveyor = new Surveyor(policy);
         for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
             for (int i = 0, count = values.valueCount(); i < count; i++) {
                 values.nextValue();
-                final BytesRef value = values.value();
-                if (value == null) {
-                    // A null is named by an ordinal of its own, so it is not a term worth a dictionary entry
-                    // and its bytes are not bytes the column would otherwise store. Counting it would credit
-                    // the empty term with occurrences it does not have, and could win it an entry — or
-                    // displace a real term — on the strength of values that are not empty strings.
-                    continue;
-                }
-                // NOTE: empty strings occupy an ordinal slot and a plain-path entry, so they count
-                // as one virtual byte to keep the denominator positive and the metric meaningful.
-                columnBytes += Math.max(1, value.length);
-                if (hasPrevious && previous.get().bytesEquals(value)) {
-                    if (previousId != ABSENT) {
-                        counts[previousId]++;
-                    }
-                    continue;
-                }
-                int id = terms.find(value);
-                if (id < 0) {
-                    if (tableBytes + value.length > policy.maxBytes()) {
-                        if (terms.size() > 0) {
-                            final long[] freed = { 0 };
-                            counts = evictLeastFrequent(terms, counts, freed);
-                            tableBytes -= freed[0];
-                        }
-                        if (tableBytes + value.length > policy.maxBytes()) {
-                            // Nothing could be displaced: either every term held occurs at least as often as
-                            // this one, or the table is empty and the value alone is larger than the bound.
-                            // Remembered as absent, so the rest of its run is turned away as cheaply.
-                            previous.copyBytes(value);
-                            previousId = ABSENT;
-                            hasPrevious = true;
-                            continue;
-                        }
-                    }
-                    id = terms.add(value);
-                    if (id < 0) {
-                        id = -1 - id;
-                    }
-                    counts = ArrayUtil.grow(counts, id + 1);
-                    tableBytes += value.length;
-                }
-                counts[id]++;
-                // Copied only here, so a run costs one copy rather than one per value.
-                previous.copyBytes(value);
-                previousId = id;
-                hasPrevious = true;
+                surveyor.accept(values.value());
             }
         }
-        if (terms.size() == 0) {
-            return null;
-        }
-        // The pass admits every term that fits, which on a column with a long tail spends the budget on
-        // terms seen once. Keeping only the most frequent leaves a dictionary that costs a fraction of what
-        // it describes; the terms dropped here escape.
-        final int[] sortedIds = keepMostFrequent(terms, counts, policy.budgetFor(columnBytes));
-        if (sortedIds.length == 0) {
-            return null;
-        }
-        // Indexed by id, so a term the survey saw but did not keep is told apart from ordinal zero.
-        final int[] ordinalOfId = new int[terms.size()];
-        Arrays.fill(ordinalOfId, DROPPED);
-        long coveredBytes = 0;
-        long keptBytes = 0;
-        final BytesRef scratch = new BytesRef();
-        for (int ordinal = 0; ordinal < sortedIds.length; ordinal++) {
-            final int id = sortedIds[ordinal];
-            ordinalOfId[id] = ordinal;
-            terms.get(id, scratch);
-            coveredBytes += (long) counts[id] * Math.max(1, scratch.length);
-            keptBytes += scratch.length;
-        }
-        return new Terms(terms, sortedIds, ordinalOfId, (double) coveredBytes / columnBytes, keptBytes, columnBytes, counts);
+        return surveyor.finish();
     }
 
     /**

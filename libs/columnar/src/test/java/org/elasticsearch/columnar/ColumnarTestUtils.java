@@ -26,6 +26,7 @@ import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.numeric.NumericColumnValues;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
@@ -40,6 +41,35 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween
 public final class ColumnarTestUtils {
 
     private ColumnarTestUtils() {}
+
+    /**
+     * An {@link IOSupplier} that counts how many times it has been called. Used by pass-count tests to assert
+     * that a column write opens the expected number of cursors over its source.
+     */
+    public static final class CountingSupplier<T> implements IOSupplier<T> {
+        private final IOSupplier<T> delegate;
+        private int count;
+
+        public CountingSupplier(IOSupplier<T> delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public T get() throws IOException {
+            count++;
+            return delegate.get();
+        }
+
+        /** How many times {@link #get()} has been called since construction or the last {@link #reset}. */
+        public int count() {
+            return count;
+        }
+
+        /** Resets the count to zero. */
+        public void reset() {
+            count = 0;
+        }
+    }
 
     /** Returns a random valid block size: a power of 2 in [{@code 128}, {@code 8192}]. */
     public static int randomValidBlockSize() {

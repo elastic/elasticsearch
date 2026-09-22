@@ -53,11 +53,11 @@ public record ColumnIteratorMetadata(
         return offset >= 0;
     }
 
-    static ColumnIteratorMetadata empty(int maxDoc) {
+    public static ColumnIteratorMetadata empty(int maxDoc) {
         return new ColumnIteratorMetadata(OFFSET_EMPTY, 0L, (short) -1, (byte) -1, 0, maxDoc);
     }
 
-    static ColumnIteratorMetadata dense(int maxDoc) {
+    public static ColumnIteratorMetadata dense(int maxDoc) {
         return new ColumnIteratorMetadata(OFFSET_DENSE, 0L, (short) -1, (byte) -1, maxDoc, maxDoc);
     }
 

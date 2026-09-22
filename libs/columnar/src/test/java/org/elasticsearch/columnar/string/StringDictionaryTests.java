@@ -760,9 +760,6 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
                 ColumnarCodecUtil.writeHeader(out, "ColumNARStringData", FormatVersion.CURRENT, segmentId, "");
                 metadata = StringColumnWriter.write(
                     docSlots.length,
-                    numDocsWithField(docSlots),
-                    numValues(docSlots),
-                    numNullSlots(docSlots),
                     () -> cursor(docSlots),
                     new StringColumnOptions(
                         DictionaryPolicy.NONE,
@@ -778,6 +775,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
                         )
                     ),
                     known,
+                    new StringColumnValues.Totals(numDocsWithField(docSlots), numValues(docSlots), numNullSlots(docSlots)),
                     dir,
                     IOContext.DEFAULT,
                     out

@@ -326,12 +326,10 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
             ColumnarCodecUtil.writeHeader(out, DATA_CODEC, FormatVersion.CURRENT, segmentId, "");
             written = StringColumnWriter.write(
                 docSlots.length,
-                numDocsWithField(docSlots),
-                numValues(docSlots),
-                numNullSlots(docSlots),
                 () -> cursor(docSlots),
                 options,
                 null,
+                new StringColumnValues.Totals(numDocsWithField(docSlots), numValues(docSlots), numNullSlots(docSlots)),
                 dir,
                 IOContext.DEFAULT,
                 out

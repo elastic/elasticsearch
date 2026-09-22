@@ -33,15 +33,19 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.bind;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.emitNullExpression;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.find;
-import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.finestFirst;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.finite;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.mapToRef;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.select;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.union;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch.Joining;
 
 /**
@@ -122,7 +126,7 @@ final class VectorBinaryOperatorLayout {
         Expression rightValue = probeRight ? probe.value() : build.value();
 
         LogicalPlan join = emitJoin(probe, build, keyLabels());
-        List<NamedExpression> output = bindOutput(probe, build);
+        Output output = bindOutput(probe, build);
         return bindResult(leftValue, rightValue, probe.step(), join, output);
     }
 
@@ -137,8 +141,8 @@ final class VectorBinaryOperatorLayout {
         if (match.filter() == VectorMatch.Filter.ON) {
             return List.copyOf(match.filterLabels());
         }
-        var names = new TreeSet<>(left.header().labels());
-        names.addAll(right.header().labels());
+        var names = new TreeSet<>(left.header().finiteColumns());
+        names.addAll(right.header().finiteColumns());
         names.removeAll(match.filterLabels());
         return List.copyOf(names);
     }
@@ -147,13 +151,7 @@ final class VectorBinaryOperatorLayout {
      * The operator's value computed on the joined rows, then the finished table: value and step exposed under this
      * frame's identities, null-fills defined, comparison filter mode applied, and everything else projected away.
      */
-    private IntermediateResult bindResult(
-        Expression leftValue,
-        Expression rightValue,
-        Attribute step,
-        LogicalPlan join,
-        List<NamedExpression> output
-    ) {
+    private IntermediateResult bindResult(Expression leftValue, Expression rightValue, Attribute step, LogicalPlan join, Output output) {
         Expression lhsExpr = new ToDouble(leftValue.source(), leftValue);
         Expression rhsExpr = new ToDouble(rightValue.source(), rightValue);
         Expression value = op.binaryOp().asFunction().create(op.source(), lhsExpr, rhsExpr, configuration);
@@ -167,16 +165,23 @@ final class VectorBinaryOperatorLayout {
         Alias stepAlias = new Alias(step.source(), step.name(), step, stepId);
         Alias valueAlias = new Alias(op.source(), cmd.valueColumnName(), value, new NameId());
         List<Alias> definitions = new ArrayList<>(List.of(valueAlias, stepAlias));
-        definitions.addAll(defined(output));
+        definitions.addAll(output.nullFills());
         LogicalPlan plan = new Eval(cmd.source(), join, definitions);
         if (filter != null) {
             plan = new Filter(op.source(), plan, filter);
         }
         List<NamedExpression> projected = new ArrayList<>(List.of(valueAlias.toAttribute(), stepAlias.toAttribute()));
-        output.forEach(column -> projected.add(column.toAttribute()));
+        projected.addAll(output.header().expressions());
         plan = new Project(cmd.source(), plan, projected);
 
-        return new IntermediateResult(plan, header, valueAlias.toAttribute(), stepAlias.toAttribute(), null, Kind.AFTER_INITIAL_AGGREGATE);
+        return new IntermediateResult(
+            plan,
+            output.header(),
+            valueAlias.toAttribute(),
+            stepAlias.toAttribute(),
+            null,
+            Kind.AFTER_INITIAL_AGGREGATE
+        );
     }
 
     /**
@@ -192,7 +197,8 @@ final class VectorBinaryOperatorLayout {
             .transformExpressionsDown(Expression.class, e -> reidExpr(renamed(e, cmd.valueColumnName(), valueName), ids));
         Expression value = reidExpr(renamed(input.valueColumn(), cmd.valueColumnName(), valueName), ids);
         Attribute step = (Attribute) reidExpr(input.step(), ids);
-        return new IntermediateResult(plan, input.header(), value, step, input.pendingFilter(), input.kind());
+        Header reidentified = input.header().map(expr -> (Attribute) reidExpr(expr, ids));
+        return new IntermediateResult(plan, reidentified, value, step, input.pendingFilter(), input.kind());
     }
 
     /** The inner join of the two operands on step plus the packed match key. */
@@ -223,7 +229,7 @@ final class VectorBinaryOperatorLayout {
         List<Attribute> fields = new ArrayList<>();
         fields.add(build.valueColumn());
         for (String name : match.groupingLabels()) {
-            Attribute field = build.label(name);
+            Attribute field = build.getExpr(name);
             if (field != null) {
                 fields.add(field);
             }
@@ -233,61 +239,59 @@ final class VectorBinaryOperatorLayout {
 
     /** One side's plan with its match key defined and packed next to step; step alone when the key is empty. */
     private Input emitInput(IntermediateResult input, List<String> keyLabels) {
-        List<NamedExpression> key = joinKey(input, keyLabels);
-        List<Alias> nullFills = defined(key);
+        Header key = joinKey(input, keyLabels);
+        List<Alias> nullFills = key.nullFills(input.plan());
         LogicalPlan plan = nullFills.isEmpty() ? input.plan() : new Eval(cmd.source(), input.plan(), nullFills);
         if (key.isEmpty()) {
             return new Input(plan, List.of(input.step()));
         }
-        List<Attribute> keyColumns = key.stream().map(NamedExpression::toAttribute).toList();
         Attribute packed = new ReferenceAttribute(cmd.source(), null, PackDims.PACKED_FIELD_NAME, DataType.KEYWORD);
-        return new Input(new PackDims(cmd.source(), plan, keyColumns, packed), List.of(input.step(), packed));
+        return new Input(new PackDims(cmd.source(), plan, key.expressions(), packed), List.of(input.step(), packed));
     }
 
     /**
-     * The operand's match key columns: its packed columns surviving the ignored labels (an opaque operand under
+     * The operand's match key columns: its packed columns that already exclude the ignored labels (an opaque operand under
      * ignoring), then the shared key labels, each as the operand's own column or a null where it lacks the label.
      */
-    private List<NamedExpression> joinKey(IntermediateResult input, List<String> keyLabels) {
-        var key = new ArrayList<NamedExpression>();
+    private Header joinKey(IntermediateResult input, List<String> keyLabels) {
+        Header key = finite(keyLabels);
         if (match.filter() != VectorMatch.Filter.ON) {
-            Header surviving = input.header().intersect(match.filterLabels());
-            for (Set<String> skip : finestFirst(surviving.skips())) {
-                Attribute packed = input.packed(skip);
-                assert packed != null : "invariant: packing " + skip + " must be carried by the operand";
-                key.add(packed);
-            }
+            Header selected = select(input.header(), finite(match.filterLabels()));
+            key = union(new Header(Set.of(), selected.openColumns()), key);
         }
-        for (String name : keyLabels) {
-            Attribute attribute = input.label(name);
-            key.add(attribute != null ? attribute : emitNullExpression(mapToRef(name)));
-        }
-        return key;
+        return bind(key, input.header());
     }
 
     /** The join result's label columns: every header label bound to the operand carrying it, or to null. */
-    private List<NamedExpression> bindOutput(IntermediateResult probe, IntermediateResult build) {
-        var output = new ArrayList<NamedExpression>();
-        for (String name : header.labels()) {
+    private Output bindOutput(IntermediateResult probe, IntermediateResult build) {
+        var columnExpr = new LinkedHashMap<String, Attribute>();
+        var nullFills = new ArrayList<Alias>();
+        for (String name : header.finiteColumns()) {
             // A label the match semantics dropped (e.g. on(...) narrowing) may still be required by an enclosing
             // translation; it must come back null rather than leak through from an operand.
             Attribute declaredAttr = find(declared, name);
             if (declaredAttr == null) {
-                output.add(emitNullExpression(mapToRef(name)));
+                nullFills.add(emitNullExpression(mapToRef(name)));
+                columnExpr.put(name, nullFills.getLast().toAttribute());
                 continue;
             }
-            // Null-fill under the operator's own attribute when the carrying operand lacks the label, so the command
-            // projection binds it by identity.
-            Attribute attribute = match.groupingLabels().contains(name) ? build.label(name) : probe.label(name);
-            output.add(attribute != null ? attribute : emitNullExpression(declaredAttr));
+            Attribute attribute = match.groupingLabels().contains(name) ? build.getExpr(name) : probe.getExpr(name);
+            if (attribute == null) {
+                // Null-fill under the operator's own attribute when the carrying operand lacks the label, so the command
+                // projection binds it by identity. The join may still carry that id from the other operand (a group_x
+                // label the probe has and the build lacks): the definition deliberately shadows it, which is why these
+                // null-fills are stated here rather than derived from what the join output lacks.
+                nullFills.add(emitNullExpression(declaredAttr));
+                attribute = nullFills.getLast().toAttribute();
+            }
+            columnExpr.put(name, attribute);
         }
-        return output;
+        // Operands are required to have concrete label sets, so the result names every label and carries no packed column.
+        return new Output(new Header(header.finiteColumns(), Set.of(), columnExpr), nullFills);
     }
 
-    /** The columns among {@code columns} defined inline (aliases) rather than carried by the plan. */
-    private static List<Alias> defined(List<? extends NamedExpression> columns) {
-        return columns.stream().filter(Alias.class::isInstance).map(Alias.class::cast).toList();
-    }
+    /** The join result's label columns, and the ones defined as null rather than taken from an operand. */
+    private record Output(Header header, List<Alias> nullFills) {}
 
     /** Renames an attribute or alias in a re-identification pass; other expressions pass through unchanged. */
     private static Expression renamed(Expression e, String from, String to) {

@@ -66,6 +66,9 @@ public class ExternalHiveDynamicPartitionPruningIT extends AbstractExternalDataS
     @Before
     public void requireInSubquery() {
         assumeTrue("Requires WHERE IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        // Once per test. assertPrune runs projection and STATS back to back; checking membership
+        // inside runPruned would repeat the spin-up on the second call.
+        internalCluster().ensureAtLeastNumDataNodes(2);
     }
 
     @After
@@ -84,21 +87,21 @@ public class ExternalHiveDynamicPartitionPruningIT extends AbstractExternalDataS
         String dataset = registerTree("csv_semi");
         createYearIndex("wanted_years", 2025);
 
-        assertPrune(dataset, "WHERE year IN (FROM wanted_years | KEEP year)", 4, idsWhere(y -> y == 2025), true);
+        assertPrune(dataset, "WHERE year IN (FROM wanted_years | KEEP year)", 4, idsWhere(y -> y == 2025));
     }
 
     public void testSemiBothYearsScansAll() throws Exception {
         String dataset = registerTree("csv_semi_both");
         createYearIndex("wanted_years", 2024, 2025);
 
-        assertPrune(dataset, "WHERE year IN (FROM wanted_years | KEEP year)", TOTAL_FILES, idsWhere(y -> y == 2024 || y == 2025), false);
+        assertPrune(dataset, "WHERE year IN (FROM wanted_years | KEEP year)", TOTAL_FILES, idsWhere(y -> y == 2024 || y == 2025));
     }
 
     public void testAntiPrune() throws Exception {
         String dataset = registerTree("csv_anti");
         createYearIndex("wanted_years", 2025);
 
-        assertPrune(dataset, "WHERE year NOT IN (FROM wanted_years | KEEP year)", 4, idsWhere(y -> y == 2024), false);
+        assertPrune(dataset, "WHERE year NOT IN (FROM wanted_years | KEEP year)", 4, idsWhere(y -> y == 2024));
     }
 
     /**
@@ -109,7 +112,7 @@ public class ExternalHiveDynamicPartitionPruningIT extends AbstractExternalDataS
         String dataset = registerTree("csv_empty_semi");
         createYearIndex("wanted_years");
 
-        assertPrune(dataset, "WHERE year IN (FROM wanted_years | KEEP year)", 0, List.of(), true);
+        assertPrune(dataset, "WHERE year IN (FROM wanted_years | KEEP year)", 0, List.of());
     }
 
     /**
@@ -142,20 +145,14 @@ public class ExternalHiveDynamicPartitionPruningIT extends AbstractExternalDataS
         String dataset = registerTree("csv_data_col");
         createIdIndex("wanted_ids", 20250615);
 
-        assertPrune(
-            dataset,
-            "WHERE id IN (FROM wanted_ids | KEEP id)",
-            TOTAL_FILES,
-            idsWhere((y, m, d) -> idFor(y, m, d) == 20250615),
-            false
-        );
+        assertPrune(dataset, "WHERE id IN (FROM wanted_ids | KEEP id)", TOTAL_FILES, idsWhere((y, m, d) -> idFor(y, m, d) == 20250615));
     }
 
     /**
-     * Projection path always; STATS path when {@code alsoStats} is true (different lowering; empty IN
-     * + STATS has crashed before).
+     * Projection path and STATS path. They lower differently; empty IN + STATS has crashed before,
+     * and NOT IN / full-scan IN can disagree with the projection count the same way.
      */
-    private void assertPrune(String dataset, String filterClause, int expectedFilesScanned, List<Long> expectedIds, boolean alsoStats) {
+    private void assertPrune(String dataset, String filterClause, int expectedFilesScanned, List<Long> expectedIds) {
         List<List<Object>> rows = runPruned(dataset, filterClause + " | KEEP id | SORT id ASC", expectedFilesScanned, roundRobin());
         List<Long> actualIds = rows.stream().map(row -> ((Number) row.get(0)).longValue()).toList();
         assertThat(
@@ -164,20 +161,16 @@ public class ExternalHiveDynamicPartitionPruningIT extends AbstractExternalDataS
             equalTo(expectedIds)
         );
 
-        if (alsoStats) {
-            List<List<Object>> counted = runPruned(dataset, filterClause + " | STATS c = COUNT(*)", expectedFilesScanned, roundRobin());
-            assertThat("expect a single count row", counted.size(), equalTo(1));
-            assertThat(
-                "[" + filterClause + "] the aggregate path must agree with the projection path",
-                ((Number) counted.get(0).get(0)).longValue(),
-                equalTo((long) expectedIds.size())
-            );
-        }
+        List<List<Object>> counted = runPruned(dataset, filterClause + " | STATS c = COUNT(*)", expectedFilesScanned, roundRobin());
+        assertThat("expect a single count row", counted.size(), equalTo(1));
+        assertThat(
+            "[" + filterClause + "] the aggregate path must agree with the projection path",
+            ((Number) counted.get(0).get(0)).longValue(),
+            equalTo((long) expectedIds.size())
+        );
     }
 
     private List<List<Object>> runPruned(String dataset, String tail, int expectedFilesScanned, QueryPragmas pragmas) {
-        internalCluster().ensureAtLeastNumDataNodes(2);
-
         String query = "FROM " + dataset + " | " + tail;
         var request = syncEsqlQueryRequest(query);
         request.pragmas(pragmas);

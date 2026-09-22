@@ -918,7 +918,7 @@ public class StatelessPlugin extends Plugin
         StatelessReaderHeapBreaker.addLimitUpdateConsumer(clusterService.getClusterSettings(), readerHeapBreaker::get);
         components.add(hollowShardMetrics.get());
         components.add(new StatelessComponents(translogReplicator, objectStoreService));
-        setAndGet(this.bccHeaderReadExecutor, new BCCHeaderReadExecutor(threadPool));
+        setAndGet(this.bccHeaderReadExecutor, new BCCHeaderReadExecutor(threadPool, meterRegistry));
 
         var indexShardCacheWarmer = new IndexShardCacheWarmer(
             objectStoreService,

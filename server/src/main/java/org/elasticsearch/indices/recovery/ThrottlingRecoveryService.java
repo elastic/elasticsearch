@@ -535,7 +535,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
     private void setMaxConcurrentRecoveries(int newMax) {
         synchronized (this) {
-            recoveriesThrottle.setMaxConcurrentRecoveries(newMax);
+            recoveriesThrottle.maxConcurrentRecoveries = newMax;
         }
         if (lifecycle.started() /* calls before start can (must) be ignored */) {
             fillSlots();
@@ -544,15 +544,17 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
     private void setRelocationRecoveriesMaxProportion(RatioValue newProportion) {
         synchronized (this) {
-            recoveriesThrottle.setRelocationRecoveriesMaxProportion(newProportion.getAsRatio());
+            recoveriesThrottle.relocationRecoveriesMaxProportion = newProportion.getAsRatio();
         }
-        if (lifecycle.started()) {
+        if (lifecycle.started() /* calls before start can (must) be ignored */) {
             fillSlots();
         }
     }
 
     private void setMaxConcurrentIncomingRecoveriesPerHeapGb(double newRatio) {
-        recoveriesThrottle.setMaxConcurrentIncomingRecoveriesPerHeapGb(newRatio);
+        synchronized (this) {
+            recoveriesThrottle.maxConcurrentRecoveriesPerHeapGb = newRatio;
+        }
         if (lifecycle.started() /* calls before start can (must) be ignored */) {
             fillSlots();
         }
@@ -619,16 +621,24 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
         /// The node's max heap, used for the heap-based effective limit.
         private final ByteSizeValue maxHeapBytes;
+
         /// The maximum number of concurrent recoveries on this node (excluding peer recoveries for which this node is the source).
         /// See [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING].
+        /// The actual enforced limit is computed via [#effectiveMaxConcurrentRelocationRecoveries] and takes into
+        /// account the heap-based [#maxConcurrentRecoveriesPerHeapGb] limit.
         private int maxConcurrentRecoveries;
-        /// The maximum proportion of [#maxConcurrentRecoveries] slots that may be used for relocation recoveries.
+
+        /// The maximum number of concurrent recoveries on this node (excluding peer recoveries for which this node is the source)
+        /// per heap (in GB) allocated to this node.
+        /// See [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING].
+        /// The actual enforced limit is computed via [#effectiveMaxConcurrentRelocationRecoveries] and takes into
+        /// account the static [#maxConcurrentRecoveries] limit.
+        private double maxConcurrentRecoveriesPerHeapGb;
+
+        /// The maximum proportion of [#effectiveMaxConcurrentRelocationRecoveries] slots that may be used for relocation recoveries.
         /// See [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING].
         private double relocationRecoveriesMaxProportion;
-        /// The heap-scaled ratio: `ceil(heapGb * ratio)` forms the heap-based limit. Combined with [#maxConcurrentRecoveries]
-        /// via `min(...)` to yield [#effectiveMaxConcurrentRecoveries].
-        /// See [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING].
-        private double maxConcurrentRecoveriesPerHeapGb = Double.MAX_VALUE;
+
         /// The number of concurrent recoveries currently running, including recoveries from unassigned + relocations. Must
         /// not exceed [#effectiveMaxConcurrentRecoveries].
         private int runningRecoveries = 0;
@@ -637,21 +647,6 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
         RecoveriesThrottle(ByteSizeValue maxHeapBytes) {
             this.maxHeapBytes = maxHeapBytes;
-        }
-
-        /// Sets [#maxConcurrentRecoveries] and recomputes [#effectiveMaxConcurrentRecoveries].
-        void setMaxConcurrentRecoveries(int newMax) {
-            maxConcurrentRecoveries = newMax;
-        }
-
-        /// Sets [#relocationRecoveriesMaxProportion].
-        void setRelocationRecoveriesMaxProportion(double newProportion) {
-            relocationRecoveriesMaxProportion = newProportion;
-        }
-
-        /// Sets [#maxConcurrentRecoveriesPerHeapGb] and recomputes [#effectiveMaxConcurrentRecoveries].
-        void setMaxConcurrentIncomingRecoveriesPerHeapGb(double newRatio) {
-            maxConcurrentRecoveriesPerHeapGb = newRatio;
         }
 
         /// Returns the effective max concurrent relocation recoveries, derived from the provided

@@ -1,0 +1,5 @@
+area: Authentication
+issues: []
+pr: 158854
+summary: Report REST API key counts in security usage stats
+type: enhancement

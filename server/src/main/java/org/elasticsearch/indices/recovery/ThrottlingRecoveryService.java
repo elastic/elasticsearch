@@ -72,7 +72,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     /// node is the source, see [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING].
     /// Includes both recoveries of unassigned shards and relocations.
     ///
-    /// Note that the effective max concurrent recoveries also takes into account the below heap setting throttle
+    /// Note that the effective max concurrent recoveries limit also takes into account the below heap setting throttle
     /// [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING]. The effective max concurrent recoveries
     /// is then `min(max_concurrent_incoming_recoveries, ceil(heapGb * max_concurrent_incoming_recoveries_per_heap_gb))`.
     /// See [RecoveriesThrottle].
@@ -94,7 +94,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     /// Includes both recoveries of unassigned shards and relocations. Must be strictly positive: 0 is disallowed
     /// (consistent with the minimum of the other recovery throttle settings in [ThrottlingRecoveryService]).
     ///
-    /// Note that the effective max concurrent recoveries also takes into account the above static throttle
+    /// Note that the effective max concurrent recoveries limit also takes into account the above static throttle
     /// [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING]. The effective max concurrent recoveries
     /// is then `min(max_concurrent_incoming_recoveries, ceil(heapGb * max_concurrent_incoming_recoveries_per_heap_gb))`.
     /// See [RecoveriesThrottle].
@@ -155,7 +155,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         ClusterService clusterService,
         RecoverySchedulingListener schedulingListener,
         RecoveryGateMonitor recoveryGateMonitor,
-        ByteSizeValue maxHeapBytes
+        ByteSizeValue maxHeap
     ) {
         this.executor = threadPool.generic();
         this.threadContext = threadPool.getThreadContext();
@@ -164,7 +164,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         this.schedulingListener = schedulingListener;
         this.clusterService = clusterService;
         this.recoveryGateMonitor = recoveryGateMonitor;
-        this.recoveriesThrottle = new RecoveriesThrottle(maxHeapBytes);
+        this.recoveriesThrottle = new RecoveriesThrottle(maxHeap);
     }
 
     @Override
@@ -620,7 +620,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     private static class RecoveriesThrottle {
 
         /// The node's max heap, used to compute the heap-based throttling limit.
-        private final ByteSizeValue maxHeapBytes;
+        private final ByteSizeValue maxHeap;
 
         /// The maximum number of concurrent recoveries on this node (excluding peer recoveries for which this node is the source).
         /// See [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING].
@@ -646,8 +646,8 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         /// The number of concurrent relocation recoveries currently running.
         private int runningRelocationRecoveries = 0;
 
-        RecoveriesThrottle(ByteSizeValue maxHeapBytes) {
-            this.maxHeapBytes = maxHeapBytes;
+        RecoveriesThrottle(ByteSizeValue maxHeap) {
+            this.maxHeap = maxHeap;
         }
 
         /// Returns the effective max concurrent relocation recoveries, derived from the provided
@@ -662,7 +662,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             if (maxConcurrentRecoveriesPerHeapGb == Double.MAX_VALUE) {
                 return maxConcurrentRecoveries;
             }
-            final double heapInGb = maxHeapBytes.getGbFrac();
+            final double heapInGb = maxHeap.getGbFrac();
             assert heapInGb > 0;
             return Math.min(maxConcurrentRecoveries, (int) Math.ceil(heapInGb * maxConcurrentRecoveriesPerHeapGb));
         }

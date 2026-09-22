@@ -219,12 +219,17 @@ public class CacheWeightAccountingTests extends ESTestCase {
         );
     }
 
-    /** Control: the listing weigher is not inert — it does charge for the path text it encodes. */
+    /**
+     * Control: the listing weigher is not inert — it does charge for the path text it encodes. Both lists
+     * carry partition metadata so they compact to the same representation as the two failing arms, and the
+     * only difference between them is the length of the paths.
+     */
     public void testCompactedListingWeightDoesCountPathText() {
         List<StorageEntry> shortPaths = hiveEntries("s", 4000);
         List<StorageEntry> longPaths = hiveEntries("s".repeat(200), 4000);
-        FileList shortList = GlobExpander.compact(GlobExpander.fileListOf(shortPaths, "p", null), "s3://warehouse/");
-        FileList longList = GlobExpander.compact(GlobExpander.fileListOf(longPaths, "p", null), "s3://warehouse/");
+        FileList shortList = GlobExpander.compact(GlobExpander.fileListOf(shortPaths, "p", hivePartitions(shortPaths)), "s3://warehouse/");
+        FileList longList = GlobExpander.compact(GlobExpander.fileListOf(longPaths, "p", hivePartitions(longPaths)), "s3://warehouse/");
+        assertEquals(shortList.getClass(), longList.getClass());
         assertThat(longList.estimatedBytes(), greaterThan(shortList.estimatedBytes()));
     }
 

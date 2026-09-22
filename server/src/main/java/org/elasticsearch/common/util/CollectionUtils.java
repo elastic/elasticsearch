@@ -231,7 +231,15 @@ public class CollectionUtils {
     private static <T> T deepCopyInternal(T value, int options) {
         final boolean unmodifiable = (options & DeepCopyOption.UNMODIFIABLE.mask) != 0;
         final boolean ordered = (options & DeepCopyOption.ORDERED.mask) != 0;
-        if (value instanceof Map<?, ?> mapValue) {
+        if (value == null
+            || value instanceof String
+            || value instanceof Boolean
+            || value instanceof Integer
+            || value instanceof Long
+            || value instanceof Double) {
+            // hot path: the most common leaf value types in documents are immutable and need no copy
+            return value;
+        } else if (value instanceof Map<?, ?> mapValue) {
             Map<Object, Object> copy = ordered ? LinkedHashMap.newLinkedHashMap(mapValue.size()) : HashMap.newHashMap(mapValue.size());
             for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
                 copy.put(entry.getKey(), deepCopyInternal(entry.getValue(), options));
@@ -268,21 +276,15 @@ public class CollectionUtils {
                 throw new IllegalArgumentException("cannot make array type [" + value.getClass() + "] unmodifiable");
             }
             return (T) Arrays.copyOf(doubles, doubles.length);
-        } else if (value == null
-            || value instanceof String
-            || value instanceof Character
-            || value instanceof Boolean
+        } else if (value instanceof Float
             || value instanceof Byte
             || value instanceof Short
-            || value instanceof Integer
-            || value instanceof Long
-            || value instanceof Float
-            || value instanceof Double
+            || value instanceof Character
             || value instanceof BigInteger
             || value instanceof BigDecimal
             || value instanceof ZonedDateTime) {
                 // n.b. java.util.concurrent.atomic types (AtomicInteger etc.), and some other Number subclasses are mutable,
-                // so we enumerate the immutable Number subclasses explicitly above rather than using instanceof Number
+                // so we enumerate the immutable Number subclasses explicitly rather than using instanceof Number
                 return value;
             } else if (value instanceof Date date) {
                 return (T) date.clone();

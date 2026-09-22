@@ -36,6 +36,12 @@ public final class MetadataAttribute extends TypedAttribute {
     public static final String INDEX = "_index";
     public static final String TIMESERIES = "_timeseries";
     public static final String SIZE = "_size";
+    // The kind of ES relation a row came from and that relation's own name. Named RELATION_* rather
+    // than CLASS/NAME because MetadataAttribute.NAME would read as the name of the attribute rather
+    // than of the relation it describes. The values _class can take are a closed set, one per
+    // relation kind: see RelationClass.
+    public static final String RELATION_CLASS = "_class";
+    public static final String RELATION_NAME = "_name";
     public static final String DOC = "_doc";
 
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -61,6 +67,13 @@ public final class MetadataAttribute extends TypedAttribute {
         // Searchable field added by the mapper-size plugin.
         // See https://www.elastic.co/docs/reference/elasticsearch/plugins/mapper-size-usage
         entries.add(Map.entry(SIZE, new MetadataAttributeConfiguration(DataType.INTEGER, true)));
+        // Not searchable: no Lucene field backs either name on an index. Nothing actually consults this
+        // for them, because MaterializeRelationClassAndName replaces both attributes with references over
+        // an Eval during logical optimization, long before LucenePushdownPredicates -- the only reader of
+        // this flag -- runs. That rule is what keeps a filter on either name off the shards. False is both
+        // the honest value for a field no index stores and the safe one if the rule is ever skipped.
+        entries.add(Map.entry(RELATION_CLASS, new MetadataAttributeConfiguration(DataType.KEYWORD, false)));
+        entries.add(Map.entry(RELATION_NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, false)));
         if (EsqlCapabilities.Cap.METADATA_TIER_FIELD.isEnabled()) {
             entries.add(Map.entry(DataTierFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)));
         }
@@ -172,6 +185,17 @@ public final class MetadataAttribute extends TypedAttribute {
         }
 
         return new UnresolvedMetadataAttributeExpression(source, name);
+    }
+
+    /**
+     * The {@code METADATA} clause name of {@code requested}. {@link #create} returns a
+     * {@link MetadataAttribute} for names in {@link #ATTRIBUTES_MAP} and an
+     * {@link UnresolvedMetadataAttributeExpression} otherwise; the latter's {@link #name()} throws.
+     * The {@code EXTERNAL} shim uses a plain {@link UnresolvedAttribute}, so both unresolved shapes
+     * occur.
+     */
+    public static String metadataName(NamedExpression requested) {
+        return requested instanceof UnresolvedMetadataAttributeExpression unr ? unr.pattern() : requested.name();
     }
 
     public static DataType dataType(String name) {

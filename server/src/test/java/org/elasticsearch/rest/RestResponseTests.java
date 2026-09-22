@@ -631,6 +631,26 @@ public class RestResponseTests extends ESTestCase {
         assertEquals("path: /my-index/_search, params: {}, status: 500", layout.toSerializable(appender.getLastEventAndReset()));
     }
 
+    public void testSuppressedLoggingRecordsWrappedSearchFailureLocation() throws IOException {
+        final RestChannel channel = new DetailedExceptionRestChannel(new FakeRestRequest());
+        final ShardSearchFailure shardFailure = new ShardSearchFailure(
+            new IllegalStateException("engine is closed"),
+            new SearchShardTarget("node", new ShardId("my-index", "uuid", 3), null)
+        );
+        final SearchPhaseExecutionException searchFailure = new SearchPhaseExecutionException(
+            "query",
+            "all shards failed",
+            new ShardSearchFailure[] { shardFailure }
+        );
+
+        new RestResponse(channel, new RemoteTransportException("error while communicating with remote cluster [remote]", searchFailure));
+
+        final Map<String, ?> fields = lastLoggedFields();
+        assertEquals(IllegalStateException.class.getName(), fields.get("elasticsearch.error.root_cause.type"));
+        assertEquals("my-index", fields.get("elasticsearch.error.index"));
+        assertEquals(3, fields.get("elasticsearch.error.shard"));
+    }
+
     private Map<String, ?> lastLoggedFields() {
         final LogEvent logEvent = appender.getLastEventAndReset();
         assertThat(logEvent.getMessage(), instanceOf(MapMessage.class));

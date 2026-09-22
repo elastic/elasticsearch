@@ -101,7 +101,12 @@ public class ValuesSourceReaderBenchmark {
         BenchmarkLogging.configure();
     }
 
-    private static final String[] SUPPORTED_LAYOUTS = new String[] { "in_order", "shuffled", "shuffled_singles" };
+    private static final String[] SUPPORTED_LAYOUTS = new String[] {
+        "in_order",
+        "shuffled",
+        "shuffled_sparse",
+        "shuffled_small",
+        "shuffled_singles" };
     private static final String[] SUPPORTED_NAMES = new String[] {
         "long",
         "int",
@@ -297,11 +302,17 @@ public class ValuesSourceReaderBenchmark {
      * <li>{@code shuffled} is chunked the same size as {@link LuceneSourceOperator} but
      *     loads in a shuffled order, like a hypothetical {@link TopNOperator} that can
      *     output large blocks would output.</li>
+     * <li>{@code shuffled_sparse} is shuffled across segments, selecting every sixteenth
+     *     document. This is large enough to consider sequential stored fields, but too
+     *     sparse to use them.</li>
+     * <li>{@code shuffled_small} is shuffled across segments, selecting at most ten
+     *     contiguous documents from each segment. This is too small to use sequential
+     *     stored fields.</li>
      * <li>{@code shuffled_singles} is shuffled in the same order as {@code shuffled} but
      *     each page has a single document rather than {@code BLOCK_SIZE} docs.</li>
      * </ul>
      */
-    @Param({ "in_order", "shuffled" })
+    @Param({ "in_order", "shuffled", "shuffled_sparse", "shuffled_small" })
     public String layout;
 
     @Param({ "long", "keyword", "stored_keyword", "keyword_mv" })
@@ -310,6 +321,7 @@ public class ValuesSourceReaderBenchmark {
     private Directory directory;
     private IndexReader reader;
     private List<Page> pages;
+    private long expectedSum;
 
     @Benchmark
     @OperationsPerInvocation(INDEX_SIZE)
@@ -395,45 +407,35 @@ public class ValuesSourceReaderBenchmark {
                 }
             }
         }
-        long expected = 0;
-        switch (name) {
-            case "keyword", "stored_keyword":
-                for (int i = 0; i < INDEX_SIZE; i++) {
-                    expected += i % 1000;
-                }
-                break;
-            case "keyword_mv":
-                for (int i = 0; i < INDEX_SIZE; i++) {
-                    int v1 = i % 1000;
-                    expected += v1;
-                    int v2 = i % 500;
-                    if (v1 != v2) {
-                        expected += v2;
-                    }
-                }
-                break;
-            case "3_stored_keywords":
-                for (int i = 0; i < INDEX_SIZE; i++) {
-                    expected += 3 * (i % 1000);
-                }
-                break;
-            default:
-                expected = INDEX_SIZE;
-                expected = expected * (expected - 1) / 2;
-        }
-        if (expected != sum) {
-            throw new AssertionError("[" + layout + "][" + name + "] expected [" + expected + "] but was [" + sum + "]");
+        if (expectedSum != sum) {
+            throw new AssertionError("[" + layout + "][" + name + "] expected [" + expectedSum + "] but was [" + sum + "]");
         }
         boolean foundStoredFieldLoader = false;
+        boolean foundSequentialStoredFieldLoader = false;
         ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) op.status();
         for (Map.Entry<String, Integer> e : status.readersBuilt().entrySet()) {
             if (e.getKey().indexOf("stored_fields") >= 0) {
                 foundStoredFieldLoader = true;
+                if (e.getKey().contains("sequential: true")) {
+                    foundSequentialStoredFieldLoader = true;
+                }
             }
         }
         if (name.indexOf("stored") >= 0) {
             if (foundStoredFieldLoader == false) {
                 throw new AssertionError("expected to use a stored field loader but only had: " + status.readersBuilt());
+            }
+            switch (layout) {
+                case "shuffled" -> {
+                    if (foundSequentialStoredFieldLoader == false) {
+                        throw new AssertionError("expected to use sequential stored fields but only had: " + status.readersBuilt());
+                    }
+                }
+                case "shuffled_sparse", "shuffled_small" -> {
+                    if (foundSequentialStoredFieldLoader) {
+                        throw new AssertionError("expected to use random stored fields but had: " + status.readersBuilt());
+                    }
+                }
             }
         } else {
             if (foundStoredFieldLoader) {
@@ -481,6 +483,7 @@ public class ValuesSourceReaderBenchmark {
 
     private void setupPages() {
         pages = new ArrayList<>();
+        expectedSum = 0;
         switch (layout) {
             case "in_order" -> {
                 IntVector.Builder docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
@@ -488,8 +491,9 @@ public class ValuesSourceReaderBenchmark {
                     int begin = 0;
                     while (begin < ctx.reader().maxDoc()) {
                         int end = Math.min(begin + BLOCK_LENGTH, ctx.reader().maxDoc());
-                        for (int doc = 0; doc < ctx.reader().maxDoc(); doc++) {
+                        for (int doc = begin; doc < end; doc++) {
                             docs.appendInt(doc);
+                            expectedSum += expectedValue(ctx.docBase + doc);
                         }
                         pages.add(
                             new Page(
@@ -507,79 +511,32 @@ public class ValuesSourceReaderBenchmark {
                     }
                 }
             }
-            case "shuffled" -> {
-                record ItrAndOrd(PrimitiveIterator.OfInt itr, int ord) {}
-                List<ItrAndOrd> docItrs = new ArrayList<>(reader.leaves().size());
-                for (LeafReaderContext ctx : reader.leaves()) {
-                    docItrs.add(new ItrAndOrd(IntStream.range(0, ctx.reader().maxDoc()).iterator(), ctx.ord));
-                }
-                IntVector.Builder docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
-                IntVector.Builder leafs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
-                int size = 0;
-                while (docItrs.isEmpty() == false) {
-                    Iterator<ItrAndOrd> itrItr = docItrs.iterator();
-                    while (itrItr.hasNext()) {
-                        ItrAndOrd next = itrItr.next();
-                        if (false == next.itr.hasNext()) {
-                            itrItr.remove();
-                            continue;
-                        }
-                        docs.appendInt(next.itr.nextInt());
-                        leafs.appendInt(next.ord);
-                        size++;
-                        if (size >= BLOCK_LENGTH) {
-                            pages.add(
-                                new Page(
-                                    new DocVector(
-                                        AlwaysReferencedIndexedByShardId.INSTANCE,
-                                        blockFactory.newConstantIntVector(0, size),
-                                        leafs.build(),
-                                        docs.build(),
-                                        DocVector.config()
-                                    ).asBlock()
-                                )
-                            );
-                            docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
-                            leafs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
-                            size = 0;
-                        }
-                    }
-                }
-                if (size > 0) {
-                    pages.add(
-                        new Page(
-                            new DocVector(
-                                AlwaysReferencedIndexedByShardId.INSTANCE,
-                                blockFactory.newConstantIntBlockWith(0, size).asVector(),
-                                leafs.build().asBlock().asVector(),
-                                docs.build(),
-                                DocVector.config()
-                            ).asBlock()
-                        )
-                    );
-                }
-            }
+            case "shuffled" -> setupShuffledPages(1, Integer.MAX_VALUE);
+            case "shuffled_sparse" -> setupShuffledPages(16, Integer.MAX_VALUE);
+            case "shuffled_small" -> setupShuffledPages(1, 10);
             case "shuffled_singles" -> {
-                record ItrAndOrd(PrimitiveIterator.OfInt itr, int ord) {}
-                List<ItrAndOrd> docItrs = new ArrayList<>(reader.leaves().size());
+                record ItrAndContext(PrimitiveIterator.OfInt itr, LeafReaderContext ctx) {}
+                List<ItrAndContext> docItrs = new ArrayList<>(reader.leaves().size());
                 for (LeafReaderContext ctx : reader.leaves()) {
-                    docItrs.add(new ItrAndOrd(IntStream.range(0, ctx.reader().maxDoc()).iterator(), ctx.ord));
+                    docItrs.add(new ItrAndContext(IntStream.range(0, ctx.reader().maxDoc()).iterator(), ctx));
                 }
                 while (docItrs.isEmpty() == false) {
-                    Iterator<ItrAndOrd> itrItr = docItrs.iterator();
+                    Iterator<ItrAndContext> itrItr = docItrs.iterator();
                     while (itrItr.hasNext()) {
-                        ItrAndOrd next = itrItr.next();
+                        ItrAndContext next = itrItr.next();
                         if (false == next.itr.hasNext()) {
                             itrItr.remove();
                             continue;
                         }
+                        int doc = next.itr.nextInt();
+                        expectedSum += expectedValue(next.ctx.docBase + doc);
                         pages.add(
                             new Page(
                                 new DocVector(
                                     AlwaysReferencedIndexedByShardId.INSTANCE,
                                     blockFactory.newConstantIntVector(0, 1),
-                                    blockFactory.newConstantIntVector(next.ord, 1),
-                                    blockFactory.newConstantIntVector(next.itr.nextInt(), 1),
+                                    blockFactory.newConstantIntVector(next.ctx.ord, 1),
+                                    blockFactory.newConstantIntVector(doc, 1),
                                     DocVector.config().singleSegmentNonDecreasing(true)
                                 ).asBlock()
                             )
@@ -589,6 +546,76 @@ public class ValuesSourceReaderBenchmark {
             }
             default -> throw new IllegalArgumentException("unsupported layout [" + layout + "]");
         }
+    }
+
+    private void setupShuffledPages(int stride, int maxDocsPerLeaf) {
+        record ItrAndContext(PrimitiveIterator.OfInt itr, LeafReaderContext ctx) {}
+        int totalSize = 0;
+        while (totalSize < INDEX_SIZE) {
+            List<ItrAndContext> docItrs = new ArrayList<>(reader.leaves().size());
+            for (LeafReaderContext ctx : reader.leaves()) {
+                PrimitiveIterator.OfInt itr = IntStream.iterate(0, doc -> doc < ctx.reader().maxDoc(), doc -> doc + stride)
+                    .limit(maxDocsPerLeaf)
+                    .iterator();
+                docItrs.add(new ItrAndContext(itr, ctx));
+            }
+            IntVector.Builder docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
+            IntVector.Builder leafs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
+            int pageSize = 0;
+            while (docItrs.isEmpty() == false && totalSize < INDEX_SIZE) {
+                Iterator<ItrAndContext> itrItr = docItrs.iterator();
+                while (itrItr.hasNext() && totalSize < INDEX_SIZE) {
+                    ItrAndContext next = itrItr.next();
+                    if (false == next.itr.hasNext()) {
+                        itrItr.remove();
+                        continue;
+                    }
+                    int doc = next.itr.nextInt();
+                    docs.appendInt(doc);
+                    leafs.appendInt(next.ctx.ord);
+                    expectedSum += expectedValue(next.ctx.docBase + doc);
+                    pageSize++;
+                    totalSize++;
+                    if (pageSize == BLOCK_LENGTH) {
+                        addShuffledPage(docs, leafs, pageSize);
+                        docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
+                        leafs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
+                        pageSize = 0;
+                    }
+                }
+            }
+            if (pageSize > 0) {
+                addShuffledPage(docs, leafs, pageSize);
+            }
+        }
+    }
+
+    private void addShuffledPage(IntVector.Builder docs, IntVector.Builder leafs, int size) {
+        pages.add(
+            new Page(
+                new DocVector(
+                    AlwaysReferencedIndexedByShardId.INSTANCE,
+                    blockFactory.newConstantIntVector(0, size),
+                    leafs.build(),
+                    docs.build(),
+                    DocVector.config()
+                ).asBlock()
+            )
+        );
+    }
+
+    private long expectedValue(int doc) {
+        return switch (name) {
+            case "long", "int", "double" -> doc;
+            case "keyword", "stored_keyword" -> doc % 1000;
+            case "keyword_mv" -> {
+                int v1 = doc % 1000;
+                int v2 = doc % 500;
+                yield v1 == v2 ? v1 : v1 + v2;
+            }
+            case "3_stored_keywords" -> 3L * (doc % 1000);
+            default -> throw new IllegalArgumentException("unsupported field [" + name + "]");
+        };
     }
 
     @TearDown

@@ -32,7 +32,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 
 /**
  * Golden (plan) tests for {@link PushAggregateThroughUnionAll}:
- * pushing aggregates through the leaf {@code UnionAll} a heterogeneous {@code FROM} produces.
+ * pushing aggregates through the leaf {@code SourceFanInUnionAll} a heterogeneous {@code FROM} produces.
  *
  * <p>The branches are two external datasets with an <b>identical</b> schema ({@code emp_no}/{@code salary}/{@code dept}).
  * Identical schemas are deliberate: when branch schemas differ, union alignment inserts {@code Eval} nodes for the
@@ -163,7 +163,7 @@ public class HeterogeneousFromPushdownGoldenTests extends GoldenTestCase {
             .externalSourceResolution(heavyExternalSourceResolution());
     }
 
-    /** Registers {@code heavy_a} and {@code heavy_b} as external datasets so {@code FROM heavy_a, heavy_b} is a UnionAll. */
+    /** Registers {@code heavy_a} and {@code heavy_b} as external datasets so {@code FROM heavy_a, heavy_b} is a source fan-in. */
     private static ProjectMetadata heavyDatasetMetadata() {
         DataSource dataSource = new DataSource("heavy_ds", "test", null, Map.of());
         Dataset a = new Dataset("heavy_a", new DataSourceReference("heavy_ds"), RESOURCE_A, null, Map.of());

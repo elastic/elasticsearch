@@ -253,6 +253,12 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
      * {@code MergePlan} propagate silently.
      */
     static void checkBranchCount(LogicalPlan plan, Failures failures) {
+        // A source fan-in bounds its own producers. This message is the FORK branch cap, and the
+        // verifier runs every plan checker on every node, so a wide fan-in must not be reported
+        // as too many FORK branches.
+        if (plan instanceof SourceFanInUnionAll) {
+            return;
+        }
         if (plan instanceof MergePlan merge) {
             int size = merge.children().size();
             if (exceedsMaxBranches(size)) {

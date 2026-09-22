@@ -291,6 +291,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 new ViewCompactionPostIndexResolution(),
                 new ResolveExternalRelations(),
                 new PruneEmptyUnionAllBranch(),
+                new PromoteSourceFanIn(),
                 new ResolveEnrich(),
                 new ResolveIpLocation(),
                 new ResolveLookupTables(),

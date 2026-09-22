@@ -11,9 +11,11 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
+import org.elasticsearch.xpack.esql.plan.logical.SourceFanInUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -131,10 +133,19 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      * the wrapper. The collapse is a {@link ViewCompaction} semantic, not a {@link UnionAll} one.)
      */
     private static LogicalPlan stripViewShadowRelations(LogicalPlan plan) {
-        return plan.transformDown(ViewUnionAll.class, vua -> {
+        plan = plan.transformDown(ViewUnionAll.class, vua -> {
             LogicalPlan pruned = vua.pruneEmptyBranches(child -> child instanceof ViewShadowRelation);
             if (pruned instanceof ViewUnionAll prunedVua && prunedVua.children().size() == 1) {
                 return prunedVua.children().getFirst();
+            }
+            return pruned;
+        });
+        // A source fan-in can carry a view-name shadow beside its producers. Drop an unresolved one
+        // and collapse a fan-in that has a single producer left.
+        return plan.transformDown(SourceFanInUnionAll.class, fanIn -> {
+            LogicalPlan pruned = fanIn.pruneEmptyBranches(child -> child instanceof ViewShadowRelation);
+            if (pruned instanceof SourceFanInUnionAll prunedFanIn && prunedFanIn.children().size() == 1) {
+                return prunedFanIn.children().getFirst();
             }
             return pruned;
         });
@@ -154,7 +165,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         plan = plan.transformDown(Subquery.class, sq -> sq.child() instanceof NamedSubquery n ? n : sq);
 
         plan = plan.transformDown(UnionAll.class, unionAll -> {
-            if (unionAll instanceof ViewUnionAll) {
+            if (unionAll instanceof ViewUnionAll || unionAll instanceof SourceFanInUnionAll) {
                 return unionAll;
             }
             boolean hasNamedSubqueries = unionAll.children().stream().anyMatch(c -> c instanceof NamedSubquery);
@@ -233,7 +244,9 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
             String key = entry.getKey();
             LogicalPlan value = entry.getValue();
             LogicalPlan inner = (value instanceof NamedSubquery ns) ? ns.child() : value;
-            if (inner instanceof MergePlan) {
+            // A source fan-in is one FROM: lifting it would split its producers into separate view
+            // branches. A FORK is a command: lifting it would drop the command and keep only its branches.
+            if (inner instanceof MergePlan && inner instanceof SourceFanInUnionAll == false && inner instanceof Fork == false) {
                 mergeEntries.add(entry);
             } else if (value instanceof UnresolvedRelation) {
                 flat.put(makeUniqueKey(flat, key), value);

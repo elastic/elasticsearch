@@ -225,7 +225,7 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
                 );
             }
         }
-        UnionAll newUnionAll = new UnionAll(unionAll.source(), newBranches, unionOutput);
+        UnionAll newUnionAll = unionAll.replaceSubPlansAndOutput(newBranches, unionOutput);
 
         // Build the outer combiner Aggregate.
         // Groupings reference the shared grouping IDs from the UnionAll output.

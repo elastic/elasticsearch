@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160100
+summary: Allow FORK over datasets and mixed sources
+type: enhancement

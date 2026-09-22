@@ -86,6 +86,14 @@ public final class Fork extends MergePlan implements TelemetryAware {
         return Fork::checkFork;
     }
 
+    /**
+     * A merge that branches the query. A {@link SourceFanInUnionAll} is one resolved {@code FROM},
+     * so it is not a second command under {@code FORK}.
+     */
+    public static boolean isQueryBranchingFork(LogicalPlan plan) {
+        return plan instanceof MergePlan && plan instanceof SourceFanInUnionAll == false;
+    }
+
     private static void checkFork(LogicalPlan plan, Failures failures) {
         checkBranchCount(plan, failures);
         if (plan instanceof Fork == false) {
@@ -94,7 +102,7 @@ public final class Fork extends MergePlan implements TelemetryAware {
         Fork fork = (Fork) plan;
 
         forEachMergePlanSkippingSubqueries(fork, other -> {
-            if (other == fork) {
+            if (other == fork || isQueryBranchingFork(other) == false) {
                 return;
             }
 

@@ -111,6 +111,12 @@ public class UnionAll extends MergePlan implements PostOptimizationPlanVerificat
                 failures.add(Failure.fail(plan, "{} requires at least one branch", plan.getClass().getSimpleName()));
             }
 
+            checkOutputTypes(unionAll, failures);
+        }
+    }
+
+    static void checkOutputTypes(LogicalPlan plan, Failures failures) {
+        if (plan instanceof UnionAll unionAll) {
             Map<String, DataType> outputTypes = unionAll.output().stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));
 
             unionAll.children().forEach(subPlan -> {
@@ -157,6 +163,11 @@ public class UnionAll extends MergePlan implements PostOptimizationPlanVerificat
                 if (unionAll == nested) {
                     return;
                 }
+                // A WHERE (or other unary pipeline) stays on its own child of a source fan-in, so that child
+                // can itself be a source fan-in. Both nodes are still the one resolved FROM.
+                if (unionAll instanceof SourceFanInUnionAll && nested instanceof SourceFanInUnionAll) {
+                    return;
+                }
                 // When nested subqueries in FROM are supported, plain nested UnionAlls are allowed; only ViewUnionAll and Fork reject.
                 if (EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled()
                     && nested instanceof UnionAll
@@ -166,6 +177,20 @@ public class UnionAll extends MergePlan implements PostOptimizationPlanVerificat
                 failures.add(nestedUnionAllFailure(nested));
             });
         }
+    }
+
+    /**
+     * When nested-subquery limits are off, still bound the producers under each {@link Fork} that reads a
+     * {@link SourceFanInUnionAll}. The check is the fork's own leaf total against {@code maxBranches}.
+     * Index-only unions and {@code IN} subqueries elsewhere in the plan are not part of that total.
+     */
+    public static void checkForkSourceFanInLeafCount(LogicalPlan plan, int maxBranches, Failures failures) {
+        plan.forEachDown(Fork.class, fork -> {
+            if (fork.anyMatch(p -> p instanceof SourceFanInUnionAll) == false) {
+                return;
+            }
+            checkTotalBranchCount(unionStats(fork), maxBranches, failures);
+        });
     }
 
     /** Checks both {@link UnionAll} limits independently for the main query and every {@code IN} subquery. */

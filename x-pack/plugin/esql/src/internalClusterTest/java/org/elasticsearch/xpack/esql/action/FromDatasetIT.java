@@ -185,7 +185,14 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
      * Names every {@code testXxx} body creates via {@link PutViewAction}. As with datasets, the SUITE-scoped
      * cluster requires explicit teardown so views don't leak across methods.
      */
-    private static final Set<String> CREATED_VIEWS = Set.of("employees_view", "employees_filtered_view", "mapped_dataset_view");
+    private static final Set<String> CREATED_VIEWS = Set.of(
+        "employees_view",
+        "employees_filtered_view",
+        "mapped_dataset_view",
+        "fork_source_view",
+        "fork_filtered_view",
+        "fork_body_view"
+    );
 
     @After
     public void cleanupViews() throws Exception {
@@ -5049,6 +5056,200 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
             assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(3L));
+        }
+    }
+
+    public void testForkOverOneDataset() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("fork_one", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    "FROM fork_one | FORK (WHERE emp_no == 1) (WHERE emp_no == 2) | KEEP emp_no, first_name, _fork | SORT _fork"
+                ),
+                TIMEOUT
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(1));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
+            assertThat(rows.get(0).get(2).toString(), equalTo("fork1"));
+            assertThat(rows.get(1).get(0), equalTo(2));
+            assertThat(rows.get(1).get(1).toString(), equalTo("Bob"));
+            assertThat(rows.get(1).get(2).toString(), equalTo("fork2"));
+        }
+    }
+
+    public void testForkOverTwoDatasets() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("fork_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        registerDataset("fork_b", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    "FROM fork_a, fork_b | FORK (WHERE emp_no == 1) (WHERE emp_no == 2) | KEEP emp_no, _fork | SORT _fork, emp_no"
+                ),
+                TIMEOUT
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(4));
+            assertThat(rows.get(0).get(0), equalTo(1));
+            assertThat(rows.get(0).get(1).toString(), equalTo("fork1"));
+            assertThat(rows.get(1).get(0), equalTo(1));
+            assertThat(rows.get(1).get(1).toString(), equalTo("fork1"));
+            assertThat(rows.get(2).get(0), equalTo(2));
+            assertThat(rows.get(2).get(1).toString(), equalTo("fork2"));
+            assertThat(rows.get(3).get(0), equalTo(2));
+            assertThat(rows.get(3).get(1).toString(), equalTo("fork2"));
+        }
+    }
+
+    public void testForkOverMixedIndexAndDataset() throws Exception {
+        createIndex("fork_empty_idx");
+        ensureGreen("fork_empty_idx");
+        registerDataSource("local_ds", Map.of());
+        registerDataset("fork_mixed", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    "FROM fork_empty_idx, fork_mixed | FORK (WHERE emp_no == 1) (WHERE emp_no == 2) | KEEP emp_no, _fork | SORT _fork"
+                ),
+                TIMEOUT
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(1));
+            assertThat(rows.get(0).get(1).toString(), equalTo("fork1"));
+            assertThat(rows.get(1).get(0), equalTo(2));
+            assertThat(rows.get(1).get(1).toString(), equalTo("fork2"));
+        }
+    }
+
+    public void testForkOverSourceOnlyView() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("fork_view_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        registerDataset("fork_view_b", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("fork_source_view", "FROM fork_view_a, fork_view_b")));
+
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    "FROM fork_source_view | FORK (WHERE emp_no == 1) (WHERE emp_no == 2) | STATS c = COUNT(*) BY _fork | SORT _fork"
+                ),
+                TIMEOUT
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(2L));
+            assertThat(rows.get(0).get(1).toString(), equalTo("fork1"));
+            assertThat(((Number) rows.get(1).get(0)).longValue(), equalTo(2L));
+            assertThat(rows.get(1).get(1).toString(), equalTo("fork2"));
+        }
+    }
+
+    public void testForkOverFilteredViewMatchesInline() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("fork_filt_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        registerDataset("fork_filt_b", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                putViewRequest("fork_filtered_view", "FROM fork_filt_a, fork_filt_b | WHERE emp_no > 1")
+            )
+        );
+        String forkTail = " | FORK (WHERE emp_no == 2) (WHERE emp_no == 3) | KEEP emp_no, _fork | SORT _fork, emp_no";
+
+        List<List<Object>> fromView;
+        try (var response = run(syncEsqlQueryRequest("FROM fork_filtered_view" + forkTail), TIMEOUT)) {
+            fromView = getValuesList(response);
+        }
+        List<List<Object>> inline;
+        try (var response = run(syncEsqlQueryRequest("FROM fork_filt_a, fork_filt_b | WHERE emp_no > 1" + forkTail), TIMEOUT)) {
+            inline = getValuesList(response);
+        }
+        assertThat(fromView, equalTo(inline));
+        assertThat(fromView, hasSize(4));
+    }
+
+    public void testForkOverUserSubqueryRejected() {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("fork_sub", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        Exception failure = expectThrows(
+            Exception.class,
+            () -> run(
+                syncEsqlQueryRequest("FROM fork_sub, (FROM fork_sub | WHERE emp_no > 0) | FORK (WHERE emp_no == 1) (WHERE emp_no == 2)"),
+                TIMEOUT
+            ).close()
+        );
+        assertCauseMessageContains(failure, "FORK after subquery is not supported");
+    }
+
+    public void testViewBodyForkMatchesInline() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("fork_body_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        registerDataset("fork_body_b", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        String forkQuery =
+            "FROM fork_body_a, fork_body_b | FORK (WHERE emp_no == 1) (WHERE emp_no == 2) | KEEP emp_no, _fork | SORT _fork, emp_no";
+        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("fork_body_view", forkQuery)));
+
+        List<List<Object>> fromView;
+        try (var response = run(syncEsqlQueryRequest("FROM fork_body_view | KEEP emp_no, _fork | SORT _fork, emp_no"), TIMEOUT)) {
+            fromView = getValuesList(response);
+        }
+        List<List<Object>> inline;
+        try (var response = run(syncEsqlQueryRequest(forkQuery), TIMEOUT)) {
+            inline = getValuesList(response);
+        }
+        assertThat(fromView, equalTo(inline));
+        assertThat(fromView, hasSize(4));
+    }
+
+    public void testForkOverViewWhoseBodyIsForkRejected() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("fork_nested_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        registerDataset("fork_nested_b", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                putViewRequest("fork_body_view", "FROM fork_nested_a, fork_nested_b | FORK (WHERE emp_no == 1) (WHERE emp_no == 2)")
+            )
+        );
+
+        Exception failure = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest("FROM fork_body_view | FORK (WHERE emp_no == 1) (WHERE emp_no == 1)"), TIMEOUT).close()
+        );
+        assertCauseMessageContains(failure, "Only a single FORK command is supported");
+    }
+
+    public void testForkStatsOverTwoDatasets() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("fork_stats_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        registerDataset("fork_stats_b", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    "FROM fork_stats_a, fork_stats_b | FORK (STATS s = SUM(emp_no)) (WHERE emp_no > 1 | STATS s = SUM(emp_no)) | KEEP s, _fork | SORT _fork"
+                ),
+                TIMEOUT
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            // emp_no 1+2+3 on each dataset: 6 * 2 = 12. The filtered branch drops emp_no 1: (2+3) * 2 = 10.
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(12L));
+            assertThat(rows.get(0).get(1).toString(), equalTo("fork1"));
+            assertThat(((Number) rows.get(1).get(0)).longValue(), equalTo(10L));
+            assertThat(rows.get(1).get(1).toString(), equalTo("fork2"));
         }
     }
 

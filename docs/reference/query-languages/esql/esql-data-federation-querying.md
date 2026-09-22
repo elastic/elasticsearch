@@ -139,6 +139,16 @@ The following search functions are available for datasets:
 | [`MATCH_PHRASE`](functions-operators/search-functions/match_phrase.md) | {applies_to}`stack: experimental 9.6` |
 | `_score` for dataset rows | {applies_to}`stack: experimental 9.6` |
 
+## FORK
+
+{applies_to}`stack: experimental 9.6+`
+
+`FORK` can branch a query whose `FROM` reads datasets, a mix of indices and datasets, or a view whose body is that same source list. Each branch runs against every resolved producer, and the coordinator merges the branch results.
+
+One `FROM` still resolves at most 8 producers. That cap is separate from `FORK`'s own limit of 8 branches. The `max_branch_count` query pragma (default 20) bounds the producers under the `FORK`, so branches times sources can be rejected before either per-command cap is reached. Eight `FORK` branches over a `FROM` that resolves to 8 producers is 64 producers, which exceeds the default.
+
+A `FORK` branch that is itself a subquery is rejected, and so is a second `FORK` in the same query.
+
 ## Limitations
 
 :::{include} _snippets/data-federation/experimental-warning.md
@@ -152,7 +162,7 @@ The limitations below include operations that require structures available only 
 | `TS` (time series) | A time-series source must be an {{es}} index. | `TS command is not supported for datasets; dataset(s) requested: [...]` |
 | Search functions | Search functions work on datasets as runtime search functions, scanning values row by row without an inverted index. Availability varies by version and deployment type. Refer to the [availability table](#use-search-functions). | `… cannot operate on [<field>], which is not a field from an index mapping (the source is a federated data source, not an index)` |
 | `KNN` | `KNN` requires a vector field from an index mapping, which a dataset does not have. | `… cannot operate on [<field>], which is not a field from an index mapping (the source is a federated data source, not an index)` |
-| More than 8 sources resolved in one `FROM` | A `FROM` that includes datasets runs one execution branch per resolved source, up to a limit of 8 branches. Query fewer sources together. | |
+| More than 8 sources resolved in one `FROM` | A `FROM` that includes datasets runs one execution branch per resolved source, up to a limit of 8. That cap is separate from [`FORK`](#fork). Query fewer sources together. | |
 | A column with conflicting types across sources | When you query a dataset together with other sources and the same column has types that cannot be reconciled, the query fails rather than returning mixed types. | `Column [<name>] has conflicting data types in subqueries` |
 | Document-level security (DLS) and field-level security (FLS) | A dataset's `read` grant cannot carry document- or field-level security. Queries where DLS or FLS applies to a dataset are rejected during authorization. The same check covers [{{esql}} views](esql-views.md). | `Datasets with document or field level security restrictions are not supported. Remove DLS/FLS restrictions from the affected datasets in the role definition, or exclude them from the request.` |
 | [Cross-cluster search](/reference/query-languages/esql/esql-cross-clusters.md) | Only local datasets can be queried. {applies_to}`stack: experimental 9.6` A dataset on a remote cluster is invisible: a wildcard that matches its name returns that cluster's indices beside it, and naming it directly resolves to nothing, so the remote's `skip_unavailable` setting decides whether the query fails or that cluster is skipped. In earlier versions, a query that matched a remote dataset failed. | {applies_to}`stack: experimental 9.6` `Unknown index [<cluster>:<dataset>]`, when `skip_unavailable` is `false`. In earlier versions, `ES\|QL queries with remote datasets are not supported. Matched [...]` |

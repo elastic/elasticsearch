@@ -185,9 +185,9 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         final long state = bucket < hllBuckets.size() ? hllBuckets.get(bucket) : 0L;
         if (Mode.of(state) == Mode.HLL) {
             hll.collect(payload(state), hash);
-            return;
+        } else {
+            addEncodedToLcWithState(bucket, state, AbstractLinearCounting.encodeHash(hash, precision()));
         }
-        addEncodedToLcWithState(bucket, state, AbstractLinearCounting.encodeHash(hash, precision()));
     }
 
     @Override
@@ -220,9 +220,14 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         return hllOrd;
     }
 
-    private void addEncodedToLc(long bucket, int encoded) {
+    /** Inserts a pre-encoded hash into a bucket, routing to HLL or LC depending on current mode. */
+    private void addEncoded(long bucket, int encoded) {
         final long state = bucket < hllBuckets.size() ? hllBuckets.get(bucket) : 0L;
-        addEncodedToLcWithState(bucket, state, encoded);
+        if (Mode.of(state) == Mode.HLL) {
+            hll.collectEncoded(payload(state), encoded);
+        } else {
+            addEncodedToLcWithState(bucket, state, encoded);
+        }
     }
 
     /** Shared core for LC-mode insertions; state must already be read by the caller. HLL is a no-op. */
@@ -258,13 +263,15 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         if (algorithm == LINEAR_COUNTING && getAlgorithm(bucket) == LINEAR_COUNTING) {
             final int length = Math.toIntExact(in.readVLong());
             for (int i = 0; i < length; i++) {
-                final int encoded = in.readInt();
                 final long state = bucket < hllBuckets.size() ? hllBuckets.get(bucket) : 0L;
                 if (Mode.of(state) == Mode.HLL) {
-                    hll.collectEncoded(payload(state), encoded);
-                } else {
-                    addEncodedToLcWithState(bucket, state, encoded);
+                    final long hllOrd = payload(state);
+                    do {
+                        hll.collectEncoded(hllOrd, in.readInt());
+                    } while (++i < length);
+                    return;
                 }
+                addEncodedToLcWithState(bucket, state, in.readInt());
             }
             return;
         }
@@ -288,13 +295,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     private void merge(long bucketOrd, AbstractLinearCounting.HashesIterator values) {
         while (values.next()) {
-            final int encoded = values.value();
-            final long state = bucketOrd < hllBuckets.size() ? hllBuckets.get(bucketOrd) : 0L;
-            if (Mode.of(state) == Mode.HLL) {
-                hll.collectEncoded(payload(state), encoded);
-            } else {
-                addEncodedToLc(bucketOrd, encoded);
-            }
+            addEncoded(bucketOrd, values.value());
         }
     }
 

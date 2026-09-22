@@ -2373,15 +2373,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return keptVirtual ? new Keep(keep.source(), keep.child(), resolved) : new Project(keep.source(), keep.child(), resolved);
         }
 
-        // Star expansion keeps {@link ExternalMetadataAttribute} (METADATA-bound on FROM <dataset>)
-        // and drops any other {@link VirtualAttribute}. Identification is type-based so future
-        // virtual attributes opt into the hide by class hierarchy rather than name convention.
-        private static <T extends NamedExpression> List<T> excludeExternalMetadata(List<T> attributes) {
+        // Star expansion keeps concrete attributes and {@link ExternalMetadataAttribute}
+        // (METADATA-bound on FROM <dataset>). Any other {@link VirtualAttribute} is hidden,
+        // identified by type so a new virtual attribute is omitted from {@code *} without a
+        // name check. {@link ExternalMetadataAttribute} is the only {@link VirtualAttribute},
+        // so the skip matches nothing until another implementation exists.
+        private static <T extends NamedExpression> List<T> withoutHiddenVirtualAttributes(List<T> attributes) {
             List<T> filtered = new ArrayList<>(attributes.size());
             for (T attr : attributes) {
-                if (attr instanceof ExternalMetadataAttribute || attr instanceof VirtualAttribute == false) {
-                    filtered.add(attr);
+                if (attr instanceof VirtualAttribute && attr instanceof ExternalMetadataAttribute == false) {
+                    continue;
                 }
+                filtered.add(attr);
             }
             return filtered;
         }
@@ -2406,7 +2409,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (projections.isEmpty() || (projections.size() == 1 && projections.getFirst() instanceof UnresolvedStar)) {
                 // Widen List<Attribute> to List<NamedExpression> via copy; safe because every
                 // Attribute is a NamedExpression and the result is a fresh, mutable list.
-                resolvedProjections = new ArrayList<>(excludeExternalMetadata(childOutput));
+                resolvedProjections = new ArrayList<>(withoutHiddenVirtualAttributes(childOutput));
             }
             // otherwise resolve them
             else {
@@ -2418,7 +2421,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     final List<Attribute> resolved;
                     final int priority;
                     if (proj instanceof UnresolvedStar) {
-                        resolved = excludeExternalMetadata(childOutput);
+                        resolved = withoutHiddenVirtualAttributes(childOutput);
                         priority = 4;
                     } else if (proj instanceof UnresolvedNamePattern up) {
                         List<Attribute> matched = resolveAgainstList(up, childOutput);

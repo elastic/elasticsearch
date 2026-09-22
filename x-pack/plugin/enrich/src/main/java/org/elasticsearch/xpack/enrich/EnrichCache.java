@@ -13,13 +13,12 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +26,8 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.ToLongBiFunction;
+
+import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.UNMODIFIABLE;
 
 /**
  * A simple cache for enrich that uses {@link Cache}. There is one instance of this cache and
@@ -112,7 +113,7 @@ public final class EnrichCache {
             searchResponseFetcher.accept(ActionListener.wrap(resp -> {
                 CacheValue cacheValue = toCacheValue(resp);
                 put(cacheKey, cacheValue);
-                List<Map<?, ?>> copy = deepCopy(cacheValue.hits, false);
+                List<Map<?, ?>> copy = CollectionUtils.deepCopy(cacheValue.hits);
                 long databaseQueryAndCachePutTime = relativeNanoTimeProvider.getAsLong() - retrieveStart;
                 missesTimeInNanos.add(cacheRequestTime + databaseQueryAndCachePutTime);
                 listener.onResponse(copy);
@@ -124,7 +125,7 @@ public final class EnrichCache {
     List<Map<?, ?>> get(CacheKey cacheKey) {
         CacheValue response = cache.get(cacheKey);
         if (response != null) {
-            return deepCopy(response.hits, false);
+            return CollectionUtils.deepCopy(response.hits);
         } else {
             return null;
         }
@@ -162,36 +163,9 @@ public final class EnrichCache {
             // We do it first so we don't decompress it twice.
             size += hit.getSourceRef() != null ? hit.getSourceRef().ramBytesUsed() : 0;
             // Do we need deep copy here, we are creating a modifiable map already?
-            result.add(deepCopy(hit.getSourceAsMap(), true));
+            result.add(CollectionUtils.deepCopy(hit.getSourceAsMap(), UNMODIFIABLE));
         }
         return new CacheValue(Collections.unmodifiableList(result), size);
-    }
-
-    @SuppressWarnings("unchecked")
-    static <T> T deepCopy(T value, boolean unmodifiable) {
-        return (T) innerDeepCopy(value, unmodifiable);
-    }
-
-    private static Object innerDeepCopy(Object value, boolean unmodifiable) {
-        if (value instanceof Map<?, ?> mapValue) {
-            Map<Object, Object> copy = Maps.newMapWithExpectedSize(mapValue.size());
-            for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
-                copy.put(entry.getKey(), innerDeepCopy(entry.getValue(), unmodifiable));
-            }
-            return unmodifiable ? Collections.unmodifiableMap(copy) : copy;
-        } else if (value instanceof List<?> listValue) {
-            List<Object> copy = new ArrayList<>(listValue.size());
-            for (Object itemValue : listValue) {
-                copy.add(innerDeepCopy(itemValue, unmodifiable));
-            }
-            return unmodifiable ? Collections.unmodifiableList(copy) : copy;
-        } else if (value instanceof byte[] bytes) {
-            return Arrays.copyOf(bytes, bytes.length);
-        } else if (value == null || value instanceof String || value instanceof Number || value instanceof Boolean) {
-            return value;
-        } else {
-            throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
-        }
     }
 
     /**

@@ -17,7 +17,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.CountingStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -27,12 +27,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.ORDERED_MAPS;
+import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.UNMODIFIABLE;
 
 /**
  * Encapsulates a pipeline's id and configuration as a loosely typed map -- see {@link Pipeline} for the
@@ -86,7 +87,7 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
 
     public PipelineConfiguration(String id, Map<String, Object> config) {
         this.id = Objects.requireNonNull(id);
-        this.config = deepCopy(config, true); // defensive deep copy
+        this.config = CollectionUtils.deepCopy(config, ORDERED_MAPS, UNMODIFIABLE);
     }
 
     /**
@@ -121,34 +122,7 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
         if (unmodifiable) {
             return config; // already unmodifiable
         } else {
-            return deepCopy(config, false);
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <T> T deepCopy(final T value, final boolean unmodifiable) {
-        return (T) innerDeepCopy(value, unmodifiable);
-    }
-
-    private static Object innerDeepCopy(final Object value, final boolean unmodifiable) {
-        if (value instanceof Map<?, ?> mapValue) {
-            final Map<Object, Object> copy = Maps.newLinkedHashMapWithExpectedSize(mapValue.size()); // n.b. maintain ordering
-            for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
-                copy.put(innerDeepCopy(entry.getKey(), unmodifiable), innerDeepCopy(entry.getValue(), unmodifiable));
-            }
-            return unmodifiable ? Collections.unmodifiableMap(copy) : copy;
-        } else if (value instanceof List<?> listValue) {
-            final List<Object> copy = new ArrayList<>(listValue.size());
-            for (Object itemValue : listValue) {
-                copy.add(innerDeepCopy(itemValue, unmodifiable));
-            }
-            return unmodifiable ? Collections.unmodifiableList(copy) : copy;
-        } else {
-            // if this list of expected value types ends up not being exhaustive, then we want to learn about that
-            // at development time, but it's probably better to err on the side of passing through the value at runtime
-            assert (value == null || value instanceof String || value instanceof Number || value instanceof Boolean)
-                : "unexpected value type [" + value.getClass() + "]";
-            return value;
+            return CollectionUtils.deepCopy(config, ORDERED_MAPS);
         }
     }
 

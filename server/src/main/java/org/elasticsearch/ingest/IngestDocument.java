@@ -25,8 +25,6 @@ import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayDeque;
@@ -35,7 +33,6 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -1101,62 +1098,12 @@ public final class IngestDocument {
         CollectionUtils.ensureNoSelfReferences(ingestMetadata, "ingest metadata");
     }
 
-    @SuppressWarnings("unchecked")
     public static <K, V> Map<K, V> deepCopyMap(Map<K, V> source) {
-        return (Map<K, V>) deepCopy(source);
+        return CollectionUtils.deepCopy(source);
     }
 
     public static Object deepCopy(Object value) {
-        if (value instanceof Map<?, ?> mapValue) {
-            Map<Object, Object> copy = Maps.newMapWithExpectedSize(mapValue.size());
-            for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
-                copy.put(entry.getKey(), deepCopy(entry.getValue()));
-            }
-            // TODO(stu): should this check for IngestCtxMap in addition to Map?
-            return copy;
-        } else if (value instanceof List<?> listValue) {
-            List<Object> copy = new ArrayList<>(listValue.size());
-            for (Object itemValue : listValue) {
-                copy.add(deepCopy(itemValue));
-            }
-            return copy;
-        } else if (value instanceof Set<?> setValue) {
-            Set<Object> copy = Sets.newHashSetWithExpectedSize(setValue.size());
-            for (Object itemValue : setValue) {
-                copy.add(deepCopy(itemValue));
-            }
-            return copy;
-        } else if (value instanceof byte[] bytes) {
-            return Arrays.copyOf(bytes, bytes.length);
-        } else if (value instanceof double[][] doubles) {
-            double[][] result = new double[doubles.length][];
-            for (int i = 0; i < doubles.length; i++) {
-                result[i] = Arrays.copyOf(doubles[i], doubles[i].length);
-            }
-            return result;
-        } else if (value instanceof double[] doubles) {
-            return Arrays.copyOf(doubles, doubles.length);
-        } else if (value == null
-            || value instanceof String
-            || value instanceof Character
-            || value instanceof Boolean
-            || value instanceof Byte
-            || value instanceof Short
-            || value instanceof Integer
-            || value instanceof Long
-            || value instanceof Float
-            || value instanceof Double
-            || value instanceof BigInteger
-            || value instanceof BigDecimal
-            || value instanceof ZonedDateTime) {
-                // n.b. java.util.concurrent.atomic types (AtomicInteger etc.), and some other Number subclasses are mutable,
-                // so we enumerate the immutable Number subclasses explicitly above rather than using instanceof Number
-                return value;
-            } else if (value instanceof Date date) {
-                return date.clone();
-            } else {
-                throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
-            }
+        return CollectionUtils.deepCopy(value);
     }
 
     public static Set<String> getAllFields(Map<String, Object> input) {

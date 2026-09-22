@@ -97,6 +97,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShap
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohex;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeotile;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToHuman;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIntegerBase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIntegerSurrogate;
@@ -587,6 +588,7 @@ public class EsqlFunctionRegistry {
                 ToGeohex.DEFINITION,
                 ToGeoPoint.DEFINITION,
                 ToGeoShape.DEFINITION,
+                ToHuman.DEFINITION,
                 ToIp.DEFINITION,
                 ToIntegerSurrogate.DEFINITION,
                 ToLongSurrogate.DEFINITION,

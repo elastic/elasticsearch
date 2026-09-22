@@ -530,6 +530,17 @@ public class EndpointMetadataParserTests extends ESTestCase {
         assertThat(result.defaultEffortLevel(), nullValue());
     }
 
+    public void testContextWindowFromMap_AcceptsLongTokenCounts() {
+        var map = new HashMap<String, Object>();
+        map.put(MAX_INPUT_TOKENS_FIELD_NAME, 1050000L);
+        map.put(MAX_OUTPUT_TOKENS_FIELD_NAME, 128000L);
+
+        var result = EndpointMetadataParser.contextWindowFromMap(map, ROOT);
+
+        assertThat(result.maxInputTokens(), equalTo(1050000));
+        assertThat(result.maxOutputTokens(), equalTo(128000));
+    }
+
     public void testContextWindowFromMap_Throws_WhenMaxInputTokensWrongType() {
         var map = new HashMap<String, Object>();
         map.put(MAX_INPUT_TOKENS_FIELD_NAME, "not-a-number");
@@ -547,8 +558,7 @@ public class EndpointMetadataParserTests extends ESTestCase {
     }
 
     /**
-     * Sub-maps are extracted with an unchecked cast, matching the sibling {@code display} and {@code regions} parsers. The
-     * authorization response parser relies on this throwing rather than silently producing garbage.
+     * Sub-maps are extracted with an unchecked cast, matching the sibling {@code display} and {@code regions} parsers.
      */
     public void testCapabilitiesFromMap_Throws_WhenContextWindowWrongType() {
         var map = new HashMap<String, Object>();

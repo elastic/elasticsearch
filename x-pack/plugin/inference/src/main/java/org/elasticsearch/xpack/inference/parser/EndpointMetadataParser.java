@@ -52,6 +52,7 @@ import static org.elasticsearch.inference.metadata.EndpointMetadata.REGIONS_FIEL
 import static org.elasticsearch.inference.metadata.EndpointMetadata.ReasoningCapability.DEFAULT_EFFORT_LEVEL_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.ReasoningCapability.SUPPORTED_EFFORT_LEVELS_FIELD_NAME;
 import static org.elasticsearch.xpack.inference.common.parser.EnumParser.extractEnum;
+import static org.elasticsearch.xpack.inference.common.parser.NumberParser.extractInteger;
 import static org.elasticsearch.xpack.inference.common.parser.NumberParser.extractLong;
 import static org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils.isMapNullOrEmpty;
 import static org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils.pathToKey;
@@ -84,18 +85,18 @@ public final class EndpointMetadataParser {
         var heuristicsMap = ServiceUtils.removeFromMap(metadataMap, HEURISTICS_FIELD_NAME);
         var internalMap = ServiceUtils.removeFromMap(metadataMap, INTERNAL_FIELD_NAME);
         var displayMap = ServiceUtils.removeFromMap(metadataMap, DISPLAY_FIELD_NAME);
+        var capabilitiesMap = ServiceUtils.removeFromMap(metadataMap, CAPABILITIES_FIELD_NAME);
 
         var modelIdentity = modelIdentityFromMap(modelIdentityMap, pathToKey(METADATA_FIELD_NAME, MODEL_IDENTITY_FIELD_NAME));
         var heuristics = heuristicsFromMap(heuristicsMap, pathToKey(METADATA_FIELD_NAME, HEURISTICS_FIELD_NAME));
         var internal = internalFromMap(internalMap, pathToKey(METADATA_FIELD_NAME, INTERNAL_FIELD_NAME));
         var display = displayFromMap(displayMap, pathToKey(METADATA_FIELD_NAME, DISPLAY_FIELD_NAME));
+        var capabilities = capabilitiesFromMap(capabilitiesMap, pathToKey(METADATA_FIELD_NAME, CAPABILITIES_FIELD_NAME));
         var regions = regionsFromMap(metadataMap, pathToKey(METADATA_FIELD_NAME, REGIONS_FIELD_NAME));
         var deniedByRegionPolicy = deniedByRegionPolicyFromMap(
             metadataMap,
             pathToKey(METADATA_FIELD_NAME, DENIED_BY_REGION_POLICY_FIELD_NAME)
         );
-        var capabilitiesMap = ServiceUtils.removeFromMap(metadataMap, CAPABILITIES_FIELD_NAME);
-        var capabilities = capabilitiesFromMap(capabilitiesMap, pathToKey(METADATA_FIELD_NAME, CAPABILITIES_FIELD_NAME));
 
         var endpointMetadata = new EndpointMetadata(
             modelIdentity,
@@ -218,12 +219,8 @@ public final class EndpointMetadataParser {
     /**
      * Parse {@link EndpointMetadata.Capabilities} from the capabilities sub-map.
      * Returns {@link EndpointMetadata.Capabilities#EMPTY_INSTANCE} if the map is null or empty.
-     * <p>
-     * Public because the Elastic Inference Service authorization response parser reads the {@code capabilities} object into a map
-     * first and then delegates here, so that a malformed block can be discarded without leaving the underlying
-     * {@link org.elasticsearch.xcontent.XContentParser} positioned mid-object.
      */
-    public static EndpointMetadata.Capabilities capabilitiesFromMap(@Nullable Map<String, Object> map, String root) {
+    static EndpointMetadata.Capabilities capabilitiesFromMap(@Nullable Map<String, Object> map, String root) {
         if (isMapNullOrEmpty(map)) {
             return EndpointMetadata.Capabilities.EMPTY_INSTANCE;
         }
@@ -277,8 +274,8 @@ public final class EndpointMetadataParser {
         if (isMapNullOrEmpty(map)) {
             return null;
         }
-        var maxInputTokens = ObjectParserUtils.removeAsType(map, MAX_INPUT_TOKENS_FIELD_NAME, root, Integer.class);
-        var maxOutputTokens = ObjectParserUtils.removeAsType(map, MAX_OUTPUT_TOKENS_FIELD_NAME, root, Integer.class);
+        var maxInputTokens = extractInteger(map, MAX_INPUT_TOKENS_FIELD_NAME, root);
+        var maxOutputTokens = extractInteger(map, MAX_OUTPUT_TOKENS_FIELD_NAME, root);
 
         if (maxInputTokens == null && maxOutputTokens == null) {
             return null;

@@ -2193,14 +2193,18 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
 
     /**
      * Drives the ordinal-range layout of a sorted field that is the primary index sort. Every iteration draws
-     * a new {@code minDocsPerOrdinalForRangeEncoding} threshold, spanning always-range, sometimes-range and
-     * never-range, and indexes into the same directory with random flushes, deletes and force merges. Docs
-     * without the field are mixed in, so both the dense and sparse readers are hit. Each leaf is then checked
-     * sequentially and with random {@code advanceExact} jumps against a numeric shadow of the ordinal.
+     * a new {@code minDocsPerOrdinalForRangeEncoding} threshold, spanning three regimes:
+     * - Always-range (threshold ≤ 5): nearly every segment qualifies, so the range reader is always exercised.
+     * - Sometimes-range (threshold 5–20): dense segments qualify; sparse ones fall back, exercising both readers
+     *   in the same run.
+     * - Never-range ({@link Integer#MAX_VALUE}): no segment ever qualifies; only the fallback reader is hit.
      *
-     * <p>The first iteration pins the threshold to 1. With a single-valued field that makes every segment with
-     * more than one doc and at least one host eligible for range encoding, so the read phase can assert that
-     * the layout was actually selected rather than relying on the random thresholds to reach it.
+     * <p> Each iteration indexes into the same directory with random flushes, deletes and force merges. Docs without
+     * the field are mixed in so both dense and sparse readers are hit. Each leaf is then checked sequentially and
+     * with random {@code advanceExact} jumps against a numeric shadow of the ordinal.
+     *
+     * <p>The first iteration pins the threshold to 1 and asserts that at least one leaf was range-encoded, so the
+     * test cannot silently pass without reaching that layout.
      *
      * @param formatForThreshold builds the format under test for the given
      *                           {@code minDocsPerOrdinalForRangeEncoding}

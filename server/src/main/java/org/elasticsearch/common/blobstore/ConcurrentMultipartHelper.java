@@ -9,6 +9,8 @@
 
 package org.elasticsearch.common.blobstore;
 
+import org.apache.lucene.search.CheckedIntConsumer;
+
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -53,19 +55,32 @@ public class ConcurrentMultipartHelper {
     public static void runConcurrentParts(long blobSize, long partSize, Executor executor, PartConsumer partConsumer) throws IOException {
         final int nbParts = numberOfParts(blobSize, partSize);
         final long lastPartSize = blobSize - (long) (nbParts - 1) * partSize;
-        final AtomicInteger nextPartNum = new AtomicInteger(0);
-        final CountDownLatch latch = new CountDownLatch(nbParts);
+        runConcurrentTasks(nbParts, executor, partNum -> {
+            final boolean lastPart = partNum == nbParts - 1;
+            final long curPartSize = lastPart ? lastPartSize : partSize;
+            final long offset = (long) partNum * partSize;
+            partConsumer.accept(partNum, offset, curPartSize, lastPart);
+        });
+    }
+
+    /**
+     * Executes {@code tasks} independent tasks concurrently. The calling thread also participates
+     *
+     * @param tasks        number of tasks to execute
+     * @param executor     executor used to dispatch concurrent tasks
+     * @param taskConsumer callback invoked per task index, must be thread-safe
+     */
+    public static void runConcurrentTasks(int tasks, Executor executor, CheckedIntConsumer<Exception> taskConsumer) throws IOException {
+        final AtomicInteger nextTask = new AtomicInteger(0);
+        final CountDownLatch latch = new CountDownLatch(tasks);
         final ConcurrentLinkedQueue<Exception> exceptions = new ConcurrentLinkedQueue<>();
 
         final Runnable worker = () -> {
-            int partNum;
-            while ((partNum = nextPartNum.getAndIncrement()) < nbParts) {
+            int i;
+            while ((i = nextTask.getAndIncrement()) < tasks) {
                 if (exceptions.isEmpty()) {
-                    final boolean lastPart = partNum == nbParts - 1;
-                    final long curPartSize = lastPart ? lastPartSize : partSize;
-                    final long offset = (long) partNum * partSize;
                     try {
-                        partConsumer.accept(partNum, offset, curPartSize, lastPart);
+                        taskConsumer.accept(i);
                     } catch (Exception e) {
                         exceptions.add(e);
                     }
@@ -74,7 +89,7 @@ public class ConcurrentMultipartHelper {
             }
         };
 
-        for (int i = 0; i < nbParts - 1; i++) {
+        for (int i = 0; i < tasks - 1; i++) {
             try {
                 executor.execute(worker);
             } catch (Exception e) {
@@ -93,7 +108,14 @@ public class ConcurrentMultipartHelper {
 
         if (exceptions.isEmpty() == false) {
             final Iterator<Exception> it = exceptions.iterator();
-            final IOException exception = new IOException("Concurrent multipart operation failed", it.next());
+            final Exception first = it.next();
+            if (first instanceof RuntimeException re) {
+                while (it.hasNext()) {
+                    re.addSuppressed(it.next());
+                }
+                throw re;
+            }
+            final IOException exception = first instanceof IOException ioe ? ioe : new IOException("Concurrent multipart operation failed", first);
             while (it.hasNext()) {
                 exception.addSuppressed(it.next());
             }

@@ -7,11 +7,15 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,6 +27,20 @@ public final class LogicalVerifier extends PostOptimizationPhasePlanVerifier<Log
 
     private LogicalVerifier(boolean isLocal) {
         super(isLocal);
+    }
+
+    /**
+     * Verifies the optimized coordinator plan, additionally applying the limits that are defined for each independently executed query
+     * rather than for a single node.
+     */
+    public Failures verify(LogicalPlan optimizedPlan, List<Attribute> expectedOutputAttributes, QueryPragmas pragmas) {
+        assert isLocal == false : "query-wide limits apply to the coordinator plan only";
+        Failures failures = verify(optimizedPlan, expectedOutputAttributes);
+        // These limits need complete main-query and IN-subquery plans, so they live here rather than in {@link #checkPlanConsistency}.
+        if (failures.hasFailures() == false && EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled()) {
+            UnionAll.checkNestedSubqueryLimits(optimizedPlan, pragmas.maxBranchCount(), pragmas.maxBranchLevel(), failures);
+        }
+        return failures;
     }
 
     @Override

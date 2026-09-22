@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
@@ -432,10 +433,12 @@ final class ReplaceCaptureUntilDelimiter {
      * most-greedy-first, to reproduce Java regex's backtracking order.
      * <p>
      * {@code tailAnchored} patterns (i.e. ending in {@code $}, not just a bare trailing {@code .*}) rely
-     * on {@code .*$} always matching the remainder -- true unless the remainder contains a line
-     * terminator that isn't the very last character (default, non-{@link Pattern#DOTALL} semantics). That
-     * case is rare (URLs/log fields essentially never embed raw newlines) but is checked per-row via
-     * {@link #hasNonTrailingLineTerminator}; on the rare hit, this defers to the real regex engine via
+     * on {@code .*$} always matching the remainder as a single run through to the true end of input --
+     * true unless the remainder contains a line terminator anywhere, including as its last character(s)
+     * (default, non-{@link Pattern#DOTALL} semantics; see {@link #hasLineTerminator} for why even a
+     * trailing one disqualifies the fast path). That case is rare (URLs/log fields essentially never embed
+     * raw newlines) but is checked per-row via {@link #hasLineTerminator}, which word-scans the remainder
+     * rather than paying a per-byte cost; on the rare hit, this defers to the real regex engine via
      * {@code idiom.originalPattern()}/{@code idiom.originalNewStr()} rather than risk an incorrect result.
      */
     @Evaluator(warnExceptions = IllegalArgumentException.class)
@@ -443,10 +446,10 @@ final class ReplaceCaptureUntilDelimiter {
         if (str == null) {
             return null;
         }
-        // Fully inlined (no helper-method calls) so the JIT sees exactly one flat method for the hot
-        // path -- as cheap as a hand-unrolled version. processWithBacktracking and Replace.safeReplace
-        // (both rare) duplicate a little of this logic themselves rather than factoring it out, for the
-        // same reason.
+        // Mostly inlined (no helper-method calls) so the JIT sees one flat method for the hot path --
+        // as cheap as a hand-unrolled version. processWithBacktracking, hasLineTerminator and
+        // Replace.safeReplace (all rare) are left as real calls since each does enough work per
+        // invocation that call overhead is negligible in comparison.
         byte[] b = str.bytes;
         int off = str.offset;
         int len = str.length;
@@ -488,18 +491,10 @@ final class ReplaceCaptureUntilDelimiter {
             return processWithBacktracking(str, idiom, parts, b, off, len);
         }
 
-        if (idiom.tailAnchored() && idiom.tailDotAll() == false) {
-            for (int j = delimIdx + 1; j < len; j++) {
-                if (MAYBE_LINE_TERMINATOR_LEAD_BYTE[b[off + j] & 0xFF] == false) {
-                    continue;
-                }
-                int termLen = lineTerminatorLengthAt(b, off, j, len);
-                if (termLen > 0 && j + termLen != len) {
-                    // `.*$` (no DOTALL) can't cross this non-trailing terminator -- defer to the real
-                    // regex engine for this one row rather than risk an incorrect result.
-                    return Replace.safeReplace(str, idiom.originalPattern(), idiom.originalNewStr());
-                }
-            }
+        if (idiom.tailAnchored() && idiom.tailDotAll() == false && hasLineTerminator(b, off, delimIdx + 1, len)) {
+            // A line terminator anywhere in the remainder (even trailing) disqualifies the fast path --
+            // see hasLineTerminator -- so defer to the real regex engine for this one row.
+            return Replace.safeReplace(str, idiom.originalPattern(), idiom.originalNewStr());
         }
 
         byte[] pre = idiom.replacementPrefix();
@@ -586,7 +581,7 @@ final class ReplaceCaptureUntilDelimiter {
     }
 
     private static BytesRef finishCaptureMatch(BytesRef str, Idiom idiom, byte[] b, int off, int len, int hostStart, int delimIdx) {
-        if (idiom.tailAnchored() && idiom.tailDotAll() == false && hasNonTrailingLineTerminator(b, off, delimIdx + 1, len)) {
+        if (idiom.tailAnchored() && idiom.tailDotAll() == false && hasLineTerminator(b, off, delimIdx + 1, len)) {
             return Replace.safeReplace(str, idiom.originalPattern(), idiom.originalNewStr());
         }
         return buildCaptureReplacement(idiom, b, off, hostStart, delimIdx);
@@ -608,7 +603,7 @@ final class ReplaceCaptureUntilDelimiter {
 
     // Lead bytes of the UTF-8 encoding of every Pattern-default line terminator (\n, \r, and the lead
     // byte shared by U+0085's 2-byte and U+2028/U+2029's 3-byte encodings). A branch-free lookup keeps
-    // hasNonTrailingLineTerminator's per-byte cost to one array read for the overwhelmingly common case
+    // hasLineTerminator's per-byte cost to one array read for the overwhelmingly common case
     // (real data has none of these bytes at all) instead of up to 4 sequential comparisons.
     private static final boolean[] MAYBE_LINE_TERMINATOR_LEAD_BYTE = new boolean[256];
     static {
@@ -618,26 +613,63 @@ final class ReplaceCaptureUntilDelimiter {
         MAYBE_LINE_TERMINATOR_LEAD_BYTE[0xE2] = true; // U+2028 / U+2029
     }
 
+    // SWAR ("SIMD within a register") constants for hasLineTerminator's word-at-a-time scan:
+    // XOR-ing a word against one of these broadcast-a-byte-to-all-8-lanes patterns turns every lane
+    // holding that target byte into 0x00, and the classic "has a zero byte" trick then detects it --
+    // same technique already used by SimdJsonDirectWalker.resolveFieldName for quote/backslash scanning.
+    private static final long SWAR_LO = 0x0101010101010101L;
+    private static final long SWAR_HI = 0x8080808080808080L;
+    private static final long SWAR_NL = 0x0A0A0A0A0A0A0A0AL; // '\n'
+    private static final long SWAR_CR = 0x0D0D0D0D0D0D0D0DL; // '\r'
+    private static final long SWAR_C2 = 0xC2C2C2C2C2C2C2C2L; // U+0085 NEL lead byte
+    private static final long SWAR_E2 = 0xE2E2E2E2E2E2E2E2L; // U+2028 / U+2029 lead byte
+
     /**
      * Whether {@code b[off+from, off+len)} contains a default-mode {@link Pattern} line terminator
-     * (matching Pattern's own set: {@code \n}, {@code \r}, {@code \u0085}, {@code \u2028}, {@code \u2029})
-     * that is not exactly the last character -- the case where {@code .*$} (without {@link
-     * Pattern#DOTALL}) can fail to match the remainder.
+     * (matching Pattern's own set: {@code \n}, {@code \r}, {@code \u0085}, {@code \u2028}, {@code \u2029}),
+     * anywhere -- including as the very last character(s).
+     * <p>
+     * A terminator anywhere disqualifies the byte-scan fast path here, even a trailing one: {@code $}
+     * (without {@link Pattern#MULTILINE}) matches just <em>before</em> a trailing terminator, so the
+     * terminator itself falls outside the regex match and {@code replaceAll} leaves it untouched in the
+     * output -- but this fast path's replacement-building always treats {@code .*$} as consuming through
+     * the true end of input. Reproducing "matched everything except a possibly-multi-byte trailing
+     * terminator" correctly isn't worth the complexity for a case real URLs/log fields essentially never
+     * hit; deferring to the real regex engine is simpler and still correct.
+     * <p>
+     * Scans 8 bytes at a time via {@link BitUtil#VH_LE_LONG} + SWAR instead of
+     * {@link #MAYBE_LINE_TERMINATOR_LEAD_BYTE}'s one-array-read-per-byte check, since real data
+     * essentially never contains any of these bytes -- the per-byte lookup only runs for the rare word
+     * that flags a candidate, or the final &lt;8-byte remainder.
      */
-    private static boolean hasNonTrailingLineTerminator(byte[] b, int off, int from, int len) {
-        for (int j = from; j < len; j++) {
-            if (MAYBE_LINE_TERMINATOR_LEAD_BYTE[b[off + j] & 0xFF] == false) {
-                continue;
+    private static boolean hasLineTerminator(byte[] b, int off, int from, int len) {
+        int j = from;
+        int wordLimit = len - 8; // last offset (relative to off) at which a full 8-byte word fits
+        for (; j <= wordLimit; j += 8) {
+            long word = (long) BitUtil.VH_LE_LONG.get(b, off + j);
+            long xnl = word ^ SWAR_NL;
+            long xcr = word ^ SWAR_CR;
+            long xc2 = word ^ SWAR_C2;
+            long xe2 = word ^ SWAR_E2;
+            long hit = ((xnl - SWAR_LO) & ~xnl) | ((xcr - SWAR_LO) & ~xcr) | ((xc2 - SWAR_LO) & ~xc2) | ((xe2 - SWAR_LO) & ~xe2);
+            if ((hit & SWAR_HI) == 0) {
+                continue; // none of these 8 bytes can start a line terminator.
             }
-            int termLen = lineTerminatorLengthAt(b, off, j, len);
-            if (termLen > 0 && j + termLen != len) {
+            for (int k = 0; k < 8; k++) {
+                if (MAYBE_LINE_TERMINATOR_LEAD_BYTE[b[off + j + k] & 0xFF] && lineTerminatorLengthAt(b, off, j + k, len) > 0) {
+                    return true;
+                }
+            }
+        }
+        for (; j < len; j++) {
+            if (MAYBE_LINE_TERMINATOR_LEAD_BYTE[b[off + j] & 0xFF] && lineTerminatorLengthAt(b, off, j, len) > 0) {
                 return true;
             }
         }
         return false;
     }
 
-    /** Length in bytes of a line terminator (see {@link #hasNonTrailingLineTerminator}) at index {@code j}, or 0. */
+    /** Length in bytes of a line terminator (see {@link #hasLineTerminator}) at index {@code j}, or 0. */
     private static int lineTerminatorLengthAt(byte[] b, int off, int j, int len) {
         byte c = b[off + j];
         if (c == '\n' || c == '\r') {

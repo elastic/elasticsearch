@@ -434,6 +434,38 @@ public class ReplaceStaticTests extends ESTestCase {
         assertThat(processConstantRegexAndNewStr(withEmbeddedNewline, regex, "$1"), equalTo(withEmbeddedNewline.replaceAll(regex, "$1")));
     }
 
+    public void testEndToEndCaptureUntilDelimiterIdiomLineTerminatorScanWordBoundaries() {
+        // Regression coverage for hasNonTrailingLineTerminator's SWAR word-at-a-time scan: exercise every
+        // alignment of a line terminator (single- and multi-byte) relative to an 8-byte scan word --
+        // including terminators that straddle a word boundary -- and cross-check against Java's own regex
+        // rather than hand-computing the expected result.
+        String regex = "^([^/]+)/.*$";
+        String newStr = "$1";
+        String[] terminators = { "\n", "\r", "\u0085", "\u2028", "\u2029" };
+        for (String term : terminators) {
+            for (int tailLen = 1; tailLen <= 20; tailLen++) {
+                for (int pos = 0; pos < tailLen; pos++) {
+                    StringBuilder tail = new StringBuilder();
+                    for (int i = 0; i < tailLen; i++) {
+                        tail.append(i == pos ? term : "x");
+                    }
+                    String input = "host/" + tail;
+                    String expected = input.replaceAll(regex, newStr);
+                    assertThat(
+                        "term=U+" + Integer.toHexString(term.codePointAt(0)) + " tailLen=" + tailLen + " pos=" + pos,
+                        processConstantRegexAndNewStr(input, regex, newStr),
+                        equalTo(expected)
+                    );
+                }
+            }
+        }
+        // No terminator at all, across word-boundary-relevant lengths -- must not false-positive.
+        for (int tailLen = 0; tailLen <= 20; tailLen++) {
+            String input = "host/" + "x".repeat(tailLen);
+            assertThat("tailLen=" + tailLen, processConstantRegexAndNewStr(input, regex, newStr), equalTo("host"));
+        }
+    }
+
     public void testCaptureUntilDelimiterEvaluatorNotUsedWhenIdiomDoesNotMatch() {
         // Multiple capturing groups -- must fall back to the existing dictionary/ordinal evaluator.
         assertEvaluatorToStringContains("^(a)([^/]+)/.*$", "$2", "ReplaceConstantOrdinalEvaluator");

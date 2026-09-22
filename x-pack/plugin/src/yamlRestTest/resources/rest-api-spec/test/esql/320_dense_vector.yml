@@ -1,0 +1,68 @@
+---
+# REST-API tests for DENSE_VECTOR command parse and validation errors. Each query is rejected during
+# parsing, before an inference endpoint is contacted, so the assertions hold without an embedding endpoint.
+setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ dense_vector_command ]
+      reason: "DENSE_VECTOR command is snapshot-only"
+      test_runner_features: [ capabilities, contains ]
+  - do:
+      indices.create:
+        index: books
+        body:
+          mappings:
+            properties:
+              title:
+                type: text
+
+---
+"unknown WITH option is rejected":
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM books | DENSE_VECTOR title WITH { "bogus": 1 }'
+
+  - match: { status: 400 }
+  - match: { error.type: parsing_exception }
+  - contains: { error.reason: "Invalid option [bogus] in DENSE_VECTOR" }
+
+---
+"invalid type option value is rejected":
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM books | DENSE_VECTOR title WITH { "type": "audio" }'
+
+  - match: { status: 400 }
+  - match: { error.type: parsing_exception }
+  - contains: { error.reason: "Invalid value [audio] for option [type] in DENSE_VECTOR, expected one of [text, image]" }
+
+---
+"image type without inference_id is rejected":
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM books | DENSE_VECTOR title WITH { "type": "image" }'
+
+  - match: { status: 400 }
+  - match: { error.type: parsing_exception }
+  - contains: { error.reason: "Option [type] with value [image] in DENSE_VECTOR requires option [inference_id]" }
+
+---
+"suffix clause without ON is rejected":
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM books | DENSE_VECTOR suffix = "_dv"'
+
+  - match: { status: 400 }
+  - match: { error.type: parsing_exception }
+  - contains: { error.reason: 'Missing [ON] after [suffix = "_dv"] in DENSE_VECTOR' }

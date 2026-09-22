@@ -1521,6 +1521,15 @@ TS k8s | STATS max_rate = max(rate(network.total_bytes_in)) BY bucket = bucket(@
 max_rate:double | bucket:datetime
 ;
 
+rateWithTBucketTargetCountAndLimitZero
+required_capability: fix_limit_zero_in_stats_by_all
+required_capability: tbucket_from_to
+required_capability: fix_ts_tbucket_missing_bounds
+TS k8s | STATS sum_rate = SUM(RATE(network.total_bytes_in)) BY bucket = TBUCKET(20, "2024-05-10T00:00:00Z", "2024-05-10T01:00:00Z") | LIMIT 0;
+
+sum_rate:double | bucket:datetime
+;
+
 tsRateWithWindowAndTBucketTargetCount
 required_capability: ts_command_v0
 required_capability: tbucket_from_to
@@ -1613,4 +1622,62 @@ x:long | y:long | pod:keyword
 680    | 680    | one
 170    | 170    | three
 656    | 656    | two
+;
+
+tsStatsWithLiteralAggregate
+required_capability: ts_command_v0
+required_capability: ts_stats_literal_agg_fix
+
+// Regression test: constant literal aggregates (e.g. metric_type = "network.cost") must survive
+// the optimizer without triggering "Plan [...] optimized incorrectly due to missing references".
+TS k8s
+| STATS metric_type = "network.cost", cnt = COUNT(COUNT_OVER_TIME(network.cost)) BY cluster
+| SORT cluster;
+
+metric_type:keyword | cnt:long | cluster:keyword
+network.cost        | 3        | prod
+network.cost        | 3        | qa
+network.cost        | 3        | staging
+;
+
+// Multiple constant literal aggregates — each must reach the outer Aggregate.
+tsStatsWithMultipleLiteralAggregates
+required_capability: ts_command_v0
+required_capability: ts_stats_literal_agg_fix
+
+TS k8s
+| STATS source = "k8s", metric = "cost", cnt = COUNT(COUNT_OVER_TIME(network.cost)) BY cluster
+| SORT cluster;
+
+source:keyword | metric:keyword | cnt:long | cluster:keyword
+k8s            | cost           | 3        | prod
+k8s            | cost           | 3        | qa
+k8s            | cost           | 3        | staging
+;
+
+// Literal appearing last in the STATS clause — position must not affect routing.
+tsStatsWithLiteralAggregateAtEnd
+required_capability: ts_command_v0
+required_capability: ts_stats_literal_agg_fix
+
+TS k8s
+| STATS cnt = COUNT(COUNT_OVER_TIME(network.cost)), metric_type = "cost" BY cluster
+| SORT cluster;
+
+cnt:long | metric_type:keyword | cluster:keyword
+3        | cost                | prod
+3        | cost                | qa
+3        | cost                | staging
+;
+
+// STATS with multiple input fields
+tsStatsWithMultipleInputFields
+required_capability: fix_aggs_multiple_input_fields
+
+TS k8s
+| STATS avg = WEIGHTED_AVG(network.bytes_in, network.cost)
+;
+
+avg:double
+616.5983606557377
 ;

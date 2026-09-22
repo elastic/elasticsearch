@@ -23,8 +23,8 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.MultiValuedBinaryDVLeafFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -252,7 +252,7 @@ public class BinaryFieldMapper extends FieldMapper {
         CustomBinaryDVLeafFieldData(
             String fieldName,
             LeafReader leafReader,
-            ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory
+            ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory
         ) {
             super(fieldName, leafReader, toScriptFieldFactory, IndexVersion.current());
             this.leafReader = leafReader;
@@ -260,9 +260,9 @@ public class BinaryFieldMapper extends FieldMapper {
         }
 
         @Override
-        public SortedBinaryDocValues getBytesValues() {
+        public SortableBinaryDocValues getBytesValues() {
             try {
-                return MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, fieldName);
+                return MultiValuedSortableBinaryDocValues.fromMultiValued(leafReader, fieldName);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -270,7 +270,7 @@ public class BinaryFieldMapper extends FieldMapper {
     }
 
     private static final class CustomBinaryIndexFieldData extends BytesBinaryIndexFieldData {
-        CustomBinaryIndexFieldData(String fieldName, ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory) {
+        CustomBinaryIndexFieldData(String fieldName, ToScriptFieldFactory<SortableBinaryDocValues> toScriptFieldFactory) {
             super(fieldName, CoreValuesSourceType.KEYWORD, toScriptFieldFactory, IndexVersion.current());
         }
 

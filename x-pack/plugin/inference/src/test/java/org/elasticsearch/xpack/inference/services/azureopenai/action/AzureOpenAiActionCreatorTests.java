@@ -23,10 +23,10 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -477,7 +477,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, taskSettingsWithUserOverride);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(List.of(completionInput)), null, listener);
+            action.execute(new CompletionInput(List.of(completionInput)), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -488,7 +488,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
 
             assertThat(
                 result.asMap(),
-                is(Map.of(ChatCompletionResults.COMPLETION, List.of(Map.of(ChatCompletionResults.Result.RESULT, "response"))))
+                is(Map.of(CompletionResults.COMPLETION, List.of(Map.of(CompletionResults.Result.RESULT, "response"))))
             );
             validateRequestWithApiKey(request, apiKey);
             validateCompletionRequestMapWithUser(requestMap, List.of(completionInput), overriddenUser);
@@ -531,7 +531,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, requestTaskSettingsWithoutUser);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(List.of(completionInput)), null, listener);
+            action.execute(new CompletionInput(List.of(completionInput)), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -542,7 +542,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
 
             assertThat(
                 result.asMap(),
-                is(Map.of(ChatCompletionResults.COMPLETION, List.of(Map.of(ChatCompletionResults.Result.RESULT, "response"))))
+                is(Map.of(CompletionResults.COMPLETION, List.of(Map.of(CompletionResults.Result.RESULT, "response"))))
             );
             validateRequestWithApiKey(request, apiKey);
             validateCompletionRequestMapWithUser(requestMap, List.of(completionInput), null);
@@ -587,7 +587,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, requestTaskSettingsWithoutUser);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(List.of(completionInput)), null, listener);
+            action.execute(new CompletionInput(List.of(completionInput)), null, listener);
 
             var failureCauseMessage = "Failed to find required field [choices] in Azure OpenAI completions response";
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.external.response.streaming;
 
 import org.apache.commons.lang3.tuple.Pair;
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -32,9 +32,9 @@ public class StreamingInferenceTestUtils {
     }
 
     @SuppressWarnings("unchecked")
-    public static Matcher<Iterable<? extends StreamingChatCompletionResults.Result>> containsResults(String... results) {
-        Matcher<StreamingChatCompletionResults.Result>[] resultMatcher = Arrays.stream(results)
-            .map(StreamingChatCompletionResults.Result::new)
+    public static Matcher<Iterable<? extends StreamingCompletionResults.Result>> containsResults(String... results) {
+        Matcher<StreamingCompletionResults.Result>[] resultMatcher = Arrays.stream(results)
+            .map(StreamingCompletionResults.Result::new)
             .map(Matchers::equalTo)
             .toArray(Matcher[]::new);
         return Matchers.contains(resultMatcher);

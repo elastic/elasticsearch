@@ -58,6 +58,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     public static final String ALERTING_V2_ALERT_VIEWS = "$.alert*";
     public static final String ALERTING_V2_RULE_VIEWS = "$.rule*";
 
+    /** Context Engine AI index retrieval views, one per AI index */
+    public static final String CONTEXT_ENGINE_AI_INDEX_VIEWS = "v-ai-index-*";
+
     /** Cases analytics indexes and aliases */
     public static final String CASES_ANALYTICS_INDEXES = ".internal.cases*";
     public static final String CASES_ANALYTICS_ALIASES = ".cases*";
@@ -80,6 +83,21 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     /** "Security Solutions" only lists index for value list items for detections */
     public static final String LISTS_ITEMS_INDEX = ".items-*";
     public static final String LISTS_ITEMS_INDEX_REINDEXED_V8 = ".reindexed-v8-items-*";
+
+    /**
+     * "Security Solutions" threat intelligence indicators, produced by the threat intel supply
+     * pipeline. Kibana creates and writes the index and manages the per-space filtered aliases;
+     * Detection Engine Indicator Match rules read those aliases as the rule's own user.
+     *
+     * The two patterns differ deliberately. {@code kibana_system} needs the index and its aliases,
+     * so it is granted {@link #THREAT_INTEL_INDICATORS_INDEX}. {@code viewer} and {@code editor}
+     * are granted only {@link #THREAT_INTEL_INDICATORS_ALIAS}, which requires the trailing hyphen
+     * and so never matches the bare {@code .threat-intel-indicators} index. That index holds every
+     * space's candidate indicators at every confidence level, and only the filtered per-space
+     * aliases are safe for a rule to read.
+     */
+    public static final String THREAT_INTEL_INDICATORS_INDEX = ".threat-intel-indicators*";
+    public static final String THREAT_INTEL_INDICATORS_ALIAS = ".threat-intel-indicators-*";
 
     /** "Security Solutions" Entity Store and Asset Criticality indices for Asset Inventory and Entity Analytics */
     public static final String ENTITY_STORE_V1_LATEST_INDEX = ".entities.v1.latest.security_*";
@@ -818,6 +836,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     )
                     .privileges("read", "view_index_metadata")
                     .build(),
+                // Threat intel indicators. Only the per-space filtered aliases are granted, so the
+                // trailing hyphen is load-bearing: it never matches the bare .threat-intel-indicators index.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.THREAT_INTEL_INDICATORS_ALIAS)
+                    .privileges("read")
+                    .build(),
                 // Alerts-as-data
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
@@ -898,6 +922,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ReservedRolesStore.ENTITY_STORE_HISTORY_INDEX
                     )
                     .privileges("read", "view_index_metadata")
+                    .build(),
+                // Threat intel indicators. Only the per-space filtered aliases are granted, so the
+                // trailing hyphen is load-bearing: it never matches the bare .threat-intel-indicators index.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.THREAT_INTEL_INDICATORS_ALIAS)
+                    .privileges("read")
                     .build(),
                 // Alerts-as-data
                 RoleDescriptor.IndicesPrivileges.builder()

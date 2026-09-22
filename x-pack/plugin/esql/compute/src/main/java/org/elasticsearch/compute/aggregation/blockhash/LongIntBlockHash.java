@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -24,23 +25,24 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeLong;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.swisshash.LongLongSwissHash;
 
 import java.util.List;
 
 /**
  * Maps a {@link LongBlock} and an {@link IntBlock} to group ids, handling nulls and multivalued fields.
  */
-public final class LongIntBlockHash extends BlockHash {
+public final class LongIntBlockHash extends PartitionedBlockHash {
     private final int longChannel;
     private final int intChannel;
     private final int emitBatchSize;
     private final boolean reverseOutput;
-    private final LongLongHashTable hash;
+    final LongLongHashTable hash;
 
     private final long batchUsedBytes;
     private final long[] batchKeys1;
     private final long[] batchKeys2;
-    private final int[] batchIds;
+    final int[] batchIds;
     // defaults to false, switch to true if we ever see input blocks
     private boolean seenBlocks = false;
 
@@ -72,24 +74,28 @@ public final class LongIntBlockHash extends BlockHash {
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         LongBlock longBlock = page.getBlock(longChannel);
-        LongVector longVector = longBlock.asVector();
         IntBlock intBlock = page.getBlock(intChannel);
+        LongVector longVector = longBlock.asVector();
         IntVector intVector = intBlock.asVector();
         if (longVector != null && intVector != null) {
             addVector(longVector, intVector, addInput);
         } else {
-            seenBlocks = true;
-            try (
-                LongBlock dedupedLongs = new MultivalueDedupeLong(longBlock).dedupeToBlockAdaptive(blockFactory);
-                IntBlock dedupedInts = new MultivalueDedupeInt(intBlock).dedupeToBlockAdaptive(blockFactory);
-                AddBlockWork work = new AddBlockWork(dedupedLongs, dedupedInts, addInput, emitBatchSize)
-            ) {
-                work.add();
-            }
+            addBlock(longBlock, intBlock, addInput);
         }
     }
 
-    private void addVector(LongVector longVector, IntVector intVector, GroupingAggregatorFunction.AddInput addInput) {
+    void addBlock(LongBlock longBlock, IntBlock intBlock, GroupingAggregatorFunction.AddInput addInput) {
+        seenBlocks = true;
+        try (
+            LongBlock dedupedLongs = new MultivalueDedupeLong(longBlock).dedupeToBlockAdaptive(blockFactory);
+            IntBlock dedupedInts = new MultivalueDedupeInt(intBlock).dedupeToBlockAdaptive(blockFactory);
+            AddBlockWork work = new AddBlockWork(dedupedLongs, dedupedInts, addInput, emitBatchSize)
+        ) {
+            work.add();
+        }
+    }
+
+    void addVector(LongVector longVector, IntVector intVector, GroupingAggregatorFunction.AddInput addInput) {
         if (hash.supportBulkAdd()) {
             addBatch(longVector, intVector, addInput);
         } else {
@@ -234,8 +240,12 @@ public final class LongIntBlockHash extends BlockHash {
     @Override
     public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
         LongBlock longBlock = page.getBlock(longChannel);
-        LongVector longVector = longBlock.asVector();
         IntBlock intBlock = page.getBlock(intChannel);
+        return lookup(longBlock, intBlock, targetBlockSize);
+    }
+
+    ReleasableIterator<IntBlock> lookup(LongBlock longBlock, IntBlock intBlock, ByteSizeValue targetBlockSize) {
+        LongVector longVector = longBlock.asVector();
         IntVector intVector = intBlock.asVector();
         if (longVector != null && intVector != null) {
             return lookupVector(longVector, intVector, targetBlockSize);
@@ -551,6 +561,53 @@ public final class LongIntBlockHash extends BlockHash {
     // for testing
     int effectiveEmitBatchSize() {
         return emitBatchSize;
+    }
+
+    @Override
+    public void ensureCapacity(int size) {
+        if (hash instanceof LongLongSwissHash swiss) {
+            swiss.ensureCapacity(size);
+        }
+    }
+
+    @Override
+    public void clear() {
+        hash.clear();
+    }
+
+    private record PartitionedHashKeysWithSeenBlocks(PartitionedHashKeys delegate, boolean seenBlocks) implements PartitionedHashKeys {
+        @Override
+        public int keysInPartition(int partition) {
+            return delegate.keysInPartition(partition);
+        }
+
+        @Override
+        public void releasePartition(CircuitBreaker breaker, int partition) {
+            delegate.releasePartition(breaker, partition);
+        }
+
+        @Override
+        public void releaseAll(CircuitBreaker breaker) {
+            delegate.releaseAll(breaker);
+        }
+    }
+
+    @Override
+    public PartitionedHashKeys splitPartition(CircuitBreaker breaker, PartitionSplitter partitionSplitter) {
+        if (hash instanceof LongLongSwissHash swiss) {
+            return new PartitionedHashKeysWithSeenBlocks(swiss.splitPartition(breaker, partitionSplitter), seenBlocks);
+        }
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
+    }
+
+    @Override
+    public boolean combinePartition(PartitionedHashKeys keys, int partitionIndex, int[] resultIds) {
+        if (hash instanceof LongLongSwissHash swiss) {
+            PartitionedHashKeysWithSeenBlocks withSeenBlocks = (PartitionedHashKeysWithSeenBlocks) keys;
+            seenBlocks |= withSeenBlocks.seenBlocks;
+            return swiss.combinePartition(withSeenBlocks.delegate, partitionIndex, resultIds);
+        }
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
     }
 
     @Override

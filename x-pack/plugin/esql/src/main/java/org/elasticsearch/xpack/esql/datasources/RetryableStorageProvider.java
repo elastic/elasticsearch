@@ -7,13 +7,16 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.function.Function;
 
 /**
@@ -82,7 +85,15 @@ class RetryableStorageProvider implements StorageProvider {
 
     @Override
     public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
-        return policyFor(prefix).execute(() -> delegate.listObjects(prefix, recursive), "listObjects", prefix);
+        RetryPolicy policy = policyFor(prefix);
+        StorageIterator iterator = policy.execute(() -> delegate.listObjects(prefix, recursive), "listObjects", prefix);
+        return new RetryableStorageIterator(iterator, policy, prefix);
+    }
+
+    @Override
+    public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
+        // Fully materialized by the delegate, so the whole call retries as one unit — no iterator to wrap.
+        return policyFor(prefix).execute(() -> delegate.listChildren(prefix, limit), "listChildren", prefix);
     }
 
     @Override
@@ -103,5 +114,45 @@ class RetryableStorageProvider implements StorageProvider {
     @Override
     public void close() throws IOException {
         delegate.close();
+    }
+
+    /**
+     * Applies retries where lazy storage iterators actually fetch their next page. Iterator creation remains
+     * covered by {@link #listObjects}; this wrapper keeps the same iterator and continuation state across retries.
+     */
+    private static final class RetryableStorageIterator implements StorageIterator {
+        private final StorageIterator delegate;
+        private final RetryPolicy retryPolicy;
+        private final StoragePath prefix;
+
+        private RetryableStorageIterator(StorageIterator delegate, RetryPolicy retryPolicy, StoragePath prefix) {
+            this.delegate = delegate;
+            this.retryPolicy = retryPolicy;
+            this.prefix = prefix;
+        }
+
+        @Override
+        public boolean hasNext() {
+            try {
+                return retryPolicy.execute(delegate::hasNext, "listObjects.hasNext", prefix);
+            } catch (IOException e) {
+                // StorageIterator exposes lazy I/O through unchecked failures, so preserve that boundary contract.
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        @Override
+        public StorageEntry next() {
+            if (hasNext() == false) {
+                throw new NoSuchElementException();
+            }
+            // Do not retry next() itself: an arbitrary iterator may already have advanced before throwing.
+            return delegate.next();
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
     }
 }

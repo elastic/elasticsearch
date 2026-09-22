@@ -711,3 +711,6 @@ tests:
 - class: org.elasticsearch.upgrades.MLModelDeploymentsUpgradeIT
   method: testTrainedModelDeployment {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/159948
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
+  method: testSourceRelocationDuringReshard
+  issue: https://github.com/elastic/elasticsearch/issues/159951

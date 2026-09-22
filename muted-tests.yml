@@ -436,11 +436,6 @@ tests:
 - class: org.elasticsearch.action.RejectionActionIT
   method: testSimulatedSearchRejectionLoad
   issue: https://github.com/elastic/elasticsearch/issues/158625
-- class: org.elasticsearch.xpack.security.transport.CrossClusterSigningConfigReloaderIntegTests
-  method: testRemoveFileWithConfig
-  issue: https://github.com/elastic/elasticsearch/issues/159810
-- class: org.elasticsearch.xpack.security.transport.CrossClusterSigningConfigReloaderIntegTests
-  issue: https://github.com/elastic/elasticsearch/issues/159811
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
   method: testMixedOperationsDuringSplitWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/159143

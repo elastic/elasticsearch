@@ -27,7 +27,6 @@ import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.ToLongBiFunction;
 
-import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.LAX;
 import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.UNMODIFIABLE;
 
 /**
@@ -163,13 +162,11 @@ public final class EnrichCache {
             // There is a cost of decompressing source here plus caching it.
             // We do it first so we don't decompress it twice.
             size += hit.getSourceRef() != null ? hit.getSourceRef().ramBytesUsed() : 0;
-
-            // This copy is unmodifiable, but it's also lax. It's unmodifiable as a statement of intention/aspiration.
-            // But it's lax because there are some edge cases (SMILE) that result in byte arrays in the cached value,
-            // so we have to be lax in order to let those through. The goal is that in real world ordinary cases, the
-            // cached value is an entirely immutable/unmodifiable object tree, but the lax escape hatch remains. Of
-            // course, the defensive deepCopy calls that return mutable results still remain on the read paths.
-            result.add(CollectionUtils.deepCopy(hit.getSourceAsMap(), UNMODIFIABLE, LAX));
+            // reminder that 'unmodifiable' only really refers to the collections returned from deepCopy,
+            // not array values within the object tree. so since SMILE (for example) can result in arrays
+            // inside source docs (and arrays don't have a meaningful unmodifiable equivalent), we need
+            // both this copy and the defensive deepCopy calls in the read paths.
+            result.add(CollectionUtils.deepCopy(hit.getSourceAsMap(), UNMODIFIABLE));
         }
         return new CacheValue(Collections.unmodifiableList(result), size);
     }

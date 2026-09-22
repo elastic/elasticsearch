@@ -66,20 +66,28 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         );
     }
 
-    /** A resolution over {@code files} files, each with {@code columns}-wide statistics. */
+    /** A first_file_wins resolution: the anchor's schema, and nothing else. */
+    private static DatasetResolution anchorResolution(int columns) {
+        return new DatasetResolution.FromAnchor(schemaEntry(columns));
+    }
+
+    /**
+     * A union_by_name resolution over {@code files} files read at one {@code columns}-wide schema, each carrying its own
+     * native types — the widest an entry gets, since a file whose types match the reconciled ones carries none.
+     */
     private static DatasetResolution resolution(int files, int columns) {
-        Map<String, Object> statistics = new LinkedHashMap<>();
+        Map<String, DataType> inferredTypes = new LinkedHashMap<>();
         for (int c = 0; c < columns; c++) {
-            statistics.put("_stats.columns.column_" + c + ".null_count", 0L);
+            inferredTypes.put("column_" + c, DataType.LONG);
         }
-        Map<FileFingerprint, DatasetResolution.FileFacts> facts = new LinkedHashMap<>();
+        Map<FileFingerprint, DatasetResolution.FromEveryFile.FileShape> shapes = new LinkedHashMap<>();
         for (int i = 0; i < files; i++) {
-            facts.put(
+            shapes.put(
                 FileFingerprint.of("s3://bucket/data/part-" + i + ".parquet", 5_000, 100 + i),
-                new DatasetResolution.FileFacts(statistics, null)
+                new DatasetResolution.FromEveryFile.FileShape(0, null, inferredTypes)
             );
         }
-        return new DatasetResolution.FromAnchor(schemaEntry(columns), facts);
+        return new DatasetResolution.FromEveryFile(schemaEntry(columns), List.of(schemaEntry(columns)), shapes);
     }
 
     public void testDatasetResolutionRoundTripsAndCountsHitsAndMisses() {
@@ -112,7 +120,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     public void testEveryServeBuildsFreshAttributes() {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             DatasetSchemaKey key = datasetKey("nameids");
-            service.putDatasetResolution(key, resolution(2, 3));
+            service.putDatasetResolution(key, anchorResolution(3));
             SchemaCacheEntry anchor = ((DatasetResolution.FromAnchor) service.getDatasetResolution(key)).anchor();
             List<Attribute> first = anchor.toAttributes();
             List<Attribute> second = anchor.toAttributes();

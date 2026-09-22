@@ -18,8 +18,14 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * A dataset's resolution, held so that resolving the same dataset again, under the same settings, can be answered
- * without opening a file. If nothing the result depends on has changed, there is nothing to learn by reading.
+ * A dataset's SCHEMA, held so that discovering the schema of the same dataset again, under the same settings, opens
+ * no file. If nothing the schema depends on has changed, there is nothing to learn by reading.
+ * <p>
+ * Schema only, deliberately. A resolve also gathers each file's statistics, and those are neither schema nor small:
+ * five numbers per column per file, which at twenty columns weigh about 10kb per file by this cache's own reckoning —
+ * some 100mb for a 9,705-file dataset, against a slice of 1.6mb on an 8gb node. Holding them would put every large
+ * dataset over the limit and win nothing at all. They stay where they are built: on the first read, into the per-file
+ * cache.
  * <p>
  * What is held follows from what the key identifies. Keyed on the anchor, the entry holds what the anchor decides and
  * leaves the listing-dependent part to be recomputed, so a file appended after the anchor is served rather than
@@ -35,36 +41,15 @@ public sealed interface DatasetResolution permits DatasetResolution.FromAnchor, 
     long estimatedBytes();
 
     /**
-     * What a resolve learned about one file that the schema alone does not say: its statistics, which split planning
-     * uses to skip reopening it, and its own native types, which the statistics are normalized against.
-     *
-     * @param statistics    the file's statistics as the per-file cache embeds them; empty when it had none
-     * @param inferredTypes the file's types before any retype, or {@code null} when its read schema is its own
+     * {@code first_file_wins}. The anchor's metadata as it stands before the listing-dependent finishing step, which is
+     * the whole of what the anchor decides. Partition columns, the file count and each file's mapping are recomputed
+     * from the listing on every serve, which is purely CPU work, and each file's statistics are read where they are
+     * read today — this resolve never gathered them.
      */
-    record FileFacts(Map<String, Object> statistics, @Nullable Map<String, DataType> inferredTypes) {
-        public FileFacts {
-            statistics = Map.copyOf(statistics);
-            inferredTypes = inferredTypes == null ? null : Map.copyOf(inferredTypes);
-        }
-
-        long estimatedBytes() {
-            return 48 + statistics.size() * 100L + (inferredTypes == null ? 0 : inferredTypes.size() * 64L);
-        }
-    }
-
-    /**
-     * {@code first_file_wins}. The anchor's metadata as it stands before the listing-dependent finishing step, and
-     * what was learned about each file. Partition columns, the file count and each file's mapping are recomputed from
-     * the listing on every serve, which is purely CPU work.
-     */
-    record FromAnchor(SchemaCacheEntry anchor, Map<FileFingerprint, FileFacts> files) implements DatasetResolution {
-        public FromAnchor {
-            files = Map.copyOf(files);
-        }
-
+    record FromAnchor(SchemaCacheEntry anchor) implements DatasetResolution {
         @Override
         public long estimatedBytes() {
-            return anchor.estimatedBytes() + filesBytes(files.values().stream().mapToLong(FileFacts::estimatedBytes).sum(), files.size());
+            return anchor.estimatedBytes();
         }
     }
 
@@ -85,7 +70,15 @@ public sealed interface DatasetResolution permits DatasetResolution.FromAnchor, 
          * @param fileSchema the index into {@link #fileSchemas} of the schema this file is read at
          * @param mapping    how the file's columns map onto the dataset's, or {@code null} when they are the same
          */
-        public record FileShape(int fileSchema, @Nullable ColumnMapping mapping, FileFacts facts) {}
+        public record FileShape(int fileSchema, @Nullable ColumnMapping mapping, @Nullable Map<String, DataType> inferredTypes) {
+            public FileShape {
+                inferredTypes = inferredTypes == null ? null : Map.copyOf(inferredTypes);
+            }
+
+            long estimatedBytes() {
+                return 8 + (inferredTypes == null ? 0 : inferredTypes.size() * 64L);
+            }
+        }
 
         @Override
         public long estimatedBytes() {
@@ -98,7 +91,7 @@ public sealed interface DatasetResolution permits DatasetResolution.FromAnchor, 
             Set<ColumnMapping> distinctMappings = new HashSet<>();
             long perFile = 0;
             for (FileShape shape : files.values()) {
-                perFile += 8 + shape.facts().estimatedBytes();
+                perFile += shape.estimatedBytes();
                 if (shape.mapping() != null) {
                     distinctMappings.add(shape.mapping());
                 }

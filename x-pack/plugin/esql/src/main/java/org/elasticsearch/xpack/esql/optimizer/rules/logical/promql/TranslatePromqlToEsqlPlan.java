@@ -1040,17 +1040,21 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 ? new LastOverTime(selector.source(), selector.series(), AggregateFunction.NO_WINDOW, time)
                 : selector.series();
 
-            // output contains all runtime mapped fields, select only fields we need
-            var relationFields = input.output()
+            // Dimension fields define series identity; non-metric, non-packed fields are available as labels too.
+            // Non-dimension keyword fields (e.g. k8s.pod.name in a TSDB index that lacks it as a dimension)
+            // must still be bindable as grouping keys, matching the pre-refactor behaviour where emitCollapse
+            // called find(plan.output(), label) over the full relation output.
+            var labelFields = input.output()
                 .stream()
                 .filter(
-                    dim -> (dim instanceof FieldAttribute fa && fa.isDimension()) && (dim instanceof TimeSeriesMetadataAttribute == false)
+                    attr -> (attr instanceof FieldAttribute fa && fa.isMetric() == false)
+                        && (attr instanceof TimeSeriesMetadataAttribute == false)
                 )
                 .toList();
 
             // IN: only `parentHeader` labels that exist on the relation;
             // consumers null-fill any absent parentHeader label.
-            Header in = filter(parentHeader, finite(mapFinite(relationFields)));
+            Header in = filter(parentHeader, finite(mapFinite(labelFields)));
 
             // OUT: the requirement bound column by column to the relation;
             // a packed column is produced by a `TimeSeriesMetadataAttribute`, added to the relation if absent
@@ -1069,7 +1073,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
             // regular columns
             for (var col : in.finiteColumns()) {
-                out = bind(out, col, find(relationFields, col));
+                out = bind(out, col, find(labelFields, col));
             }
 
             if (additional.isEmpty() == false) {

@@ -43,6 +43,7 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -158,6 +159,11 @@ public class CsvBoundaryScanBenchmark {
         @Override
         public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
             return wrapped.withConfigTrackingConsumedKeys(config);
+        }
+
+        @Override
+        public Set<String> schemaAffectingKeys() {
+            return wrapped.schemaAffectingKeys();
         }
 
         @Override

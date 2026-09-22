@@ -216,6 +216,28 @@ public interface FormatReader extends Closeable {
     Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config);
 
     /**
+     * The configuration keys that change what this reader INFERS as a schema — column names, their types, or
+     * whether inference succeeds at all. A cache of resolved schemas is keyed on these and on nothing else the
+     * reader owns, so the set is the reader's statement of what a cached schema may be shared across.
+     * <p>
+     * Narrower than {@code RECOGNIZED_KEYS}, and not derivable from it: a key can be recognised and still not
+     * reach inference. NDJSON recognises {@code segment_size}, which only sets a chunk length. It is also not
+     * contained by it: a reader must declare a key it consumes from the shared configuration even when it
+     * parses it elsewhere. CSV's schema inference honours the {@link ErrorPolicy} — a malformed row inside the
+     * sampling window is skipped under a lenient mode and throws under {@code fail_fast}, and the error budget
+     * is charged while sampling — so CSV declares {@code error_mode}, {@code max_errors} and
+     * {@code max_error_ratio} although it never lists them as its own.
+     * <p>
+     * Abstract rather than defaulted to the empty set on purpose. The failure this guards is a reader that
+     * under-declares: two configurations that infer different schemas then share one cache entry, and the
+     * second is served a schema that was never inferred from its own settings — fast and wrong. A default
+     * would let a new reader inherit that silently; the compiler asking the question is the point.
+     * {@link NoConfigFormatReader} supplies the empty set for readers that genuinely infer from the bytes
+     * alone, which is where Parquet and ORC get theirs.
+     */
+    Set<String> schemaAffectingKeys();
+
+    /**
      * Notices about the configuration itself, decided while {@link #withConfigTrackingConsumedKeys(Map)} parsed it (a
      * CSV {@code mode} that a {@code quote} override silently undoes). They describe the dataset's options, not any
      * file, so the resolver raises them once per path rather than per file; a file's own notices ride

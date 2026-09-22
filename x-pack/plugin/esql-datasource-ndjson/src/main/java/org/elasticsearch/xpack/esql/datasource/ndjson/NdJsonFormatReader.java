@@ -93,6 +93,16 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     /** Keys recognised by {@link #withConfigTrackingConsumedKeys(Map)}. */
     static final Set<String> RECOGNIZED_KEYS = Set.of(CONFIG_SCHEMA_SAMPLE_SIZE, CONFIG_SEGMENT_SIZE, CONFIG_DATETIME_FORMAT);
 
+    /**
+     * What reaches {@code NdJsonSchemaInferrer.inferSchema}, which takes the sample size and the datetime
+     * formatter and nothing else. Two keys are deliberately absent. {@code segment_size} is recognised but only
+     * sets the chunk length a read is split into; it never touches inference. And the {@link ErrorPolicy} keys
+     * are not declared, unlike CSV's: this inferrer does not consult the policy — a malformed line is deferred
+     * to the slice read for policy-driven handling — so two configurations differing only in error mode infer
+     * the same schema here and may share a cached one.
+     */
+    static final Set<String> SCHEMA_AFFECTING_KEYS = Set.of(CONFIG_SCHEMA_SAMPLE_SIZE, CONFIG_DATETIME_FORMAT);
+
     private final BlockFactory blockFactory;
     private final Settings settings;
     private final List<Attribute> resolvedSchema;
@@ -244,6 +254,11 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             null
         );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
+    }
+
+    @Override
+    public Set<String> schemaAffectingKeys() {
+        return SCHEMA_AFFECTING_KEYS;
     }
 
     private List<Attribute> inferSchemaIfNeeded(List<Attribute> attributes, StorageObject object, boolean skipFirstLine)

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Marker {@link FormatReader} for readers that recognise no per-query configuration keys.
@@ -28,5 +29,15 @@ public interface NoConfigFormatReader extends FormatReader {
     @Override
     default Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
         return Configured.empty(this);
+    }
+
+    /**
+     * Empty: a reader that claims no configuration keys has none that could change what it infers. Parquet and
+     * ORC read their schema from a footer the file carries, so no setting reaches it — which is why a resolved
+     * schema over them may be shared across configurations that differ in text settings entirely.
+     */
+    @Override
+    default Set<String> schemaAffectingKeys() {
+        return Set.of();
     }
 }

@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.pushdown.StringPrefixUtils;
 import org.elasticsearch.xpack.esql.datasources.pushdown.WildcardLikeShape;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
@@ -1551,19 +1552,31 @@ final class ParquetPushedExpressions {
         }
         if (expr instanceof StartsWith sw) {
             Block block = namedBlock(sw.singleValueField(), blocks);
-            return block == null ? null : evaluateStartsWith(sw, block, rowCount, intermediateMask, dictCache);
+            if (block == null) {
+                return missingColumnMask(sw.singleValueField(), blocks, rowCount);
+            }
+            return evaluateStartsWith(sw, block, rowCount, intermediateMask, dictCache);
         }
         if (expr instanceof Contains c) {
             Block block = namedBlock(c.singleValueField(), blocks);
-            return block == null ? null : evaluateContains(c, block, rowCount, intermediateMask, dictCache);
+            if (block == null) {
+                return missingColumnMask(c.singleValueField(), blocks, rowCount);
+            }
+            return evaluateContains(c, block, rowCount, intermediateMask, dictCache);
         }
         if (expr instanceof EndsWith ew) {
             Block block = namedBlock(ew.singleValueField(), blocks);
-            return block == null ? null : evaluateEndsWith(ew, block, rowCount, intermediateMask, dictCache);
+            if (block == null) {
+                return missingColumnMask(ew.singleValueField(), blocks, rowCount);
+            }
+            return evaluateEndsWith(ew, block, rowCount, intermediateMask, dictCache);
         }
         if (expr instanceof WildcardLike wl) {
             Block block = namedBlock(wl.field(), blocks);
-            return block == null ? null : evaluateWildcardLike(wl, block, rowCount, intermediateMask, dictCache);
+            if (block == null) {
+                return missingColumnMask(wl.field(), blocks, rowCount);
+            }
+            return evaluateWildcardLike(wl, block, rowCount, intermediateMask, dictCache);
         }
         return null;
     }
@@ -1588,19 +1601,31 @@ final class ParquetPushedExpressions {
         // YES pushability of WildcardLike/Contains/EndsWith depends on this branch.
         if (inner instanceof WildcardLike wl) {
             Block block = namedBlock(wl.field(), blocks);
-            return block == null ? null : evaluateNotWildcardLike(wl, block, rowCount, intermediateMask, dictCache);
+            if (block == null) {
+                return missingColumnMask(wl.field(), blocks, rowCount);
+            }
+            return evaluateNotWildcardLike(wl, block, rowCount, intermediateMask, dictCache);
         }
         if (inner instanceof StartsWith sw) {
             Block block = namedBlock(sw.singleValueField(), blocks);
-            return block == null ? null : evaluateNotStartsWith(sw, block, rowCount, intermediateMask, dictCache);
+            if (block == null) {
+                return missingColumnMask(sw.singleValueField(), blocks, rowCount);
+            }
+            return evaluateNotStartsWith(sw, block, rowCount, intermediateMask, dictCache);
         }
         if (inner instanceof Contains c) {
             Block block = namedBlock(c.singleValueField(), blocks);
-            return block == null ? null : evaluateNotContains(c, block, rowCount, intermediateMask, dictCache);
+            if (block == null) {
+                return missingColumnMask(c.singleValueField(), blocks, rowCount);
+            }
+            return evaluateNotContains(c, block, rowCount, intermediateMask, dictCache);
         }
         if (inner instanceof EndsWith ew) {
             Block block = namedBlock(ew.singleValueField(), blocks);
-            return block == null ? null : evaluateNotEndsWith(ew, block, rowCount, intermediateMask, dictCache);
+            if (block == null) {
+                return missingColumnMask(ew.singleValueField(), blocks, rowCount);
+            }
+            return evaluateNotEndsWith(ew, block, rowCount, intermediateMask, dictCache);
         }
         if (inner instanceof And and) {
             WordMask left = evaluateNot(and.left(), blocks, rowCount, intermediateMask, dictCache);
@@ -1656,6 +1681,40 @@ final class ParquetPushedExpressions {
     private static Block namedBlock(Expression field, Map<String, Block> blocks) {
         if (field instanceof NamedExpression ne) {
             return blocks.get(ne.name());
+        }
+        return null;
+    }
+
+    /**
+     * Returns an all-zero (no-survivors) {@link WordMask} when {@code field} is a non-virtual
+     * {@link NamedExpression} whose name is absent from {@code blocks}, or {@code null} (all-rows-
+     * survive) in every other case.
+     *
+     * <p>An absent non-virtual named field means the file lacks that column: it is null-filled
+     * above the reader by {@code SchemaAdaptingIterator}. No LIKE-family pattern matches null, so
+     * zero rows from this batch must survive. These conjuncts carry
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport.Pushability#YES}
+     * (dropped from {@code FilterExec}), so returning the all-survive {@code null} here is final
+     * and wrong.
+     *
+     * <p>Virtual columns ({@code _file.*}) are materialized downstream by
+     * {@code VirtualColumnIterator} with real values — not nulls. A virtual-column LIKE conjunct
+     * should never reach YES (see {@link ParquetFilterPushdownSupport#isLikeFamily}), so this path
+     * is unreachable for them today. The guard is kept as defence in depth: if that invariant were
+     * ever violated, returning the conservative {@code null} here is over-inclusive (wrong-high
+     * count), but not over-exclusive (wrong-zero-count). See elastic/esql-planning#2052.
+     *
+     * <p>Callers mutate returned masks in place ({@code left.and(right)}, etc.), so the mask must
+     * be freshly allocated per call — no shared constant.
+     */
+    @Nullable
+    private static WordMask missingColumnMask(Expression field, Map<String, Block> blocks, int rowCount) {
+        if (field instanceof NamedExpression ne
+            && PushdownPredicates.isVirtualColumn(ne) == false
+            && blocks.containsKey(ne.name()) == false) {
+            WordMask mask = new WordMask();
+            mask.reset(rowCount);
+            return mask;
         }
         return null;
     }

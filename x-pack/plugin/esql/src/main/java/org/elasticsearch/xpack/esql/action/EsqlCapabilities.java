@@ -4043,6 +4043,16 @@ public class EsqlCapabilities {
         EXTERNAL_CSV_BLANK_CELL_EMPTY_STRING_UNLESS_NULL_TOKEN,
 
         /**
+         * When {@code METADATA} names a column that also exists as a physical file column, the
+         * engine-generated metadata value is used and the physical column is dropped, with a warning.
+         * Without {@code METADATA}, the physical column is used. {@code METADATA} of a name that is
+         * not a metadata column is an {@code Unresolved metadata pattern} error, matching indexed
+         * {@code FROM}. Discriminates tests that assert this collision rule, since a pre-change
+         * node still answers the file column's value.
+         */
+        EXTERNAL_SOURCE_METADATA_WINS_OVER_PHYSICAL_COLUMN,
+
+        /**
          * Materialize more aggregate inputs into a synthetic pre-agg eval.
          * This covers two cases that previously failed, namely expressions in an aggregate
          * parameter (e.g. {@code TOP(field, 1, "asc", CONCAT("first", " ", "last")}), and
@@ -4061,6 +4071,17 @@ public class EsqlCapabilities {
          * <a href="https://github.com/elastic/elasticsearch/issues/159033">#159033</a>.
          */
         FIX_AGGS_MULTIPLE_INPUT_FIELDS,
+
+        /**
+         * Parquet LIKE-family predicates pushed as {@code Pushability.YES} (dropped from FilterExec) now
+         * return an empty survivor mask — not the all-survive sentinel — when the predicate column is absent
+         * from the per-file predicate block map. Under {@code union_by_name} a file that lacks the column
+         * null-fills it above the reader; no pattern matches null, so zero rows must survive. Also fixes a
+         * second route: {@code readerForMapping} no longer discards YES conjuncts when the per-file filter
+         * adaptation empties the list (e.g. when a co-conjunct references a column widened via a one-way cast).
+         * See elastic/esql-planning#2052.
+         */
+        EXTERNAL_PARQUET_LIKE_MISSING_COLUMN_REJECTS_ROWS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -719,10 +719,15 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {p0=search.vectors/200_dense_vector_docvalue_fields/dense_vector docvalues with bfloat16}"
   issue: https://github.com/elastic/elasticsearch/issues/159560
-# Both tests index encoded vectors in their shared setup.
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {p0=search.vectors/205_dense_vector_docvalue_fields_format/dense_vector docvalue_fields default array vs binary format}"
   issue: https://github.com/elastic/elasticsearch/issues/159560
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {p0=search.vectors/205_dense_vector_docvalue_fields_format/dense_vector docvalue_fields binary encoded source}"
+  issue: https://github.com/elastic/elasticsearch/issues/159560
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: "test {p0=search.vectors/241_source_columnar_stored_vectors/*}"
+  issue: https://github.com/elastic/elasticsearch/issues/159560
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: "test {p0=search.vectors/242_source_dense_vectors_not_indexed/*}"
   issue: https://github.com/elastic/elasticsearch/issues/159560

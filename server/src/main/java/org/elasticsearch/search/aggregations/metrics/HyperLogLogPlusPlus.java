@@ -47,30 +47,29 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     public static final int DEFAULT_PRECISION = 14;
 
-    // Mode bits in the top 2 bits of hllBuckets entries.
-    // Ordinal values (0-3) match the top-2-bit patterns so Mode.VALUES[(int)(state >>> 62)] is the fast decode.
+    // Mode bits in the top 2 bits of bucketState entries.
     private static final long MODE_MASK = 3L << 62;
     private static final long PAYLOAD_MASK = ~MODE_MASK;
 
-    /** Extracts the payload bits (low 62) from a raw hllBuckets entry. */
+    /** Extracts the payload bits (low 62) from a raw bucketState entry. */
     private static long payload(long state) {
         return state & PAYLOAD_MASK;
     }
 
     enum Mode {
-        EMPTY,      // 00: no data
+        EMPTY,      // 00: no data, never actually stored
         LC_SINGLE,  // 01: single hash in low 32 bits, no LC cell
         LC_HASH,    // 10: LC cell in lc.cells[bucketOrd]
         HLL;        // 11: HLL ordinal in low 62 bits
 
         private static final Mode[] VALUES = values();
 
-        /** Decode mode from a raw hllBuckets entry. */
+        /** Decode mode from a raw bucketState entry. */
         static Mode of(long state) {
             return VALUES[(int) (state >>> 62)];
         }
 
-        /** The bit pattern for this mode in the top 2 bits of an hllBuckets entry. */
+        /** The bit pattern for this mode in the top 2 bits of a bucketState entry. */
         long bits() {
             return (long) ordinal() << 62;
         }
@@ -81,9 +80,9 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     }
 
     private final BigArrays bigArrays;
-    private final CircuitBreaker breaker;
-    // Top 2 bits encode mode; remaining bits encode ordinal or single hash depending on mode.
-    private LongArray hllBuckets;
+    // Per-bucket state: top 2 bits encode Mode, remaining 62 bits hold the payload
+    // (encoded hash for LC_SINGLE, nothing for LC_HASH, HLL ordinal for HLL).
+    private LongArray bucketState;
     final HyperLogLog hll;
     private final LinearCounting lc;
 
@@ -123,34 +122,33 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         super(precision);
         // TODO if initialBucketCount is > 0 we allocate dense arrays for each one.
         this.bigArrays = bigArrays;
-        this.breaker = breaker;
         HyperLogLog hll = null;
         LinearCounting lc = null;
-        LongArray hllBuckets = null;
+        LongArray bucketState = null;
         boolean success = false;
         try {
             hll = new HyperLogLog(bigArrays, initialBucketCount, precision);
             lc = new LinearCounting(bigArrays, breaker, initialBucketCount, precision);
-            hllBuckets = bigArrays.newLongArray(1);
+            bucketState = bigArrays.newLongArray(1);
             success = true;
         } finally {
             if (success == false) {
-                Releasables.close(hll, lc, hllBuckets);
+                Releasables.close(hll, lc, bucketState);
             }
         }
         this.hll = hll;
         this.lc = lc;
-        this.hllBuckets = hllBuckets;
+        this.bucketState = bucketState;
     }
 
     public long maxOrd() {
-        // LC_SINGLE buckets grow hllBuckets but don't touch lc.cells, so hllBuckets.size() is the reliable upper bound.
-        return Math.max(hllBuckets.size(), lc.maxOrd());
+        // LC_SINGLE buckets grow bucketState but don't touch lc.cells, so bucketState.size() is the reliable upper bound.
+        return Math.max(bucketState.size(), lc.maxOrd());
     }
 
     @Override
     public long cardinality(long bucketOrd) {
-        final long state = bucketOrd < hllBuckets.size() ? hllBuckets.get(bucketOrd) : 0L;
+        final long state = bucketOrd < bucketState.size() ? bucketState.get(bucketOrd) : 0L;
         return switch (Mode.of(state)) {
             case EMPTY -> 0L;
             case LC_SINGLE -> 1L;
@@ -161,13 +159,13 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     @Override
     protected boolean getAlgorithm(long bucketOrd) {
-        final long state = bucketOrd < hllBuckets.size() ? hllBuckets.get(bucketOrd) : 0L;
+        final long state = bucketOrd < bucketState.size() ? bucketState.get(bucketOrd) : 0L;
         return Mode.of(state) == Mode.HLL;
     }
 
     @Override
     protected AbstractLinearCounting.HashesIterator getLinearCounting(long bucketOrd) {
-        final long state = bucketOrd < hllBuckets.size() ? hllBuckets.get(bucketOrd) : 0L;
+        final long state = bucketOrd < bucketState.size() ? bucketState.get(bucketOrd) : 0L;
         return switch (Mode.of(state)) {
             case LC_SINGLE -> new SingleHashIterator((int) (payload(state)));
             case LC_HASH -> lc.values(bucketOrd);
@@ -177,12 +175,12 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     @Override
     protected AbstractHyperLogLog.RunLenIterator getHyperLogLog(long bucketOrd) {
-        return hll.getRunLens(hllBuckets.get(bucketOrd) & PAYLOAD_MASK);
+        return hll.getRunLens(bucketState.get(bucketOrd) & PAYLOAD_MASK);
     }
 
     @Override
     public void collect(long bucket, long hash) {
-        final long state = bucket < hllBuckets.size() ? hllBuckets.get(bucket) : 0L;
+        final long state = bucket < bucketState.size() ? bucketState.get(bucket) : 0L;
         if (Mode.of(state) == Mode.HLL) {
             hll.collect(payload(state), hash);
         } else {
@@ -192,11 +190,11 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     @Override
     public void close() {
-        Releasables.close(hllBuckets, hll, lc);
+        Releasables.close(bucketState, hll, lc);
     }
 
     long ramBytesUsed() {
-        return hllBuckets.ramBytesUsed() + hll.ramBytesUsed() + lc.ramBytesUsed();
+        return bucketState.ramBytesUsed() + hll.ramBytesUsed() + lc.ramBytesUsed();
     }
 
     void addRunLen(long bucketOrd, int register, int runLen) {
@@ -205,7 +203,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     }
 
     long upgradeToHll(long bucketOrd) {
-        final long state = bucketOrd < hllBuckets.size() ? hllBuckets.get(bucketOrd) : 0L;
+        final long state = bucketOrd < bucketState.size() ? bucketState.get(bucketOrd) : 0L;
         Mode mode = Mode.of(state);
         if (mode == Mode.HLL) return payload(state);
         final long hllOrd = hll.newBucket();
@@ -215,14 +213,14 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             default -> {
             }
         }
-        hllBuckets = bigArrays.grow(hllBuckets, bucketOrd + 1);
-        hllBuckets.set(bucketOrd, Mode.HLL.bits(hllOrd));
+        bucketState = bigArrays.grow(bucketState, bucketOrd + 1);
+        bucketState.set(bucketOrd, Mode.HLL.bits(hllOrd));
         return hllOrd;
     }
 
     /** Inserts a pre-encoded hash into a bucket, routing to HLL or LC depending on current mode. */
     private void addEncoded(long bucket, int encoded) {
-        final long state = bucket < hllBuckets.size() ? hllBuckets.get(bucket) : 0L;
+        final long state = bucket < bucketState.size() ? bucketState.get(bucket) : 0L;
         if (Mode.of(state) == Mode.HLL) {
             hll.collectEncoded(payload(state), encoded);
         } else {
@@ -234,24 +232,23 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     private void addEncodedToLcWithState(long bucket, long state, int encoded) {
         switch (Mode.of(state)) {
             case EMPTY -> {
-                hllBuckets = bigArrays.grow(hllBuckets, bucket + 1);
-                hllBuckets.set(bucket, Mode.LC_SINGLE.bits(encoded));
+                bucketState = bigArrays.grow(bucketState, bucket + 1);
+                bucketState.set(bucket, Mode.LC_SINGLE.bits(encoded));
             }
             case LC_SINGLE -> {
-                assert bucket < hllBuckets.size() : "LC_SINGLE bucket must already be in hllBuckets";
+                assert bucket < bucketState.size() : "LC_SINGLE bucket must already be in bucketState";
                 final int prevEncoded = (int) (payload(state));
                 if (encoded == prevEncoded) return;
                 lc.addEncoded(bucket, prevEncoded);
                 final int newSize = lc.addEncoded(bucket, encoded);
-                hllBuckets.set(bucket, Mode.LC_HASH.bits());
+                bucketState.set(bucket, Mode.LC_HASH.bits());
                 assert newSize <= lc.threshold : "two elements cannot exceed LC threshold";
             }
             case LC_HASH -> {
                 final int newSize = lc.addEncoded(bucket, encoded);
                 if (newSize > lc.threshold) upgradeToHll(bucket);
             }
-            case HLL -> {
-            } // caller handles HLL before routing here
+            case HLL -> throw new AssertionError("HLL state must be handled by caller before routing to addEncodedToLcWithState");
         }
     }
 
@@ -263,7 +260,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         if (algorithm == LINEAR_COUNTING && getAlgorithm(bucket) == LINEAR_COUNTING) {
             final int length = Math.toIntExact(in.readVLong());
             for (int i = 0; i < length; i++) {
-                final long state = bucket < hllBuckets.size() ? hllBuckets.get(bucket) : 0L;
+                final long state = bucket < bucketState.size() ? bucketState.get(bucket) : 0L;
                 if (Mode.of(state) == Mode.HLL) {
                     final long hllOrd = payload(state);
                     do {

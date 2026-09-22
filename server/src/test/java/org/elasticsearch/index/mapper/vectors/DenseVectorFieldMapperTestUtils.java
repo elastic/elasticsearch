@@ -62,13 +62,12 @@ public class DenseVectorFieldMapperTestUtils {
         return switch (elementType) {
             case FLOAT, BFLOAT16, BYTE -> RandomNumbers.randomIntBetween(random(), min, max);
             case BIT -> {
-                if (max < 8) {
-                    throw new IllegalArgumentException("max must be >= 8 for bit vectors");
-                }
-
-                // Generate a random dimension count that is a multiple of 8
-                int minEmbeddingLength = Math.max(min / 8, 1);
+                // Bit vector dimension counts must be a multiple of 8
+                int minEmbeddingLength = Math.ceilDiv(min, 8);
                 int maxEmbeddingLength = max / 8;
+                if (minEmbeddingLength > maxEmbeddingLength) {
+                    throw new IllegalArgumentException("no multiple of 8 exists in [" + min + ", " + max + "] for bit vectors");
+                }
                 yield RandomNumbers.randomIntBetween(random(), minEmbeddingLength, maxEmbeddingLength) * 8;
             }
         };

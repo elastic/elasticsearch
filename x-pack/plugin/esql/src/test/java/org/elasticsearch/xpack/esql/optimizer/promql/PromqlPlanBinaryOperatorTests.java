@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -16,6 +18,9 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -26,6 +31,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -37,20 +44,26 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
+import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTests {
 
@@ -453,6 +466,43 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         assertThat("all aggregations should fold into single outer Aggregate", outerAggs, hasSize(1));
     }
 
+    public void testNestedBinaryPairingGroupsByFullIdentity() {
+        // An enclosing aggregate must not narrow the pairing identity. The packed carrier covers every label except
+        // the metric name, so separately grouping by each source dimension would only add redundant work.
+        var plan = planPromql("PROMQL index=k8s step=1m ratio=(sum(network.eth0.rx / network.eth0.tx))");
+
+        List<UnpackDims> unpacks = plan.collect(UnpackDims.class);
+        assertThat(unpacks, hasSize(1));
+        assertThat(
+            unpacks.getFirst().dims().stream().map(e -> e instanceof Attribute a ? a.name() : e.toString()).toList(),
+            equalTo(List.of("_timeseries$__name__"))
+        );
+        var carriers = plan.collect(EsRelation.class)
+            .stream()
+            .flatMap(relation -> relation.output().stream())
+            .filter(TimeSeriesMetadataAttribute.class::isInstance)
+            .map(TimeSeriesMetadataAttribute.class::cast)
+            .toList();
+        assertThat(carriers, hasSize(1));
+        assertThat(carriers.getFirst().excludedFields(), equalTo(Set.of("__name__")));
+    }
+
+    public void testScalarOnEitherSideRetainsVectorCarriers() {
+        for (String expression : List.of("network.bytes_in * 8", "8 * network.bytes_in")) {
+            var plan = planPromql("PROMQL index=k8s step=1m result=(sum by (cluster) (" + expression + "))");
+            assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", "cluster")));
+        }
+    }
+
+    public void testNestedPairingRetainsRequiredExplicitLabel() {
+        var plan = planPromql("PROMQL index=k8s step=1m result=(sum by (cluster) ((network.eth0.rx + network.eth0.tx) / network.eth0.tx))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", "cluster")));
+        assertThat(
+            plan.collect(UnpackDims.class).getFirst().dims().stream().map(dimension -> as(dimension, Attribute.class).name()).toList(),
+            containsInAnyOrder("_timeseries$__name__", "cluster")
+        );
+    }
+
     public void testComparisonAcrossSeriesWithScalar() {
         var plan = planPromql("PROMQL index=k8s step=1m max(network.eth0.rx) > 1000");
         GreaterThan gt = plan.collect(Filter.class)
@@ -468,6 +518,18 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         assertThat(as(max.field(), ReferenceAttribute.class).sourceText(), equalTo("network.eth0.rx"));
     }
 
+    public void testFilterComparisonKeepsMetricNameCarrier() {
+        var plan = planPromql("PROMQL index=k8s step=1m network.bytes_in > 1");
+        var carriers = plan.collect(EsRelation.class)
+            .stream()
+            .flatMap(relation -> relation.output().stream())
+            .filter(TimeSeriesMetadataAttribute.class::isInstance)
+            .map(TimeSeriesMetadataAttribute.class::cast)
+            .toList();
+        assertThat(carriers, hasSize(1));
+        assertThat(carriers.getFirst().excludedFields(), equalTo(Set.of()));
+    }
+
     private static void assertInstantConstFolded(LogicalPlan plan, List<Long> expectedSteps) {
         Row row = plan.collect(Row.class).getFirst();
         assertThat(((Literal) row.fields().getLast().child()).value(), equalTo(expectedSteps));
@@ -477,7 +539,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     public void testVectorMatchOnProducesInnerJoin() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.isEnabled());
         // `on (cluster)` matches 1:1 on cluster + step; no group_left/right so the join enforces uniqueness.
         var plan = planPromql(
             "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx))"
@@ -492,7 +554,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     public void testNestedVectorMatchUsesCurrentOperandLabels() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.isEnabled());
         var plan = planPromql(
             "PROMQL index=k8s step=5m result=((sum by (cluster) (network.eth0.tx) / on (cluster) "
                 + "sum by (cluster) (network.eth0.rx)) / ignoring (pod) sum by (cluster, region) (network.eth0.rx))"
@@ -503,7 +565,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     public void testVectorMatchGroupLeftIsManyToOne() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.isEnabled());
         // group_left: LHS is the "many"/probe side, RHS the "one"/build side; the join is not unique.
         var plan = planPromql(
             "PROMQL index=k8s step=5m result=(sum by (cluster, pod) (network.eth0.tx) "
@@ -518,7 +580,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     public void testGroupLeftDoesNotExposeUnlistedBuildLabels() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.isEnabled());
         var plan = planPromql(
             "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) "
                 + "/ ignoring (pod) group_left sum by (cluster, region) (network.eth0.rx))"
@@ -527,7 +589,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     public void testVectorMatchGroupRightSwapsInputs() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.isEnabled());
         // group_right: RHS is the "many" side, so the inputs are swapped to keep the "one" side as the build (join right).
         var plan = planPromql(
             "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) "
@@ -542,7 +604,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     public void testVectorMatchComparisonBoolProducesInnerJoin() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.isEnabled());
         // `> bool on (cluster)` compares two vectors and yields 1.0/0.0 for each matched pair (no rows dropped).
         var plan = planPromql(
             "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) > bool on (cluster) sum by (cluster) (network.eth0.rx))"
@@ -553,7 +615,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     public void testVectorMatchComparisonFilterProducesInnerJoinAndFilter() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.isEnabled());
         // `> on (cluster)` (no bool) keeps the LHS series where the comparison holds; the comparison becomes a Filter.
         var plan = planPromql(
             "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) > on (cluster) sum by (cluster) (network.eth0.rx))"
@@ -566,7 +628,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     public void testBinaryOperatorWithDifferentGroupingKeysTranslatesAsJoin() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.isEnabled());
         // sum by (cluster) (...) + sum by (pod) (...) can't fold into one aggregate; it translates as a default-match
         // join whose full-label-set keys never coincide, so it evaluates to the empty vector like Prometheus.
         LogicalPlan plan = planPromql(
@@ -576,7 +638,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     public void testVectorMatchOnLabelAbsentFromBothOperandsJoinsOnStep() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.isEnabled());
         // on (pod) references a label neither operand exposes (both are sum by (cluster)). PromQL matches an absent
         // label as the empty string on both sides, so it cannot discriminate: the key set degrades to step only, and a
         // resulting many-to-many match surfaces as the runtime's unique-build-key error, exactly like Prometheus.
@@ -592,7 +654,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     public void testVectorMatchRejectsOpaqueWithoutOperand() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.isEnabled());
         VerificationException e = assertThrows(
             VerificationException.class,
             () -> planPromql(
@@ -604,7 +666,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     public void testVectorMatchRejectsOpaqueSelectorOperand() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.isEnabled());
         VerificationException e = assertThrows(
             VerificationException.class,
             () -> planPromql("PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) / on (cluster) network.eth0.rx)")
@@ -613,7 +675,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     public void testVectorMatchComposedWithOpaqueOperandRejected() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.isEnabled());
         // The unmatched + composes over a vector match and therefore translates as another join: it inherits the
         // concrete-label requirement, which the bare selector operand does not satisfy.
         VerificationException e = assertThrows(
@@ -627,7 +689,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     public void testGroupLabelMissingFromBuildDoesNotLeakFromProbe() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.isEnabled());
         var plan = planPromql(
             "PROMQL index=k8s step=5m result=(sum by (cluster, pod) (network.eth0.tx) "
                 + "/ on (cluster) group_left (pod) sum by (cluster) (network.eth0.rx))"
@@ -642,7 +704,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     public void testVectorMatchNestedInScalarArithmetic() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.isEnabled());
         // The vector match is nested as the right operand of `1 + (...)`; the join is built and the scalar op wraps its value.
         var plan = planPromql(
             "PROMQL index=k8s step=5m result=(1 + (sum by (cluster) (network.eth0.tx) "
@@ -652,7 +714,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     public void testVectorMatchNestedInAggregation() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.isEnabled());
         // sum(...) aggregates over the vector-match result.
         var plan = planPromql(
             "PROMQL index=k8s step=5m result=(sum(sum by (cluster) (network.eth0.tx) "
@@ -662,7 +724,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     public void testVectorMatchNestedInFunction() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.isEnabled());
         // abs(...) applies over the vector-match result value.
         var plan = planPromql(
             "PROMQL index=k8s step=5m result=(abs(sum by (cluster) (network.eth0.tx) "
@@ -672,7 +734,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     public void testVectorMatchComparisonInsideUnion() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.isEnabled());
         // A filter-mode comparison vector match composes as a union branch.
         var plan = planPromql(
             "PROMQL index=k8s step=5m result=((sum by (cluster) (network.eth0.tx) "
@@ -682,7 +744,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     public void testVectorMatchComposedWithPlainVectorOperand() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.isEnabled());
         // The vector-match result is itself an operand of an unmatched binary operator.
         var plan = planPromql(
             "PROMQL index=k8s step=5m result=((sum by (cluster) (network.eth0.tx) "
@@ -692,7 +754,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     public void testTopKOverVectorMatchInsideUnion() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.isEnabled());
         // topk over a vector match inside a union branch: the branch-local step id must survive the join.
         var plan = planPromql(
             "PROMQL index=k8s step=5m result=(topk(2, sum by (cluster) (network.eth0.tx) "
@@ -723,6 +785,94 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     private static List<String> keyedLabels(LogicalPlan joinSide) {
         LogicalPlan packed = joinSide instanceof Project project ? project.child() : joinSide;
         return as(packed, PackDims.class).dims().stream().map(Attribute::name).toList();
+    }
+
+    // -- operands exposing the metric name --
+    // Only an index with a `__name__` dimension (the remote-write layout) can expose it; `by (__name__, ...)` keeps it on
+    // an operand, and the operator must still treat it the way Prometheus does: never part of the default match
+    // signature, dropped from the result of arithmetic and `bool` comparisons, kept by filter comparisons.
+
+    public void testArithmeticOverNamedOperandsDropsTheMetricNameFromTheResult() {
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.isEnabled());
+        for (String query : List.of(
+            // fused aggregates
+            "sum by (__name__, cluster) (requests) / sum by (__name__, cluster) (errors)",
+            // scalar operand
+            "sum by (__name__, cluster) (requests) * 2",
+            // many-to-one: the many side carries the name
+            "sum by (__name__, cluster) (requests) / on (cluster) group_left sum by (cluster) (errors)",
+            // `bool` drops the name like arithmetic
+            "sum by (__name__, cluster) (requests) > bool 5"
+        )) {
+            LogicalPlan plan = planMetricNameIndex(query);
+            assertThat(query, plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", "cluster")));
+        }
+    }
+
+    public void testFilterComparisonOverNamedOperandsKeepsTheMetricName() {
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.isEnabled());
+        LogicalPlan plan = planMetricNameIndex("sum by (__name__, cluster) (requests) > 5");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", "__name__", "cluster")));
+    }
+
+    public void testFusedAggregatesDoNotGroupOnTheMetricName() {
+        // Each operand is one metric, so over the remote-write layout the sides never share a `__name__`: grouping the
+        // fused aggregate on it would put them in disjoint groups and pair nothing. Prometheus pairs on the other labels.
+        LogicalPlan plan = planMetricNameIndex("sum by (__name__, cluster) (requests) / sum by (__name__, cluster) (errors)");
+        // Both operands fold into one aggregation pipeline (phase 1 and 2 of one collapse), which reads `cluster` from the
+        // relation but not `__name__`, however the transport version lays the dimensions out.
+        List<Aggregate> aggregates = plan.collect(Aggregate.class);
+        assertThat(aggregates.stream().filter(a -> a instanceof TimeSeriesAggregate).toList(), hasSize(1));
+        Set<String> fields = new TreeSet<>();
+        for (Aggregate aggregate : aggregates) {
+            aggregate.groupings().forEach(g -> g.forEachDown(FieldAttribute.class, f -> fields.add(f.name())));
+            aggregate.aggregates().forEach(a -> a.forEachDown(FieldAttribute.class, f -> fields.add(f.name())));
+        }
+        assertThat(fields, hasItem("cluster"));
+        assertThat(fields, not(hasItem("__name__")));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", "cluster")));
+    }
+
+    public void testDefaultMatchKeyExcludesTheMetricName() {
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.isEnabled());
+        // Different label sets force the join; `ignoring (pod)` leaves `__name__` in both label sets, and the signature
+        // must still leave it out or operands of different metrics would never match.
+        LogicalPlan plan = planMetricNameIndex(
+            "sum by (__name__, cluster, pod) (requests) / ignoring (pod) sum by (__name__, cluster) (errors)"
+        );
+        InnerJoin join = plan.collect(InnerJoin.class).getFirst();
+        assertThat(keyedLabels(join.left()), equalTo(List.of("cluster")));
+        assertThat(keyedLabels(join.right()), equalTo(List.of("cluster")));
+        // one-to-one `ignoring (pod)` also drops `pod` from the result, like Prometheus
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", "cluster")));
+    }
+
+    /** Plans against a remote-write shaped index: `__name__` is a dimension, every metric its own field. */
+    private LogicalPlan planMetricNameIndex(String promql) {
+        var index = new EsIndex(
+            "remote_write",
+            Map.of(
+                "@timestamp",
+                new EsField("@timestamp", DataType.DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+                "__name__",
+                new EsField("__name__", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.DIMENSION),
+                "cluster",
+                new EsField("cluster", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.DIMENSION),
+                "pod",
+                new EsField("pod", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.DIMENSION),
+                "requests",
+                new EsField("requests", DataType.COUNTER_LONG, Map.of(), true, EsField.TimeSeriesFieldType.METRIC),
+                "errors",
+                new EsField("errors", DataType.COUNTER_LONG, Map.of(), true, EsField.TimeSeriesFieldType.METRIC)
+            ),
+            Map.of("remote_write", new IndexProperties(IndexMode.TIME_SERIES, 0)),
+            Map.of(),
+            Map.of()
+        );
+        var analyzed = analyzerWithEnrichPolicies().addIndex(index)
+            .unmappedResolution(UnmappedResolution.NULLIFY)
+            .query("PROMQL index=remote_write step=1h result=(" + promql + ")");
+        return logicalOptimizer.optimize(analyzed);
     }
 
 }

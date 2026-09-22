@@ -263,7 +263,6 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
 
     private static final Instant QUERY_TIME = Instant.parse("2024-05-10T00:00:00Z");
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
     public void testInstantRawOperandsMatchAcrossIngestionPaths() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_TIME);
         assertBinopInstantValues("tx / rx", 5, 10, 3);
@@ -275,7 +274,6 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantValues("tx / rx", 5, 10, 3);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
     public void testInstantRawAndPairedOperandsMatchAcrossIngestionPaths() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_TIME);
         assertBinopInstantValues("tx / (tx + rx)", 5.0 / 6, 10.0 / 11, 3.0 / 4);
@@ -287,7 +285,6 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantValues("tx / (tx + rx)", 5.0 / 6, 10.0 / 11, 3.0 / 4);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
     public void testInstantSumOverCrossMetricPairing() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_TIME);
         assertBinopInstantValues("sum(tx / rx)", 18);
@@ -299,7 +296,6 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantValues("sum(tx / rx)", 18);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
     public void testInstantSumOverSameMetricPairing() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_TIME);
         assertBinopInstantValues("sum(tx / tx)", 3);
@@ -311,7 +307,6 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantValues("sum(tx / tx)", 3);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
     public void testInstantSumOverChainedPairing() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_TIME);
         assertBinopInstantValues("sum(tx / (tx + rx))", 5.0 / 6 + 10.0 / 11 + 3.0 / 4);
@@ -323,7 +318,6 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantValues("sum(tx / (tx + rx))", 5.0 / 6 + 10.0 / 11 + 3.0 / 4);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
     public void testInstantGroupedSumOverPairing() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_TIME);
         assertBinopInstantGroups("sum by (cluster) (tx / rx)", "cluster", Map.of("prod", 15.0, "qa", 3.0));
@@ -335,7 +329,6 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantGroups("sum by (cluster) (tx / rx)", "cluster", Map.of("prod", 15.0, "qa", 3.0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
     public void testInstantGroupedSumOverIncreasePairing() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_TIME);
         assertBinopInstantGroups("sum by (cluster) (increase(tx[1m]) / increase(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
@@ -347,7 +340,6 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertBinopInstantGroups("sum by (cluster) (increase(tx[1m]) / increase(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
     public void testInstantGroupedSumOverIratePairing() throws Exception {
         ingestTestDataUsingRemoteWrite(QUERY_TIME);
         assertBinopInstantGroups("sum by (cluster) (irate(tx[1m]) / irate(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramFunctionCall;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -159,6 +160,9 @@ public final class TranslationContext {
     // -- header algebra --
     // Constructors lift names into headers; every operator is then Header x Header, so label sets never travel as
     // bare collections: `union(sub(req, dropped), open(dropped))` reads as the set expression it computes.
+
+    /** The metric name as a header, for nodes that drop or pair on it. */
+    static final Header _METRIC_NAME = finite(List.of(LabelMatcher.NAME));
 
     /** The classic-histogram bucket bound as a header, for the histogram functions that consume it. */
     static final Header _LE = finite(List.of(HistogramFunctionCall.LE_LABEL));

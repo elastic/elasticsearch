@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
@@ -144,6 +145,8 @@ final class VectorBinaryOperatorLayout {
         var names = new TreeSet<>(left.header().finiteColumns());
         names.addAll(right.header().finiteColumns());
         names.removeAll(match.filterLabels());
+        // A Prometheus signature never includes the metric name: operands of different metrics pair on their other labels.
+        names.remove(LabelMatcher.NAME);
         return List.copyOf(names);
     }
 

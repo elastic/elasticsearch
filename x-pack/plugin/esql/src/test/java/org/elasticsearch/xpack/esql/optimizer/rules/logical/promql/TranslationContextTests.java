@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext._METRIC_NAME;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.bind;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.filter;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslationContext.finite;
@@ -55,7 +56,7 @@ public class TranslationContextTests extends ESTestCase {
     }
 
     public void testOpenLiftsAFiniteHeaderIntoAPackedColumn() {
-        Header dropped = union(finite(List.of("pod")), finite(List.of("__name__")));
+        Header dropped = union(finite(List.of("pod")), _METRIC_NAME);
         assertThat(open(dropped), equalTo(open(Set.of("pod", "__name__"))));
         // a `without (pod)` requirement, as written in the translator
         Header below = union(sub(open(), dropped), open(dropped));

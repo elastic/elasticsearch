@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -90,6 +91,17 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     }
 
     private List<Attribute> computeOutputAttributes() {
+        List<Attribute> matched = computeMatchedAttributes();
+        if (dropMetricName == false) {
+            return matched;
+        }
+        // Arithmetic and `bool` comparisons drop the metric name from the result, whichever operand carried it and
+        // however it is spelled (`__name__` or a passthrough `labels.__name__`).
+        return matched.stream().filter(attribute -> LabelMatcher.NAME.equals(PromqlLabels.labelName(attribute)) == false).toList();
+    }
+
+    /** The result columns the match produces, before the operator's own metric-name handling. */
+    private List<Attribute> computeMatchedAttributes() {
         // Between an instant vector and a scalar,
         // the operator is applied to the value of every data sample in the vector.
         // Therefore, we're returning any grouping attributes (like those created for by (...) and _timeseries) from the vector.
@@ -136,16 +148,14 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             outputLabels = new HashSet<>(leftLabels);
             outputLabels.removeAll(match.filterLabels());
         } else if (leftLabels.equals(rightLabels)) {
+            // Same label set on both sides: the result carries the left operand's columns, like every other
+            // one-to-one match.
             return leftAttrs;
         } else {
             // Default matching between different label sets: a pair matches only where the labels one side lacks are
             // absent on the other side too (a Prometheus signature has no entry for an absent label), and like every
             // one-to-one match the result carries the left operand's labels.
             outputLabels = new HashSet<>(leftLabels);
-        }
-
-        if (dropMetricName) {
-            outputLabels.remove(LabelMatcher.NAME);
         }
 
         List<Attribute> result = new ArrayList<>();

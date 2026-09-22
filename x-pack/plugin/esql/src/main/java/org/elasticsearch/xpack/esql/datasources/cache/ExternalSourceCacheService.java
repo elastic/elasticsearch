@@ -886,9 +886,12 @@ public class ExternalSourceCacheService implements Closeable {
                     continue;
                 }
             }
-            String prefix = SourceStatisticsSerializer.STATS_COL_PREFIX + column + ".";
+            // Match the key's OWN column, not a prefix of it. A prefix test admits every key of a column whose
+            // name extends this one's with a dot — for an admitted `a`, `_stats.columns.a.b.min` belongs to the
+            // column `a.b`, which the loop above may have refused a line earlier. The values then land in the
+            // entry under `a.b`'s name while describing a read the rules said must not cross.
             for (Map.Entry<String, Object> e : stats.entrySet()) {
-                if (e.getKey().startsWith(prefix)) {
+                if (column.equals(SourceStatisticsSerializer.columnNameOfStatKey(e.getKey()))) {
                     crossed.put(e.getKey(), e.getValue());
                 }
             }
@@ -908,6 +911,19 @@ public class ExternalSourceCacheService implements Closeable {
             refused
         );
         return crossed;
+    }
+
+    /**
+     * Whether the entry's own stripe at {@code ordinal} was measured by a read that lost a row. Such a stripe
+     * describes a different row set from any crossing read's, so nothing may cross into it — but only into it:
+     * a loss is charged to the stripe the row starts in, and refusing every other ordinal on its account would
+     * spread one bad row across the file, which is the whole reason the licence is measured per stripe.
+     * <p>
+     * A stripe the entry does not hold yet is not a survivor stripe: there is nothing there to disagree with.
+     */
+    private static boolean entryHoldsSurvivorStripeAt(Map<String, Object> enriched, long ordinal) {
+        return enriched.get(ExternalStats.STRIPE_ENTRY_PREFIX + ordinal) instanceof Map<?, ?> committedStripe
+            && Boolean.TRUE.equals(committedStripe.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)) == false;
     }
 
     /**
@@ -1324,27 +1340,23 @@ public class ExternalSourceCacheService implements Closeable {
             // different row set from any crossing read's, so its measurements and theirs cannot be merged — and
             // mergeCrossedStripe's assertion, which says the crossing rules make a disagreement impossible, is
             // only true once this is refused here.
-            boolean entryHoldsSurvivorStripe = false;
-            for (Map.Entry<String, Object> committed : enriched.entrySet()) {
-                if (committed.getKey().startsWith(ExternalStats.STRIPE_ENTRY_PREFIX)
-                    && committed.getValue() instanceof Map<?, ?> committedStripe
-                    && Boolean.TRUE.equals(committedStripe.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)) == false) {
-                    entryHoldsSurvivorStripe = true;
-                    break;
-                }
-            }
             boolean crossedAnything = false;
             for (Map.Entry<Long, Map<String, Object>> stripe : delta.stripes().entrySet()) {
                 Map<String, Object> contribution = stripe.getValue();
-                if (sameRead == false && entryHoldsSurvivorStripe) {
-                    logger.debug("[{}] foreign stripe refused: a committed stripe of this entry counted survivors", path);
+                // Both halves of the refusal are per ordinal, because a lost row is. The delta-wide AND that
+                // used to stand here answered for the whole file: one unlicensed stripe anywhere in a
+                // contribution took every other stripe of it off the crossing, and one unlicensed stripe
+                // already committed refused every incoming one. A stripe's licence is a statement about the
+                // rows of THAT stripe, so it is the stripe's own value on both sides that decides.
+                if (sameRead == false && entryHoldsSurvivorStripeAt(enriched, stripe.getKey())) {
+                    logger.debug("[{}] foreign stripe [{}] refused: the entry's own stripe there counted survivors", path, stripe.getKey());
                     continue;
                 }
                 if (sameRead == false) {
                     Map<String, Object> crossed = crossingStats(
                         existing,
                         contribution,
-                        delta.rowCountReadConfigIndependent(),
+                        Boolean.TRUE.equals(contribution.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)),
                         delta.readIdentity(),
                         true,
                         path

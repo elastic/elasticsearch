@@ -970,6 +970,135 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
      * with an entry column at the SAME index. A part whose header permutes the anchor's columns would otherwise
      * have one column's statistics written under another column's name.
      */
+    /**
+     * A refused column must not have its statistics carried across by an admitted column whose name is a dot
+     * prefix of it. The entry holds {@code a}, {@code x} and {@code a.b} in file order; the foreign read is
+     * positional and names {@code ["a", "a.b"]}, so its index 1 is the entry's {@code x} and {@code a.b} is
+     * refused as a misbind. Sweeping the admitted {@code a} by string prefix picks up
+     * {@code _stats.columns.a.b.min} anyway, and writes a value belonging to a different physical field under
+     * {@code a.b}'s name.
+     */
+    public void testAdmittedColumnDoesNotDragItsDotPrefixedNamesakeAcross() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/dotted.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG, Nullability.TRUE, null, false),
+                new ReferenceAttribute(Source.EMPTY, null, "x", DataType.LONG, Nullability.TRUE, null, false),
+                new ReferenceAttribute(Source.EMPTY, null, "a.b", DataType.LONG, Nullability.TRUE, null, false)
+            );
+            service.getOrComputeSchema(
+                key,
+                k -> SchemaCacheEntry.from(
+                    schema,
+                    "csv",
+                    path,
+                    Map.of(
+                        ExternalStats.CONFIG_FINGERPRINT_KEY,
+                        "fp",
+                        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+                        "config-own",
+                        ExternalStats.COLUMNS_IN_FILE_ORDER_KEY,
+                        Boolean.TRUE
+                    ),
+                    Map.of()
+                )
+            );
+
+            Map<String, Object> foreign = wholeFileStats(mtime, "fp", 30L);
+            foreign.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-foreign");
+            foreign.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            foreign.put(ExternalStats.READ_COLUMN_NAMES_KEY, List.of("a", "a.b"));
+            foreign.put(ExternalStats.READ_COLUMN_TYPES_KEY, List.of("long", "long"));
+            foreign.put(ExternalStats.READ_BINDING_KEY, ExternalStats.BINDING_BY_POSITION);
+            foreign.put(SourceStatisticsSerializer.columnMinKey("a"), 3L);
+            foreign.put(SourceStatisticsSerializer.columnMinKey("a.b"), 7L);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(foreign)));
+
+            SchemaCacheEntry after = service.getOrComputeSchema(key, k -> { throw new AssertionError("cached"); });
+            // The contribution did reach the entry: [a] is at index 0 on both sides, so it crosses.
+            assertEquals(
+                "[a] is the same physical field on both sides and must cross",
+                3L,
+                after.safeMetadata().get(SourceStatisticsSerializer.columnMinKey("a"))
+            );
+            assertNull(
+                "[a.b] was refused as a positional misbind, so nothing of it may cross on [a]'s prefix",
+                after.safeMetadata().get(SourceStatisticsSerializer.columnMinKey("a.b"))
+            );
+        }
+    }
+
+    /**
+     * One unlicensed stripe must cost its own ordinal and no other. A two-stripe foreign contribution whose
+     * stripe 1 counted survivors still has a stripe 0 that did not, and stripe 0's measurements describe the
+     * same rows any other read of that stripe saw. Folding the licence across the whole delta — the shape this
+     * replaced — spread one lost row over every stripe of the file, which is the thing the per-stripe
+     * attribution in the readers exists to prevent.
+     */
+    public void testAnUnlicensedStripeDoesNotCostItsSiblingsTheCrossing() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/perstripe.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG, Nullability.TRUE, null, false));
+            service.getOrComputeSchema(
+                key,
+                k -> SchemaCacheEntry.from(
+                    schema,
+                    "csv",
+                    path,
+                    Map.of(
+                        ExternalStats.CONFIG_FINGERPRINT_KEY,
+                        "fp",
+                        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+                        "config-own",
+                        ExternalStats.COLUMNS_IN_FILE_ORDER_KEY,
+                        Boolean.TRUE
+                    ),
+                    Map.of()
+                )
+            );
+
+            // Stripe 0 licensed, stripe 1 not. eof=false on both, so nothing compacts before the assertion.
+            Map<String, Object> s0 = stripeFragment(mtime, "fp", 30L, 100L, 0, 0, 100, true, true, false);
+            stampForeignRead(s0, true);
+            s0.put(SourceStatisticsSerializer.columnMinKey("n"), 5L);
+            Map<String, Object> s1 = stripeFragment(mtime, "fp", 30L, 100L, 1, 100, 200, true, true, false);
+            stampForeignRead(s1, false);
+            s1.put(SourceStatisticsSerializer.columnMinKey("n"), 9L);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(s0, s1)));
+
+            SchemaCacheEntry after = service.getOrComputeSchema(key, k -> { throw new AssertionError("cached"); });
+            Map<String, Object> stripe0 = stripeAt(after, 0);
+            assertNotNull("stripe 0 was licensed and must have crossed", stripe0);
+            assertEquals(
+                "the licensed stripe's own measurement crosses; its unlicensed sibling does not take it down",
+                5L,
+                stripe0.get(SourceStatisticsSerializer.columnMinKey("n"))
+            );
+            Map<String, Object> stripe1 = stripeAt(after, 1);
+            if (stripe1 != null) {
+                assertNull(
+                    "the unlicensed stripe measured a different row set and must not cross",
+                    stripe1.get(SourceStatisticsSerializer.columnMinKey("n"))
+                );
+            }
+        }
+    }
+
+    /** Stamps {@code m} as a foreign positional read of one long column [n], licensed or not. */
+    private static void stampForeignRead(Map<String, Object> m, boolean licensed) {
+        m.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-foreign");
+        m.put(ExternalStats.READ_COLUMN_NAMES_KEY, List.of("n"));
+        m.put(ExternalStats.READ_COLUMN_TYPES_KEY, List.of("long"));
+        m.put(ExternalStats.READ_BINDING_KEY, ExternalStats.BINDING_BY_POSITION);
+        if (licensed) {
+            m.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+        }
+    }
+
     public void testPositionalCrossingRequiresSamePositionAndName() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/b.csv";

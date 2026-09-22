@@ -124,6 +124,67 @@ public class DeclaredReadSpecTests extends AbstractWireSerializingTestCase<Decla
         }
     }
 
+    /**
+     * The wire meaning of the repurposed slot, pinned against the bytes rather than against this class's own
+     * {@code writeTo}. The slot is a released one — it carried {@code SchemaProvenance} to 9.5 peers, whose
+     * ordinals were {@code INFERRED=0, DECLARED=1}, and {@code StreamOutput#writeEnum} writes an ordinal as a
+     * VInt. So a 9.5 peer reading {@code 1} here sees {@code DECLARED}, and {@code bindsByName} must mean
+     * exactly that.
+     * <p>
+     * A round trip through our own pair cannot see this: inverting the write and the read together leaves every
+     * symmetric test green while desynchronising the meaning against a released peer. The same reasoning is
+     * already written down one test up, for the {@code _id.path} slot; it applies with more force to the slot
+     * this change redefines. The trailing marker additionally pins that the slot is exactly one VInt wide.
+     */
+    public void testTheInstructionSlotCarriesTheProvenanceOrdinalOnTheWire() throws IOException {
+        for (boolean bindsByName : new boolean[] { false, true }) {
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.setTransportVersion(TransportVersion.current());
+                DeclaredReadSpec.of(Map.of("id", "emp_no"), Map.of(), Set.of(), bindsByName).writeTo(out);
+                out.writeString("marker");
+
+                try (StreamInput in = out.bytes().streamInput()) {
+                    in.setTransportVersion(TransportVersion.current());
+                    in.readMap(StreamInput::readString);
+                    in.readOptionalString();
+                    in.readMap(StreamInput::readString);
+                    in.readCollectionAsSet(StreamInput::readString);
+                    assertEquals(
+                        "bind-by-name goes on the wire as DECLARED's ordinal, which is what a 9.5 peer reads",
+                        bindsByName ? 1 : 0,
+                        in.readVInt()
+                    );
+                    assertEquals("the slot is one VInt and nothing more", "marker", in.readString());
+                }
+            }
+        }
+    }
+
+    /**
+     * And the read side against hand-written bytes, so a dropped or inverted read is caught too. A 9.5 peer
+     * writing {@code DECLARED} puts a VInt {@code 1} in this slot; we must read that back as bind-by-name.
+     */
+    public void testTheInstructionSlotIsReadAsTheProvenanceOrdinal() throws IOException {
+        for (int ordinal : new int[] { 0, 1 }) {
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.setTransportVersion(TransportVersion.current());
+                out.writeMap(Map.of("id", "emp_no"), StreamOutput::writeString, StreamOutput::writeString);
+                out.writeOptionalString(null);
+                out.writeMap(Map.of(), StreamOutput::writeString, StreamOutput::writeString);
+                out.writeCollection(Set.<String>of(), StreamOutput::writeString);
+                out.writeVInt(ordinal); // the slot, as a peer writes SchemaProvenance's ordinal
+                out.writeString("marker");
+
+                try (StreamInput in = out.bytes().streamInput()) {
+                    in.setTransportVersion(TransportVersion.current());
+                    DeclaredReadSpec spec = DeclaredReadSpec.readFrom(in);
+                    assertEquals("ordinal 1 is DECLARED, which binds by name", ordinal == 1, spec.bindsByName());
+                    assertEquals("the slot must be consumed, leaving the stream aligned", "marker", in.readString());
+                }
+            }
+        }
+    }
+
     /** The slot that used to hold the schema-provenance enum carries the name binding, and survives the round trip. */
     public void testTheInstructionSlotCarriesTheNameBinding() throws IOException {
         for (boolean declared : new boolean[] { false, true }) {

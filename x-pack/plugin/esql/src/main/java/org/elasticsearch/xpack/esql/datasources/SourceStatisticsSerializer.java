@@ -380,7 +380,7 @@ public final class SourceStatisticsSerializer {
      * ({@code _stats.columns.a.b.min} -> {@code a.b}) survives.
      */
     @Nullable
-    private static String columnNameOfStatKey(String key) {
+    public static String columnNameOfStatKey(String key) {
         if (key.startsWith(STATS_COL_PREFIX) == false) {
             return null;
         }

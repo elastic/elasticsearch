@@ -14,7 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.BytesRefs;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -27,7 +27,7 @@ public class BinaryDocValuesField extends AbstractScriptFieldFactory<ByteBuffer>
         DocValuesScriptFieldFactory,
         ScriptDocValues.Supplier<BytesRef> {
 
-    private final SortedBinaryDocValues input;
+    private final SortableBinaryDocValues input;
     private final String name;
 
     private BytesRefBuilder[] values = new BytesRefBuilder[0];
@@ -37,7 +37,7 @@ public class BinaryDocValuesField extends AbstractScriptFieldFactory<ByteBuffer>
     // as a delegate to this field class
     private BytesRefs bytesRefs = null;
 
-    public BinaryDocValuesField(SortedBinaryDocValues input, String name) {
+    public BinaryDocValuesField(SortableBinaryDocValues input, String name) {
         this.input = input;
         this.name = name;
     }
@@ -47,7 +47,7 @@ public class BinaryDocValuesField extends AbstractScriptFieldFactory<ByteBuffer>
         if (input.advanceExact(docId)) {
             resize(input.docValueCount());
             for (int i = 0; i < count; i++) {
-                // We need to make a copy here, because BytesBinaryDVLeafFieldData's SortedBinaryDocValues
+                // We need to make a copy here, because BytesBinaryDVLeafFieldData's SortableBinaryDocValues
                 // implementation reuses the returned BytesRef. Otherwise, we would end up with the same BytesRef
                 // instance for all slots in the values array.
                 values[i].copyBytes(input.nextValue());

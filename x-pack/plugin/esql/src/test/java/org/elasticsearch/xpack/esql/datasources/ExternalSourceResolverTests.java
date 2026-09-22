@@ -4712,6 +4712,16 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * Lookups against the per-file schema store: hits AND misses. Counting hits alone would let a change that
+     * stops finding the entries — turning every hit into a miss and re-reading every footer — satisfy an
+     * assertion written to prove the opposite.
+     */
+    private static long schemaCacheLookups(ExternalSourceCacheService cacheService) {
+        Map<String, Object> stats = cacheService.usageStats();
+        return ((Number) stats.get("schema_cache.hits")).longValue() + ((Number) stats.get("schema_cache.misses")).longValue();
+    }
+
+    /**
      * A dataset whose file set has not changed must not have its schema resolved again: the second resolve
      * must answer from one dataset-level entry, doing no per-file work at all. Today every resolve rebuilds
      * the result from per-file entries, so the per-file schema store is consulted once per file on the
@@ -4749,19 +4759,20 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
                 resolver.resolve(List.of("s3://bucket/data/*.parquet"), pathConfigs, f1);
                 assertNotNull("[" + strategy + "] first resolve must produce a source", f1.actionGet().resolvedSource("s3://bucket/data/*.parquet"));
-                long schemaHitsAfterFirst = ((Number) cacheService.usageStats().get("schema_cache.hits")).longValue();
+                long lookupsAfterFirst = schemaCacheLookups(cacheService);
 
                 PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
                 resolver.resolve(List.of("s3://bucket/data/*.parquet"), pathConfigs, f2);
                 assertNotNull("[" + strategy + "] second resolve must produce a source", f2.actionGet().resolvedSource("s3://bucket/data/*.parquet"));
-                long schemaHitsAfterSecond = ((Number) cacheService.usageStats().get("schema_cache.hits")).longValue();
+                long lookupsAfterSecond = schemaCacheLookups(cacheService);
 
-                warmLookupsByStrategy.put(strategy, schemaHitsAfterSecond - schemaHitsAfterFirst);
+                warmLookupsByStrategy.put(strategy, lookupsAfterSecond - lookupsAfterFirst);
             }
         }
 
         assertEquals(
-            "a warm resolve of an unchanged 3-file set must consult the per-file schema store 0 times per strategy, observed "
+            "a warm resolve of an unchanged 3-file set must not consult the per-file schema store at all "
+                + "(counting hits AND misses, so a regression that turns hits into misses cannot pass), observed "
                 + warmLookupsByStrategy,
             Map.of(
                 FormatReader.SchemaResolution.FIRST_FILE_WINS,

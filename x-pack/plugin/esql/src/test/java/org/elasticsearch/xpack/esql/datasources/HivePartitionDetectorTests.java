@@ -394,6 +394,22 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertEquals(Set.of("year", "k"), result.partitionColumns().keySet());
     }
 
+    /**
+     * pyarrow ({@code write_dataset}, hive flavor) writes a double partition as {@code price=1.5} and {@code price=2}.
+     * DuckDB and ClickHouse both read {@code price}. A dotted folder value must not make the listing lose its other
+     * partition column {@code year}.
+     */
+    public void testDottedValueFolderDoesNotDropOtherPartitionColumns() {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/data/year=2024/price=1.5/f1.parquet"),
+            entry("s3://bucket/data/year=2024/price=2/f2.parquet")
+        );
+
+        PartitionMetadata result = HivePartitionDetector.INSTANCE.detect(files, WarningSinks.FAILING);
+
+        assertTrue("year must stay a partition column", result.partitionColumns().containsKey("year"));
+    }
+
     public void testMultiplePartitionLevels() {
         List<StorageEntry> files = List.of(
             entry("s3://bucket/data/country=US/state=CA/city=LA/file.parquet"),

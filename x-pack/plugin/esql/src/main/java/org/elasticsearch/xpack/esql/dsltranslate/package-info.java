@@ -33,10 +33,10 @@
  *     missing field &rarr; {@link org.elasticsearch.xpack.esql.core.expression.Literal#NULL}). It decides nothing about
  *     datasets, indices or views — reaching a new boundary is a change of the predicate, not of the mechanism.</li>
  *     <li>{@link org.elasticsearch.xpack.esql.dsltranslate.RequestFilterRewriter} — the dataset <em>policy</em> over
- *     that mechanism: it targets external leaves, and gates the rewrite. It is fail-closed: an unsupported clause fails
- *     the whole query with a 400 naming the construct, rather than silently applying a widened superset. It is feature-flagged
- *     (on in snapshot builds, excluded from release) and version-gated, because
- *     the translated predicate can contain expressions older nodes cannot deserialize.</li>
+ *     that mechanism: it targets external leaves, and gates the rewrite. An unsupported clause never fails the query:
+ *     the translatable conjuncts are applied and the rest are dropped with a warning naming each one, so a dropped
+ *     clause widens what matches rather than narrowing it. It is version-gated, because the translated predicate can
+ *     contain expressions older nodes cannot deserialize.</li>
  * </ul>
  *
  * <h2>Two invariants the whole thing rests on</h2>

@@ -749,7 +749,12 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
         // The model size is still added in option 3 to account for the temporary requirement to hold the zip file in memory
         // in `pytorch_inference`.
-        if (isElserV1Or2Model(modelId)) {
+        //
+        // The flat ELSER estimate is only used when we have no per-allocation/per-deployment memory information. Once actual
+        // per-allocation memory has been observed at runtime (threaded in here via the assignment's observed memory), we fall
+        // through to the linear branch so that memory scales with the number of allocations and the planner memory guards
+        // engage. This is what bounds ELSER deployments by real memory.
+        if (isElserV1Or2Model(modelId) && perDeploymentMemoryBytes == 0 && perAllocationMemoryBytes == 0) {
             return ELSER_1_OR_2_MEMORY_USAGE.getBytes();
         } else {
             long baseSize = MEMORY_OVERHEAD.getBytes() + 2 * totalDefinitionLength;

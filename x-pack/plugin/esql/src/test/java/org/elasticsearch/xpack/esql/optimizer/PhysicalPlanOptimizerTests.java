@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggrega
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.UnaryAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
@@ -10302,7 +10303,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(reason, aggField.dataType(), equalTo(fieldType));
     }
 
-    private static AggregateFunction assertAggregation(PhysicalPlan plan, String aliasName, Class<? extends AggregateFunction> aggClass) {
+    private static UnaryAggregateFunction assertAggregation(
+        PhysicalPlan plan,
+        String aliasName,
+        Class<? extends AggregateFunction> aggClass
+    ) {
         var agg = as(plan, AggregateExec.class);
         var aggExp = agg.aggregates().stream().filter(a -> {
             var alias = as(a, Alias.class);
@@ -10310,7 +10315,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         }).findFirst().orElseThrow(() -> new AssertionError("Expected aggregation " + aliasName + " not found"));
         var alias = as(aggExp, Alias.class);
         assertThat(alias.name(), is(aliasName));
-        var aggFunc = as(alias.child(), AggregateFunction.class);
+        var aggFunc = as(alias.child(), UnaryAggregateFunction.class);
         assertThat(aggFunc, instanceOf(aggClass));
         return aggFunc;
     }

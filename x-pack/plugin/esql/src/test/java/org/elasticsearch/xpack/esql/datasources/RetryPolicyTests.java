@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -98,6 +99,8 @@ public class RetryPolicyTests extends ESTestCase {
         assertFalse(policy.isRetryable(new IOException("NoSuchKey")));
         assertFalse(policy.isRetryable(new IOException("Service Unavailable")));
         assertFalse(policy.isRetryable(new SecurityException("forbidden")));
+        assertFalse(policy.isRetryable(new ExternalCredentialsExpiredException("Session credentials expired")));
+        assertFalse(policy.isRetryable(new RuntimeException("wrapper", new ExternalCredentialsExpiredException("expired"))));
     }
 
     public void testNullMessageIsNotRetryable() {

@@ -12,6 +12,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticsearchException;
@@ -195,6 +196,14 @@ public final class ReshardSearchFilters implements Closeable {
                         }
                     } catch (ExecutionException e) {
                         logger.debug(() -> Strings.format("failed to warm resharding unowned-document bitsets for shard [%s]", shardId), e);
+                    } catch (AlreadyClosedException e) {
+                        logger.debug(
+                            () -> Strings.format(
+                                "engine closed before warming resharding unowned-document bitsets for shard [%s]",
+                                shardId
+                            ),
+                            e
+                        );
                     }
                 });
             }
